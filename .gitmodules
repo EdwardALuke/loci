@@ -16,3 +16,6 @@
 [submodule "ext/petsc"]
 	path = ext/petsc
 	url = https://github.com/petsc/petsc.git
+[submodule "ext/cgns"]
+	path = ext/cgns
+	url = https://github.com/CGNS/CGNS.git

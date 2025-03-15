@@ -392,21 +392,26 @@ namespace Loci {
 
   // For cases with periodic boundary conditions where both cells in a periodic
   // pair are local, the number of non-zeros in the row must increase by 1 to
-  // account for a cell's periodic partner.
+  // account for a cell's periodic partner. Use unit/apply because some cells
+  // may have multiple periodic pairs.
   $type petscNumDiagonalFromPeriodic store<int>;
-  $rule pointwise(petscNumDiagonalFromPeriodic), constraint(geom_cells) {
+  $rule unit(petscNumDiagonalFromPeriodic), constraint(geom_cells) {
     $petscNumDiagonalFromPeriodic = 0;
   }
+  $rule apply(petscNumDiagonalFromPeriodic)[Loci::Summation], constraint(geom_cells) {
+    join($petscNumDiagonalFromPeriodic, 0);
+  }
 
-  $rule pointwise(cl->periodic::petscNumDiagonalFromPeriodic <- cl->petscLocalCell, cl, pmap->cl),
-      constraint(periodicFaces) {
-    $cl->$petscNumDiagonalFromPeriodic = 0;
+  $rule apply(cl->petscNumDiagonalFromPeriodic <- cl->petscLocalCell,
+              cl, pmap->cl)[Loci::Summation], constraint(periodicFaces) {
     // if both cells in a periodic pair are local, increase diagonal
-    if($cl->$petscLocalCell.inSet($cl) && $cl->$petscLocalCell.inSet($pmap->$cl)) {
-      $cl->$petscNumDiagonalFromPeriodic = 1;
+    if ($cl->$petscLocalCell.inSet($cl) &&
+        $cl->$petscLocalCell.inSet($pmap->$cl)) {
+      join($cl->$petscNumDiagonalFromPeriodic, 1);
     }
   }
 
+  
   $type petscNumDiagonalNonZero store<int>;
   $rule pointwise(petscNumDiagonalNonZero <- petscNumDiagonal, petscNumDiagonalFromPeriodic),
       constraint(geom_cells) {

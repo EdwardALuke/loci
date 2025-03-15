@@ -766,9 +766,9 @@ namespace Loci {
     const int bsz = $boundary_map.size() ;
     for(int i=0;i<bsz;++i) {
       vector3d<real_t> df = $boundary_map[i]->$X_f - X_center ;
-      Qt_b.x += df.x*$LSWeights[i] ;
-      Qt_b.y += df.y*$LSWeights[i] ;
-      Qt_b.z += df.z*$LSWeights[i] ;
+      Qt_b.x += df.x*$LSBWeights[i] ;
+      Qt_b.y += df.y*$LSBWeights[i] ;
+      Qt_b.z += df.z*$LSBWeights[i] ;
     }
 
     $gradv3d(X) = Qt_b ; 

@@ -2932,7 +2932,6 @@ void parseFile::processFile(string file, ostream &outputFile,
           } else if(key == "include") {
             killsp() ;
             if(!is_string(is)) {
-	      parseInfo.fileNameStack.pop_back() ;
               throw parseError("syntax error") ;
 	    }
             string newfile = get_string(is) ;
@@ -2961,11 +2960,9 @@ void parseFile::processFile(string file, ostream &outputFile,
 	    }
             
           } else {
-	    parseInfo.fileNameStack.pop_back() ;
             throw parseError("syntax error: unknown key") ;
           }
         } else {
-	  parseInfo.fileNameStack.pop_back() ;
           throw parseError("unable to process '$' command") ;
         }
       } else {

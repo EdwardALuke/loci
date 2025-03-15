@@ -21,7 +21,7 @@ submodules:
 
 ```bash
 cd $HOME/code
-git clone https://github.com/rlfontenot/loci.git
+git clone https://github.com/EdwardALuke/loci.git
 cd loci
 git submodule init
 ```
