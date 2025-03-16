@@ -27,22 +27,9 @@ list<string> include_dirs ;
 
 bool prettyOutput = false ;
 namespace {
-  const char *revision_name = "$Name: " LOCI_BRANCH "-" LOCI_VERSION " $" ;
 
   std::string version() {
-    const char *p = revision_name;
-    while(*p!=':' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    while(*p!=' ' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    std::string rn ;
-    while(*p!='$' &&  *p!=' ' && *p!='\0')
-      rn += *p++ ;
-
+    string rn = string(LOCI_BRANCH) + "-" + string(LOCI_VERSION) ;
     rn += " lpp compiled at " ;
     rn += __DATE__ ;
     rn += " " ;

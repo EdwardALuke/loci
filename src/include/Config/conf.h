@@ -21,6 +21,8 @@
 #ifndef LOCI_CONFIGURATION_INCLUDE
 #define LOCI_CONFIGURATION_INCLUDE
 
+#include "Config/version_info.h"
+
 #define DYNAMICSCHEDULING
 
 #ifdef restrict
