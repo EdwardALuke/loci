@@ -16,7 +16,9 @@ TestResults: $(TEST_FILES) FRC
 
 
 %.test : %.vars
-	../FVMModUnitTest $*.vars >& $*.test
+	@echo Test $*
+	@DYLD_LIBRARY_PATH=$(LOCI_BASE)/lib:$DYLD_LIBRARY_PATH LD_LIBRARY_PATH=$(LOCI_BASE)/lib:$LD_LIBRARY_PATH ../FVMModUnitTest $*.vars >& $*.test
+	@grep TEST $*.test
 
 
 clean:
