@@ -85,6 +85,7 @@ namespace Loci {
     virtual void dataCollate(collectData &data_collector) const ;
   } ;
 
+#ifdef DYNAMICSCHEDULING
   struct ExpandStartUnit {
     variable var ;              // name of the starting var
     storeRepP rep ;             // NOTE we cannot use MapRepP here
@@ -514,6 +515,7 @@ namespace Loci {
     void add_drule(execute_druleP drp) { drules.push_back(drp) ; }
   } ;
 
+#endif
   class execute_rule_null : public execute_modules {
   protected:
     rule rule_tag ; 

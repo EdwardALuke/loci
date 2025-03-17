@@ -33,9 +33,6 @@
 #include <fcntl.h>
 
 #include <vector>
-#ifdef LOCI_V5
-#include <GLoci.h>
-#endif
 
 using std::vector ;
 
@@ -48,16 +45,6 @@ using Loci::variableSet ;
 using Loci::variable ;
 using Loci::MPI_processes ;
 using Loci::MPI_rank ;
-
-namespace flowPsi {
-  
-  unsigned long BCErrorCode ;
-  gridPostList::gridPostListEnt *gridPostList::postlist = 0 ;
-  
-
-  double StartTime = 0 ;
-  
-}
 
 void pretty_print_string(string i,string s, ostream &o) {
   o << i  << ": " ;
@@ -145,14 +132,36 @@ void describe_inputs(rule_db &rdb) {
 
 }
 
-//#include "FVMAdapt/globals.h"
-//#include "FVMAdapt/dataxferDB.h"
+string extractCaseName(string input) {
+  size_t dotloc = input.rfind(".") ;
+  size_t slaloc = input.rfind("/") ;
+  if(dotloc == string::npos) 
+    dotloc = input.size() ;
+  if(slaloc == string::npos)
+    slaloc = 0 ;
+  else
+    slaloc++ ;
+  
+  if(dotloc < slaloc)
+    dotloc = input.size() ;
+
+  string result ;
+  for(size_t i=slaloc;i<dotloc;++i)
+    result += input[i] ;
+  if(result == "") 
+    result = "not" ;
+  if(result == "..") 
+    result = "dotdot" ;
+  if(result ==".")
+    result = "dot" ;
+
+  return result ;
+}
 
 
 int main(int ac, char *av[]) {
   Loci::Init(&ac, &av) ;
 
-  flowPsi::StartTime = MPI_Wtime() ;
 #ifdef FLOWPSI_RPATH
   { string rpath = FLOWPSI_RPATH; Loci::AddModuleSearchDir(rpath) ; }
 #endif
@@ -164,10 +173,11 @@ int main(int ac, char *av[]) {
   variableSet docvars ;
   bool dryrun = false ;
   vector<string> modulesToLoad ;
-  
+  string outputFile ;
+  string message ;
   vector<pair<string,string> > command_vars ;
   
-   string casename ;
+  string casename ;
 
   while(ac>=2 && av[1][0] == '-') {
     // If user specifies an alternate query, extract it from the
@@ -212,6 +222,14 @@ int main(int ac, char *av[]) {
       command_vars.push_back(pv) ;
       av += 3 ;
       ac -= 3 ;
+    } else if(ac >= 3 && !strcmp(av[1],"-o")) {
+      outputFile = string(av[2]) ;
+      ac -= 2 ;
+      av += 2 ;
+    } else if(ac >= 3 && !strcmp(av[1],"-m")) {
+      message = string(av[2]) ;
+      ac -= 2 ;
+      av += 2 ;
     }
     else {
       cerr << "argument " << av[1] << " is not understood." << endl ;
@@ -268,59 +286,65 @@ int main(int ac, char *av[]) {
   fact_db facts ;
 
   Loci::load_module("fvm",rdb) ;
-  
+
+  string gridfile ;
   // Now look in vars file for directives to load in modules, or solid_heat
   if(ac > 1) {
-    casename=string(av[1]);
+    casename=extractCaseName(string(av[1]));
+    gridfile = casename + ".vog" ;
 
     string varsfile = casename+string(".vars") ;
     try {
       ifstream ifile(varsfile.c_str(),ios::in) ;
       if(ifile.fail()) {
-        cerr<<"can't open " << varsfile << endl ;
-        Loci::Abort() ;
-      }
-      Loci::parse::kill_white_space(ifile) ;
-      while(ifile.peek() != '{' && ifile.peek() != EOF) {
-        if( Loci::parse::is_name(ifile) ) {
-          string name = Loci::parse::get_name(ifile) ;
-          Loci::parse::kill_white_space(ifile) ;
-          if(ifile.peek() != ':') {
-            cerr << "expected ':' after '" << name << "' in file \""
-                 << varsfile << '"' << endl ;
-            Loci::Abort() ;
-          }
-          ifile.get() ;
-          Loci::parse::kill_white_space(ifile) ;
-          string argument ;
-          if(Loci::parse::is_string(ifile)) {
-            argument = Loci::parse::get_string(ifile) ;
-          } else if(Loci::parse::is_name(ifile)) {
-            argument = Loci::parse::get_name(ifile) ;
-          } else {
-            cerr << "unable to parse argument to option '" << name
-                 << "' in file \"" << varsfile << '"' << endl ;
-            Loci::Abort() ;
-          }
-          if(name == "loadModule") {
-            modulesToLoad.push_back(argument) ;
-          } else if(name == "query") {
-            query = argument ;
-          } else {
-            cerr << "unable to interpret preamble directive '"
-                 << name << "' found in file \"" << varsfile << '"' << endl ;
-            Loci::Abort() ;
-          }
-        } else {
-          cerr << "problem parsing preamble of '" << varsfile << "'" << endl ;
-          string s ;
-          ifile >> s ;
-          cerr << "problem near token '" << s << "'" << endl ;
-          Loci::Abort() ;
-        }
+        //        cerr<<"can't open " << varsfile << endl ;
+        //        Loci::Abort() ;
+      } else {
         Loci::parse::kill_white_space(ifile) ;
+        while(ifile.peek() != '{' && ifile.peek() != EOF) {
+          if( Loci::parse::is_name(ifile) ) {
+            string name = Loci::parse::get_name(ifile) ;
+            Loci::parse::kill_white_space(ifile) ;
+            if(ifile.peek() != ':') {
+              cerr << "expected ':' after '" << name << "' in file \""
+                   << varsfile << '"' << endl ;
+              Loci::Abort() ;
+            }
+            ifile.get() ;
+            Loci::parse::kill_white_space(ifile) ;
+            string argument ;
+            if(Loci::parse::is_string(ifile)) {
+              argument = Loci::parse::get_string(ifile) ;
+            } else if(Loci::parse::is_name(ifile)) {
+              argument = Loci::parse::get_name(ifile) ;
+            } else {
+              cerr << "unable to parse argument to option '" << name
+                   << "' in file \"" << varsfile << '"' << endl ;
+              Loci::Abort() ;
+            }
+            if(name == "loadModule") {
+              modulesToLoad.push_back(argument) ;
+            } else if(name == "query") {
+              query = argument ;
+            } else if(name == "grid") {
+              gridfile = argument ;
+            } else if(name == "message") {
+              message = argument ;
+            } else {
+              cerr << "unable to interpret preamble directive '"
+                   << name << "' found in file \"" << varsfile << '"' << endl ;
+              Loci::Abort() ;
+            }
+          } else {
+            cerr << "problem parsing preamble of '" << varsfile << "'" << endl ;
+            string s ;
+            ifile >> s ;
+            cerr << "problem near token '" << s << "'" << endl ;
+            Loci::Abort() ;
+          }
+          Loci::parse::kill_white_space(ifile) ;
+        }
       }
-      
     } catch(const Loci::BasicException &err) {
       err.Print(cerr) ;
       cerr << "aborted reading \"" << varsfile << "\"" << endl ;
@@ -396,80 +420,19 @@ int main(int ac, char *av[]) {
     Loci::Finalize() ;
     exit(0) ;
   }
-  read_grid(facts,rdb,av[1],dryrun) ;
 
-  if(command_vars.size() > 0) {
-    for(size_t i=0;i<command_vars.size();++i) {
-      string vname = command_vars[i].first ;
-      Loci::variable var(vname) ;
-      Loci::storeRepP vp = facts.get_variable(var) ;
-      if(vp == 0) {
-        vp = facts.get_variable_type(var) ;
-        if(vp != 0) {
-          facts.create_fact(var,vp) ;
-        }
-        vp = facts.get_variable(var) ;
-      }
-      if(vp == 0) {
-        cerr << "unable to set variable '" << vname << "'" << endl ;
-        Loci::Abort() ;
-      }
-      ostringstream ss1 ;
-      ss1 << command_vars[i].second << endl ;
-      istringstream ssi(ss1.str()) ;
-      vp->Input(ssi) ;
-    }
-      
-  }
+  read_grid(facts,rdb,casename,command_vars,gridfile,dryrun) ;
     
   if(dryrun) {
     Loci::Finalize() ;
-    exit(0) ;
-  }
-  if(flowPsi::gridPostList::postlist != 0) {
-    flowPsi::gridPostList::gridPostListEnt *p = flowPsi::gridPostList::postlist ;
-    while(p!=0) {
-      p->entry->processData(facts,rdb) ;
-      p = p->next ;
-    }
-  }
-  
-  // If an initial condition file is given on the command line, add this
-  // information to the fact_dabase
-  if(ac >= 3) {
-
-    string restartDir = string(av[2]) ;
-    string firstTest = string("restart/") + restartDir ;
-    if(stat(firstTest.c_str(),&statbuf)) {
-      if(stat(restartDir.c_str(),&statbuf)) {
-        cerr << "unable to open restart directory: " << restartDir << endl ;
-        exit(-1) ;
-      }
-    } else
-      restartDir = firstTest ;
-    
-    if(!S_ISDIR(statbuf.st_mode)) {
-      cerr << "file '" << restartDir << "' should be a directory!" << endl ;
-      exit(-1) ;
-    }
-    restartDir += "/" ;
-#ifdef LOCI_V5
-    gParam<string> icfile ;
-    *icfile = restartDir ;
-    facts.create_gfact("icfile",icfile) ;
-#else
-    param<string> icfile ;
-
-    *icfile = restartDir ;
-    facts.create_fact("icfile",icfile) ;
-#endif
-  }
+    exit(0) ; 
+ }
 
   // Dump out parameters from fact database
   if(Loci::MPI_rank == 0) {
     char buf[512] ;
     bzero(buf,512) ;
-    snprintf(buf,511,"output/run_info.%s",av[1]) ;
+    snprintf(buf,511,"output/run_info.%s",casename.c_str()) ;
     ofstream db_file(buf) ;
     if(!db_file.fail()) {
       using namespace Loci ;
@@ -493,16 +456,25 @@ int main(int ac, char *av[]) {
 
   // Create execution schedule that derives the variable named 'solution'
   // from the database of facts using the rule database rdb.
-
-  // set up floating point exception handlers
-//  set_fpe_abort() ;
-
+  bool testPassed = false ;
   if(!Loci::makeQuery(rdb,facts,query)) {
     cerr << "query failed!" << endl ;
-    Loci::Abort() ;
   }
-
-      
+  if(facts.get_fact(query) != 0) {
+    param<bool> val ;
+    *val = testPassed ;
+    val = facts.get_fact(query) ;
+    testPassed = *val ;
+  }
   Loci::Finalize() ;
+  if(message.size()== 0)
+    message = query ;
+  
+  if(testPassed) {
+    cout << "TEST " << message << ": PASSED!" << endl ;
+    return 0 ;
+  }
+  cout << "TEST " << message << ": FAILED!" << endl ;
+  return -1 ;
 }
 

@@ -1,0 +1,152 @@
+//#############################################################################
+//#
+//# Copyright 2015-2019, Mississippi State University
+//#
+//# This file is part of the flowPsi computational fluid dynamics solver.
+//#
+//# The flowPsi solver is free software: you can redistribute it and/or modify
+//# it under the terms of the GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The flowPsi solver is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# GNU General Public License for more details.
+//#
+//# You should have received a copy of the GNU General Public License
+//# along with the flowPsi solver.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+
+#include <Loci.h>
+#include <Tools/expr.h>
+#include <Tools/stream.h>
+#include "flowTypes.h"
+#include "readGrid.h"
+
+#include <map>
+
+using std::map ;
+using std::string ;
+using std::vector;
+
+using Loci::debugout ;
+
+namespace flowPsi {
+  
+  
+  namespace {
+
+    class grid_options : public options_list {
+    public:
+      grid_options() :
+        options_list("bc_check") {} ;
+    } ;
+
+  }
+}
+
+namespace Loci {
+  template<> struct data_schema_traits<flowPsi::grid_options> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    
+    typedef char Converter_Base_Type ;
+    typedef StringStreamConverter<flowPsi::grid_options> Converter_Type ;
+  } ;
+
+}
+
+namespace flowPsi {
+
+
+  void read_grid(fact_db &facts, const rule_db &rdb, string casename,
+                 vector<pair<string,string> > &command_vars,
+                 string gridfile,
+                 bool dryrun) {
+    
+    // Add grid_file_info and boundary condition info to fact database so
+    // that they can be specified in the vars file
+    param<grid_options> grid_file_info ;
+    facts.create_fact("grid_file_info",grid_file_info) ;
+
+    param<std::string> modelName ;
+    *modelName = casename ;
+    facts.create_fact("modelName",modelName) ;
+    
+    try {
+      char buf[512] ;
+      bzero(buf,512) ;
+      string varsfile = casename + ".vars" ;
+      ifstream ifile(varsfile.c_str(),ios::in) ;
+      if(ifile.fail()) {
+        cerr << "no vars file" << endl ;
+        facts.setupDefaults(rdb) ;
+        string vars = "{boundary_conditions:<BC=bc,BC_1=bc,BC_2=bc,BC_3=bc,BC_4=bc,BC_5=bc,BC_6=bc>}" ;
+        istringstream iss(vars) ;
+        facts.read_vars(iss,rdb) ;
+      } else {
+        while(ifile.peek() != '{' && ifile.peek() != EOF) {
+          ifile.get() ;
+        }
+        cerr << "reading " << varsfile << endl ;
+        facts.read_vars(ifile,rdb) ;
+      }
+    } catch(const Loci::BasicException &err) {
+      err.Print(cerr) ;
+      cerr << "aborted reading \"" << casename << ".vars\"" << endl ;
+      Loci::Abort() ;
+    }
+    if(command_vars.size() > 0) {
+      for(size_t i=0;i<command_vars.size();++i) {
+        string vname = command_vars[i].first ;
+        Loci::variable var(vname) ;
+        Loci::storeRepP vp = facts.get_variable(var) ;
+        if(vp == 0) {
+          vp = facts.get_variable_type(var) ;
+          if(vp != 0) {
+            facts.create_fact(var,vp) ;
+          }
+          vp = facts.get_variable(var) ;
+        }
+        if(vp == 0) {
+          cerr << "unable to set variable '" << vname << "'" << endl ;
+          Loci::Abort() ;
+        }
+        ostringstream ss1 ;
+        ss1 << command_vars[i].second << endl ;
+        istringstream ssi(ss1.str()) ;
+        vp->Input(ssi) ;
+      }
+      
+    }
+    
+    if(dryrun)
+      return ;
+
+    // Read in the grid file
+    string file = gridfile ;
+    if(Loci::MPI_rank == 0)
+      cout << "Grid File Input, reading file = " << file << endl ;
+
+    if(!Loci::setupFVMGrid(facts,file)) {
+      // Failure to read file
+      if(Loci::MPI_rank == 0) {
+        cerr << "Reading grid file '" << file
+             <<"' failed in grid reader!" << endl ;
+      }	     
+      Loci::Abort() ;
+    }
+    
+    if(Loci::MPI_rank == 0)
+      cout << "Reading Grid File Complete" << endl ;
+
+
+    Loci::setupBoundaryConditions(facts) ;
+
+    Loci::createLowerUpper(facts) ;
+
+  }
+}
+
+

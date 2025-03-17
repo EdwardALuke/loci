@@ -44,6 +44,7 @@ using std::set ;
 #include <rule.h>
 #include "sched_tools.h"
 
+#ifdef DYNAMICSCHEDULING
 namespace Loci {
   extern void ORBPartition(const std::vector<vector3d<float> >&,
                            std::vector<int>&, MPI_Comm) ;
@@ -603,5 +604,5 @@ namespace Loci {
 
 } // end of namespace Loci
 
-
+#endif
 // ... end of file ...

@@ -61,7 +61,6 @@ using std::stable_sort ;
 //using std::random_shuffle ;
 
 #include <sys/time.h>
-
 //#define VERBOSE
 
 namespace Loci {
@@ -249,17 +248,30 @@ namespace Loci {
   } // end of namespace
 
   assembleVisitor::
-  assembleVisitor(fact_db& fd, sched_db& sd,
+  assembleVisitor(
+#ifdef DYNAMICSCHEDULING
+                  fact_db& fd, sched_db& sd,
+#endif
                   const variableSet& arv,
                   const std::map<variable,
-                  std::pair<rule,CPTR<joiner> > >& ri,
-                  const variableSet& dt,
+                  std::pair<rule,CPTR<joiner> > >& ri
+#ifdef DYNAMICSCHEDULING
+                  ,const variableSet& dt,
                   const map<variable,string>& sc,
                   const map<variable,set<string> >& sac,
-                  const map<variable,set<string> >& drc):
-    facts(fd),scheds(sd),all_reduce_vars(arv),
-    reduceInfo(ri),dynamic_targets(dt),
-    self_clone(sc),shadow_clone(sac),drule_ctrl(drc) {
+                  const map<variable,set<string> >& drc
+#endif
+                  ):
+#ifdef DYNAMICSCHEDULING
+    facts(fd),scheds(sd),
+#endif
+    all_reduce_vars(arv),reduceInfo(ri)
+#ifdef DYNAMICSCHEDULING
+    ,dynamic_targets(dt),
+    self_clone(sc),shadow_clone(sac),drule_ctrl(drc)
+#endif
+  {
+#ifdef DYNAMICSCHEDULING
     // get all the keyspace critical vars
     map<string,KeySpaceP>::iterator ki ;
     for(ki=facts.keyspace.begin();ki!=facts.keyspace.end();++ki) {
@@ -295,6 +307,7 @@ namespace Loci {
     // build the dynamic rule control data
     for(sai=drule_ctrl.begin();sai!=drule_ctrl.end();++sai)
       drule_inputs += sai->first ;
+#endif
   }
   
   void assembleVisitor::compile_dag_sched
@@ -462,8 +475,10 @@ namespace Loci {
 
       all_vars += barrier_vars ;
 
+#ifdef DYNAMICSCHEDULING
       // remove dynamic targets
       barrier_vars -= dynamic_targets ;
+#endif
 
       if(barrier_vars != EMPTY) {
         dag_comp.push_back(new barrier_compiler(barrier_vars)) ;
@@ -471,7 +486,9 @@ namespace Loci {
       
       all_vars += singleton_vars ;
 
+#ifdef DYNAMICSCHEDULING
       singleton_vars -= dynamic_targets ;
+#endif
       if(singleton_vars != EMPTY)
         dag_comp.push_back(new singleton_var_compiler(singleton_vars)) ;
 
@@ -479,7 +496,9 @@ namespace Loci {
 
       all_vars += dide_vars ;
 
+#ifdef DYNAMICSCHEDULING
       reduce_vars -= dynamic_targets ;
+#endif
 #ifdef VERBOSE
       debugout << "all_vars = " << all_vars << endl ;
       debugout << "singleton_vars =" <<singleton_vars << endl ;
@@ -584,6 +603,7 @@ namespace Loci {
           }
         }
       }
+
       // check for automatic keyspace distribution
       variableSet level_critical =
         variableSet(all_vars & keyspace_critical_vars) ;
@@ -603,6 +623,7 @@ namespace Loci {
 
         dag_comp.push_back(new keyspace_dist_compiler(keyspace_dist)) ;
       }
+#endif
       if(check_dump_vars.ok()) {
         if(all_vars != EMPTY) 
           dag_comp.push_back(new dump_vars_compiler(all_vars)) ;
@@ -619,6 +640,8 @@ namespace Loci {
           FATAL(rmi == rcm.end()) ;
           dag_comp.push_back(rmi->second) ;
         }
+
+#ifdef DYNAMICSCHEDULING
         // check for manual keyspace distribution
         for(ri=rules.begin();ri!=rules.end();++ri) {
           if(is_internal_rule(ri))
@@ -628,8 +651,8 @@ namespace Loci {
             dag_comp.push_back
               (new keyspace_dist_compiler(rp->gather_keyspace_dist())) ;
         }
+#endif
       }
-#endif      
     }
   }
 

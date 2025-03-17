@@ -102,11 +102,13 @@ namespace Loci {
 
     std::set<std::vector<variableSet> > intensive_output_maps;
 
+#ifdef DYNAMICSCHEDULING
     // experimental inclusion of keyspace partitions
     std::map<std::string,KeySpaceP> keyspace ;
     // experimental inclusion of a key manager
     KeyManagerP key_manager ;
-
+#endif
+    
     variable remove_synonym(variable v) const {
       std::map<variable,variable>::const_iterator mi ;
       while((mi=synonyms.find(v)) != synonyms.end())
@@ -230,6 +232,7 @@ namespace Loci {
     void synonym_variable(variable v, variable synonym) ;
 
     void rotate_vars(const std::list<variable> &lvars) ;
+#ifdef DYNAMICSCHEDULING
     // this method will adjust the rotation vars
     // so that the all the history part will be
     // having the same domain as the current part
@@ -245,7 +248,7 @@ namespace Loci {
     // and we therefore must adjust the history
     // variables accordingly.
     void adjust_rotation_vars(const std::list<variable>& lvars) ;
-    
+#endif
     void set_namespace(std::string name_space){
       nspace_vec.insert(nspace_vec.begin(), 1, name_space) ; 
     }
@@ -382,6 +385,7 @@ namespace Loci {
    
     void Print_diagnostics() ;
 
+#ifdef DYNAMICSCHEDULING
     // experimental code to create keyspace from the
     // global registered keyspace list
     // returns "true" to indicate the methods succeeded,
@@ -390,6 +394,7 @@ namespace Loci {
     KeySpaceP get_keyspace(const std::string& kname) ;
     KeyManagerP get_key_manager() const {return key_manager ;}
     void init_key_manager() ;
+#endif
   } ;
   
   void reorder_facts(fact_db &facts, dMap &remap) ;

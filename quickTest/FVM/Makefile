@@ -14,8 +14,9 @@ TARGET = fluidTest
 include $(LOCI_BASE)/Loci.conf
 #COPT= -g -O0
 
-default: fluidTest ndiff
-	cd tests; $(MAKE) TestResults; cd ..
+tests: fluidTest ndiff
+	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE)
+
 
 fluidTest: $(OBJS)
 	$(LD) -o $(TARGET) $(OBJS) $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
@@ -25,7 +26,7 @@ ndiff: ndiff.o
 
 clean:
 	rm -fr $(OBJS) $(TARGET)
-	cd tests; $(MAKE) clean; cd ..
+	$(MAKE) -C tests clean
 
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) ndiff
@@ -34,7 +35,7 @@ LOCI_INTERMEDIATE_FILES = $(subst .loci,.cc, $(wildcard *.loci) )
 
 distclean:
 	rm -fr $(OBJS) $(TARGET) $(JUNK) $(LOCI_INTERMEDIATE_FILES) $(DEPEND_FILES)
-	cd tests; $(MAKE) distclean; cd ..
+	$(MAKE) -C tests distclean
 
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 

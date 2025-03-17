@@ -63,7 +63,7 @@ which will make LOCI_BASE = <install_directory>.
 
 If there are any problems with compilation you
 may need to edit the files OBJ/sys.conf (system configuration file) or
-OBJ/comp.conf (compiler configuration file) to accomodate variations
+OBJ/comp.conf (compiler configuration file) to accommodate variations
 on your system that the configure script did not detect. 
 
 To use the Loci library you will need to add the
@@ -82,21 +82,23 @@ directory.
 --------------------------------------------------------------------------------
 Notes for Debug Builds
 
-When debugging of Loci or associated codes is necessary, the user has two options.
-At configure time, one can include the following flag:
+When debugging of Loci or associated codes is necessary, the user has
+two options.  At configure time, one can include the following flag:
 
 ./configure --prefix<install_directory> --bounds-check
 
-which enables compiler-specific directives to enable bound checking of vectors/arrays.
+which enables compiler-specific directives to enable bound checking of
+vectors/arrays.
 
-To generate debugging information in the compiled object files, set the environment
-variable (for bash)
+To generate debugging information in the compiled object files, set
+the environment variable (for bash)
 
 export LOCI_DEBUG=<0,1,2,3>
 
 LOCI_DEBUG can be added to an environment module as well.
 LOCI_DEBUG will do two things: 
-   1. Enable debug compiler flags (-Wall -g3, and for gnu compilers, -ggdb and -fno-eliminate-unused-debug-symbols)
+   1. Enable debug compiler flags (-g3, and for gnu compilers, -ggdb and
+      -fno-eliminate-unused-debug-symbols)
    2. Change the optimization level of the compiled code:
       a. LOCI_DEBUG=0: -O0
       b. LOCI_DEBUG=1: -O1
@@ -105,11 +107,20 @@ LOCI_DEBUG will do two things:
 
 For gnu compilers, -ggdb should enable automatic traceback and reporting upon 
 code termination.
+-------------------------------------------------------------------------------
+Notes on running Loci test suite
+
+Loci provides a basic set of regression and unit tests that can be run with
+the 'test' make target, e.g.,
+
+make test
+
+Completing this command without error means that all tests have passed.
 
 -------------------------------------------------------------------------------
 Notes on installing packages required by Loci
 
-First:  You do not need to have root privledges to install this
+First:  You do not need to have root privileges to install this
 software, you only need to have enough disk space in directories that
 you have write permission.
 
@@ -186,7 +197,7 @@ make install
 
 
 
-That should install this version of Loci compiled with the intel
+That should install this version of Loci compiled with the Intel
 compiler.  The resulting executables should be compatible with both
 architectures.
 
@@ -214,7 +225,7 @@ PETSC_DIR=`pwd`
 
 This will configure PETSc to install into the directory
 '/opt/petsc-3.3-p2'.  You can change this target directory to a place
-that makes sense for your system setup by chainging the --prefix line
+that makes sense for your system setup by changing the --prefix line
 appropriately.  The configure script will then inform you of the
 command needed to compile PETSc.  It is usually something such as:
 

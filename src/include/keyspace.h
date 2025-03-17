@@ -21,6 +21,12 @@
 #ifndef KEY_SPACE_H
 #define KEY_SPACE_H
 
+#ifdef HAVE_CONFIG_H
+#include <config.h> // This must be the first file included
+#endif
+#include <Config/conf.h>
+
+#ifdef DYNAMICSCHEDULING
 #include <vector>
 #include <map>
 #include <set>
@@ -590,5 +596,6 @@ namespace Loci {
   } ;
 
 } // end of namespace Loci
+#endif
 
 #endif

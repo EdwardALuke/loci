@@ -317,6 +317,8 @@ echo cp $source/quickTest/test.conf $fulltarget/quickTest/test.conf
 mkdir -p $fulltarget/quickTest/Containers
 echo mkdir -p $fulltarget/quickTest/Containers
 mkdir -p $fulltarget/quickTest/FVM
+echo mkdir -p $fulltarget/quickTest/FVMModUnitTests
+mkdir -p $fulltarget/quickTest/FVMModUnitTests
 echo mkdir -p $fulltarget/quickTest/FVM
 pushd $source/quickTest/Containers
 for i in *.cc *.loci Makefile ; do
@@ -338,6 +340,7 @@ for i in *.cc *.loci Makefile ; do
 	fi
     fi
 done
+
 mkdir -p $fulltarget/quickTest/FVM/include
 pushd include
 for i in *.h *.lh ; do
@@ -356,6 +359,41 @@ for i in *.dat *.txt *.vars *.vog *.sh Makefile   ; do
 	if [ ! -h $fulltarget/quickTest/FVM/tests/$i ] ; then
 	    echo ln -s $source/quickTest/FVM/tests/$i $fulltarget/quickTest/FVM/tests/$i
 	    ln -s $source/quickTest/FVM/tests/$i $fulltarget/quickTest/FVM/tests/$i
+	fi
+    fi
+done
+popd
+popd
+
+
+pushd $source/quickTest/FVMModUnitTests
+for i in *.cc *.loci Makefile ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/$i ] ; then
+	    echo ln -s $source/quickTest/FVMModUnitTests/$i $fulltarget/quickTest/FVMModUnitTests/$i
+	    ln -s $source/quickTest/FVMModUnitTests/$i $fulltarget/quickTest/FVMModUnitTests/$i
+	fi
+    fi
+done
+
+mkdir -p $fulltarget/quickTest/FVMModUnitTests/include
+pushd include
+for i in *.h *.lh ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/include/$i ] ; then
+	    echo ln -s $source/quickTest/FVMModUnitTests/include/$i $fulltarget/quickTest/FVMModUnitTests/include/$i
+	    ln -s $source/quickTest/FVMModUnitTests/include/$i $fulltarget/quickTest/FVMModUnitTests/include/$i
+	fi
+    fi
+done
+popd
+mkdir -p $fulltarget/quickTest/FVMModUnitTests/tests
+pushd tests
+for i in *.dat *.txt *.vars *.vog *.sh Makefile   ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/tests/$i ] ; then
+	    echo ln -s $source/quickTest/FVMModUnitTests/tests/$i $fulltarget/quickTest/FVMModUnitTests/tests/$i
+	    ln -s $source/quickTest/FVMModUnitTests/tests/$i $fulltarget/quickTest/FVMModUnitTests/tests/$i
 	fi
     fi
 done

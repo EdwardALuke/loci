@@ -22,6 +22,7 @@
 LOCI_BASE = $(shell pwd)
 LOCI_COMPILE = true
 include Loci.conf
+include version.conf
 
 
 DEFINES = $(DEBUG) $(SYSTEM_DEFINES) $(MACHINE_SPECIFIC)
@@ -60,13 +61,26 @@ SPRNG :
 
 .PHONY: FORCE
 
-Tools/libTools.$(LIB_SUFFIX): FORCE
+LOCI_MAJOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v\([0-9][0-9]*\).*/\1/")
+LOCI_MINOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v[0-9][0-9]*[.]\([0-9][0-9]*\).*/\1/")
+include/Config/version_info.h: FORCE
+	@echo \#ifndef CONFIG_LOCI_INFO_H > version_info.h
+	@echo \#define CONFIG_LOCI_INFO_H >> version_info.h
+	@echo \#define LOCI_VERSION \"$(GIT_INFO)\" >> version_info.h
+	@echo \#define LOCI_BRANCH \"$(GIT_BRANCH)\" >> version_info.h
+	@echo \#define LOCI_VERSION_MAJOR $(LOCI_MAJOR_VERSION) >> version_info.h
+	@echo \#define LOCI_VERSION_MINOR $(LOCI_MINOR_VERSION) >> version_info.h
+	@echo \#endif >> version_info.h
+	@# Only update version_info.h if it has changed.
+	@if [ -e $@ ]; then if ! cmp version_info.h $@; then mv version_info.h $@ ; else rm version_info.h ; fi ; else mv version_info.h $@ ; fi
+
+Tools/libTools.$(LIB_SUFFIX): include/Config/version_info.h FORCE
 	$(MAKE) -C Tools LOCI_BASE="$(LOCI_BASE)" libTools.$(LIB_SUFFIX)
 
-System/libLoci.$(LIB_SUFFIX): FORCE
+System/libLoci.$(LIB_SUFFIX): include/Config/version_info.h FORCE
 	$(MAKE) -C System LOCI_BASE="$(LOCI_BASE)" libLoci.$(LIB_SUFFIX)
 
-lpp: Tools/libTools.$(LIB_SUFFIX) FORCE
+lpp: Tools/libTools.$(LIB_SUFFIX) include/Config/version_info.h FORCE
 	$(MAKE) -C lpp LOCI_BASE="$(LOCI_BASE)" lpp
 
 FVMtools: library lpp FVMAdapt SPRNG FORCE
@@ -88,6 +102,9 @@ test: default
 	$(MAKE) -C quickTest LOCI_BASE="$(LOCI_BASE)"
 
 .PHONY: clean
+
+testclean:
+	$(MAKE) -C quickTest distclean LOCI_BASE="$(LOCI_BASE)"
 
 clean:
 	rm -f $(JUNK)

@@ -555,11 +555,13 @@ namespace Loci {
         global_rule_list.copy_rule_list(register_rule_list) ;
         register_rule_list.clear() ;
       }
+#ifdef DYNAMICSCHEDULING
       // do the same to get all the defined keyspace
       if(!register_key_space_list.empty()) {
         global_key_space_list.copy_space_list(register_key_space_list) ;
         register_key_space_list.clear() ;
       }
+#endif
       bool debug_setup = false ;
       int i = 1 ;
       int k = 1 ; // copy cursor for removing processed arguments from argv
@@ -940,8 +942,10 @@ namespace Loci {
     register_rule_list.clear() ;
     global_rule_list.clear() ;
     rule::rdb_cleanup() ;
+#ifdef DYNAMICSHCEDULING
     register_key_space_list.clear() ;
     global_key_space_list.clear() ;
+#endif
     //    storeAllocateData.clear() ;
     //    GPUstoreAllocateData.clear() ;
     exec_current_fact_db = 0 ;
