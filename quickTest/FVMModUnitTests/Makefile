@@ -21,7 +21,9 @@ OBJS := $(AUTOMATIC_OBJS)
 $(TARGET): $(OBJS)
 	$(LD) -o $(TARGET) $(OBJS) $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
 
-tests: $(TARGET)
+.PHONY: FORCE
+
+tests: $(TARGET) FORCE
 	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE)
 
 clean:

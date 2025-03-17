@@ -12,12 +12,12 @@ default: TestResults
 FRC:
 
 TestResults: $(TEST_FILES) FRC
-	grep TEST $(TEST_FILES) > TestResults; rm -f $(TEST_FILES)
+	grep TEST $(TEST_FILES) > TestResults ; rm -f $(TEST_FILES) 
 
 
 %.test : %.vars
 	@echo Test $*
-	@DYLD_LIBRARY_PATH=$(LOCI_BASE)/lib:$DYLD_LIBRARY_PATH LD_LIBRARY_PATH=$(LOCI_BASE)/lib:$LD_LIBRARY_PATH ../FVMModUnitTest $*.vars >& $*.test
+	@./test.sh $*.vars $*.test
 	@grep TEST $*.test
 
 
