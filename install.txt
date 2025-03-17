@@ -31,6 +31,12 @@ libxml2: A library for parsing XML formatted input files.  This
 
 Notes on compiling these packages are provided at the end of this file.
 
+For users (or developers deploying on hpc systems), you may also 
+install the dependencies (and Loci itself) from Spack using the Loci spack
+package located at https://github.com/TimothyEDawson/loci_spack
+which simplifies greatly the build process. 
+For more information on Spack, see https://spack.readthedocs.io/en/latest/.
+
 -------------------------------------------------------------------------------
 
 How to compile and install the Loci libraries:
@@ -65,6 +71,13 @@ To use the Loci library you will need to add the
 and the <install_directory>/Loci-*/lib subdirectory to your
 LD_LIBRARY_PATH environment.  Also, you will need to set the LOCI_BASE
 environment variable to <install_directory>/Loci-*
+
+If you want to uninstall the Loci build:
+
+make uninstall
+
+which will remove all of the associated installed files from the LOCI_BASE install
+directory.
 
 --------------------------------------------------------------------------------
 Notes for Debug Builds

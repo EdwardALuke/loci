@@ -65,6 +65,10 @@ JUNK =  *~ core ii_files ti_files so_locations rii_files
 clean:
 	rm -fr $(OBJS) $(LIB_OBJS) Loci_version_lo.o $(TARGET) $(JUNK) libLoci.$(LIB_SUFFIX)
 
+.PHONY: uninstall
+uninstall:
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(TARGET)
+
 .PHONY: distclean
 distclean: clean
 	rm -fr  $(DEPEND_FILES) 
@@ -72,6 +76,6 @@ distclean: clean
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
 #include automatically generated dependencies
-ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
+ifeq ($(filter $(MAKECMDGOALS),clean distclean uninstall),)
 -include $(DEPEND_FILES)
 endif

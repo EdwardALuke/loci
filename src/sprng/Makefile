@@ -28,6 +28,9 @@ JUNK =  *~ core ii_files ti_files so_locations rii_files
 clean:
 	rm -fr $(LIB_OBJS) $(OBJS) $(TARGET) $(JUNK)
 
+uninstall: 
+	rm -fr $(LOCI_INSTALL_PATH)/lib/$(TARGET)
+
 distclean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(TARGET) $(JUNK) #$(DEPEND_FILES)
 

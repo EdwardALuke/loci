@@ -53,6 +53,10 @@ clean:
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~)  core 
 
+uninstall: 
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)FAD_m.so
+	rm -fr $(LOCI_INSTALL_PATH)/include/FVMMod
+
 distclean: 
 	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(JUNK) $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)
 
@@ -60,6 +64,6 @@ distclean:
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
 #include automatically generated dependencies
-ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
+ifeq ($(filter $(MAKECMDGOALS),clean distclean uninstall),)
 -include $(DEPEND_FILES)
 endif

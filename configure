@@ -929,6 +929,8 @@ echo "docs:"                                 >> Makefile
 echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
 echo "clean:"                                >> Makefile
 echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "uninstall:"                            >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
 echo "distclean:"                            >> Makefile
 echo "	rm -fr ${OBJDIR} copy.out Makefile"  >> Makefile
 echo "tarball:"                                                                        >> Makefile
@@ -945,3 +947,5 @@ echo "To compile Loci, enter:"
 echo "  make"
 echo "To install Loci in the directory $PREFIX, enter:"
 echo "  make install"
+echo "To uninstall Loci from the directory $PREFIX, enter:"
+echo "  make uninstall"

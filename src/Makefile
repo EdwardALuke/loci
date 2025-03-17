@@ -36,11 +36,10 @@ library: Tools/libTools.$(LIB_SUFFIX) System/libLoci.$(LIB_SUFFIX)
 docs:
 	$(MAKE) -C Tutorial/docs LOCI_BASE="$(LOCI_BASE)"
 
-install: default #docs
+install: default docs
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
 	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
-
 
 .PHONY: METIS
 METIS :
@@ -115,6 +114,37 @@ endif
 	$(MAKE) -C FVMOverset clean LOCI_BASE="$(LOCI_BASE)"
 	$(MAKE) -C quickTest clean LOCI_BASE="$(LOCI_BASE)"
 	$(MAKE) -C lpp clean LOCI_BASE="$(LOCI_BASE)"
+
+
+LOCI_HEADER_FILES= $(wildcard include/*.h include/*.lh include/Config/*.h \
+                              include/MPI_stubb/*.h) include/Loci
+
+.PHONY: uninstall
+uninstall: FORCE
+# Remove top level header files
+	@for d in $(LOCI_HEADER_FILES); do rm -f  $(LOCI_INSTALL_PATH)/$$d; done
+	@for d in Config MPI_stubb; do rmdir $(LOCI_INSTALL_PATH)/include/$$d; done
+# Remove Configuration files
+	@rm -f $(LOCI_INSTALL_PATH)/Loci.conf $(LOCI_INSTALL_PATH)/sys.conf \
+	      $(LOCI_INSTALL_PATH)/comp.conf $(LOCI_INSTALL_PATH)/version.conf 
+ifeq ($(INSTALL_METIS),1)
+	rm -f $(LOCI_INSTALL_PATH)/lib/libgk.$(LIB_SUFFIX) 
+	rm -f $(LOCI_INSTALL_PATH)/lib/libmetis.$(LIB_SUFFIX) 
+	rm -f $(LOCI_INSTALL_PATH)/lib/libparmetis.$(LIB_SUFFIX) 
+endif
+	$(MAKE) -C sprng uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+	$(MAKE) -C FVMMod uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+	$(MAKE) -C FVMAdapt uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+	$(MAKE) -C FVMOverset uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+	$(MAKE) -C FVMtools uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+	$(MAKE) -C lpp uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+	$(MAKE) -C System uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+	$(MAKE) -C Tools uninstall LOCI_BASE="$(LOCI_BASE)" LOCI_INSTALL_PATH="$(LOCI_INSTALL_PATH)"
+# remove documentation
+	rm -fr $(LOCI_INSTALL_PATH)/docs/1D-Diffusion
+	rm -fr $(LOCI_INSTALL_PATH)/docs/Datatypes
+	rm -fr $(LOCI_INSTALL_PATH)/docs/heat
+	rm -f $(LOCI_INSTALL_PATH)/docs/tutorial.pdf
 
 .PHONY: distclean
 distclean:

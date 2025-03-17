@@ -20,7 +20,6 @@ Makefiles or SQL query languages for databases. The advantage of this
 type of system is that it can often free the programmer from the
 burden of planning how to coordinate computations and as a result can
 eliminate many common sources of program errors.  
-programming.
 
 
 # Installation
@@ -188,6 +187,7 @@ The following make commands are provided after successfully executing `./configu
 | -----------                   | -----------                                                  |
 | `make default`                | Compile and install Loci within the OBJ directory            |
 | `make install`                | Compile and install Loci in the specified prefix directory   |
+| `make uninstall`              | Undo the install (remove Loci from the install directory)    |
 | `make test`                   | Run unit and regression tests                                |
 | `make docs`                   | Compile latex documentation to PDF files                     |
 | `make clean`                  | Clean compiled files from OBJ directory                      |
