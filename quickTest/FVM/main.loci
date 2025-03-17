@@ -57,31 +57,6 @@ namespace flowPsi {
 
   double StartTime = 0 ;
   
-  const char *revision_name = "$Name:  $" ;
-
-  std::string version() {
-    const char *p = revision_name;
-    while(*p!=':' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    while(*p!=' ' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    std::string rn ;
-    while(*p!='$' &&  *p!=' ' && *p!='\0') 
-      rn += *p++ ;
-    return rn ;
-  }
-
-  std::string date() {
-    std::string rn ;
-    rn += __DATE__ ;
-    rn += " " ;
-    rn += __TIME__ ;
-    return rn ;
-  }    
 }
 
 void pretty_print_string(string i,string s, ostream &o) {
@@ -202,8 +177,6 @@ int main(int ac, char *av[]) {
       ac -= 2 ;
       av += 2 ;
     } else if(ac >= 2 && !strcmp(av[1],"-v")) {
-      cout << "flowPsi version:  " << flowPsi::version() << " Compiled On "
-           << flowPsi::date() << endl ;
       cout << "Loci version: " << Loci::version() << endl ;
       if(ac == 2) {
         Loci::Finalize() ;
@@ -268,21 +241,15 @@ int main(int ac, char *av[]) {
   
 
   if(ac <= 1 && !input_desc && !output_doc) {
-    cout << "flowPsi version:  " << flowPsi::version() << " Date: "
-         << flowPsi::date() << endl ;
     cout << "Loci version: " << Loci::version() << endl ;
     Loci::Finalize() ;
     exit(0) ;
   }
 
   if(Loci::MPI_rank == 0) {
-    cout << "flowPsi version:  " << flowPsi::version() << " Date: "
-         << flowPsi::date() << endl ;
     cout << "Loci version: " << Loci::version() << endl ;
   }
   
-  Loci::debugout << "flowPsi version:  " << flowPsi::version() << " Date: "
-                 << flowPsi::date() << endl ;
   Loci::debugout << "Loci version: " << Loci::version() << endl ;
 
 
