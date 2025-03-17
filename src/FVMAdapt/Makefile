@@ -111,25 +111,25 @@ LIB_OBJS2=$(LIB_OBJS:.o=_lo.o)
 
 INCLUDES=	-I$(LOCI_BASE)/include/FVMAdapt $(LIBXML2_INCLUDE) $(LIBXML2_DEFINE)
 
-all: $(MODULE_NAME)_m.so lib$(LIB_NAME).so 
+all: $(MODULE_NAME)_m.so lib$(LIB_NAME).$(LIB_SUFFIX) 
 
 $(MODULE_NAME)_m.so: $(LIB_OBJS1)
 	$(SHARED_LD) $(SHARED_LD_FLAGS) $(MODULE_NAME)_m.so $(LIB_FLAGS) $(LIB_OBJS1) $(LOCAL_LIBS)
 
-lib$(LIB_NAME).so: $(LIB_OBJS2)
+lib$(LIB_NAME).$(LIB_SUFFIX): $(LIB_OBJS2)
 	$(DYNAMIC_LD) $(DYNAMIC_LD_FLAGS) lib$(LIB_NAME).$(LIB_SUFFIX) $(LIB_FLAGS) $(LIB_OBJS2)
 
 
 FRC :
 
 clean:
-	rm -fr $(MODULE_OBJS)  $(LIB_OBJS) $(LIB_OBJS1) $(LIB_OBJS2) lib$(MODULE_NAME).so $(MODULE_NAME)_m.so lib$(LIB_NAME).so $(LIB_NAME)_m.so $(JUNK)
+	rm -fr $(MODULE_OBJS)  $(LIB_OBJS) $(LIB_OBJS1) $(LIB_OBJS2) $(MODULE_NAME)_m.so lib$(LIB_NAME).$(LIB_SUFFIX) $(JUNK)
 
 # intermediate files created from .loci files
 LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
 
 uninstall:
-	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/lib$(LIB_NAME).so
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/lib$(LIB_NAME).$(LIB_SUFFIX)
 	rm -fr $(LOCI_INSTALL_PATH)/include/FVMAdapt
 
 distclean: clean
