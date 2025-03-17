@@ -27,7 +27,9 @@
 #include <dlfcn.h>
 
 #include <rule.h>
+#ifdef DYNAMICSCHEDULING
 #include <keyspace.h>
+#endif
 #include <fact_db.h>
 #include <string>
 namespace Loci {
@@ -37,8 +39,9 @@ namespace Loci {
   public: 
     struct mod_info {
       rule_impl_list loaded_rule_list ;
+#ifdef DYNAMICSCHEDULING
       KeySpaceList loaded_keyspace_list ;
-      
+#endif
       std::string mod_name ;
       void *m_library ;
       void (*m_init_model)(fact_db &facts, rule_db &rdb, const char *problem_name) ;
@@ -58,7 +61,9 @@ namespace Loci {
       }
       mod_info(const mod_info& mi) {
 	loaded_rule_list.copy_rule_list(mi.loaded_rule_list) ;
+#ifdef DYNAMICSCHEDULING
         loaded_keyspace_list.copy_space_list(mi.loaded_keyspace_list) ;
+#endif
 	mod_name = mi.mod_name ;
         m_library = mi.m_library ;
         m_init_model = mi.m_init_model ;

@@ -363,6 +363,7 @@ namespace Loci {
       const rule_impl::info &finfo = ri->get_info().desc ;
       // get the keyspace tag the rule has
       bool skip_type_check = false ;
+#ifdef DYNAMICSCHEDULING
       string ks_tag = ri->get_info().rule_impl->get_keyspace_tag() ;
       if(ks_tag != "main") {
         map<string,KeySpaceP>::const_iterator mi ;
@@ -376,7 +377,7 @@ namespace Loci {
         if(mi->second->get_dynamism() == DYNAMIC)
           skip_type_check = true ;
       }
-      
+#endif
       // Collect all variables for which are actually read or written in the class
       set<vmap_info>::const_iterator i ;
       for(i=finfo.sources.begin();i!=finfo.sources.end();++i) {

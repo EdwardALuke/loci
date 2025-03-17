@@ -70,6 +70,7 @@ using Loci::blackbox_rule ;
 using Loci::optional_rule ;
 using Loci::register_rule ;
 
+#ifdef DYNAMICSCHEDULING
 using Loci::insertion_rule ;
 using Loci::deletion_rule ;
 using Loci::erase_rule ;
@@ -79,6 +80,7 @@ using Loci::KeySpaceDynamism ;
 using Loci::OrbKeySpace ;
 using Loci::register_key_space ;
 using Loci::global_key_space_list ;
+#endif
 
 using Loci::storeMat ;
 using Loci::const_storeMat ;

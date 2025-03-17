@@ -363,6 +363,7 @@ namespace Loci {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
   } ;
 
+#ifdef DYNAMICSCHEDULING
   // this one is purely for interface purpose
   class insertion_rule_interface: public rule_impl {
   public:
@@ -525,7 +526,8 @@ namespace Loci {
     }
   } ;
   typedef CPTR<erase_rule> erase_ruleP ;
-
+#endif
+  
   // This rule is 
   class super_rule : public rule_impl {
   protected:

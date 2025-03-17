@@ -2009,6 +2009,7 @@ namespace Loci {
   }
 #endif
 
+#ifdef DYNAMICSCHEDULING
   // execute_keyspace_init module
   execute_init_keyspace::
   execute_init_keyspace(fact_db& facts, sched_db& scheds) {
@@ -2077,7 +2078,8 @@ namespace Loci {
     oss << "Initialize all keyspaces" ;
     data_collector.accumulateTime(timer,EXEC_CONTROL,oss.str()) ;
   }
-
+#endif
+  
   // blackbox_compiler code
   void
   blackbox_compiler::set_var_existence(fact_db& facts, sched_db& scheds) {
