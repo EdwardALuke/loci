@@ -22,7 +22,9 @@
 LOCI_BASE ?= /usr/tmp/lush/Loci
 # Put objects in the module here
 OBJS =	metrics.o cellgradient.o facegradient.o limiter.o muscl.o\
-	node_values.o bcstuff.o surfaceIntegrations.o petsc.o misc.o
+	node_values.o bcstuff.o surfaceIntegrations.o petsc.o misc.o \
+	limiters/barth.o limiters/none.o limiters/nodal_barth.o \
+	limiters/venkatakrishnan.o limiters/venkatakrishnan2.o limiters/zero.o 
 MODULE_NAME = fvm
 
 #############################################################################
