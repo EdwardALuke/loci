@@ -37,6 +37,7 @@ namespace Loci {
   //
   //==========================================================================
   $type NB_limiter Constraint ;
+  $type firstOrderCells store<char> ;
   $type NGTNodalMax(X) store<real_t> ;
   $type NGTNodalMin(X) store<real_t> ;
   $type X store<real_t> ;
