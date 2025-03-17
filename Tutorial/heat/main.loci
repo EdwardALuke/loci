@@ -1,14 +1,11 @@
 #include <Loci.h>
-#include <GLoci.h>//the hearder files related to gfact_db and gcontainers
 #include <iostream>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
 
 using namespace std ;
-namespace Loci{
-  void copy_facts(gfact_db& gfacts);//just before making query, call this function to copy facts from gcontainers to traditional  containers
-}
+
 int main(int argc, char *argv[])
 {
   // Initialize Loci
@@ -62,7 +59,7 @@ int main(int argc, char *argv[])
     //-----------------------------------------------------------------
     // Create Fact Database
     //-----------------------------------------------------------------
-    gfact_db gfacts ; //start using gfact_db
+    fact_db facts ;
     
     if(argc <= 1) {
       cerr << "must provide case name as argument" << endl ;
@@ -70,24 +67,24 @@ int main(int argc, char *argv[])
     }
     string casename = argv[1] ;
     string varsFile = casename + ".vars" ;
-    gfacts.read_vars(varsFile,rdb) ;
-    gParam<std::string> modelName ;
+    facts.read_vars(varsFile,rdb) ;
+    param<std::string> modelName ;
     *modelName = casename ;
-    gfacts.create_gfact("modelName",modelName) ;
+    facts.create_fact("modelName",modelName) ;
     string gridFile = casename + ".vog" ;
-    if(!Loci::setupFVMGrid(gfacts,gridFile)) {
+    if(!Loci::setupFVMGrid(facts,gridFile)) {
       cerr << "unable to read grid file '" << gridFile << "'" << endl ;
       Loci::Abort() ;
     }
     
-    setupBoundaryConditions(gfacts) ;
+    setupBoundaryConditions(facts) ;
     
-    createLowerUpper(gfacts) ;
-    copy_facts(gfacts);//just before making query, copy facts from gcontainers to traditional  containers
+    createLowerUpper(facts) ;
+    
     // Query Loci for fact derived fact 'solution'
-    Loci::makeQuery(rdb,gfacts,query) ;
+    Loci::makeQuery(rdb,facts,query) ;
   }
-  catch(Loci::BasicException x) { // If Loci had an exception
+  catch(Loci::BasicException &x) { // If Loci had an exception
     cerr << "an exception was encountered: " << endl ;
     x.Print(cerr) ;
   }
