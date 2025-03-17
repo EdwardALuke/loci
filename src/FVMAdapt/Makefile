@@ -129,7 +129,8 @@ clean:
 LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
 
 uninstall:
-	rm -rf $(LOCI_INSTALLED_DIR)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALLED_DIR)/lib/$(MODULE_NAME)FAD_m.so $(LOCI_INSTALLED_DIR)/include/FVMAdapt $(LOCI_INSTALLED_DIR)/lib/lib$(LIB_NAME).so 
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/lib$(LIB_NAME).so
+	rm -fr $(LOCI_INSTALL_PATH)/include/FVMAdapt
 
 distclean: clean
 	rm -fr $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)

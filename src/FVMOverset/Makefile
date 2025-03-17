@@ -55,7 +55,8 @@ JUNK = $(wildcard *~)  core
 LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
 
 uninstall:
-	rm -rf $(LOCI_INSTALLED_DIR)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALLED_DIR)/lib/$(MODULE_NAME)FAD_m.so $(LOCI_INSTALLED_DIR)/include/FVMOverset
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)FAD_m.so
+	rm -fr $(LOCI_INSTALL_PATH)/include/FVMOverset
 
 
 distclean: 

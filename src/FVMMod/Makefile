@@ -54,7 +54,8 @@ clean:
 JUNK = $(wildcard *~)  core 
 
 uninstall: 
-	rm -rf $(LOCI_INSTALLED_DIR)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALLED_DIR)/lib/$(MODULE_NAME)FAD_m.so $(LOCI_INSTALLED_DIR)/include/FVMMod
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)FAD_m.so
+	rm -fr $(LOCI_INSTALL_PATH)/include/FVMMod
 
 distclean: 
 	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(JUNK) $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)

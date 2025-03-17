@@ -67,7 +67,7 @@ clean:
 
 .PHONY: uninstall
 uninstall:
-	rm -fr $(LOCI_INSTALLED_DIR)/lib/$(TARGET)
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(TARGET)
 
 .PHONY: distclean
 distclean: clean

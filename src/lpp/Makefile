@@ -51,7 +51,7 @@ clean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(TARGET) $(JUNK)
 
 uninstall:
-	rm -fr $(LOCI_INSTALLED_DIR)/bin/$(TARGET)
+	rm -f $(LOCI_INSTALL_PATH)/bin/$(TARGET)
 
 distclean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(TARGET) $(JUNK) $(DEPEND_FILES)
