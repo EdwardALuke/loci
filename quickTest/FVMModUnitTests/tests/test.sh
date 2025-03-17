@@ -1,0 +1,4 @@
+#!/bin/bash
+export LD_LIBRARY_PATH=$LOCI_BASE/lib:$LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=$LOCI_BASE/lib:$DYLD_LIBRARY_PATH
+../FVMModUnitTest $1 >& $2

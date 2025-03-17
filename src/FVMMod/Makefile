@@ -20,17 +20,21 @@
 ###############################################################################
 # This is the Loci base directory
 LOCI_BASE ?= /usr/tmp/lush/Loci
-# Put objects in the module here
-OBJS =	metrics.o cellgradient.o facegradient.o limiter.o muscl.o\
-	node_values.o bcstuff.o surfaceIntegrations.o petsc.o misc.o \
-	limiters/barth.o limiters/none.o limiters/nodal_barth.o \
-	limiters/venkatakrishnan.o limiters/venkatakrishnan2.o limiters/zero.o 
+include $(LOCI_BASE)/Loci.conf
+
+LIMITER_FILES=$(call loci_compile_files,limiters/)
+LIMITER_OBJS=$(call loci_file2objs,$(LIMITER_FILES))
+
+BASE_FILES=$(call loci_compile_files,)
+BASE_OBJS=$(call loci_file2objs,$(BASE_FILES))
+
+OBJS=$(BASE_OBJS) $(LIMITER_OBJS)
+
 MODULE_NAME = fvm
 
 #############################################################################
 # No changes needed below this line
 
-include $(LOCI_BASE)/Loci.conf
 
 LIB_OBJS=$(OBJS:.o=_lo.o)
 FAD_OBJS=$(OBJS:.o=_FAD.o)
@@ -47,7 +51,8 @@ FRC :
 
 
 # intermediate files created from .loci files
-LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
+LOCI_FILES = $(wildcard *.loci limiters/*.loci)
+LOCI_INTERMEDIATE_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
 
 clean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so 
