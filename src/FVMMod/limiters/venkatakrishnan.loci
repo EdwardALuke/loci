@@ -30,7 +30,7 @@ namespace Loci {
   typedef real_t real ;
 
  
-  $type V_limiter Constraint ;
+  $type Vk_limiter Constraint ;
   $type firstOrderCells store<char> ;
   $type Kl param<real> ;
 
@@ -60,7 +60,7 @@ namespace Loci {
 		  upper->cr->S,upper->facecenter,
 		  lower->cl->S,lower->facecenter,
 		  boundary_map->S_f,boundary_map->facecenter),
-      constraint(geom_cells,V_limiter) {
+      constraint(geom_cells,Vk_limiter) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -125,7 +125,7 @@ namespace Loci {
 		  upper->cr->V,upper->facecenter,
 		  lower->cl->V,lower->facecenter,
 		  boundary_map->V_f,boundary_map->facecenter),
-      constraint(geom_cells,V_limiter) {
+      constraint(geom_cells,Vk_limiter) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -207,7 +207,7 @@ namespace Loci {
 		  upper->cr->M,upper->facecenter,
 		  lower->cl->M,lower->facecenter,
 		  boundary_map->M_f,boundary_map->facecenter),
-    constraint(geom_cells,V_limiter),prelude {
+    constraint(geom_cells,Vk_limiter),prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;

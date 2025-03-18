@@ -77,7 +77,7 @@ namespace Loci {
     $limiter = "venkatakrishnan" ;
   }
 
-  $type V_limiter Constraint ;
+  $type Vk_limiter Constraint ;
   $type B_limiter Constraint ;
   $type N_limiter Constraint ;
   $type Z_limiter Constraint ;
@@ -85,8 +85,8 @@ namespace Loci {
   $type V2_limiter Constraint ;
   $type limiter param<std::string> ;
   
-  $rule constraint(V_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter<-limiter) {
-    $V_limiter = EMPTY ;
+  $rule constraint(Vk_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter<-limiter) {
+    $Vk_limiter = EMPTY ;
     $V2_limiter = EMPTY ;
     $B_limiter = EMPTY ;
     $NB_limiter = EMPTY ;
@@ -94,7 +94,7 @@ namespace Loci {
     $Z_limiter = EMPTY ;
       
     if($limiter == "venkatakrishnan" || $limiter == "V") {
-      $V_limiter = ~EMPTY ;
+      $Vk_limiter = ~EMPTY ;
     } else if($limiter == "V2") {
       $V2_limiter = ~EMPTY ;
     } else if($limiter == "barth" || $limiter == "B") {
@@ -109,7 +109,7 @@ namespace Loci {
       cerr << "limiter " << $limiter
 	   << " not supported for generalized grids" << endl ;
       cerr << "defaulting to venkatakrishnan limiter" << endl ;
-      $V_limiter = ~EMPTY ;
+      $Vk_limiter = ~EMPTY ;
     }
   }
 
