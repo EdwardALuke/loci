@@ -33,7 +33,7 @@ namespace Loci {
   $type S store<real> ;
 
   $rule pointwise(limiters(S)<-S),constraint(geom_cells,N_limiter) {
-    $limiters(X) = 1.0 ;
+    $limiters(S) = 1.0 ;
   }
 
   $type V store<vect3d> ;
