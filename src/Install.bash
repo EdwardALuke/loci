@@ -109,6 +109,7 @@ for i in  Tools Config MPI_stubb FVMAdapt FVMOverset; do
     cp include/$i/*.h $INSTALL_PATH/include/$i
 done
 cp include/FVMOverset/*.lh $INSTALL_PATH/include/FVMOverset
+cp include/FVMMod/*.lh $INSTALL_PATH/include/FVMMod
 
 mkdir -p $INSTALL_PATH/docs
 mkdir -p $INSTALL_PATH/docs/1D-Diffusion

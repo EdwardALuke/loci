@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci.h>
 $include "FVM.lh"
+$include "FVMMod/limiters.lh"
 
 using std::cerr ;
 using std::endl ;
@@ -28,11 +29,6 @@ namespace Loci {
   typedef vector3d<real_t> vect3d ;
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
-
- 
-  $type V_limiter Constraint ;
-  $type firstOrderCells store<char> ;
-  $type Kl param<real> ;
 
   inline real vlimit(real Xcc, real qmin, real qmax, real qdif, real eps2,
 		     real ref) {
