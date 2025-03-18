@@ -77,19 +77,31 @@ namespace Loci {
     $limiter = "venkatakrishnan" ;
   }
 
+  $type nisPow param<int>;
+  $rule default(nisPow),
+  comments("This parameter specifies the order of the Nishikawa Limter. "
+          "Default is 3, acceptable values are 2, 3, 4, and 5; extensions could be made for 6+.")
+  {
+    $nisPow = 3;
+  }
+
   $type V_limiter Constraint ;
   $type B_limiter Constraint ;
   $type N_limiter Constraint ;
   $type Z_limiter Constraint ;
   $type NB_limiter Constraint ;
   $type V2_limiter Constraint ;
+  $type NIS_limiter Constraint;
+  $type NIS2_limiter Constraint;
   $type limiter param<std::string> ;
   
-  $rule constraint(V_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter<-limiter) {
+  $rule constraint(V_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter,NIS_Limiter, NIS2_limiter<-limiter) {
     $V_limiter = EMPTY ;
     $V2_limiter = EMPTY ;
     $B_limiter = EMPTY ;
     $NB_limiter = EMPTY ;
+    $NIS_limiter = EMPTY;
+    $NIS2_limiter = EMPTY;
     $N_limiter = EMPTY ;
     $Z_limiter = EMPTY ;
       
@@ -101,6 +113,10 @@ namespace Loci {
       $B_limiter = ~EMPTY ;
     } else if($limiter == "nodalbarth" || $limiter == "NB") {
       $NB_limiter = ~EMPTY ;
+    } else if($limiter == "nishikawa" || $limiter == "NIS") {
+      $NIS_limiter = ~EMPTY;
+    } else if($limiter == "nishikawa2" || $limiter == "NIS2"){
+      $NIS2_limiter = ~EMPTY;
     } else if($limiter == "none") {
       $N_limiter = ~EMPTY ;
     } else if($limiter == "zero") {
