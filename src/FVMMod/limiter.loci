@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci.h>
 $include "FVM.lh"
+$include "FVMMod/limiters.lh"
 
 using std::cerr ;
 using std::endl ;
@@ -28,8 +29,6 @@ namespace Loci {
   typedef vector3d<real_t> vect3d ;
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
-
-  $type firstOrderCells store<char> ;
 
   $rule unit(firstOrderCells),constraint(geom_cells) {
     $firstOrderCells = 0 ;
@@ -66,24 +65,13 @@ namespace Loci {
     }
   }
     
-  $type Kl param<real> ;
   $rule default(Kl),comments("This parameter is a smoothness parameter for the venkatakrishnan limiter.  A value of zero will not allow overshoots, while a larger value may allow some overshoots to ensure accuracy in locally smooth regions.  The typical values for this parameter range from .1 to 100") {
     $Kl = 1.0 ;
   }
-
-  $type limiter param<std::string> ;
   
   $rule default(limiter),comments("Limiter used in face extrapolations.  This function can take the values of 'venkatakrishnan', 'barth', 'none' for second order solutions, and 'zero' for first order solutions") {
     $limiter = "venkatakrishnan" ;
   }
-
-  $type Vk_limiter Constraint ;
-  $type B_limiter Constraint ;
-  $type N_limiter Constraint ;
-  $type Z_limiter Constraint ;
-  $type NB_limiter Constraint ;
-  $type V2_limiter Constraint ;
-  $type limiter param<std::string> ;
   
   $rule constraint(Vk_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter<-limiter) {
     $Vk_limiter = EMPTY ;
