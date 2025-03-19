@@ -31,7 +31,7 @@ $type Kl param<real> ;
  * for first order solutions" */
 $type limiter param<std::string> ;
 /** Venkatakrishnan limiter */
-$type V_limiter Constraint ;
+$type Vk_limiter Constraint ;
 /** Barth limiter */
 $type B_limiter Constraint ;
 /** No limiter (limiter = 1) */
