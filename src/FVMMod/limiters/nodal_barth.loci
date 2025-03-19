@@ -235,10 +235,10 @@ namespace Loci {
 
   $type V store<vect3d> ;
   $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
-		  upper->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
-		  lower->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
-		  boundary_map->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V))),
-  constraint(geom_cells,NB_limiter) {
+                                upper->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
+                                lower->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
+                                boundary_map->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V))),
+        constraint(geom_cells,NB_limiter) {
     const vect3d Xcc = $V ;
     const tens3d Xgr = $gradv3d(V) ;
     const vect3d cent = $cellcenter ;
@@ -250,25 +250,25 @@ namespace Loci {
     for(int i=0;i<usz;++i) {
       const int fsz = $upper[i]->$face2node.size() ;
       for(int f=0;f<fsz;++f) {
-	const vect3d drl = $upper[i]->$face2node[f]->$pos - cent ;
-	const real Xfx = Xcc.x + dot(Xgr.x,drl) ;
-	const real qdifx = Xfx-Xcc.x ;
-	if(qdifx > 0)
-	  limix = min(limix,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).x-Xcc.x)/(qdifx+1e-100)) ;
-	if(qdifx < 0)
-	  limix = min(limix,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).x-Xcc.x)/(qdifx-1e-100)) ;
-	const real Xfy = Xcc.y + dot(Xgr.y,drl) ;
-	const real qdify = Xfy-Xcc.y ;
-	if(qdify > 0)
-	  limiy = min(limiy,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).y-Xcc.y)/(qdify+1e-100)) ;
-	if(qdify < 0)
-	  limiy = min(limiy,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).y-Xcc.y)/(qdify-1e-100)) ;
-	const real Xfz = Xcc.z + dot(Xgr.z,drl) ;
-	const real qdifz = Xfz-Xcc.z ;
-	if(qdifz > 0)
-	  limiz = min(limiz,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).z-Xcc.z)/(qdifz+1e-100)) ;
-	if(qdifz < 0)
-	  limiz = min(limiz,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).z-Xcc.z)/(qdifz-1e-100)) ;
+        const vect3d drl = $upper[i]->$face2node[f]->$pos - cent ;
+        const real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+        const real qdifx = Xfx-Xcc.x ;
+        if(qdifx > 0)
+          limix = min(limix,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).x-Xcc.x)/(qdifx+1e-100)) ;
+        if(qdifx < 0)
+          limix = min(limix,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).x-Xcc.x)/(qdifx-1e-100)) ;
+        const real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+        const real qdify = Xfy-Xcc.y ;
+        if(qdify > 0)
+          limiy = min(limiy,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).y-Xcc.y)/(qdify+1e-100)) ;
+        if(qdify < 0)
+          limiy = min(limiy,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).y-Xcc.y)/(qdify-1e-100)) ;
+        const real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+        const real qdifz = Xfz-Xcc.z ;
+        if(qdifz > 0)
+          limiz = min(limiz,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).z-Xcc.z)/(qdifz+1e-100)) ;
+        if(qdifz < 0)
+          limiz = min(limiz,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).z-Xcc.z)/(qdifz-1e-100)) ;
       }
     }
 
@@ -276,31 +276,99 @@ namespace Loci {
     for(int i=0;i<lsz;++i) {
       const int fsz = $lower[i]->$face2node.size() ;
       for(int f=0;f<fsz;++f) {
-	const vect3d drl = $lower[i]->$face2node[f]->$pos - cent ;
-	const real Xfx = Xcc.x + dot(Xgr.x,drl) ;
-	const real qdifx = Xfx-Xcc.x ;
-	if(qdifx > 0)
-	  limix = min(limix,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).x-Xcc.x)/(qdifx+1e-100)) ;
-	if(qdifx < 0)
-	  limix = min(limix,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).x-Xcc.x)/(qdifx-1e-100)) ;
-	const real Xfy = Xcc.y + dot(Xgr.y,drl) ;
-	const real qdify = Xfy-Xcc.y ;
-	if(qdify > 0)
-	  limiy = min(limiy,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).y-Xcc.y)/(qdify+1e-100)) ;
-	if(qdify < 0)
-	  limiy = min(limiy,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).y-Xcc.y)/(qdify-1e-100)) ;
-	const real Xfz = Xcc.z + dot(Xgr.z,drl) ;
-	const real qdifz = Xfz-Xcc.z ;
-	if(qdifz > 0)
-	  limiz = min(limiz,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).z-Xcc.z)/(qdifz+1e-100)) ;
-	if(qdifz < 0)
-	  limiz = min(limiz,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).z-Xcc.z)/(qdifz-1e-100)) ;
+        const vect3d drl = $lower[i]->$face2node[f]->$pos - cent ;
+        const real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+        const real qdifx = Xfx-Xcc.x ;
+        if(qdifx > 0)
+          limix = min(limix,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).x-Xcc.x)/(qdifx+1e-100)) ;
+        if(qdifx < 0)
+          limix = min(limix,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).x-Xcc.x)/(qdifx-1e-100)) ;
+        const real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+        const real qdify = Xfy-Xcc.y ;
+        if(qdify > 0)
+          limiy = min(limiy,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).y-Xcc.y)/(qdify+1e-100)) ;
+        if(qdify < 0)
+          limiy = min(limiy,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).y-Xcc.y)/(qdify-1e-100)) ;
+        const real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+        const real qdifz = Xfz-Xcc.z ;
+        if(qdifz > 0)
+          limiz = min(limiz,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).z-Xcc.z)/(qdifz+1e-100)) ;
+        if(qdifz < 0)
+          limiz = min(limiz,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).z-Xcc.z)/(qdifz-1e-100)) ;
       }
     }
 
     $limiterv3d(V) = vect3d(realToDouble(limix),
                             realToDouble(limiy),
                             realToDouble(limiz));
+  }
+
+  $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
+                                upper->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
+                                lower->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
+                                boundary_map->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V))),
+        constraint(geom_cells,NB_limiter) 
+  {
+    const vect3d Xcc = $V ;
+    const tens3d Xgr = $gradv3d(V) ;
+    const vect3d cent = $cellcenter ;
+
+    vect3d limi = ($firstOrderCells != 0)?vect3d(0.,0.,0.):vect3d(1.,1.,1.) ;
+
+    const int usz = $upper.size() ;
+    for(int i=0;i<usz;++i) {
+      const int fsz = $upper[i]->$face2node.size() ;
+      for(int f=0;f<fsz;++f) {
+        const vect3d drl = $upper[i]->$face2node[f]->$pos - cent ;
+        const real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+        const real qdifx = Xfx-Xcc.x ;
+        if(qdifx > 0)
+          limi.x = min(limi.x,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).x-Xcc.x)/(qdifx+1e-100)) ;
+        if(qdifx < 0)
+          limi.x = min(limi.x,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).x-Xcc.x)/(qdifx-1e-100)) ;
+        const real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+        const real qdify = Xfy-Xcc.y ;
+        if(qdify > 0)
+          limi.y = min(limi.y,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).y-Xcc.y)/(qdify+1e-100)) ;
+        if(qdify < 0)
+          limi.y = min(limi.y,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).y-Xcc.y)/(qdify-1e-100)) ;
+        const real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+        const real qdifz = Xfz-Xcc.z ;
+        if(qdifz > 0)
+          limi.z = min(limi.z,($upper[i]->$face2node[f]->$NGTNodalv3dMax(V).z-Xcc.z)/(qdifz+1e-100)) ;
+        if(qdifz < 0)
+          limi.z = min(limi.z,($upper[i]->$face2node[f]->$NGTNodalv3dMin(V).z-Xcc.z)/(qdifz-1e-100)) ;
+      }
+    }
+
+    const int lsz = $lower.size() ;
+    for(int i=0;i<lsz;++i) {
+      const int fsz = $lower[i]->$face2node.size() ;
+      for(int f=0;f<fsz;++f) {
+        const vect3d drl = $lower[i]->$face2node[f]->$pos - cent ;
+        const real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+        const real qdifx = Xfx-Xcc.x ;
+        if(qdifx > 0)
+          limi.x = min(limi.x,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).x-Xcc.x)/(qdifx+1e-100)) ;
+        if(qdifx < 0)
+          limi.x = min(limi.x,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).x-Xcc.x)/(qdifx-1e-100)) ;
+        const real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+        const real qdify = Xfy-Xcc.y ;
+        if(qdify > 0)
+          limi.y = min(limi.y,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).y-Xcc.y)/(qdify+1e-100)) ;
+        if(qdify < 0)
+          limi.y = min(limi.y,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).y-Xcc.y)/(qdify-1e-100)) ;
+        const real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+        const real qdifz = Xfz-Xcc.z ;
+        if(qdifz > 0)
+          limi.z = min(limi.z,($lower[i]->$face2node[f]->$NGTNodalv3dMax(V).z-Xcc.z)/(qdifz+1e-100)) ;
+        if(qdifz < 0)
+          limi.z = min(limi.z,($lower[i]->$face2node[f]->$NGTNodalv3dMin(V).z-Xcc.z)/(qdifz-1e-100)) ;
+      }
+    }
+
+    double limm = realToDouble(min(limi.x,min(limi.y,limi.z)));
+    $limiterv3d(V) = vect3d(limm,limm,limm) ;
   }
 
   $type M storeVec<real> ;
