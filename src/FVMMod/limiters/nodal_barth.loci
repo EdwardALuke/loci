@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci.h>
 $include "FVM.lh"
+$include "FVMMod/limiters.lh"
 
 using std::cerr ;
 using std::endl ;
@@ -36,12 +37,8 @@ namespace Loci {
   // Like Barth except limiting to nodal max/min rather than at face centers
   //
   //==========================================================================
-  $type NB_limiter Constraint ;
-  $type firstOrderCells store<char> ;
   $type S store<real_t> ;
   $type S_f store<real_t> ;
-  $type NGTNodalMax(S) store<real_t> ;
-  $type NGTNodalMin(S) store<real_t> ;
 
   using std::max ;
   using std::min ;
@@ -87,9 +84,6 @@ namespace Loci {
 
   $type V store<vector3d<real_t> > ;
   $type V_f store<vector3d<real_t> > ;
-  $type NGTNodalv3dMax(V) store<vector3d<real_t> > ;
-  $type NGTNodalv3dMin(V) store<vector3d<real_t> > ;
-
 
   inline vector3d<real_t> max(const vector3d<real_t> &v1,
                               const vector3d<real_t> &v2) {
@@ -149,8 +143,6 @@ namespace Loci {
 
   $type M storeVec<real_t> ;
   $type M_f storeVec<real_t> ;
-  $type NGTNodalvMax(M) storeVec<real_t> ;
-  $type NGTNodalvMin(M) storeVec<real_t> ;
   $type vecSize(M) param<int> ;
 
 

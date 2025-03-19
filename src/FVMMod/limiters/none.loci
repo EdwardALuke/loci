@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci.h>
 $include "FVM.lh"
+$include "FVMMod/limiters.lh"
 
 using std::cerr ;
 using std::endl ;
@@ -29,7 +30,6 @@ namespace Loci {
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
 
-  $type N_limiter Constraint;
   $type S store<real> ;
 
   $rule pointwise(limiters(S)<-S),constraint(geom_cells,N_limiter) {

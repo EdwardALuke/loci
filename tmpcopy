@@ -79,7 +79,7 @@ if [ ${target:0:1} != "/" ]; then
    echo setting target to \'$target\'
 fi
 
-TARGET_DIRS="System Tools lpp FVMtools FVMtools/libadf FVMMod FVMMod/limiters sprng sprng/include sprng/include/sprng FVMAdapt FVMOverset include include/Tools include/Config include/MPI_stubb include/FVMAdapt include/FVMOverset"
+TARGET_DIRS="System Tools lpp FVMtools FVMtools/libadf FVMMod FVMMod/limiters sprng sprng/include sprng/include/sprng FVMAdapt FVMOverset include include/Tools include/Config include/MPI_stubb include/FVMAdapt include/FVMMod include/FVMOverset"
 #TOOLS_DIRS="lpp FVMtools FVMtools/libadf FVMMod sprng sprng/include sprng/include/sprng"
 TOOLS_DIRS=""
 

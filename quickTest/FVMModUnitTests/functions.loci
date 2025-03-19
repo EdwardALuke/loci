@@ -287,6 +287,36 @@ namespace flowPsi {
     }
   }
 
+  $type VU store<vect3d> ;
+  /// Limiters for linear functions should evaluate to unity under the right
+  /// grid topologies.  This function is sued to evaluate scalar limiters
+  $type errv3dUnity(VU) param<real> ;
+  $rule unit(errv3dUnity(VU)),constraint(UNIVERSE) {
+    $errv3dUnity(VU) = -1 ;
+  }
+  $rule apply(errv3dUnity(VU)<-VU)[Loci::Maximum] {
+    vect3d diff = $VU-vect3d(1.0,1.0,1.0) ;
+    
+    join($errv3dUnity(VU),dot(diff,diff)) ;
+  }
+
+  /// Test for limiter functions recovering unity when give linear functions
+  $type testv3dUnity(FUNC) param<bool> ;
+  $rule singleton(testv3dUnity(FUNC)<-errv3dUnity(FUNC)) {
+    $testv3dUnity(FUNC) = ($errv3dUnity(FUNC)<1e-8) ;
+    $[Once] {
+      if(!$testv3dUnity(FUNC)) {
+        std::cerr << "TEST FAILED, err=" << sqrt($errv3dUnity(FUNC)) << std::endl ;
+      }
+    }
+    if($errv3dUnity(FUNC) < 0) {
+      $testv3dUnity(FUNC) = false ;
+      $[Once] {
+        std::cerr << "TEST FAILED, No Function Evaluated!" << std::endl ;
+      }
+    }
+  }
+
   /// Error for generalized vector field gradients
   $type errvGrad(M) param<real> ;
   $rule unit(errvGrad(M)),constraint(UNIVERSE) {
@@ -319,5 +349,38 @@ namespace flowPsi {
     }
   }
   
+  $type VM storeVec<real> ;
+  /// Limiters for linear functions should evaluate to unity under the right
+  /// grid topologies.  This function is sued to evaluate scalar limiters
+  $type errvectUnity(VM) param<real> ;
+  $rule unit(errvectUnity(VM)),constraint(UNIVERSE) {
+    $errvectUnity(VM) = -1 ;
+  }
+  $rule apply(errvectUnity(VM)<-VM)[Loci::Maximum] {
+    int vs = $*VM.vecSize() ;
+    for(int i=0;i<vs;++i) {
+      real diff = $VM[i]-1.0 ;
+      join($errvectUnity(VM),diff*diff) ;
+    }
+  }
+
+  /// Test for limiter functions recovering unity when give linear functions
+  $type testvectUnity(FUNC) param<bool> ;
+
+  $rule singleton(testvectUnity(FUNC)<-errvectUnity(FUNC)) {
+    $testvectUnity(FUNC) = ($errvectUnity(FUNC)<1e-8) ;
+    $[Once] {
+      if(!$testvectUnity(FUNC)) {
+        std::cerr << "TEST FAILED, err=" << sqrt($errvectUnity(FUNC)) << std::endl ;
+      }
+    }
+    if($errvectUnity(FUNC) < 0) {
+      $testvectUnity(FUNC) = false ;
+      $[Once] {
+        std::cerr << "TEST FAILED, No Function Evaluated!" << std::endl ;
+      }
+    }
+  }
+
 }
     
