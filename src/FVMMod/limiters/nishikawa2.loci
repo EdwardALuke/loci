@@ -41,32 +41,34 @@ namespace Loci {
   * @param nisPow   [-] order for Nishikawa Limiter
   * @return real    [-] limiter
   */
- inline real nis_limit(real Xcc, real qmin, real qmax, real qdif, real epsp, int nisPow) 
- {
-   // delta +
-   const real delp = (qdif>=0.0)?qmax-Xcc:qmin-Xcc;
-   // delta -
-   const real delm = qdif ;
-   const real a = abs(delp);
-   const real b = abs(delm) + 1e-30;
-   //if (a > 2*b) return 1.0; // save on computation 
-   // numerator of limiter
-   const real fun1 = pow(a,nisPow) + epsp;
-   real Sp = 2.0*b*b; // nisPow = 2
-   if (nisPow == 3)
-   {
-     Sp = 4.0*b*b;
-   } else if (nisPow == 4){
-     Sp = 2.0*b*(a*a - 2.0*b*(a-2*b));
-   } else if (nisPow == 5) {
-     Sp = 8.0*b*b*(a*a - 2.0*b*(a-b));
-   }
-   const real num = fun1 + a*Sp ;
-   // denominator of limiter
-   const real den =  fun1 + b*(pow(delp,nisPow-1) + Sp);
-   real lim = num/den;
-   return max<real>(0.0,lim) ;
- }
+  inline real nis_limit(real Xcc, real qmin, real qmax, real qdif, real epsp, int nisPow) 
+  {
+    // delta +
+    const real delp = (qdif>=0.0)?qmin-Xcc:qmax-Xcc;
+    // delta -
+    const real delm = -qdif+1e-30 ;
+    const real a = abs(delp);
+    const real b = abs(delm);
+    if (a > 2*b) return 1.0; // save on computation 
+    // numerator of limiter
+    const real fun1 = pow(a,nisPow) + epsp;
+    real Sp = 2.0*b*b; // nisPow = 2
+    if (nisPow == 3)
+    {
+      Sp = 4.0*b*b;
+    } else if (nisPow == 4){
+      Sp = 2.0*b*(a*a - 2.0*b*(a-2*b));
+    } else if (nisPow == 5) {
+      Sp = 8.0*b*b*(a*a - 2.0*b*(a-b));
+    }
+    const real num = fun1 + a*Sp ;
+    // denominator of limiter
+    const real den =  fun1 + b*(pow(delp,nisPow-1) + Sp);
+    // make the limiting case of 0/0 work as expected
+    const real e = (den >= 0.0?1.0e-30:-1.0e-30) ;
+    real lim = (num+e)/(den+e) ;
+    return max<real>(0.0,lim) ;
+  }
 
   $type S store<real> ;
   $type S_f store<real> ;
