@@ -54,3 +54,9 @@ $type NGTNodalv3dMin(V) store<vector3d<real_t> > ;
 $type NGTNodalvMax(M) storeVec<real_t> ;
 /** Vector cell to node min */
 $type NGTNodalvMin(M) storeVec<real_t> ;
+/** Parameter to activate minimum directional limiter for vector */
+$type vecminLimiter param<int>;
+/** Standard vector limiter */
+$type standardvecLimit constraint;
+/** Minimum direction vector limiter */
+$type minvecLimit constraint;

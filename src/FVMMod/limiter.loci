@@ -72,6 +72,13 @@ namespace Loci {
   $rule default(limiter),comments("Limiter used in face extrapolations.  This function can take the values of 'venkatakrishnan', 'barth', 'none' for second order solutions, and 'zero' for first order solutions") {
     $limiter = "venkatakrishnan" ;
   }
+
+
+  $rule default(vecminLimiter),comments("This parameter enables limiters for vector to be computed based on the"
+    "based on the minimum direction limiterv= min(lim[j]). To activate, set vecminLimit > 0")
+ {
+   $vecminLimiter = 0;
+ }
   
   $rule constraint(Vk_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter<-limiter) {
     $Vk_limiter = EMPTY ;
@@ -98,6 +105,18 @@ namespace Loci {
 	   << " not supported for generalized grids" << endl ;
       cerr << "defaulting to venkatakrishnan limiter" << endl ;
       $Vk_limiter = ~EMPTY ;
+    }
+  }
+
+
+  $rule constraint(standardvecLimit,minvecLimit<-vecminLimiter)
+  {
+    $standardvecLimit = EMPTY;
+    $minvecLimit = ~EMPTY;
+    if ($vecminLimiter > 0) 
+    {
+      $standardvecLimit = ~EMPTY;
+      $minvecLimit = EMPTY;
     }
   }
 
