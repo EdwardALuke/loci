@@ -42,6 +42,10 @@ $type Z_limiter Constraint ;
 $type NB_limiter Constraint ;
 /** Venkatakrishnan 2 (cell center) limiter */
 $type V2_limiter Constraint ;
+/** Nisikawa limiter to face centers */
+$type NISf_limiter Constraint;
+/** Niskiawak limiter to cell centers */
+$type NISc_limiter Constraint;
 /** Scalar cell to node max */
 $type NGTNodalMax(S) store<real_t> ;
 /** Scalar cell to node min */
@@ -60,3 +64,5 @@ $type v3dminLimiter param<int>;
 $type standardv3dLimit constraint;
 /** Minimum direction vect3d limiter */
 $type minv3dLimit constraint;
+/** Order of Nishikawa limiter */
+$type nisPow   param<int>;

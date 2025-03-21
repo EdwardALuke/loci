@@ -65,11 +65,16 @@ namespace Loci {
     }
   }
     
-  $rule default(Kl),comments("This parameter is a smoothness parameter for the venkatakrishnan limiter.  A value of zero will not allow overshoots, while a larger value may allow some overshoots to ensure accuracy in locally smooth regions.  The typical values for this parameter range from .1 to 100") {
+  $rule default(Kl),comments("This parameter is a smoothness parameter for the venkatakrishnan limiter."
+    "A value of zero will not allow overshoots, while a larger value may allow some overshoots to ensure "
+    " accuracy in locally smooth regions.  The typical values for this parameter range from .1 to 100") {
     $Kl = 1.0 ;
   }
   
-  $rule default(limiter),comments("Limiter used in face extrapolations.  This function can take the values of 'venkatakrishnan', 'barth', 'none' for second order solutions, and 'zero' for first order solutions") {
+  $rule default(limiter),comments("Limiter used in face extrapolations.  For first-order solutions, this function is 'zero'. "
+    "For second-order solutions, this function is 'venkatakrishnan/V', 'barth/B', 'nodalBarth/NB', 'V2 (venkatakrishnan to cell centers)',"
+    "'nishikawaf/NISf (to face centers)' and 'nishikawac/NISc (to cell centers)'. For higher-order limiting, use either 'NISf' or 'NISc'."
+    "For no limiting, specify 'none.") {
     $limiter = "venkatakrishnan" ;
   }
 
@@ -79,11 +84,20 @@ namespace Loci {
     $v3dminLimiter = 0;
   }
   
-  $rule constraint(Vk_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter<-limiter) {
+  $rule default(nisPow),
+  comments("This parameter specifies the order of the Nishikawa Limters. "
+          "Default is 3, acceptable values are 2, 3, 4, and 5; extensions could be made for 6+.")
+  {
+    $nisPow = 3;
+  }
+  
+  $rule constraint(Vk_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter,NISf_limiter,NISc_limiter<-limiter) {
     $Vk_limiter = EMPTY ;
     $V2_limiter = EMPTY ;
     $B_limiter = EMPTY ;
     $NB_limiter = EMPTY ;
+    $NISf_limiter = EMPTY;
+    $NISc_limiter = EMPTY;
     $N_limiter = EMPTY ;
     $Z_limiter = EMPTY ;
       
@@ -95,6 +109,10 @@ namespace Loci {
       $B_limiter = ~EMPTY ;
     } else if($limiter == "nodalbarth" || $limiter == "NB") {
       $NB_limiter = ~EMPTY ;
+    } else if($limiter == "nishikawaf" || $limiter == "NISf") {
+      $NISf_limiter = ~EMPTY;
+    } else if($limiter == "nishikawac" || $limiter == "NISc"){
+      $NISc_limiter = ~EMPTY;
     } else if($limiter == "none") {
       $N_limiter = ~EMPTY ;
     } else if($limiter == "zero") {
@@ -123,26 +141,23 @@ namespace Loci {
   // Handle Periodic BC's
   //
   //==========================================================================
-  $untype X ;
-  $type X store<real> ;
+  $type S store<real> ;
 
-  $rule pointwise(cr->limiters(X)<-pmap->cl->limiters(X)),constraint(periodicFaces,cl->X) {
-    $cr->$limiters(X) = $pmap->$cl->$limiters(X) ;
+  $rule pointwise(cr->limiters(S)<-pmap->cl->limiters(S)),constraint(periodicFaces,cl->S) {
+    $cr->$limiters(S) = $pmap->$cl->$limiters(S) ;
   }
 
-  $untype X ;
-  $type X store<vect3d> ;
+  $type V store<vect3d> ;
   $type periodicTransform store<rigid_transform> ;
-  $rule pointwise(cr->limiterv3d(X)<-pmap->cl->limiterv3d(X),pmap->ref->periodicTransform),constraint(periodicFaces,cl->X) {
+  $rule pointwise(cr->limiterv3d(V)<-pmap->cl->limiterv3d(V),pmap->ref->periodicTransform),constraint(periodicFaces,cl->V) {
     const rigid_transform &frame = $pmap->$ref->$periodicTransform ;
-    $cr->$limiterv3d(X) = frame.rotate_vec($pmap->$cl->$limiterv3d(X)) ;
+    $cr->$limiterv3d(V) = frame.rotate_vec($pmap->$cl->$limiterv3d(V)) ;
   }
 
-  $untype X ;
-  $type X storeVec<real> ;
-  $rule pointwise(cr->limiterv(X)<-pmap->cl->limiterv(X)),constraint(periodicFaces,cl->X),prelude { } compute {
-    int vs = $*limiterv(X).vecSize() ;
+  $type M storeVec<real> ;
+  $rule pointwise(cr->limiterv(M)<-pmap->cl->limiterv(M)),constraint(periodicFaces,cl->M),prelude { } compute {
+    int vs = $*limiterv(M).vecSize() ;
     for(int i=0;i<vs;++i)
-      $cr->$limiterv(X)[i] = $pmap->$cl->$limiterv(X)[i] ;
+      $cr->$limiterv(M)[i] = $pmap->$cl->$limiterv(M)[i] ;
   }
 }
