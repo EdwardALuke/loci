@@ -43,7 +43,8 @@ issue stating that you are volunteering to work on it.
 
 The general process for contributing via Github is:
 
-1. Fork the Loci repo and create your issue branch from `dev`. See [2].
+1. Fork the Loci repo and create your issue branch from `dev`. See
+   [Forking a repository][2].
 2. Create a draft pull request which would merge your issue branch on your
    personal fork into the `dev` branch on the Loci repository.
 3. Work on fixing the issue in your personal fork of Loci.
@@ -62,7 +63,7 @@ the number of commits they are making, so commit early and often. This also
 underlines the importance of keeping your issues narrow in scope and touching
 the minimum number of files necessary to resolve the issue.
 
-[2]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo
+[2]: https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo#forking-a-repository
 
 ## Testing
 
