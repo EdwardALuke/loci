@@ -432,7 +432,8 @@ void readMesh(  double topoID,
   if(readNodestr(root, "/Meshes/Space")=="Local") isLocal = true;
 
   //if the node indexes are not local, read in the vertices map data
-  std::map<int, int> node_g2l_map;
+  //  std::map<int, int> node_g2l_map;
+  Loci::block_hash<int> node_g2l_map ;
   if(!isLocal){
     int32* vertexMapData = 0;
     char nodeName[ADF_NAME_LENGTH]={'\0'};
@@ -462,7 +463,8 @@ void readMesh(  double topoID,
   }
   
   //if the cell indexes are not localm read in the cell map data 
-  std::map<int, int> cell_g2l_map;
+  //  std::map<int, int> cell_g2l_map;
+  Loci::block_hash<int> cell_g2l_map;
   if(!isLocal){
     int32* cellMapData = 0;
     char nodeName[ADF_NAME_LENGTH]={'\0'};  
@@ -491,9 +493,9 @@ void readMesh(  double topoID,
   faceSizes.push_back(localFaceSize);
   if(!isLocal){
     //map vertices data
-    int pointer = 0;
+    int64 pointer = 0;
     while(pointer < localFaceSize){
-      for(int  i = 1; i <= faceData[pointer]; i++){
+      for(int64  i = 1; i <= faceData[pointer]; i++){
         faceData[pointer+i]=node_g2l_map[faceData[pointer+i]];
       } 
       pointer += faceData[pointer]+1;
@@ -539,8 +541,8 @@ void readMesh(  double topoID,
       faceSizes.push_back(readNodeis(bfaceID, "Vertices", &bfaceData));
       //map vertices data
       if(!isLocal){
-        int pointer = 0;
-        int localFaceSize = faceSizes.back();
+        int64 pointer = 0;
+        int64 localFaceSize = faceSizes.back();
         while(pointer < localFaceSize){
           for(int  i = 1; i <= bfaceData[pointer]; i++){
             bfaceData[pointer+i]=node_g2l_map[bfaceData[pointer+i]];
@@ -735,10 +737,11 @@ void partitionFaces(vector<int32 *> &global_face2nodes,
 
   // determine each processor's share of the faces
   vector<int> zero(P, 0);
+  vector<int64> zero64(P,0) ;
   vector<vector<int> > sendCount_f2n(global_faceSizes.size(), zero);
-  vector<vector<int> > locations_f2n(global_faceSizes.size(), zero);
+  vector<vector<int64> > locations_f2n(global_faceSizes.size(), zero64);
   vector<vector<int> > sendCount_f2c(global_faceSizes.size(), zero);
-  vector<vector<int> > locations_f2c(global_faceSizes.size(), zero);
+  vector<vector<int64> > locations_f2c(global_faceSizes.size(), zero64);
   int64 startId = 0;
   int64 endId = 0;
   // loop over all boundaries (interal faces grouped as boundary)
@@ -793,10 +796,29 @@ void partitionFaces(vector<int32 *> &global_face2nodes,
   for (unsigned int ff = 0; ff < sendCount_f2c.size(); ++ff) {
     int32 *sendbuf = NULL;
     if (R == 0) sendbuf = global_face2cells[ff];
-    MPI_Scatterv(sendbuf, &(*sendCount_f2c[ff].begin()),
-                 &(*locations_f2c[ff].begin()), MPI_INT32_T,
-                 &(local_face2cells[f2c_ind]), sendCount_f2c[ff][R],
-                 MPI_INT32_T, 0, MPI_COMM_WORLD);
+    //    MPI_Scatterv(sendbuf, &(*sendCount_f2c[ff].begin()),
+    //                 &(*locations_f2c[ff].begin()), MPI_INT32_T,
+    //                 &(local_face2cells[f2c_ind]), sendCount_f2c[ff][R],
+    //                 MPI_INT32_T, 0, MPI_COMM_WORLD);
+    if(R == 0) {
+      vector<MPI_Request> req(P-1) ;
+      for(int i=1;i<P;++i) {
+        MPI_Isend(&sendbuf[locations_f2c[ff][i]],
+                  sendCount_f2c[ff][i],
+                  MPI_INT32_T,
+                  i, 1776,MPI_COMM_WORLD,&req[i-1]) ;
+      }
+      vector<MPI_Status> sinfo(P-1) ;
+      MPI_Waitall(P-1,&req[0],&sinfo[0]) ;
+      memcpy(&local_face2cells[f2c_ind],&sendbuf[locations_f2c[ff][0]],
+             sizeof(int32)*sendCount_f2c[ff][0]) ;
+    } else {
+      MPI_Status rinfo ;
+      MPI_Recv(&local_face2cells[f2c_ind],sendCount_f2c[ff][R],MPI_INT32_T,
+               0, 1776,MPI_COMM_WORLD,&rinfo) ;
+    }
+               
+
     if (R == 0) {
       delete[] global_face2cells[ff];  // free memory
     }
@@ -821,10 +843,27 @@ void partitionFaces(vector<int32 *> &global_face2nodes,
   for (unsigned int ff = 0; ff < sendCount_f2n.size(); ++ff) {
     int32 *sendbuf = NULL;
     if (R == 0) sendbuf = global_face2nodes[ff];
-    MPI_Scatterv(sendbuf, &(*sendCount_f2n[ff].begin()),
-                 &(*locations_f2n[ff].begin()), MPI_INT32_T,
-                 &(local_face2nodes[f2n_ind]), sendCount_f2n[ff][R],
-                 MPI_INT32_T, 0, MPI_COMM_WORLD);
+    //    MPI_Scatterv(sendbuf, &(*sendCount_f2n[ff].begin()),
+    //                 &(*locations_f2n[ff].begin()), MPI_INT32_T,
+    //                 &(local_face2nodes[f2n_ind]), sendCount_f2n[ff][R],
+    //                 MPI_INT32_T, 0, MPI_COMM_WORLD);
+    if(R == 0) {
+      vector<MPI_Request> req(P-1) ;
+      vector<MPI_Status> sinfo(P-1) ;
+      for(int i=1;i<P;++i) {
+        MPI_Isend(&sendbuf[locations_f2n[ff][i]],
+                  sendCount_f2n[ff][i],
+                  MPI_INT32_T,
+                  i, 1776,MPI_COMM_WORLD,&req[i-1]) ;
+      }
+      MPI_Waitall(P-1,&req[0],&sinfo[0]) ;
+      memcpy(&local_face2nodes[f2n_ind],&sendbuf[locations_f2n[ff][0]],
+             sizeof(int32)*sendCount_f2n[ff][0]) ;
+    } else {
+      MPI_Status rinfo ;
+      MPI_Recv(&local_face2nodes[f2n_ind],sendCount_f2n[ff][R],MPI_INT32_T,
+               0, 1776,MPI_COMM_WORLD,&rinfo) ;
+    }
 
     if (R == 0) {
       delete[] global_face2nodes[ff];  // free memory
@@ -854,21 +893,42 @@ void partitionCCMData(vector<vector3d<double> > &global_pos,
   MPI_Bcast(&totalNumNodes, 1, MPI_INT64_T, 0, MPI_COMM_WORLD);
   local_nodes.resize(P);
   vector<int> sendCount_pos(P, 0);
-  vector<int> locations_pos(P, 0);
+  vector<int64> locations_pos(P, 0);
   vector<int> localNodesSet = VOG::simplePartitionVec(0, totalNumNodes - 1, P);
   for (int ii = 0; ii < P; ++ii) {
     local_nodes[ii] = interval(localNodesSet[ii], localNodesSet[ii + 1] - 1);
-    sendCount_pos[ii] = local_nodes[ii].size() * 3;
+    sendCount_pos[ii] = local_nodes[ii].size() ; //* 3;
     if (ii > 0) {
       locations_pos[ii] = locations_pos[ii - 1] + sendCount_pos[ii - 1];
     }
   }
   local_pos.resize(local_nodes[R].size());
 
-  MPI_Scatterv(&(*global_pos.begin()), &(*sendCount_pos.begin()),
-               &(*locations_pos.begin()), MPI_DOUBLE,
-               &(*local_pos.begin()), 3 * local_pos.size(),
-               MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  // this might be a overflow problem, but probably not
+  //    MPI_Scatterv(&(*global_pos.begin()), &(*sendCount_pos.begin()),
+  //                 &(*locations_pos.begin()), MPI_DOUBLE,
+  //                 &(*local_pos.begin()), 3 * local_pos.size(),
+  //                 MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  if(R == 0) {
+    vector<MPI_Request> req(P-1) ;
+    vector<MPI_Status> sinfo(P-1) ;
+    for(int i=1;i<P;++i) {
+      MPI_Isend(&global_pos[locations_pos[i]],
+                sendCount_pos[i]*3,
+                MPI_DOUBLE,
+                i, 1776,MPI_COMM_WORLD,&req[i-1]) ;
+    }
+    MPI_Waitall(P-1,&req[0],&sinfo[0]) ;
+    for(size_t i =0;i<local_pos.size();++i)
+      local_pos[i] = global_pos[locations_pos[0]+i] ;
+    //    memcpy(&local_pos[0],&global_pos[locations_pos[0]],
+    //           sizeof(double)*local_pos.size()*3) ;
+  } else {
+    MPI_Status rinfo ;
+    MPI_Recv(&local_pos[0],local_pos.size()*3,MPI_DOUBLE,
+             0, 1776,MPI_COMM_WORLD,&rinfo) ;
+  }
+
   global_pos.clear();  // free memory
 
   // broadcast vector sizes to all procs
