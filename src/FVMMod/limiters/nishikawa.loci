@@ -142,7 +142,7 @@ namespace Loci {
                                   upper->cr->V,upper->facecenter,
                                   lower->cl->V,lower->facecenter,
                                   boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,NISf_limiter) 
+        constraint(geom_cells,NISf_limiter,standardv3dLimit) 
   {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
@@ -218,6 +218,86 @@ namespace Loci {
     $limiterv3d(V) = realToDouble(limi) ;
   }
 
+  $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
+                                  Kl,nisPow,vol,grid_vol,
+                                  upper->cr->V,upper->facecenter,
+                                  lower->cl->V,lower->facecenter,
+                                  boundary_map->V_f,boundary_map->facecenter),
+        constraint(geom_cells,NISf_limiter,minv3dLimit) 
+  {
+    const vect3d Xcc = $V ;
+    real refsq = dot(Xcc,Xcc) ;
+    int numrefs = 1 ;
+    vect3d qmax = Xcc ;
+    vect3d qmin = qmax ;
+    const tens3d Xgr = $gradv3d(V) ;
+
+    const int usz = $upper.size() ;
+    numrefs += usz ;
+    for(int i=0;i<usz;++i) {
+      const vect3d Xi = $upper[i]->$cr->$V ;
+      refsq += dot(Xi,Xi) ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }
+    const int lsz= $lower.size() ;
+    numrefs += lsz ;
+    for(int i=0;i<lsz;++i) {
+      const vect3d Xi = $lower[i]->$cl->$V ;
+      refsq += dot(Xi,Xi) ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }
+    const int bsz = $boundary_map.size() ;
+    numrefs += bsz ;
+    for(int i=0;i<bsz;++i) {
+      const vect3d Xi = $boundary_map[i]->$V_f ;
+      refsq += dot(Xi,Xi) ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }      
+
+    const real ref = 1e-20+sqrt(refsq)/numrefs ;
+    const real pp1 = (real)$nisPow+1;
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
+    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+
+    vect3d limi = ($firstOrderCells != 0)?vect3d(0.,0.,0.):vect3d(1.,1.,1.) ;
+
+    for(int i=0;i<usz;++i) {
+      const vect3d drl = $upper[i]->$facecenter - $cellcenter ;
+      real qdifx = -dot(Xgr.x,drl) ;
+      limi.x = min(limi.x,nis_limit(Xcc.x,qmin.x,qmax.x,qdifx,epsilon2,$nisPow)) ;
+      real qdify = -dot(Xgr.y,drl) ;
+      limi.y = min(limi.y,nis_limit(Xcc.y,qmin.y,qmax.y,qdify,epsilon2,$nisPow)) ;
+      real qdifz = -dot(Xgr.z,drl) ;
+      limi.z = min(limi.z,nis_limit(Xcc.z,qmin.z,qmax.z,qdifz,epsilon2,$nisPow)) ;
+    }
+
+    for(int i=0;i<lsz;++i) {
+      const vect3d drl = $lower[i]->$facecenter - $cellcenter ;
+      real qdifx = -dot(Xgr.x,drl) ;
+      limi.x = min(limi.x,nis_limit(Xcc.x,qmin.x,qmax.x,qdifx,epsilon2,$nisPow)) ;
+      real qdify = -dot(Xgr.y,drl) ;
+      limi.y = min(limi.y,nis_limit(Xcc.y,qmin.y,qmax.y,qdify,epsilon2,$nisPow)) ;
+      real qdifz = -dot(Xgr.z,drl) ;
+      limi.z = min(limi.z,nis_limit(Xcc.z,qmin.z,qmax.z,qdifz,epsilon2,$nisPow)) ;
+    }
+    double limm = realToDouble(min(limi.x,min(limi.y,limi.z)));
+    $limiterv3d(V) = vect3d(limm,limm,limm) ;
+  } 
 
   $type M storeVec<real> ;
   $type M_f storeVec<real> ;

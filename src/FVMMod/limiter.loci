@@ -78,6 +78,16 @@ namespace Loci {
     $limiter = "venkatakrishnan" ;
   }
 
+  /**
+   * @brief This parameter enables limiters for vect3d to be computed based on the"
+     "based on the minimum direction limiterv3d = min(lim.x,lim.y,lim.z). To activate, set v3dminLimit > 0
+   * 
+   */
+  $rule default(v3dminLimiter)
+  {
+    $v3dminLimiter = 0;
+  }
+
   $rule default(nisPow),
   comments("This parameter specifies the order of the Nishikawa Limters. "
           "Default is 3, acceptable values are 2, 3, 4, and 5; extensions could be made for 6+.")
@@ -116,6 +126,17 @@ namespace Loci {
 	   << " not supported for generalized grids" << endl ;
       cerr << "defaulting to venkatakrishnan limiter" << endl ;
       $Vk_limiter = ~EMPTY ;
+    }
+  }
+
+  $rule constraint(standardv3dLimit,minv3dLimit<-v3dminLimiter)
+  {
+    $standardv3dLimit = ~EMPTY;
+    $minv3dLimit = EMPTY;
+    if ($v3dminLimiter > 0) 
+    {
+      $standardv3dLimit = EMPTY;
+      $minv3dLimit = ~EMPTY;
     }
   }
 
