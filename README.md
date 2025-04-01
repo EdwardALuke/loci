@@ -19,7 +19,7 @@ programming paradigms would be represented by tools such as rules in
 Makefiles or SQL query languages for databases. The advantage of this
 type of system is that it can often free the programmer from the
 burden of planning how to coordinate computations and as a result can
-eliminate many common sources of program errors.  
+eliminate many common sources of program errors.
 
 
 # Installation
@@ -46,7 +46,7 @@ git submodule init
   Loci should be able to work with most versions of MPI.  (If only
   interested in compiling for pre/post processing tools, it is also
   possible to compile without MPI.)
-      
+
 * [HDF5](https://www.hdfgroup.org/solutions/hdf5/)*
 
   Loci uses the HDF5 (Hierarchical Data Format) library for binary file
@@ -65,7 +65,7 @@ git submodule init
 
   A package that allows Loci to use preconditioned Krylov subspace
   solvers for solving large sparse linear systems.
-       
+
 * [libxml2](https://github.com/GNOME/libxml2)
 
   A library for parsing XML formatted input files.  This library is
@@ -117,7 +117,7 @@ compiling on a multi-core system.
 ### Useful configure command options
 
 The ./configure script has many useful options that can be used to
-control how Loci is configured for compilation.  
+control how Loci is configured for compilation.
 
 * `--no-sub-dir`
 
@@ -163,7 +163,7 @@ customize your Loci compile.  These files are as follows:
 * `comp.conf` - (Compiler config) Used to create compiler specific flags
   (i.e. gcc, icc, etc.) that are compatible with Loci during the build process.
 
-* `sys.conf` - (System config) Created by the `configure` script that 
+* `sys.conf` - (System config) Created by the `configure` script that
   automatically finds the needed libraries and executables from the user's
   `$PATH` and `$LD_LIBRARY_PATH` environment variables or command line options.
 
@@ -192,6 +192,9 @@ The following make commands are provided after successfully executing `./configu
 | `make docs`                   | Compile latex documentation to PDF files                     |
 | `make clean`                  | Clean compiled files from OBJ directory                      |
 | `make distclean`              | Remove all configuration and compilation artifacts           |
+
+To contribute to Loci, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 
 ## See Also
 
