@@ -78,10 +78,21 @@ namespace Loci {
     $limiter = "venkatakrishnan" ;
   }
 
+
   /**
-   * @brief This parameter enables limiters for vect3d to be computed based on the"
-     "based on the minimum direction limiterv3d = min(lim.x,lim.y,lim.z). To activate, set v3dminLimit > 0
-   * 
+   * @brief This parameter enables limiters for vector to be computed based on the
+   *  based on the minimum direction limiterv= min(lim[j]). To activate, set 
+   *  vecminLimit > 0
+   */
+  $rule default(vecminLimiter)
+ {
+   $vecminLimiter = 0;
+ }
+
+  /**
+   * @brief This parameter enables limiters for vect3d to be computed based on the
+   * based on the minimum direction limiterv3d = min(lim.x,lim.y,lim.z). 
+   * To activate, set v3dminLimit > 0.
    */
   $rule default(v3dminLimiter)
   {
@@ -129,6 +140,18 @@ namespace Loci {
     }
   }
 
+
+  $rule constraint(standardvecLimit,minvecLimit<-vecminLimiter)
+  {
+    $standardvecLimit = ~EMPTY;
+    $minvecLimit = EMPTY;
+    if ($vecminLimiter > 0) 
+    {
+      $standardvecLimit = EMPTY;
+      $minvecLimit = ~EMPTY;
+    }
+  }
+  
   $rule constraint(standardv3dLimit,minv3dLimit<-v3dminLimiter)
   {
     $standardv3dLimit = ~EMPTY;

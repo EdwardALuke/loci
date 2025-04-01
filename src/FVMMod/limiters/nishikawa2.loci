@@ -308,7 +308,7 @@ namespace Loci {
                                 upper->cr->(M,cellcenter),
                                 lower->cl->(M,cellcenter),
                                 boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,NISc_limiter),prelude 
+        constraint(geom_cells,NISc_limiter,standardvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
@@ -361,6 +361,72 @@ namespace Loci {
       }
       
       $limiterv(M)[j] = realToDouble(limi) ;
+    }
+  }
+
+$rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
+                                Kl,nisPow,vol,grid_vol,
+                                upper->cr->(M,cellcenter),
+                                lower->cl->(M,cellcenter),
+                                boundary_map->M_f,boundary_map->facecenter),
+        constraint(geom_cells,NISc_limiter,minvecLimit),prelude 
+  {
+    $limiterv(M).setVecSize($M.vecSize()) ;
+  } compute {
+    const int vs = $*M.vecSize() ;
+    real ref = 0.0 ;
+    for(int j=0;j<vs;++j)
+      ref += fabs($M[j]) ;
+    ref = max(ref,real_t(1e-5)) ;
+    const real pp1 = (real)$nisPow+1;
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
+    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+    
+    real limm = 1.0;
+    for(int j=0;j<vs;++j) {
+      const real Xcc = $M[j] ;
+      real qmax = Xcc ;
+      real qmin = qmax ;
+      const vect3d Xgr = $gradv(M)[j] ;
+
+      const int usz = $upper.size() ;
+      for(int i=0;i<usz;++i) {
+        const real Xi = $upper[i]->$cr->$M[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }
+      const int lsz= $lower.size() ;
+      for(int i=0;i<lsz;++i) {
+        const real Xi = $lower[i]->$cl->$M[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }
+      const int bsz = $boundary_map.size() ;
+      for(int i=0;i<bsz;++i) {
+        const real Xi = $boundary_map[i]->$M_f[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }      
+      
+      real limi = ($firstOrderCells != 0)?0.0:1.0 ;
+
+      for(int i=0;i<usz;++i) {
+        const vect3d drl = $upper[i]->$cr->$cellcenter - $cellcenter ;
+        real qdif = -dot(Xgr,drl) ;
+        limi = min(limi,nis_limit(Xcc,qmin,qmax,qdif,epsilon2,$nisPow)) ;
+      }
+      
+      for(int i=0;i<lsz;++i) {
+        const vect3d drl = $lower[i]->$cl->$cellcenter - $cellcenter ;
+        real qdif = -dot(Xgr,drl) ;
+        limi = min(limi,nis_limit(Xcc,qmin,qmax,qdif,epsilon2,$nisPow)) ;
+      }
+      // Check for the minimum limiter
+      limm = min(limm,limi);
+    }
+    // Set the limiter as the min over all j
+    for (int j=0;j<vs;++j) {
+      $limiterv(M)[j] = realToDouble(limm) ;
     }
   }
 
@@ -537,7 +603,7 @@ namespace Loci {
                                         Kl,nisPow,vol,grid_vol,
                                         cellStencil->(M,cellcenter),
                                         boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,NISc_limiter),prelude 
+        constraint(geom_cells,NISc_limiter,standardvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
@@ -578,6 +644,59 @@ namespace Loci {
       }
       
       $limiterv(M)[j] = realToDouble(limi) ;
+    }
+  }
+
+   $rule pointwise(stencil::limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
+                                        Kl,nisPow,vol,grid_vol,
+                                        cellStencil->(M,cellcenter),
+                                        boundary_map->M_f,boundary_map->facecenter),
+        constraint(geom_cells,NISc_limiter,minvecLimit),prelude 
+  {
+    $limiterv(M).setVecSize($M.vecSize()) ;
+  } compute {
+    const int vs = $*M.vecSize() ;
+    real ref = 0.0 ;
+    for(int j=0;j<vs;++j)
+      ref += fabs($M[j]) ;
+    ref = max(ref,real_t(1e-5)) ;
+    const real pp1 = (real)$nisPow+1;
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
+    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+
+    real limm = 1.0;
+    for(int j=0;j<vs;++j) {
+      const real Xcc = $M[j] ;
+      real qmax = Xcc ;
+      real qmin = qmax ;
+      const vect3d Xgr = $gradv(M)[j] ;
+
+      const int ssz = $cellStencil.size() ;
+      for(int i=0;i<ssz;++i) {
+        const real Xi = $cellStencil[i]->$M[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }
+      const int bsz = $boundary_map.size() ;
+      for(int i=0;i<bsz;++i) {
+        const real Xi = $boundary_map[i]->$M_f[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }      
+      
+      real limi = ($firstOrderCells != 0)?0.0:1.0 ;
+
+      for(int i=0;i<ssz;++i) {
+        const vect3d drl = $cellStencil[i]->$cellcenter - $cellcenter ;
+        real qdif = -dot(Xgr,drl) ;
+        limi = min(limi,nis_limit(Xcc,qmin,qmax,qdif,epsilon2,$nisPow)) ;
+      }
+      // Check for the minimum limiter
+      limm = min(limm,limi);
+    }
+    // Set the limiter as the min over all j
+    for (int j=0;j<vs;++j) {
+      $limiterv(M)[j] = realToDouble(limm) ;
     }
   }
 }
