@@ -116,7 +116,9 @@ mkdir -p $INSTALL_PATH/docs/1D-Diffusion
 mkdir -p $INSTALL_PATH/docs/heat
 mkdir -p $INSTALL_PATH/docs/Datatypes
 
-cp Tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
+if [ -e Tutorial/docs/tutorial.pdf ] ; then
+    cp Tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
+fi
 cp Tutorial/1D-Diffusion/Makefile $INSTALL_PATH/docs/1D-Diffusion
 cp Tutorial/1D-Diffusion/*.loci $INSTALL_PATH/docs/1D-Diffusion
 cp Tutorial/1D-Diffusion/*.lh $INSTALL_PATH/docs/1D-Diffusion
