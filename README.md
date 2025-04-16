@@ -187,6 +187,7 @@ The following make commands are provided after successfully executing `./configu
 | -----------                   | -----------                                                  |
 | `make default`                | Compile and install Loci within the OBJ directory            |
 | `make install`                | Compile and install Loci in the specified prefix directory   |
+| `make install_minimal`        | Minimal compile and install Loci sans pdf documentation      |
 | `make uninstall`              | Undo the install (remove Loci from the install directory)    |
 | `make test`                   | Run unit and regression tests                                |
 | `make docs`                   | Compile latex documentation to PDF files                     |

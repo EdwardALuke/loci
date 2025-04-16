@@ -76,8 +76,13 @@ If you want to uninstall the Loci build:
 
 make uninstall
 
-which will remove all of the associated installed files from the LOCI_BASE install
-directory.
+which will remove all of the associated installed files from the installed
+target directory.
+
+To install Loci without making the pdf documentation use the build process with
+the install_minimal target instead of install, e.g.:
+
+make install_minimal
 
 --------------------------------------------------------------------------------
 Notes for Debug Builds
