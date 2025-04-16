@@ -60,21 +60,28 @@ LOCI_MINOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v[0-9][0-9]*[.]\([0-9][0-9]
 include/Config/version_info.h: FORCE
 	@echo \#ifndef CONFIG_LOCI_INFO_H > version_info.h
 	@echo \#define CONFIG_LOCI_INFO_H >> version_info.h
-	@echo \#define LOCI_VERSION \"$(GIT_INFO)\" >> version_info.h
-	@echo \#define LOCI_BRANCH \"$(GIT_BRANCH)\" >> version_info.h
 	@echo \#define LOCI_VERSION_MAJOR $(LOCI_MAJOR_VERSION) >> version_info.h
 	@echo \#define LOCI_VERSION_MINOR $(LOCI_MINOR_VERSION) >> version_info.h
 	@echo \#endif >> version_info.h
 	@# Only update version_info.h if it has changed.
 	@if [ -e $@ ]; then if ! cmp version_info.h $@; then mv version_info.h $@ ; else rm version_info.h ; fi ; else mv version_info.h $@ ; fi
 
+include/Config/version_details.h: FORCE
+	@echo \#ifndef CONFIG_LOCI_DETAILS_H > version_details.h
+	@echo \#define CONFIG_LOCI_DETAILS_H >> version_details.h
+	@echo \#define LOCI_VERSION \"$(GIT_INFO)\" >> version_details.h
+	@echo \#define LOCI_BRANCH \"$(GIT_BRANCH)\" >> version_details.h
+	@echo \#endif >> version_details.h
+	@# Only update version_details.h if it has changed.
+	@if [ -e $@ ]; then if ! cmp version_details.h $@; then mv version_details.h $@ ; else rm version_details.h ; fi ; else mv version_details.h $@ ; fi
+
 Tools/libTools.$(LIB_SUFFIX): include/Config/version_info.h FORCE
 	$(MAKE) -C Tools LOCI_BASE="$(LOCI_BASE)" libTools.$(LIB_SUFFIX)
 
-System/libLoci.$(LIB_SUFFIX): include/Config/version_info.h FORCE
+System/libLoci.$(LIB_SUFFIX): include/Config/version_info.h include/Config/version_details.h FORCE
 	$(MAKE) -C System LOCI_BASE="$(LOCI_BASE)" libLoci.$(LIB_SUFFIX)
 
-lpp: Tools/libTools.$(LIB_SUFFIX) include/Config/version_info.h FORCE
+lpp: Tools/libTools.$(LIB_SUFFIX) include/Config/version_info.h include/Config/version_details.h FORCE
 	$(MAKE) -C lpp LOCI_BASE="$(LOCI_BASE)" lpp
 
 FVMtools: library lpp FVMAdapt SPRNG FORCE

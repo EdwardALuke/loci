@@ -19,6 +19,7 @@
 //#
 //#############################################################################
 #include "lpp.h"
+#include <Config/version_details.h>
 #include <unistd.h>
 
 using namespace std ;
