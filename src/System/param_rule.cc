@@ -68,6 +68,57 @@ namespace Loci {
     return pvars ;
   }
 
+  // -----------------------------------------------------------------------
+  ///
+  /// @brief substituteString() is used to do substitution of underscore
+  ///   delimited substrings (or the name itself) for parametric rule
+  ///   instantiation
+  ///
+  /// @param [name] input string to be substituted
+  /// @param [transform_map] input transformation map that describes
+  ///   the substitutions needed to instatiate the parametric rule
+  /// @param [subst] output of substitution variables applied that may be 
+  ///   used in later stages if substituted variable has parametric
+  ///   arguments
+  /// @return string that has been transformed according to transform_map
+  ///
+  // -----------------------------------------------------------------------
+  string substituteString(string name,
+                          map<string,variable> &transform_map,
+                          vector<variable> &subst) {
+    vector<string> vname ;
+    vname.push_back(string()) ;
+    for(size_t i=0;i<name.size();++i) {
+      if(name[i] == '_')
+        vname.push_back(string()) ;
+      else
+        vname.back() += name[i] ;
+    }
+
+    for(size_t i=0;i<vname.size();++i) {
+      map<string,variable>::const_iterator ii = transform_map.find(vname[i]) ;
+      if(ii != transform_map.end()) {
+        subst.push_back(ii->second) ;
+        vname[i] = ii->second.get_info().name ;
+      }
+    }
+    string sname =vname[0] ;
+    for(size_t i=1;i<vname.size();++i)
+      sname += '_' + vname[i] ;
+    return sname ;
+  }
+    
+  // -----------------------------------------------------------------------
+  ///
+  /// @brief applySubstitution() is used to modify a variable according to
+  ///   the parametric instation rules
+  ///
+  /// @param [transform_map] input transformation map that describes
+  ///   the substitutions needed to instatiate the parametric rule
+  /// @param [v] input variable to be transformed
+  /// @return variable that has been transformed according to transform_map
+  ///
+  // -----------------------------------------------------------------------
   variable applySubstitution(map<string,variable> &transform_map, variable v) {
 #ifdef VERBOSE2
     {
@@ -81,34 +132,18 @@ namespace Loci {
     
       
     variable::info vinfo = v.get_info() ;
-    // Substitute name with underscore separation
+    // Substitute variable name with underscore separation
     string name = vinfo.name ;
-    vector<string> vname ;
-    vname.push_back(string()) ;
-    for(size_t i=0;i<name.size();++i) {
-      if(name[i] == '_')
-        vname.push_back(string()) ;
-      else
-        vname.back() += name[i] ;
-    }
-
     vector<variable> subst ;
-    for(size_t i=0;i<vname.size();++i) {
-      map<string,variable>::const_iterator ii = transform_map.find(vname[i]) ;
-      if(ii != transform_map.end()) {
-        subst.push_back(ii->second) ;
-        vname[i] = ii->second.get_info().name ;
-      }
-    }
-    string sname =vname[0] ;
-    for(size_t i=1;i<vname.size();++i)
-      sname += '_' + vname[i] ;
-    vinfo.name = sname ;
+    vinfo.name = substituteString(name,transform_map,subst) ;
 
-    // Now substitute arguments
+    // Now substitute variable arguments, e.g. A substituted for grad(T) should
+    // become grad(T).  The first step changes A to grad, this next step
+    // adds the (T) argument
     vector<int> args = vinfo.v_ids ;
     for(size_t i=0;i<subst.size();++i) {
       if(subst[i].get_info().v_ids.size() != 0) {
+        // If it was A(T) for example, then the substitution doesn't make sense
         if(args.size() != 0) {
           cerr << "problem with substitution argument conflict when processing variable " << v << endl ;
           cerr << "parametric rule may have irregular substitution" << endl;
@@ -117,6 +152,9 @@ namespace Loci {
       }
     }
 
+    // If a parametric variable, then also apply substitution to arguments
+    // of parametric variable, e.g. if X->temperature, then grad(X) should
+    // become grad(temperature)
     if(v.get_info().v_ids.size()  != 0) {
       for(size_t i=0;i<args.size();++i) {
 	variable tmp(args[i]) ;
@@ -124,9 +162,35 @@ namespace Loci {
 	args[i] = tmp.ident() ;
       }
     } 
-      
     vinfo.v_ids = args ;
 
+    // Now update time variables
+    // If we have a time annotation on a variable with underscores, substitute
+    // here also, e.g. A{it_X} with X->temperature, should transform to
+    // A{X_temperature}
+    time_ident time_id = vinfo.time_id ;
+    if(time_id != time_ident()) {
+      vector<string> tlevel ;
+      /// pull out time levels, check if any contain an underscore character
+      bool has_underscore = false ;
+      while(time_id != time_ident()) {
+        tlevel.push_back(time_id.level_name()) ;
+        if(tlevel.back().find('_') != std::string::npos)
+          has_underscore = true ;
+        time_id = time_id.parent() ;
+      }
+      if(has_underscore) {
+        /// If there are underscores, then apply substitution to time identifier
+        time_ident time_id_new ;
+        for(auto i=tlevel.rbegin();i!=tlevel.rend();++i) {
+          vector<variable> subst ;
+          time_id_new = time_ident(time_id_new,
+                                   substituteString(*i,transform_map,subst)) ;
+        }
+        vinfo.time_id = time_id_new ;
+      }
+    }
+    // create variable based on edited vinfo
     return variable(vinfo) ;
   }
   
