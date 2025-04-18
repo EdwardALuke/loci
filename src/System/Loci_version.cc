@@ -19,7 +19,7 @@
 //#
 //#############################################################################
 #include <Loci_version.h>
-
+#include <Config/version_details.h>
 namespace Loci {
 
 
