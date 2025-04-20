@@ -14,7 +14,9 @@ TARGET = fluidTest
 include $(LOCI_BASE)/Loci.conf
 #COPT= -g -O0
 
-tests: fluidTest ndiff
+.PHONY: FORCE
+
+tests: fluidTest ndiff FORCE
 	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE)
 
 
