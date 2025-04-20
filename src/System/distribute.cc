@@ -826,6 +826,7 @@ namespace Loci {
   // Collect entitities to a unified entitySet that is distributed across
   // processors according to the partition ptn.
   entitySet dist_collect_entitySet(entitySet inSet, const vector<entitySet> &ptn) {
+    cerr << "dist_collect_entitySet is depreciated" << endl ;
     const int p = MPI_processes ;
     const int r = MPI_rank ;
     entitySet retval = inSet & ptn[r] ;
@@ -934,75 +935,104 @@ namespace Loci {
     
     return retval ;
   }
-  
-  entitySet dist_expand_entitySet(entitySet inSet, entitySet copy,
+
+  // -----------------------------------------------------------------------
+  /// @brief dist_expand_entitySet() is given an input set and a set of
+  /// entities that are in the clone region.  The ownership of entities
+  /// are given by the partition, it will recieve the data from the clone
+  /// regions so that the expanded set is valid representation of the
+  /// distributed set in the provided clone regions
+  ///
+  /// @param [inSet] input set that represents the set distributed across
+  /// processors
+  /// @param [clone] input set of cloned entities that we wish to fill in
+  /// with set values from the remote procesors
+  /// @param [ptn]   partition function that describes which processor owns
+  /// which entities.
+  entitySet dist_expand_entitySet(entitySet inSet, entitySet clone,
                                   const vector<entitySet> &ptn) {
-    vector<int> send_req(ptn.size()) ;
-    for(size_t i=0;i < ptn.size();++i)
-      if((copy&ptn[i]) != EMPTY)
-        send_req[i] = 1 ;
-      else
-        send_req[i] = 0 ;
-    vector<int> recv_req(ptn.size()) ;
-    MPI_Alltoall(&send_req[0],1,MPI_INT, &recv_req[0],1,MPI_INT,
+    // We don't need to send data to ourselves
+    clone -= inSet ;
+
+    // Send an interval that contains the cloned region for each processor
+    // If there is no entities on the processor, mark by an invalid interval
+    vector<int> send_req(ptn.size()*2) ;
+    for(size_t i=0;i < ptn.size();++i) {
+      entitySet clone_i = clone&ptn[i] ;
+      if(clone_i != EMPTY) {
+        send_req[i*2+0] = clone_i.Min() ;
+        send_req[i*2+1] = clone_i.Max() ;
+      } else {
+        send_req[i*2+0] = 1 ;
+        send_req[i*2+1] = 0 ;
+      }
+    }
+
+    // Send clone requests to partners
+    vector<int> recv_req(ptn.size()*2) ;
+    MPI_Alltoall(&send_req[0],2,MPI_INT, &recv_req[0],2,MPI_INT,
                  MPI_COMM_WORLD) ;
+
+    // From the clone requests, find a set that we need to send to the
+    // corresponding processor
     vector<int> send_sizes(ptn.size()) ;
-    int send_intervals = inSet.num_intervals() ;
-    
+    vector<entitySet> send_data(ptn.size()) ;
     for(size_t i=0;i < ptn.size();++i)
-      if(recv_req[i]!=0)
-        send_sizes[i] = send_intervals ;
-      else
-        send_sizes[i] = 0 ;
+      if(recv_req[i*2+0]<=recv_req[i*2+1]) {
+        send_data[i] = inSet & interval(recv_req[i*2+0],recv_req[i*2+1]) ;
+        send_sizes[i] = send_data[i].num_intervals() ;
+      }
+
+    // Share the size information with partners
     vector<int> recv_sizes(ptn.size()) ;
     MPI_Alltoall(&send_sizes[0],1,MPI_INT, &recv_sizes[0],1,MPI_INT,
                  MPI_COMM_WORLD) ;
-    vector<vector<int> > recv_buffers ;
-    vector<int> buf_size ;
-    vector<int> proc ;
-    vector<MPI_Request> recv_Requests ;
+
+    // Compress all of the recieves to a single buffer, compute offsets
+    // within each buffer for the recieves
+    vector<int> recv_offsets(ptn.size()+1) ;
+    recv_offsets[0] = 0 ;
+    int numRecvs = 0 ;
+    for(size_t i=0;i<ptn.size();++i) {
+      recv_offsets[i+1] = recv_offsets[i]+recv_sizes[i] ;
+      if(recv_sizes[i] > 0)
+        numRecvs++ ;
+    }
+    vector<int> recv_buffer(recv_offsets[ptn.size()]*2,0) ;
+
+    // Allocate request buffers for Irecvs
+    vector<MPI_Request> recv_Requests(numRecvs) ;
+    int cnt = 0 ;
     for(size_t i=0;i < ptn.size();++i) {
-      if(recv_sizes[i] != 0) {
+      if(recv_sizes[i] > 0) {
         int recv_size = recv_sizes[i]*2 ;
-        recv_buffers.push_back(vector<int>(recv_size))  ;
-        buf_size.push_back(recv_sizes[i]) ;
-        recv_Requests.push_back(MPI_Request()) ;
-        proc.push_back(i) ;
+        int recv_offset = recv_offsets[i]*2 ;
+        
+        MPI_Irecv(&(recv_buffer[recv_offset]),recv_size,MPI_INT,i,3,
+                  MPI_COMM_WORLD,&recv_Requests[cnt++]) ;
       }
     }
-    for(size_t i=0;i < recv_buffers.size();++i) {
-      int recv_size = buf_size[i]*2 ;
-      
-      MPI_Irecv(&recv_buffers[i][0],recv_size,MPI_INT, proc[i],3,
-                MPI_COMM_WORLD,&recv_Requests[i]) ;
-    }
 
-    vector<int> send_buf(send_intervals*2) ;
-    for(int j=0;j < send_intervals;++j) {
-      send_buf[j*2] = inSet[j].first ;
-      send_buf[j*2+1] = inSet[j].second ;
-    }
-
+    // Send the data to partner
     for(size_t i=0;i < ptn.size();++i) {
       if(send_sizes[i] != 0) {
-        MPI_Send(&send_buf[0],send_intervals*2,MPI_INT,i,3,
-                 MPI_COMM_WORLD) ;
+        MPI_Send(&(send_data[i][0]),send_sizes[i]*2,MPI_INT,i,3,MPI_COMM_WORLD) ;
       }
     }
-    for(size_t i=0;i<recv_Requests.size();++i) {
-      MPI_Status stat ;
-      MPI_Wait(&recv_Requests[i], &stat ) ;
-    }
-    entitySet recvSet ;
-    for(size_t i=0;i<recv_buffers.size();++i)
-      for(int j=0;j<buf_size[i];++j) {
-        recvSet += interval(recv_buffers[i][j*2],recv_buffers[i][j*2+1]) ;
-      }
 
-    inSet += recvSet ;
+    // Wait for communication to complete
+    vector<MPI_Status> recv_Status(recv_Requests.size()) ;
+    MPI_Waitall(numRecvs,&recv_Requests[0],&recv_Status[0]) ;
+
+    // update set to add results from clone regions of other processors
+    for(size_t i=0;i<recv_buffer.size();i=i+2)
+      inSet += interval(recv_buffer[i+0],recv_buffer[i+1]) ;
+
+    // return modified set
     return inSet ;
   }
-    
+
+  
   inline bool spec_ival_compare(const interval &i1,
                             const interval &i2) {
     if(i1.first < i2.first)

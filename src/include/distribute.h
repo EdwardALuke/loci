@@ -66,6 +66,8 @@ namespace Loci {
   std::vector<entitySet> all_collect_vectors(entitySet &e,MPI_Comm comm) ;
   std::vector<entitySet> all_collect_vectors(entitySet &e) ;
 
+  entitySet distribute_entitySet(entitySet e,const std::vector<entitySet> &ptn) ;
+
   entitySet all_collect_entitySet(const entitySet &e) ;
 
   // This is equivalent to but more efficient than
