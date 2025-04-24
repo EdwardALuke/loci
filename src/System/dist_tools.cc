@@ -413,20 +413,29 @@ namespace Loci {
     // 	referencedEntities += tmp_mp->image(tmp_sp->domain()) ;
     //   }
     // }
-	  
+    variableSet constraintVars ;
+    variableSet mapVars ;
     for(variableSet::const_iterator vi = tmp_vars.begin(); vi != tmp_vars.end(); ++vi) {
       storeRepP tmp_sp = facts.get_variable(*vi) ;
       if(tmp_sp->RepType() == CONSTRAINT) {
         entitySet tmp_dom = tmp_sp->domain() ;
         if(GLOBAL_OR(tmp_dom != ~EMPTY,MPI_COMM_WORLD)) {
-	  entitySet global_tmp_dom = all_collect_entitySet(tmp_dom) ;
-	  //	  entitySet global_tmp_dom = collectSet(tmp_dom,referencedEntities,
-	  //						MPI_COMM_WORLD) ;
+          std::vector<entitySet> &ptn =
+            facts.get_init_ptn(tmp_sp->getDomainKeySpace()) ; 
+	  entitySet global_tmp_dom = distribute_entitySet(tmp_dom,ptn) ;
+          //global_tmp_dom = all_collect_entitySet(tmp_dom) ;
+
           constraint tmp ;
           *tmp = global_tmp_dom ;
 	  tmp.Rep()->setDomainKeySpace(tmp_sp->getDomainKeySpace()) ;
           facts.replace_fact(*vi,tmp) ;
-        }
+          constraintVars += *vi ;
+        } else {
+          constraint tmp ;
+          *tmp = ~EMPTY ;
+	  tmp.Rep()->setDomainKeySpace(tmp_sp->getDomainKeySpace()) ;
+          facts.replace_fact(*vi,tmp) ;
+        }          
       }
       if(isMAP(tmp_sp)) {
 	MapRepP tmp_mp = MapRepP(tmp_sp->getRep()) ;
@@ -437,6 +446,7 @@ namespace Loci {
 	tmp_mp = MapRepP(map_sp->getRep()) ;
 	tmp_mp->setRangeKeySpace(kd_range) ;
         facts.replace_fact(*vi, map_sp) ;
+        mapVars += *vi ;
       }
     }
 
@@ -505,6 +515,33 @@ namespace Loci {
     double clone_time_start = MPI_Wtime() ;
 
     vector<entitySet> image =dist_expand_map(tmp_set, facts, dist_maps) ;
+
+    // Figure out what entities we need to communicate for proper
+    // constraint evaluation
+    std::map<int,entitySet> keyspace_expand ;
+    for(auto vi = mapVars.begin();vi!=mapVars.end();++vi) {
+      storeRepP tmp_sp = facts.get_variable(*vi) ;
+      MapRepP tmp_mp = MapRepP(tmp_sp->getRep()) ;
+      int kd_range = tmp_mp->getRangeKeySpace() ;
+      entitySet image = tmp_mp->image(tmp_mp->domain()) ;
+      std::vector<entitySet> &ptn =
+        facts.get_init_ptn(kd_range) ; 
+      keyspace_expand[kd_range]+=image-ptn[MPI_rank] ;
+    }
+
+    for(auto vi = constraintVars.begin();vi!=constraintVars.end();++vi) {
+      storeRepP tmp_sp = facts.get_variable(*vi) ;
+      int kd = tmp_sp->getDomainKeySpace() ;
+      std::vector<entitySet> &ptn = facts.get_init_ptn(kd) ;
+      entitySet dom = tmp_sp->domain() ;
+      dom = dist_expand_entitySet(dom,keyspace_expand[kd],ptn) ;
+      constraint tmp ;
+      *tmp = dom ;
+      tmp.Rep()->setDomainKeySpace(kd) ;
+      facts.replace_fact(*vi,tmp) ;
+    }
+      
+
 
     vector<vector<entitySet> > copyv(nkd), send_clonev(nkd) ;
     for(int kd=0;kd<nkd;++kd) {
@@ -584,13 +621,16 @@ namespace Loci {
       std::vector<entitySet> iv ;
       categories(facts,iv,kd) ; // FIX THIS
       std::vector<entitySet> &ptn = facts.get_init_ptn(kd) ; 
+      for(size_t i=0;i<iv.size();++i) {
+        iv[i] &= ptn[MPI_rank] ;
+      }
       debugout << "finding categories time = " << s.stop() << endl ;
       s.start() ;
       for(size_t i=0;i < iv.size(); ++i) {
 	debugout << "iv["<< i << "] size before expand = " << iv[i].num_intervals()<< endl ;
 	entitySet tmp_copy =  image[kd] - ptn[MPI_rank] ;
-	iv[i] = dist_expand_entitySet(iv[i],tmp_copy,ptn) ;
-	debugout << "iv["<< i << "] size after expand = " << iv[i].num_intervals() <<endl;
+        iv[i] = dist_expand_entitySet(iv[i],tmp_copy,ptn) ;
+        debugout << "iv["<< i << "] size after expand = " << iv[i].num_intervals() <<endl;
       }
       debugout << "time expanding categories = " << s.stop() << endl ;
       s.start() ;
@@ -788,7 +828,6 @@ namespace Loci {
     facts.create_intensional_fact("my_entities",my_entities);
 
   }
-
 
   /** ************************************************************************
    *
