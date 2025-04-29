@@ -1547,9 +1547,9 @@ bool HexCell::balance_cell(int split_mode,
           bitset<2> faceyz = bitset<2>(face[0]->code) | bitset<2>(face[1]->code);
           bitset<2> facexz = bitset<2>(face[2]->code) | bitset<2>(face[3]->code);
           the_code.reset();
-          the_code[0] = faceyz[0] || facexz[0];//x bit
-          the_code[1] = facexy[0] || faceyz[1];//y bit
-          the_code[2] = facexy[1] || facexz[1];//z bit
+          the_code[0] = faceyz[0] | facexz[0];//x bit
+          the_code[1] = facexy[0] | faceyz[1];//y bit
+          the_code[2] = facexy[1] | facexz[1];//z bit
           
           mySplitCode = char(the_code.to_ulong());
           
@@ -1564,17 +1564,17 @@ bool HexCell::balance_cell(int split_mode,
         bitset<2> facexz = bitset<2>(face[2]->code) | bitset<2>(face[3]->code);
         the_code.reset();
         if(face[0]->child != 0 && face[1]->child != 0){//faceyz
-          the_code[1] = the_code[1] || faceyz[1];
-          the_code[0] = the_code[0] || faceyz[0];
+          the_code[1] = the_code[1] | faceyz[1];
+          the_code[0] = the_code[0] | faceyz[0];
         }
         if (face[2]->child != 0 && face[3]->child != 0){//facexz
-          the_code[2] = the_code[2] || facexz[1];
-          the_code[0] = the_code[0] || facexz[0];
+          the_code[2] = the_code[2] | facexz[1];
+          the_code[0] = the_code[0] | facexz[0];
         }
         if(face[4]->child != 0 && face[5]->child != 0){//facexy
 
-          the_code[2] = the_code[2] || facexy[1];
-          the_code[1] = the_code[1] || facexy[0];
+          the_code[2] = the_code[2] | facexy[1];
+          the_code[1] = the_code[1] | facexy[0];
         }
           
         mySplitCode = char(the_code.to_ulong());  

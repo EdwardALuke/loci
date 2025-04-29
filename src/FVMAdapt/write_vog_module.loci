@@ -52,12 +52,14 @@ vector<pair<string,entitySet> >  getVOGTagFromLocal(const vector<pair<string,ent
                                                     int num_original_faces);
 
 
-class node_output_file : public pointwise_rule {
+class node_output_file : public blackbox_rule {
 
-  store<bool> node_output ;
+  param<bool> node_output ;
   const_param<string> outfile_par ;
   const_param<string> meshfile_par ;
-  const_store<Loci::FineNodes> inner_nodes;
+  const_store<Loci::FineNodes> inner_nodes_cell;
+  const_store<Loci::FineNodes> inner_nodes_face;
+  const_store<Loci::FineNodes> inner_nodes_edge;
   
   
   
@@ -67,13 +69,15 @@ public:
     name_store("outfile_par", outfile_par);
     name_store("meshfile_par", meshfile_par);
      
-    name_store("inner_nodes", inner_nodes);
-    
- 
+    name_store("inner_nodes_cell", inner_nodes_cell);
+    name_store("inner_nodes_face", inner_nodes_face);
+    name_store("inner_nodes_edge", inner_nodes_edge);
     
     input("outfile_par");
     input("meshfile_par");
-    input("inner_nodes");
+    input("inner_nodes_cell");
+    input("inner_nodes_face");
+    input("inner_nodes_edge");
  
     
     output("node_output");
@@ -86,7 +90,10 @@ public:
     Loci::readBCfromVOG(*meshfile_par, boundary_ids);
     Loci::writeVOGSurf(file_id,boundary_ids);
     Loci::storeRepP pos = Loci::exec_current_fact_db->get_variable("pos");
-    writeVOGNode(file_id, pos, inner_nodes);
+    writeVOGNode(file_id, pos,
+                 inner_nodes_cell,
+                 inner_nodes_face,
+                 inner_nodes_edge);
     Loci::writeVOGClose(file_id) ;
   }
 };
@@ -98,10 +105,11 @@ register_rule<node_output_file> register_node_output_file;
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #endif
 
-class face_output_file : public pointwise_rule {
+class face_output_file : public blackbox_rule {
  
-  store<bool> face_output ;
+  param<bool> face_output ;
   const_param<string> outfile_par ;
+  const_store<Loci::FineFaces> fine_faces_cell;
   const_store<Loci::FineFaces> fine_faces;
 
   
@@ -109,10 +117,12 @@ public:
   face_output_file(){
     name_store("face_output", face_output);
     name_store("outfile_par", outfile_par);
+    name_store("fine_faces_cell", fine_faces_cell);
     name_store("fine_faces", fine_faces);
     
     
     input("outfile_par");
+    input("fine_faces_cell");
     input("fine_faces");
     
     output("face_output");
@@ -151,11 +161,25 @@ public:
     //problem here; MPI has no long long 
     if(MPI_processes > 1 && !Loci::use_parallel_io) MPI_Bcast(&numNodes, 1, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
      
+    // get 
     //compute numFaces
     int local_num_face = 0;
-    for(sequence::const_iterator ei = seq.begin(); ei != seq.end(); ei++){
+
+    fact_db::distribute_infoP dist =
+      Loci::exec_current_fact_db->get_distribute_info() ;
+    entitySet my_entities = (dist->my_entities) ;
+    entitySet domc = my_entities & fine_faces_cell.domain() ;
+    entitySet dom = my_entities & fine_faces.domain() ;
+
+    for(auto ei = domc.begin(); ei != domc.end(); ei++){
+      local_num_face += fine_faces_cell[*ei].size();
+    }
+    for(auto ei = dom.begin(); ei != dom.end(); ei++){
       local_num_face += fine_faces[*ei].size();
     }
+    //    for(sequence::const_iterator ei = seq.begin(); ei != seq.end(); ei++){
+    //      local_num_face += fine_faces[*ei].size();
+    //    }
 
     std::vector<int> face_sizes= Loci::all_collect_sizes(local_num_face);
 
@@ -177,7 +201,16 @@ public:
     count.allocate(faces);
      
     entitySet::const_iterator fid = faces.begin();
-    for(sequence::const_iterator ei = seq.begin(); ei != seq.end(); ei++){
+    for(auto ei = domc.begin(); ei != domc.end(); ei++){
+      for(unsigned int i = 0; i < fine_faces_cell[*ei].size(); i++){
+        cl[*fid] = fine_faces_cell[*ei][i][0] + cell_min;
+        if(fine_faces_cell[*ei][i][1]>=0) cr[*fid] = fine_faces_cell[*ei][i][1] + cell_min;
+        else  cr[*fid] = fine_faces_cell[*ei][i][1];
+        count[*fid] = fine_faces_cell[*ei][i].size()-2;
+        fid++;
+      }
+    }
+    for(auto ei = dom.begin(); ei != dom.end(); ei++){
       for(unsigned int i = 0; i < fine_faces[*ei].size(); i++){
         cl[*fid] = fine_faces[*ei][i][0] + cell_min;
         if(fine_faces[*ei][i][1]>=0) cr[*fid] = fine_faces[*ei][i][1] + cell_min;
@@ -190,7 +223,18 @@ public:
     face2node.allocate(count);
 
     fid = faces.begin();
-    for(sequence::const_iterator ei = seq.begin(); ei != seq.end(); ei++){
+    for(auto ei = domc.begin(); ei != domc.end(); ei++){
+      for(unsigned int i = 0; i < fine_faces_cell[*ei].size(); i++){
+        for(int j = 0; j < count[*fid]; j++){
+          //vog file node index start with 0
+          // face2node[*fid][j] = fine_faces_cell[*ei][i][j+2]-1;
+          // if(fine_faces_cell[*ei][i][j+2] < 0) cerr <<"WARNING: negative node index" << endl;
+          face2node[*fid][j] = fine_faces_cell[*ei][i][j+2]; 
+        }
+        fid++;
+      }
+    }
+    for(auto ei = dom.begin(); ei != dom.end(); ei++){
       for(unsigned int i = 0; i < fine_faces[*ei].size(); i++){
         for(int j = 0; j < count[*fid]; j++){
           //vog file node index start with 0

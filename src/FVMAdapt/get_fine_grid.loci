@@ -71,7 +71,7 @@ public:
     name_store("pos", pos);
 
 
-    name_store("inner_nodes", inner_nodes);
+    name_store("inner_nodes_cell", inner_nodes);
     name_store("fileNumber(pos)", node_l2f);
     name_store("is_quadface", is_quadface);
     
@@ -81,7 +81,7 @@ public:
     input("(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
     input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
    
-    output("inner_nodes");
+    output("inner_nodes_cell");
     constraint("gnrlcells");
   }
   virtual void compute(const sequence &seq){
@@ -164,10 +164,10 @@ public:
     name_store("balancedEdgePlan", edgePlan);
     name_store("pos", pos); 
     name_store("edge2node", edge2node);
-    name_store("inner_nodes", inner_nodes);
+    name_store("inner_nodes_edge", inner_nodes);
     input("balancedEdgePlan");
     input("edge2node->pos");
-    output("inner_nodes");
+    output("inner_nodes_edge");
    
   }
   virtual void compute(const sequence &seq){

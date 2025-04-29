@@ -77,7 +77,7 @@ public:
     name_store("pos", pos);
 
     
-    name_store("inner_nodes", inner_nodes);
+    name_store("inner_nodes_cell", inner_nodes);
      name_store("fileNumber(face2node)", node_l2f);
   
     
@@ -88,7 +88,7 @@ public:
     input("(lower, upper, boundary_map)->face2node->pos");
     input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
     input("(lower, upper, boundary_map)->fileNumber(face2node)");
-    output("inner_nodes");
+    output("inner_nodes_cell");
     constraint("prisms");
   }
   virtual void compute(const sequence &seq){
@@ -194,13 +194,13 @@ public:
     name_store("edge2node", edge2node);
     name_store("pos", pos);
     name_store("is_quadface", is_quadface);
-    name_store("inner_nodes", inner_nodes);
+    name_store("inner_nodes_face", inner_nodes);
     
     
     input("(balancedFacePlan,is_quadface)");
     input("face2edge->(balancedEdgePlan, edge2node)");
     input("face2node->pos");
-    output("inner_nodes");
+    output("inner_nodes_face");
     constraint("faces");
   }
   virtual void compute(const sequence &seq){

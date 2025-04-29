@@ -80,7 +80,7 @@ public:
     name_store("pos", pos);
   
 
-    name_store("inner_nodes", inner_nodes);
+    name_store("inner_nodes_cell", inner_nodes);
     name_store("fileNumber(face2node)", node_l2f);
 
     
@@ -91,7 +91,7 @@ public:
     input("(lower, upper, boundary_map)->face2node->pos");
     input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
     
-    output("inner_nodes");
+    output("inner_nodes_cell");
     constraint("hexcells");
   }
   virtual void compute(const sequence &seq){

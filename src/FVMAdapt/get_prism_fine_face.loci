@@ -81,7 +81,7 @@ public:
     name_store("balanced_node_offset", node_offset);
     name_store("balanced_cell_offset", cell_offset);
   
-    name_store("fine_faces", fine_faces);
+    name_store("fine_faces_cell", fine_faces);
     name_store("fileNumber(face2node)", face_l2f);
     name_store("fileNumber(pos)", node_l2f);
     
@@ -92,7 +92,7 @@ public:
     input("(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
     input("(lower, upper, boundary_map)->face2edge->edge2node->(pos, fileNumber(pos))");
     input("(lower, upper, boundary_map)->fileNumber(face2node)");
-    output("fine_faces");
+    output("fine_faces_cell");
     constraint("prisms");
   }
   virtual void compute(const sequence &seq){

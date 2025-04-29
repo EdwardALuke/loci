@@ -60,7 +60,10 @@ namespace Loci{
   namespace pio{ 
     void writeVOGNodeS(hid_t file_id,
                        Loci::storeRepP &pos,
-                       const_store<Loci::FineNodes> &inner_nodes){ //serial io
+                       const_store<Loci::FineNodes> &inner_nodes_cell,
+                       const_store<Loci::FineNodes> &inner_nodes_face,
+                       const_store<Loci::FineNodes> &inner_nodes_edge
+                       ){ //serial io
 
       hid_t group_id = 0 ;
   
@@ -68,8 +71,14 @@ namespace Loci{
         //firsr write out numNodes
         long long num_original_nodes  = pos->domain().size();
         long long num_inner_nodes  = 0;
-        FORALL(inner_nodes.domain(), cc){
-          num_inner_nodes += inner_nodes[cc].size();
+        FORALL(inner_nodes_cell.domain(), cc){
+          num_inner_nodes += inner_nodes_cell[cc].size();
+        }ENDFORALL;
+        FORALL(inner_nodes_face.domain(), cc){
+          num_inner_nodes += inner_nodes_face[cc].size();
+        }ENDFORALL;
+        FORALL(inner_nodes_edge.domain(), cc){
+          num_inner_nodes += inner_nodes_edge[cc].size();
         }ENDFORALL;
       
         long long array_size = num_original_nodes + num_inner_nodes;
@@ -147,18 +156,18 @@ namespace Loci{
 
           long index = 0;
           FORALL(local_edges, cc){
-            for(unsigned int i = 0; i < inner_nodes[cc].size(); i++){
-              v_nodes[index++] = inner_nodes[cc][i];
+            for(unsigned int i = 0; i < inner_nodes_edge[cc].size(); i++){
+              v_nodes[index++] = inner_nodes_edge[cc][i];
             }
           }ENDFORALL;
           FORALL(*geom_cells, cc){
-            for(unsigned int i = 0; i < inner_nodes[cc].size(); i++){
-              v_nodes[index++] = inner_nodes[cc][i];
+            for(unsigned int i = 0; i < inner_nodes_cell[cc].size(); i++){
+              v_nodes[index++] = inner_nodes_cell[cc][i];
             }
           }ENDFORALL; 
           FORALL(*faces, cc){
-            for(unsigned int i = 0; i < inner_nodes[cc].size(); i++){
-              v_nodes[index++] = inner_nodes[cc][i];
+            for(unsigned int i = 0; i < inner_nodes_face[cc].size(); i++){
+              v_nodes[index++] = inner_nodes_face[cc][i];
             }
           }ENDFORALL;
                 
@@ -205,19 +214,19 @@ namespace Loci{
   
       offset = 0;
       store<Loci::FineNodes> edge_inner_nodes;
-      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes.Rep(),local_edges,offset,dist,MPI_COMM_WORLD) ;
+      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes_edge.Rep(),local_edges,offset,dist,MPI_COMM_WORLD) ;
       entitySet file_edges = edge_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> cell_inner_nodes;
-      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes.Rep(),local_cells,offset,dist,MPI_COMM_WORLD) ;
+      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes_cell.Rep(),local_cells,offset,dist,MPI_COMM_WORLD) ;
       entitySet file_cells = cell_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> face_inner_nodes;
-      face_inner_nodes = Loci::Local2FileOrder(inner_nodes.Rep(),local_faces,offset,dist,MPI_COMM_WORLD) ;
+      face_inner_nodes = Loci::Local2FileOrder(inner_nodes_face.Rep(),local_faces,offset,dist,MPI_COMM_WORLD) ;
       entitySet file_faces = face_inner_nodes.domain();
   
   
@@ -536,13 +545,17 @@ namespace Loci{
 
     void writeVOGNodeP(hid_t file_id,
                        Loci::storeRepP &pos,
-                       const_store<Loci::FineNodes> &inner_nodes){ //parallel io
+                       const_store<Loci::FineNodes> &inner_nodes_cell,
+                       const_store<Loci::FineNodes> &inner_nodes_face,
+                       const_store<Loci::FineNodes> &inner_nodes_edge
+                       ){ //parallel io
   
 #ifndef H5_HAVE_PARALLEL
   
       writeVOGNodeS( file_id,
                      pos,
-                     inner_nodes);
+                     inner_nodes_cell,inner_nodes_face,inner_nodes_edge
+                     );
 #else
    
       hid_t group_id = 0 ;  
@@ -574,19 +587,19 @@ namespace Loci{
   
       offset = 0;
       store<Loci::FineNodes> edge_inner_nodes;
-      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes.Rep(),local_edges,offset,dist,MPI_COMM_WORLD) ;
+      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes_edge.Rep(),local_edges,offset,dist,MPI_COMM_WORLD) ;
       entitySet file_edges = edge_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> cell_inner_nodes;
-      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes.Rep(),local_cells,offset,dist,MPI_COMM_WORLD) ;
+      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes_cell.Rep(),local_cells,offset,dist,MPI_COMM_WORLD) ;
       entitySet file_cells = cell_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> face_inner_nodes;
-      face_inner_nodes = Loci::Local2FileOrder(inner_nodes.Rep(),local_faces,offset,dist,MPI_COMM_WORLD) ;
+      face_inner_nodes = Loci::Local2FileOrder(inner_nodes_face.Rep(),local_faces,offset,dist,MPI_COMM_WORLD) ;
       entitySet file_faces = face_inner_nodes.domain();
   
   
@@ -811,9 +824,18 @@ namespace Loci{
   
   void writeVOGNode(hid_t file_id,
                     Loci::storeRepP &pos,
-                    const_store<Loci::FineNodes> &inner_nodes){
-    if(use_parallel_io)pio::writeVOGNodeP( file_id,pos,inner_nodes);
-    else pio::writeVOGNodeS( file_id,pos,inner_nodes);
+                    const_store<Loci::FineNodes> &inner_nodes_cell,
+                    const_store<Loci::FineNodes> &inner_nodes_face,
+                    const_store<Loci::FineNodes> &inner_nodes_edge
+                    ){
+    if(use_parallel_io)pio::writeVOGNodeP( file_id,pos,
+                                           inner_nodes_cell,
+                                           inner_nodes_face,
+                                           inner_nodes_edge);
+    else pio::writeVOGNodeS( file_id,pos,
+                             inner_nodes_cell,
+                             inner_nodes_face,
+                             inner_nodes_edge);
   }
 
   
