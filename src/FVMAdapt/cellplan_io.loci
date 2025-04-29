@@ -333,6 +333,7 @@ class reprocess_plan : public pointwise_rule {
     input("balancedCellPlan1");
     input("beginWithMarker");
     output("balancedCellPlan");
+    disable_threading() ;
   }
   virtual void compute(const sequence &seq) {
     do_loop(seq, this);
@@ -356,6 +357,7 @@ class process_plan : public pointwise_rule {
     name_store("tmpPlan", tmpPlan);
     input("balancedCellPlan");
     output("tmpPlan");
+    disable_threading() ;
   }
   virtual void compute(const sequence &seq) {
     do_loop(seq, this);

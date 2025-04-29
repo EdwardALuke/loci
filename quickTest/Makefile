@@ -1,4 +1,4 @@
-default: FVM FVMModUnitTests Containers
+default: FVM FVMModUnitTests FVMAdaptTest Containers
 
 .PHONY: FRC
 
@@ -8,6 +8,8 @@ FVMModUnitTests: FRC
 FVM: FRC
 	$(MAKE) -C FVM LOCI_BASE=$(LOCI_BASE)
 
+FVMAdaptTest: FRC
+	$(MAKE) -C FVMAdaptTest LOCI_BASE=$(LOCI_BASE) TEST_BASE=../
 Containers: FRC
 	$(MAKE) -C Containers LOCI_BASE=$(LOCI_BASE)
 

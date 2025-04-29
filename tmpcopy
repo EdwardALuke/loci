@@ -79,7 +79,7 @@ if [ ${target:0:1} != "/" ]; then
    echo setting target to \'$target\'
 fi
 
-TARGET_DIRS="System Tools lpp FVMtools FVMtools/libadf FVMMod FVMMod/limiters sprng sprng/include sprng/include/sprng FVMAdapt FVMOverset include include/Tools include/Config include/MPI_stubb include/FVMAdapt include/FVMMod include/FVMOverset"
+TARGET_DIRS="System Tools lpp FVMtools FVMtools/libadf FVMMod FVMMod/limiters sprng sprng/include sprng/include/sprng FVMAdapt FVMAdapt/library FVMOverset include include/Tools include/Config include/MPI_stubb include/FVMAdapt include/FVMMod include/FVMOverset"
 #TOOLS_DIRS="lpp FVMtools FVMtools/libadf FVMMod sprng sprng/include sprng/include/sprng"
 TOOLS_DIRS=""
 
@@ -319,6 +319,10 @@ echo mkdir -p $fulltarget/quickTest/Containers
 mkdir -p $fulltarget/quickTest/FVM
 echo mkdir -p $fulltarget/quickTest/FVMModUnitTests
 mkdir -p $fulltarget/quickTest/FVMModUnitTests
+echo mkdir -p $fulltarget/quickTest/FVMAdaptTest
+mkdir -p $fulltarget/quickTest/FVMAdaptTest
+echo mkdir -p $fulltarget/quickTest/FVMAdaptTest/dats
+mkdir -p $fulltarget/quickTest/FVMAdaptTest/dats
 echo mkdir -p $fulltarget/quickTest/FVM
 pushd $source/quickTest/Containers
 for i in *.cc *.loci Makefile ; do
@@ -326,6 +330,27 @@ for i in *.cc *.loci Makefile ; do
 	if [ ! -h $fulltarget/quickTest/Containers/$i ] ; then
 	    echo ln -s $source/quickTest/Containers/$i $fulltarget/quickTest/Containers/$i
 	    ln -s $source/quickTest/Containers/$i $fulltarget/quickTest/Containers/$i
+	fi
+    fi
+done
+popd
+
+pushd $source/quickTest/FVMAdaptTest
+for i in *.vog *.cc *.loci Makefile ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMAdaptTest/$i ] ; then
+	    echo ln -s $source/quickTest/FVMAdaptTest/$i $fulltarget/quickTest/FVMAdaptTest/$i
+	    ln -s $source/quickTest/FVMAdaptTest/$i $fulltarget/quickTest/FVMAdaptTest/$i
+	fi
+    fi
+done
+popd
+pushd $source/quickTest/FVMAdaptTest/dats
+for i in *.dat ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMAdaptTest/dats/$i ] ; then
+	    echo ln -s $source/quickTest/FVMAdaptTest/dats/$i $fulltarget/quickTest/FVMAdaptTest/dats.$i
+	    ln -s $source/quickTest/FVMAdaptTest/dats/$i $fulltarget/quickTest/FVMAdaptTest/dats/$i
 	fi
     fi
 done
