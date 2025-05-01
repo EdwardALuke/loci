@@ -422,7 +422,10 @@ namespace Loci {
 
   extern void writeVOGNode(hid_t file_id,
                            Loci::storeRepP &pos,
-                           const_store<Loci::FineNodes> &inner_nodes);
+                           const_store<Loci::FineNodes> &inner_nodes_cell,
+                           const_store<Loci::FineNodes> &inner_nodes_face,
+                           const_store<Loci::FineNodes> &inner_nodes_edge
+                           );
   extern void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) ;
   extern  unsigned long readAttributeLong(hid_t group, const char *name);
   

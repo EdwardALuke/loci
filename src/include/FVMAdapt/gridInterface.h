@@ -6,12 +6,15 @@ namespace Loci {
   void parallelClassifyCell(fact_db &facts) ;
 
   void createVOGNode(store<vector3d<double> > &new_pos,
-                     const store<Loci::FineNodes> &inner_nodes,
+                     const store<Loci::FineNodes> &inner_nodes_cell,
+                     const store<Loci::FineNodes> &inner_nodes_face,
+                     const store<Loci::FineNodes> &inner_nodes_edge,
                      int& num_nodes,
                      fact_db & facts,//in global numbering
                      vector<entitySet>& nodes_ptn) ;
 
   void createVOGFace(int numNodes,
+                     const store<Loci::FineFaces> &fine_faces_cell,
                      const store<Loci::FineFaces> &fine_faces,
                      fact_db & facts,
                      int& numFaces,

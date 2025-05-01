@@ -307,7 +307,7 @@ namespace Loci {
       refine_facts.create_fact("cellweight_outDB_par",cellweight_outDB_par);
         
       if(!Loci::makeQuery(refine_rules,refine_facts,
-			  "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes,fine_faces,volTag_blackbox")) {
+			  "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox")) {
 	std::cerr << "adapt query failed!" << std::endl;
 	Loci::Abort();
       }
@@ -318,13 +318,17 @@ namespace Loci {
     Loci::DataXFER_DB.insertItem("currentPlan",newPlan) ;
     Loci::DataXFER_DB.deleteItem("nextPlan") ;
 	
-    store<Loci::FineNodes> inner_nodes;
-    inner_nodes = refine_facts.get_variable("inner_nodes");
+    store<Loci::FineNodes> inner_nodes_cell;
+    inner_nodes_cell = refine_facts.get_variable("inner_nodes_cell");
+    store<Loci::FineNodes> inner_nodes_face;
+    inner_nodes_face = refine_facts.get_variable("inner_nodes_face");
+    store<Loci::FineNodes> inner_nodes_edge;
+    inner_nodes_edge = refine_facts.get_variable("inner_nodes_edge");
         
        
     int num_nodes;
     createVOGNode(gridDataP->new_pos,
-		  inner_nodes,
+		  inner_nodes_cell,inner_nodes_face,inner_nodes_edge,
 		  num_nodes,
 		  refine_facts,
 		  gridDataP->local_nodes
@@ -332,6 +336,8 @@ namespace Loci {
     if(Loci::MPI_rank ==0)
       cerr<< "num_nodes: " << num_nodes << " in adaptcycle" << endl;
         
+    store<Loci::FineFaces> fine_faces_cell;
+    fine_faces_cell = refine_facts.get_variable("fine_faces_cell");
     store<Loci::FineFaces> fine_faces;
     fine_faces = refine_facts.get_variable("fine_faces");
         
@@ -339,6 +345,7 @@ namespace Loci {
     int num_cells = 0;
       
     createVOGFace( num_nodes,
+		   fine_faces_cell,
 		   fine_faces,
 		   refine_facts,
 		   num_faces,
@@ -438,13 +445,17 @@ namespace Loci {
     refine_facts.create_fact("balanced_planDB_par",balanced_planDB_par) ;
 	      
     if(!Loci::makeQuery(refine_rules,refine_facts,
-			"inner_nodes,fine_faces,volTag_blackbox")) {
+			"inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces,fine_faces_cell,volTag_blackbox")) {
       std::cerr << "adapt query failed!" << std::endl;
       Loci::Abort();
     }
        
-    store<Loci::FineNodes> inner_nodes;
-    inner_nodes = refine_facts.get_variable("inner_nodes");
+    store<Loci::FineNodes> inner_nodes_cell;
+    inner_nodes_cell = refine_facts.get_variable("inner_nodes_cell");
+    store<Loci::FineNodes> inner_nodes_face;
+    inner_nodes_face = refine_facts.get_variable("inner_nodes_face");
+    store<Loci::FineNodes> inner_nodes_edge;
+    inner_nodes_edge = refine_facts.get_variable("inner_nodes_edge");
 
 	  
     gridDataP = new(refinedGridData) ;
@@ -453,13 +464,15 @@ namespace Loci {
        
     int num_nodes;
     createVOGNode(gridDataP->new_pos,
-		  inner_nodes,
+		  inner_nodes_cell,inner_nodes_face,inner_nodes_edge,
 		  num_nodes,
 		  refine_facts,
 		  gridDataP->local_nodes
 		  );
     if(Loci::MPI_rank ==0)cerr<< "num_nodes: " << num_nodes << " before chem run" <<  endl;
         
+    store<Loci::FineFaces> fine_faces_cell;
+    fine_faces_cell = refine_facts.get_variable("fine_faces_cell");
     store<Loci::FineFaces> fine_faces;
     fine_faces = refine_facts.get_variable("fine_faces");
 	      
@@ -467,6 +480,7 @@ namespace Loci {
     int num_cells = 0;
 	      
     createVOGFace( num_nodes,
+		   fine_faces_cell,
 		   fine_faces,
 		   refine_facts,
 		   num_faces,
@@ -1484,7 +1498,10 @@ namespace Loci {
   //re_number the nodes in pos and inner_nodes,
   //and then redistribute them across the processes
   void createVOGNode(store<vector3d<double> > &new_pos,
-                     const store<Loci::FineNodes> &inner_nodes,
+                     const store<Loci::FineNodes> &inner_nodes_cell,
+                     const store<Loci::FineNodes> &inner_nodes_face,
+                     const store<Loci::FineNodes> &inner_nodes_edge,
+                     
                      int& num_nodes,
                      fact_db & facts,//in global numbering
                      vector<entitySet>& nodes_ptn
@@ -1497,8 +1514,14 @@ namespace Loci {
       //firsr write out numNodes
       long  num_original_nodes  = pos.domain().size();
       long  num_inner_nodes  = 0;
-      FORALL(inner_nodes.domain(), cc){
-        num_inner_nodes += inner_nodes[cc].size();
+      FORALL(inner_nodes_cell.domain(), cc){
+        num_inner_nodes += inner_nodes_cell[cc].size();
+      }ENDFORALL;
+      FORALL(inner_nodes_face.domain(), cc){
+        num_inner_nodes += inner_nodes_face[cc].size();
+      }ENDFORALL;
+      FORALL(inner_nodes_edge.domain(), cc){
+        num_inner_nodes += inner_nodes_edge[cc].size();
       }ENDFORALL;
     
       int node_base = 0;
@@ -1519,18 +1542,18 @@ namespace Loci {
       entitySet local_edges = facts.get_variable("edge2node")->domain();
 
       FORALL(local_edges, cc){
-        for(unsigned int i = 0; i < inner_nodes[cc].size(); i++, nei++){
-          new_pos[*nei] = inner_nodes[cc][i];
+        for(unsigned int i = 0; i < inner_nodes_edge[cc].size(); i++, nei++){
+          new_pos[*nei] = inner_nodes_edge[cc][i];
         }
       }ENDFORALL;
       FORALL(*geom_cells, cc){
-        for(unsigned int i = 0; i < inner_nodes[cc].size(); i++, nei++){
-          new_pos[*nei] = inner_nodes[cc][i];
+        for(unsigned int i = 0; i < inner_nodes_cell[cc].size(); i++, nei++){
+          new_pos[*nei] = inner_nodes_cell[cc][i];
         }
       }ENDFORALL; 
       FORALL(*faces, cc){
-        for(unsigned int i = 0; i < inner_nodes[cc].size(); i++, nei++){
-          new_pos[*nei] = inner_nodes[cc][i];
+        for(unsigned int i = 0; i < inner_nodes_face[cc].size(); i++, nei++){
+          new_pos[*nei] = inner_nodes_face[cc][i];
         }
       }ENDFORALL;
       num_nodes = new_domain.size();
@@ -1572,19 +1595,19 @@ namespace Loci {
     
       eoffset = 0;
       store<Loci::FineNodes> edge_inner_nodes;
-      edge_inner_nodes = Loci::Global2FileOrder(inner_nodes.Rep(),local_edges,eoffset,dist,MPI_COMM_WORLD) ;
+      edge_inner_nodes = Loci::Global2FileOrder(inner_nodes_edge.Rep(),local_edges,eoffset,dist,MPI_COMM_WORLD) ;
       entitySet file_edges = edge_inner_nodes.domain();
       
       coffset= 0;
       // Create container 
       store<Loci::FineNodes> cell_inner_nodes;
-      cell_inner_nodes = Loci::Global2FileOrder(inner_nodes.Rep(),local_cells,coffset,dist,MPI_COMM_WORLD) ;
+      cell_inner_nodes = Loci::Global2FileOrder(inner_nodes_cell.Rep(),local_cells,coffset,dist,MPI_COMM_WORLD) ;
       entitySet file_cells = cell_inner_nodes.domain();
   
       foffset= 0;
       // Create container
       store<Loci::FineNodes> face_inner_nodes;
-      face_inner_nodes = Loci::Global2FileOrder(inner_nodes.Rep(),local_faces,foffset,dist,MPI_COMM_WORLD) ;
+      face_inner_nodes = Loci::Global2FileOrder(inner_nodes_face.Rep(),local_faces,foffset,dist,MPI_COMM_WORLD) ;
       entitySet file_faces = face_inner_nodes.domain();
       
       //Now allocate temp entitySet in file numbering
@@ -1793,6 +1816,7 @@ namespace Loci {
   //re_number the nodes in pos and inner_nodes,
   //and then redistribute them across the processes
   void createVOGFace(int numNodes,
+                     const store<Loci::FineFaces> &fine_faces_cell,
                      const store<Loci::FineFaces> &fine_faces,
                      fact_db & facts,
                      int& numFaces,
@@ -1809,8 +1833,11 @@ namespace Loci {
     my_faces = facts.get_variable("faces");
     my_geom_cells = facts.get_variable("geom_cells");
     entitySet dom = fine_faces.domain() & (*my_faces+*my_geom_cells);
-  
+    entitySet domc = fine_faces_cell.domain() ;
     int local_num_face = 0;
+    for(entitySet::const_iterator ei = domc.begin(); ei != domc.end(); ei++){
+      local_num_face += fine_faces_cell[*ei].size();
+    }
     for(entitySet::const_iterator ei = dom.begin(); ei != dom.end(); ei++){
       local_num_face += fine_faces[*ei].size();
     }
@@ -1834,6 +1861,19 @@ namespace Loci {
     int cell_max = std::numeric_limits<int>::min();
     int cell_min = std::numeric_limits<int>::max();
     entitySet::const_iterator fid = faces.begin();
+    for(entitySet::const_iterator ei = domc.begin(); ei != domc.end(); ei++){
+      for(unsigned int i = 0; i < fine_faces_cell[*ei].size(); i++){
+        cl[*fid] = fine_faces_cell[*ei][i][0] + cell_base -1;// -1 finefaces cell index start at 1
+        if(fine_faces_cell[*ei][i][1]>=0) cr[*fid] = fine_faces_cell[*ei][i][1] + cell_base -1;
+        else  cr[*fid] = fine_faces_cell[*ei][i][1];
+        cell_max = max(cell_max,cl[*fid]);
+        cell_max = max(cell_max,cr[*fid]);
+        cell_min = min(cell_min,cl[*fid]);
+        if (cr[*fid]>=0) cell_min = min(cell_min,cr[*fid]);
+        count[*fid] = fine_faces_cell[*ei][i].size()-2;
+        fid++;
+      }
+    }
     for(entitySet::const_iterator ei = dom.begin(); ei != dom.end(); ei++){
       for(unsigned int i = 0; i < fine_faces[*ei].size(); i++){
         cl[*fid] = fine_faces[*ei][i][0] + cell_base -1;// -1 finefaces cell index start at 1
@@ -1881,6 +1921,17 @@ namespace Loci {
     //fill up face2node  
     face2node.allocate(count);
     fid = faces.begin();
+    for(entitySet::const_iterator ei = domc.begin(); ei != domc.end(); ei++){
+      for(unsigned int i = 0; i < fine_faces_cell[*ei].size(); i++){
+        for(int j = 0; j < count[*fid]; j++){
+          //vog file node index start with 0
+          // face2node[*fid][j] = fine_faces_cell[*ei][i][j+2]-1;
+          // if(fine_faces_cell[*ei][i][j+2] < 0) cerr <<"WARNING: negative node index" << endl;
+          face2node[*fid][j] = fine_faces_cell[*ei][i][j+2];
+        }
+        fid++;
+      }
+    }
     for(entitySet::const_iterator ei = dom.begin(); ei != dom.end(); ei++){
       for(unsigned int i = 0; i < fine_faces[*ei].size(); i++){
         for(int j = 0; j < count[*fid]; j++){
@@ -1920,10 +1971,6 @@ namespace Loci{
   void writeVOGSurf(hid_t file_id, std::vector<pair<int,string> > surface_ids);
   void writeVOGTag(hid_t output_fid,  vector<pair<string,entitySet> >& volTags);
   void writeVOGClose(hid_t file_id) ;
-  void writeVOGNode(hid_t file_id,
-                    Loci::storeRepP &pos,
-                    const_store<Loci::FineNodes> &inner_nodes);
-
 
 }
 
