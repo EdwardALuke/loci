@@ -106,12 +106,25 @@ namespace flowPsi {
   $rule pointwise(scalarVal<-cellcenter,baseGradS) {
     $scalarVal = dot($cellcenter,$baseGradS) ;
   }
+  /// Scalar field that will have grad()= 0
+  $type scalarConst store<real> ;
+  /// Compute function by inner product with target gradient
+  $rule pointwise(scalarConst<-cellcenter,baseGradS) {
+    $scalarConst = norm($baseGradS) ;
+  }
 
   /// Scalar field for boundary faces that have grad() = baseGradS
   $type scalarVal_f store<real> ;
   /// Compute function by inner product with target gradient
   $rule pointwise(scalarVal_f<-facecenter,baseGradS) {
     $scalarVal_f = dot($facecenter,$baseGradS) ;
+  }
+
+  /// Scalar field for boundary faces that have grad() = 0
+  $type scalarConst_f store<real> ;
+  /// Compute function by inner product with target gradient
+  $rule pointwise(scalarConst_f<-facecenter,baseGradS) {
+    $scalarConst_f = norm($baseGradS) ;
   }
 
   /// Vector field that has grad()=baseGradV3d
@@ -123,6 +136,12 @@ namespace flowPsi {
     $v3dVal.z = dot($cellcenter,$baseGradV3d.z) ;
   }
 
+    /// Vector field that has grad()=0
+  $type v3dConst store<vect3d> ;
+  $rule pointwise(v3dConst<-cellcenter,baseGradV3d) {
+    $v3dConst = $baseGradV3d.x ;
+  }
+
   /// Vector field at boundary that has grad()=baseGradV3d
   $type v3dVal_f store<vect3d> ;
   /// Compute vector field using linear dot product
@@ -130,6 +149,12 @@ namespace flowPsi {
     $v3dVal_f.x = dot($facecenter,$baseGradV3d.x) ;
     $v3dVal_f.y = dot($facecenter,$baseGradV3d.y) ;
     $v3dVal_f.z = dot($facecenter,$baseGradV3d.z) ;
+  }
+
+  /// Vector field at boundary that has grad()=0
+  $type v3dConst_f store<vect3d> ;
+  $rule pointwise(v3dConst_f<-facecenter,baseGradV3d) {
+    $v3dConst_f = $baseGradV3d.x ;
   }
 
   /// general vector field that has grad()=baseGradv

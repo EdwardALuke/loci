@@ -238,7 +238,7 @@ namespace Loci {
                                 upper->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
                                 lower->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
                                 boundary_map->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V))),
-        constraint(geom_cells,NB_limiter) {
+  constraint(geom_cells,NB_limiter,standardv3dLimit) {
     const vect3d Xcc = $V ;
     const tens3d Xgr = $gradv3d(V) ;
     const vect3d cent = $cellcenter ;
@@ -307,7 +307,7 @@ namespace Loci {
                                 upper->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
                                 lower->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
                                 boundary_map->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V))),
-        constraint(geom_cells,NB_limiter) 
+  constraint(geom_cells,NB_limiter,minv3dLimit) 
   {
     const vect3d Xcc = $V ;
     const tens3d Xgr = $gradv3d(V) ;
