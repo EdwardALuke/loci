@@ -634,11 +634,10 @@ namespace Loci {
         for(ri=rules.begin();ri!=rules.end();++ri) {
           rulecomp_map::const_iterator rmi ;
           rmi = rcm.find(*ri) ;
-          if(rmi == rcm.end()) {
-            cerr << "could not find rule compiler for " <<*ri << endl ;
-          }
-          FATAL(rmi == rcm.end()) ;
-          dag_comp.push_back(rmi->second) ;
+          // Warning means rule compiler could not be found
+          WARN(rmi == rcm.end()) ;
+          if(rmi != rcm.end()) // If rule compiler found, and it to compilers
+            dag_comp.push_back(rmi->second) ;
         }
 
 #ifdef DYNAMICSCHEDULING
