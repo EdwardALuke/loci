@@ -636,7 +636,7 @@ namespace Loci {
           rmi = rcm.find(*ri) ;
           // Warning means rule compiler could not be found
           WARN(rmi == rcm.end()) ;
-          if(rmi != rcm.end()) // If rule compiler found, and it to compilers
+          if(rmi != rcm.end()) // If rule compiler found, add it to compilers
             dag_comp.push_back(rmi->second) ;
         }
 
