@@ -133,11 +133,11 @@ namespace Loci {
     cached_erase_set = cp.cached_erase_set ;
     erase_threshold = cp.erase_threshold ;
     for(int i=0;i<4096;++i) {
-      if(cp->data[i] != 0) {
+      if(cp.data[i] != 0) {
         data[i] = new block_info *[2048] ;
         for(int j=0;j<2048;++j) {
-          if(cp->data[i][j] != 0)
-            data[i][j] = new block_info(cp->data[i][j]) ;
+          if(cp.data[i][j] != 0)
+            data[i][j] = new block_info(cp.data[i][j]) ;
         }
       }
     }
