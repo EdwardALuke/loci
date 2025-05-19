@@ -826,9 +826,12 @@ namespace Loci {
   // Collect entitities to a unified entitySet that is distributed across
   // processors according to the partition ptn.
   entitySet dist_collect_entitySet(entitySet inSet, const vector<entitySet> &ptn) {
-    cerr << "dist_collect_entitySet is depreciated" << endl ;
     const int p = MPI_processes ;
     const int r = MPI_rank ;
+#ifdef DEBUG
+    if(r == 0) 
+      cerr << "dist_collect_entitySet is depreciated" << endl ;
+#endif
     entitySet retval = inSet & ptn[r] ;
     // Check for empty and universal set
     int sbits = ((inSet != EMPTY)?1:0)| ((retval != ptn[r])?2:0) ;
