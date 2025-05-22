@@ -833,8 +833,8 @@ int main(int ac, char *av[]) {
 
   bool fail = false ;
 
-#define DEBUG
-#ifndef DEBUG
+#define DEBUG_HDF5
+#ifndef DEBUG_HDF5
   /* Save old error handler */
   H5E_auto_t old_func = 0;
   void *old_client_data = 0 ;
