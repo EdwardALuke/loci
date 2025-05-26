@@ -143,8 +143,6 @@ namespace Loci {
 
   $type M storeVec<real_t> ;
   $type M_f storeVec<real_t> ;
-  $type vecSize(M) param<int> ;
-
 
   $rule unit(NGTNodalvMax(M)<-vecSize(M)), constraint(pos), prelude {
     $NGTNodalvMax(M).setVecSize(*$vecSize(M)) ;
@@ -191,7 +189,6 @@ namespace Loci {
   }
 
 
-  $type S store<real> ;
   $rule pointwise(limiters(S)<-cellcenter,S,grads(S),firstOrderCells,
 		  upper->face2node->(pos,NGTNodalMax(S),NGTNodalMin(S)),
 		  lower->face2node->(pos,NGTNodalMax(S),NGTNodalMin(S)),
@@ -233,7 +230,6 @@ namespace Loci {
     $limiters(S) = realToDouble(limi) ;
   }
 
-  $type V store<vect3d> ;
   $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
                                 upper->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
                                 lower->face2node->(pos,NGTNodalv3dMax(V),NGTNodalv3dMin(V)),
@@ -371,8 +367,6 @@ namespace Loci {
     $limiterv3d(V) = vect3d(limm,limm,limm) ;
   }
 
-  $type M storeVec<real> ;
-  $type M_f storeVec<real> ;
   $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
                               upper->cr->M,upper->facecenter,
                               lower->cl->M,lower->facecenter,

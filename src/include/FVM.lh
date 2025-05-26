@@ -129,6 +129,7 @@ $type leftv3d(X) store<Loci::vector3d<Loci::real_t> > ;
 /** MUSCL 3-D vector extrapolation for right side of face */
 $type rightv3d(X) store<Loci::vector3d<Loci::real_t> > ;
 
+
 /** Simple scalar interpolation from geom_cells and boundary faces to nodes */
 $type cell2node(X) store<float > ;
 /**
@@ -188,6 +189,9 @@ $type LinfNorm(X) param<Loci::real_t> ;
 
 /** Get file number of entity */
 $type fileNumber(X) store<int> ;
+
+/// get vector size of storeVec<real_t>
+$type vecSize(M) param<int> ;
 
 /** Used to store the volume tag name for tagged vog file regions */
 $type volumeTag(X) param<string> ;
