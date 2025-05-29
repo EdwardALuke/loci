@@ -172,11 +172,13 @@ while [ $# -ne 0 ]; do
 	    shift
 	    METIS_BASE=$1
 	    INSTALL_METIS=0
+	    USE_METIS=1
 	    ;;
 	--with-metis\=*)
 	    tmp=$1
 	    METIS_BASE=${tmp#--with-metis\=}
 	    INSTALL_METIS=0
+	    USE_METIS=1
 	    ;;
 	############################################################################
 	############################################################################
