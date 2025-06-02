@@ -32,28 +32,29 @@ namespace Loci {
   typedef vector3d<real_t> vect3d ;
   typedef real_t real ;
 
-  $type sim_nodes param<bool> ;
-
-  $rule singleton(face2node->sim_nodes),constraint(face2node->pos) {
-    $sim_nodes = true ;
-  }
-
   $type M storeVec<real_t> ;
 
+  /// Helper to get size of storeVec
   $rule unit(vecSize(M)), constraint(UNIVERSE) {
     $vecSize(M) = 0 ;
   }
-
+  /// Helper to get size of storeVec
   $rule apply(vecSize(M)<-M)[Loci::Maximum], prelude {
     join(*$vecSize(M),$M.vecSize()) ;
   } ;
 
+  /// Helper to compute weighted sum from cells to nodes, this stores
+  /// the sum of weights used to normalize weighted sum.
   $type nodalw_sum store<float> ;
 
+
+  /// Accumulate over nodes to get total sum
   $rule unit(nodalw_sum), constraint(pos) {
     $nodalw_sum = 0 ;
   }
 
+  /// Collect the unique nodes referenced by the face and sum the reciprocal
+  /// distance.
   $rule apply((upper,lower,boundary_map)->face2node->nodalw_sum<-(upper,lower,boundary_map)->face2node->nodalw_sum,cellcenter,(upper,lower,boundary_map)->face2node->pos)[Loci::Summation],constraint(geom_cells) {
     int sztot = 0 ;
     
@@ -87,6 +88,7 @@ namespace Loci {
   }
 
 
+  /// compute nodal average for storeVec
   $type nodal_sum(M) storeVec<float> ;
   $rule unit(nodal_sum(M)<-vecSize(M)),constraint(pos),prelude {
     $nodal_sum(M).setVecSize(*$vecSize(M)) ;
@@ -94,6 +96,7 @@ namespace Loci {
     $nodal_sum(M) = mk_Scalar(0.0) ;
   }
 
+  /// compute nodal reciprocal weighted sum for storeVec
   $rule apply((upper,lower,boundary_map)->face2node->nodal_sum(M)<-
 	      (upper,lower,boundary_map)->face2node->pos,cellcenter,M)
   [Loci::Summation],constraint(geom_cells) {
@@ -129,11 +132,20 @@ namespace Loci {
         $*nodal_sum(M)[nd][i] += realToFloat(weight*$M[i]) ;
     }
   }
-    
 
-  $type cell2node_v(M) storeVec<float> ;
-
-  $rule pointwise(cell2node_v(M)<-nodal_sum(M),nodalw_sum),constraint(pos),
+  /// Helper variable that is designed to be used in constraints.  This value
+  /// will be defined for all nodes that have a referencing cell that contains
+  /// the value X
+  $type hasCellValues(X) store<bool> ;
+  
+  $rule pointwise((upper,lower,boundary_map)->face2node->hasCellValues(X)),constraint(X,geom_cells), prelude {
+    if(seq.size() != 0) {
+      cerr << "hasCellValues(X) rule should not be executed! It is intended for constraints only!" << endl ;
+      Loci::Abort() ;
+    }
+  } ;
+  
+  $rule pointwise(cell2node_v(M)<-nodal_sum(M),nodalw_sum),constraint(pos,hasCellValues(M)),
     prelude {
     $cell2node_v(M).setVecSize($nodal_sum(M).vecSize()) ;
   } compute {
@@ -143,17 +155,23 @@ namespace Loci {
     }
   }
 
+  /// Compute nodes that are on the boundary that will be averaged from
+  /// boundary face values instead of cell values
   $type boundary_node param<bool> ;
-  
+
+  /// Dummy rule to identify the nodes tha are tied to the boundaries
   $rule singleton(face2node->boundary_node),constraint(ci,no_symmetry_BC) {
   }
 
+  ///  Weights used for averaging to the boundary nodes
   $type boundary_nodalw_sum store<float> ;
-  
+
+  /// Compute reciprocal distance weights on boundary nodes
   $rule unit(boundary_nodalw_sum),constraint(pos) {
     $boundary_nodalw_sum = 0 ;
   }
 
+  /// Compute reciprocal distance weights on boundary nodes
   $rule apply(face2node->boundary_nodalw_sum<-face2node->(pos,boundary_nodalw_sum),facecenter)[Loci::Summation],constraint(ci,no_symmetry_BC) {
     int fsz = $face2node.size() ;
     for(int i=0;i<fsz;++i) {
@@ -162,8 +180,10 @@ namespace Loci {
     }
   }
 
+  /// sum of reciprocal distance weighted values for storeVec
   $type boundary_nodal_sum(M) storeVec<float> ;
-  
+
+  /// Compute boundary node reciprocal weighted sum
   $rule unit(boundary_nodal_sum(M)<-vecSize(M)), prelude {
     $boundary_nodal_sum(M).setVecSize(*$vecSize(M)) ;
   } compute {
@@ -172,6 +192,7 @@ namespace Loci {
 
   $type M_f storeVec<real> ;
   
+  /// Compute boundary node reciprocal weighted sum
   $rule apply(face2node->boundary_nodal_sum(M)<-face2node->(pos,boundary_nodal_sum(M)),M_f,facecenter)[Loci::Summation],constraint(ci,no_symmetry_BC) {
     int fsz = $face2node.size() ;
     for(int i=0;i<fsz;++i) {
@@ -181,7 +202,8 @@ namespace Loci {
     }
   }
 
-  $rule pointwise(boundary::cell2node_v(M)<-boundary_nodalw_sum,boundary_nodal_sum(M)),constraint(boundary_node), prelude {
+  /// Override node interpolation on boundaries with face averages
+  $rule pointwise(boundary::cell2node_v(M)<-boundary_nodalw_sum,boundary_nodal_sum(M)),constraint(boundary_node,hasCellValues(M)), prelude {
     $cell2node_v(M).setVecSize($boundary_nodal_sum(M).vecSize()) ;
   } compute {
       double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
@@ -190,12 +212,15 @@ namespace Loci {
       }
   }
 
+  /// Reciprocal distance weighed sum for store
   $type c2n_scalar_sum(X) store<float> ;
 
+  /// Compute reciprocal distance weighted sum of scalar X
   $rule unit(c2n_scalar_sum(X) ), constraint(pos)  { $c2n_scalar_sum(X) = 0 ; }
 
   $type X store<real> ;
 
+  /// Compute reciprocal distance weighted sum of scalar X
   $rule apply((upper,lower,boundary_map)->face2node->c2n_scalar_sum(X) <-
 	      (upper,lower,boundary_map)->face2node->pos,cellcenter,X)[Loci::Summation],
     constraint(geom_cells) {
@@ -231,12 +256,16 @@ namespace Loci {
     }
   } 
 
-  $type cell2node(X) store<float> ;
-  $rule pointwise(cell2node(X)<-c2n_scalar_sum(X),nodalw_sum),constraint(pos) {
+
+  /// Compute reciprocal distance weighted sum of scalar value for interior
+  /// nodes
+  $rule pointwise(cell2node(X)<-c2n_scalar_sum(X),nodalw_sum),
+  constraint(pos,hasCellValues(X)) {
     double rsum = 1./(double($nodalw_sum)+1e-20) ;
     $cell2node(X) = $c2n_scalar_sum(X)*rsum ;
   }   
 
+  /// Boundary node reciprocal weighted sum of face values
   $type boundary_scalar_sum(X) store<float> ;
   $rule unit(boundary_scalar_sum(X)), constraint(pos) {
     $boundary_scalar_sum(X) = 0 ;
@@ -253,11 +282,13 @@ namespace Loci {
     }
   }
 
-  $rule pointwise(boundary::cell2node(X)<-boundary_scalar_sum(X),boundary_nodalw_sum),constraint(boundary_node) {
+  /// Override boundary node interpolated values from face values
+  $rule pointwise(boundary::cell2node(X)<-boundary_scalar_sum(X),boundary_nodalw_sum),constraint(boundary_node,hasCellValues(X)) {
       double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
       $cell2node(X) = $boundary_scalar_sum(X)*rsum ;
   }
 
+  /// resciprocal distance weighted sum of 3d vectors from cells to nodes
   $type c2n_v3d_sum(X) store<vector3d<float> > ;
   
   $rule unit(c2n_v3d_sum(X)),constraint(pos) {
@@ -304,11 +335,14 @@ namespace Loci {
     }
   }
 
-  $type cell2node_v3d(V) store<vector3d<float> > ;
-  $rule pointwise(cell2node_v3d(V)<-c2n_v3d_sum(V),nodalw_sum) {
+  /// compute interior node interpolated values
+  $rule pointwise(cell2node_v3d(V)<-c2n_v3d_sum(V),nodalw_sum),
+  constraint(pos,hasCellValues(V)) {
     double rsum = 1./(double($nodalw_sum)+1e-20) ;
     $cell2node_v3d(V) = $c2n_v3d_sum(V)*rsum ;
   }
+
+  /// Boundary node interpolated values for 3d vector
   $type boundary_v3d_sum(V) store<vector3d<float> > ;
   
   $rule unit(boundary_v3d_sum(V)),constraint(pos) {
@@ -328,14 +362,16 @@ namespace Loci {
     }
   }
 
+  /// Override for boundary nodes that interpolates from face values
   $rule pointwise(boundary::cell2node_v3d(V)<-
 		  boundary_v3d_sum(V),boundary_nodalw_sum),
-    constraint(boundary_node) {
+  constraint(boundary_node,hasCellValues(V)) {
       double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
       $cell2node_v3d(V) = $boundary_v3d_sum(V)*rsum ;
   }
 
-  //-------------------------------------------------
+
+  /// Implements interpolation of derivative terms from cells to nodes
   $type c2n_scalar_sump(V) store<float> ;
 
   $rule unit(c2n_scalar_sump(V) ), constraint(pos)  { $c2n_scalar_sump(V) = 0 ; }
@@ -395,7 +431,7 @@ namespace Loci {
 
   $type cell2nodep(XF) store<float> ;
   
-  $rule pointwise(cell2nodep(XF)<-c2n_scalar_sump(XF),nodalw_sum),constraint(pos) {
+  $rule pointwise(cell2nodep(XF)<-c2n_scalar_sump(XF),nodalw_sum),constraint(pos,hasCellValue(XF)) {
     double rsum = 1./(double($nodalw_sum)+1e-20) ;
     $cell2nodep(XF) = $c2n_scalar_sump(XF)*rsum ;
   }   
@@ -422,7 +458,7 @@ namespace Loci {
     }
   }
 
-  $rule pointwise(boundary::cell2nodep(XF)<-boundary_scalar_sump(XF),boundary_nodalw_sum),constraint(boundary_node) {
+  $rule pointwise(boundary::cell2nodep(XF)<-boundary_scalar_sump(XF),boundary_nodalw_sum),constraint(boundary_node,hasCellValues(XF)) {
       double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
       $cell2nodep(XF) = $boundary_scalar_sump(XF)*rsum ;
   }
@@ -484,7 +520,8 @@ namespace Loci {
   }
 
   $type cell2nodep_v3d(VF) store<vector3d<float> > ;
-  $rule pointwise(cell2nodep_v3d(VF)<-c2n_v3d_sump(VF),nodalw_sum) {
+  $rule pointwise(cell2nodep_v3d(VF)<-c2n_v3d_sump(VF),nodalw_sum),
+  constraint(pos,hasCellValues(VF)) {
     double rsum = 1./(double($nodalw_sum)+1e-20) ;
     $cell2nodep_v3d(VF) = $c2n_v3d_sump(VF)*rsum ;
   }
@@ -519,7 +556,7 @@ namespace Loci {
 
   $rule pointwise(boundary::cell2nodep_v3d(VF)<-
 		  boundary_v3d_sump(VF),boundary_nodalw_sum),
-    constraint(boundary_node) {
+  constraint(boundary_node,hasCellValuesv(VF)) {
       double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
       $cell2nodep_v3d(VF) = $boundary_v3d_sump(VF)*rsum ;
   }
@@ -566,9 +603,9 @@ namespace Loci {
       join($face2node[i]->$face2nodeMax(X),val) ;
   }
 
-  $type cell2nodeMax(X) store<float> ;
+  
 
-  $rule unit(cell2nodeMax(X)),constraint(pos) {
+  $rule unit(cell2nodeMax(X)),constraint(pos,hasCellValues(X)) {
     $cell2nodeMax(X) = -std::numeric_limits<float>::max() ;
   }
 
@@ -605,9 +642,7 @@ namespace Loci {
   }
 
 
-  $type cell2nodeMaxMag(X) store<float> ;
-
-  $rule unit(cell2nodeMaxMag(X)),constraint(pos) {
+  $rule unit(cell2nodeMaxMag(X)),constraint(pos,hasCellValues(X)) {
     $cell2nodeMaxMag(X) = 0.0 ;
   }
 
@@ -650,9 +685,7 @@ namespace Loci {
     }    
   }
 
-  $type cell2nodeMin(X) store<float> ;
- 
-  $rule unit(cell2nodeMin(X)),constraint(pos) {
+  $rule unit(cell2nodeMin(X)),constraint(pos,hasCellValues(X)) {
     $cell2nodeMin(X) = std::numeric_limits<float>::max() ;
   }
     
@@ -689,11 +722,9 @@ namespace Loci {
   }
 
 
-  $type cell2nodeMaxv3d(X) store<vector3d<float> > ;
-
-  $rule unit(cell2nodeMaxv3d(X)),constraint(pos) {
+  $rule unit(cell2nodeMaxv3d(V)),constraint(pos,hasCellValues(V)) {
     float v = -std::numeric_limits<float>::max() ;
-    $cell2nodeMaxv3d(X) = vector3d<float>(v,v,v) ;
+    $cell2nodeMaxv3d(V) = vector3d<float>(v,v,v) ;
   }
 
   template<class T> struct maxVect3d {
