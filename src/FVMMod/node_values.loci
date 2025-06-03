@@ -136,9 +136,11 @@ namespace Loci {
   /// Helper variable that is designed to be used in constraints.  This value
   /// will be defined for all nodes that have a referencing cell that contains
   /// the value X
-  $type hasCellValues(X) store<bool> ;
+
+  $type C Constraint ;
+  $type hasCellValues(C) store<bool> ;
   
-  $rule pointwise((upper,lower,boundary_map)->face2node->hasCellValues(X)),constraint(X,geom_cells), prelude {
+  $rule pointwise((upper,lower,boundary_map)->face2node->hasCellValues(C)),constraint(C,geom_cells), prelude {
     if(seq.size() != 0) {
       cerr << "hasCellValues(X) rule should not be executed! It is intended for constraints only!" << endl ;
       Loci::Abort() ;
@@ -431,7 +433,7 @@ namespace Loci {
 
   $type cell2nodep(XF) store<float> ;
   
-  $rule pointwise(cell2nodep(XF)<-c2n_scalar_sump(XF),nodalw_sum),constraint(pos,hasCellValue(XF)) {
+  $rule pointwise(cell2nodep(XF)<-c2n_scalar_sump(XF),nodalw_sum),constraint(pos,hasCellValues(XF)) {
     double rsum = 1./(double($nodalw_sum)+1e-20) ;
     $cell2nodep(XF) = $c2n_scalar_sump(XF)*rsum ;
   }   
@@ -556,7 +558,7 @@ namespace Loci {
 
   $rule pointwise(boundary::cell2nodep_v3d(VF)<-
 		  boundary_v3d_sump(VF),boundary_nodalw_sum),
-  constraint(boundary_node,hasCellValuesv(VF)) {
+  constraint(boundary_node,hasCellValues(VF)) {
       double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
       $cell2nodep_v3d(VF) = $boundary_v3d_sump(VF)*rsum ;
   }
