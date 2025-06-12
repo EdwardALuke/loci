@@ -1954,7 +1954,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment) 
     syncFile(outputFile) ;
   }
   // document file location of rule
-  outputFile << "       set_file(" << filename << ":" << line_no << ") ;" << endl ;
+  outputFile << "       set_file(\"" << filename << ":" << line_no << "\") ;" << endl ;
   syncFile(outputFile) ;
   outputFile <<   "    }" << endl ;
   syncFile(outputFile) ;

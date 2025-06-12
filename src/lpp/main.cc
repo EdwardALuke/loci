@@ -95,8 +95,9 @@ int main(int argc, char *argv[]) {
   parseSharedInfo parseInfo ;
 #ifndef USE_CUDA_RT
   no_cuda = true ;
-  parseInfo.no_cuda = true ;
 #endif
+  parseInfo.no_cuda = no_cuda ;
+
 
   parseFile parser ;
   try {
