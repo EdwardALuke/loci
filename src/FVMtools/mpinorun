@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Skip any "-np" arguments and their values
+cmd=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -np)
+            # Ignore -np and its value
+            shift
+            shift
+            ;;
+        *)
+            cmd+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Execute the command without the "-np" argument
+"${cmd[@]}"

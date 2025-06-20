@@ -1,3 +1,5 @@
+include Loci.conf
+include version.conf
 include $(TEST_BASE)/test.conf
 LIB_PATH=$(LOCI_BASE)/lib:$(LD_LIBRARY_PATH)
 DY_PATH=$(LOCI_BASE)/lib:$(DYLD_LIBRARY_PATH)
