@@ -1,6 +1,8 @@
 #!/bin/bash
-
-# Skip any "-np" arguments and their values
+## Helper script for running tests with stubbed out MPI calls.  This
+## works like mpirun only it just ignores the -np argument.
+set -e
+set -u
 cmd=()
 while [[ $# -gt 0 ]]; do
     case "$1" in

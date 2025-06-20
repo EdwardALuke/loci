@@ -17,7 +17,7 @@ include $(LOCI_BASE)/Loci.conf
 .PHONY: FORCE
 
 tests: fluidTest ndiff FORCE
-	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE)
+	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
 
 
 fluidTest: $(OBJS)

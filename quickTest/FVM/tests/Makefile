@@ -3,7 +3,7 @@ TEST_FILES=cylinder.test fixedMass.test  wedge.test shock_tube.test
 
 include $(LOCI_BASE)/Loci.conf
 include $(LOCI_BASE)/version.conf
-include ../../test.conf
+include $(TEST_BASE)/test.conf
 
 default: TestResults
 
