@@ -209,6 +209,13 @@ fi
 if [ ! -h libsprng.${LIB_POSTFIX} ] ; then
     ln -s ../sprng/libsprng.${LIB_POSTFIX} libsprng.${LIB_POSTFIX}
 fi
+if [ ! -h $fulltarget/bin/extract_movie ]; then
+    ln -s $source/src/FVMtools/extract_movie $fulltarget/bin/extract_movie
+fi
+if [ ! -h $fulltarget/bin/mpinorun ]; then
+    ln -s $source/src/FVMtools/mpinorun $fulltarget/bin/mpinorun
+fi
+
 cd ../bin
 if [ ! -h lpp ] ; then
   ln -s ../lpp/lpp lpp

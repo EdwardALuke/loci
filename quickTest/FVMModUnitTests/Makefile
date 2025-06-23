@@ -24,7 +24,7 @@ $(TARGET): $(OBJS)
 .PHONY: FORCE
 
 tests: $(TARGET) FORCE
-	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE)
+	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
 
 clean:
 	rm -fr $(OBJS) $(TARGET)

@@ -558,7 +558,7 @@ if [ $NO_MPI == 1 ] ; then
     echo MPI_BASE = >> sys.conf
     echo MPI_LIBS = >> sys.conf
     echo MPI_INCLUDE = -DMPI_STUBB -I\$\(LOCI_BASE\)/include/MPI_stubb >> sys.conf
-    echo MPI_RUN = none >> sys.conf
+    echo MPI_RUN = \$\(LOCI_BASE\)/bin/mpinorun >> sys.conf
     echo MPI_C_COMPILER = none >> sys.conf
     echo MPI_CXX_COMPILER = none >> sys.conf
     echo MPI_F90_COMPILER = none >> sys.conf

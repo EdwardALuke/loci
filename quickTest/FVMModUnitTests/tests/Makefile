@@ -1,11 +1,9 @@
 VARS_FILES= $(wildcard *.vars)
 TEST_FILES= $(subst .vars,.test, $(VARS_FILES))
 
-
-
-#include $(LOCI_BASE)/test.conf
-#include ../../test.conf
-#include test.conf
+include $(LOCI_BASE)/Loci.conf
+include $(LOCI_BASE)/version.conf
+include $(TEST_BASE)/test.conf
 
 default: TestResults
 
@@ -17,7 +15,7 @@ TestResults: $(TEST_FILES) FRC
 
 %.test : %.vars
 	@echo Test $*
-	@./test.sh $*.vars $*.test
+	@ MPIRUN=$(MPIRUN) ./test.sh $*.vars $*.test
 	@grep TEST $*.test
 
 
