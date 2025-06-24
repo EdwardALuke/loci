@@ -2068,8 +2068,9 @@ namespace Loci{
     entitySet geom_cells = *geom_cells_c ;
     // We need to have all of the geom_cells to do the correct test in the
     // loop before, so gather with clone cells
-    geom_cells = collectSet(geom_cells,cellmask,MPI_COMM_WORLD) ;
-
+    std::vector<entitySet> ptn = facts.get_init_ptn() ;
+    geom_cells = dist_collect_entitySet(geom_cells,ptn) ;
+    dist_expand_entitySet(geom_cells,cellmask,ptn) ;
     Loci::protoMap f2cell ;
 
     // Get mapping from face to geometric cells
@@ -2103,7 +2104,6 @@ namespace Loci{
     //
     // Create cell stencil map from protoMap
     multiMap cellStencil ;
-    std::vector<entitySet> ptn = facts.get_init_ptn() ;
     distributed_inverseMap(cellStencil,c2c,geom_cells,geom_cells,ptn) ;
     // Put in fact database
     facts.create_fact("cellStencil",cellStencil) ;
@@ -2126,8 +2126,10 @@ namespace Loci{
     entitySet geom_cells = *geom_cells_c ;
     // We need to have all of the geom_cells to do the correct test in the
     // loop before, so gather clone cells
-    geom_cells = collectSet(geom_cells,cellmask,MPI_COMM_WORLD) ;
-
+    std::vector<entitySet> ptn = facts.get_init_ptn() ;
+    geom_cells = dist_collect_entitySet(geom_cells,ptn) ;
+    dist_expand_entitySet(geom_cells,cellmask,ptn) ;
+    
     Loci::protoMap f2cell ;
 
     // Get mapping from face to geometric cells
@@ -2161,7 +2163,7 @@ namespace Loci{
     //
     // Create cell stencil map from protoMap
     multiMap cellStencil ;
-    std::vector<entitySet> ptn = facts.get_init_ptn() ;
+    //    std::vector<entitySet> ptn = facts.get_init_ptn() ;
     distributed_inverseMap(cellStencil,c2c,geom_cells,geom_cells,ptn) ;
 
     // Now downselect cells
