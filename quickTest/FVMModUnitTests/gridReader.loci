@@ -89,7 +89,8 @@ namespace flowPsi {
         while(ifile.peek() != '{' && ifile.peek() != EOF) {
           ifile.get() ;
         }
-        cerr << "reading " << varsfile << endl ;
+        if(Loci::MPI_rank == 0)
+          cerr << "reading " << varsfile << endl ;
         facts.read_vars(ifile,rdb) ;
       }
     } catch(const Loci::BasicException &err) {
