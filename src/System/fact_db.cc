@@ -133,7 +133,7 @@ namespace Loci {
       df->key_domain[*ei] = fdf->key_domain[*ei] ;
     }
 
-    // num_keydomains
+
     int num_keydomains = fdf->g2lv.size() ; ;
     df->g2lv = vector<dMap>(num_keydomains) ;
     for(int i=0;i<num_keydomains;++i) {
@@ -154,9 +154,8 @@ namespace Loci {
     df->xmit = fdf->xmit ;
     df->copy_total_size = fdf->copy_total_size ;
     df->xmit_total_size = fdf->xmit_total_size ;
-    //      df->remap = fdf->remap ;
-#ifdef LOCI_COMPAT_MODE1
     df->g2fv = fdf->g2fv ;
+#ifdef LOCI_COMPAT_MODE1
     df->g2l.setRep(df->g2lv[0].Rep()) ;
     df->g2f.setRep(df->g2fv[0].Rep()) ;
 #endif

@@ -2957,11 +2957,7 @@ namespace Loci {
 
     std::vector<entitySet> init_ptn = facts.get_init_ptn(0) ;//FIX THIS
 
-    entitySet global_geom = collectSet(*geom_cells,init_ptn[MPI_rank],
-				       MPI_COMM_WORLD) ;
-    *geom_cells = global_geom ;
-    //   *geom_cells = global_geom & init_ptn[ MPI_rank] ;
-
+    *geom_cells = distribute_entitySet(*geom_cells,init_ptn) ;
 
     int fk = boundary_faces.Rep()->getDomainKeySpace()  ;
     std::vector<entitySet> initf_ptn = facts.get_init_ptn(fk) ;

@@ -68,7 +68,8 @@ namespace Loci{
   //map from local numbering to input file numbering
   //assume the union of nodes on all processors will be either all the nodes,
   //all the faces, or all the cells. i.e., one interval in file numbering
-  storeRepP get_node_remap(fact_db &facts,entitySet nodes) {
+  storeRepP get_node_remap(fact_db &facts,entitySet nodes,
+                           int keyspace) {
     REPORTMEM() ;
     if(MPI_processes == 1) {
       int minNode = nodes.Min() ;
@@ -82,12 +83,12 @@ namespace Loci{
       return nm.Rep() ;
     }
     
-    vector<entitySet> init_ptn = facts.get_init_ptn(0) ;// FIX THIS
+    vector<entitySet> init_ptn = facts.get_init_ptn(keyspace) ;
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
     Map l2g ;
     l2g = df->l2g.Rep() ;
     dMap g2f ;
-    g2f = df->g2fv[0].Rep() ;// FIX THIS
+    g2f = df->g2fv[keyspace].Rep() ;
 
     entitySet gnodes = l2g.image(nodes&l2g.domain()) ;
 
@@ -560,10 +561,12 @@ namespace Loci{
     int prism_no = 0 ;
 
     Map node_remap ;
-    node_remap = get_node_remap(facts,posRep->domain()) ;
+    node_remap = get_node_remap(facts,posRep->domain(),
+                                posRep->getDomainKeySpace()) ;
 
     Map cell_remap;
-    cell_remap = get_node_remap(facts,localCells) ;
+    cell_remap = get_node_remap(facts,localCells,
+                                upperRep->getDomainKeySpace()) ;
 
     vector<int> generalCellNfaces ;
     vector<int> generalCellNsides ;
@@ -719,7 +722,8 @@ namespace Loci{
     entitySet boundaries = boundary_names.domain() ;
     if(MPI_processes > 1) {
       entitySet local_boundaries ;
-      std::vector<entitySet> init_ptn = facts.get_init_ptn(0) ; // FIX THIS
+      int bkeyspace = bnamesRep->getDomainKeySpace() ;
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ; 
       Map l2g ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
@@ -875,7 +879,8 @@ namespace Loci{
     entitySet boundaries = boundary_names.domain() ;
     if(MPI_processes > 1) {
       entitySet local_boundaries ;
-      std::vector<entitySet> init_ptn = facts.get_init_ptn(0) ; // FIX THIS
+      int bkeyspace = bnamesRep->getDomainKeySpace() ;
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ; 
       Map l2g ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
@@ -1911,9 +1916,9 @@ namespace Loci{
     } ENDFORALL ;
     Loci::storeRepP sp = tmp_pos.Rep() ;
     int tmp_out = out_of_dom.size() ;
-    std::vector<entitySet> init_ptn ;
     if(facts.is_distributed_start()) {
-      init_ptn = facts.get_init_ptn() ;
+      int nkeyspace = pos.getDomainKeySpace() ;
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(nkeyspace) ;
       if(GLOBAL_OR(tmp_out)) 
 	fill_clone(sp, out_of_dom, init_ptn) ;
     }
@@ -1998,9 +2003,10 @@ namespace Loci{
     faceimage += Loci::MapRepP(boundary_map.Rep())->image(cells) ;
     entitySet out_of_dom = faceimage - fcenter.domain() ;
     int tmp_out = out_of_dom.size() ;
-    std::vector<entitySet> init_ptn ;
     if(facts.is_distributed_start()) {
-      init_ptn = facts.get_init_ptn() ;
+      
+      int fkeyspace = upper.getRangeKeySpace() ;
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(fkeyspace) ;
       if(GLOBAL_OR(tmp_out)) {
 	Loci::storeRepP sp = fcenter.Rep() ;
 	fill_clone(sp, out_of_dom, init_ptn) ;
@@ -2068,8 +2074,9 @@ namespace Loci{
     entitySet geom_cells = *geom_cells_c ;
     // We need to have all of the geom_cells to do the correct test in the
     // loop before, so gather with clone cells
-    std::vector<entitySet> ptn = facts.get_init_ptn() ;
-    geom_cells = dist_collect_entitySet(geom_cells,ptn) ;
+    int gkeyspace = geom_cells_c.getDomainKeySpace() ;
+    std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
+    geom_cells = distribute_entitySet(geom_cells,ptn) ;
     dist_expand_entitySet(geom_cells,cellmask,ptn) ;
     Loci::protoMap f2cell ;
 
@@ -2126,8 +2133,9 @@ namespace Loci{
     entitySet geom_cells = *geom_cells_c ;
     // We need to have all of the geom_cells to do the correct test in the
     // loop before, so gather clone cells
-    std::vector<entitySet> ptn = facts.get_init_ptn() ;
-    geom_cells = dist_collect_entitySet(geom_cells,ptn) ;
+    int gkeyspace = geom_cells_c.getDomainKeySpace() ;
+    std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
+    geom_cells = distribute_entitySet(geom_cells,ptn) ;
     dist_expand_entitySet(geom_cells,cellmask,ptn) ;
     
     Loci::protoMap f2cell ;
@@ -2181,7 +2189,9 @@ namespace Loci{
     entitySet cellImage = Loci::MapRepP(cellStencil.Rep())->image(cells) ;
     cellImage -= cells ;
     if(facts.is_distributed_start()) {
-      std::vector<entitySet> init_ptn = facts.get_init_ptn() ;
+      int gkeyspace = geom_cells_c.getDomainKeySpace() ;
+      std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(gkeyspace) ;
       int tmp_out = cellImage.size() ;
       if(GLOBAL_OR(tmp_out)) {
 	Loci::storeRepP sp = ccenter.Rep() ;
@@ -2355,6 +2365,7 @@ namespace Loci{
     constraint geom_cells,interior_faces,boundary_faces ;
     constraint faces = facts.get_variable("faces") ;
     geom_cells = facts.get_variable("geom_cells") ;
+    int ckeyspace = geom_cells.getDomainKeySpace() ;
     interior_faces = facts.get_variable("interior_faces") ;
     boundary_faces = facts.get_variable("boundary_faces") ;
     entitySet bfaces = *boundary_faces ;
@@ -2367,27 +2378,31 @@ namespace Loci{
       bfaces -= *periodicFaces ;
       ifaces += *periodicFaces ;
     }
+
+    int fkeyspace = faces.getDomainKeySpace() ;
     
-    entitySet global_interior_faces = collectSet(ifaces,*faces,MPI_COMM_WORLD) ;
-    entitySet global_boundary_faces = collectSet(bfaces,*faces,MPI_COMM_WORLD) ;
+    std::vector<entitySet> fptn = facts.get_init_ptn(fkeyspace) ;
+    entitySet
+      global_interior_faces = (distribute_entitySet(ifaces,fptn) & (*faces)) ;
+
+    entitySet
+      global_boundary_faces = (distribute_entitySet(bfaces,fptn) & (*faces)) ;
 
     Map cl,cr ;
     cl = facts.get_variable("cl") ;
     cr = facts.get_variable("cr") ;
-    //entitySet cdom = all_collect_entitySet(cl.image(*faces)+cr.image(*faces)) ;
-    //entitySet global_geom_cells = collectSet(*geom_cells,cdom,MPI_COMM_WORLD) ;
     // Note, all_collect_entitySet has the potential to be inefficient,
     // but not in the present case.  These low level utilities need to be
     // rethought.
     entitySet global_geom_cells = all_collect_entitySet(*geom_cells) ;
     multiMap lower,upper,boundary_map ;
     distributed_inverseMap(upper, cl, global_geom_cells, global_interior_faces,
-                           facts,0) ; // FIX THIS
+                           facts,ckeyspace) ; 
     
     distributed_inverseMap(lower, cr, global_geom_cells, global_interior_faces,
-                           facts,0) ;
+                           facts,ckeyspace) ;
     distributed_inverseMap(boundary_map, cl, global_geom_cells,
-                           global_boundary_faces, facts,0) ;
+                           global_boundary_faces, facts,ckeyspace) ;
 
     MapRepP clr = MapRepP(cl.Rep()) ;
     MapRepP crr = MapRepP(cr.Rep()) ;
@@ -2996,7 +3011,7 @@ namespace Loci{
       ek = 0 ;
     int fk = face2node.Rep()->getDomainKeySpace() ;
     
-    entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;// FIX THIS
+    entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
  
 
 
@@ -3188,12 +3203,12 @@ namespace Loci{
       }ENDFORALL;
     
       
-      std::vector<entitySet> init_ptn = facts.get_init_ptn(0) ;// FIX THIS
-      fact_db::distribute_infoP df = facts.get_distribute_info() ;
       storeRepP pos = facts.get_variable("pos");
-      
+      int nkeyspace = pos->getDomainKeySpace() ;
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(nkeyspace) ;
+      fact_db::distribute_infoP df = facts.get_distribute_info() ;
       dMap g2f ;
-      g2f = df->g2fv[0].Rep() ; // FIX THIS
+      g2f = df->g2fv[nkeyspace].Rep() ; 
       //don't use nodes & init_ptn to define local nodes,
       //because nodes may not cover all nodes in init_ptn
       entitySet localNodes = pos->domain()&init_ptn[MPI_rank] ;
@@ -3342,7 +3357,7 @@ namespace Loci{
       //the input_image is not really the image, it should be the global2file's domain
       //if it doesn't include all corresponding entities in init_ptn, error will occur
       //also input_preimage is never used
-      std::vector<entitySet> init_ptne = facts.get_init_ptn(ek) ;// FIX THIS
+      std::vector<entitySet> init_ptne = facts.get_init_ptn(ek) ;
 
       Loci::distributed_inverseMap(global2file,
                                    file2global,
@@ -3442,8 +3457,10 @@ namespace Loci{
     vector<entitySet> volSets ;
     map<string,entitySet>::const_iterator mi ;
     for(mi=volMap.begin();mi!=volMap.end();++mi) {
-      // This could be a scalability problem!!!!
-      entitySet volgather = collectSet(mi->second,domc,MPI_COMM_WORLD) ;
+      int ckeyspace = cl.getRangeKeySpace() ;
+      std::vector<entitySet> cptn = facts.get_init_ptn(ckeyspace) ;
+      entitySet volgather = distribute_entitySet(mi->second,cptn) ;
+      dist_expand_entitySet(volgather,domc,cptn) ;
       volSets.push_back(volgather) ;
     }
 
@@ -3461,7 +3478,10 @@ namespace Loci{
     vector<entitySet> nodesets ;
     for(int i=0;i<sz;++i) {
       entitySet nodes = mp->image(facesets[i]) ;
-      nodes = collectSet(nodes,pos.domain(),MPI_COMM_WORLD) ;
+      int nkeyspace = pos.getDomainKeySpace() ;
+      std::vector<entitySet> nptn = facts.get_init_ptn(nkeyspace) ;
+
+      nodes = distribute_entitySet(nodes,nptn) ;
       nodesets.push_back(nodes) ;
     }
     
