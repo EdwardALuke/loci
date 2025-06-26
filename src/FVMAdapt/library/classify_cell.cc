@@ -52,7 +52,8 @@ namespace Loci{
     
     //expand map face2node
     if(Loci::MPI_processes > 1){
-      vector<entitySet> init_ptn = facts.get_init_ptn(0) ; // FIX THIS
+      int fkeyspace = upper.getRangeKeySpace() ;
+      vector<entitySet> init_ptn = facts.get_init_ptn(fkeyspace) ; 
       entitySet out_of_dom = face_dom - face2node.domain();
       face2node.setRep(MapRepP(face2node.Rep())->expand(out_of_dom, init_ptn));
     }

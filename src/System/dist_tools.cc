@@ -288,7 +288,6 @@ namespace Loci {
 	      image += mp->image(tmp);
 	    }
 	  }
-	  //tmp = collectSet(image,referencedEntities,MPI_COMM_WORLD) ;
 	  tmp = all_collect_entitySet(image);
 	  image = EMPTY;
 	}
@@ -337,8 +336,6 @@ namespace Loci {
 	  }
 	  for(int j = 0; j < MPI_processes; j++) {
 	    preimage_vec[j] = all_collect_entitySet(tmp_preimage_vec[j]);
-	    //	    preimage_vec[j] = collectSet(tmp_preimage_vec[j],referencedEntities,
-	    //					 MPI_COMM_WORLD);
 	  }
 
 	  if(i == 0) {

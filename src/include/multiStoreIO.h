@@ -260,14 +260,12 @@ namespace Loci {
             cnt++ ;
           } ENDFORALL ;
         } else {
-          Map l2g ;
-          l2g = df->l2g.Rep() ;
-          dMap g2f ;
-          g2f = df->g2f.Rep() ;
+          dMap l2f ;
+          l2f = df->l2f.Rep() ;
 
           FORALL(dom,ii) {
             counts[cnt] = var.vec_size(ii) ;
-            int file_no = g2f[l2g[ii]] ;
+            int file_no = l2f[ii] ;
             fileids[cnt] = file_no ;
             cnt++ ;
           } ENDFORALL ;
@@ -585,15 +583,13 @@ namespace Loci {
         } ENDFORALL ;
 
       } else {
-        Map l2g ;
-        l2g = df->l2g.Rep() ;
-        dMap g2f ;
-        g2f = df->g2f.Rep() ;
+        dMap l2f ;
+        l2f = df->l2f.Rep() ;
 
         FORALL(dom,ii) {
           counts[cnt] = var.vec_size(ii) ;
 
-          int file_no = g2f[l2g[ii]] ;
+          int file_no = l2f[ii] ;
           fileids[cnt] = file_no ;
           cnt++ ;
         } ENDFORALL ;

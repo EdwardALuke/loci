@@ -214,12 +214,10 @@ void add_to_datamap(entitySet dom, vector<pair<int,int> > &datamap, int offset,
       cnt++ ;
     } ENDFORALL ;
   } else {
-    dMap g2f ;
-    g2f = dist->g2fv[0].Rep() ; // FIX THIS
-    Map l2g ;
-    l2g = dist->l2g.Rep() ;
+    Map l2f ;
+    l2f = dist->l2f.Rep() ;
     FORALL(dom,nd) {
-      pair<int,int> item(g2f[l2g[nd]]-offset,nd) ;
+      pair<int,int> item(l2f[nd]-offset,nd) ;
       datamap.push_back(item) ;
     } ENDFORALL ;
   }      
@@ -397,45 +395,21 @@ register_rule<get_postag> register_get_postag;
 int getFileNumberOffset(const entitySet& locdom,MPI_Comm &comm){
   // Now determine what data we need to collect from filedata
   fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
-  int imn;
+  int imn = 0 ;
   if(dist == 0) {
     return locdom.Min();
   } else {
     entitySet dom = ~EMPTY;
     dom = locdom&(dist->my_entities) ;
-    Map l2g ;
-    l2g = dist->l2g.Rep() ;
-    store<unsigned char> key_domain ;
-    key_domain = dist->key_domain.Rep() ;
-    // // Compute domain in global numbering
-    //     entitySet dom_global = l2g.image(dom) ;
-     
-    //     // This shouldn't happen
-    //     FATAL(dom.size() != dom_global.size()) ;
-
-    // Now get global to file numbering
-    //    dMap g2f ;
-    //    g2f = dist->g2f.Rep() ;
-
+    Map l2f ;
+    l2f = dist->l2f.Rep() ;
     // Compute map from local numbering to file numbering
     entitySet filedom = EMPTY;
     FORALL(dom,i) {
-      int kd = key_domain[i] ;
-      filedom += dist->g2fv[kd][l2g[i]] ;
+      filedom += l2f[i] ;
     } ENDFORALL ;
 
-    // int imx = std::numeric_limits<int>::min() ;
-    // int imn = std::numeric_limits<int>::max() ;
-
-    // // Find bounds in file numbering from this processor
-    //     FORALL(dom,i) {
-    //       imx = max(newnum[i],imx) ;
-    //       imn = min(newnum[i],imn) ;
-    //     } ENDFORALL ;
-
     imn = filedom.Min();
-    // Find overall bounds
-    //imx = GLOBAL_MAX(imx) ;
     int local_min = imn;
     MPI_Allreduce(&local_min, &imn, 1, MPI_INT, MPI_MIN,comm);  
     return imn;

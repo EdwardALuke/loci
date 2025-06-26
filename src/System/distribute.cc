@@ -1076,21 +1076,29 @@ namespace Loci {
     return tmp ;
   }
   
-
-  // This code not presently used
+  // -----------------------------------------------------------------------
+  /// @brief distribute_entitySet() will send data to the owning processor
+  /// as described by the ptn argument.  The entities from each processor are
+  /// unioned to form the final entitySet that is partititoned to processors
+  ///
+  /// @param [e]  input set that needs to be distributed to owning processor
+  /// @param [ptn]   partition function that describes which processor owns
+  /// which entities.
   entitySet distribute_entitySet(entitySet e,const vector<entitySet> &ptn) {
     const int p = MPI_processes ;
-    WARN(ptn.size() != size_t(p)) ;
+    if(p == 1)
+      return e ;
     vector<entitySet> parts(p) ;
     vector<int> send_count(p) ;
     for(int i=0;i<p;++i) {
       parts[i] = e & ptn[i] ;
       send_count[i] = parts[i].num_intervals() ;
     }
+    entitySet result = parts[MPI_rank] ;
+    send_count[MPI_rank] = 0 ;
     vector<int> recv_count(p) ;
     MPI_Alltoall(&send_count[0], 1, MPI_INT, &recv_count[0], 1, MPI_INT,
                  MPI_COMM_WORLD) ;
-
 
     int tot = 0 ;
     int req = 0 ;
@@ -1130,15 +1138,21 @@ namespace Loci {
     vector<MPI_Status> stat_queue(recv_Requests.size()) ;
     MPI_Waitall(recv_Requests.size(),&recv_Requests[0],&stat_queue[0]) ;
 
-    if(ivl_list.size() == 0)
-      return EMPTY ;
 
+    // If nothing sent to this processor,then result contains everything.
+    if(ivl_list.size() == 0)
+      return result ;
+
+    //Sorting the intervals probably isn't necessary, but it can
+    //improve performance.
     sort(ivl_list.begin(),ivl_list.end(),spec_ival_compare) ;
     entitySet tmp = ivl_list[0] ;
     for(size_t i=1;i<ivl_list.size();++i)
       tmp += ivl_list[i] ;
-    return tmp ;
+    // Be sure to include what this processor owns
+    return tmp+result ;
   }
+
 
   // Collect largest interval of entitySet from all processors
   entitySet collectLargest(const entitySet &e) {
