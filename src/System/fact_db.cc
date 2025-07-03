@@ -517,9 +517,9 @@ namespace Loci {
  
   bool fact_db::isDistributed() {
     if(distributed_info == 0)
-      return 0 ;
+      return false ;
     else 
-      return 1 ;
+      return distributed_info->isDistributed ;
   }
   
   void fact_db::rotate_vars(const std::list<variable> &lvars) {
