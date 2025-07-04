@@ -58,5 +58,626 @@ namespace Loci {
 			storeRepP tags,
 			string casename  ) ;
 
+
+  storeRepP getC2PGlobal(fact_db &facts) ;
+  
+  template <class T> void AMRinterpolateStore(store<T> &qout,
+                                              store<T> &qin,
+                                              store<pair<int,int> > &c2pg,
+                                              entitySet dom) {
+    
+    store<float> weights ;
+    weights.allocate(dom) ;
+    zeroStore(weights,dom) ;
+    zeroStore(qout,dom) ;
+
+    fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
+
+    if(MPI_processes == 1) {
+      entitySet parentSet ;
+      entitySet targetSet ;
+      entitySet domc2p = c2pg.domain() ;
+
+      FORALL(domc2p,ii) {
+	parentSet += c2pg[ii].second ;
+	targetSet += c2pg[ii].first ;
+      } ENDFORALL ;
+
+      int parent_offset = qin.domain().Min() - parentSet.Min() ;
+      int local_offset = dom.Min()-targetSet.Min() ;
+      int sz = domc2p.size() ;
+      vector<pair<int,int> > c2p(sz) ;
+      int cnt = 0 ;
+      FORALL(domc2p,ii) {
+	c2p[cnt].first = c2pg[ii].second+parent_offset ;
+	c2p[cnt].second = c2pg[ii].first+local_offset ;
+	cnt++ ;;
+      } ENDFORALL ;
+
+      sort(c2p.begin(),c2p.end()) ;
+
+      for(int ii=0;ii<sz;) {
+	int pid = c2p[ii].first ;
+	int j = 1 ;
+	while(((ii+j) < sz) && (pid == c2p[ii+j].first))
+	  j++ ;
+	if(j == 1) {
+	  int tid = c2p[ii].second ;
+	  double w = 1.0 ;
+	  qout[tid] += qin[pid] ;
+	  weights[tid] += w ;
+	} else {
+	  for(int k=ii;k<ii+j;++k) {
+	    int tid = c2p[k].second ;
+	    qout[tid] += qin[pid] ;
+	    weights[tid] += 1. ;
+	  }
+	}
+	
+	ii += j ;
+      }
+      FORALL(dom,ii) {
+	if(weights[ii] > 0) {
+	  double w = 1./double(weights[ii]) ;
+          qout[ii] *= w ;
+	}
+      } ENDFORALL ;
+    } else { // Parallel interpolation
+      int p = Loci::MPI_processes ;
+     
+      entitySet domc2p = c2pg.domain() ;
+
+      int minParent = std::numeric_limits<int>::max() ;
+      if(domc2p != EMPTY) {
+	int first = domc2p.Min() ;
+	minParent = c2pg[first].second ;
+	FORALL(domc2p,ii) {
+	  minParent = min(minParent,c2pg[ii].second) ;
+	} ENDFORALL ;
+      }
+      int parentOffset = minParent ;
+      MPI_Allreduce(&minParent,&parentOffset,1,MPI_INT,MPI_MIN,
+		    MPI_COMM_WORLD) ;
+      int sz = domc2p.size() ;
+      vector<pair<int,int> > p2c(sz) ;
+      int cnt = 0 ;
+      FORALL(domc2p,ii) {
+	p2c[cnt].first = c2pg[ii].second-parentOffset ;
+	p2c[cnt].second = c2pg[ii].first ;
+	cnt++ ;;
+      } ENDFORALL ;
+
+      sort(p2c.begin(),p2c.end()) ;
+      
+      // Now distribute c2p to processors in parent file ordering
+      int prevdomsz = qin.domain().size() ;
+      vector<int> parentsizes(p) ;
+      MPI_Allgather(&prevdomsz,1,MPI_INT,&parentsizes[0],1,MPI_INT,
+		    MPI_COMM_WORLD) ;
+      vector<int> parentoffsets(p+1,0) ;
+      for(int i=0;i<p;++i)
+	parentoffsets[i+1] = parentoffsets[i]+parentsizes[i] ;
+      
+      vector<pair<int,int> > splits(p-1) ;
+      for(int i=0;i<p-1;++i)
+	splits[i] = pair<int,int>(parentoffsets[i+1],-1) ;
+
+      Loci::parSplitSort(p2c,splits,MPI_COMM_WORLD) ;
+
+      int p2csz = p2c.size() ;
+      // convert parent to local numbering and collect 
+      // id's of target cells in new mesh
+      vector<int> tlist(p2csz) ;
+      for(int i =0;i<p2csz;++i) {
+	tlist[i] = p2c[i].second ;
+      }
+      // identify list of target points to which we are interpolating
+      sort(tlist.begin(),tlist.end()) ;
+      vector<int>::iterator l = std::unique(tlist.begin(),tlist.end()) ;
+      tlist.resize(std::distance(tlist.begin(),l)) ;
+      // Grab data needed for interpolation from target mesh 
+      // First reorder into file numbering the cellcenter and vol
+      // data which will be used to compute the interpolation
+
+      Map l2g ;
+      l2g = dist->l2g.Rep() ;
+      Loci::entitySet globaldom ;
+      FORALL(dom,ii) {
+	globaldom += l2g[ii] ;
+      } ENDFORALL ;
+
+      Map g2l ;
+      g2l.allocate(globaldom) ;
+      FORALL(dom,ii) {
+	g2l[l2g[ii]] = ii ;
+      } ENDFORALL ;
+      
+      vector<int> targetsizes(p) ;
+      int tlsize = globaldom.size() ;
+      MPI_Allgather(&tlsize,1,MPI_INT,&targetsizes[0],1,MPI_INT,
+		    MPI_COMM_WORLD) ;
+      vector<int> toffsets(p+1,0) ;
+      int tmin = globaldom.Min() ;
+      MPI_Allgather(&tmin,1,MPI_INT,&toffsets[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      toffsets[p] = toffsets[p-1]+targetsizes[p-1] ;
+
+      // Now compute which processors to communicate with
+      vector<int> tlistoffsets(p+1,0) ;
+      int tsz = tlist.size() ;
+      tlistoffsets[p] = tsz ;
+      cnt = 1 ;
+      for(int i=0;i<tsz;++i) {
+	while(cnt != p && tlist[i] >= toffsets[cnt]) {
+	  tlistoffsets[cnt] = i ;
+	  cnt++ ;
+	}
+	if(cnt == p)
+	  break ;
+      }
+      if(cnt != p) { // handle end case
+	for(int i=cnt;i<p;++i)
+	  tlistoffsets[i] = tsz ;
+      }
+      // Now send the requests
+      vector<int> tlistsizes(p) ;
+      for(int i=0;i<p;++i)
+	tlistsizes[i] = tlistoffsets[i+1]-tlistoffsets[i] ;
+      vector<int> rlistsizes(p) ;
+      MPI_Alltoall(&tlistsizes[0],1,MPI_INT,
+		   &rlistsizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      vector<int> rlistoffsets(p+1,0) ;
+      for(int i=0;i<p;++i)
+	rlistoffsets[i+1] = rlistoffsets[i]+rlistsizes[i] ;
+      
+      vector<int> recvlists(rlistoffsets[p]) ;
+      vector<MPI_Request> req_queue ;
+      for(int i=0;i<p;++i) {
+	if(rlistsizes[i] > 0) {
+	  MPI_Request tmp ;
+	  MPI_Irecv(&recvlists[rlistoffsets[i]],rlistsizes[i],MPI_INT,i,99,
+		    MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	}
+      }
+      for(int i=0;i<p;++i) {
+	if(tlistsizes[i] > 0) {
+	  MPI_Send(&tlist[tlistoffsets[i]],tlistsizes[i],MPI_INT,i,99,
+		   MPI_COMM_WORLD) ;
+	}
+      }
+      if(req_queue.size() > 0) {
+	vector<MPI_Status> stat_queue(req_queue.size()) ;
+	MPI_Waitall(req_queue.size(),&req_queue[0],&stat_queue[0]) ;
+	req_queue.clear() ;
+      }
+
+      int rsz = recvlists.size() ;
+      // correct indexes to local numbering
+      
+      // Now translate the p2c map target to the local numbering
+      std::map<int,int> f2c ;
+      for(int i=0;i<tsz;++i)
+	f2c[tlist[i]] = i ;
+      
+      for(int i=0;i<p2csz;++i) {
+	std::map<int,int>::const_iterator mi = f2c.find(p2c[i].second) ;
+	if(mi == f2c.end()) {
+	  cerr << "unable to remap p2c to local number" << endl ;
+	  Loci::Abort() ;
+	}
+	
+	p2c[i].second = mi->second ;
+      }
+      
+      entitySet locdom = interval(0,tsz-1) ;
+      store<T> qic_loc ;
+      qic_loc.allocate(locdom) ;
+      store<double> weights ;
+      weights.allocate(locdom) ;
+
+      for(int i=0;i<tsz;++i) {
+	weights[i] = 0 ;
+        setZero(qic_loc[i]) ;
+      }
+	
+      for(int ii=0;ii<p2csz;) {
+	int pid = p2c[ii].first ;
+
+	int j = 1 ;
+	while(((ii+j) < p2csz) && (pid == p2c[ii+j].first))
+	  j++ ;
+	if(j == 1) {
+	  int tid = p2c[ii].second ;
+	  double w = 1.0 ;
+
+          qic_loc[tid] += qin[pid] ;
+	  weights[tid] += w ;
+	} else {
+	  for(int k=ii;k<ii+j;++k) {
+	    int tid = p2c[k].second ;
+            qic_loc[tid] += qin[pid] ;
+	    weights[tid] += 1. ;
+	  }
+	}
+	
+	ii += j ;
+      }
+
+      // Now return interpolated versions to new file numbering
+      vector<T> senddata(tsz) ;
+      vector<double> senddataw(tsz,0) ;
+      vector<T> recvdata(rsz) ;
+      vector<double> recvdataw(rsz,1) ;
+      // Fill send data buffer
+      for(int i=0;i<tsz;++i) {
+        senddata[i] = qic_loc[i] ;
+	senddataw[i] = weights[i] ;
+      }
+      for(int i=0;i<p;++i) {
+	if(rlistsizes[i] > 0) {
+	  MPI_Request tmp ;
+	  MPI_Irecv(&recvdata[rlistoffsets[i]],rlistsizes[i]*sizeof(T),
+		    MPI_BYTE,i,99,MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	  MPI_Irecv(&recvdataw[rlistoffsets[i]],rlistsizes[i],
+		    MPI_DOUBLE,i,98,MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	}
+      }
+      for(int i=0;i<p;++i) {
+	if(tlistsizes[i] > 0) {
+	  MPI_Send(&senddata[tlistoffsets[i]],tlistsizes[i]*sizeof(T),
+		   MPI_BYTE,i,99,MPI_COMM_WORLD) ;
+	  MPI_Send(&senddataw[tlistoffsets[i]],tlistsizes[i],
+		   MPI_DOUBLE,i,98,MPI_COMM_WORLD) ;
+	}
+      }
+      if(req_queue.size() > 0) {
+	vector<MPI_Status> stat_queue(req_queue.size()) ;
+	MPI_Waitall(req_queue.size(),&req_queue[0],&stat_queue[0]) ;
+	req_queue.clear() ;
+      }
+
+      store<double> q_ic_fn ;
+      store<double> wt_fn ;
+
+      entitySet dom2 = dom&qout.domain() ;
+      WARN(dom!=dom2) ;
+      wt_fn.allocate(dom) ;
+      // sum contributions from processors
+      FORALL(dom,ii) {
+        setZero(qout[ii]) ;
+	wt_fn[ii] = 0 ;
+      } ENDFORALL ;
+      for(int i=0;i<rsz;++i) {
+	int id =g2l[recvlists[i]] ;
+
+        qout[id] += recvdata[i] ;
+	wt_fn[id] += recvdataw[i] ;
+      }
+
+      // re-normalize
+      FORALL(dom2,ii) {
+	double rw = 1./(wt_fn[ii]) ;
+        qout[ii] *= rw;
+      } ENDFORALL ;
+
+    }
+  }
+
+  template <class T> void AMRinterpolateStore(storeVec<T> &qvecout,
+                                              storeVec<T> &qvecin,
+                                              store<pair<int,int> > &c2pg,
+                                              entitySet dom, const int vs ) {
+
+    cerr << "AMRinterpolateStoreVec" << endl ;
+    store<float> weights ;
+    weights.allocate(dom) ;
+    zeroStore(weights,dom) ;
+    zeroStore(qvecout,dom) ;
+
+    fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
+
+    if(MPI_processes == 1) {
+      entitySet parentSet ;
+      entitySet targetSet ;
+      entitySet domc2p = c2pg.domain() ;
+
+      FORALL(domc2p,ii) {
+	parentSet += c2pg[ii].second ;
+	targetSet += c2pg[ii].first ;
+      } ENDFORALL ;
+
+      int parent_offset = qvecin.domain().Min() - parentSet.Min() ;
+      int local_offset = dom.Min()-targetSet.Min() ;
+      int sz = domc2p.size() ;
+      vector<pair<int,int> > c2p(sz) ;
+      int cnt = 0 ;
+      FORALL(domc2p,ii) {
+	c2p[cnt].first = c2pg[ii].second+parent_offset ;
+	c2p[cnt].second = c2pg[ii].first+local_offset ;
+	cnt++ ;;
+      } ENDFORALL ;
+
+      sort(c2p.begin(),c2p.end()) ;
+
+      for(int ii=0;ii<sz;) {
+	int pid = c2p[ii].first ;
+	int j = 1 ;
+	while(((ii+j) < sz) && (pid == c2p[ii+j].first))
+	  j++ ;
+	if(j == 1) {
+	  int tid = c2p[ii].second ;
+	  double w = 1.0 ;
+	  qvecout[tid] += qvecin[pid] ;
+	  weights[tid] += w ;
+	} else {
+	  for(int k=ii;k<ii+j;++k) {
+	    int tid = c2p[k].second ;
+	    qvecout[tid] += qvecin[pid] ;
+	    weights[tid] += 1. ;
+	  }
+	}
+	
+	ii += j ;
+      }
+      FORALL(dom,ii) {
+	if(weights[ii] > 0) {
+	  double w = 1./double(weights[ii]) ;
+	  for(int j=0;j<vs;++j)
+	    qvecout[ii][j] *= w ;
+	}
+      } ENDFORALL ;
+    } else { // Parallel interpolation
+      int p = Loci::MPI_processes ;
+     
+      entitySet domc2p = c2pg.domain() ;
+
+      int minParent = std::numeric_limits<int>::max() ;
+      if(domc2p != EMPTY) {
+	int first = domc2p.Min() ;
+	minParent = c2pg[first].second ;
+	FORALL(domc2p,ii) {
+	  minParent = min(minParent,c2pg[ii].second) ;
+	} ENDFORALL ;
+      }
+      int parentOffset = minParent ;
+      MPI_Allreduce(&minParent,&parentOffset,1,MPI_INT,MPI_MIN,
+		    MPI_COMM_WORLD) ;
+      int sz = domc2p.size() ;
+      vector<pair<int,int> > p2c(sz) ;
+      int cnt = 0 ;
+      FORALL(domc2p,ii) {
+	p2c[cnt].first = c2pg[ii].second-parentOffset ;
+	p2c[cnt].second = c2pg[ii].first ;
+	cnt++ ;;
+      } ENDFORALL ;
+
+      sort(p2c.begin(),p2c.end()) ;
+      
+      // Now distribute c2p to processors in parent file ordering
+      int prevdomsz = qvecin.domain().size() ;
+      vector<int> parentsizes(p) ;
+      MPI_Allgather(&prevdomsz,1,MPI_INT,&parentsizes[0],1,MPI_INT,
+		    MPI_COMM_WORLD) ;
+      vector<int> parentoffsets(p+1,0) ;
+      for(int i=0;i<p;++i)
+	parentoffsets[i+1] = parentoffsets[i]+parentsizes[i] ;
+      
+      vector<pair<int,int> > splits(p-1) ;
+      for(int i=0;i<p-1;++i)
+	splits[i] = pair<int,int>(parentoffsets[i+1],-1) ;
+
+      Loci::parSplitSort(p2c,splits,MPI_COMM_WORLD) ;
+
+      int p2csz = p2c.size() ;
+      // convert parent to local numbering and collect 
+      // id's of target cells in new mesh
+      vector<int> tlist(p2csz) ;
+      for(int i =0;i<p2csz;++i) {
+	tlist[i] = p2c[i].second ;
+      }
+      // identify list of target points to which we are interpolating
+      sort(tlist.begin(),tlist.end()) ;
+      vector<int>::iterator l = std::unique(tlist.begin(),tlist.end()) ;
+      tlist.resize(std::distance(tlist.begin(),l)) ;
+      // Grab data needed for interpolation from target mesh 
+      // First reorder into file numbering the cellcenter and vol
+      // data which will be used to compute the interpolation
+
+      Map l2g ;
+      l2g = dist->l2g.Rep() ;
+      Loci::entitySet globaldom ;
+      FORALL(dom,ii) {
+	globaldom += l2g[ii] ;
+      } ENDFORALL ;
+
+      Map g2l ;
+      g2l.allocate(globaldom) ;
+      FORALL(dom,ii) {
+	g2l[l2g[ii]] = ii ;
+      } ENDFORALL ;
+      
+      vector<int> targetsizes(p) ;
+      int tlsize = globaldom.size() ;
+      MPI_Allgather(&tlsize,1,MPI_INT,&targetsizes[0],1,MPI_INT,
+		    MPI_COMM_WORLD) ;
+      vector<int> toffsets(p+1,0) ;
+      int tmin = globaldom.Min() ;
+      MPI_Allgather(&tmin,1,MPI_INT,&toffsets[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      toffsets[p] = toffsets[p-1]+targetsizes[p-1] ;
+
+      // Now compute which processors to communicate with
+      vector<int> tlistoffsets(p+1,0) ;
+      int tsz = tlist.size() ;
+      tlistoffsets[p] = tsz ;
+      cnt = 1 ;
+      for(int i=0;i<tsz;++i) {
+	while(cnt != p && tlist[i] >= toffsets[cnt]) {
+	  tlistoffsets[cnt] = i ;
+	  cnt++ ;
+	}
+	if(cnt == p)
+	  break ;
+      }
+      if(cnt != p) { // handle end case
+	for(int i=cnt;i<p;++i)
+	  tlistoffsets[i] = tsz ;
+      }
+      // Now send the requests
+      vector<int> tlistsizes(p) ;
+      for(int i=0;i<p;++i)
+	tlistsizes[i] = tlistoffsets[i+1]-tlistoffsets[i] ;
+      vector<int> rlistsizes(p) ;
+      MPI_Alltoall(&tlistsizes[0],1,MPI_INT,
+		   &rlistsizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      vector<int> rlistoffsets(p+1,0) ;
+      for(int i=0;i<p;++i)
+	rlistoffsets[i+1] = rlistoffsets[i]+rlistsizes[i] ;
+      
+      vector<int> recvlists(rlistoffsets[p]) ;
+      vector<MPI_Request> req_queue ;
+      for(int i=0;i<p;++i) {
+	if(rlistsizes[i] > 0) {
+	  MPI_Request tmp ;
+	  MPI_Irecv(&recvlists[rlistoffsets[i]],rlistsizes[i],MPI_INT,i,99,
+		    MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	}
+      }
+      for(int i=0;i<p;++i) {
+	if(tlistsizes[i] > 0) {
+	  MPI_Send(&tlist[tlistoffsets[i]],tlistsizes[i],MPI_INT,i,99,
+		   MPI_COMM_WORLD) ;
+	}
+      }
+      if(req_queue.size() > 0) {
+	vector<MPI_Status> stat_queue(req_queue.size()) ;
+	MPI_Waitall(req_queue.size(),&req_queue[0],&stat_queue[0]) ;
+	req_queue.clear() ;
+      }
+
+      int rsz = recvlists.size() ;
+      // correct indexes to local numbering
+      
+      // Now translate the p2c map target to the local numbering
+      std::map<int,int> f2c ;
+      for(int i=0;i<tsz;++i)
+	f2c[tlist[i]] = i ;
+      
+      for(int i=0;i<p2csz;++i) {
+	std::map<int,int>::const_iterator mi = f2c.find(p2c[i].second) ;
+	if(mi == f2c.end()) {
+	  cerr << "unable to remap p2c to local number" << endl ;
+	  Loci::Abort() ;
+	}
+	
+	p2c[i].second = mi->second ;
+      }
+      
+      entitySet locdom = interval(0,tsz-1) ;
+      storeVec<T> qic_loc ;
+      qic_loc.allocate(locdom) ;
+      qic_loc.setVecSize(vs) ;
+      store<double> weights ;
+      weights.allocate(locdom) ;
+
+      for(int i=0;i<tsz;++i) {
+	weights[i] = 0 ;
+	for(int j=0;j<vs;++j)
+	  setZero(qic_loc[i][j]) ;
+      }
+	
+      for(int ii=0;ii<p2csz;) {
+	int pid = p2c[ii].first ;
+
+	int j = 1 ;
+	while(((ii+j) < p2csz) && (pid == p2c[ii+j].first))
+	  j++ ;
+	if(j == 1) {
+	  int tid = p2c[ii].second ;
+	  double w = 1.0 ;
+
+	  for(int kk=0;kk<vs;++kk)
+	    qic_loc[tid][kk] += qvecin[pid][kk] ;
+	  weights[tid] += w ;
+	} else {
+	  for(int k=ii;k<ii+j;++k) {
+	    int tid = p2c[k].second ;
+	    for(int kk=0;kk<vs;++kk)
+	      qic_loc[tid][kk] += qvecin[pid][kk] ;
+	    weights[tid] += 1. ;
+	  }
+	}
+	
+	ii += j ;
+      }
+
+      // Now return interpolated versions to new file numbering
+      vector<T> senddata(tsz*vs) ;
+      vector<double> senddataw(tsz,0) ;
+      vector<T> recvdata(rsz*vs) ;
+      vector<double> recvdataw(rsz,1) ;
+      // Fill send data buffer
+      for(int i=0;i<tsz;++i) {
+	for(int j=0;j<vs;++j)
+	  senddata[i*vs+j] = qic_loc[i][j] ;
+	senddataw[i] = weights[i] ;
+      }
+      for(int i=0;i<p;++i) {
+	if(rlistsizes[i] > 0) {
+	  MPI_Request tmp ;
+	  MPI_Irecv(&recvdata[rlistoffsets[i]*vs],rlistsizes[i]*vs*sizeof(T),
+		    MPI_BYTE,i,99,MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	  MPI_Irecv(&recvdataw[rlistoffsets[i]],rlistsizes[i],
+		    MPI_DOUBLE,i,98,MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	}
+      }
+      for(int i=0;i<p;++i) {
+	if(tlistsizes[i] > 0) {
+	  MPI_Send(&senddata[tlistoffsets[i]*vs],tlistsizes[i]*vs*sizeof(T),
+		   MPI_BYTE,i,99,MPI_COMM_WORLD) ;
+	  MPI_Send(&senddataw[tlistoffsets[i]],tlistsizes[i],
+		   MPI_DOUBLE,i,98,MPI_COMM_WORLD) ;
+	}
+      }
+      if(req_queue.size() > 0) {
+	vector<MPI_Status> stat_queue(req_queue.size()) ;
+	MPI_Waitall(req_queue.size(),&req_queue[0],&stat_queue[0]) ;
+	req_queue.clear() ;
+      }
+
+      storeVec<double> q_ic_fn ;
+      store<double> wt_fn ;
+
+      entitySet dom2=dom & qvecout.domain() ;
+      WARN(dom!=dom2) ;
+      wt_fn.allocate(dom) ;
+      // sum contributions from processors
+      FORALL(dom,ii) {
+	for(int i=0;i<vs;++i)
+	  setZero(qvecout[ii][i]) ;
+	wt_fn[ii] = 0 ;
+      } ENDFORALL ;
+      for(int i=0;i<rsz;++i) {
+	int id =g2l[recvlists[i]] ;
+
+	for(int k=0;k<vs;++k)
+	  qvecout[id][k] += recvdata[i*vs+k] ;
+	wt_fn[id] += recvdataw[i] ;
+      }
+
+      // re-normalize
+      FORALL(dom2,ii) {
+	double rw = 1./(wt_fn[ii]) ;
+	for(int i=0;i<vs;++i)
+	  qvecout[ii][i] *= rw;
+      } ENDFORALL ;
+
+    }
+  }
+
 }
 #endif
