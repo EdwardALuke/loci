@@ -1117,7 +1117,29 @@ namespace Loci {
 		   // assume it is allocated already
 		   Loci::storeRepP op,
 		   MPI_Comm comm) ;
+  /// Helper Function to Redistribute store to a new numbering with a partition
+  /// specified by the provided splits
+  /// @param[out] op is the output store pointer which will hold the
+  ///                redistributed store
+  /// @param[in] sp is the input store that will be redistributed
+  /// @param[in] dom is the domain of the input store that will be communicated
+  /// @param[in] toNumbering is the mapping to the new numbering that will
+  ///            be used to number the redistributed store
+  /// @param[in] splits is an array of values that define how the renumbered
+  ///            store will be distributed across processors
+  /// @param[in] comm is the MPI communicator of the processes participating in
+  ///            the redistribution
+  void redistributeStore(Loci::storeRepP &op,
+                         Loci::storeRepP sp,
+                         entitySet dom,
+                         const Map &toNumbering,
+                         const std::vector<int> &splits,
+                         MPI_Comm comm) ;
 
+  storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset,
+                            fact_db::distribute_infoP dist, MPI_Comm comm) ;
+
+  int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm) ;
   entitySet
   getF2G(Map &f2g, Loci::entitySet fdom, dMap &g2f, MPI_Comm comm) ;
   entitySet
