@@ -1,0 +1,208 @@
+\documentclass{article}
+
+\usepackage{mathtools}
+\usepackage{fullpage}
+\usepackage{multirow}
+\usepackage{float}
+
+\title{Loci PETSc Interface}
+\date{\nonumber}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This is re-implementation of the Loci PETSc interface for solution to
+the linear system solvers on CPU and CUDA devices. The \texttt{FVMMod}
+module in the Loci framework provides PETSc interface for linear
+system solve. Following PETSc configurations are tested in this
+interface.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{c|c|c|c}
+\texttt{PetscInt} & \texttt{PetscScalar} & CPU & CUDA \\
+\hline
+32-bit & \texttt{double} & Yes & Yes \\
+32-bit & \texttt{float} & Yes & Yes \\
+\end{tabular}
+\end{table}
+
+\section{PETSc Configuration}
+Some relevant configuration options for building PETSc are as follows.
+
+\begin{enumerate}
+\item \texttt{--with-mpi=1}: Enables MPI parallelization.
+\item \texttt{--with-cuda=1}: Enables CUDA backend. It requires cuBLAS
+  and cuSparse libraries. Other CUDA related options include
+  \texttt{--with-cuda-dir}, \texttt{--with-cuda-pkg-config},
+  \texttt{--with-cuda-include}, \texttt{--with-cuda-lib},
+  \texttt{--with-cuda-arch}. See PETSc documentation for more details.
+\item \texttt{--with-debugging=0} disables debugging version of the
+  libraries. The default of this option is 1. Setting this option to 0
+  is important for release version of PETSc build.
+\item \texttt{--with-precision=single/double} sets the precision of
+  the PETSc library. Default is \texttt{double}.
+\item \texttt{--with-scalar-type=real/complex} Sets the numerical
+  type, either \texttt{real} or \texttt{complex}. \texttt{real} is the
+  default. This option must be \texttt{real}.
+\end{enumerate}
+
+\section{Loci PETSc Interface}
+\texttt{FVMMod} provides parametric rules listed in
+Table~\ref{tbl:Loci-PETSc-Rules} for interfacing with PETSc linear
+system solvers. These rules depend on \texttt{X\_D}, \texttt{X\_L},
+and \texttt{X\_U} facts that define the system matrix and
+\texttt{X\_B} that defines the right hand side. The types of these
+facts and the constraints on which these should be defined are listed
+in Table~\ref{tbl:Loci-PETSc-Rule-Inputs}.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|c|c|c}
+        \hline
+        Parametric Rule & Type & Defined on & Use \\
+        \hline
+        \texttt{petscScalarSolve(X)} &  \texttt{store<double>} & \texttt{geom\_cells} & PETSc scalar solver \\
+        \texttt{petscBlockedSolve(X)} &  \texttt{storeVec<double>} & \texttt{geom\_cells} & PETSc blocked solver \\
+        \texttt{petscBlockedSSolve(X)} &  \texttt{storeVec<double>} & \texttt{geom\_cells} & PETSc blocked solver \\
+    \end{tabular}
+    \caption{Loci parametric rules for the PETSc interface.}
+    \label{tbl:Loci-PETSc-Rules}
+\end{table}
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|c|c|c|c}
+        Input & Defined on & \texttt{petscScalarSolve(X)} & \texttt{petscBlockedSolve(X)} & \texttt{petscBlockedSSolve(X)} \\
+        \hline
+        \texttt{X\_D} & \texttt{geom\_cells} & \texttt{store<double>} & \texttt{storeMat<double>} & \texttt{storeMat<float>} \\
+        \texttt{X\_L} & \texttt{lower->cl} & \texttt{store<double>} & \texttt{storeMat<double>} & \texttt{storeMat<float>} \\
+        \texttt{X\_U} & \texttt{upper->cr} & \texttt{store<double>} & \texttt{storeMat<double>} & \texttt{storeMat<float>} \\
+        \texttt{X\_B} & \texttt{geom\_cells} & \texttt{store<double>} & \texttt{storeVec<double>} & \texttt{storeVec<float>} \\
+    \end{tabular}
+    \caption{Inputs to the Loci parametric rules for the PETSc interface.}
+    \label{tbl:Loci-PETSc-Rule-Inputs}
+\end{table}
+
+For example, if a Loci solver needs to solve fixed point problem for a
+system of PDEs, with variable \texttt{fluid}, and the solver
+formulates and stores the resulting linear system in facts
+\texttt{X\_D}, \texttt{X\_L}, \texttt{X\_U}, and \texttt{X\_B}, the
+solver can invoke the PETSc linear system solver using following
+parametric rule in a \texttt{.loci} file.
+\begin{verbatim}
+$type petscBlockedSSolve(fluid) storeVec<real>;
+$rule pointwise(dfluid <- petscBlockedSSolve(fluid)), constraint(geom_cells) {
+  $dfluid = $petscBlockedSSolve(fluid);
+}
+\end{verbatim}
+The defaults for the Loci PETSc interface are listed in
+Table\ref{tbl:Loci-PETSc-Defaults}.  With these defaults, the PETSc
+solvers run on CPU, use sequential matrix and vector formats for
+single process execution, and parallel matrix and vector formats for
+parallel runs.
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|c|c}
+         & Scalar solve & Blocked solve \\
+         \hline
+        Matrix Type & \texttt{aij} & \texttt{baij} \\
+        Vector Type & \texttt{standard} & \texttt{standard} \\
+        Relative Tolerance & $1\times10^{-5}$ & $1\times10^{-5}$ \\
+        Absolute Tolerance & $1\times10^{-18}$ & $1\times10^{-18}$ \\
+        Maximum Iterations & 100 & 100 \\
+        KSP Solver & PETSc Default & PETSc Default \\
+        KSP Preconditioner & PETSc Default & PETSc Default \\
+    \end{tabular}
+    \caption{Defaults for Loci PETSc interface.}
+    \label{tbl:Loci-PETSc-Defaults}
+\end{table}
+
+\section{Setting PETSc Options}
+The PETSc interface provides \texttt{PETSCSolverControls} options list
+to control behavior of PETSc. If the flow solver has multiple PDEs,
+then each PDE linear system solver can be configured with different
+PETSc options. For example, in turbulent flow simulation with SST
+turbulence model, additional scalar transport equations are that of
+turbulent kinetic energy ($k$) and turbulent dissipation rate
+($\omega$). The \texttt{PETSCSolverControls} options list can be
+specified as follows to set options for the individual variable.
+\begin{verbatim}
+PETSCSolverControls: <
+  fluid=options(mat_type=baij, vec_type=standard),
+  k=options(mat_type=aij, vec_type=standard, ksp_rtol=1e-3),
+  w=options(mat_type=aij, vec_type=standard, ksp_rtol=1e-5)
+>
+\end{verbatim}
+Note that, \texttt{k}, and \texttt{w} PETSc solvers use different
+relative tolerance than the default as specified by option
+\texttt{ksp\_rtol}. The names and values of the PETSc options are the
+same as that in the PETSc documentation. This is demonstrated in the
+following example.  The \texttt{fluid} PETSc solver preconditioner is
+set to \texttt{sgs} and option \texttt{ksp\_converged\_reason} option
+is used to print convergence reason.
+\begin{verbatim}
+PETSCSolverControls: <
+  fluid=options(mat_type=baij, vec_type=standard, pc_type=sgs, ksp_converged_reason),
+  k=options(mat_type=aij, vec_type=standard, ksp_rtol=1e-3),
+  w=options(mat_type=aij, vec_type=standard, ksp_rtol=1e-5)
+>
+\end{verbatim}
+
+\subsection{Offloading to CUDA Device}
+To offload computation to CUDA devices, matrix and vector types need
+to be set to the CUDA appropriate types. For example,
+\begin{verbatim}
+PETSCSolverControls: <
+  fluid=options(mat_type=aijcusparse, vec_type=cuda),
+  k=options(mat_type=aij, vec_type=standard, ksp_rtol=1e-3),
+  w=options(mat_type=aij, vec_type=standard, ksp_rtol=1e-5)
+>
+\end{verbatim}
+Note that, \texttt{k}, and \texttt{w} PETSc solvers run on CPU (as
+indicated by their \texttt{mat\_type} and \texttt{vec\_type}) whereas
+the fluid PDE linear system solver runs on CUDA device. Also note that
+\texttt{mat\_type} is a scalar CUDA sparse type. The scalar type is
+used in case of the fluid equations (which produced a blocked system)
+because CUDA does not support blocked format for CUDA matrices.
+
+\subsection{Specifying Global PETSc Options}
+Global PETSc options are the options that are not specific to a
+particular linear system. For example option \texttt{log\_view} prints
+summary of log information, whereas \texttt{-log\_view
+  :filename.txt:ascii\_flamegraph} saves the logging information in a
+format suitable for visualizing as a Flame Graph. Option
+\texttt{-log\_view\_memory} also displays memory usage in each
+event. Option \texttt{-log\_view\_gpu\_time} displays time in each
+event for GPU kernels, but slows down the computation.  These global
+options are specified in \texttt{PETSCSolverControls} as follows.
+\begin{verbatim}
+PETSCSolverControls: <
+  generic=options(log_view=":filename.txt:ascii_flamegraph", log_view_gpu_time)
+>
+\end{verbatim}
+
+\section{Matrix and Vector Assembly Option}
+PETSc provides two methods for assembling matrix and vectors.  In the
+traditional method, a matrix is first preallocated using
+\texttt{Mat***SetPreallocation()}. Then \texttt{MatSetValues()}
+routines are invoked multiple times to specify element values,
+followed by \texttt{MatAssemblyBegin()}, \texttt{MatBeginEnd()} to
+initiate and finalize the communication needed to complete the
+assembly. For vectors similar routines are used. PETSc introduced
+coordinate assembly that reduces the cost of matrix and vector
+assembly on GPUs. In this method, matrix is first preallocated using
+\texttt{MatSetPreallocationCOO()} where the non-zero elements indices
+are specified in coordinate format, followed by a single call to
+\texttt{MatSetValuesCOO()} to set the element values. The order of the
+element values must be the same as the order in which the element
+coordinates are specified. By default, the Loci PETSc interface uses
+the traditional method of matrix assembly. To enable the coordinate
+assembly, use \texttt{petscCOOAssembly} in the vars file as follows.
+\begin{verbatim}
+petscCOOAssembly: 1
+\end{verbatim}
+
+
+\end{document}
