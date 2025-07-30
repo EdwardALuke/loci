@@ -77,6 +77,10 @@ $include "FVM.lh"
   #define LociPetscCall(expr) do { PetscErrorCode _ierr = (expr); CHKERRQ(_ierr); } while (0)
 #endif
 
+#ifndef PETSC_CURRENT
+ #define PETSC_CURRENT PETSC_DEFAULT
+#endif
+
 enum PetscMatrixType {
   PETSC_MATRIX_TYPE_SEQ_SCALAR,
   PETSC_MATRIX_TYPE_SEQ_BLOCKED,
