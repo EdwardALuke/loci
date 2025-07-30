@@ -415,6 +415,12 @@ namespace Loci {
 #else
     PetscPushErrorHandler(PetscIgnoreErrorHandler,PETSC_NULL) ;
 #endif
+#if PETSC_VERSION_GE(3, 7, 0)
+    PetscLogDefaultBegin();
+    PetscLogNestedBegin();
+#else
+    PetscLogBegin();
+#endif
 #else
     MPI_Init(argc, argv) ;
 #endif
