@@ -29,6 +29,7 @@
 #include "sciTypes.h"
 #include "defines.h"
 #include <Tools/tools.h>
+
 using std::cerr;
 using std::cout;
 using std::endl;
@@ -358,3 +359,16 @@ public:
   }
 };
 register_rule<get_volTag> register_get_volTag;
+
+
+// Code to write out diagnostics if application using older AMR API.
+$type inner_nodes store<Loci::FineNodes> ;
+
+$rule pointwise(inner_nodes),constraint(UNIVERSE), prelude {
+   $[Once] {
+     cerr << "AMR API has changed, program needs to be updated to support AMR!"
+          << endl ;
+   }
+   Loci::Abort() ;
+} ;
+
