@@ -1596,6 +1596,29 @@ namespace Loci{
 
 
 namespace Loci {
+  void createVOGNode(store<vect3d> &new_pos,
+                     const store<Loci::FineNodes> &inner_nodes,
+                     int& num_nodes,
+                     fact_db & facts,
+                     vector<entitySet>& local_nodes) {
+    cerr << "AMR API has changed, this call is deprecated.  Update your AMR API calls!" << endl ;
+    Loci::Abort() ;
+  }
+  void createVOGFace(int numNodes,
+                     const store<Loci::FineFaces> &fine_faces,
+                     fact_db & facts,
+                     int& numFaces,
+                     int& ncells,
+                     Map& cl,
+                     Map& cr,
+                     multiMap& face2node,
+                     vector<entitySet>& local_faces,
+                     vector<entitySet>& local_cells
+                     ) {
+    cerr << "AMR API has changed, this call is deprecated.  Update your AMR API calls!" << endl ;
+    Loci::Abort() ;
+  }
+
   //create a new store new_pos from pos and inner_nodes
   //re_number the nodes in pos and inner_nodes,
   //and then redistribute them across the processes
