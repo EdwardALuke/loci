@@ -980,11 +980,11 @@ namespace Loci {
     // corresponding processor
     vector<int> send_sizes(ptn.size()) ;
     vector<entitySet> send_data(ptn.size()) ;
-    for(size_t i=0;i < ptn.size();++i)
-      if(recv_req[i*2+0]<=recv_req[i*2+1]) {
+    for(size_t i=0;i < ptn.size();++i) {
+      if(recv_req[i*2+0]<=recv_req[i*2+1]) 
         send_data[i] = inSet & interval(recv_req[i*2+0],recv_req[i*2+1]) ;
-        send_sizes[i] = send_data[i].num_intervals() ;
-      }
+      send_sizes[i] = send_data[i].num_intervals() ;
+    }
 
     // Share the size information with partners
     vector<int> recv_sizes(ptn.size()) ;
