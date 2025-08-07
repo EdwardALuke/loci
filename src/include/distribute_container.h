@@ -35,6 +35,7 @@
 #include <fact_db.h>
 #include <Map.h>
 #include <multiMap.h>
+#include <store.h>
 #include <distribute_io.h>
 
 namespace Loci {
@@ -240,6 +241,111 @@ namespace Loci {
     FORALL(dom,e) {
       mp.push_back(std::pair<int,int>(e,m[e])) ;
     } ENDFORALL ;
+  }
+
+    // -----------------------------------------------------------------------
+  /// @brief getLocalContextMap returns a global to local mapping that
+  /// can be used to translate global numbers to the local numbering
+  /// provided by a data access gathering set.  The local numbering is just
+  /// the ordering of the data in the get set.
+  ///
+  /// @param [g2l] The resulting global to local map
+  /// @param [get] The sets that each processor will be accessing
+  template<class T> void getLocalContextMap(T &g2l, entitySet get) {
+    int cnt = 0 ;
+    for(size_t i=0;i<get.num_intervals();++i)
+      for(Entity ii=get[i].first;ii<=get[i].second;++ii)
+        g2l[ii] = cnt++ ;
+  }
+
+  // -----------------------------------------------------------------------
+  /// @brief gatherData gathers the distributed data that will be accessed
+  /// by each processor from a store that is partitioned according to ptn,
+  ///
+  /// @param[result] std::vector that will contain the gathered data for
+  /// each processor, this will be ordered as the entitySet provided
+  /// @param[data] The input store container that is distributed across
+  /// processors
+  /// @param[get] The requested set of entities that will be accessed by each
+  /// processor
+  /// @param[ptn] The partition of the data stored in container [data]
+  template <class T>  void gatherData(std::vector<T> &result,
+                                      store<T> &data,
+                                      entitySet get,
+                                      std::vector<entitySet> &ptn) {
+    using std::vector ;
+    { vector<T> tmp(get.size()) ; result.swap(tmp) ;}
+
+    const int r = Loci::MPI_rank ;
+    const int p = Loci::MPI_processes ;
+    FATAL(p!=int(ptn.size())) ;
+
+    vector<entitySet> recv_sets(p) ;
+    for(int i=0;i<p;++i)
+      recv_sets[i] = get&ptn[i] ;
+
+    vector<entitySet> send_sets =
+      transpose_entitySet(recv_sets, MPI_COMM_WORLD) ;
+    int send_sz = 0 ;
+    int reqs = 0 ;
+    for(int i=0;i<p;++i) {
+      send_sz += send_sets[i].size() ;
+      if(i!=r) {
+        if(send_sets[i] != EMPTY)
+          reqs++ ;
+        if(recv_sets[i] != EMPTY)
+          reqs++ ;
+      }
+    }
+    std::vector<T> send_data(send_sz) ;
+    int j = 0 ;
+    for(int i=0;i<p;++i) {
+      FORALL(send_sets[i],ii) {
+        send_data[j] = data[ii] ;
+        j++ ;
+      } ENDFORALL ;
+    }
+    vector<int> send_offsets(p,0) ;
+    vector<int> recv_offsets(p,0) ;
+    for(int i=1;i<p;++i) {
+      send_offsets[i] = send_offsets[i-1]+send_sets[i-1].size() ;
+      recv_offsets[i] = recv_offsets[i-1]+recv_sets[i-1].size() ;
+    }
+
+    // copy self data first
+    for(size_t i=0;i<send_sets[r].size();++i)
+      result[recv_offsets[r]+i] = send_data[send_offsets[r]+i] ;
+
+    // Single processor we are done
+    if(p == 1)
+      return ;
+    
+    std::vector<MPI_Request> requests(reqs) ;
+    int cnt = 0 ;
+    for(int i=0;i<p;++i)
+      // If I am not recving from myself and I have something to recv
+      if(i!=r && recv_sets[i] != EMPTY) {
+        MPI_Irecv(&result[recv_offsets[i]],
+                  recv_sets[i].size()*sizeof(T),
+                  MPI_BYTE,i,99,MPI_COMM_WORLD,&requests[cnt]) ;
+        cnt++ ;
+      }
+    for(int i=0;i<p;++i)
+      if(i!=r && send_sets[i] != EMPTY) {
+        // If I am not sending to myself and I have something to send
+        MPI_Isend(&send_data[send_offsets[i]],
+                  send_sets[i].size()*sizeof(T),
+                  MPI_BYTE,i,99,MPI_COMM_WORLD,&requests[cnt]) ;
+        cnt++ ;
+      }
+
+    // If this processor does not commuicate we are done
+    if(cnt == 0)
+      return ;
+
+    // otherwise wait for communication to finish
+    vector<MPI_Status> status_list(cnt) ;
+    MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
   }
 
 }
