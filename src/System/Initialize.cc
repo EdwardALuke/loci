@@ -71,6 +71,7 @@ void dummyFunctionDependencies(int i) {
 #include "thread.h"
 #include <Tools/debug.h>
 #include <Tools/except.h>
+#include <LociGridReaders.h>
 #include "docreport.h"
 #include <new>
 using std::bad_alloc ;
@@ -191,25 +192,18 @@ namespace Loci {
   bool collect_timings = false;
   double time_duration_to_collect_data = 0 ;
   bool use_duplicate_model = false;
-  bool use_simple_partition=false;
-
+#ifdef LOCI_USE_METIS
+  partitionerSelector partitionerMethod = partitionerSelector::GRAPH ;
+#else
+  partitionerSelector partitionerMethod = partitionerSelector::SFC ;
+#endif
+  
 #ifdef H5_HAVE_PARALLEL
   bool use_parallel_io = false ; //true ;
 #else
   bool use_parallel_io = false ;
 #endif
   
-  // space filling curve partitioner
-#ifdef LOCI_USE_METIS
-  bool use_sfc_partition = false ;
-#else 
-  // RSM COMMENT 20181108 setting this to true,
-  // automatically disables calls to METIS decomposition
-  // when we add support for ZOLTAN this will need to be 
-  // REVISITED: METIS_DISABLE_NOTE
-  bool use_sfc_partition=true;
-#endif /* ifndef LOCI_USE_METIS */
-  bool use_orb_partition = false ;
 
   int metis_cpp_threshold = 384 ;
   
@@ -642,14 +636,47 @@ namespace Loci {
 	} else if(!strcmp((*argv)[i],"--metis_cpp_threshold")) {
             metis_cpp_threshold = atoi((*argv)[i+1]);
 	    i+=2;
+        } else if(!strcmp((*argv)[i],"--partition")) {
+          string partition_type ;
+          for(int j=0;j<32;++j) {
+            if((*argv)[i+1][j] == '\0')
+              break ;
+            partition_type += std::tolower((*argv)[i+1][j]) ;
+          }
+          
+          if(partition_type == "simple") {
+            partitionerMethod = partitionerSelector::SIMPLE ;
+          } else if(partition_type == "sfc") {
+            partitionerMethod = partitionerSelector::SFC ;
+          } else if(partition_type == "orb") {
+            partitionerMethod = partitionerSelector::ORB ;
+#ifdef LOCI_USE_METIS
+          } else if(partition_type == "graph") {
+            partitionerMethod = partitionerSelector::GRAPH ;
+          } else if(partition_type == "metis") {
+            partitionerMethod = partitionerSelector::GRAPH ;
+#endif
+          } else if(partition_type == "random") {
+            partitionerMethod = partitionerSelector::RANDOM ;
+          } else if(partition_type == "rnd") {
+            partitionerMethod = partitionerSelector::RANDOM ;
+          } else {
+            cerr << "partition type '" << partition_type << "' not recognized, defaulting to type 'sfc'" << endl ;
+            partitionerMethod = partitionerSelector::SFC ;
+          }
+          i+=2 ;
         } else if(!strcmp((*argv)[i],"--simple_partition")) {
-          use_simple_partition = true ; //  partition domain using n/p cuts
+          partitionerMethod = partitionerSelector::SIMPLE ;
           i++ ;
         } else if(!strcmp((*argv)[i],"--orb_partition")) {
-          use_orb_partition = true ; // partition mesh using ORB method
+          partitionerMethod = partitionerSelector::ORB ;
           i++ ;
         } else if(!strcmp((*argv)[i],"--sfc_partition")) {
-          use_sfc_partition = true ; // partition mesh using SFC method
+          partitionerMethod = partitionerSelector::SFC ;
+          i++ ;
+        } else if(!strcmp((*argv)[i],"--rnd_partition")) {
+          partitionerMethod = partitionerSelector::RANDOM ;
+          // For stress testing
           i++ ;
         } else if(!strcmp((*argv)[i],"--dmm")) {
           use_dynamic_memory = true ; // use dynamic memory management

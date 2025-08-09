@@ -88,6 +88,108 @@ typedef double metisreal_t ;
 #endif
 
 namespace Loci {
+  // get cell2parent map with cells in current global numbering
+  
+  storeRepP getC2PGlobal(fact_db &facts) {
+
+    // Check to see if a global version has already been generated
+    storeRepP ptr = DataXFER_DB.getItem("c2pglobal") ;
+    if(ptr != 0) {
+      return ptr ;
+    }
+    // Now convert c2p from a file numbering of cells to the current
+    // global numbering
+    store<pair<int,int> > c2pset ;
+    c2pset = DataXFER_DB.getItem("c2p") ;
+    entitySet dom = c2pset.domain() ;
+    protoMap c2p(dom.size()) ;
+    int cnt = 0 ;
+    FORALL(dom,ii) {
+      c2p[cnt++] = c2pset[ii] ;
+    } ENDFORALL ;
+    // find the max and min numbering of the file numbering in cells in
+    // c2p
+    int mcol = c2p[0].first ;
+    int xcol = mcol ;
+    for(int i=0;i<cnt;++i) {
+      mcol = min(mcol,c2p[i].first) ;
+      xcol = max(xcol,c2p[i].first) ;
+    }
+    int mco=mcol ;
+    MPI_Allreduce(&mcol,&mco,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    int xco=xcol ;
+    MPI_Allreduce(&xcol,&xco,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    
+    fact_db::distribute_infoP dist = facts.get_distribute_info() ;
+    if(MPI_processes==1) {
+      // If it is running serial then file number is global number
+      entitySet dom = interval(0,c2p.size()-1) ;
+      store<pair<int,int> > c2pg ;
+      c2pg.allocate(dom) ;
+      FORALL(dom,ii) {
+	c2pg[ii] = c2p[ii] ;
+      } ENDFORALL ;
+      DataXFER_DB.insertItem("c2pglobal",c2pg.Rep()) ;
+      return c2pg.Rep() ;
+    }
+    // Now get the maps needed to translate from global to file
+    dMap g2f ;
+    g2f = dist->g2f.Rep() ;
+    Map l2g ;
+    l2g = dist->l2g.Rep() ;
+    constraint geom_cells ;
+    geom_cells = facts.get_fact("geom_cells") ;
+    dom = geom_cells.Rep()->domain() ;
+    dom = dom & dist->my_entities ;
+
+    // Create protomap from cell file number to global number
+    protoMap f2g(dom.size()) ;
+    cnt = 0 ;
+    int mfol = g2f[l2g[dom.Min()]] ;
+    int xfol = mfol ;
+    FORALL(dom,ii) {
+      int g = l2g[ii] ;
+      int f = g2f[g] ;
+      f2g[cnt++] = pair<int,int>(f,g) ;
+      mfol = min(mfol,f) ;
+      xfol = max(xfol,f) ;
+    } ENDFORALL ;
+
+    //    debugout << "mfol=" << mfol << endl ;
+    int mfo = mfol ;
+    int xfo = xfol ;
+    MPI_Allreduce(&mfol,&mfo,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&xfol,&xfo,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    // Check to make sure that the c2p map is consistent with the number of
+    // cells in this mesh
+    if(xfo-mfo != xco-mco) {
+      cerr << "ERROR!: Mismatch between cells in c2p map!" << endl ;
+    }
+    // Remap file numbers to be consistent with c2p numbering
+    for(int i=0;i<cnt;++i)
+      f2g[i].first += mco-mfo ;
+
+
+    // Use the equijoin of file-to-global map and file-to-parent map to get
+    // global-to-parent map
+    protoMap v ;
+    equiJoinFF(f2g,c2p,v) ;
+
+    // convert protoMap into a store to be stored in XFER DB
+    entitySet c2pgset = interval(0,v.size()-1) ;
+    if(v.size() == 0)
+      c2pgset = EMPTY ;
+    store<pair<int,int> > c2pg ;
+    c2pg.allocate(c2pgset) ;
+    FORALL(c2pgset,ii) {
+      c2pg[ii] = v[ii] ;
+    } ENDFORALL ;
+    // Write into XFER DB so we don't have to do this multiple times
+    DataXFER_DB.insertItem("c2pglobal",c2pg.Rep()) ;
+    // return new map
+    return c2pg.Rep() ;
+  }
+
   extern int metis_cpp_threshold ;
   
   storeRepP mapCellPartitionWeights(storeRepP wptr,
@@ -502,9 +604,6 @@ namespace Loci {
     }
   }
 
-  extern bool use_simple_partition ;
-  extern bool use_orb_partition ;
-  extern bool use_sfc_partition ;
   extern bool load_cell_weights ;
   extern string cell_weight_file ;
   extern storeRepP cell_weight_store ; 
@@ -529,6 +628,12 @@ namespace Loci {
                           const multiMap &face2node,
 			  const store<string> &boundary_tags,
 			  const store<int> &cell_weights,
+                          vector<entitySet> &cell_ptn,
+                          vector<entitySet> &face_ptn,
+                          vector<entitySet> &node_ptn) ;
+  void RND_Partition_Mesh(const vector<entitySet> &local_nodes,
+                          const vector<entitySet> &local_faces,
+                          const vector<entitySet> &local_cells,
                           vector<entitySet> &cell_ptn,
                           vector<entitySet> &face_ptn,
                           vector<entitySet> &node_ptn) ;
@@ -1240,13 +1345,7 @@ namespace Loci{
       }
     }
 
-    enum {ORB=0,SFC=1,SIMPLE=2,GRAPH=3} partitioner_type = GRAPH ;
-    if(use_orb_partition)
-      partitioner_type = ORB ;
-    if(use_sfc_partition)
-      partitioner_type = SFC ;
-    if(use_simple_partition) 
-      partitioner_type = SIMPLE ;
+    partitionerSelector partitioner_type = partitionerMethod ;
 
     if(partitioner_type == GRAPH) {
       int lcpp = local_cells[MPI_rank].size() ;
@@ -1305,6 +1404,12 @@ namespace Loci{
       }
       break ;
 #endif
+    case RANDOM:
+      {
+	RND_Partition_Mesh(local_nodes, local_faces, local_cells,
+			   cell_ptn,face_ptn,node_ptn) ;
+      }
+      break ;
     default: // SFC partition no weight balance
       {
 	store<int> cell_weights ;
