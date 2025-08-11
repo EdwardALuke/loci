@@ -604,9 +604,6 @@ namespace Loci {
     }
   }
 
-  extern bool use_simple_partition ;
-  extern bool use_orb_partition ;
-  extern bool use_sfc_partition ;
   extern bool load_cell_weights ;
   extern string cell_weight_file ;
   extern storeRepP cell_weight_store ; 
@@ -631,6 +628,12 @@ namespace Loci {
                           const multiMap &face2node,
 			  const store<string> &boundary_tags,
 			  const store<int> &cell_weights,
+                          vector<entitySet> &cell_ptn,
+                          vector<entitySet> &face_ptn,
+                          vector<entitySet> &node_ptn) ;
+  void RND_Partition_Mesh(const vector<entitySet> &local_nodes,
+                          const vector<entitySet> &local_faces,
+                          const vector<entitySet> &local_cells,
                           vector<entitySet> &cell_ptn,
                           vector<entitySet> &face_ptn,
                           vector<entitySet> &node_ptn) ;
@@ -1342,13 +1345,7 @@ namespace Loci{
       }
     }
 
-    enum {ORB=0,SFC=1,SIMPLE=2,GRAPH=3} partitioner_type = GRAPH ;
-    if(use_orb_partition)
-      partitioner_type = ORB ;
-    if(use_sfc_partition)
-      partitioner_type = SFC ;
-    if(use_simple_partition) 
-      partitioner_type = SIMPLE ;
+    partitionerSelector partitioner_type = partitionerMethod ;
 
     if(partitioner_type == GRAPH) {
       int lcpp = local_cells[MPI_rank].size() ;
@@ -1407,6 +1404,12 @@ namespace Loci{
       }
       break ;
 #endif
+    case RANDOM:
+      {
+	RND_Partition_Mesh(local_nodes, local_faces, local_cells,
+			   cell_ptn,face_ptn,node_ptn) ;
+      }
+      break ;
     default: // SFC partition no weight balance
       {
 	store<int> cell_weights ;
