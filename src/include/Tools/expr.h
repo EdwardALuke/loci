@@ -222,6 +222,7 @@ namespace Loci {
 
     void Print(std::ostream &s) const ;
     double evaluate(const std::map<std::string,double> &varmap) const;
+    int evaluate(const std::map<std::string,int> & varmap) const ;
     exprP simplify() const ; // Simplify the expression
     exprP substitute(exprP s, exprP r) const ; // Substitute all s for r
     exprP derivative(std::string var) const ; // symbolic differentation

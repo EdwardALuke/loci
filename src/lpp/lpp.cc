@@ -2852,6 +2852,38 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment) {
 }
 
 
+void parseFile::skip_lpp_conditional(std::ostream &outputFile) {
+  int nesting = 1 ;
+  char c ;
+
+  bool elseblock = false ;
+  do {
+    killsp() ;
+    while(is.peek() != '$') {
+      is.get(c) ;
+      killsp() ;
+      if(is.eof())
+        throw parseError("Unexpected EOF processing $if directives") ;
+    }
+    is.get(c) ;
+    if(is_name(is)) {
+      string key = get_name(is) ;
+      if((nesting == 1 && key == "else") || key == "endif") {
+        nesting-- ;
+      }
+      if(key == "if" || key == "ifdef" || key == "ifndef") {
+        nesting++ ;
+      }
+      elseblock = (key == "else") ;
+    }
+    killsp() ;
+  } while(nesting != 0) ;
+  if(elseblock) {
+    outputFile << "// $else block output" << endl;
+  }
+}
+
+
 void parseFile::processFile(string file, ostream &outputFile,
 			    parseSharedInfo &parseInfo,int level) {
   bool error = false ;
@@ -2900,6 +2932,9 @@ void parseFile::processFile(string file, ostream &outputFile,
     outputFile << "extern const char *" << docvarname << "[] ;" << endl ;
   }
   syncFile(outputFile) ;
+  bool mapset = false ;
+  std::map<std::string,int> systemvarmap ;
+    
   do {
     string comment = killspout(outputFile) ;
     //    cout << "comment:"<< comment << endl ;
@@ -2958,7 +2993,67 @@ void parseFile::processFile(string file, ostream &outputFile,
             } else {
 	      outputFile << "//$include \"" << newfile << '"' << endl ;
 	    }
+          } else if(key == "define") {
+            killsp() ;
+            if(!is_name(is))
+              throw parseError("syntax error parsing $define") ;
+            string var = get_name(is) ;
+            killsp() ;
+            string val ;
+            if(is_string(is))
+              val = get_string(is) ;
+            setSystemVar(var,val) ;
+            mapset = false ;
+            outputFile << "// $define " << var << " \"" << val <<"\"" << endl ;
+          } else if(key == "if" || key == "ifdef" || key == "ifndef") {
+            killsp() ;
+            if(key == "ifdef" && !is_name(is))
+              throw parseError("syntax error parsing $ifdef") ;
+            if(key == "ifndef" && !is_name(is))
+              throw parseError("syntax error parsing $ifndef") ;
+            bool check = false ;
+            string var ;
+            if(key == "ifdef") {
+              var = get_name(is) ;
+              check = checkSystemVar(var) ;
+            } else if(key == "ifndef") {
+              var = get_name(is) ;
+              check = !checkSystemVar(var) ;
+            } else {
+              while(is.peek() != '\n' && is.peek() != '\r') {
+                is.get(c) ;
+                if(is.eof())
+                  break ;
+                var += c ;
+              }
+              exprP C = expression::create(var) ;
+              if(!mapset)
+                evalSystemVars(systemvarmap) ;
+              mapset = true ;
+              check = C->evaluate(systemvarmap);
+            }
+
+            if(!check) {
+              // if check not true, parse forward until else or endif
+              // keeping track of nesting
+              skip_lpp_conditional(outputFile) ;
+            } else {
+              outputFile << "// $" << key << " " << var << " true" <<endl ;
+            }
+              syncFile(outputFile) ;
+              
+          } else if(key == "else") {
+            killsp() ;
+            // We got to the else which means the first part was true, so
+            // skip nested part
+            skip_lpp_conditional(outputFile) ;
             
+            syncFile(outputFile) ;
+
+          } else if(key == "endif") {
+            killsp() ;
+            outputFile << "// $endif"<< endl  ;
+            syncFile(outputFile) ;
           } else {
             throw parseError("syntax error: unknown key") ;
           }
