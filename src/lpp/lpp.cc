@@ -2998,10 +2998,19 @@ void parseFile::processFile(string file, ostream &outputFile,
             if(!is_name(is))
               throw parseError("syntax error parsing $define") ;
             string var = get_name(is) ;
-            killsp() ;
+            while(is.peek() == ' ' || is.peek() == '\t')
+              is.get(c) ;
             string val ;
-            if(is_string(is))
+            if(is_string(is)) {
               val = get_string(is) ;
+            }
+            
+            while((is.peek() == ' ') || (is.peek() == '\t')) {
+              is.get(c) ;
+            }
+            if(is.peek() != '\r' && is.peek() != '\n')
+              throw parseError("extraneous text after $define statement") ;
+            
             setSystemVar(var,val) ;
             mapset = false ;
             outputFile << "// $define " << var << " \"" << val <<"\"" << endl ;
@@ -3024,13 +3033,37 @@ void parseFile::processFile(string file, ostream &outputFile,
                 is.get(c) ;
                 if(is.eof())
                   break ;
-                var += c ;
+                // check if it might be a continuation line
+                if(c == '\\') {
+                  // it is continuation line, so eat \n \r characters
+                  if(is.peek() == '\n' || is.peek() == '\r') {
+                    is.get(c) ;
+                    if(c == '\n') {
+                      line_no++ ;
+                    } else {
+                      // Handle case of \r\n
+                      if(is.peek() == '\n') {
+                        is.get(c) ;
+                        line_no++ ;
+                      }
+                    }
+                  } else // otherwise add \ to string
+                    var += '\\' ;
+                } else { // not part of continuation line, add to expression
+                  var += c ;
+                }
+
               }
-              exprP C = expression::create(var) ;
-              if(!mapset)
-                evalSystemVars(systemvarmap) ;
-              mapset = true ;
-              check = C->evaluate(systemvarmap);
+              try {
+                exprP C = expression::create(var) ;
+                if(!mapset)
+                  evalSystemVars(systemvarmap) ;
+                mapset = true ;
+                check = C->evaluate(systemvarmap);
+              } catch(exprError &err) {
+                err.Print(cerr) ;
+                throw parseError("syntax error parsing $if expression") ;
+              }
             }
 
             if(!check) {
