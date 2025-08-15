@@ -39,6 +39,54 @@ namespace {
   }
 }
 
+
+/// Storage for system variables
+std::map<std::string,std::string> lpp_vars ;
+
+// --------------------------------------------------------------------------
+/// @brief setSystemVar() function to set system variable value in database
+/// @param [var] - input variable to set
+/// @param [val] - input value to assign to variable, replaces previous
+/// definition of variable, or creates new variable if one doesn't exist
+void setSystemVar(const std::string &var, const std::string &val) {
+  lpp_vars[var] = val ;
+}
+
+// --------------------------------------------------------------------------
+/// @brief checkSystemVar() returns true if provided variable exists
+/// @param [var] - input variable
+/// @returns boolean indicating existence of variable
+bool checkSystemVar(const std::string &var) {
+  return lpp_vars.find(var) != lpp_vars.end() ;
+}
+
+// --------------------------------------------------------------------------
+/// @brief getSystemVar() returns value assigned to provided system variable
+/// @param [var] - input variable
+/// @returns string contained in the database for [var]
+std::string getSystemVar(const std::string &var) {
+  auto fp = lpp_vars.find(var) ;
+  if(fp != lpp_vars.end())
+    return fp->second ;
+  return "" ;
+}
+
+
+// --------------------------------------------------------------------------
+/// @brief evalSystemVar() evaluates system variables as integers
+/// @param [varmap] - output map giving integer values to every variable
+void evalSystemVars(std::map<string,int> &varmap) {
+  for(auto ip=lpp_vars.begin();ip!=lpp_vars.end();++ip) {
+    string name = ip->first ;
+    int val = 0 ;
+    if(ip->second.size() > 0 && ip->second[0]>='0' && ip->second[0]<='9') {
+      val = atoi(ip->second.c_str()) ;
+    }
+    varmap[name] = val ;
+  }
+}
+    
+
 void Usage(int argc, char *argv[]) {
   cerr << "Loci Pre-Processor Usage:" << endl ;
   cerr << argv[0] <<" -I<dir> filename.loci -o filename.cc" << endl ;
@@ -47,8 +95,19 @@ void Usage(int argc, char *argv[]) {
 
 bool no_cuda = false ;
 
-int main(int argc, char *argv[]) {
+// --------------------------------------------------------------------------
+/// @brief intToString() is a utility routine for converting an integer to
+/// its string representation
+/// @param [val] input integer
+/// @returns string representation of [val]
 
+std::string intToString(int val) {
+  std::ostringstream oss ;
+  oss << val ;
+  return std::string(oss.str()) ;
+}
+
+int main(int argc, char *argv[]) {
 
   bool file_given = false;
   string filename ;
@@ -74,7 +133,15 @@ int main(int argc, char *argv[]) {
       } else if(argv[i][1] == 'V') {
         cout << "Loci version: " << version() << endl ;
       } else if(argv[i][1] == 'D') {
-	// ignore this option
+        string var ;
+        string val ;
+        for(int j=2;argv[i][j] != '\0';++j) {
+          if(argv[i][j] == '=') {
+            val = string(&argv[i][j+1]) ;
+          }
+          var += argv[i][j] ;
+        }
+        setSystemVar(var,val) ;
       } else {
 	cerr << "Warning: Unknown option " << argv[i] << endl ;
 	//	exit(-1) ;
@@ -88,6 +155,10 @@ int main(int argc, char *argv[]) {
       file_given = true ;
     }
   }
+  // Add system version variables to system vars
+  setSystemVar("LOCI_VERSION_MAJOR",intToString(LOCI_VERSION_MAJOR)) ;
+  setSystemVar("LOCI_VERSION_MINOR",intToString(LOCI_VERSION_MINOR)) ;
+
   if(!file_given) {
     cerr << "no filename" << endl ;
     Usage(argc,argv) ;
