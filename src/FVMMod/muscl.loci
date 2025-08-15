@@ -91,6 +91,7 @@ namespace Loci {
     $rightsP(X,M) = $pmap->$leftsP(X,M) ;
   }
 
+  $untype X ;
   $type X store<vect3d> ;
   
   $rule pointwise(leftv3d(X)<-facecenter,
@@ -138,7 +139,8 @@ namespace Loci {
         slopes[i] = slopes[i]*((slopes[i]>0.0)?(sump-sum)/(sump-1e-30):1.0) ;
     }
   }    
-  
+
+  $untype X ;
   $type X storeVec<real> ;
   $rule pointwise(leftvM(X)<-facecenter,
 		  cl->(X,gradv(X),limiterv(X),cellcenter)),

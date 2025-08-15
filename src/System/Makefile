@@ -43,12 +43,7 @@ OBJS = Initialize.o Loci_Datatypes.o \
        visit_chomp.o dynamic_exec.o multiStoreIO.o mpi_containerIO.o\
        dist_tools.o distribute_io.o distribute_container.o dist_internal.o \
        FVMGridReader.o FVMGridWriter.o FVMStuff.o kd_tree.o pnn.o orb.o \
-       keyspace.o interpolate_tools.o thread.o gpusupport.o
-
-#COPT = $(CC_LIB_FLAGS) $(CC_OPTIMIZE) -DLOCI_RPATH=\"$(LOCI_RPATH)\"
-#COPT = $(CC_LIB_FLAGS) $(COPTLESS) -DLOCI_RPATH=\"$(LOCI_RPATH)\"
-#COPT = $(CC_LIB_FLAGS) -g -O0 -DLOCI_RPATH=\"$(LOCI_RPATH)\" #-DDEBUG
-
+       keyspace.o interpolate_tools.o thread.o gpusupport.o docreport.o
 
 compile: $(TARGET)
 
@@ -57,28 +52,30 @@ compile: $(TARGET)
 #	$(RANLIB) libLoci.a
 
 LIB_OBJS=$(OBJS:.o=_lo.o)
-libLoci.$(LIB_SUFFIX): $(LIB_OBJS) Loci_version.cc
+libLoci.$(LIB_SUFFIX): $(LIB_OBJS) Loci_version.cc $(LOCI_BASE)/include/Config/version_details.h
 	$(CXX) $(PIC_FLAGS) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o Loci_version_lo.o -c Loci_version.cc
 	$(DYNAMIC_LD) $(DYNAMIC_LD_FLAGS) libLoci.$(LIB_SUFFIX) $(LIB_FLAGS) $(LIB_OBJS) Loci_version_lo.o $(PETSC_LIBS)
-
 
 .PHONY: FORCE
 FORCE:
 
-JUNK =  *~ core ii_files ti_files KCC_files so_locations rii_files
+JUNK =  *~ core ii_files ti_files so_locations rii_files
 
 .PHONY: clean
 clean:
 	rm -fr $(OBJS) $(LIB_OBJS) Loci_version_lo.o $(TARGET) $(JUNK) libLoci.$(LIB_SUFFIX)
 
+.PHONY: uninstall
+uninstall:
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(TARGET)
+
 .PHONY: distclean
 distclean: clean
 	rm -fr  $(DEPEND_FILES) 
 
-
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
 #include automatically generated dependencies
-ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
+ifeq ($(filter $(MAKECMDGOALS),clean distclean uninstall),)
 -include $(DEPEND_FILES)
 endif

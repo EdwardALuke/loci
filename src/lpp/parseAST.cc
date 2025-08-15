@@ -371,6 +371,7 @@ AST_type::elementType postFixOperator(AST_type::elementType e) {
 
 AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
 				    std::istream &is, int &linecount,
+				    string fileName,
 				    const varmap &typemap) {
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
 #ifdef VERBOSE
@@ -384,16 +385,17 @@ AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
     pushToken(openToken) ;
     if(checkPostFixToken(openToken->nodeType) ||
        openToken->nodeType == AST_type::TK_OPENBRACKET)
-      return applyPostFixOperator(AST_type::ASTP(post),is,linecount,typemap) ;
+      return applyPostFixOperator(AST_type::ASTP(post),is,linecount,
+				  fileName,typemap) ;
     else
       return AST_type::ASTP(post) ;
   }
   if(openToken->nodeType == AST_type::TK_OPENBRACKET) {
-    AST_type::ASTP index = parseExpression(is,linecount,typemap) ;
+    AST_type::ASTP index = parseExpression(is,linecount,fileName,typemap) ;
     openToken = getToken(is,linecount) ;
     if(openToken->nodeType != AST_type::TK_CLOSEBRACKET) {
       pushToken(openToken) ;
-      return AST_type::ASTP(new AST_syntaxError("expecting ']'",openToken->lineno)) ;
+      return AST_type::ASTP(new AST_syntaxError("expecting ']'",openToken->lineno,fileName)) ;
     }
     CPTR<AST_exprOper> array = new AST_exprOper ;
     array->nodeType = AST_type::OP_ARRAY ;
@@ -404,7 +406,8 @@ AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
     pushToken(openToken) ;
     if(checkPostFixToken(openToken->nodeType) ||
        openToken->nodeType == AST_type::TK_OPENBRACKET)
-      return applyPostFixOperator(AST_type::ASTP(array),is,linecount,typemap) ;
+      return applyPostFixOperator(AST_type::ASTP(array),is,linecount,fileName,
+				  typemap) ;
     else
       return AST_type::ASTP(array) ;
   }
@@ -414,32 +417,37 @@ AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
 }
 
 
-AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount, const varmap &typemap) {
+AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
+				      const string &fileName,
+				      const varmap &typemap) {
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseExpressionPartial, token = " << openToken->text << endl ;
 #endif
   if(openToken->nodeType == AST_type::TK_OPENPAREN) {
-    AST_type::ASTP exp = parseExpression(is,linecount,typemap) ;
+    AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
     CPTR<AST_Token> closeToken = getToken(is,linecount) ;
     CPTR<AST_exprOper> group = new AST_exprOper ;
     group->nodeType = AST_type::OP_GROUP ;
     group->terms.push_back(AST_type::ASTP(exp)) ;
     if(closeToken->nodeType != AST_type::TK_CLOSEPAREN) {
       pushToken(closeToken) ;
-      return AST_type::ASTP(new AST_syntaxError("expecting ')'",closeToken->lineno)) ;
+      return AST_type::ASTP(new AST_syntaxError("expecting ')'",closeToken->lineno,fileName)) ;
       
     }
-    return applyPostFixOperator(AST_type::ASTP(group),is,linecount,typemap) ;
+    return applyPostFixOperator(AST_type::ASTP(group),is,linecount,fileName,
+				typemap) ;
   }
   if(checkUnaryToken(openToken->nodeType)) {
     //check for unary operators
-    AST_type::ASTP expr = parseExpressionPartial(is,linecount,typemap) ;
+    AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,
+						 typemap) ;
     if(expr!= 0) {
       CPTR<AST_exprOper> unary = new AST_exprOper ;
       unary->nodeType = unaryOperator(openToken->nodeType) ;
       unary->terms.push_back(expr) ;
-      return applyPostFixOperator(AST_type::ASTP(unary),is,linecount,typemap) ;
+      return applyPostFixOperator(AST_type::ASTP(unary),is,linecount,fileName,
+				  typemap) ;
     }
   }
   if(isTerm(openToken->nodeType)) {
@@ -450,7 +458,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount, const va
 
     if(openToken->nodeType == AST_type::TK_OPENPAREN) {
       // Function
-      AST_type::ASTP args = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP args = parseExpression(is,linecount,fileName,typemap) ;
       CPTR<AST_Token> closeToken = getToken(is,linecount) ;
       CPTR<AST_exprOper> func = new AST_exprOper ;
       func->nodeType = AST_type::OP_FUNC ;
@@ -463,10 +471,11 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount, const va
 	func->terms.push_back(AST_type::ASTP(err)) ;
 	pushToken(closeToken) ;
       }
-      return applyPostFixOperator(AST_type::ASTP(func),is,linecount,typemap) ;
+      return applyPostFixOperator(AST_type::ASTP(func),is,linecount,fileName,
+				  typemap) ;
     }
     pushToken(openToken) ;
-    return applyPostFixOperator(exp,is,linecount,typemap) ;
+    return applyPostFixOperator(exp,is,linecount,fileName,typemap) ;
     //    return exp ;
   }
   pushToken(openToken) ;
@@ -475,11 +484,13 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount, const va
   
 
 
-AST_type::ASTP parseExpression(std::istream &is, int &linecount,const varmap &typemap) {
+AST_type::ASTP parseExpression(std::istream &is, int &linecount,
+			       const string &fileName,
+			       const varmap &typemap) {
 #ifdef VERBOSE
   cerr << "in parseExpression"<< endl ;
 #endif
-  AST_type::ASTP expr = parseExpressionPartial(is,linecount,typemap) ;
+  AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
   if(expr == 0) // If no valid expression then return null
     return expr ;
   vector<CPTR<AST_exprOper> > exprStack ;
@@ -498,12 +509,12 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,const varmap &ty
       break ;
 
     if(op->nodeType == AST_type::OP_TERNARY ) 
-      expr = parseExpression(is,linecount,typemap) ;
+      expr = parseExpression(is,linecount,fileName,typemap) ;
     else
-      expr = parseExpressionPartial(is,linecount,typemap) ;
+      expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
     
     if(expr == 0) {
-      return AST_type::ASTP(new AST_syntaxError("Expecting expression after binary operator",linecount)) ;
+      return AST_type::ASTP(new AST_syntaxError("Expecting expression after binary operator",linecount,fileName)) ;
     }
     
     if(exprStack.back()->nodeType == AST_type::OP_NIL) {
@@ -538,11 +549,11 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,const varmap &ty
 	  cerr << " detected OP_TERNARY, op2 =" << op2->text << endl ;
 #endif
 	  if(op2->nodeType == AST_type::TK_COLON) {
-	    expr = parseExpressionPartial(is,linecount,typemap) ;
+	    expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
 	    np->terms.push_back(expr) ;
 	  } else {
 	    pushToken(op2) ;
-	    return AST_type::ASTP(new AST_syntaxError("expecting ':' in tertiary operator",op2->lineno)) ;
+	    return AST_type::ASTP(new AST_syntaxError("expecting ':' in tertiary operator",op2->lineno,fileName)) ;
 	  }
 	}
 	exprStack.push_back(np) ;
@@ -555,9 +566,9 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,const varmap &ty
 	  CPTR<AST_Token> op2 = getToken(is,linecount) ;
 	  if(op2->nodeType != AST_type::TK_COLON) {
 	    pushToken(op2) ;
-	    expr = AST_type::ASTP(new AST_syntaxError("unexpected ':' in tertiary operator",linecount)) ;
+	    expr = AST_type::ASTP(new AST_syntaxError("unexpected ':' in tertiary operator",linecount,fileName)) ;
 	  } else {
-	    expr = parseExpressionPartial(is,linecount,typemap) ;
+	      expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
 	  }
 	  np->terms.push_back(expr) ;
 #ifdef VERBOSE
@@ -570,11 +581,13 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,const varmap &ty
     }
   } while(true) ;
 
-  return applyPostFixOperator(AST_type::ASTP(exprStack.front()),is,linecount,typemap) ;
+  return applyPostFixOperator(AST_type::ASTP(exprStack.front()),is,linecount,fileName,typemap) ;
 }
 
 
-AST_type::ASTP parseCaseStatement(std::istream &is, int &linecount,const varmap &typemap) {
+AST_type::ASTP parseCaseStatement(std::istream &is, int &linecount,
+				  const string &fileName,
+				  const varmap &typemap) {
   CPTR<AST_Token> token = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseCaseStatement, token = " << token->text << endl ;
@@ -582,27 +595,29 @@ AST_type::ASTP parseCaseStatement(std::istream &is, int &linecount,const varmap 
   if(token->nodeType != AST_type::TK_CASE &&
      token->nodeType != AST_type::TK_DEFAULT) {
     cerr << "internal error parsing switch statement on line " << linecount
-	 << endl ;
+	 << " of file " << fileName << endl ;
   }
   CPTR<AST_Block> AST_data = new AST_Block ;
   AST_data->nodeType = AST_type::TK_CASE ;
   AST_data->elements.push_back(AST_type::ASTP(token)) ;
   if(token->nodeType == AST_type::TK_CASE ) {
-    AST_type::ASTP expr = parseExpression(is,linecount,typemap) ;
+    AST_type::ASTP expr = parseExpression(is,linecount,fileName,typemap) ;
     AST_data->elements.push_back(expr) ;
   }
   
   token = getToken(is,linecount) ;
   if(token->nodeType != AST_type::TK_COLON) {
     pushToken(token) ; 
-    return AST_type::ASTP(new AST_syntaxError("expecting ':' in case statement",token->lineno)) ;
+    return AST_type::ASTP(new AST_syntaxError("expecting ':' in case statement",token->lineno,fileName)) ;
   }
   
   AST_data->elements.push_back(AST_type::ASTP(token)) ;
   return AST_type::ASTP(AST_data) ;
 }
 
-AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount, const varmap &typemap)  {
+AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount,
+				    const string &fileName,
+				    const varmap &typemap)  {
   CPTR<AST_Token> token = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseSwitchStatement, token = " << token->text << endl ;
@@ -615,16 +630,16 @@ AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount, const varm
   token = getToken(is,linecount) ;
   if(token->nodeType != AST_type::TK_OPENPAREN) {
     pushToken(token) ;
-    return AST_type::ASTP(new AST_syntaxError("expecting '(' in switch statment",token->lineno)) ;
+    return AST_type::ASTP(new AST_syntaxError("expecting '(' in switch statment",token->lineno,fileName)) ;
   }
   pushToken(token) ;
-  AST_type::ASTP conditional = parseExpression(is,linecount,typemap) ;
+  AST_type::ASTP conditional = parseExpression(is,linecount,fileName,typemap) ;
   // switch statement is just a list of statements in order
   ctrl->parts.push_back(conditional) ;
   token = getToken(is,linecount) ;
   if(token->nodeType != AST_type::TK_OPENBRACE) {
     pushToken(token) ;
-    return AST_type::ASTP(new AST_syntaxError("expecting '{' in switch statment",token->lineno)) ;
+    return AST_type::ASTP(new AST_syntaxError("expecting '{' in switch statment",token->lineno,fileName)) ;
   }
   ctrl->parts.push_back(AST_type::ASTP(token)) ;
   token = getToken(is,linecount) ;
@@ -633,44 +648,46 @@ AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount, const varm
     if(token->nodeType == AST_type::TK_CASE ||
        token->nodeType == AST_type::TK_DEFAULT) {
       pushToken(token) ;
-      ctrl->parts.push_back(parseCaseStatement(is,linecount,typemap)) ;
+      ctrl->parts.push_back(parseCaseStatement(is,linecount,fileName,typemap)) ;
     } else {
       pushToken(token) ;
-      ctrl->parts.push_back(parseStatement(is,linecount,typemap)) ;
+      ctrl->parts.push_back(parseStatement(is,linecount,fileName,typemap)) ;
     }
     token = getToken(is,linecount) ;
   }
 			
   if(token->nodeType == AST_type::TK_ERROR) 
-    return AST_type::ASTP(new AST_syntaxError("failed to find closing brace in swithc statement",linecount)) ;
+    return AST_type::ASTP(new AST_syntaxError("failed to find closing brace in swithc statement",linecount,fileName)) ;
 
   ctrl->parts.push_back(AST_type::ASTP(token)) ;
   return AST_type::ASTP(ctrl) ;
 
 }
 
-AST_type::ASTP parseIfStatement(std::istream &is, int &linecount, const varmap &typemap)  {
+AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
+				const string &fileName,
+				const varmap &typemap)  {
   CPTR<AST_Token> token = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseIfStatement, token = " << token->text << endl ;
 #endif
   if(token->nodeType != AST_type::TK_IF) {
     pushToken(token) ;
-    return AST_type::ASTP(new AST_syntaxError("confused in if statement",token->lineno)) ;
+    return AST_type::ASTP(new AST_syntaxError("confused in if statement",token->lineno,fileName)) ;
   }
   AST_type::ASTP iftok = AST_type::ASTP(token) ;
   
   token = getToken(is,linecount) ;
   if(token->nodeType != AST_type::TK_OPENPAREN) {
     pushToken(token) ;
-    return AST_type::ASTP(new AST_syntaxError("if expecting '('",token->lineno)) ;
+    return AST_type::ASTP(new AST_syntaxError("if expecting '('",token->lineno,fileName)) ;
   }
   pushToken(token) ;
-  AST_type::ASTP conditional = parseExpression(is,linecount,typemap) ;
+  AST_type::ASTP conditional = parseExpression(is,linecount,fileName,typemap) ;
   if(conditional == 0) 
-    return AST_type::ASTP(new AST_syntaxError("malformed if conditional",token->lineno)) ;
+    return AST_type::ASTP(new AST_syntaxError("malformed if conditional",token->lineno,fileName)) ;
 
-  AST_type::ASTP body = parseStatement(is,linecount,typemap) ;
+  AST_type::ASTP body = parseStatement(is,linecount,fileName,typemap) ;
 
   AST_type::ASTP elsetok = 0 ;
   AST_type::ASTP ebody = 0 ;
@@ -678,7 +695,7 @@ AST_type::ASTP parseIfStatement(std::istream &is, int &linecount, const varmap &
   
   if(token->nodeType == AST_type::TK_ELSE) {
     elsetok = AST_type::ASTP(token) ;
-    ebody = parseStatement(is,linecount,typemap) ;
+    ebody = parseStatement(is,linecount,fileName,typemap) ;
   } else {
     pushToken(token) ;
   }
@@ -714,7 +731,9 @@ bool isTypeDecl(CPTR<AST_Token> p, const varmap &typemap) {
 }
 
 
-AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,const varmap &typemap) {
+AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
+				  const string &fileName,
+				  const varmap &typemap) {
   CPTR<AST_Token> token = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseLoopStatement, token = " << token->text << endl ;
@@ -744,7 +763,7 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,const varmap 
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_OPENPAREN) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("for expecting '('",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("for expecting '('",token->lineno,fileName)) ;
       }
       ctrl->parts.push_back(AST_type::ASTP(token)) ;
       
@@ -752,37 +771,38 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,const varmap 
       AST_type::ASTP initializer = 0 ;
       if(isTypeDecl(token,typemap)) {
 	pushToken(token) ;
-	initializer = parseDeclaration(is,linecount,typemap) ;
+	initializer = parseDeclaration(is,linecount,fileName,typemap) ;
       } else {
 	pushToken(token) ;
-	initializer = parseExpression(is,linecount,typemap) ;
+	initializer = parseExpression(is,linecount,fileName,typemap) ;
       }
       ctrl->parts.push_back(initializer) ;
 	
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_SEMICOLON) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("No ';' after initializer in for loop",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("No ';' after initializer in for loop",token->lineno,fileName)) ;
       }
       ctrl->parts.push_back(AST_type::ASTP(token)) ;
       
-      AST_type::ASTP conditional = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP conditional = parseExpression(is,linecount,fileName,
+						   typemap) ;
       ctrl->parts.push_back(conditional) ;
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_SEMICOLON) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("No ';' after conditional in for loop",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("No ';' after conditional in for loop",token->lineno,fileName)) ;
       }
       ctrl->parts.push_back(AST_type::ASTP(token)) ;
-      AST_type::ASTP advance = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP advance = parseExpression(is,linecount,fileName,typemap) ;
       ctrl->parts.push_back(advance) ;
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_CLOSEPAREN) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("Expecting ')' in for loop",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("Expecting ')' in for loop",token->lineno,fileName)) ;
       }
       ctrl->parts.push_back(AST_type::ASTP(token)) ;
-      AST_type::ASTP body = parseStatement(is,linecount,typemap) ;
+      AST_type::ASTP body = parseStatement(is,linecount,fileName,typemap) ;
       ctrl->parts.push_back(body) ;
       return AST_type::ASTP(ctrl) ;
     }
@@ -800,13 +820,14 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,const varmap 
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_OPENPAREN) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("Expecting '(' in while loop",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("Expecting '(' in while loop",token->lineno,fileName)) ;
       }
       pushToken(token) ;
-      AST_type::ASTP conditional = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP conditional = parseExpression(is,linecount,fileName,
+						   typemap) ;
       ctrl->parts.push_back(conditional) ;
 
-      AST_type::ASTP body = parseStatement(is,linecount,typemap) ;
+      AST_type::ASTP body = parseStatement(is,linecount,fileName,typemap) ;
       ctrl->parts.push_back(body) ;
       return AST_type::ASTP(ctrl) ;
     }
@@ -823,29 +844,29 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,const varmap 
       // TK_SEMICOLON
 
       ctrl->nodeType = AST_type::ND_CTRL_DO ;
-      AST_type::ASTP body = parseStatement(is,linecount,typemap) ;
+      AST_type::ASTP body = parseStatement(is,linecount,fileName,typemap) ;
       ctrl->parts.push_back(body) ;
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_WHILE) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("Expecting 'while' in do loop",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("Expecting 'while' in do loop",token->lineno,fileName)) ;
       }
       ctrl->parts.push_back(AST_type::ASTP(token)) ;
 
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_OPENPAREN) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("Expecting '(' in do loop",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("Expecting '(' in do loop",token->lineno,fileName)) ;
       }
       pushToken(token) ;
-      AST_type::ASTP conditional = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP conditional = parseExpression(is,linecount,fileName,typemap) ;
       ctrl->parts.push_back(conditional) ;
 
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_SEMICOLON) {
 	pushToken(token) ;
 	
-	ctrl->parts.push_back(AST_type::ASTP(new AST_syntaxError("Expecting ';' in do loop",token->lineno))) ;
+	ctrl->parts.push_back(AST_type::ASTP(new AST_syntaxError("Expecting ';' in do loop",token->lineno,fileName))) ;
       } else
 	ctrl->parts.push_back(AST_type::ASTP(token)) ;
       return AST_type::ASTP(ctrl) ;
@@ -858,7 +879,8 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,const varmap 
   return AST_type::ASTP(getToken(is,linecount)) ;
 }
 
-AST_type::ASTP parseType(std::istream &is, int &linecount, const varmap &typemap) {
+AST_type::ASTP parseType(std::istream &is, int &linecount,
+			 const varmap &typemap) {
   //  cout << "parsing type" << endl ;
   
   CPTR<AST_declaration> AST_data = new AST_declaration ;
@@ -876,7 +898,9 @@ AST_type::ASTP parseType(std::istream &is, int &linecount, const varmap &typemap
   return AST_type::ASTP(AST_data) ;
 }
 
-AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,const varmap &typemap) {
+AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
+				const string &fileName,
+				const varmap &typemap) {
 
   //  cout << "parsing declaration" << endl ;
   
@@ -891,12 +915,14 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,const varmap &t
     token = getToken(is,linecount) ;
   }
   pushToken(token) ;
-  AST_data->decls = parseExpression(is,linecount,typemap) ;
+  AST_data->decls = parseExpression(is,linecount,fileName,typemap) ;
   
   return AST_type::ASTP(AST_data) ;
 }
 
-AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,const varmap &typemap) {
+AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,
+					    const string &fileName,
+					    const varmap &typemap) {
   
   CPTR<AST_Block> AST_data = new AST_Block ;
   AST_data->nodeType = AST_type::OP_SPECIAL ;
@@ -909,16 +935,16 @@ AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,con
   if(token->nodeType != AST_type::TK_SEMICOLON) {
     if(AST_data->elements.back()->nodeType == AST_type::TK_RETURN) {
       pushToken(token) ;
-      AST_type::ASTP exp = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
       AST_data->elements.push_back(exp) ;
       token = getToken(is,linecount) ;
       if(token->nodeType != AST_type::TK_SEMICOLON) {
 	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("Expecting ';' after return",token->lineno)) ;
+	return AST_type::ASTP(new AST_syntaxError("Expecting ';' after return",token->lineno,fileName)) ;
       }
     } else {
       pushToken(token) ;
-      return AST_type::ASTP(new AST_syntaxError("unexpected ';'" ,token->lineno)) ;
+      return AST_type::ASTP(new AST_syntaxError("unexpected ';'" ,token->lineno,fileName)) ;
     }
   }
   AST_data->elements.push_back(AST_type::ASTP(token)) ;
@@ -926,7 +952,9 @@ AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,con
   return AST_type::ASTP(AST_data) ;
 }
 
-AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &typemap) {
+AST_type::ASTP parseStatement(std::istream &is, int &linecount,
+			      const string &fileName,
+			      const varmap &typemap) {
   CPTR<AST_Token> firstToken = getToken(is,linecount) ;
 
 #ifdef VERBOSE
@@ -935,7 +963,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &ty
   pushToken(firstToken) ;
   switch(firstToken->nodeType) {
   case AST_type::TK_OPENBRACE:
-    return parseBlock(is,linecount,typemap) ;
+    return parseBlock(is,linecount,fileName,typemap) ;
   case AST_type::TK_CHAR:
   case AST_type::TK_FLOAT:
   case AST_type::TK_DOUBLE:
@@ -946,19 +974,19 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &ty
   case AST_type::TK_UNSIGNED:
   case AST_type::TK_CONST:
   case AST_type::TK_AUTO:
-    return parseDeclaration(is,linecount,typemap) ;
+    return parseDeclaration(is,linecount,fileName,typemap) ;
   case AST_type::TK_FOR:
   case AST_type::TK_WHILE:
   case AST_type::TK_DO:
-    return parseLoopStatement(is,linecount,typemap) ;
+    return parseLoopStatement(is,linecount,fileName,typemap) ;
   case AST_type::TK_IF:
-    return parseIfStatement(is,linecount,typemap) ;
+    return parseIfStatement(is,linecount,fileName,typemap) ;
   case AST_type::TK_SWITCH:
-    return parseSwitchStatement(is,linecount,typemap) ;
+    return parseSwitchStatement(is,linecount,fileName,typemap) ;
   case AST_type::TK_BREAK:
   case AST_type::TK_CONTINUE:
   case AST_type::TK_RETURN:
-    return parseSpecialControlStatement(is,linecount,typemap) ;
+    return parseSpecialControlStatement(is,linecount,fileName,typemap) ;
   case AST_type::TK_NAME:
     {
       CPTR<AST_Token> tok1 = getToken(is,linecount) ;
@@ -978,23 +1006,23 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &ty
       case AST_type::TK_NAME:
 	pushToken(tok2) ;
 	pushToken(tok1) ;
-	return parseDeclaration(is,linecount,typemap) ;
+	return parseDeclaration(is,linecount,fileName,typemap) ;
       default:
 	pushToken(tok2) ;
 	pushToken(tok1) ;
 	break ;
       }
       if(isTypeDecl(firstToken,typemap))
-	return parseDeclaration(is,linecount,typemap) ;
+	return parseDeclaration(is,linecount,fileName,typemap) ;
       
-      AST_type::ASTP exp = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
 
       CPTR<AST_Token> termToken = getToken(is,linecount) ;
       AST_type::ASTP term = AST_type::ASTP(termToken) ;
       if(term->nodeType != AST_type::TK_SEMICOLON) {
 	pushToken(termToken) ;
 	return AST_type::ASTP(new AST_syntaxError("Expecting ';' ",
-						  termToken->lineno)) ;
+						  termToken->lineno,fileName)) ;
       }
       AST_type::ASTP stat = new AST_SimpleStatement(exp,term) ;
       return stat ;
@@ -1010,7 +1038,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &ty
   case AST_type::TK_DECREMENT:
   case AST_type::TK_LOCI_VARIABLE:
     {
-      AST_type::ASTP exp = parseExpression(is,linecount,typemap) ;
+      AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
 
       CPTR<AST_Token> termToken = getToken(is,linecount) ;
       AST_type::ASTP term = AST_type::ASTP(termToken) ;
@@ -1018,7 +1046,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &ty
       if(term->nodeType != AST_type::TK_SEMICOLON) {
 	pushToken(termToken) ;
 	return AST_type::ASTP(new AST_syntaxError("Expecting ';' ",
-						  termToken->lineno)) ;
+						  termToken->lineno,fileName)) ;
       }
       AST_type::ASTP stat = new AST_SimpleStatement(exp,term) ;
       return stat ;
@@ -1033,12 +1061,15 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &ty
   
   firstToken = getToken(is,linecount) ;
   return AST_type::ASTP(new AST_syntaxError("Expecting statement or ';' ",
-					    firstToken->lineno)) ;
+					    firstToken->lineno,
+					    fileName)) ;
   //  cerr << "got to end with token " << firstToken->text << " on line " << firstToken->lineno << endl ;
   //  return AST_type::ASTP(firstToken) ;
 }
 
-AST_type::ASTP parseBlock(std::istream &is, int &linecount,const varmap &typemap) {
+AST_type::ASTP parseBlock(std::istream &is, int &linecount,
+			  const string &fileName,
+			  const varmap &typemap) {
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseBlock, token = " << openToken->text << endl ;
@@ -1059,7 +1090,7 @@ AST_type::ASTP parseBlock(std::istream &is, int &linecount,const varmap &typemap
   CPTR<AST_Token> token = getToken(is,linecount) ;
   while(token->nodeType != closeType) {
     pushToken(token) ;
-    CPTR<AST_type> statement = parseStatement(is,linecount,typemap) ;
+    CPTR<AST_type> statement = parseStatement(is,linecount,fileName,typemap) ;
     AST_data->elements.push_back(statement) ;
     token = getToken(is,linecount) ;
     if(is.fail() || is.eof()) 
@@ -1104,11 +1135,7 @@ void AST_visitor::visit(AST_controlStatement &s) {
 }
 
 void AST_errorCheck::visit(AST_syntaxError &s) {
-  if(fileNameStack.size() > 0) {
-    cerr << fileNameStack.back() << ":" << s.lineno << ": syntax, " <<s.error << endl ;
-  } else {
-    cerr << "Syntax Error: " << s.error << " on line " << s.lineno << endl ;
-  }
+  cerr << s.fileName << ":" << s.lineno << ": syntax, " <<s.error << endl ;
   error_count++ ;
 }  
 

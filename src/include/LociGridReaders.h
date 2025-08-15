@@ -229,6 +229,8 @@ namespace Loci {
 #endif
   }
 
+  typedef enum {SIMPLE=0,SFC=1,ORB=2,GRAPH=3,RANDOM=4} partitionerSelector ;
+  extern partitionerSelector partitionerMethod ;
 
 } 
 

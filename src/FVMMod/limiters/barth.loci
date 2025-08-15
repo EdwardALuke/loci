@@ -1,0 +1,404 @@
+//#############################################################################
+//#
+//# Copyright 2008-2019, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <Loci.h>
+$include "FVM.lh"
+$include "FVMMod/limiters.lh"
+
+using std::cerr ;
+using std::endl ;
+
+namespace Loci {
+  typedef vector3d<real_t> vect3d ;
+  typedef tensor3d<real_t> tens3d ;
+  typedef real_t real ;
+
+  $type S store<real> ;
+  $type S_f store<real> ;
+  $rule pointwise(limiters(S)<-cellcenter,S,grads(S),firstOrderCells,
+		  upper->cr->S,upper->facecenter,
+		  lower->cl->S,lower->facecenter,
+		  boundary_map->S_f,boundary_map->facecenter),
+      constraint(geom_cells,B_limiter) {
+    const real Xcc = $S ;
+    real qmax = Xcc ;
+    real qmin = qmax ;
+    const vect3d Xgr = $grads(S) ;
+
+    const int usz = $upper.size() ;
+    for(int i=0;i<usz;++i) {
+      const real Xi = $upper[i]->$cr->$S ;
+      qmin = min(qmin,Xi) ;
+      qmax = max(qmax,Xi) ;
+    }
+    const int lsz= $lower.size() ;
+    for(int i=0;i<lsz;++i) {
+      const real Xi = $lower[i]->$cl->$S ;
+      qmin = min(qmin,Xi) ;
+      qmax = max(qmax,Xi) ;
+    }
+    const int bsz = $boundary_map.size() ;
+    for(int i=0;i<bsz;++i) {
+      const real Xi = $boundary_map[i]->$S_f ;
+      qmin = min(qmin,Xi) ;
+      qmax = max(qmax,Xi) ;
+    }      
+      
+    real limi = ($firstOrderCells != 0)?0.0:1.0 ;
+
+    for(int i=0;i<usz;++i) {
+      const vect3d drl = $upper[i]->$facecenter - $cellcenter ;
+      real Xf = Xcc + dot(Xgr,drl) ;
+      real qdif = Xf-Xcc ;
+      if(qdif > 0)
+        limi = min(limi,(qmax-Xcc)/(qdif+1e-100)) ;
+      if(qdif < 0)
+        limi = min(limi,(qmin-Xcc)/(qdif-1e-100)) ;
+    }
+
+    for(int i=0;i<lsz;++i) {
+      const vect3d drl = $lower[i]->$facecenter - $cellcenter ;
+      real Xf = Xcc + dot(Xgr,drl) ;
+      real qdif = Xf-Xcc ;
+      if(qdif > 0)
+        limi = min(limi,(qmax-Xcc)/(qdif+1e-100)) ;
+      if(qdif < 0)
+        limi = min(limi,(qmin-Xcc)/(qdif-1e-100)) ;
+    }
+    
+    $limiters(S) = realToDouble(limi) ;
+  }
+
+  $type V store<vect3d> ;
+  $type V_f store<vect3d> ;
+
+  $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
+                                upper->cr->V,upper->facecenter,
+                                lower->cl->V,lower->facecenter,
+                                boundary_map->V_f,boundary_map->facecenter),
+        constraint(geom_cells,B_limiter,standardv3dLimit) 
+  {
+    const vect3d Xcc = $V ;
+    vect3d qmax = Xcc ;
+    vect3d qmin = qmax ;
+    const tens3d Xgr = $gradv3d(V) ;
+
+    const int usz = $upper.size() ;
+    for(int i=0;i<usz;++i) {
+      const vect3d Xi = $upper[i]->$cr->$V ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }
+    const int lsz= $lower.size() ;
+    for(int i=0;i<lsz;++i) {
+      const vect3d Xi = $lower[i]->$cl->$V ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }
+    const int bsz = $boundary_map.size() ;
+    for(int i=0;i<bsz;++i) {
+      const vect3d Xi = $boundary_map[i]->$V_f ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }      
+      
+    vect3d limi = ($firstOrderCells != 0)?vect3d(0.,0.,0.):vect3d(1.,1.,1.) ;
+
+    for(int i=0;i<usz;++i) {
+      const vect3d drl = $upper[i]->$facecenter - $cellcenter ;
+      real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+      real qdifx = Xfx-Xcc.x ;
+      if(qdifx > 0)
+        limi.x = min(limi.x,(qmax.x-Xcc.x)/(qdifx+1e-100)) ;
+      if(qdifx < 0)
+        limi.x = min(limi.x,(qmin.x-Xcc.x)/(qdifx-1e-100)) ;
+      real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+      real qdify = Xfy-Xcc.y ;
+      if(qdify > 0)
+        limi.y = min(limi.y,(qmax.y-Xcc.y)/(qdify+1e-100)) ;
+      if(qdify < 0)
+        limi.y = min(limi.y,(qmin.y-Xcc.y)/(qdify-1e-100)) ;
+
+      real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+      real qdifz = Xfz-Xcc.z ;
+      if(qdifz > 0)
+        limi.z = min(limi.z,(qmax.z-Xcc.z)/(qdifz+1e-100)) ;
+      if(qdifz < 0)
+        limi.z = min(limi.z,(qmin.z-Xcc.z)/(qdifz-1e-100)) ;
+    }
+
+    for(int i=0;i<lsz;++i) {
+      const vect3d drl = $lower[i]->$facecenter - $cellcenter ;
+      real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+      real qdifx = Xfx-Xcc.x ;
+      if(qdifx > 0)
+        limi.x = min(limi.x,(qmax.x-Xcc.x)/(qdifx+1e-100)) ;
+      if(qdifx < 0)
+        limi.x = min(limi.x,(qmin.x-Xcc.x)/(qdifx-1e-100)) ;
+      real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+      real qdify = Xfy-Xcc.y ;
+      if(qdify > 0)
+        limi.y = min(limi.y,(qmax.y-Xcc.y)/(qdify+1e-100)) ;
+      if(qdify < 0)
+        limi.y = min(limi.y,(qmin.y-Xcc.y)/(qdify-1e-100)) ;
+
+      real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+      real qdifz = Xfz-Xcc.z ;
+      if(qdifz > 0)
+        limi.z = min(limi.z,(qmax.z-Xcc.z)/(qdifz+1e-100)) ;
+      if(qdifz < 0)
+        limi.z = min(limi.z,(qmin.z-Xcc.z)/(qdifz-1e-100)) ;
+    }
+    
+    $limiterv3d(V) = realToDouble(limi) ;
+  }
+
+  $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
+                                upper->cr->V,upper->facecenter,
+                                lower->cl->V,lower->facecenter,
+                                boundary_map->V_f,boundary_map->facecenter),
+        constraint(geom_cells,B_limiter,minv3dLimit) 
+  {
+    const vect3d Xcc = $V ;
+    vect3d qmax = Xcc ;
+    vect3d qmin = qmax ;
+    const tens3d Xgr = $gradv3d(V) ;
+
+    const int usz = $upper.size() ;
+    for(int i=0;i<usz;++i) {
+      const vect3d Xi = $upper[i]->$cr->$V ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }
+    const int lsz= $lower.size() ;
+    for(int i=0;i<lsz;++i) {
+      const vect3d Xi = $lower[i]->$cl->$V ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }
+    const int bsz = $boundary_map.size() ;
+    for(int i=0;i<bsz;++i) {
+      const vect3d Xi = $boundary_map[i]->$V_f ;
+      qmin.x = min(qmin.x,Xi.x) ;
+      qmax.x = max(qmax.x,Xi.x) ;
+      qmin.y = min(qmin.y,Xi.y) ;
+      qmax.y = max(qmax.y,Xi.y) ;
+      qmin.z = min(qmin.z,Xi.z) ;
+      qmax.z = max(qmax.z,Xi.z) ;
+    }      
+      
+    vect3d limi = ($firstOrderCells != 0)?vect3d(0.,0.,0.):vect3d(1.,1.,1.) ;
+
+    for(int i=0;i<usz;++i) {
+      const vect3d drl = $upper[i]->$facecenter - $cellcenter ;
+      real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+      real qdifx = Xfx-Xcc.x ;
+      if(qdifx > 0)
+        limi.x = min(limi.x,(qmax.x-Xcc.x)/(qdifx+1e-100)) ;
+      if(qdifx < 0)
+        limi.x = min(limi.x,(qmin.x-Xcc.x)/(qdifx-1e-100)) ;
+      real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+      real qdify = Xfy-Xcc.y ;
+      if(qdify > 0)
+        limi.y = min(limi.y,(qmax.y-Xcc.y)/(qdify+1e-100)) ;
+      if(qdify < 0)
+        limi.y = min(limi.y,(qmin.y-Xcc.y)/(qdify-1e-100)) ;
+
+      real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+      real qdifz = Xfz-Xcc.z ;
+      if(qdifz > 0)
+        limi.z = min(limi.z,(qmax.z-Xcc.z)/(qdifz+1e-100)) ;
+      if(qdifz < 0)
+        limi.z = min(limi.z,(qmin.z-Xcc.z)/(qdifz-1e-100)) ;
+    }
+
+    for(int i=0;i<lsz;++i) {
+      const vect3d drl = $lower[i]->$facecenter - $cellcenter ;
+      real Xfx = Xcc.x + dot(Xgr.x,drl) ;
+      real qdifx = Xfx-Xcc.x ;
+      if(qdifx > 0)
+        limi.x = min(limi.x,(qmax.x-Xcc.x)/(qdifx+1e-100)) ;
+      if(qdifx < 0)
+        limi.x = min(limi.x,(qmin.x-Xcc.x)/(qdifx-1e-100)) ;
+      real Xfy = Xcc.y + dot(Xgr.y,drl) ;
+      real qdify = Xfy-Xcc.y ;
+      if(qdify > 0)
+        limi.y = min(limi.y,(qmax.y-Xcc.y)/(qdify+1e-100)) ;
+      if(qdify < 0)
+        limi.y = min(limi.y,(qmin.y-Xcc.y)/(qdify-1e-100)) ;
+
+      real Xfz = Xcc.z + dot(Xgr.z,drl) ;
+      real qdifz = Xfz-Xcc.z ;
+      if(qdifz > 0)
+        limi.z = min(limi.z,(qmax.z-Xcc.z)/(qdifz+1e-100)) ;
+      if(qdifz < 0)
+        limi.z = min(limi.z,(qmin.z-Xcc.z)/(qdifz-1e-100)) ;
+    }
+    double limm = realToDouble(min(limi.x,min(limi.y,limi.z)));
+    $limiterv3d(V) = vect3d(limm,limm,limm) ;
+  }
+
+  $type M storeVec<real> ;
+  $type M_f storeVec<real> ;
+  $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
+                                upper->cr->M,upper->facecenter,
+                                lower->cl->M,lower->facecenter,
+                                boundary_map->M_f,boundary_map->facecenter),
+        constraint(geom_cells,B_limiter,standardvecLimit),prelude 
+  {
+    $limiterv(M).setVecSize($M.vecSize()) ;
+  } compute {
+    const int vs = $*M.vecSize() ;
+    for(int j=0;j<vs;++j) {
+      const real Xcc = $M[j] ;
+      real qmax = Xcc ;
+      real qmin = qmax ;
+      const vect3d Xgr = $gradv(M)[j] ;
+
+      const int usz = $upper.size() ;
+      for(int i=0;i<usz;++i) {
+        const real Xi = $upper[i]->$cr->$M[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }
+      const int lsz= $lower.size() ;
+      for(int i=0;i<lsz;++i) {
+        const real Xi = $lower[i]->$cl->$M[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }
+      const int bsz = $boundary_map.size() ;
+      for(int i=0;i<bsz;++i) {
+        const real Xi = $boundary_map[i]->$M_f[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }      
+      
+      real limi = ($firstOrderCells != 0)?0.0:1.0 ;
+
+      for(int i=0;i<usz;++i) {
+        const vect3d drl = $upper[i]->$facecenter - $cellcenter ;
+        real Xf = Xcc + dot(Xgr,drl) ;
+        real qdif = Xf-Xcc ;
+        if(qdif > 0)
+          limi = min(limi,(qmax-Xcc)/(qdif+1e-100)) ;
+        if(qdif < 0)
+          limi = min(limi,(qmin-Xcc)/(qdif-1e-100)) ;
+      }
+      
+      for(int i=0;i<lsz;++i) {
+        const vect3d drl = $lower[i]->$facecenter - $cellcenter ;
+        real Xf = Xcc + dot(Xgr,drl) ;
+        real qdif = Xf-Xcc ;
+        if(qdif > 0)
+          limi = min(limi,(qmax-Xcc)/(qdif+1e-100)) ;
+        if(qdif < 0)
+          limi = min(limi,(qmin-Xcc)/(qdif-1e-100)) ;
+      }
+    
+      $limiterv(M)[j] = realToDouble(limi) ;
+    }
+  }
+
+  $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
+                                upper->cr->M,upper->facecenter,
+                                lower->cl->M,lower->facecenter,
+                                boundary_map->M_f,boundary_map->facecenter),
+        constraint(geom_cells,B_limiter,minvecLimit),prelude 
+  {
+    $limiterv(M).setVecSize($M.vecSize()) ;
+  } compute {
+    const int vs = $*M.vecSize() ;
+    real limm = 1.0;
+    for(int j=0;j<vs;++j) {
+      const real Xcc = $M[j] ;
+      real qmax = Xcc ;
+      real qmin = qmax ;
+      const vect3d Xgr = $gradv(M)[j] ;
+
+      const int usz = $upper.size() ;
+      for(int i=0;i<usz;++i) {
+        const real Xi = $upper[i]->$cr->$M[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }
+      const int lsz= $lower.size() ;
+      for(int i=0;i<lsz;++i) {
+        const real Xi = $lower[i]->$cl->$M[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }
+      const int bsz = $boundary_map.size() ;
+      for(int i=0;i<bsz;++i) {
+        const real Xi = $boundary_map[i]->$M_f[j] ;
+        qmin = min(qmin,Xi) ;
+        qmax = max(qmax,Xi) ;
+      }      
+
+      real limi = ($firstOrderCells != 0)?0.0:1.0 ;
+
+      for(int i=0;i<usz;++i) {
+        const vect3d drl = $upper[i]->$facecenter - $cellcenter ;
+        real Xf = Xcc + dot(Xgr,drl) ;
+        real qdif = Xf-Xcc ;
+        if(qdif > 0)
+        limi = min(limi,(qmax-Xcc)/(qdif+1e-100)) ;
+        if(qdif < 0)
+        limi = min(limi,(qmin-Xcc)/(qdif-1e-100)) ;
+      }
+
+      for(int i=0;i<lsz;++i) {
+        const vect3d drl = $lower[i]->$facecenter - $cellcenter ;
+        real Xf = Xcc + dot(Xgr,drl) ;
+        real qdif = Xf-Xcc ;
+        if(qdif > 0)
+        limi = min(limi,(qmax-Xcc)/(qdif+1e-100)) ;
+        if(qdif < 0)
+        limi = min(limi,(qmin-Xcc)/(qdif-1e-100)) ;
+      }
+      // Check for the minimum limiter
+      limm = min(limm,limi);
+    }
+    // Set the limiter as the min over all j
+    for (int j=0;j<vs;++j) {
+      $limiterv(M)[j] = realToDouble(limm) ;
+    }
+  } 
+}

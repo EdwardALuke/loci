@@ -1,12 +1,28 @@
-default:
-	cd FVM; $(MAKE) LOCI_BASE=$(LOCI_BASE); cd ..
-	cd Containers; $(MAKE) LOCI_BASE=$(LOCI_BASE); cd ..
+TEST_BASE = $(shell pwd)
+default: FVM FVMModUnitTests FVMAdaptTest Containers
 
-clean:
-	cd FVM; $(MAKE) LOCI_BASE=$(LOCI_BASE) clean; cd ..
-	cd Containers; $(MAKE) LOCI_BASE=$(LOCI_BASE) clean; cd ..
+.PHONY: FRC
+
+FVMModUnitTests: FRC
+	$(MAKE) -C FVMModUnitTests tests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+
+FVM: FRC
+	$(MAKE) -C FVM LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+
+FVMAdaptTest: FRC
+	$(MAKE) -C FVMAdaptTest LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+Containers: FRC
+	$(MAKE) -C Containers LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+
+clean: FRC
+	$(MAKE) -C FVM LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
+	$(MAKE) -C FVMModUnitTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
+	$(MAKE) -C Containers LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
+	$(MAKE) -C FVMAdaptTest LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
 
 distclean:
-	cd FVM; $(MAKE) LOCI_BASE=$(LOCI_BASE) distclean; cd ..
-	cd Containers; $(MAKE) LOCI_BASE=$(LOCI_BASE) distclean; cd ..
+	$(MAKE) -C FVM LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
+	$(MAKE) -C FVMModUnitTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)  distclean
+	$(MAKE) -C Containers LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
+	$(MAKE) -C FVMAdaptTest LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
 

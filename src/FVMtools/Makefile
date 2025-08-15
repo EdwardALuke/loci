@@ -39,20 +39,20 @@ default: $(APPS)
 
 all: $(APPS)
 
-DEPS = #../Tools/libTools.${LIB_SUFFIX} \
-       ../System/libLoci.$(LIB_SUFFIX) \
-       ../sprng/libsprng.$(LIB_SUFFIX)
+DEPS = $(LOCI_BASE)/lib/libTools.${LIB_SUFFIX} \
+       $(LOCI_BASE)/lib/libLoci.$(LIB_SUFFIX) \
+       $(LOCI_BASE)/lib/libsprng.$(LIB_SUFFIX)
 
-../Tools/libTools.${LIB_SUFFIX}:
+$(LOCI_BASE)/lib/libTools.${LIB_SUFFIX}:
 
-../System/libLoci.${LIB_SUFFIX}:
+$(LOCI_BASE)lib/libLoci.${LIB_SUFFIX}:
 
-../sprng/libsprng.${LIB_SUFFIX}:
+$(LOCI_BASE)/lib/libsprng.${LIB_SUFFIX}:
 
 extract: $(OBJS) $(DEPS)
 	$(LD) -o extract $(OBJS) $(TEC360LIB) $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-
-libadf/libadf.a:
+.PHONY: FORCE
+libadf/libadf.a: FORCE
 	$(MAKE) -C libadf libadf.a
 
 extruder: extruder.o $(DEPS)
@@ -126,11 +126,11 @@ predicates.o: predicates.c
 make_periodic.o: make_periodic.cc 
 	$(CXX) $(COPTLESS) -c $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -c make_periodic.cc
 
-refmesh: refmesh.o $(DEPS) ../FVMAdapt/libfvmadaptfunc.${LIB_SUFFIX}
+refmesh: refmesh.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
 	$(LD) -o  refmesh  refmesh.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
-marker: marker.o $(DEPS) ../FVMAdapt/libfvmadaptfunc.${LIB_SUFFIX}
+marker: marker.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
 	$(LD) -o  marker  marker.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
-refine: refine.o $(DEPS) ../FVMAdapt/libfvmadaptfunc.${LIB_SUFFIX}
+refine: refine.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
 	$(LD) -o  refine  refine.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
 
 
@@ -141,6 +141,10 @@ clean:
 # intermediate files created from .loci files
 LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
 
+uninstall:
+	@for d in $(APPS);  do rm -f  $(LOCI_INSTALL_PATH)/bin/$$d; done
+	@rm -f $(LOCI_INSTALL_PATH)/bin/extract_movie
+
 distclean: clean 
 	rm -fr $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)
 	$(MAKE) -C libadf distclean
@@ -149,6 +153,6 @@ DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
 
 #include automatically generated dependencies
-#ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
-#-include $(DEPEND_FILES)
-#endif
+ifeq ($(filter $(MAKECMDGOALS),clean distclean uninstall),)
+-include $(DEPEND_FILES)
+endif

@@ -19,25 +19,12 @@
 //#
 //#############################################################################
 #include <Loci_version.h>
-
+#include <Config/version_details.h>
 namespace Loci {
-  
-  const char *revision_name = "$Name:  $" ;
+
 
   std::string version() {
-    const char *p = revision_name;
-    while(*p!=':' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    while(*p!=' ' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    std::string rn ;
-    while(*p!='$' &&  *p!=' ' && *p!='\0') 
-      rn += *p++ ;
-
+    std::string rn = std::string(LOCI_BRANCH)+"-"+std::string(LOCI_VERSION) ;
     rn += " Compiled On " ;
     rn += __DATE__ ;
     rn += " " ;

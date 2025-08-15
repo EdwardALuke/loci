@@ -23,6 +23,7 @@
 #include <Tools/fpe.h>
 #include <Tools/parse.h>
 #include <Tools/stream.h>
+#include <docreport.h>
 
 #include "flowTypes.h"
 #include "readGrid.h"
@@ -56,31 +57,6 @@ namespace flowPsi {
 
   double StartTime = 0 ;
   
-  const char *revision_name = "$Name:  $" ;
-
-  std::string version() {
-    const char *p = revision_name;
-    while(*p!=':' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    while(*p!=' ' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    std::string rn ;
-    while(*p!='$' &&  *p!=' ' && *p!='\0') 
-      rn += *p++ ;
-    return rn ;
-  }
-
-  std::string date() {
-    std::string rn ;
-    rn += __DATE__ ;
-    rn += " " ;
-    rn += __TIME__ ;
-    return rn ;
-  }    
 }
 
 void pretty_print_string(string i,string s, ostream &o) {
@@ -184,6 +160,8 @@ int main(int ac, char *av[]) {
   string query = "solution" ;
 
   bool input_desc = false ;
+  bool output_doc = false ;
+  variableSet docvars ;
   bool dryrun = false ;
   vector<string> modulesToLoad ;
   
@@ -199,8 +177,6 @@ int main(int ac, char *av[]) {
       ac -= 2 ;
       av += 2 ;
     } else if(ac >= 2 && !strcmp(av[1],"-v")) {
-      cout << "flowPsi version:  " << flowPsi::version() << " Compiled On "
-           << flowPsi::date() << endl ;
       cout << "Loci version: " << Loci::version() << endl ;
       if(ac == 2) {
         Loci::Finalize() ;
@@ -212,6 +188,15 @@ int main(int ac, char *av[]) {
       input_desc = true ;
       ac-- ;
       av++ ;
+    } else if(ac >= 2 && !strcmp(av[1],"-doc")) {
+      output_doc = true ;
+      ac-- ;
+      av++ ;
+    } else if(ac >= 3 && !strcmp(av[1],"-docvar")) {
+      output_doc = true ;
+      docvars += variable(string(av[2])) ;
+      ac -= 2 ;
+      av += 2 ;
     } else if(ac >= 3 && !strcmp(av[1],"-load_module")) {
       modulesToLoad.push_back(string(av[2])) ;
       ac -= 2 ;
@@ -255,22 +240,16 @@ int main(int ac, char *av[]) {
   
   
 
-  if(ac <= 1 && !input_desc) {
-    cout << "flowPsi version:  " << flowPsi::version() << " Date: "
-         << flowPsi::date() << endl ;
+  if(ac <= 1 && !input_desc && !output_doc) {
     cout << "Loci version: " << Loci::version() << endl ;
     Loci::Finalize() ;
     exit(0) ;
   }
 
   if(Loci::MPI_rank == 0) {
-    cout << "flowPsi version:  " << flowPsi::version() << " Date: "
-         << flowPsi::date() << endl ;
     cout << "Loci version: " << Loci::version() << endl ;
   }
   
-  Loci::debugout << "flowPsi version:  " << flowPsi::version() << " Date: "
-                 << flowPsi::date() << endl ;
   Loci::debugout << "Loci version: " << Loci::version() << endl ;
 
 
@@ -412,6 +391,11 @@ int main(int ac, char *av[]) {
     exit(0) ;
   }
 
+  if(output_doc) {
+    Loci::ruleDocumentation(rdb,docvars) ;
+    Loci::Finalize() ;
+    exit(0) ;
+  }
   read_grid(facts,rdb,av[1],dryrun) ;
 
   if(command_vars.size() > 0) {

@@ -184,10 +184,10 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     $c2nD_v3d_sum(X) = vector3d<double>(0.,0.,0.) ;
   }
 
-  $type X store<vect3d> ;
+  $type V store<vect3d> ;
   
-  $rule apply((upper,lower,boundary_map)->face2node->c2nD_v3d_sum(X)<-
-	      X,cellcenter,(upper,lower,boundary_map)->face2node->pos)[Loci::Summation],
+  $rule apply((upper,lower,boundary_map)->face2node->c2nD_v3d_sum(V)<-
+	      V,cellcenter,(upper,lower,boundary_map)->face2node->pos)[Loci::Summation],
     constraint(geom_cells) {
     int sztot = 0 ;
     
@@ -217,42 +217,42 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     for(vector<int>::iterator vi = ns;vi!=ne;++vi) {
       int nd = *vi ;
       const real weight = 1./norm($*pos[nd]-$cellcenter) ;
-      vector3d<double> v(realToDouble($X.x*weight),
-			realToDouble($X.y*weight),
-			realToDouble($X.z*weight)) ;
-      join($*c2nD_v3d_sum(X)[nd],v) ;
+      vector3d<double> v(realToDouble($V.x*weight),
+			realToDouble($V.y*weight),
+			realToDouble($V.z*weight)) ;
+      join($*c2nD_v3d_sum(V)[nd],v) ;
     }
   }
 
-  $type cell2nodeD_v3d(X) store<vector3d<double> > ;
-  $rule pointwise(cell2nodeD_v3d(X)<-c2nD_v3d_sum(X),nodalw_sumD) {
+  $type cell2nodeD_v3d(V) store<vector3d<double> > ;
+  $rule pointwise(cell2nodeD_v3d(V)<-c2nD_v3d_sum(V),nodalw_sumD) {
     double rsum = 1./(double($nodalw_sumD)+1e-20) ;
-    $cell2nodeD_v3d(X) = $c2nD_v3d_sum(X)*rsum ;
+    $cell2nodeD_v3d(V) = $c2nD_v3d_sum(V)*rsum ;
   }
-  $type boundary_v3d_sumD(X) store<vector3d<double> > ;
+  $type boundary_v3d_sumD(V) store<vector3d<double> > ;
   
-  $rule unit(boundary_v3d_sumD(X)),constraint(pos) {
-    $boundary_v3d_sumD(X) = vector3d<double>(0.0,0.0,0.0) ;
+  $rule unit(boundary_v3d_sumD(V)),constraint(pos) {
+    $boundary_v3d_sumD(V) = vector3d<double>(0.0,0.0,0.0) ;
   }
 
-  $type X_f store<vect3d> ;
+  $type V_f store<vect3d> ;
   
-  $rule apply(face2node->boundary_v3d_sumD(X)<-face2node->pos,X_f,facecenter)[Loci::Summation],constraint(ci,no_symmetry_BC) {
+  $rule apply(face2node->boundary_v3d_sumD(V)<-face2node->pos,V_f,facecenter)[Loci::Summation],constraint(ci,no_symmetry_BC) {
     int fsz = $face2node.size();
     for(int i=0;i<fsz;++i) {
       const real weight = 1./norm($face2node[i]->$pos-$facecenter) ;
-      vector3d<double> v(realToDouble($X_f.x*weight),
-			realToDouble($X_f.y*weight),
-			realToDouble($X_f.z*weight)) ;
-      $face2node[i]->$boundary_v3d_sumD(X) += v ;
+      vector3d<double> v(realToDouble($V_f.x*weight),
+			realToDouble($V_f.y*weight),
+			realToDouble($V_f.z*weight)) ;
+      $face2node[i]->$boundary_v3d_sumD(V) += v ;
     }
   }
 
-  $rule pointwise(boundary::cell2nodeD_v3d(X)<-
-		  boundary_v3d_sumD(X),boundary_nodalw_sumD),
+  $rule pointwise(boundary::cell2nodeD_v3d(V)<-
+		  boundary_v3d_sumD(V),boundary_nodalw_sumD),
     constraint(boundary_node) {
       double rsum = 1./(double($boundary_nodalw_sumD)+1e-20) ;
-      $cell2nodeD_v3d(X) = $boundary_v3d_sumD(X)*rsum ;
+      $cell2nodeD_v3d(V) = $boundary_v3d_sumD(V)*rsum ;
   }
 
 

@@ -90,9 +90,13 @@ namespace Loci {
     typedef std::multimap<variable, store_instance *> storeIMap ;
     storeIMap var_table ;
     std::map<variable,variable> rvmap ;
+    std::map<variable,int> varInfoId ;
+    const char **vardoc ;
+
     void source(const std::string &invar) ;
     void target(const std::string &outvar) ;
     std::string rule_comments ; // the comments for a rule_impl
+    std::string fileloc ;
     // keyspace tag that dictates which keyspace the rule
     // is currently assigned to, defaults to empty string,
     // which currently means that the rule should be scheduled
@@ -128,11 +132,27 @@ namespace Loci {
     void constraint(const std::string &constrain) ;
     void conditional(const std::string &cond) ;
     void comments(const char* c) {rule_comments += c ;}
+    void set_file(const char* c) {fileloc = c ; }
+    void store_info_id(const std::string &var, int id) {
+      variable v(var) ;
+      varInfoId[v] = id ;
+    }
+    void setvardoc(const char **docarray) { vardoc = docarray ; }
     // set the keyspace tag
     void keyspace_tag(const std::string& t) {space_tag = t ;}
     // set the space_dist bit
     void keyspace_dist_hint() {space_dist = true ;}
   public:
+    const char *getvardoc(variable v) const {
+      if(vardoc) {
+        auto mi = varInfoId.find(v) ;
+        if(mi==varInfoId.end())
+          return "\0\0\0\0" ;
+        else
+          return vardoc[mi->second] ;
+      }  else
+        return "\0\0\0\0" ;
+    }
     rule_impl() ;
     bool check_perm_bits() const ;
     bool thread_rule() const { return rule_threading; }
@@ -220,6 +240,7 @@ namespace Loci {
     virtual CPTR<joiner> get_joiner() = 0 ;
     virtual rule_implP add_namespace(const std::string& n) const ;
     std::string get_comments() const {return rule_comments ;}
+    std::string get_fileloc() const { return fileloc; }
   } ;
   
   typedef rule_impl::rule_implP rule_implP ;
@@ -342,6 +363,7 @@ namespace Loci {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
   } ;
 
+#ifdef DYNAMICSCHEDULING
   // this one is purely for interface purpose
   class insertion_rule_interface: public rule_impl {
   public:
@@ -504,7 +526,8 @@ namespace Loci {
     }
   } ;
   typedef CPTR<erase_rule> erase_ruleP ;
-
+#endif
+  
   // This rule is 
   class super_rule : public rule_impl {
   protected:
@@ -877,12 +900,18 @@ namespace Loci {
     struct rule_db {
       std::vector<info> fiv ;
       std::map<std::string,int> fmap ;
+      rule_db() {
+        info no_rule ;
+        fiv.push_back(no_rule) ;
+        fmap[no_rule.name()] = -1 ;
+      }
       int get_id(const info &fi) {
         std::map<std::string,int>::iterator fmi ;
-        if((fmi = fmap.find(fi.name())) == fmap.end()) {
+        std::string fname = fi.name() ;
+        if((fmi = fmap.find(fname)) == fmap.end()) {
           fiv.push_back(fi) ;
-          int id = - fiv.size() ;
-          fmap[fi.name()] = id ;
+          int id = - int(fiv.size()) ;
+          fmap.insert(std::pair<std::string,int>(fname,id)) ;
           return id ;
         }
         return fmi->second ;
@@ -910,6 +939,9 @@ namespace Loci {
     rule(const rule::info& ri)
       { create_rdb(); id = rdb->get_id(ri) ; }
   public:
+    static void rdb_cleanup() { if(rdb) { delete rdb ; rdb = 0; } }
+    static int rdb_size()
+    { WARN(rdb->fiv.size() != rdb->fmap.size()) ; return rdb->fiv.size() ; }
     rule() { create_rdb() ; id = rdb->get_id(info()) ;}
     explicit rule(int i)
       { create_rdb(); id = i ; }

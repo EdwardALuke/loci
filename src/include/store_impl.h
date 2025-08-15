@@ -319,14 +319,14 @@ namespace Loci {
     // Get the sum of each object size and maximum size of object in the
     // container for allocation purpose
     //-------------------------------------------------------------------
-    size_t  incount = 0;
+    //    size_t  incount = 0;
     int     stateSize, maxStateSize = 0;
     typedef data_schema_traits<T> schema_traits ;
     T *base_ptr = get_base_ptr() ;
     for( ci = ecommon.begin(); ci != ecommon.end(); ++ci) {
       typename schema_traits::Converter_Type cvtr( base_ptr[*ci] );
       stateSize    = cvtr.getSize();
-      incount     += stateSize;
+      //      incount     += stateSize;
       maxStateSize = max( maxStateSize, stateSize );
     }
 

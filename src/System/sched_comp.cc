@@ -346,12 +346,14 @@ namespace Loci {
     unitApplyMapVisitor reduceV ;
     top_down_visit(reduceV) ;
 
+#ifdef DYNAMICSCHEDULING
     // replace all the dynamic rules with corresponding compilers
     DynamicKeyspaceVisitor dkv(facts,scheds,
                                reduceV.get_apply2unit(),
                                rotlv.get_overlap_rotvars()) ;
     top_down_visit(dkv) ;
-
+#endif
+    
     // insert rule that redistribute dynamic keyspaces
 
 #ifdef COMPILE_PROGRESS
@@ -470,8 +472,12 @@ namespace Loci {
                            // we also don't want to allocate
                            // all the dynamic rule targets because
                            // they are handled dynamically
+#ifdef DYNAMICSCHEDULING
                            variableSet(untypevarV.get_untyped_vars() +
                                        dkv.get_dynamic_targets())) ;
+#else
+                           variableSet(untypevarV.get_untyped_vars())) ;
+#endif
       top_down_visit(aiv) ;
 
       // compute how to do deletion
@@ -660,6 +666,7 @@ namespace Loci {
       compGreedyPrio cgp2 ;
       graphSchedulerVisitor gsv2(cgp2) ;
       top_down_visit(gsv2) ;
+#ifdef DYNAMICSCHEDULING
       assembleVisitor av2(local_facts, local_scheds,
                           reduceV.get_all_reduce_vars(),
                           reduceV.get_reduceInfo(),
@@ -668,6 +675,11 @@ namespace Loci {
                           dkv.get_shadow_clone(),
                           dkv.get_drule_ctrl()) ;
       bottom_up_visit(av2) ;
+#else
+      assembleVisitor av2(reduceV.get_all_reduce_vars(),
+                          reduceV.get_reduceInfo()) ;
+      bottom_up_visit(av2) ;
+#endif
       existential_analysis(local_facts, local_scheds);
     
       map<variable, double> var_info;
@@ -733,6 +745,7 @@ namespace Loci {
 
     schedet = MPI_Wtime() ;
     
+#ifdef DYNAMICSCHEDULING
     assembleVisitor av(facts, scheds,
                        reduceV.get_all_reduce_vars(),
                        reduceV.get_reduceInfo(),
@@ -740,9 +753,13 @@ namespace Loci {
                        dkv.get_self_clone(),
                        dkv.get_shadow_clone(),
                        dkv.get_drule_ctrl()) ;
-
     bottom_up_visit(av) ;
-    
+#else
+  assembleVisitor av(reduceV.get_all_reduce_vars(),
+                     reduceV.get_reduceInfo()) ;
+  bottom_up_visit(av) ;
+#endif
+
 
 
 #ifdef COMPILE_PROGRESS
@@ -980,8 +997,10 @@ namespace Loci {
           schedule->append_list(new allocate_all_vars(facts,scheds,alloc,false)) ;
 
     // we first create a execution module to initialize all keyspaces
+#ifdef DYNAMICSCHEDULING
     if(!in_internal_query)
       schedule->append_list(new execute_init_keyspace(facts,scheds)) ;
+#endif
     schedule->append_list(fact_db_comm->create_execution_schedule(facts, scheds));
     executeP top_level_schedule = 0;
 

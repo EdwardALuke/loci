@@ -83,6 +83,8 @@ namespace Loci {
     }
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<real_t> ;
   $type X_f store<real_t> ;
 
@@ -111,6 +113,8 @@ namespace Loci {
   }
 
 
+  $untype X ;
+  $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
   
@@ -324,6 +328,8 @@ namespace Loci {
   }
 
 
+  $untype X ;
+  $untype X_f ;
   $type X store<real_t> ;
   $type X_f store<real_t> ;
   
@@ -352,6 +358,8 @@ namespace Loci {
     $grads(X) = Qt_b ; 
   }
     
+  $untype X ;
+  $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
   $rule pointwise(gradv3d(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
@@ -391,6 +399,8 @@ namespace Loci {
   }
 
 
+  $untype X ;
+  $untype X_f ;
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
   
@@ -433,6 +443,7 @@ namespace Loci {
   $type periodicTransform store<rigid_transform> ;
 
 
+  $untype X ;
   $type X store<real_t> ;
   
   $rule pointwise(cr->grads(X)<-pmap->cl->grads(X),
@@ -442,6 +453,7 @@ namespace Loci {
     $cr->$grads(X) = frame.rotate_vec($pmap->$cl->$grads(X)) ;
   }
 
+  $untype X ;
   $type X store<vector3d<real_t> > ;
   $rule pointwise(cr->gradv3d(X)<-pmap->cl->gradv3d(X),
 		  pmap->ref->periodicTransform),
@@ -450,6 +462,7 @@ namespace Loci {
     $cr->$gradv3d(X) = frame.rotate_tensor($pmap->$cl->$gradv3d(X)) ;
   }
   
+  $untype X ;
   $type X storeVec<real_t> ;
   $rule pointwise(cr->gradv(X)<-pmap->cl->gradv(X),
 		  pmap->ref->periodicTransform),
@@ -705,6 +718,8 @@ namespace Loci {
       $LSBWeights[i] = wvec[ncount++] ;
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<real_t> ;
   $type X_f store<real_t> ;
   
@@ -727,6 +742,8 @@ namespace Loci {
     $grads(X) = Qt_b ; 
   }
   
+  $untype X ;
+  $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
   
@@ -749,15 +766,17 @@ namespace Loci {
     const int bsz = $boundary_map.size() ;
     for(int i=0;i<bsz;++i) {
       vector3d<real_t> df = $boundary_map[i]->$X_f - X_center ;
-      Qt_b.x += df.x*$LSWeights[i] ;
-      Qt_b.y += df.y*$LSWeights[i] ;
-      Qt_b.z += df.z*$LSWeights[i] ;
+      Qt_b.x += df.x*$LSBWeights[i] ;
+      Qt_b.y += df.y*$LSBWeights[i] ;
+      Qt_b.z += df.z*$LSBWeights[i] ;
     }
 
     $gradv3d(X) = Qt_b ; 
   }
   
 
+  $untype X ;
+  $untype X_f ;
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
   

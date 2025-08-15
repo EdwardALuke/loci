@@ -81,7 +81,8 @@ typedef double metisreal_t ;
 
 namespace Loci {
 
-
+  extern double random() ;
+  
   extern  bool useDomainKeySpaces  ;
   extern int metis_cpp_threshold ;
 
@@ -92,9 +93,6 @@ namespace Loci {
   bool redistribute_cell_weight(storeRepP old_store, storeRepP new_store);
   extern vector<entitySet> simplePartition(int mn, int mx, MPI_Comm comm);
 
-  extern bool use_simple_partition ;
-  extern bool use_orb_partition ;
-  extern bool use_sfc_partition ;
   extern bool load_cell_weights ;
   extern string cell_weight_file ;
   //  extern storeRepP cell_weight_store ; 
@@ -2174,11 +2172,21 @@ namespace Loci {
     int weight ;
   } ;
 
+  struct RND_Key {
+    float key ;
+    Entity id ;
+  } ;
+
+
   inline bool operator<(const SFC_Key &k1, const SFC_Key &k2) {
     return
       ( (k1.key[2]<k2.key[2]) ||
         (k1.key[2]==k2.key[2]&&k1.key[1]<k2.key[1]) ||
         (k1.key[2]==k2.key[2]&&k1.key[1]==k2.key[1]&&k1.key[0]<k2.key[0])) ;
+  }
+
+  inline bool operator<(const RND_Key &k1, const RND_Key &k2) {
+    return  k1.key<k2.key ;
   }
 
   inline bool firstCompare(const pair<int,int> &i1, const pair<int,int> &i2) {
@@ -2460,7 +2468,58 @@ namespace Loci {
 			      MapRepP(face2node.Rep()),
 			      pos.domain()) ;
   }
-  
+
+  void randomPartition(vector<entitySet> &ptn, entitySet local_set) {
+    // Sort random keys
+    vector<RND_Key> key_list(local_set.size()) ;
+    int i=0;
+    FORALL(local_set,ii) {
+      key_list[i].key = random() ;
+      key_list[i].id = ii ;
+      i++ ;
+    } ENDFORALL ;
+    balanceDistribution(key_list,MPI_COMM_WORLD) ;
+    Loci::parSampleSort(key_list,MPI_COMM_WORLD) ;
+    balanceDistribution(key_list,MPI_COMM_WORLD) ;
+
+    // compute interior face to processor mapping
+    vector<pair<int,int> > proc_pairs(key_list.size()) ;
+    for(size_t ii=0;ii<key_list.size();++ii) 
+      proc_pairs[ii] = pair<int,int>(key_list[ii].id,MPI_rank) ;
+    // Now we need to sort the data back to the processor that owns
+    // the corresponding face
+    int cmin = local_set.Min() ;
+    vector<int> csplits(MPI_processes) ;
+    MPI_Allgather(&cmin,1,MPI_INT,&csplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    vector<pair<int,int> > splitters(MPI_processes-1) ;
+    for(int i=0;i<MPI_processes-1;++i) {
+      splitters[i].first  = csplits[i+1] ;
+      splitters[i].second = -1 ;
+    }
+    
+    sort(proc_pairs.begin(),proc_pairs.end(),firstCompare) ;
+    parSplitSort(proc_pairs,splitters,firstCompare,MPI_COMM_WORLD) ;
+    for(size_t i=0;i<proc_pairs.size();++i) {
+      ptn[proc_pairs[i].second] += proc_pairs[i].first ;
+    }
+  }
+
+  void RND_Partition_Mesh(const vector<entitySet> &local_nodes,
+                          const vector<entitySet> &local_faces,
+                          const vector<entitySet> &local_cells,
+                          vector<entitySet> &cell_ptn,
+                          vector<entitySet> &face_ptn,
+                          vector<entitySet> &node_ptn) {
+
+    vector<entitySet> tmp(MPI_processes) ; // Initialize partition vectors
+    cell_ptn = tmp ;
+    face_ptn = tmp ;
+    node_ptn = tmp ;
+
+    randomPartition(cell_ptn,local_cells[MPI_rank]) ;
+    randomPartition(face_ptn,local_faces[MPI_rank]) ;
+    randomPartition(node_ptn,local_nodes[MPI_rank]) ;
+  }
     
   void ORB_Partition_Mesh(const vector<entitySet> &local_nodes,
                           const vector<entitySet> &local_faces,
@@ -2674,14 +2733,7 @@ namespace Loci {
       }
     }
 
-    enum {ORB=0,SFC=1,SIMPLE=2,GRAPH=3} partitioner_type = GRAPH ;
-    if(use_orb_partition)
-      partitioner_type = ORB ;
-    if(use_sfc_partition)
-      partitioner_type = SFC ;
-    if(use_simple_partition) 
-      partitioner_type = SIMPLE ;
-
+    partitionerSelector partitioner_type = partitionerMethod ;
     if(partitioner_type == GRAPH) {
       int lcpp = local_cells[MPI_rank].size() ;
       int mincpp = lcpp ;
@@ -2699,14 +2751,23 @@ namespace Loci {
     switch(partitioner_type) {
     case ORB:
       {
+        debugout << "Using ORB partition" << endl ;
 	ORB_Partition_Mesh(local_nodes, local_faces, local_cells,
 			   t_pos, tmp_cl, tmp_cr, tmp_face2node,
 			   tmp_boundary_tags,
 			   cell_ptn,face_ptn,node_ptn) ;
       }
       break ;
+    case RANDOM:
+      {
+        debugout << "Using random partition" << endl ;
+	RND_Partition_Mesh(local_nodes, local_faces, local_cells,
+			   cell_ptn,face_ptn,node_ptn) ;
+      }
+      break ;
     case SFC:
       {
+        debugout << "Using SFC partition" << endl ;
 	store<int> cell_weights ;
 	// read in additional vertex weights if any
 	if(cellwts != 0){
@@ -2736,6 +2797,7 @@ namespace Loci {
       break ;
     case SIMPLE: // Simple partition
       {
+        debugout << "Using simple partition method" << endl ;
 	cell_ptn = vector<entitySet>(MPI_processes) ;
         cell_ptn[MPI_rank] = local_cells[MPI_rank] ;
 	REPORTMEM() ;
@@ -2751,6 +2813,11 @@ namespace Loci {
 #ifdef LOCI_USE_METIS
     case GRAPH: // METIS partition
       {
+#ifdef USE_SCOTCH
+        debugout << "Using SCOTCH graph partitioner" << endl ;
+#else
+        debugout << "Using METIS graph partitioner" << endl ;
+#endif
         cell_ptn = newMetisPartitionOfCells(local_cells,tmp_cl,tmp_cr,tmp_boundary_tags,cellwts) ;
 	REPORTMEM() ;
 	face_ptn = partitionFaces(cell_ptn,tmp_cl,tmp_cr,tmp_boundary_tags) ;
@@ -2764,6 +2831,7 @@ namespace Loci {
 #endif
     default: // SFC partition no weight balance
       {
+        debugout << "Defaulting to SFC partitioner" << endl ;
 	store<int> cell_weights ;
 
 	SFC_Partition_Mesh(local_nodes, local_faces, local_cells,
@@ -2957,11 +3025,7 @@ namespace Loci {
 
     std::vector<entitySet> init_ptn = facts.get_init_ptn(0) ;//FIX THIS
 
-    entitySet global_geom = collectSet(*geom_cells,init_ptn[MPI_rank],
-				       MPI_COMM_WORLD) ;
-    *geom_cells = global_geom ;
-    //   *geom_cells = global_geom & init_ptn[ MPI_rank] ;
-
+    *geom_cells = distribute_entitySet(*geom_cells,init_ptn) ;
 
     int fk = boundary_faces.Rep()->getDomainKeySpace()  ;
     std::vector<entitySet> initf_ptn = facts.get_init_ptn(fk) ;

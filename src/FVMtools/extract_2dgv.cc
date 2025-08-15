@@ -104,8 +104,7 @@ void get_2dgv(string casename, string iteration,
 
   vector<Array<int,3> > edges ;
 
-  string gridtopo = "output/" + casename +".topo" ;
-
+  string gridtopo = getTopoFileName(output_dir, casename, iteration) ;
 
   file_id = H5Fopen(gridtopo.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT) ;
 #ifdef H5_USE_16_API  

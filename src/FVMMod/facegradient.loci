@@ -102,6 +102,8 @@ namespace Loci {
     }
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<real> ;
   $type X_f store<real> ;
 
@@ -132,6 +134,8 @@ namespace Loci {
     $grads_f(X) = gradTan + gradNorm ;
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<vect3d> ;
   $type X_f store<vect3d> ;
 
@@ -185,6 +189,8 @@ namespace Loci {
 
   // Here we implement a directional derivative approach only limiting the
   // cell averaged gradients to prevent problems with maxima formation
+  $untype X ;
+  $untype X_f ;
   $type X storeVec<real> ;
   $type X_f storeVec<real> ;
   
@@ -231,6 +237,8 @@ namespace Loci {
     }
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<real> ;
   $type X_f store<real> ;
 
@@ -269,6 +277,8 @@ namespace Loci {
     $grads_f(X) = gradTan + gradNorm ;
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<vect3d> ;
   $type X_f store<vect3d> ;
 
@@ -334,6 +344,8 @@ namespace Loci {
   }
 
   // Centered Face Gradients
+  $untype X ;
+  $untype X_f ;
   $type X store<real_t> ;
   $type X_f store<real_t> ;
 
@@ -403,6 +415,8 @@ namespace Loci {
     $grads_f(X) = gradTan + gradNorm ;
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
 
@@ -483,6 +497,8 @@ namespace Loci {
     }
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
 
@@ -648,7 +664,9 @@ namespace Loci {
     $gradv3d_f(X).z = gradTan + gradNorm ;
   }
 
-  
+
+  $untype X ;
+  $untype X_f ;
   $type X store<real_t> ;
   $type X_f store<real_t> ;
 
@@ -703,6 +721,8 @@ namespace Loci {
     $grads_f(X) = ($ci->$grads(X) + corr4*an) ;
   }
 
+  $untype X ;
+  $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
 
@@ -768,6 +788,8 @@ namespace Loci {
   }
 
 
+  $untype X ;
+  $untype X_f ;
   $type X storeVec<real> ;
   $type X_f storeVec<real> ;
   

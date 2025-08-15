@@ -25,6 +25,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include "docreport.h"
+
 $include "FVM.lh"
 
 namespace Loci {
@@ -39,7 +41,8 @@ using std::cerr ;
 using std::cout ;
 using std::ostringstream ;
 using std::vector ;
-
+using Loci::variable ;
+using Loci::variableSet ;
 int main(int ac, char *av[]) {
   Loci::Init(&ac, &av) ;
   // default query 
@@ -66,7 +69,10 @@ int main(int ac, char *av[]) {
   Loci::load_module("fvm",rdb) ;
 
   bool use_exact = false ;
-
+  bool printdoc = false ;
+  variableSet docvars ;
+  vector<string> modulesToLoad ;
+  
   while(ac>=2 && av[1][0] == '-') {
     // If user specifies an alternate query, extract it from the
     // command line.
@@ -86,6 +92,19 @@ int main(int ac, char *av[]) {
       }
       ac-- ;
       av++ ;
+    } else if(ac >=2 && !strcmp(av[1],"-doc")) {
+      printdoc = true ;
+      ac--;
+      av++;
+    } else if(ac >= 3 && !strcmp(av[1],"-docvar")) {
+      printdoc = true ;
+      docvars += variable(string(av[2])) ;
+      ac -= 2 ;
+      av += 2 ;
+    } else if(ac >= 3 && !strcmp(av[1],"-load_module")) {
+      modulesToLoad.push_back(string(av[2])) ;
+      ac -= 2 ;
+      av += 2 ;
     } else {
       cerr << "argument " << av[1] << " is not understood." << endl ;
       ac-- ;
@@ -93,6 +112,13 @@ int main(int ac, char *av[]) {
     }
   }
 
+  for(size_t i=0;i<modulesToLoad.size();++i)
+    Loci::load_module(modulesToLoad[i],rdb) ;
+  if(printdoc) {
+    Loci::ruleDocumentation(rdb,docvars) ;
+    Loci::Finalize() ;
+    exit(0) ;
+  }
 
   if(ac > 1) {
     string tmp = av[1] ;
@@ -148,58 +174,30 @@ int main(int ac, char *av[]) {
   }
   Loci::Finalize() ;
 }
+
 $type topo param<int> ;
 
 $rule unit(topo),constraint(UNIVERSE) {
   $topo = 0 ;
 }
+$type boundary_names store<std::string> ;
+$type modelName param<std::string> ;
 
-class output_grid_topology : public apply_rule<param<int>, Loci::Maximum<int> > {
-  param<int> topo ;
-  const_multiMap upper,lower,boundary_map,face2node ;
-  const_store<vector3d<real_t> > pos ;
-  const_Map ref ;
-  const_store<string> boundary_names ;
-  const_param<string> modelName ;
-public:
-  output_grid_topology() {
-    name_store("topo",topo) ;
-    name_store("upper",upper) ;
-    name_store("lower",lower) ;
-    name_store("boundary_map",boundary_map) ;
-    name_store("face2node",face2node) ;
-    name_store("ref",ref) ;
-    name_store("boundary_names",boundary_names) ;
-    name_store("modelName",modelName) ;
-    name_store("pos",pos) ;
-    input("modelName") ;
-    input("(upper,lower,boundary_map)->face2node->pos") ;
-    input("boundary_map->ref->boundary_names") ;
-    output("topo") ;
-    disable_threading() ;
-  }
-    
-  void compute(const sequence &seq) ;
-} ;
-
-
-
-void output_grid_topology::compute(const sequence &seq) {
+$rule apply(topo<-(upper,lower,boundary_map)->face2node->pos,
+            boundary_map->ref->boundary_names,modelName)[Loci::Maximum],
+option(disable_threading),prelude {
   if(Loci::is_leading_execution()) {
     Loci::debugout<< "calling write grid topology" << endl ;
   }
-  string filename = "output/"+*modelName+".topo" ;
+  string filename = "output/"+*$modelName+".topo" ;
   Loci::parallelWriteGridTopology(filename.c_str(),
-                                  upper.Rep(),lower.Rep(),boundary_map.Rep(),
-                                  face2node.Rep(),
-                                  ref.Rep(),
-                                  boundary_names.Rep(),
-                                  pos.Rep(),
+                                  $upper.Rep(),$lower.Rep(),$boundary_map.Rep(),
+                                  $face2node.Rep(),
+                                  $ref.Rep(),
+                                  $boundary_names.Rep(),
+                                  $pos.Rep(),
                                   entitySet(seq)) ;
-}
-
-
-register_rule<output_grid_topology> register_output_grid_topology ;
+} ;
 
 void dump_pos(const sequence &seq,const_store<vector3d<real_t> > &pos,
               const_param<string> &modelName) {
@@ -225,27 +223,10 @@ void dump_pos(const sequence &seq,const_store<vector3d<real_t> > &pos,
   Loci::hdf5CloseFile(file_id) ;
 }
 
-class output_grid_positions: public apply_rule<param<int>, Loci::Maximum<int> > {
-  const_store<vector3d<real_t> > pos ;
-  const_param<string> modelName ;
-  param<int> topo ;
-public:
-  output_grid_positions() {
-    name_store("pos",pos) ;
-    name_store("modelName",modelName) ;
-    name_store("topo",topo) ;
-      
-    constraint("pos") ;
-    input("pos") ;
-    input("modelName") ;
-    output("topo") ;
-    disable_threading() ;
-  }
-  void compute(const sequence &seq) {
-    dump_pos(seq,pos,modelName) ;
-  }
-} ;
-register_rule<output_grid_positions> register_output_grid_positions ;
+$rule apply(topo<-pos,modelName)[Loci::Maximum],option(disable_threading),
+  prelude {
+    dump_pos(seq,$pos,$modelName) ;
+  } ;
 
 
 $type accessedNodes store<bool> ;
@@ -526,7 +507,6 @@ $type report param<bool> ;
 $type minVol param<real_t> ;
 $type maxTwist param<real_t> ;
 $type maxShearTwist param<real_t> ;
-$type modelName param<string> ;
 $type convexCell param<int> ;
 
 $rule singleton(report<-volRatio,maxCellAngle,minVol,maxTwist,maxShearTwist,topo,modelName,convexCell,topocheck),option(disable_threading) {
@@ -643,7 +623,6 @@ $rule singleton(report<-volRatio,maxCellAngle,minVol,maxTwist,maxShearTwist,topo
   }
   $report = true ;
 }
-
 
 class scalar_node_output : public apply_rule<param<int>, Loci::Maximum<int> > {
   std::string var_name ;
@@ -866,45 +845,20 @@ $rule apply(topo<-faceGeometryInconsistent)[Loci::Maximum],
 } ;
 
 using namespace Loci ;
-class dump_boundary_geom : public apply_rule<param<int>, Loci::Maximum<int> > {
-  const_store<Area> area ;
-  const_store<vector3d<real_t> > facecenter ;
-  const_param<string> plot_postfix ;
-  const_param<string> modelName ;
-  param<int> topo ;
-public:
-  dump_boundary_geom() ;
-  virtual void compute(const sequence &seq) ;
-} ;
-  
-dump_boundary_geom::dump_boundary_geom() {
-  name_store("area",area) ;
-  name_store("facecenter",facecenter) ;
-  name_store("topo",topo) ;
-  name_store("modelName",modelName) ;
-  input("area,facecenter") ;
-  input("modelName") ;
-  constraint("ci->cellcenter") ;
-  output("topo") ;
-  disable_threading() ;
-}
-void dump_boundary_geom::compute(const sequence &seq) {
+$rule apply(topo<-area,facecenter,modelName)[Loci::Maximum],
+option(disable_threading),constraint(ci->cellcenter),prelude {
   ostringstream oss ;
 
-  oss << "output/bc_geom." << "0" << "_" << *modelName ;
+  oss << "output/bc_geom." << "0" << "_" << *$modelName ;
   string filename = oss.str() ;
 
   //    cout << "opening file " << filename << endl ;
   entitySet set(seq) ;
   hid_t file_id = createUnorderedFile(filename.c_str(),set) ;
-  writeUnorderedStore(file_id,area,set,"area") ;
-  writeUnorderedStore(file_id,facecenter,set,"facecenter") ;
+  writeUnorderedStore(file_id,$area,set,"area") ;
+  writeUnorderedStore(file_id,$facecenter,set,"facecenter") ;
   closeUnorderedFile(file_id) ;
-}	
-
-register_rule<dump_boundary_geom> register_dump_boundary_geom ;
-
-
+} ;
 
 $type alpha_geom_f store<real_t> ;
 

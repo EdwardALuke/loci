@@ -26,17 +26,11 @@ include $(LOCI_BASE)/Loci.conf
 
 TARGET = libTools.$(LIB_SUFFIX)
 
-COPT = $(CC_DEBUG) $(CC_LIB_FLAGS) $(CC_OPT)
-
-
 INCLUDES = 
 
 OBJS = fpe.o ftrn_reader.o identity.o eventNotify.o debugger.o \
        parse.o options_list.o expr.o  digraph.o unit_type.o \
 	fpe_sun.o mpi_stubb.o intervalSet.o variable.o
-
-default:
-	cd .. ; make -f Makefile Tools
 
 compile: $(TARGET)
 
@@ -48,7 +42,6 @@ LIB_OBJS=$(OBJS:.o=_lo.o)
 libTools.$(LIB_SUFFIX): $(LIB_OBJS)
 	$(DYNAMIC_LD) $(DYNAMIC_LD_FLAGS) libTools.$(LIB_SUFFIX) $(LIB_FLAGS) $(LIB_OBJS)  
 
-
 JUNK =  *~ core ii_files ti_files KCC_files so_locations rii_files
 
 clean:
@@ -56,10 +49,12 @@ clean:
 
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
+uninstall:
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(TARGET)
+	rm -fr $(LOCI_INSTALL_PATH)/include/Tools
+
 distclean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(TARGET) $(JUNK) $(DEPEND_FILES) libTools.$(LIB_SUFFIX)
-
-
 
 #include automatically generated dependencies
 ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)

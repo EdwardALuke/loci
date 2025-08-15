@@ -31,6 +31,12 @@ libxml2: A library for parsing XML formatted input files.  This
 
 Notes on compiling these packages are provided at the end of this file.
 
+For users (or developers deploying on hpc systems), you may also 
+install the dependencies (and Loci itself) from Spack using the Loci spack
+package located at https://github.com/TimothyEDawson/loci_spack
+which simplifies greatly the build process. 
+For more information on Spack, see https://spack.readthedocs.io/en/latest/.
+
 -------------------------------------------------------------------------------
 
 How to compile and install the Loci libraries:
@@ -57,7 +63,7 @@ which will make LOCI_BASE = <install_directory>.
 
 If there are any problems with compilation you
 may need to edit the files OBJ/sys.conf (system configuration file) or
-OBJ/comp.conf (compiler configuration file) to accomodate variations
+OBJ/comp.conf (compiler configuration file) to accommodate variations
 on your system that the configure script did not detect. 
 
 To use the Loci library you will need to add the
@@ -66,24 +72,38 @@ and the <install_directory>/Loci-*/lib subdirectory to your
 LD_LIBRARY_PATH environment.  Also, you will need to set the LOCI_BASE
 environment variable to <install_directory>/Loci-*
 
+If you want to uninstall the Loci build:
+
+make uninstall
+
+which will remove all of the associated installed files from the installed
+target directory.
+
+To install Loci without making the pdf documentation use the build process with
+the install_minimal target instead of install, e.g.:
+
+make install_minimal
+
 --------------------------------------------------------------------------------
 Notes for Debug Builds
 
-When debugging of Loci or associated codes is necessary, the user has two options.
-At configure time, one can include the following flag:
+When debugging of Loci or associated codes is necessary, the user has
+two options.  At configure time, one can include the following flag:
 
 ./configure --prefix<install_directory> --bounds-check
 
-which enables compiler-specific directives to enable bound checking of vectors/arrays.
+which enables compiler-specific directives to enable bound checking of
+vectors/arrays.
 
-To generate debugging information in the compiled object files, set the environment
-variable (for bash)
+To generate debugging information in the compiled object files, set
+the environment variable (for bash)
 
 export LOCI_DEBUG=<0,1,2,3>
 
 LOCI_DEBUG can be added to an environment module as well.
 LOCI_DEBUG will do two things: 
-   1. Enable debug compiler flags (-Wall -g3, and for gnu compilers, -ggdb and -fno-eliminate-unused-debug-symbols)
+   1. Enable debug compiler flags (-g3, and for gnu compilers, -ggdb and
+      -fno-eliminate-unused-debug-symbols)
    2. Change the optimization level of the compiled code:
       a. LOCI_DEBUG=0: -O0
       b. LOCI_DEBUG=1: -O1
@@ -92,11 +112,20 @@ LOCI_DEBUG will do two things:
 
 For gnu compilers, -ggdb should enable automatic traceback and reporting upon 
 code termination.
+-------------------------------------------------------------------------------
+Notes on running Loci test suite
+
+Loci provides a basic set of regression and unit tests that can be run with
+the 'test' make target, e.g.,
+
+make test
+
+Completing this command without error means that all tests have passed.
 
 -------------------------------------------------------------------------------
 Notes on installing packages required by Loci
 
-First:  You do not need to have root privledges to install this
+First:  You do not need to have root privileges to install this
 software, you only need to have enough disk space in directories that
 you have write permission.
 
@@ -173,7 +202,7 @@ make install
 
 
 
-That should install this version of Loci compiled with the intel
+That should install this version of Loci compiled with the Intel
 compiler.  The resulting executables should be compatible with both
 architectures.
 
@@ -201,7 +230,7 @@ PETSC_DIR=`pwd`
 
 This will configure PETSc to install into the directory
 '/opt/petsc-3.3-p2'.  You can change this target directory to a place
-that makes sense for your system setup by chainging the --prefix line
+that makes sense for your system setup by changing the --prefix line
 appropriately.  The configure script will then inform you of the
 command needed to compile PETSc.  It is usually something such as:
 

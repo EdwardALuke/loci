@@ -19,6 +19,7 @@
 //#
 //#############################################################################
 #include "lpp.h"
+#include <Config/version_details.h>
 #include <unistd.h>
 
 using namespace std ;
@@ -27,22 +28,9 @@ list<string> include_dirs ;
 
 bool prettyOutput = false ;
 namespace {
-  const char *revision_name = "$Name:  $" ;
 
   std::string version() {
-    const char *p = revision_name;
-    while(*p!=':' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    while(*p!=' ' && *p!='\0')
-      ++p ;
-    if(*p!= '\0')
-      ++p ;
-    std::string rn ;
-    while(*p!='$' &&  *p!=' ' && *p!='\0') 
-      rn += *p++ ;
-
+    string rn = string(LOCI_BRANCH) + "-" + string(LOCI_VERSION) ;
     rn += " lpp compiled at " ;
     rn += __DATE__ ;
     rn += " " ;
@@ -62,7 +50,7 @@ bool no_cuda = false ;
 int main(int argc, char *argv[]) {
 
 
-  bool file_given = false; 
+  bool file_given = false;
   string filename ;
   bool out_given = false ;
   string outfile ;
@@ -104,9 +92,13 @@ int main(int argc, char *argv[]) {
     cerr << "no filename" << endl ;
     Usage(argc,argv) ;
   }
+  parseSharedInfo parseInfo ;
 #ifndef USE_CUDA_RT
   no_cuda = true ;
 #endif
+  parseInfo.no_cuda = no_cuda ;
+
+
   parseFile parser ;
   try {
     if(out_given) {
@@ -115,9 +107,9 @@ int main(int argc, char *argv[]) {
         cerr << "unable to open file " << outfile << " for writing!" << endl ;
         exit(-1) ;
       }
-      parser.processFile(filename,file) ;
+      parser.processFile(filename,file,parseInfo) ;
     } else {
-      parser.processFile(filename,cout) ;
+      parser.processFile(filename,cout,parseInfo) ;
     }
   } catch(parseError pe) {
     if(pe.error_type != "syntax error")

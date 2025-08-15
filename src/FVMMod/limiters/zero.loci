@@ -1,0 +1,51 @@
+//#############################################################################
+//#
+//# Copyright 2008-2019, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <Loci.h>
+$include "FVM.lh"
+$include "FVMMod/limiters.lh"
+
+using std::cerr ;
+using std::endl ;
+
+namespace Loci {
+  typedef vector3d<real_t> vect3d ;
+  typedef tensor3d<real_t> tens3d ;
+  typedef real_t real ;
+
+  $type S store<real> ;
+
+  $rule pointwise(limiters(S)<-S),constraint(geom_cells,Z_limiter) {
+    $limiters(S) = 0.0 ;
+  }
+
+  $type V store<vect3d> ;
+  
+  $rule pointwise(limiterv3d(V)<-V),constraint(geom_cells,Z_limiter) {
+    $limiterv3d(V) = vect3d(0.0,0.0,0.0) ;
+  }
+    
+  $type M storeVec<real> ;
+  $rule pointwise(limiterv(M)<-M),constraint(geom_cells,Z_limiter),prelude {
+    $limiterv(M).setVecSize($M.vecSize()) ;
+  } compute {
+    $limiterv(M) = mk_Scalar(0.) ;
+  }
+}

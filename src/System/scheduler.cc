@@ -1944,21 +1944,58 @@ bool operator <(const timingData &d) const {
                         1, MPI_DOUBLE,
                         MPI_MAX,MPI_COMM_WORLD) ;
 
+          double totalPeakMemory = 0 ;
+          MPI_Allreduce(&LociAppPeakMemory,
+                        &totalPeakMemory,
+                        1, MPI_DOUBLE,
+                        MPI_SUM,MPI_COMM_WORLD) ;
+          double avgPeakMemory = totalPeakMemory/MPI_processes ;
+
           double LargestPeakMemoryBeanCounting = 0 ;
           MPI_Allreduce(&LociAppPeakMemoryBeanCounting,
                         &LargestPeakMemoryBeanCounting,
                         1, MPI_DOUBLE,
                         MPI_MAX,MPI_COMM_WORLD) ;
 
+          double totalPeakMemoryBeanCounting = 0 ;
+          MPI_Allreduce(&LociAppPeakMemoryBeanCounting,
+                        &totalPeakMemoryBeanCounting,
+                        1, MPI_DOUBLE,
+                        MPI_SUM,MPI_COMM_WORLD) ;
+          double avgPeakMemoryBeanCounting = totalPeakMemoryBeanCounting/MPI_processes ;
+
           Loci::debugout << endl ;
           Loci::debugout << "The global largest Peak Memory: "
                          << LargestPeakMemory << " bytes ("
                          << LargestPeakMemory/(1024*1024) << "MB)"
                          << endl ;
+          Loci::debugout << "The global mean Peak Memory: "
+                         << avgPeakMemory << " bytes ("
+                         << avgPeakMemory/(1024*1024) << "MB)"
+                         << ", imbalance="
+                         << 100*(LargestPeakMemory-avgPeakMemory)/avgPeakMemory
+                         << "%" << endl ;
           Loci::debugout << "The global largest Peak Memory in bean counting: "
                          << LargestPeakMemoryBeanCounting << " bytes ("
                          << LargestPeakMemoryBeanCounting/(1024*1024) << "MB)"
                          << endl ;
+          Loci::debugout << "The global mean Peak Memory in bean counting: "
+                         << avgPeakMemoryBeanCounting << " bytes ("
+                         << avgPeakMemoryBeanCounting/(1024*1024) << "MB)"
+                         << ", imbalance="
+                         << 100*(LargestPeakMemoryBeanCounting-avgPeakMemoryBeanCounting)/avgPeakMemoryBeanCounting
+                         << "%" << endl ;
+          // Reset flags for next run
+          LociAppPeakMemory = 0 ;
+          LociAppAllocRequestBeanCounting = 0 ;
+          LociAppFreeRequestBeanCounting = 0 ;
+          LociAppPeakMemoryBeanCounting = 0 ;
+          LociAppLargestAlloc = 0 ;
+          LociAppLargestAllocVar= variable("EMPTY") ;
+          LociAppLargestFree = 0 ;
+          LociAppLargestFreeVar= variable("EMPTY") ;
+          LociAppPMTemp = 0 ;
+          LociInputVarsSize = 0 ;
         }
       }
 

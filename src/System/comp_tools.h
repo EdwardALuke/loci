@@ -719,11 +719,7 @@ namespace Loci {
     execute_memProfileAlloc(const variableSet& vars): vars(vars) {}
     virtual void execute(fact_db &facts, sched_db &scheds) ;
     virtual void Print(std::ostream &s) const ;
-	virtual string getName() {return "execute_memProfileAlloc";};	
-    // memory profile function
-    int currentMem(void) {
-      return ::Loci::getmaxrss() ;
-    }    
+    virtual string getName() {return "execute_memProfileAlloc";};	
     virtual void dataCollate(collectData &data_collector) const ;
   } ;
 
@@ -733,11 +729,7 @@ namespace Loci {
     execute_memProfileFree(const variableSet& vars) : vars(vars) {}
     virtual void execute(fact_db &facts, sched_db& scheds) ;
     virtual void Print(std::ostream &s) const ;
-	virtual string getName() {return "execute_memProfileFree";};
-    // memory profile function
-    int currentMem(void) {
-      return ::Loci::getmaxrss() ;
-    }    
+    virtual string getName() {return "execute_memProfileFree";};
     virtual void dataCollate(collectData &data_collector) const ;
   } ;
 

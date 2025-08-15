@@ -40,7 +40,7 @@ else
   COMP=${LOCI_COMP-gcc}
 fi
 
-while [ $# -ne 0 ]; do 
+while [ $# -ne 0 ]; do
     case "$1" in
 	--subdir)
 	    shift
@@ -79,7 +79,7 @@ if [ ${target:0:1} != "/" ]; then
    echo setting target to \'$target\'
 fi
 
-TARGET_DIRS="System Tools lpp FVMtools FVMtools/libadf FVMMod sprng sprng/include sprng/include/sprng FVMAdapt FVMOverset include include/Tools include/Config include/MPI_stubb include/FVMAdapt include/FVMOverset"
+TARGET_DIRS="System Tools lpp FVMtools FVMtools/libadf FVMMod FVMMod/limiters sprng sprng/include sprng/include/sprng FVMAdapt FVMAdapt/library FVMOverset include include/Tools include/Config include/MPI_stubb include/FVMAdapt include/FVMMod include/FVMOverset"
 #TOOLS_DIRS="lpp FVMtools FVMtools/libadf FVMMod sprng sprng/include sprng/include/sprng"
 TOOLS_DIRS=""
 
@@ -103,7 +103,7 @@ fi
 mkdir -p $fulltarget/lib
 mkdir -p $fulltarget/bin
 
-if [ ! -h $fulltarget/Tutorial ]; then 
+if [ ! -h $fulltarget/Tutorial ]; then
     ln -s $source/Tutorial $fulltarget/Tutorial
 fi
 
@@ -147,9 +147,18 @@ if [ ! -e comp.conf ]; then
 fi
 if [ ! -e sys.conf ]; then
     if [ -e $source/src/conf/${ARCH}.conf ]; then
-	echo cp $source/src/conf/${ARCH}.conf sys.conf
-	cp $source/src/conf/${ARCH}.conf sys.conf
+      echo cp $source/src/conf/${ARCH}.conf sys.conf
+      cp $source/src/conf/${ARCH}.conf sys.conf
     fi
+fi
+if [ ! -e version.conf ]; then
+  if [ -e $source/src/version.conf ]; then
+    echo cp $source/src/version.conf version.conf
+    cp $source/src/version.conf version.conf
+  else
+    echo cp $source/src/conf/version.conf version.conf
+    cp $source/src/conf/version.conf version.conf
+  fi
 fi
 
 cd lib
@@ -200,8 +209,15 @@ fi
 if [ ! -h libsprng.${LIB_POSTFIX} ] ; then
     ln -s ../sprng/libsprng.${LIB_POSTFIX} libsprng.${LIB_POSTFIX}
 fi
+if [ ! -h $fulltarget/bin/extract_movie ]; then
+    ln -s $source/src/FVMtools/extract_movie $fulltarget/bin/extract_movie
+fi
+if [ ! -h $fulltarget/bin/mpinorun ]; then
+    ln -s $source/src/FVMtools/mpinorun $fulltarget/bin/mpinorun
+fi
+
 cd ../bin
-if [ ! -h lpp ] ; then 
+if [ ! -h lpp ] ; then
   ln -s ../lpp/lpp lpp
 fi
 if [ ! -h extract ] ; then
@@ -308,6 +324,12 @@ echo cp $source/quickTest/test.conf $fulltarget/quickTest/test.conf
 mkdir -p $fulltarget/quickTest/Containers
 echo mkdir -p $fulltarget/quickTest/Containers
 mkdir -p $fulltarget/quickTest/FVM
+echo mkdir -p $fulltarget/quickTest/FVMModUnitTests
+mkdir -p $fulltarget/quickTest/FVMModUnitTests
+echo mkdir -p $fulltarget/quickTest/FVMAdaptTest
+mkdir -p $fulltarget/quickTest/FVMAdaptTest
+echo mkdir -p $fulltarget/quickTest/FVMAdaptTest/dats
+mkdir -p $fulltarget/quickTest/FVMAdaptTest/dats
 echo mkdir -p $fulltarget/quickTest/FVM
 pushd $source/quickTest/Containers
 for i in *.cc *.loci Makefile ; do
@@ -315,6 +337,27 @@ for i in *.cc *.loci Makefile ; do
 	if [ ! -h $fulltarget/quickTest/Containers/$i ] ; then
 	    echo ln -s $source/quickTest/Containers/$i $fulltarget/quickTest/Containers/$i
 	    ln -s $source/quickTest/Containers/$i $fulltarget/quickTest/Containers/$i
+	fi
+    fi
+done
+popd
+
+pushd $source/quickTest/FVMAdaptTest
+for i in *.vog *.cc *.loci Makefile ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMAdaptTest/$i ] ; then
+	    echo ln -s $source/quickTest/FVMAdaptTest/$i $fulltarget/quickTest/FVMAdaptTest/$i
+	    ln -s $source/quickTest/FVMAdaptTest/$i $fulltarget/quickTest/FVMAdaptTest/$i
+	fi
+    fi
+done
+popd
+pushd $source/quickTest/FVMAdaptTest/dats
+for i in *.dat ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMAdaptTest/dats/$i ] ; then
+	    echo ln -s $source/quickTest/FVMAdaptTest/dats/$i $fulltarget/quickTest/FVMAdaptTest/dats.$i
+	    ln -s $source/quickTest/FVMAdaptTest/dats/$i $fulltarget/quickTest/FVMAdaptTest/dats/$i
 	fi
     fi
 done
@@ -329,6 +372,7 @@ for i in *.cc *.loci Makefile ; do
 	fi
     fi
 done
+
 mkdir -p $fulltarget/quickTest/FVM/include
 pushd include
 for i in *.h *.lh ; do
@@ -347,6 +391,41 @@ for i in *.dat *.txt *.vars *.vog *.sh Makefile   ; do
 	if [ ! -h $fulltarget/quickTest/FVM/tests/$i ] ; then
 	    echo ln -s $source/quickTest/FVM/tests/$i $fulltarget/quickTest/FVM/tests/$i
 	    ln -s $source/quickTest/FVM/tests/$i $fulltarget/quickTest/FVM/tests/$i
+	fi
+    fi
+done
+popd
+popd
+
+
+pushd $source/quickTest/FVMModUnitTests
+for i in *.cc *.loci Makefile ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/$i ] ; then
+	    echo ln -s $source/quickTest/FVMModUnitTests/$i $fulltarget/quickTest/FVMModUnitTests/$i
+	    ln -s $source/quickTest/FVMModUnitTests/$i $fulltarget/quickTest/FVMModUnitTests/$i
+	fi
+    fi
+done
+
+mkdir -p $fulltarget/quickTest/FVMModUnitTests/include
+pushd include
+for i in *.h *.lh ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/include/$i ] ; then
+	    echo ln -s $source/quickTest/FVMModUnitTests/include/$i $fulltarget/quickTest/FVMModUnitTests/include/$i
+	    ln -s $source/quickTest/FVMModUnitTests/include/$i $fulltarget/quickTest/FVMModUnitTests/include/$i
+	fi
+    fi
+done
+popd
+mkdir -p $fulltarget/quickTest/FVMModUnitTests/tests
+pushd tests
+for i in *.dat *.txt *.vars *.vog *.sh Makefile   ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/tests/$i ] ; then
+	    echo ln -s $source/quickTest/FVMModUnitTests/tests/$i $fulltarget/quickTest/FVMModUnitTests/tests/$i
+	    ln -s $source/quickTest/FVMModUnitTests/tests/$i $fulltarget/quickTest/FVMModUnitTests/tests/$i
 	fi
     fi
 done

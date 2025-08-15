@@ -88,6 +88,8 @@ using std::abort ;
 
 namespace Loci {
   long getmaxrss() ;
+  // memory profile function
+  inline double currentMem(void) { return ::Loci::getmaxrss()*1024.0 ;  }    
 }
 
 #ifdef MEMDEBUG

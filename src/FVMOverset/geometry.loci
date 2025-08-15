@@ -244,8 +244,6 @@ namespace Loci {
 
 
   $type componentGeometryData blackbox<map<string, Loci::CPTR<geometry_type> > > ;
-  $type componentTransformMap blackbox<map<string,vector<componentXform> > > ;
-
   $rule unit(componentGeometryData),constraint(UNIVERSE), prelude {
     *$componentGeometryData = map<string,Loci::CPTR<geometry_type> >() ;
   } ;

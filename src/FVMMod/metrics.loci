@@ -25,23 +25,17 @@ $include "FVM.lh"
 
 namespace Loci {
 
-  $type gridCoordinates param<std::string> ;
   const real_t EPSILON=1e-33 ;
-  $type centroid param<std::string> ;
-  $type exactCentroid Constraint ;
-
-
-  $rule default(gridCoordinates),
-    comments("This sets the coordinate system for the grid metric computations. May be set to either cartesian or axisymmetric.  Use axisymmetric for two dimensional axisymmetric computations") {
-    $gridCoordinates = "cartesian" ;
-  }
-
   
-  $rule default(centroid),
-    comments("Determines how centroids are computed.  'wireframe' assumes the mass is located at the surface of the cell.  'exact' uses an exact centroid computation assuming mass is distributed through the cell volume.") {
-    $centroid = "wireframe" ;
-  }
 
+  $rule default(gridCoordinates) { $gridCoordinates = "cartesian" ; }
+
+  /// Determines how centroids are computed.  'wireframe' assumes the mass is
+  /// located at the surface of the cell.  'exact' uses an exact centroid
+  /// computation assuming mass is distributed through the cell volume.
+  $rule default(centroid) { $centroid = "wireframe" ; }
+
+  /// Compute selector constraints for coordinate model selection
   $rule constraint(cartesianCoordinateModel,axisymmetricCoordinateModel<-gridCoordinates) {
     $cartesianCoordinateModel = EMPTY ;
     $axisymmetricCoordinateModel = EMPTY ;
@@ -55,18 +49,20 @@ namespace Loci {
     }      
   }
 
-  
+  /// compute exact centroid constraint for selecting exact centroid metrics  
   $rule constraint(exactCentroid<-centroid) {
     $exactCentroid = EMPTY ;
     if($centroid == "exact") 
       $exactCentroid = $*centroid.domain() ;
   } 
 
-  // Compute thickness of extrusion (for axisymmetric case)
-  $type cell_thickness store<real_t> ;
+  /// unit rule used to compute cell z coordinate thickness for processing
+  /// 2-D grids
   $rule unit(cell_thickness),constraint(geom_cells) {
     $cell_thickness = 0 ;
   }
+
+  /// Compute each cell thickness by integrating z over boundary faces
   $rule apply(ci->cell_thickness<-face2node->pos)[Loci::Summation] {
     int fsz = $face2node.size() ;
     vector3d<real_t> pt = $face2node[0]->$pos ;
@@ -82,25 +78,30 @@ namespace Loci {
     }
   }
 
-  $type gridThickMax param<real_t> ;
-  $type gridThickMin param<real_t> ;
-
+  /// Compute the maximum cell thickness for the grid by combining all
+  /// grid cells.
   $rule unit(gridThickMax),constraint(UNIVERSE) {
     $gridThickMax = 0 ;
   }
+  /// Apply rule to combine cell_thickness to global max value
   $rule apply(gridThickMax<-cell_thickness)[Loci::Maximum],constraint(geom_cells) {
     join($gridThickMax,($cell_thickness)) ;
   }
 
+  /// Compute the minimum cell thickness for the grid by combining all
+  /// grid cells. 
   $rule unit(gridThickMin),constraint(UNIVERSE) {
     $gridThickMin = 1e100 ;
   }
-
+  /// Apply rule to combinne cell_thickness to global min value
   $rule apply(gridThickMin<-cell_thickness)[Loci::Minimum],constraint(geom_cells) {
     join($gridThickMin,($cell_thickness)) ;
   }
-    
-  $type gridThickness param<real_t> ;
+
+  /// compute grid thickness by averaging max an min value.  If the difference
+  /// between these to values exceeds a threshold, then the grid is not
+  /// acceptable for axisymmetric computations.  The code aborts if this
+  /// condition is detected.
   $rule singleton(gridThickness<-gridThickMax,gridThickMin),constraint(axisymmetricCoordinateModel) {
     $gridThickness = .5*($gridThickMax+$gridThickMin) ;
     if($gridThickMin == 0 ||
@@ -112,7 +113,9 @@ namespace Loci {
     }
   }
   
-    
+  /// Compute the area of a face in cartesian coordinates.  This is accomplished
+  /// by subdividing the face into triangles formed between each face edge and
+  /// The face centroid.
   $rule pointwise(area<-face2node->pos,facecenter),
               constraint(cartesianCoordinateModel,facecenter) {
      const vector3d<real_t> center = $facecenter ;
@@ -129,6 +132,10 @@ namespace Loci {
      $area.sada = 0.5*sada ;  //area of the face
   }
 
+  /// Compute area for axisymmetric computations.  Faces with normals in the
+  /// z coordinate direction are not participating and set to zero, otherwise
+  /// the are is computed by sweeping the line segment formed by the face about
+  /// the x axis.  The exact area of this conical slice is computed.
   $rule pointwise(area<-face2node->pos,facecenter,gridThickness),
               constraint(axisymmetricCoordinateModel,facecenter) {
      const vector3d<real_t> center = $facecenter ;
@@ -173,14 +180,22 @@ namespace Loci {
   }
 
 
-
+  // Turn on check for loss of convexity in faces if identified in the
+  // the volume computatin
 #define STRONG_CHECK
 
-  $type minVolume param<real_t> ;
+
+  /// Defines minimum volume that is allowed to be computed.  Can be used to
+  /// prevent computation of zero or negative volumes.  Fixing the grid is
+  /// usually the only way to get reasonable results on these grids.
   $rule default(minVolume) {
     $minVolume = -1 ;
   }
 
+  /// Volumes are computed in the cartesian mode by forming tetrahedra between
+  /// the triangulated face segments and the cell centroid. This provides a
+  /// geometrically consistent volume for the cells forming a proper partition
+  /// of space.  
   $rule pointwise(vol<-minVolume,cellcenter,(upper,lower,boundary_map)->(area,facecenter)),constraint(cartesianCoordinateModel,geom_cells) {
     real_t sum = 0.0 ;
     vector3d<real_t> dv ;
@@ -241,6 +256,8 @@ namespace Loci {
     }
   }
 
+  /// This computes the volume of a cell for the axisymmetric cell by sweeping
+  /// out the volume of the 2-D face swept around the x axis.
   $rule pointwise(vol<-
                   (upper,lower,boundary_map)->area,
                   (upper,lower,boundary_map)->face2node->pos,gridThickness
@@ -376,17 +393,17 @@ namespace Loci {
   }
   
 
-  // Compute total grid volume
+  /// Unit rule to compute total grid volume
   $rule unit(grid_vol),constraint(vol) {
     $grid_vol = 0 ;
   }
-
+  /// Apply rule to sum up all the cell volumes in the mesh
   $rule apply(grid_vol<-vol)[Loci::Summation], constraint(geom_cells) {
     join($grid_vol,$vol) ;
   }
 
-  //The following class gives the two perpendicular vectors in the face to 
-  //form the orthogonal coordinates of the face along with the normal vector
+  ///The following class gives the two perpendicular vectors in the face to 
+  ///form the orthogonal coordinates of the face along with the normal vector
   $rule pointwise(ln,mn<-area) {
     // find vectors orthogonal to axn,ayn,azn
 
@@ -436,6 +453,10 @@ namespace Loci {
   }
 
 
+  /// Compute the face centroid using the wireframe approach where the face
+  /// centroid is defined as the edge length average of the edge centroids.
+  /// This amounts to an centroid computation assuming that the mass is
+  /// on the edges of the face.
   $rule pointwise(facecenter<-face2node->pos) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t lensum = 0 ;
@@ -460,6 +481,9 @@ namespace Loci {
     $facecenter = nodesum/lensum ;
   }
 
+  /// Compute the cell centroid as the area weighted average of the face
+  /// centroids that amounts to the centroid assuming that the mass is
+  /// only present on the surface of the cell.
   $rule pointwise(cellcenter<-(upper,lower,boundary_map)->(facecenter,area)
                   ), constraint(geom_cells,cartesianCoordinateModel) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
@@ -479,17 +503,12 @@ namespace Loci {
     $cellcenter = nodesum/areasum ;
   }
   
-  /* 
-   *	Computes the area-weighted face centroid by:
-   *		- generating triangular facets from pairs of adjacent
-   *		  vertices and the edge-length-weighted face
-   *		  centroid,
-   *		- computing the cross product of the vectors formed from
-   *		  the two interior edges of the facet,
-   *		- computing the area and midpoint of each edge,
-   *		- performing the edge-length-weighted average of the
-   *		  edge centers.
-   */
+  /// Exact Centroid Computation override for the face center.  Note that
+  /// The geometry of the face is ambiguous as the centroid is used to define
+  /// the geometry of the face (e.g. its triangulation).  We start with
+  /// the nodal average approximation and then iterate with the exact centroid
+  /// computation four iterations to arrive at a close approximation to a face
+  /// where the centroid also defines the triangulation of the face. 
   $rule pointwise(truecentroid::facecenter<-face2node->pos
                   ),constraint(exactCentroid,face2node->pos) {
     
@@ -524,6 +543,9 @@ namespace Loci {
     $facecenter = tmpcenter ;
   }
   
+  /// Exact centroid override for the cell center computation.  This computes
+  /// The exact centroid by dividing the cell into tetrahedra and computing
+  /// an exact integration of the positions over the cell.
   $rule pointwise(truecentroid::cellcenter<-
                   (upper,lower,boundary_map)->(facecenter,area),
                   (upper,lower,boundary_map)->face2node->pos
@@ -632,6 +654,7 @@ namespace Loci {
     $cellcenter = .25*csum/vol ;
   }
 
+  /// Compute the cell centroid for the axisymmetric mode grid metrics.
   $rule pointwise(cellcenter<-
                   (upper,lower,boundary_map)->(facecenter,area),
                   (upper,lower,boundary_map)->face2node->pos
@@ -646,12 +669,14 @@ namespace Loci {
     $cellcenter = nodesum ;
   }
   
-  $type max_fpc param<int> ;
 
+  /// Unit rule to find the maximum faces per cell in the grid
   $rule unit(max_fpc),constraint(lower,upper,boundary_map) {
     $max_fpc = 0 ;
   } 
 
+  /// Apply rule to gather the number of faces from the upper, lower, and
+  /// boundary_map sizes.
   $rule apply(max_fpc<-lower,upper,boundary_map)[Loci::Maximum] {
     const int nfaces = $upper.size() +$lower.size()+$boundary_map.size() ;
     join($max_fpc,nfaces) ;

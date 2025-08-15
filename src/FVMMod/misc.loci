@@ -54,37 +54,26 @@ namespace Loci {
     join($LinfNorm(X),abs($X)) ;
   }
 
-  class fileNumRule: public pointwise_rule {
-    store<int> fileNumX ;
-  public:
-    fileNumRule() {
-      name_store("fileNumber(X)",fileNumX) ;
-      output("fileNumber(X)") ;
-      constraint("X") ;
-      disable_threading() ;
-    }
-    void compute(const sequence &seq) {
-      fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
+  $rule pointwise(fileNumber(X)),constraint(X),option(disable_threading),
+  prelude {
+    fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
 
-      if(Loci::MPI_processes > 1) {
-        Map l2g ;
-        l2g = df->l2g.Rep() ;
-	store<unsigned char> key_domain ;
-	key_domain = df->key_domain.Rep() ;
-	//        dMap g2f ;
-	//        g2f = df->g2f.Rep() ;
+    if(Loci::MPI_processes > 1) {
+      Map l2g ;
+      l2g = df->l2g.Rep() ;
+      store<unsigned char> key_domain ;
+      key_domain = df->key_domain.Rep() ;
+      //        dMap g2f ;
+      //        g2f = df->g2f.Rep() ;
       
-        for(sequence::const_iterator si=seq.begin();si!= seq.end();++si) {
-	  int kd = key_domain[*si] ;
-          fileNumX[*si] = df->g2fv[kd][l2g[*si]] ;
-	}
-      } else {
-        for(sequence::const_iterator si=seq.begin();si!= seq.end();++si)
-          fileNumX[*si] = *si ;
+      for(sequence::const_iterator si=seq.begin();si!= seq.end();++si) {
+        int kd = key_domain[*si] ;
+        $fileNumber(X)[*si] = df->g2fv[kd][l2g[*si]] ;
       }
+    } else {
+      for(sequence::const_iterator si=seq.begin();si!= seq.end();++si)
+        $fileNumber(X)[*si] = *si ;
     }
   } ;
-  
-  register_rule<fileNumRule> register_fileNumRule ;
 
 }

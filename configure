@@ -39,16 +39,23 @@ TEC360PATH=none
 TEC360TYPE=0
 TECIOPATH=none
 
+################################################################################
+# This function checks the `PATH` variable for an executable
+################################################################################
 find_exec() {
     RETURN_VALUE=0
     for i in ${PATH//:/ }; do
-	if [ -e $i/$1 ]; then 
+	if [ -e $i/$1 ]; then
 	    RETURN_VALUE=$i
 	    break ;
 	fi
     done
 }
 
+################################################################################
+# This function checks the `LD_LIBRARY_PATH` variable for an .a, .so, or .dylib
+# library file.
+################################################################################
 find_lib() {
     SEARCHDIRS=${LD_LIBRARY_PATH}:/lib:/lib64:/usr/lib:/usr/lib64
     RETURN_VALUE=0
@@ -100,7 +107,7 @@ USE_METIS=0
 NO_SUB_DIR=0
 BOUNDS_CHECK=0
 
-while [ $# -ne 0 ]; do 
+while [ $# -ne 0 ]; do
     case "$1" in
 	--prefix)
 	    shift
@@ -110,6 +117,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    PREFIX=${tmp#--prefix\=}
 	    ;;
+	############################################################################
+	############################################################################
 	--petsc-dir)
 	    shift
 	    PETSC_BASE=$1
@@ -126,6 +135,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    PETSC_BASE=${tmp#--with-petsc\=}
 	    ;;
+	############################################################################
+	############################################################################
 	--with-pthreads)
 	    PTHREADS_DEFINE=-DPTHREADS
 	    PTHREADS_LIB=-lpthread
@@ -141,6 +152,8 @@ while [ $# -ne 0 ]; do
 	    PTHREADS_LIB=
 	    USE_PTHREADS=0
 	    ;;
+	############################################################################
+	############################################################################
 	--no-metis)
 	    METIS_BASE=""
 	    METIS_LIBS=""
@@ -159,12 +172,16 @@ while [ $# -ne 0 ]; do
 	    shift
 	    METIS_BASE=$1
 	    INSTALL_METIS=0
+	    USE_METIS=1
 	    ;;
 	--with-metis\=*)
 	    tmp=$1
 	    METIS_BASE=${tmp#--with-metis\=}
 	    INSTALL_METIS=0
+	    USE_METIS=1
 	    ;;
+	############################################################################
+	############################################################################
 	--hdf5-dir)
 	    shift
 	    H5PATH=$1
@@ -181,7 +198,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    H5PATH=${tmp#--with-hdf5\=}
 	    ;;
-
+	############################################################################
+	############################################################################
 	--cgns-dir)
 	    shift
 	    CGNSPATH=$1
@@ -198,7 +216,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    CGNSPATH=${tmp#--with-cgns\=}
 	    ;;
-
+	############################################################################
+	############################################################################
 	--w-tecio)
 	    TECIOPATH=find
 	    ;;
@@ -222,6 +241,8 @@ while [ $# -ne 0 ]; do
 	    shift
 	    TECIOPATH=$1
 	    ;;
+	############################################################################
+	############################################################################
 	--tec360-dir)
 	    shift
 	    TEC360PATH=$1
@@ -238,6 +259,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    TEC360PATH=${tmp#--with-tec360\=}
 	    ;;
+	############################################################################
+	############################################################################
 	--mpi-dir)
 	    shift
 	    MPI_BASE=$1
@@ -254,9 +277,16 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    MPI_BASE=${tmp#--with-mpi\=}
 	    ;;
-    --no-mpi-driver)
+	--no-mpi-driver)
 	    NO_MPI_DRIVER=1
 	    ;;
+	--nompi)
+	    NO_MPI=1
+	    USE_METIS=0
+	    INSTALL_METIS=0
+	    ;;
+	############################################################################
+	############################################################################
 	--compiler)
 	    shift
 	    COMPILER=$1
@@ -265,6 +295,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    COMPILER=${tmp#--compiler\=}
 	    ;;
+	############################################################################
+	############################################################################
 	--obj-dir)
 	    shift
 	    OBJDIR=$1
@@ -273,49 +305,44 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    OBJDIR=${tmp#--obj-dir\=}
 	    ;;
-	--nompi)
-	    NO_MPI=1
-            USE_METIS=0
-            INSTALL_METIS=0
-	    ;;
 	--no-sub-dir)
-		NO_SUB_DIR=1
-		;;
+	    NO_SUB_DIR=1
+	    ;;
 	--bounds-check)
-		BOUNDS_CHECK=1
-		;;
-	 --help)
+	    BOUNDS_CHECK=1
+	    ;;
+	--help)
 	    echo "configure usage:"
 	    echo "./configure <options>"
 	    echo "where <options> may include"
-	    echo "  --prefix <install directory>    : tell configure where to install Loci."
+	    echo "  --prefix <install directory>     : tell configure where to install Loci."
 	    echo "  --with-hdf5 <HDF5 directory>     : tell configure where to find HDF5 package."
 	    echo "  --with-cgns <CGNS directory>     : tell configure where to find CGNS package."
 	    echo "  --with-tec360 <tec360 directory> : tell configure where to find TECIO package."
-	    echo "  --with-mpi <MPI directory>      : tell configure where to find MPI package."
-	    echo "  --nompi                         : tell configure to build without using MPI"
-	    echo "  --with-petsc <PETSc directory>  : tell configure where to find PETSc package."
-	    echo "  --with-metis <parMETIS dir>     : tell configure where to find alternative    Parallel METIS package."
-	    echo "  --no-metis                      : tell configure not to install or use metis"
-	    echo "  --compiler <compiler name>      : tell configure what compiler to use"
-	    echo "  --obj-dir <OBJDIR name>         : tell configure where to put object files"
-	   	echo "  --no-sub-dir                    : tell configure to not add the build information after the prefix defintion"
-	  	echo "  --bounds-check                  : tell configure to add bounds checking to the compiler flags"
-	    echo "  --help                          : output this help information"
+	    echo "  --with-mpi <MPI directory>       : tell configure where to find MPI package."
+	    echo "  --nompi                          : tell configure to build without using MPI."
+	    echo "  --with-petsc <PETSc directory>   : tell configure where to find PETSc package."
+	    echo "  --with-metis <parMETIS dir>      : tell configure where to find alternative Parallel METIS package."
+	    echo "  --no-metis                       : tell configure not to install or use metis."
+	    echo "  --compiler <compiler name>       : tell configure what compiler to use."
+	    echo "  --obj-dir <OBJDIR name>          : tell configure where to put object files."
+	    echo "  --no-sub-dir                     : tell configure to not add the build information after the prefix definition."
+	    echo "  --bounds-check                   : tell configure to add bounds checking to the compiler flags."
+	    echo "  --help                           : output this help information."
 	    exit -1
 	    ;;
-	    
+
 	*)
 	    echo configure option \'$1\' not understood!
 	    echo use ./configure --help to see correct usage!
-	    exit -1 
+	    exit -1
             break
             ;;
     esac
     shift
 done
 
-# if no metis was selected  and METIS is installed in Loci, then
+# if no metis was selected and METIS is installed in Loci, then
 # setup to compile and install METIS
 if [ "$METIS_BASE" == "/notselected" ] ; then
     if [ $NO_MPI == 1 ] ; then
@@ -369,7 +396,7 @@ if [ $CHECK_METIS_CONFIG == 1 ] ; then
             USE_METIS=0
         else
             HAS_SCOTCH=0
-            
+
             if [ -e $METIS_BASE/lib/libscotch.a ] ; then
                 HAS_SCOTCH=1
             fi
@@ -409,18 +436,19 @@ if [ $USE_METIS == 0 ] ; then
     fi
 fi
 echo Setup for compiler \"$COMPILER\".
-#setup install directory
+# Add key directories for the build process
 echo INSTALL_DIR=$PREFIX > sys.conf
 echo >> sys.conf
 
-# put into 
+# Store sub directory option
 echo NO_SUB_DIR=$NO_SUB_DIR >> sys.conf
-#setup MPI
 
-# ##############################################################################
-# # Check for debug variable and print to screen. Set to 7 if doesn't exist.
-# ##############################################################################
-if [ -v LOCI_DEBUG ] ; then
+##############################################################################
+# Check for debug variable and print to screen. Set to 7 if doesn't exist.
+##############################################################################
+if [ -z ${LOCI_DEBUG+x} ] ; then
+    unset LOCI_DEBUG
+else
    echo -e "Compiling/configured in DEBUG Mode = $LOCI_DEBUG."
 fi
 
@@ -447,7 +475,7 @@ if [ $MPI_BASE == "/notselected" ]; then
     MPI_C_COMPILER=none
     MPI_CXX_COMPILER=none
     MPI_F90_COMPILER=none
-    
+
     if [ $NO_MPI_DRIVER == 0 ]; then
 	if [ -e $MPI_PATH/mpicc ]; then
 	    MPI_C_COMPILER=mpicc
@@ -474,7 +502,7 @@ else
     MPI_C_COMPILER=none
     MPI_CXX_COMPILER=none
     MPI_F90_COMPILER=none
-    
+
     if [ -e $MPI_PATH/mpicc ]; then
 	MPI_C_COMPILER=mpicc
     fi
@@ -507,7 +535,7 @@ if [ -e $MPI_BASE/lib/libmpi.dylib ]; then
 fi
 
 if [ $MPI_LIBRARY=="" ]; then
-    
+
     if [ -e $MPI_BASE/lib/libmpich.a ]; then
 	MPI_LIBRARY="-lmpich"
     fi
@@ -530,7 +558,7 @@ if [ $NO_MPI == 1 ] ; then
     echo MPI_BASE = >> sys.conf
     echo MPI_LIBS = >> sys.conf
     echo MPI_INCLUDE = -DMPI_STUBB -I\$\(LOCI_BASE\)/include/MPI_stubb >> sys.conf
-    echo MPI_RUN = none >> sys.conf
+    echo MPI_RUN = \$\(LOCI_BASE\)/bin/mpinorun >> sys.conf
     echo MPI_C_COMPILER = none >> sys.conf
     echo MPI_CXX_COMPILER = none >> sys.conf
     echo MPI_F90_COMPILER = none >> sys.conf
@@ -549,7 +577,7 @@ else
     echo MPI_C_COMPILER = $MPI_C_COMPILER >> sys.conf
     echo MPI_CXX_COMPILER = $MPI_CXX_COMPILER >> sys.conf
     echo MPI_F90_COMPILER = $MPI_F90_COMPILER >> sys.conf
-    
+
 fi
 
 echo >> sys.conf
@@ -580,12 +608,16 @@ fi
 
 H5SUPPORTLIBS=-lz
 H5SUPPORTLIBSPATHS=
- 
+
 if [ -e $H5PATH/lib/libhdf5.settings ]; then
-    H5SUPPORTLIBS=`grep "Extra libraries" $H5PATH/lib/libhdf5.settings | sed "s/.*://"`
-    H5SUPPORTLIBSPATHS=`grep "AM_LDFLAGS" $H5PATH/lib/libhdf5.settings | sed "s/.*://"`
+    # Detect if cmake build system was used to build hdf5, and parse settings file if not.
+    TMP=`grep "Extra libraries" $H5PATH/lib/libhdf5.settings | sed "s/.*://"`
+    if [[ $TMP != *";"* ]]; then
+        H5SUPPORTLIBS=$TMP
+        H5SUPPORTLIBSPATHS=`grep "AM_LDFLAGS" $H5PATH/lib/libhdf5.settings | sed "s/.*://"`
+    fi
 fi
- 
+
 echo \# HDF5 File I/O Libraries Setup >> sys.conf
 echo HDF5_BASE = $H5PATH >> sys.conf
 echo Using HDF5 libraries in directory \"$H5PATH\".
@@ -661,7 +693,7 @@ if [ $TEC360PATH != "none" ] ; then
 	find_lib tecio
 	if [ $RETURN_VALUE != 0 ]; then
 	    echo $RETURN_VALUE
-	    TEC360PATH=${RETURN_VALUE%/lib*} 
+	    TEC360PATH=${RETURN_VALUE%/lib*}
 	    if [ -e $TEC360PATH/libtecio.a ] ; then
 		echo "Static Library"
 		TEC360TYPE=1
@@ -686,7 +718,7 @@ else
     echo CGNS_BASE = >> sys.conf
     echo CGNS_INCLUDE = >> sys.conf
     echo CGNS_LIBS = >> sys.conf
-    echo >> sys.conf 
+    echo >> sys.conf
 fi
 
 if [ -f $TEC360PATH/lib/libtecio.a ]; then
@@ -720,7 +752,7 @@ if [ -d $PETSC_BASE ]; then
     if [ -e $PETSC_BASE/bmake/petscconf ]; then
 # This is the OLD v2 petsc setup
 	PETSC_ARCH=`grep PETSC_ARCH $PETSC_BASE/bmake/petscconf | sed s/PETSC_ARCH=//`
-	if [ ! -d $PETSC_BASE/bmake/$PETSC_ARCH ]; then 
+	if [ ! -d $PETSC_BASE/bmake/$PETSC_ARCH ]; then
 	    echo Problem with PETSc library setup, check PETSC_DIR
 	    echo PETSC_BASE = $PETSC_BASE
 	    echo PETSC_ARCH = $PETSC_ARCH
@@ -749,7 +781,7 @@ if [ -d $PETSC_BASE ]; then
 	if [ -e $PETSC_BASE/conf/petscvariables ]; then
 	    BLASLAPACK_LIB=`egrep ^BLASLAPACK_LIB $PETSC_BASE/conf/petscvariables`
 	else
-	    if [ -e $PETSC_BASE/lib/petsc/conf/petscvariables ]; then 
+	    if [ -e $PETSC_BASE/lib/petsc/conf/petscvariables ]; then
 		BLASLAPACK_LIB=`egrep ^BLASLAPACK_LIB $PETSC_BASE/lib/petsc/conf/petscvariables`
 	    fi
 	fi
@@ -757,10 +789,10 @@ if [ -d $PETSC_BASE ]; then
 	    set +f
 	    if [ -e $PETSC_BASE/arch-*/conf/petscvariables ]; then
 		BLASLAPACK_LIB=`egrep ^BLASLAPACK_LIB $PETSC_BASE/arch-*/conf/petscvariables`
-	    else 
+	    else
 		echo WARNING: Unable to find file $PETSC_BASE/arch-*/conf/petscvariables!
 	    fi
-	    set -f	    
+	    set -f
 	fi
 	if [ "$BLASLAPACK_LIB" == "" ] ; then
 	    echo WARNING: BLAS library paths not extracted from PETSC config files!
@@ -876,20 +908,48 @@ echo Making compile subdirectory ${OBJDIR}...
 INSTALL_METIS=$INSTALL_METIS ./tmpcopy --target $OBJDIR --compiler $COMPILER > copy.out
 mv sys.conf ${OBJDIR}/sys.conf
 
+################################################################################
+# Create the version.conf file
+################################################################################
+# Check if source directory is a git repo
+if [ -e .git ]; then
+	cat src/conf/version.conf |sed "s:unknown-version:\$(shell cd $(pwd); git describe --abbrev=6 --always --dirty --tags):g" | sed  "s:unknown-branch:\$(shell cd $(pwd); git rev-parse --abbrev-ref HEAD):g" >${OBJDIR}/version.conf
+fi
+
+################################################################################
 # Make makefile
-echo "default:" > Makefile
-echo "	cd ${OBJDIR}; \$(MAKE)" >> Makefile
-echo "install:" >> Makefile
-echo "	cd ${OBJDIR}; \$(MAKE) install" >> Makefile
-echo "clean:" >> Makefile
-echo "	cd ${OBJDIR}; \$(MAKE) clean" >> Makefile
-echo "distclean:" >> Makefile
-echo "	rm -fr ${OBJDIR} copy.out Makefile" >> Makefile
+################################################################################
+echo "include ${OBJDIR}/version.conf"        >  Makefile
+echo                                         >> Makefile
+echo "default:"                              >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "install:"                              >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "install_minimal:"                      >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "test:"                                 >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "docs:"                                 >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "clean:"                                >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "uninstall:"                            >> Makefile
+echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
+echo "distclean:"                            >> Makefile
+echo "	rm -fr ${OBJDIR} copy.out Makefile"  >> Makefile
+echo "tarball:"                                                                        >> Makefile
+echo "	version_string=\$\$(sed -e \"s:^GIT_INFO.*:GIT_INFO = \$(GIT_INFO):g\" \\"      >> Makefile
+echo "	                      -e \"s:^GIT_BRANCH.*:GIT_BRANCH = \$(GIT_BRANCH):g\" \\"  >> Makefile
+echo "	                      src/conf/version.conf); \\"                              >> Makefile
+echo "	git archive --format=tgz --prefix=Loci-\$(LOCI_REVISION_NAME)/ \\"             >> Makefile
+echo "	            --add-virtual-file=Loci-\$(LOCI_REVISION_NAME)/src/version.conf:\"\$\$version_string\" \\"  >> Makefile
+echo "	            -o Loci-\$(LOCI_REVISION_NAME).tgz HEAD"                           >> Makefile
 
-
-echo 
+echo
 echo
 echo "To compile Loci, enter:"
 echo "  make"
 echo "To install Loci in the directory $PREFIX, enter:"
 echo "  make install"
+echo "To uninstall Loci from the directory $PREFIX, enter:"
+echo "  make uninstall"

@@ -20,7 +20,7 @@
 #
 ###############################################################################
 
-# Install with or without the Loci build information appended if set 
+# Install with or without the Loci build information appended if set
 # at configure time
 if [ -z "${LOCI_INSTALL_DIR}" ]; then
     INSTALL_PATH=$INSTALL_DIR
@@ -92,8 +92,11 @@ cp FVMtools/ugrid2cgns $INSTALL_PATH/bin
 cp FVMtools/cgns2ugrid $INSTALL_PATH/bin
 cp FVMtools/cgns2vog $INSTALL_PATH/bin
 
-echo cp Loci.conf comp.conf sys.conf $INSTALL_PATH
+echo Copying config files: Loci.conf comp.conf sys.conf version.conf
 cp Loci.conf comp.conf sys.conf $INSTALL_PATH
+sed -e "s:^GIT_INFO.*:GIT_INFO = ${GIT_INFO}:" \
+    -e "s:^GIT_BRANCH.*:GIT_BRANCH = ${GIT_BRANCH}:" \
+	version.conf > $INSTALL_PATH/version.conf
 
 echo Installing \#include files
 mkdir -p $INSTALL_PATH/include
@@ -106,13 +109,16 @@ for i in  Tools Config MPI_stubb FVMAdapt FVMOverset; do
     cp include/$i/*.h $INSTALL_PATH/include/$i
 done
 cp include/FVMOverset/*.lh $INSTALL_PATH/include/FVMOverset
+cp include/FVMMod/*.lh $INSTALL_PATH/include/FVMMod
 
 mkdir -p $INSTALL_PATH/docs
 mkdir -p $INSTALL_PATH/docs/1D-Diffusion
 mkdir -p $INSTALL_PATH/docs/heat
 mkdir -p $INSTALL_PATH/docs/Datatypes
 
-cp Tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
+if [ -e Tutorial/docs/tutorial.pdf ] ; then
+    cp Tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
+fi
 cp Tutorial/1D-Diffusion/Makefile $INSTALL_PATH/docs/1D-Diffusion
 cp Tutorial/1D-Diffusion/*.loci $INSTALL_PATH/docs/1D-Diffusion
 cp Tutorial/1D-Diffusion/*.lh $INSTALL_PATH/docs/1D-Diffusion

@@ -30,6 +30,8 @@
 #include <Tools/autodiff.h>
 #endif
 
+#include <Tools/debug.h>
+
 namespace Loci {
 
 #ifdef USE_AUTODIFF
@@ -1556,8 +1558,8 @@ namespace Loci {
     //   a[2] = z ;
     //   return a;
     // }
-    T &operator[](size_t i) { return (&x)[i] ; }
-    const T &operator[](size_t i) const { return (&x)[i] ; }
+    T &operator[](size_t i) { FATAL(i>2) ; return (&x)[i] ; }
+    const T &operator[](size_t i) const { FATAL(i>2) ; return (&x)[i] ; }
   } ;
   
   template <class T> inline std::ostream & operator<<(std::ostream &s, const vector3d<T> &v)
@@ -1697,6 +1699,7 @@ namespace Loci {
     vector2d(T xx,T yy) : x(xx),y(yy) {}
     vector2d(const vector2d &v) {x=v.x;y=v.y;}
     T &operator[](int i) {
+      FATAL(i>1) ;
       switch(i) {
       case 0:
         return x ;
@@ -1707,6 +1710,7 @@ namespace Loci {
       }
     }
     const T &operator[](int i) const {
+      FATAL(i>1) ;
       switch(i) {
       case 0:
         return x ;
@@ -1829,16 +1833,16 @@ namespace Loci {
       return *this ;
     }
     ~tmp_array() { free(); }
-    T & operator[](int i) { return p[i] ; }
-    T & operator[](int i) const { return p[i] ; }
-    T & operator[](size_t i) { return p[i] ; }
-    T & operator[](size_t i) const { return p[i] ; }
-    T & operator[](unsigned int i) { return p[i] ; }
-    T & operator[](unsigned int i) const { return p[i] ; }
-    T & operator[](unsigned char i) { return p[i] ; }
-    T & operator[](unsigned char i) const { return p[i] ; }
-    T & operator[](unsigned short i) { return p[i] ; }
-    T & operator[](unsigned short i) const { return p[i] ; }
+    T & operator[](int i) { FATAL(i<0 || i>=sz) ; return p[i] ; }
+    T & operator[](int i) const { FATAL(i<0 || i>=sz) ; return p[i] ; }
+    T & operator[](size_t i) { FATAL(i>=sz) ; return p[i] ; }
+    T & operator[](size_t i) const { FATAL(i>=sz) ; return p[i] ; }
+    T & operator[](unsigned int i) { FATAL(i>=sz) ; return p[i] ; }
+    T & operator[](unsigned int i) const { FATAL(i>=sz) ; return p[i] ; }
+    T & operator[](unsigned char i) { FATAL(i>=sz) ; return p[i] ; }
+    T & operator[](unsigned char i) const { FATAL(i>=sz) ; return p[i] ; }
+    T & operator[](unsigned short i) { FATAL(i>=sz) ; return p[i] ; }
+    T & operator[](unsigned short i) const { FATAL(i>=sz) ; return p[i] ; }
     operator T *() { return p ; }
     operator const T *() const { return p ; }
   } ;

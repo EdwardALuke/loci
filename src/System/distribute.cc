@@ -828,6 +828,10 @@ namespace Loci {
   entitySet dist_collect_entitySet(entitySet inSet, const vector<entitySet> &ptn) {
     const int p = MPI_processes ;
     const int r = MPI_rank ;
+#ifdef DEBUG
+    if(r == 0) 
+      cerr << "dist_collect_entitySet is depreciated" << endl ;
+#endif
     entitySet retval = inSet & ptn[r] ;
     // Check for empty and universal set
     int sbits = ((inSet != EMPTY)?1:0)| ((retval != ptn[r])?2:0) ;
@@ -934,75 +938,104 @@ namespace Loci {
     
     return retval ;
   }
-  
-  entitySet dist_expand_entitySet(entitySet inSet, entitySet copy,
+
+  // -----------------------------------------------------------------------
+  /// @brief dist_expand_entitySet() is given an input set and a set of
+  /// entities that are in the clone region.  The ownership of entities
+  /// are given by the partition, it will recieve the data from the clone
+  /// regions so that the expanded set is valid representation of the
+  /// distributed set in the provided clone regions
+  ///
+  /// @param [inSet] input set that represents the set distributed across
+  /// processors
+  /// @param [clone] input set of cloned entities that we wish to fill in
+  /// with set values from the remote procesors
+  /// @param [ptn]   partition function that describes which processor owns
+  /// which entities.
+  entitySet dist_expand_entitySet(entitySet inSet, entitySet clone,
                                   const vector<entitySet> &ptn) {
-    vector<int> send_req(ptn.size()) ;
-    for(size_t i=0;i < ptn.size();++i)
-      if((copy&ptn[i]) != EMPTY)
-        send_req[i] = 1 ;
-      else
-        send_req[i] = 0 ;
-    vector<int> recv_req(ptn.size()) ;
-    MPI_Alltoall(&send_req[0],1,MPI_INT, &recv_req[0],1,MPI_INT,
+    // We don't need to send data to ourselves
+    clone -= inSet ;
+
+    // Send an interval that contains the cloned region for each processor
+    // If there is no entities on the processor, mark by an invalid interval
+    vector<int> send_req(ptn.size()*2) ;
+    for(size_t i=0;i < ptn.size();++i) {
+      entitySet clone_i = clone&ptn[i] ;
+      if(clone_i != EMPTY) {
+        send_req[i*2+0] = clone_i.Min() ;
+        send_req[i*2+1] = clone_i.Max() ;
+      } else {
+        send_req[i*2+0] = 1 ;
+        send_req[i*2+1] = 0 ;
+      }
+    }
+
+    // Send clone requests to partners
+    vector<int> recv_req(ptn.size()*2) ;
+    MPI_Alltoall(&send_req[0],2,MPI_INT, &recv_req[0],2,MPI_INT,
                  MPI_COMM_WORLD) ;
+
+    // From the clone requests, find a set that we need to send to the
+    // corresponding processor
     vector<int> send_sizes(ptn.size()) ;
-    int send_intervals = inSet.num_intervals() ;
-    
-    for(size_t i=0;i < ptn.size();++i)
-      if(recv_req[i]!=0)
-        send_sizes[i] = send_intervals ;
-      else
-        send_sizes[i] = 0 ;
+    vector<entitySet> send_data(ptn.size()) ;
+    for(size_t i=0;i < ptn.size();++i) {
+      if(recv_req[i*2+0]<=recv_req[i*2+1]) 
+        send_data[i] = inSet & interval(recv_req[i*2+0],recv_req[i*2+1]) ;
+      send_sizes[i] = send_data[i].num_intervals() ;
+    }
+
+    // Share the size information with partners
     vector<int> recv_sizes(ptn.size()) ;
     MPI_Alltoall(&send_sizes[0],1,MPI_INT, &recv_sizes[0],1,MPI_INT,
                  MPI_COMM_WORLD) ;
-    vector<vector<int> > recv_buffers ;
-    vector<int> buf_size ;
-    vector<int> proc ;
-    vector<MPI_Request> recv_Requests ;
+
+    // Compress all of the recieves to a single buffer, compute offsets
+    // within each buffer for the recieves
+    vector<int> recv_offsets(ptn.size()+1) ;
+    recv_offsets[0] = 0 ;
+    int numRecvs = 0 ;
+    for(size_t i=0;i<ptn.size();++i) {
+      recv_offsets[i+1] = recv_offsets[i]+recv_sizes[i] ;
+      if(recv_sizes[i] > 0)
+        numRecvs++ ;
+    }
+    vector<int> recv_buffer(recv_offsets[ptn.size()]*2,0) ;
+
+    // Allocate request buffers for Irecvs
+    vector<MPI_Request> recv_Requests(numRecvs) ;
+    int cnt = 0 ;
     for(size_t i=0;i < ptn.size();++i) {
-      if(recv_sizes[i] != 0) {
+      if(recv_sizes[i] > 0) {
         int recv_size = recv_sizes[i]*2 ;
-        recv_buffers.push_back(vector<int>(recv_size))  ;
-        buf_size.push_back(recv_sizes[i]) ;
-        recv_Requests.push_back(MPI_Request()) ;
-        proc.push_back(i) ;
+        int recv_offset = recv_offsets[i]*2 ;
+        
+        MPI_Irecv(&(recv_buffer[recv_offset]),recv_size,MPI_INT,i,3,
+                  MPI_COMM_WORLD,&recv_Requests[cnt++]) ;
       }
     }
-    for(size_t i=0;i < recv_buffers.size();++i) {
-      int recv_size = buf_size[i]*2 ;
-      
-      MPI_Irecv(&recv_buffers[i][0],recv_size,MPI_INT, proc[i],3,
-                MPI_COMM_WORLD,&recv_Requests[i]) ;
-    }
 
-    vector<int> send_buf(send_intervals*2) ;
-    for(int j=0;j < send_intervals;++j) {
-      send_buf[j*2] = inSet[j].first ;
-      send_buf[j*2+1] = inSet[j].second ;
-    }
-
+    // Send the data to partner
     for(size_t i=0;i < ptn.size();++i) {
       if(send_sizes[i] != 0) {
-        MPI_Send(&send_buf[0],send_intervals*2,MPI_INT,i,3,
-                 MPI_COMM_WORLD) ;
+        MPI_Send(&(send_data[i][0]),send_sizes[i]*2,MPI_INT,i,3,MPI_COMM_WORLD) ;
       }
     }
-    for(size_t i=0;i<recv_Requests.size();++i) {
-      MPI_Status stat ;
-      MPI_Wait(&recv_Requests[i], &stat ) ;
-    }
-    entitySet recvSet ;
-    for(size_t i=0;i<recv_buffers.size();++i)
-      for(int j=0;j<buf_size[i];++j) {
-        recvSet += interval(recv_buffers[i][j*2],recv_buffers[i][j*2+1]) ;
-      }
 
-    inSet += recvSet ;
+    // Wait for communication to complete
+    vector<MPI_Status> recv_Status(recv_Requests.size()) ;
+    MPI_Waitall(numRecvs,&recv_Requests[0],&recv_Status[0]) ;
+
+    // update set to add results from clone regions of other processors
+    for(size_t i=0;i<recv_buffer.size();i=i+2)
+      inSet += interval(recv_buffer[i+0],recv_buffer[i+1]) ;
+
+    // return modified set
     return inSet ;
   }
-    
+
+  
   inline bool spec_ival_compare(const interval &i1,
                             const interval &i2) {
     if(i1.first < i2.first)
@@ -1042,70 +1075,153 @@ namespace Loci {
       tmp += ivl_list[i] ;
     return tmp ;
   }
-  
 
-  // This code not presently used
+  // -----------------------------------------------------------------------
+  /// @brief distribute_entitySet() will send data to the owning processor
+  /// as described by the ptn argument.  The entities from each processor are
+  /// unioned to form the final entitySet that is partititoned to processors
+  ///
+  /// @param [e]  input set that needs to be distributed to owning processor
+  /// @param [ptn]   partition function that describes which processor owns
+  /// which entities.
   entitySet distribute_entitySet(entitySet e,const vector<entitySet> &ptn) {
+
     const int p = MPI_processes ;
-    WARN(ptn.size() != size_t(p)) ;
-    vector<entitySet> parts(p) ;
-    vector<int> send_count(p) ;
-    for(int i=0;i<p;++i) {
-      parts[i] = e & ptn[i] ;
-      send_count[i] = parts[i].num_intervals() ;
-    }
-    vector<int> recv_count(p) ;
-    MPI_Alltoall(&send_count[0], 1, MPI_INT, &recv_count[0], 1, MPI_INT,
-                 MPI_COMM_WORLD) ;
+    // Single processor, do nothing
+    if(p == 1)
+      return e ;
+
+    // if any processor contains universal set, all processors hold the
+    // universal set
+    if(GLOBAL_OR(e == ~EMPTY)) 
+      return ~EMPTY ;
+
+    // if no communication need, then just return the input set
+    if(GLOBAL_AND((e & ptn[MPI_rank]) == e)) 
+      return e ;
+
+    // Use recursive splitting to get set to owning processor.
+    const int r = MPI_rank ;
 
 
-    int tot = 0 ;
-    int req = 0 ;
-    for(int i=0;i<p;++i) {
-      tot += recv_count[i] ;
-      if(recv_count[i] > 0)
-        req++ ;
-    }
-    // Post recvs
-    vector<interval> ivl_list(tot) ;
-    vector<MPI_Request> recv_Requests(req) ;
-    req = 0 ;
-    int off = 0 ;
-    for(int i=0;i<p;++i) {
-      if(recv_count[i] > 0) {
-        MPI_Irecv(&ivl_list[off],2*recv_count[i],MPI_INT, i,0,
-                  MPI_COMM_WORLD,&recv_Requests[req]) ;
-        req++ ;
-        off += recv_count[i] ;
+    int nump = p ; // number of processors in the current group
+    int start = 0 ; // starting processor number for the current group
+    while(nump > 1) {
+      int split=(nump+1)/2 ; // how we will split the current group
+
+      // The start of the interval after the split
+      int nstart = start ;
+      // The number of processors after the split
+      int nnump = split ;
+      if(r >= start+split) {
+        // If this processor is in the upper half, then adjust the
+        // interval to be the upper half.
+        nnump = nump-split ;
+        nstart = start+split ;
       }
-    }
-    
-    // Send parts
-    const int p1 = 3917 ; // two primes to help randomize order of
-    const int p2 = 4093 ; // sending to reduce bottlenecks
-    int r = MPI_rank ;
-    for(int i=0;i<p;++i) {
-      int cp = (i*p1+r*p2)%p ; // processor to send data this iteration
-      if(send_count[cp] > 0) {
-        vector<interval> tmp(parts[cp].num_intervals()) ;
-        for(size_t k=0;k<parts[cp].num_intervals();++k)
-          tmp[k] = parts[cp][k] ;
+      // The rank of the last processor if nump is odd
+      int oddproc = -1 ;
+      if((nump&1) == 1) {
+        oddproc = start+split-1 ;
+      }
+
+      // Find what part of the partition represents our subset
+      // of processors
+      entitySet myset ;
+      for(int i=0;i<nnump;++i)
+        myset += ptn[i+nstart] ;
+      // divide the set into parts we keep and parts that belong
+      // to the other half.
+      entitySet keep = e&myset ;
+      entitySet give = e-keep ;
+      // If the split doesn't perfectly divide, then send remainder to
+      // next lower processor so it gets shared with the other partition
+      if(r == oddproc) {
+        int set_ivls = give.num_intervals() ;
+        MPI_Send(&set_ivls,1,MPI_INT,r-1,11,MPI_COMM_WORLD);
         
-        MPI_Send(&(tmp[0]),2*send_count[cp],MPI_INT,cp,0,MPI_COMM_WORLD) ;
+        if(set_ivls > 0) {
+          vector<interval> ivl_list(set_ivls) ;
+          for(int i=0;i<set_ivls;++i)
+            ivl_list[i] = give[i] ;
+          MPI_Send(&ivl_list[0],2*set_ivls,MPI_INT,r-1,12,MPI_COMM_WORLD) ;
+        }
       }
+      if(r+1==oddproc) {
+        int set_ivls = 0 ;
+        MPI_Status status ;
+        MPI_Recv(&set_ivls,1,MPI_INT,r+1,11,MPI_COMM_WORLD,&status) ;
+
+        if(set_ivls > 0) {
+          vector<interval> ivl_list(set_ivls) ;
+          MPI_Recv(&ivl_list[0],2*set_ivls,MPI_INT,r+1,12,MPI_COMM_WORLD,
+                   &status) ;
+
+          for(int i=0;i<set_ivls;++i)
+            give += ivl_list[i] ;
+        }
+      }
+
+      if(r != oddproc) { // exclude odd processor from this comm step
+        
+        
+        if(r < start+split) { // Lower Partition
+          int partner = r+split ;
+          // Lower partition sends first,  then recieves
+          int set_ivls = give.num_intervals() ;
+          MPI_Send(&set_ivls,1,MPI_INT,partner,11,MPI_COMM_WORLD);
+
+          if(set_ivls > 0) {
+            vector<interval> ivl_list(set_ivls) ;
+            for(int i=0;i<set_ivls;++i)
+              ivl_list[i] = give[i] ;
+            MPI_Send(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,
+                     MPI_COMM_WORLD) ;
+          }
+          MPI_Status status ;
+          MPI_Recv(&set_ivls,1,MPI_INT,partner,11,MPI_COMM_WORLD,&status) ;
+
+          if(set_ivls > 0) {
+            vector<interval> ivl_list(set_ivls) ;
+            MPI_Recv(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,
+                     MPI_COMM_WORLD, &status) ;
+            for(int i=0;i<set_ivls;++i)
+              keep += ivl_list[i] ;
+          }
+        } else { // Upper Partition
+          int partner = r-split ;
+          int set_ivls = 0 ;
+          MPI_Status status ;
+          MPI_Recv(&set_ivls,1,MPI_INT,partner,11,MPI_COMM_WORLD,&status) ;
+
+          if(set_ivls > 0) {
+            vector<interval> ivl_list(set_ivls) ;
+            MPI_Recv(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,MPI_COMM_WORLD,
+                     &status) ;
+            for(int i=0;i<set_ivls;++i)
+              keep += ivl_list[i] ;
+          }
+          set_ivls = give.num_intervals() ;
+          MPI_Send(&set_ivls,1,MPI_INT,partner,11,MPI_COMM_WORLD);
+
+          if(set_ivls > 0) {
+            vector<interval> ivl_list(set_ivls) ;
+            for(int i=0;i<set_ivls;++i)
+              ivl_list[i] = give[i] ;
+
+            MPI_Send(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,
+                     MPI_COMM_WORLD) ;
+          }
+        }
+      }
+      e = keep ;
+      nump = nnump ;
+      start = nstart ;
     }
-    vector<MPI_Status> stat_queue(recv_Requests.size()) ;
-    MPI_Waitall(recv_Requests.size(),&recv_Requests[0],&stat_queue[0]) ;
 
-    if(ivl_list.size() == 0)
-      return EMPTY ;
-
-    sort(ivl_list.begin(),ivl_list.end(),spec_ival_compare) ;
-    entitySet tmp = ivl_list[0] ;
-    for(size_t i=1;i<ivl_list.size();++i)
-      tmp += ivl_list[i] ;
-    return tmp ;
+    return e & ptn[MPI_rank] ;
   }
+
 
   // Collect largest interval of entitySet from all processors
   entitySet collectLargest(const entitySet &e) {

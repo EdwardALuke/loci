@@ -1106,10 +1106,10 @@ namespace Loci {
     This method is not recursive. While loops are used to reduce the amount of
     function calling overhead.
   */
-#if defined(__GNUC__) && !defined(__clang__)
+  //#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-#endif
+  //#endif
   void expression::compile_expr(compiled_expr &c_expr, int dnum)
   {
     //a pointer to the expression being compiled
@@ -1423,9 +1423,9 @@ namespace Loci {
       }
   }
 
-#if defined(__GNUC__) && !defined(__clang__)
+  //#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop
-#endif
+  //#endif
 
 
   double expression::evaluate(const std::map<std::string, double> &varmap) const

@@ -599,9 +599,6 @@ namespace Loci {
     *$motionInfo = tmp ;
   } ;
 
-
-  $type componentTransformMap blackbox<map<string,vector<componentXform> > > ;
-
   $rule unit(componentTransformMap),constraint(componentMotionData), prelude {
   } ;
 

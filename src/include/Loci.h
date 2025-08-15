@@ -28,14 +28,7 @@ using Loci::create_entitySet ;
 using Loci::EMPTY ;
 using Loci::interval ;
 
-// Here we use a #define to define Map because bastard MPI implementations fail
-// to keep Map in the MPI namespace !@#$^!@^^$%
-//using Loci::Map ;
-#ifdef Map
-#undef Map
-#endif
-#define Map Loci::Map
-
+using Loci::Map ;
 using Loci::const_Map ;
 using Loci::MapVec ;
 using Loci::const_MapVec ;
@@ -77,6 +70,7 @@ using Loci::blackbox_rule ;
 using Loci::optional_rule ;
 using Loci::register_rule ;
 
+#ifdef DYNAMICSCHEDULING
 using Loci::insertion_rule ;
 using Loci::deletion_rule ;
 using Loci::erase_rule ;
@@ -86,6 +80,7 @@ using Loci::KeySpaceDynamism ;
 using Loci::OrbKeySpace ;
 using Loci::register_key_space ;
 using Loci::global_key_space_list ;
+#endif
 
 using Loci::storeMat ;
 using Loci::const_storeMat ;

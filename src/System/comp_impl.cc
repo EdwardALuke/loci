@@ -2009,6 +2009,7 @@ namespace Loci {
   }
 #endif
 
+#ifdef DYNAMICSCHEDULING
   // execute_keyspace_init module
   execute_init_keyspace::
   execute_init_keyspace(fact_db& facts, sched_db& scheds) {
@@ -2077,7 +2078,8 @@ namespace Loci {
     oss << "Initialize all keyspaces" ;
     data_collector.accumulateTime(timer,EXEC_CONTROL,oss.str()) ;
   }
-
+#endif
+  
   // blackbox_compiler code
   void
   blackbox_compiler::set_var_existence(fact_db& facts, sched_db& scheds) {
@@ -2659,11 +2661,26 @@ namespace Loci {
 
   ///////////////////////////////////////////////
   // Lets set up some common super rule functions
-
+  namespace {
+    const char *systemVarDocs[] = {
+      "SYSTEM\000NOT(X)\000param<bool>\000Exists over complement of X",
+      "SYSTEM\000OR(X,Y)\000param<bool>\000Exists over union of X and Y",
+      "SYSTEM\000OR(X,Y,Z)\000param<bool>\000Exists over union of X, Y and Z",
+      "SYSTEM\000OR(W,X,Y,Z)\000param<bool>\000Exists over union of W, X, Y and Z",
+      "SYSTEM\000AND(X,Y)\000param<bool>\000Exists over intersection of X and Y",
+      "SYSTEM\000AND(X,Y,Z)\000param<bool>\000Exists over intersection of X, Y and Z",
+      "SYSTEM\000AND(W,X,Y,Z)\000param<bool>\000Exists over intersection of W, X, Y and Z",
+      "\000\000\000"
+    } ;
+  }
   class NOT_rule : public super_rule {
     param<bool> NOT ;
   public:
     NOT_rule() {
+      comments("Internal System Rule.  Use with care to prevent infinite regression!") ;
+      setvardoc(systemVarDocs) ;
+      set_file( __FILE__ ) ;
+      store_info_id("NOT(X)",0) ;
       name_store("NOT(X)",NOT) ;
       constraint("X") ;
       output("NOT(X)") ;
@@ -2708,6 +2725,9 @@ namespace Loci {
     param<bool> OR ;
   public:
     OR_rule() {
+      setvardoc(systemVarDocs) ;
+      set_file( __FILE__ ) ;
+      store_info_id("OR(X,Y)",1) ;
       name_store("OR(X,Y)",OR) ;
       constraint("X,Y") ;
       output("OR(X,Y)") ;
@@ -2749,6 +2769,9 @@ namespace Loci {
     param<bool> OR ;
   public:
     OR3_rule() {
+      setvardoc(systemVarDocs) ;
+      set_file( __FILE__ ) ;
+      store_info_id("OR(X,Y,Z)",2) ;
       name_store("OR(X,Y,Z)",OR) ;
       constraint("X,Y,Z") ;
       output("OR(X,Y,Z)") ;
@@ -2790,6 +2813,9 @@ namespace Loci {
     param<bool> OR ;
   public:
     OR4_rule() {
+      setvardoc(systemVarDocs) ;
+      set_file( __FILE__ ) ;
+      store_info_id("OR(W,X,Y,Z)",3) ;
       name_store("OR(W,X,Y,Z)",OR) ;
       constraint("W,X,Y,Z") ;
       output("OR(W,X,Y,Z)") ;
@@ -2831,6 +2857,9 @@ namespace Loci {
     param<bool> AND ;
   public:
     AND2_rule() {
+      setvardoc(systemVarDocs) ;
+      set_file( __FILE__ ) ;
+      store_info_id("AND(X,Y)",4) ;
       name_store("AND(X,Y)",AND) ;
       constraint("X,Y") ;
       output("AND(X,Y)") ;
@@ -2846,6 +2875,9 @@ namespace Loci {
     param<bool> AND ;
   public:
     AND3_rule() {
+      setvardoc(systemVarDocs) ;
+      set_file( __FILE__ ) ;
+      store_info_id("AND(X,Y,Z)",5) ;
       name_store("AND(X,Y,Z)",AND) ;
       constraint("X,Y,Z") ;
       output("AND(X,Y,Z)") ;
@@ -2861,6 +2893,9 @@ namespace Loci {
     param<bool> AND ;
   public:
     AND4_rule() {
+      setvardoc(systemVarDocs) ;
+      set_file( __FILE__ ) ;
+      store_info_id("AND(W,X,Y,Z)",6) ;
       name_store("AND(W,X,Y,Z)",AND) ;
       constraint("W,X,Y,Z") ;
       output("AND(W,X,Y,Z)") ;

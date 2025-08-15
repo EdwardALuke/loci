@@ -46,13 +46,6 @@ using std::ostringstream ;
 #include "loci_globs.h"
 
 
-namespace {
-    // memory profile function
-  double currentMem(void) {
-    return ::Loci::getmaxrss() ;
-  }
-}
-
 //#define VERBOSE
 
 namespace Loci {
@@ -2694,10 +2687,10 @@ namespace Loci {
       //cerr<<"memory profiling (allocation) on: "<<*vi<<endl;
       storeRepP srp = facts.get_variable(*vi) ;
       entitySet alloc_dom = srp->domain() ;
-
-      double currmen = currentMem() ;
-      if(currmen > LociAppPeakMemory)
-        LociAppPeakMemory = currmen ;
+      LociAppPeakMemory = max(LociAppPeakMemory,currentMem()) ;
+      //      Loci::debugout << "LociAppPeakMemory="<< LociAppPeakMemory
+      //                     << ", mem=" << mem
+      //                     << endl ;
 
       int packsize = srp->pack_size(alloc_dom) ;
       LociAppAllocRequestBeanCounting += packsize ;

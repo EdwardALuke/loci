@@ -44,6 +44,7 @@ namespace Loci {
     join($cl->$integrateSurface(X),Xdotn) ;
   }
 
+  $untype X ;
   $type X store<real_t> ;
 
   $rule unit(integrateFlux(X)),constraint(geom_cells) {

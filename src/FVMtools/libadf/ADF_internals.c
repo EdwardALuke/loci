@@ -248,7 +248,9 @@ bytes	start	end   description      range / format
 #include "ADF.h"
 #include "ADF_internals.h"
 
+#ifndef __clang__
 #pragma GCC diagnostic ignored "-Wstringop-truncation"
+#endif
 
 #if defined (_WIN64) || defined(_WIN32)
 typedef __int64 file_offset_t;

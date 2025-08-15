@@ -71,6 +71,8 @@ void dummyFunctionDependencies(int i) {
 #include "thread.h"
 #include <Tools/debug.h>
 #include <Tools/except.h>
+#include <LociGridReaders.h>
+#include "docreport.h"
 #include <new>
 using std::bad_alloc ;
 
@@ -194,25 +196,18 @@ namespace Loci {
   bool collect_timings = false;
   double time_duration_to_collect_data = 0 ;
   bool use_duplicate_model = false;
-  bool use_simple_partition=false;
-
+#ifdef LOCI_USE_METIS
+  partitionerSelector partitionerMethod = partitionerSelector::GRAPH ;
+#else
+  partitionerSelector partitionerMethod = partitionerSelector::SFC ;
+#endif
+  
 #ifdef H5_HAVE_PARALLEL
   bool use_parallel_io = false ; //true ;
 #else
   bool use_parallel_io = false ;
 #endif
   
-  // space filling curve partitioner
-#ifdef LOCI_USE_METIS
-  bool use_sfc_partition = false ;
-#else 
-  // RSM COMMENT 20181108 setting this to true,
-  // automatically disables calls to METIS decomposition
-  // when we add support for ZOLTAN this will need to be 
-  // REVISITED: METIS_DISABLE_NOTE
-  bool use_sfc_partition=true;
-#endif /* ifndef LOCI_USE_METIS */
-  bool use_orb_partition = false ;
 
   int metis_cpp_threshold = 384 ;
   
@@ -418,6 +413,12 @@ namespace Loci {
 #else
     PetscPushErrorHandler(PetscIgnoreErrorHandler,PETSC_NULL) ;
 #endif
+#if PETSC_VERSION_GE(3, 7, 0)
+    PetscLogDefaultBegin();
+    PetscLogNestedBegin();
+#else
+    PetscLogBegin();
+#endif
 #else
     MPI_Init(argc, argv) ;
 #endif
@@ -467,18 +468,17 @@ namespace Loci {
 
     {
       // Create MFADD type
-      int count = MFAD_SIZE + 1 ;
       //int blocklens[] = {1,1,1,1,1,1,1,1,1,1,1} ;
-      int blocklens[count] ;
-      for (int i=0;i<count;i++) blocklens[i] = 1 ;
-      MPI_Aint indices[count] ;
+      int blocklens[MFAD_SIZE+1] ;
+      for (int i=0;i<MFAD_SIZE+1;i++) blocklens[i] = 1 ;
+      MPI_Aint indices[MFAD_SIZE+1] ;
       MFADd tmp ;
       indices[0] = (MPI_Aint)((char *) &(tmp.value) - (char *) &tmp) ;
-      for (int i=1;i<count;i++) indices[i] = (MPI_Aint)((char *) &(tmp.grad[i-1]) - (char *) &tmp) ;
+      for (int i=1;i<MFAD_SIZE+1;i++) indices[i] = (MPI_Aint)((char *) &(tmp.grad[i-1]) - (char *) &tmp) ;
 
-      MPI_Datatype typelist[count] ;
-      for (int i=0;i<count;i++) typelist[i] = MPI_DOUBLE ;
-      MPI_Type_create_struct(count,blocklens,indices,typelist,&MPI_MFADD) ;
+      MPI_Datatype typelist[MFAD_SIZE+1] ;
+      for (int i=0;i<MFAD_SIZE+1;i++) typelist[i] = MPI_DOUBLE ;
+      MPI_Type_create_struct(MFAD_SIZE+1,blocklens,indices,typelist,&MPI_MFADD) ;
       MPI_Type_commit(&MPI_MFADD) ;
 
       MPI_Op_create((MPI_User_function *)sumMFADd,1,&MPI_MFADD_SUM) ;
@@ -566,15 +566,16 @@ namespace Loci {
         global_rule_list.copy_rule_list(register_rule_list) ;
         register_rule_list.clear() ;
       }
+#ifdef DYNAMICSCHEDULING
       // do the same to get all the defined keyspace
       if(!register_key_space_list.empty()) {
         global_key_space_list.copy_space_list(register_key_space_list) ;
         register_key_space_list.clear() ;
       }
+#endif
       bool debug_setup = false ;
       int i = 1 ;
-      vector<string> arglist ;
-      arglist.push_back(string(*argv[0])) ;
+      int k = 1 ; // copy cursor for removing processed arguments from argv
       while(i<*argc) {
         if(!strcmp((*argv)[i],"--display")) {
           debug_setup = true ;
@@ -646,14 +647,47 @@ namespace Loci {
 	} else if(!strcmp((*argv)[i],"--metis_cpp_threshold")) {
             metis_cpp_threshold = atoi((*argv)[i+1]);
 	    i+=2;
+        } else if(!strcmp((*argv)[i],"--partition")) {
+          string partition_type ;
+          for(int j=0;j<32;++j) {
+            if((*argv)[i+1][j] == '\0')
+              break ;
+            partition_type += std::tolower((*argv)[i+1][j]) ;
+          }
+          
+          if(partition_type == "simple") {
+            partitionerMethod = partitionerSelector::SIMPLE ;
+          } else if(partition_type == "sfc") {
+            partitionerMethod = partitionerSelector::SFC ;
+          } else if(partition_type == "orb") {
+            partitionerMethod = partitionerSelector::ORB ;
+#ifdef LOCI_USE_METIS
+          } else if(partition_type == "graph") {
+            partitionerMethod = partitionerSelector::GRAPH ;
+          } else if(partition_type == "metis") {
+            partitionerMethod = partitionerSelector::GRAPH ;
+#endif
+          } else if(partition_type == "random") {
+            partitionerMethod = partitionerSelector::RANDOM ;
+          } else if(partition_type == "rnd") {
+            partitionerMethod = partitionerSelector::RANDOM ;
+          } else {
+            cerr << "partition type '" << partition_type << "' not recognized, defaulting to type 'sfc'" << endl ;
+            partitionerMethod = partitionerSelector::SFC ;
+          }
+          i+=2 ;
         } else if(!strcmp((*argv)[i],"--simple_partition")) {
-          use_simple_partition = true ; //  partition domain using n/p cuts
+          partitionerMethod = partitionerSelector::SIMPLE ;
           i++ ;
         } else if(!strcmp((*argv)[i],"--orb_partition")) {
-          use_orb_partition = true ; // partition mesh using ORB method
+          partitionerMethod = partitionerSelector::ORB ;
           i++ ;
         } else if(!strcmp((*argv)[i],"--sfc_partition")) {
-          use_sfc_partition = true ; // partition mesh using SFC method
+          partitionerMethod = partitionerSelector::SFC ;
+          i++ ;
+        } else if(!strcmp((*argv)[i],"--rnd_partition")) {
+          partitionerMethod = partitionerSelector::RANDOM ;
+          // For stress testing
           i++ ;
         } else if(!strcmp((*argv)[i],"--dmm")) {
           use_dynamic_memory = true ; // use dynamic memory management
@@ -815,19 +849,18 @@ namespace Loci {
         } else if(!strcmp((*argv)[i],"--no_threading_recursion")) {
           threading_recursion = false;
           i++;
-        }
-        else {
-	  //          break ;
-	  arglist.push_back(string((*argv)[i])) ;
+        } else {
+          // copy items to their new locations after removed items
+          // we only need to copy once arguments are processed.
+          if(k!=i)
+            (*argv)[k] = (*argv)[i] ;
 	  i++ ;
+          k++ ;
 	}
       }
 
-      for(size_t k = 0;k<arglist.size();++k) {
-	(*argv)[k] = (char *)malloc(arglist[k].size()+1) ;
-	strcpy((*argv)[k],arglist[k].c_str()) ;
-      }
-      *argc = arglist.size() ;
+      // reset the argument counter to account for processed flags
+      *argc = k ;
 
       if(useDebugDir) {
         //Create a debug file for each process
@@ -950,6 +983,16 @@ namespace Loci {
 
   void Finalize() {
     call_closing_functions(0) ;
+    register_rule_list.clear() ;
+    global_rule_list.clear() ;
+    rule::rdb_cleanup() ;
+#ifdef DYNAMICSHCEDULING
+    register_key_space_list.clear() ;
+    global_key_space_list.clear() ;
+#endif
+    //    storeAllocateData.clear() ;
+    //    GPUstoreAllocateData.clear() ;
+    exec_current_fact_db = 0 ;
 #ifdef USE_PETSC
     PetscFinalize() ;
 #else

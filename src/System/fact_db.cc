@@ -85,7 +85,8 @@ namespace Loci {
     tmap = f.tmap ;
     nspace_vec = f.nspace_vec ;
     extensional_facts = f.extensional_facts ;
-    
+
+#ifdef DYNAMICSCHDEDULING
     // create new keyspaces
     keyspace.clear() ;
     const std::map<std::string,KeySpaceP>& fks = f.keyspace ;
@@ -93,7 +94,6 @@ namespace Loci {
           mi=fks.begin();mi!=fks.end();++mi) {
       keyspace[mi->first] = mi->second->new_keyspace() ;
     }      
-    
     // here is something very important, we'll need to
     // assign the current fact_db's synonym record to
     // all the keyspaces here
@@ -105,6 +105,7 @@ namespace Loci {
     if(f.key_manager != 0) {
       key_manager = f.key_manager->clone() ;
     }
+#endif
     /* we cannot use the following direct assignment
        to copy the distributed_info from f since
        distributed_info is a NPTR pointer and is
@@ -132,7 +133,7 @@ namespace Loci {
       df->key_domain[*ei] = fdf->key_domain[*ei] ;
     }
 
-    // num_keydomains
+
     int num_keydomains = fdf->g2lv.size() ; ;
     df->g2lv = vector<dMap>(num_keydomains) ;
     for(int i=0;i<num_keydomains;++i) {
@@ -153,9 +154,8 @@ namespace Loci {
     df->xmit = fdf->xmit ;
     df->copy_total_size = fdf->copy_total_size ;
     df->xmit_total_size = fdf->xmit_total_size ;
-    //      df->remap = fdf->remap ;
-#ifdef LOCI_COMPAT_MODE1
     df->g2fv = fdf->g2fv ;
+#ifdef LOCI_COMPAT_MODE1
     df->g2l.setRep(df->g2lv[0].Rep()) ;
     df->g2f.setRep(df->g2fv[0].Rep()) ;
 #endif
@@ -517,9 +517,9 @@ namespace Loci {
  
   bool fact_db::isDistributed() {
     if(distributed_info == 0)
-      return 0 ;
+      return false ;
     else 
-      return 1 ;
+      return distributed_info->isDistributed ;
   }
   
   void fact_db::rotate_vars(const std::list<variable> &lvars) {
@@ -538,6 +538,7 @@ namespace Loci {
     fmap[remove_synonym(lvars.front())].data_rep->setRep(cp) ;
   }
 
+#ifdef DYNAMICSCHEDULING
   void fact_db::adjust_rotation_vars(const std::list<variable>& lvars) {
     list<variable>::const_iterator jj ;
     jj = lvars.begin() ;
@@ -563,7 +564,7 @@ namespace Loci {
       }
     }
   }
-
+#endif
   ostream &fact_db::write(ostream &s) const {
     std::map<variable, fact_info>::const_iterator vmi ;
     for(vmi=fmap.begin();vmi!=fmap.end();++vmi) {
@@ -1099,7 +1100,8 @@ namespace Loci {
     hdf5CloseFile(file_id);
   }
 
- 
+
+#ifdef DYNAMICSCHEDULING
   // experimental code to create keyspace from the
   // global registered keyspace list
   // returns "true" to indicate the methods succeeded,
@@ -1149,7 +1151,7 @@ namespace Loci {
                   MPI_INT, MPI_MAX, MPI_COMM_WORLD) ;
     key_manager = new KeyManager(global_max+1) ;
   }
-  
+#endif  
 }
 
   

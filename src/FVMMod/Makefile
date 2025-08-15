@@ -20,15 +20,21 @@
 ###############################################################################
 # This is the Loci base directory
 LOCI_BASE ?= /usr/tmp/lush/Loci
-# Put objects in the module here
-OBJS =	metrics.o cellgradient.o facegradient.o limiter.o muscl.o\
-	node_values.o bcstuff.o surfaceIntegrations.o petsc.o misc.o
+include $(LOCI_BASE)/Loci.conf
+
+LIMITER_FILES=$(call loci_compile_files,limiters/)
+LIMITER_OBJS=$(call loci_file2objs,$(LIMITER_FILES))
+
+BASE_FILES=$(call loci_compile_files,)
+BASE_OBJS=$(call loci_file2objs,$(BASE_FILES))
+
+OBJS=$(BASE_OBJS) $(LIMITER_OBJS)
+
 MODULE_NAME = fvm
 
 #############################################################################
 # No changes needed below this line
 
-include $(LOCI_BASE)/Loci.conf
 
 LIB_OBJS=$(OBJS:.o=_lo.o)
 FAD_OBJS=$(OBJS:.o=_FAD.o)
@@ -45,13 +51,18 @@ FRC :
 
 
 # intermediate files created from .loci files
-LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
+LOCI_FILES = $(wildcard *.loci limiters/*.loci)
+LOCI_INTERMEDIATE_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
 
 clean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so 
 
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~)  core 
+
+uninstall: 
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)FAD_m.so
+	rm -fr $(LOCI_INSTALL_PATH)/include/FVMMod
 
 distclean: 
 	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(JUNK) $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)
@@ -60,6 +71,6 @@ distclean:
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
 #include automatically generated dependencies
-ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
+ifeq ($(filter $(MAKECMDGOALS),clean distclean uninstall),)
 -include $(DEPEND_FILES)
 endif

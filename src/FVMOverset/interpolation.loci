@@ -932,6 +932,7 @@ namespace Loci {
     MEMORY_PROFILE(compute_end) ;
   } ;
 
+  $untype X ;
   $type X store<vector3d<real_t> > ;
   
   // Please note this is where we might want to use an access map
@@ -1005,6 +1006,7 @@ namespace Loci {
       MEMORY_PROFILE(compute_end) ;
   } ;
 
+  $untype X ;
   $type X storeVec<real_t> ;  
   $rule pointwise(interpolateFace_vec(X)<-ci->(X,iblank),interpolateFaceStencil),
     option(disable_threading),prelude {
@@ -1589,6 +1591,8 @@ namespace Loci {
 
   } ;
 
+  $untype Xin ;
+  $untype Xout ;
   $type Xin store<vector3d<real_t> > ;
   $type Xout store<vector3d<real_t> > ;
   $rule pointwise(iblank::Xout<-iblank,Xin,upper->cr->(iblank,Xin),lower->cl->(iblank,Xin),(upper,lower)->area,interpolateCellStencil),inplace(iblank::Xout|Xin),constraint(Xin,iblank,componentGeometry,geom_cells),parametric(v3dInterpolateToBlankedCells(Xout,Xin)),option(disable_threading), prelude {
@@ -1677,6 +1681,8 @@ namespace Loci {
 
   } ;
 
+  $untype Xin ;
+  $untype Xout ;
   $type Xin storeVec<real_t> ;
   $type Xout storeVec<real_t> ;
 

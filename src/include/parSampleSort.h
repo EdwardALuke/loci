@@ -102,7 +102,7 @@ namespace Loci {
         long long li = std::max(i1,sdist[i]) ;
         long long ri = std::min(i2,sdist[i+1]) ;
         int len = ri-li ;
-        //        FATAL(len <= 0) ;
+        FATAL(len < 0) ;
         int s2 = li-rdist[r] ;
         FATAL(s2 < 0) ;
         if(i == r) { // local copy
@@ -114,8 +114,9 @@ namespace Loci {
             recv[s2+j] = list[s1+j] ;
         } else {
           WARN(s2+len>bsizes[r]) ;
-          MPI_Irecv(&recv[s2],len,bytearray,i,55,comm,
-                    &requests[req++]) ;
+          if(len > 0)
+            MPI_Irecv(&recv[s2],len,bytearray,i,55,comm,
+                      &requests[req++]) ;
 #ifdef DEBUG
           debugout << "balanceDistribution: recving " << len << " items from " << i << endl ;
 #endif
@@ -133,9 +134,10 @@ namespace Loci {
         int len = ri-li ;
         int s1 = li-sdist[r] ;
         FATAL(s1 < 0) ;
-        FATAL(len <= 0) ;
+        FATAL(len < 0) ;
         FATAL(size_t(s1+len) > list.size()) ;
-        MPI_Send(&list[s1],len,bytearray,i,55,comm) ;
+        if(len > 0) 
+          MPI_Send(&list[s1],len,bytearray,i,55,comm) ;
 #ifdef DEBUG
         debugout << "balanceDistribution: sending " << len << " items to " << i << endl ;
 #endif

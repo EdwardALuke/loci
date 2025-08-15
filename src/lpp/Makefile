@@ -42,13 +42,16 @@ all: $(TARGET)
 
 TOOLS_LIBS = $(RPATH)$(LOCI_RPATH) -L$(LOCI_BASE)/lib -lTools -lm
 
-$(TARGET): $(OBJS)  ../Tools/libTools.${LIB_SUFFIX}
+$(TARGET): $(OBJS)  $(LOCI_BASE)/lib/libTools.${LIB_SUFFIX}
 	$(LDBSL) -o $(TARGET) $(OBJS) $(LOCAL_LIBS) $(TOOLS_LIBS) $(LDFLAGS) $(PTHREADS_LIB)
 
 FRC : 
 
 clean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(TARGET) $(JUNK)
+
+uninstall:
+	rm -f $(LOCI_INSTALL_PATH)/bin/$(TARGET)
 
 distclean:
 	rm -fr $(OBJS) $(LIB_OBJS) $(TARGET) $(JUNK) $(DEPEND_FILES)
@@ -57,6 +60,6 @@ DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
 
 #include automatically generated dependencies
-ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
+ifeq ($(filter $(MAKECMDGOALS),clean distclean uninstall),)
 -include $(DEPEND_FILES)
 endif

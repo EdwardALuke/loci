@@ -47,12 +47,6 @@ namespace Loci {
   extern double LociAppFreeRequestBeanCounting ;
   extern double LociAppPeakMemoryBeanCounting ;
   extern double LociAppPMTemp ;
-  namespace {
-    // memory profile function
-    int currentMem(void) {
-      return ::Loci::getmaxrss() ;
-    }
-  }
 
   extern bool in_internal_query;
   extern bool threading_chomping;

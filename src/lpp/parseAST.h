@@ -165,7 +165,8 @@ class AST_syntaxError: public AST_type {
  public:
   string error ;
   int lineno ;
- AST_syntaxError(string e,int l) :error(e),lineno(l)
+  string fileName ;
+  AST_syntaxError(string e,int l, string f) :error(e),lineno(l),fileName(f)
     {nodeType=AST_type::ND_SYNTAXERR;}
   void accept(AST_visitor &v) ;
 } ;
@@ -272,16 +273,34 @@ public:
 } ;
   
 
-extern AST_type::ASTP parseExpression(std::istream &is, int &linecount,const varmap &typemap) ;
-extern AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,const varmap &typemap) ;
-extern AST_type::ASTP parseDeclaration(std::istream &is, int &linecount, const varmap &typemap) ;
-extern AST_type::ASTP parseStatement(std::istream &is, int &linecount, const varmap &typemap) ;
-extern AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,const varmap &typemap) ;
-extern AST_type::ASTP parseIfStatement(std::istream &is, int &linecount, const varmap &typemap) ;
-extern AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount,const varmap &typemap)  ;
-extern AST_type::ASTP parseBlock(std::istream &is, int &linecount,const varmap &typemap) ;
+extern AST_type::ASTP parseExpression(std::istream &is, int &linecount,
+				      const string &fileName,
+				      const varmap &typemap) ;
+extern AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
+					     const string &fileName,
+					     const varmap &typemap) ;
+extern AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
+				       const string &fileName,
+				       const varmap &typemap) ;
+extern AST_type::ASTP parseStatement(std::istream &is, int &linecount,
+				     const string &fileName,
+				     const varmap &typemap) ;
+extern AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
+					 const string &fileName,
+					 const varmap &typemap) ;
+extern AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
+				       const string &fileName,
+				       const varmap &typemap) ;
+extern AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount,
+					   const string &fileName,
+					   const varmap &typemap)  ;
+extern AST_type::ASTP parseBlock(std::istream &is, int &linecount,
+				 const string &fileName,
+				 const varmap &typemap) ;
 extern AST_type::ASTP parseTerm(std::istream &is, int &linecount) ;
+
 extern CPTR<AST_Token> getToken(std::istream &is, int &linecount) ;
+
 extern void pushToken(CPTR<AST_Token> &pt) ;
 extern bool isTerm(AST_type::elementType e) ;
 
