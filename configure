@@ -104,6 +104,7 @@ METIS_BASE=/notselected
 METIS_LIBS=
 METIS_INCLUDE=
 USE_METIS=0
+METIS_LIB_DIR=lib
 NO_SUB_DIR=0
 BOUNDS_CHECK=0
 
@@ -406,9 +407,25 @@ if [ $CHECK_METIS_CONFIG == 1 ] ; then
             if [ -e $METIS_BASE/lib/libscotch.dylib ] ; then
                 HAS_SCOTCH=1
             fi
+            if [ -e $METIS_BASE/lib64/libscotch.a ] ; then
+                HAS_SCOTCH=1
+                METIS_LIB_DIR=lib64
+            fi
+            if [ -e $METIS_BASE/lib64/libscotch.so ] ; then
+                HAS_SCOTCH=1
+                METIS_LIB_DIR=lib64
+            fi
+            if [ -e $METIS_BASE/lib64/libscotch.dylib ] ; then
+                HAS_SCOTCH=1
+                METIS_LIB_DIR=lib64
+            fi
+            if [ -e $METIS_BASE/lib64/libscotch.a ] ; then
+                HAS_SCOTCH=1
+                METIS_LIB_DIR=lib64
+            fi
             if [ $HAS_SCOTCH == 1 ] ; then
                 USE_METIS=1
-                METIS_LIBS="-L\$(METIS_BASE)/lib -lscotch -lptscotch -lscotchmetisv5 -lptscotchparmetisv3 -lscotcherrexit"
+                METIS_LIBS="-L\$(METIS_BASE)/$METIS_LIB_DIR -lscotch -lptscotch -lscotchmetisv5 -lptscotchparmetisv3 -lscotcherrexit"
                 METIS_INCLUDE="-I\$(METIS_BASE)/include -DLOCI_USE_METIS -DUSE_SCOTCH"
             else
                 USE_METIS=1
