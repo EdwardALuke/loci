@@ -1569,6 +1569,193 @@ namespace Loci {
     return 0 ;
   }
 
+  int expression::evaluate(const std::map<std::string, int> &varmap) const
+  {
+    std::map<std::string, int>::const_iterator mi;
+    int tmp ;
+    exprList::const_iterator li ;
+
+    switch(op)
+      {
+      case OP_INT:
+        return int_val ;
+      case OP_DOUBLE:
+        return int(real_val) ;
+      case OP_PLUS:
+        tmp = 0 ;
+        for(li=expr_list.begin();li!=expr_list.end();++li) {
+          tmp += (*li)->evaluate(varmap) ;
+        }
+        return tmp ;
+      case OP_MINUS:
+        tmp = 0 ;
+        li = expr_list.begin() ;
+        if(li!=expr_list.end())
+          tmp = (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp -= (*li)->evaluate(varmap) ;
+        }
+        return tmp ;
+      case OP_TIMES:
+        tmp = 1 ;
+        for(li=expr_list.begin();li!=expr_list.end();++li) {
+          tmp *= (*li)->evaluate(varmap) ;
+        }
+        return tmp ;
+      case OP_DIVIDE:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp /= (*li)->evaluate(varmap) ;
+        }
+        return tmp ;
+      case OP_LT:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp < (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_GT:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp > (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_GE:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp >= (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_LE:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp <= (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_EQUAL:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp == (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_NOT_EQUAL:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp != (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_LOGICAL_AND:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp && (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_LOGICAL_OR:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp || (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_OR:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp | (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_AND:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp & (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_EXOR:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp ^ (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_SHIFT_RIGHT:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp >> (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_SHIFT_LEFT:
+        li = expr_list.begin() ;
+        tmp = 1 ;
+        if(li!=expr_list.end())
+          tmp =  (*li)->evaluate(varmap) ;
+        for(++li;li!=expr_list.end();++li) {
+          tmp = (tmp << (*li)->evaluate(varmap)) ;
+        }
+        return tmp ;
+      case OP_FUNC:
+        if(name == "defined") {
+          li = expr_list.begin() ;
+          if((*li)->op != OP_NAME)
+            throw exprError("syntax error","defined expecting name",ERR_UNDEF) ;
+          return (varmap.find((*li)->name) != varmap.end()) ;
+        } else {
+          string msg = "in expression evaluation, function " + name
+            + " has no definition";
+          throw exprError("Undefined",msg,ERR_UNDEF) ;
+        }
+      case OP_NAME:
+        mi = varmap.find(name) ;
+        if(mi != varmap.end()) {
+          return mi->second ;
+        } else {
+          string msg = "in expression evaluation, variable " + name
+            + " has no definition";
+          throw exprError("Undefined",msg,ERR_UNDEF) ;
+        }
+      default:
+        throw exprError("Undefined","operation not defined in evaluate()",ERR_UNDEF) ;
+        return 0 ;
+      }
+
+    return 0 ;
+  }
+
 
   exprP const_group(exprP p) {
     exprList lgroup,lmgroup ;
