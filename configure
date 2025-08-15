@@ -408,7 +408,7 @@ if [ $CHECK_METIS_CONFIG == 1 ] ; then
             fi
             if [ $HAS_SCOTCH == 1 ] ; then
                 USE_METIS=1
-                METIS_LIBS="-L\$(METIS_BASE)/lib -lscotch -lptscotch -lscotchmetisv5 -lptscotchparmetisv3 -lscotcherrexit"
+                METIS_LIBS="-L\$(METIS_BASE)/lib \$(RPATH)\$(METIS_BASE)/lib -lscotch -lptscotch -lscotchmetisv5 -lptscotchparmetisv3 -lscotcherrexit"
                 METIS_INCLUDE="-I\$(METIS_BASE)/include -DLOCI_USE_METIS -DUSE_SCOTCH"
             else
                 USE_METIS=1
@@ -706,9 +706,9 @@ if [ $TEC360PATH != "none" ] ; then
     fi
 fi
 
+echo \# CGNS Library Setup >> sys.conf
 if [ -d $CGNSPATH/include ]; then
     echo Using CGNS library found in $CGNSPATH
-    echo # CGNS Library Setup >> sys.conf
     echo CGNS_BASE = $CGNSPATH >> sys.conf
     echo CGNS_INCLUDE = -I\$\(CGNS_BASE\)/include/ -DUSE_CGNS >> sys.conf
     echo CGNS_LIBS = -L\$\(CGNS_BASE\)/lib \$\(RPATH\)\$\(CGNS_BASE\)/lib -lcgns >> sys.conf
@@ -721,6 +721,7 @@ else
     echo >> sys.conf
 fi
 
+echo \# TECPLOT Library Setup >> sys.conf
 if [ -f $TEC360PATH/lib/libtecio.a ]; then
     echo Using TECPLOT native IO library found in $TEC360PATH
     echo TEC360INCLUDE = -I$TEC360PATH/include -DUSE_NATIVE_TECPLOT >> sys.conf
