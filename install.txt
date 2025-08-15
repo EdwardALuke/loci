@@ -252,3 +252,16 @@ make PETSC_DIR=/home/luke/Software/petsc-3.3-p2 PETSC_ARCH=linux-gnu-c-opt insta
 Before configuring Loci, set the PETSC_DIR environment variable to
 point to the installed PETSc library, then the configure script will
 be able to find and include PETSc in the Loci libraries.
+
+Notes on installing PTScotch Graph Partitioning Library:
+
+The PTScotch graph Partitioning library can be obtained from
+http://gitlab.inria.fr/scotch/scotch
+
+When configuring Scotch be sure to disable threading and enable the deterministic option.
+
+In the scotch source directory, execute the following compiler options
+
+% mkdir build
+% cmake -S $PWD -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/opt/PTscotch-7.0.8/ -DCMAKE_C_COMPILER=mpicc -DCMAKE_CXX_COMPILER=mpicxx -DBUILD_SHARED_LIBS=ON -DBUILD_PTSCOTCH=ON -DSCOTCH_DETERMINISTIC=FIXED_SEED -DTHREADS=OFF
+
