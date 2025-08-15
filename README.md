@@ -55,7 +55,7 @@ git submodule init
 
 **Optional:**
 * Partitioning library - Either PT-Scotch or ParMETIS
-    * [PT-Scotch](https://www.labri.fr/perso/pelegrin/scotch/)*
+    * [PT-Scotch](https://gitlab.inria.fr/scotch/scotch)*
     * ParMETIS implemented in the libraries:
       * [GKlib](https://github.com/KarypisLab/GKlib)*
       * [METIS](https://github.com/KarypisLab/METIS)*
@@ -221,5 +221,5 @@ All other source code in this directory is provided by Mississippi
 State University as free software under the Lesser GNU General Public
 License version 3.  See the file [](COPYING.LESSER) for license terms.
 
-Ed Luke  (luke@cse.msstate.edu) | Professor (retired) of Computer Science and Engineering |
+Ed Luke  (luke@cse.msstate.edu) | Emeritus Professor of Computer Science and Engineering |
 Mississippi State University
