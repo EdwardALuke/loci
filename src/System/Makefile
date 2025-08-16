@@ -54,7 +54,7 @@ compile: $(TARGET)
 LIB_OBJS=$(OBJS:.o=_lo.o)
 libLoci.$(LIB_SUFFIX): $(LIB_OBJS) Loci_version.cc $(LOCI_BASE)/include/Config/version_details.h
 	$(CXX) $(PIC_FLAGS) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o Loci_version_lo.o -c Loci_version.cc
-	$(DYNAMIC_LD) $(DYNAMIC_LD_FLAGS) libLoci.$(LIB_SUFFIX) $(LIB_FLAGS) $(LIB_OBJS) Loci_version_lo.o $(PETSC_LIBS)
+	$(DYNAMIC_LD) $(DYNAMIC_LD_FLAGS) libLoci.$(LIB_SUFFIX) $(LIB_FLAGS) $(LIB_OBJS) Loci_version_lo.o $(BASE_LIBS)
 
 .PHONY: FORCE
 FORCE:
