@@ -79,7 +79,9 @@ typedef float metisreal_t ;
 typedef double metisreal_t ;
 #endif
 #endif
-
+#ifdef LOCI_USE_METIS
+void METISdummy() {int *ptr = 0; METIS_Free(ptr) ; }
+#endif
 #endif
 
 
