@@ -101,8 +101,10 @@ fi
 MPI_BASE=/notselected
 
 METIS_BASE=/notselected
+PARMETIS_BASE=/notselected
 METIS_LIBS=
 METIS_INCLUDE=
+USE_PARMETIS_BASE=0
 USE_METIS=0
 NO_SUB_DIR=0
 BOUNDS_CHECK=0
@@ -158,6 +160,7 @@ while [ $# -ne 0 ]; do
 	    METIS_BASE=""
 	    METIS_LIBS=""
 	    METIS_INCLUDE=""
+            PARMETIS_BASE=""
 	    INSTALL_METIS=0
 	    USE_METIS=0
 	    ;;
@@ -165,6 +168,7 @@ while [ $# -ne 0 ]; do
 	    METIS_BASE=""
 	    METIS_LIBS=""
 	    METIS_INCLUDE=""
+            PARMETIS_BASE=""
 	    INSTALL_METIS=0
 	    USE_METIS=0
 	    ;;
@@ -179,7 +183,31 @@ while [ $# -ne 0 ]; do
 	    METIS_BASE=${tmp#--with-metis\=}
 	    INSTALL_METIS=0
 	    USE_METIS=1
+            ;;
+	--with-parmetis)
+	    shift
+	    PARMETIS_BASE=$1
+	    INSTALL_METIS=0
+	    USE_METIS=1
 	    ;;
+	--with-parmetis\=*)
+	    tmp=$1
+	    PARMETIS_BASE=${tmp#--with-parmetis\=}
+	    INSTALL_METIS=0
+	    USE_METIS=1
+	    ;;
+	--with-scotch)
+	    shift
+	    METIS_BASE=$1
+	    INSTALL_METIS=0
+	    USE_METIS=1
+	    ;;
+	--with-scotch\=*)
+	    tmp=$1
+	    METIS_BASE=${tmp#--with-scotch\=}
+	    INSTALL_METIS=0
+	    USE_METIS=1
+            ;;
 	############################################################################
 	############################################################################
 	--hdf5-dir)
@@ -322,12 +350,18 @@ while [ $# -ne 0 ]; do
 	    echo "  --with-mpi <MPI directory>       : tell configure where to find MPI package."
 	    echo "  --nompi                          : tell configure to build without using MPI."
 	    echo "  --with-petsc <PETSc directory>   : tell configure where to find PETSc package."
-	    echo "  --with-metis <parMETIS dir>      : tell configure where to find alternative Parallel METIS package."
+	    echo "  --with-metis <METIS dir>         : tell configure where to find METIS package."
+	    echo "  --with-parmetis <parMETIS dir>   : tell configure where to find Parallel "
+            echo "                                     METIS package (if differnt from METIS)."
+            echo "  --with-scotch <scotch dir>       : tell configure where to find SCOTCH "
+            echo "                                     graph partitioner (alternative to METIS)"
 	    echo "  --no-metis                       : tell configure not to install or use metis."
 	    echo "  --compiler <compiler name>       : tell configure what compiler to use."
 	    echo "  --obj-dir <OBJDIR name>          : tell configure where to put object files."
-	    echo "  --no-sub-dir                     : tell configure to not add the build information after the prefix definition."
-	    echo "  --bounds-check                   : tell configure to add bounds checking to the compiler flags."
+	    echo "  --no-sub-dir                     : tell configure to not add the build "
+            echo "                                     information after the prefix definition."
+	    echo "  --bounds-check                   : tell configure to add bounds checking to "
+            echo "                                     the compiler flags."
 	    echo "  --help                           : output this help information."
 	    exit -1
 	    ;;
@@ -352,21 +386,27 @@ if [ "$METIS_BASE" == "/notselected" ] ; then
             INSTALL_METIS=1
             USE_METIS=1
             METIS_BASE="\$(LOCI_BASE)/ParMetis-4.0"
-            METIS_LIBS="-lparmetis -lmetis -lgk"
+            METIS_LIBS="-lparmetis -lmetis"
             METIS_INCLUDE="-I\$(METIS_BASE) -DLOCI_USE_METIS"
         else
             INSTALL_METIS=0
             # here we search for possible options on METIS_BASE
-            find_lib parmetis
+            find_lib metis
             if [ $RETURN_VALUE != 0 ]; then
                 USE_METIS=1
                 METIS_BASE=${RETURN_VALUE%/lib*}
+            fi
+            find_lib parmetis
+            if [ $RETURN_VALUE != 0 ]; then
+                USE_METIS=1
+                PARMETIS_BASE=${RETURN_VALUE%/lib*}
                 echo "Found ParMETIS, will use library: " ${RETURN_VALUE}
             fi
             find_lib scotch
             if [ $RETURN_VALUE != 0 ]; then
                 USE_METIS=1 ;
                 METIS_BASE=${RETURN_VALUE%/lib*}
+                PARMETIS_BASE=${RETURN_VALUE%/lib*}
                 echo "Found PTSCOTCH METIS Compatibility library: " ${RETURN_VALUE}
             fi
         fi
@@ -396,7 +436,7 @@ if [ $CHECK_METIS_CONFIG == 1 ] ; then
             USE_METIS=0
         else
             HAS_SCOTCH=0
-
+            METIS_LIBDIR=lib
             if [ -e $METIS_BASE/lib/libscotch.a ] ; then
                 HAS_SCOTCH=1
             fi
@@ -406,24 +446,38 @@ if [ $CHECK_METIS_CONFIG == 1 ] ; then
             if [ -e $METIS_BASE/lib/libscotch.dylib ] ; then
                 HAS_SCOTCH=1
             fi
+            if [ -e $METIS_BASE/lib64/libscotch.a ] ; then
+                HAS_SCOTCH=1
+                METIS_LIBDIR=lib64
+            fi
+            if [ -e $METIS_BASE/lib64/libscotch.so ] ; then
+                HAS_SCOTCH=1
+                METIS_LIBDIR=lib64
+            fi
+            if [ -e $METIS_BASE/lib64/libscotch.dylib ] ; then
+                HAS_SCOTCH=1
+                METIS_LIBDIR=lib64
+            fi
             if [ $HAS_SCOTCH == 1 ] ; then
                 USE_METIS=1
-                METIS_LIBS="-L\$(METIS_BASE)/lib \$(RPATH)\$(METIS_BASE)/lib -lscotch -lptscotch -lscotchmetisv5 -lptscotchparmetisv3 -lscotcherrexit"
+                METIS_LIBS="-L\$(METIS_BASE)/$METIS_LIBDIR \$(RPATH)\$(METIS_BASE)/$METIS_LIBDIR -lscotchmetisv5 -lptscotchparmetisv3 -lscotch -lptscotch -lscotcherrexit"
                 METIS_INCLUDE="-I\$(METIS_BASE)/include -DLOCI_USE_METIS -DUSE_SCOTCH"
             else
                 USE_METIS=1
-                GKLIB=""
-                if [ -f ${METIS_BASE}/lib/libgk.so ] ; then
-                    GKLIB="-lgk"
+
+                if [ $PARMETIS_BASE == "/notselected" ] ; then
+                    PARMETIS_BASE=$METIS_BASE
                 fi
-                if [ -f ${METIS_BASE}/lib/libgk.a ] ; then
-                    GKLIB="-lgk"
+                echo METIS_BASE=$METIS_BASE PARMETIS_BASE=$PARMETIS_BASE
+                if [ $METIS_BASE == $PARMETIS_BASE ] ; then 
+                    METIS_LIBS="-L\$(METIS_BASE)/lib \$(RPATH)\$(METIS_BASE)/lib -lparmetis -lmetis "
+                    METIS_INCLUDE="-I\$(METIS_BASE)/include -DLOCI_USE_METIS"
+                else
+                    METIS_LIBS="-L\$(PARMETIS_BASE)/lib \$(RPATH)\$(PARMETIS_BASE)/lib -lparmetis -L\$(METIS_BASE)/lib \$(RPATH)\$(METIS_BASE)/lib -lmetis "
+                    METIS_INCLUDE="-I\$(METIS_BASE)/include -I\$(PARMETIS_BASE)/include -DLOCI_USE_METIS"
+                    USE_PARMETIS_BASE=1
                 fi
-                if [ -f ${METIS_BASE}/lib/libgk.dylib ] ; then
-                    GKLIB="-lgk"
-                fi
-                METIS_LIBS="-L\$(METIS_BASE)/lib -lparmetis -lmetis $GKLIB"
-                METIS_INCLUDE="-I\$(METIS_BASE)/include -DLOCI_USE_METIS"
+                    
             fi
         fi
     fi
@@ -664,6 +718,9 @@ echo >> sys.conf
 echo \# METIS Library Setup >> sys.conf
 echo INSTALL_METIS=$INSTALL_METIS >> sys.conf
 echo METIS_BASE= $METIS_BASE >> sys.conf
+if [ $USE_PARMETIS_BASE == 1 ] ; then
+    echo PARMETIS_BASE= $PARMETIS_BASE >> sys.conf
+fi
 echo METIS_LIBS= $METIS_LIBS >> sys.conf
 echo METIS_INCLUDE= $METIS_INCLUDE >> sys.conf
 
