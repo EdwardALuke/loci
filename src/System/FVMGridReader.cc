@@ -73,15 +73,19 @@ void scotch_dummy() {
 }
 
 #else
+
 #if REALTYPEWIDTH == 32
 typedef float metisreal_t ;
 #else
 typedef double metisreal_t ;
 #endif
-#endif
+
 #ifdef LOCI_USE_METIS
 void METISdummy() {int *ptr = 0; METIS_Free(ptr) ; }
 #endif
+
+#endif
+
 #endif
 
 
