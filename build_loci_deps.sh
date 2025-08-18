@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
-# build_deps_aligned.sh
+
 # Build Loci third‑party deps from ext/ and emit a helpful ./configure line.
 # This builds all the necessary dependencies for Loci, and gives the user the option
 # to either build using Scotch or ParMETIS.
 #
 # Mirrors Loci's configure options: --with-metis, --with-parmetis, --with-scotch.
-#
-# Usage examples:
-#   ./build_deps_aligned.sh   # Builds all default dependencies(Scotch instead of ParMETIS)
-#   ./build_deps_aligned.sh --with-parmetis --with-metis --jobs 8
-#   ./build_deps_aligned.sh --with-scotch
 #
 # Notes:
 # - If --with-parmetis is set, METIS and GKlib will also be built.
@@ -23,11 +18,12 @@ deps="hdf5,cgns,scotch,petsc" # default dependencies
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" # script root directory
 ext="$root/ext" # external dependencies directory
 jobs=$(command -v nproc >/dev/null 2>&1 && nproc || echo 4) # default parallel jobs
-clean=0 # For removing build/install directories and starting fresh
+clean=0 # for removing build/install directories and starting fresh
 clean_ext=0 # for cleaning out the git submodule directories completely (repos themselves)
 with_scotch=1
 with_metis=0
 with_parmetis=0
+prefix="" # installation prefix
 
 # --- helpers ---
 say() { echo -e "\033[1;34m[build-deps]\033[0m $*"; }
@@ -59,58 +55,81 @@ ensure_submodule() {
 
 print_help() {
   cat <<EOF
-Usage: $(basename "$0") [--deps <list>|all] [--jobs N] [-h|--help]
+Usage: $(basename "$0") [options]
 
 Builds Loci's external dependencies from submodules.
-Dependencies are built in ext/<dep>_build and installed to ext/<dep>_install.
+Dependencies are built in ext/<dep>_build and installed to <prefix>/<dep>_install.
 
 Options:
+  --prefix        Path where all dependencies will be installed (default: ext/)
   --with-metis    Build with METIS support
   --with-parmetis Build with ParMETIS support
   --with-scotch   Build with Scotch support
   --jobs N        Number of parallel build jobs (default: nproc or 4)
-  --clean         Remove ext/<dep>_build and ext/<dep>_install (fresh build)
-  --clean-ext     ***DESTRUCTIVE*** Wipe ALL ext/*_build and *_install, deinit all
+  --clean         Remove <dep>_build and <dep>_install directories (fresh builds)
+  --clean-ext     ***DESTRUCTIVE*** Wipe ALL ext/*_build, deinit all
                   submodules under ext/, and remove their working trees.
   -h, --help      Show this help and exit
 
 Examples:
   $(basename "$0")   # Builds all default dependencies(Scotch instead of ParMETIS)
-  $(basename "$0") --with-parmetis --with-metis --jobs 8 # Build with ParMETIS and METIS support, using 8 jobs
+  $(basename "$0") --with-parmetis --jobs 8 # Build with ParMETIS and METIS support, using 8 jobs
   $(basename "$0") --with-scotch # Build with Scotch support
 
 EOF
 }
 
 
-# Deep clean of ext/: wipe *_build, *_install, and submodule working trees
+# Deep clean of ext/: wipe *_build, *_install, and leave ext/* as empty dirs (pre-init state)
 deep_clean_ext() {
-  say "==== Cleaning ext/ (builds, installs, and submodule working trees) ===="
-  mkdir -p "$ext"
+  say "==== Cleaning ext/ (builds, installs, and submodule trees) ===="
 
-  # 1) Remove top-level build/install dirs under ext/
-  say "Removing *_build and *_install under $ext"
-  find "$ext" -maxdepth 1 -type d \( -name '*_build' -o -name '*_install' \) -print -exec rm -rf {} +
+  # 1) Remove build/install dirs
+  say "Removing *_build from $ext and *_install from $prefix"
+  [[ -d "$ext"    ]] && find "$ext"    -maxdepth 1 -type d -name '*_build'   -print -exec rm -rf {} +
+  [[ -d "$prefix" ]] && find "$prefix" -maxdepth 1 -type d -name '*_install' -print -exec rm -rf {} +
 
-  # 2) Deinitialize submodules so we can safely remove their working trees
+  # 2) Deinitialize submodules under ext/, but only if registered; then ensure empty dirs
   if git -C "$root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    say "Deinitializing submodules under ext/"
-    (cd "$root" && git submodule deinit -f -- ext/* 2>/dev/null || true)
+    say "Deinitializing submodules under ext/ (conditionally)"
+    # enumerate submodule paths under ext/ from .gitmodules
+    mapfile -t SUBS < <(git -C "$root" config --file "$root/.gitmodules" \
+                         --get-regexp '^submodule\..*\.path$' \
+                       | awk '{print $2}' | grep '^ext/')
 
-    # 3) Remove submodule working trees (but keep submodule entries tracked)
-    say "Removing submodule working trees in ext/"
-    for d in "$ext"/*; do
-      [[ -d "$d" ]] && rm -rf "$d"
+    gitdir="$(git -C "$root" rev-parse --git-dir)"
+
+    for path in "${SUBS[@]}"; do
+      # derive the submodule "name" used in .git/config from .gitmodules
+      name="$(git -C "$root" config --file "$root/.gitmodules" \
+               --get-regexp "^submodule\\..*\\.path$" \
+             | awk -v p="$path" '$2==p{print $1}' \
+             | sed -E 's/^submodule\.|\.[^.]+$//g')"
+
+      # is this submodule registered in .git/config?
+      if git -C "$root" config --get "submodule.$name.url" >/dev/null 2>&1; then
+        # if the per-module config exists, deinit; otherwise it was never initialized—skip
+        if [[ -d "$gitdir/modules/$path" ]] || [[ -d "$gitdir/modules/${path#ext/}" ]]; then
+          git -C "$root" submodule deinit -f --quiet -- "$path" || true
+        fi
+      fi
+
+      # Ensure the directory exists, then empty it (including dotfiles) without removing the dir
+      mkdir -p "$root/$path"
+      find "$root/$path" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} + 2>/dev/null || true
+
+      say "  - cleaned $path"
     done
 
-    # 4) Drop cached submodule metadata for ext/ to avoid stale warnings
-    gitdir="$(cd "$root" && git rev-parse --git-dir)"
-    rm -rf "${gitdir}/modules/ext" 2>/dev/null || true
+    # Optional: prune any leftover cached module clones under .git/modules/ext
+    rm -rf "$gitdir/modules/ext" 2>/dev/null || true
   else
     warn "Not a git repo; skipped submodule deinit. Only wiped *_build/_install."
   fi
+
   say "ext/ cleanup complete."
 }
+
 
 
 # ---------- HDF5 ----------
@@ -119,7 +138,7 @@ build_hdf5() {
   say "==== HDF5 ===="
   local src="$ext/hdf5"
   local bld="$ext/hdf5_build"
-  local inst="$ext/hdf5_install"
+  local inst="$prefix/hdf5_install"
   (( clean )) && rm -rf "$bld" "$inst"; mkdir -p "$bld" "$inst"
 
   run_cmd cmake -S "$src" -B "$bld" \
@@ -140,8 +159,8 @@ build_cgns() {
 
   local src="$ext/cgns"
   local bld="$ext/cgns_build"
-  local inst="$ext/cgns_install"
-  local h5="$ext/hdf5_install"
+  local inst="$prefix/cgns_install"
+  local h5="$prefix/hdf5_install"
 
   [[ -d "$h5" ]] || die "CGNS needs HDF5. Build HDF5 first (not found: $h5)."
   (( clean )) && rm -rf "$bld" "$inst"; mkdir -p "$bld" "$inst"
@@ -173,7 +192,7 @@ build_scotch() {
 
   local src="$ext/scotch"
   local bld="$ext/scotch_build"
-  local inst="$ext/scotch_install"
+  local inst="$prefix/scotch_install"
   (( clean )) && rm -rf "$bld" "$inst"; mkdir -p "$bld" "$inst"
 
   # Configure: PT-Scotch ON, shared libs, use MPI wrappers
@@ -199,7 +218,7 @@ build_petsc() {
   say "==== PETSc ===="
 
   local src="$ext/petsc"            # PETSC_DIR (source)
-  local inst="$ext/petsc_install"   # install prefix OUTSIDE submodule
+  local inst="$prefix/petsc_install"   # install prefix OUTSIDE submodule
   (( clean )) && rm -rf "$inst"; mkdir -p "$inst"
   (
     cd "$src"
@@ -216,7 +235,7 @@ build_gklib() {
 
   local src="$ext/GKlib"
   local bld="$ext/GKlib_build"
-  local inst="$ext/GKlib_install"
+  local inst="$prefix/GKlib_install"
   (( clean )) && rm -rf "$bld" "$inst"; mkdir -p "$bld" "$inst"
 
   run_cmd cmake -S "$src" -B "$bld" \
@@ -238,7 +257,7 @@ build_metis() {
 
   local src="$ext/METIS"
   local bld="$src/build"
-  local inst="$ext/METIS_install"
+  local inst="$prefix/METIS_install"
   (( clean )) && rm -rf "$bld" "$inst"; mkdir -p "$bld" "$inst"
 
   (
@@ -259,22 +278,22 @@ build_parmetis() {
   need mpicc
   need mpicxx
 
-  local metis_inst="$ext/METIS_install"
-  local gklib_inst="$ext/GKlib_install"
+  local metis_inst="$prefix/METIS_install"
+  local gklib_inst="$prefix/GKlib_install"
   [[ -d "$metis_inst" ]] || die "ParMETIS: METIS not installed at $metis_inst"
   [[ -d "$gklib_inst" ]] || die "ParMETIS: GKlib not installed at $gklib_inst"
 
   local src="$ext/ParMETIS"
   local bld="$ext/ParMETIS_build"
-  local inst="$ext/ParMETIS_install"
+  local inst="$prefix/ParMETIS_install"
   (( clean )) && rm -rf "$bld" "$inst"; mkdir -p "$bld" "$inst"
 
   run_cmd cmake -S "$src" -B "$bld" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_INSTALL_PREFIX="$inst" \
     -DSHARED=ON \
-    -DMETIS_PATH="$ext/METIS_install" \
-    -DGKLIB_PATH="$ext/GKlib_install" \
+    -DMETIS_PATH="$metis_inst" \
+    -DGKLIB_PATH="$gklib_inst" \
     -DCMAKE_C_COMPILER=mpicc \
     -DCMAKE_CXX_COMPILER=mpicxx \
     -DCMAKE_INSTALL_RPATH="$metis_inst/lib:$gklib_inst/lib"
@@ -288,10 +307,12 @@ build_parmetis() {
 # Parse command line args
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --prefix)
+      prefix="$(abspath "$2")"; shift 2 ;;
     --with-scotch)
       with_scotch=1; shift ;;
     --with-metis)
-      with_metis=1; with_scotch=0;shift ;;
+      with_metis=1; with_scotch=0; shift ;;
     --with-parmetis)
       with_parmetis=1; with_metis=1; with_scotch=0; shift ;;
     --jobs)
@@ -309,6 +330,10 @@ while [[ $# -gt 0 ]]; do
       exit 2 ;;
   esac
 done
+
+if [[ -z "$prefix" ]]; then
+  prefix="$ext"   # default ext/ folder
+fi
 
 if (( clean_ext )); then
   say "Cleaning external dependencies..."
@@ -343,21 +368,21 @@ for d in ${deps//,/ }; do
   esac
 done
 
-echo
-say "Done. Installs are under ext/<dep>_install."
+
 
 # Build absolute install paths for deps actually requested
-cfg_prefix="$(abspath "$root/install")"
+cfg_prefix="$(abspath "$root/loci_install")"
 
 h5_inst="";  cgns_inst="";  petsc_inst="";  scotch_inst=""; metis_inst=""; parmetis_inst=""
-if has_dep hdf5     && [[ -d "$ext/hdf5_install"     ]]; then h5_inst="$(abspath "$ext/hdf5_install")"; fi
-if has_dep cgns     && [[ -d "$ext/cgns_install"     ]]; then cgns_inst="$(abspath "$ext/cgns_install")"; fi
-if has_dep petsc    && [[ -d "$ext/petsc_install"    ]]; then petsc_inst="$(abspath "$ext/petsc_install")"; fi
-if has_dep scotch   && [[ -d "$ext/scotch_install"   ]]; then scotch_inst="$(abspath "$ext/scotch_install")"; fi
-if has_dep metis    && [[ -d "$ext/METIS_install"    ]]; then metis_inst="$(abspath "$ext/METIS_install")"; fi
-if has_dep parmetis && [[ -d "$ext/ParMETIS_install" ]]; then parmetis_inst="$(abspath "$ext/ParMETIS_install")"; fi
+if has_dep hdf5     && [[ -d "$prefix/hdf5_install"     ]]; then h5_inst="$(abspath "$prefix/hdf5_install")"; fi
+if has_dep cgns     && [[ -d "$prefix/cgns_install"     ]]; then cgns_inst="$(abspath "$prefix/cgns_install")"; fi
+if has_dep petsc    && [[ -d "$prefix/petsc_install"    ]]; then petsc_inst="$(abspath "$prefix/petsc_install")"; fi
+if has_dep scotch   && [[ -d "$prefix/scotch_install"   ]]; then scotch_inst="$(abspath "$prefix/scotch_install")"; fi
+if has_dep metis    && [[ -d "$prefix/METIS_install"    ]]; then metis_inst="$(abspath "$prefix/METIS_install")"; fi
+if has_dep parmetis && [[ -d "$prefix/ParMETIS_install" ]]; then parmetis_inst="$(abspath "$prefix/ParMETIS_install")"; fi
 
-echo "Install locations:"
+echo
+say "Done. Install locations:"
 [[ -n "$h5_inst"     ]] && echo "  HDF5   : $h5_inst"
 [[ -n "$cgns_inst"   ]] && echo "  CGNS   : $cgns_inst"
 [[ -n "$petsc_inst"  ]] && echo "  PETSc  : $petsc_inst"
