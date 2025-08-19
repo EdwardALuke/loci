@@ -2345,7 +2345,6 @@ void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
     // get full stencil
     multiMap cellStencil;
     get_full_cellStencil(cellStencil,facts) ;
-    facts.create_fact("cellStencil",cellStencil) ;
     
     entitySet cells = cellStencil.domain() ;
     multiMap upper,lower,boundary_map ;
@@ -2437,7 +2436,7 @@ void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
           }
           if(nid==-1)
             {
-              cerr <<"symmF stencil error: could not find neighbor in cellStencil list\n\n" << endl;              
+              cerr <<"symm stencil error: could not find neighbor in cellStencil list\n\n" << endl;              
               Loci::Abort();
             }
           flags[nid]   = 1;
@@ -2582,7 +2581,6 @@ void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
     // get full stencil
     multiMap cellStencil;
     get_full_cellStencil(cellStencil,facts) ;
-    facts.create_fact("cellStencil",cellStencil) ;
     
     entitySet cells = cellStencil.domain() ;
     multiMap upper,lower,boundary_map ;
@@ -2930,7 +2928,6 @@ void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
     // get full stencil
     multiMap cellStencil;
     get_full_cellStencil(cellStencil,facts) ;
-    facts.create_fact("cellStencil",cellStencil) ;
     
     entitySet cells = cellStencil.domain() ;
     multiMap upper,lower,boundary_map ;
