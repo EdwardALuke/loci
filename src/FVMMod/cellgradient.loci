@@ -65,7 +65,8 @@ namespace Loci {
     if($gradStencil == "standard") {
       $stencilStandard = $*gradStencil.domain() ;
     } else if($gradStencil == "full" || $gradStencil == "stable"||
-              $gradStencil == "symm" || $gradStencil == "symmC") {
+              $gradStencil == "symm" || $gradStencil == "symmF" ||
+              $gradStencil == "symmC") {
       $useCellStencil = $*gradStencil.domain() ;
     } else if($gradStencil == "green") {
       $greensGradient = $*gradStencil.domain() ;
