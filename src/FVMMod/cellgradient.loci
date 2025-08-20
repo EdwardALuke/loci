@@ -24,7 +24,6 @@ $include "FVM.lh"
 namespace Loci {
 
   $type gradStencilBias param<std::string>;
-  $type stencil_bias    store<real_t>;
   $rule default(gradStencilBias),
     comments("Select the biased stencil weights. Requires a cell-based stencil_bias variable. Default is 'off'. ")
   {
