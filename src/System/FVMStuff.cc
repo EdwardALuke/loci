@@ -47,7 +47,6 @@ using std::cout ;
 
 namespace Loci{
   extern int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm) ;
-  void test_stencils(fact_db & facts);
   extern  bool useDomainKeySpaces  ;
   
   //map from local numbering to input file numbering
@@ -2159,7 +2158,7 @@ namespace Loci{
     }
   }
   
-void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
+  void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
     using std::vector ;
 
     // get full stencil
