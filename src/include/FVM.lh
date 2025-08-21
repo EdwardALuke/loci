@@ -212,4 +212,4 @@ $type axisymmetricCoordinateModel Constraint ;
     gradStencilBias: on
     will result in an incomplete schedule.
 */
-$type stencil_bias store<real_t>;
+$type stencil_bias store<Loci::real_t>;
