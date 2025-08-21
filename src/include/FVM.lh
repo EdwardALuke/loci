@@ -203,3 +203,13 @@ $type cartesianCoordinateModel Constraint ;
 /** Tell grid metrics that grid represents a 2-D axisymmetric region */
 $type axisymmetricCoordinateModel Constraint ;
 
+/** cell-based scalar quantity used in the adaptive gradient stencil 
+    selection. It can be a volume-fraction, pressure, or any other
+    field of interest, and it is used to adapt the stencil of 
+    full,stable,symm,symmF,symmC methods around large 
+    "stencil_bias" jumps. This variable must
+    be provided by the simulation tool, otherwise setting
+    gradStencilBias: on
+    will result in an incomplete schedule.
+*/
+$type stencil_bias store<Loci::real_t>;
