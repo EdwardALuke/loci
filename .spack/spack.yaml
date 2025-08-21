@@ -1,0 +1,51 @@
+spack:
+  include:
+  - toolchains.yaml
+
+  definitions:
+  - compilers: [gcc_all, llvm_gfortran]
+  - mpis: [mpich, mvapich2, openmpi]
+
+  view: false
+  specs:
+  - autoconf
+  - automake
+  - git
+  - cmake
+  - matrix:
+    - [$mpis]
+    - [$%compilers]
+  - matrix:
+    - - metis
+    - [$%compilers]
+  - matrix:
+    - - cgns
+      - hdf5 +cxx +fortran +mpi
+      - parmetis
+      - petsc@3.23.3 ~superlu-dist
+      - petsc@3.23.3 ~superlu-dist +ptscotch ~metis
+      - scotch+metis~threads
+    - [$^mpis]
+    - [$%compilers]
+  concretizer:
+    unify: false
+
+  config:
+    install_tree:
+      root: /opt/spack
+      padded_length: 128
+  mirrors:
+    local-buildcache:
+      url: oci://ghcr.io/EdwardALuke/spack-buildcache
+      signed: false
+      access_pair:
+        id_variable: GITHUB_USER
+        secret_variable: GITHUB_TOKEN
+
+  packages:
+    gcc:
+      externals: []
+    llvm:
+      externals: []
+    all:
+      require: target=x86_64_v3
