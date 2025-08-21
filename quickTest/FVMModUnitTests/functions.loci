@@ -26,6 +26,7 @@ $include "FVM.lh"
 namespace flowPsi {
   /// Test Gradients
   vect3d directions[] = {
+    { 0., 0., 0.},
     { 1., 0., 0.},
     { 0., 1., 0.},
     { 0., 0., 1.},
@@ -83,6 +84,11 @@ namespace flowPsi {
   $rule singleton(baseGradS<-iterNum,numTests) {
     $baseGradS = directions[$iterNum%$numTests] ;
   }
+
+  $rule pointwise(stencil_bias<-iterNum,numTests,cellcenter) {
+    $stencil_bias = dot(directions[($iterNum*13)%$numTests],$cellcenter) ;
+  }
+  
   /// Extract target 3-D vector gradient from directions array with wraparound
   $rule singleton(baseGradV3d<-iterNum,numTests) {
     $baseGradV3d.x = directions[($iterNum+0)%$numTests] ;

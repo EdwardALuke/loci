@@ -23,6 +23,28 @@ $include "FVM.lh"
 
 namespace Loci {
 
+  $type gradStencilBias param<std::string>;
+  $rule default(gradStencilBias),
+    comments("Select the biased stencil weights. Requires a cell-based stencil_bias variable. Default is 'off'. ")
+  {
+    $gradStencilBias = "off" ;
+  }
+
+  $type stencilBias Constraint ;
+  $type stencilDirect Constraint ;
+  $rule constraint(stencilDirect,stencilBias<-gradStencilBias) {
+    $stencilDirect = EMPTY ;
+    $stencilBias = EMPTY;
+    if($gradStencilBias == "off") {
+      $stencilDirect = $*gradStencilBias.domain() ;
+    } else if($gradStencilBias == "on") {
+      $stencilBias = $*gradStencilBias.domain() ;
+    }else {
+      cerr << "gradStencilBias " << $gradStencilBias << " of unknown type" << endl ;
+      Loci::Abort() ;
+    }
+  }
+
   $type gradStencil param<std::string> ;
   
   $rule default(gradStencil),
@@ -34,14 +56,16 @@ namespace Loci {
   $type stencilStandard Constraint ;
   $type useCellStencil Constraint ;
   $type greensGradient Constraint ;
- 
+
   $rule constraint(stencilStandard,useCellStencil,greensGradient<-gradStencil) {
     $stencilStandard = EMPTY ;
     $useCellStencil = EMPTY ;
     $greensGradient = EMPTY ;
     if($gradStencil == "standard") {
       $stencilStandard = $*gradStencil.domain() ;
-    } else if($gradStencil == "full" || $gradStencil == "stable") {
+    } else if($gradStencil == "full" || $gradStencil == "stable"||
+              $gradStencil == "symm" || $gradStencil == "symmF" ||
+              $gradStencil == "symmC") {
       $useCellStencil = $*gradStencil.domain() ;
     } else if($gradStencil == "green") {
       $greensGradient = $*gradStencil.domain() ;
@@ -584,7 +608,9 @@ namespace Loci {
   $rule pointwise(LSWeights,LSBWeights<-
 		  (lower,upper,boundary_map)->(facecenter),
 		  cellcenter,cellStencil->cellcenter,
-		  boundary_map->facecenter), option(disable_threading),
+		  boundary_map->facecenter),
+            option(disable_threading),
+            constraint(cellcenter,stencilDirect),
   prelude {
     $LSWeights.setSizes($cellStencil) ;
     $LSBWeights.setSizes($boundary_map) ;
@@ -716,6 +742,123 @@ namespace Loci {
       $LSWeights[i] = wvec[ncount++] ;
     for(int i=0;i<nbcs;++i)
       $LSBWeights[i] = wvec[ncount++] ;
+  }
+
+  // MPGCOMMENT 08-11-2025 ---> stencil_bias must be set by the simulation tool
+  $rule pointwise(LSWeights,LSBWeights<-
+                  (lower,upper,boundary_map)->(facecenter),
+		  cellcenter,cellStencil->(cellcenter,stencil_bias),
+		  boundary_map->facecenter,
+                  lower->cl,upper->cr,stencil_bias),
+            option(disable_threading),
+      constraint(cellcenter,stencilBias),
+  prelude {
+    $LSWeights.setSizes($cellStencil) ;
+    $LSBWeights.setSizes($boundary_map) ;
+  } compute {
+    int nstencil = $cellStencil.size() ;
+    int nbcs =     $boundary_map.size() ;
+    int ndeltas = nstencil+nbcs ;
+
+    tmp_array<vector3d<real_t> > deltas(ndeltas) ;
+    tmp_array<vector3d<real_t> > weights(ndeltas) ;
+    tmp_array<real_t> areas(ndeltas) ;
+    const vector3d<real_t> center = $cellcenter ;
+    int ncount = 0 ;
+    for(int i=0;i<nstencil;++i) {
+      vector3d<real_t> diff = $cellStencil[i]->$cellcenter-center ;
+      real_t rr = 1./norm(diff) ;
+      areas[ncount] = rr ;
+      deltas[ncount++] = rr*diff ;
+    }
+
+    for(int i=0;i<nbcs;++i) {
+      vector3d<real_t> diff = $boundary_map[i]->$facecenter-center ;
+      real_t rr = 1./norm(diff) ;
+      areas[ncount] = rr ;
+      deltas[ncount++] = rr*diff ;
+    }
+    tmp_array<vector3d<real_t> > wvec(ndeltas) ;
+    tmp_array<real_t> wcent(ndeltas) ;
+
+    // adaptive stencil smoothness, based on stencil_bias variable
+    tmp_array<real_t> betaj(ndeltas);
+    tmp_array<real_t> alphaj(ndeltas);
+    for(int i=0;i<ndeltas;++i)
+      wcent[i] = 0.0;
+    for(int i=0;i<nstencil;++i) {
+      real_t diff = $cellStencil[i]->$stencil_bias-$stencil_bias;
+      real_t beta = diff*diff;
+      betaj[i] = beta;
+    }
+
+    real_t beta_sum = 0.;
+    for(int i=0;i<nstencil;++i)
+      {
+        const real_t beta = betaj[i]+1e-6;
+        betaj[i] = 1./(beta*beta);
+        beta_sum += betaj[i];
+      }
+
+    real_t max_weight = -1.0;
+    for(int i=0;i<nstencil;++i)
+      {
+        betaj[i] = betaj[i]/beta_sum;
+        max_weight = max<real_t>(betaj[i],max_weight);
+      }
+
+    for(int i=0;i<nstencil;++i)
+      {
+        if(betaj[i]/max_weight<1e-4)
+          {
+            wcent[i] = 0.;
+          }else
+          {
+            wcent[i] = 1.;
+          }
+      }
+
+    const int lsz = $lower.size();
+    for(int i=0; i<lsz; i++)
+      {
+        for(int j=0; j<nstencil; j++)
+          {
+            if($lower[i]->$cl==$cellStencil[j])
+              {
+                wcent[j] = 1.;
+                break;
+              }
+          }
+      }
+
+    const int usz = $upper.size();
+    for(int i=0; i<usz; i++)
+      {
+        for(int j=0; j<nstencil; j++)
+          {
+            if($upper[i]->$cr==$cellStencil[j])
+              {
+                wcent[j] = 1.;
+                break;
+              }
+          }
+      }
+
+    for(int i=0;i<nbcs;i++)
+      wcent[nstencil+i] = 1.0;
+
+    for(int i=0;i<ndeltas;++i) {
+      areas[i] *= wcent[i];
+      deltas[i] *= wcent[i];
+    }
+
+    computeWeights(wvec,deltas,areas,ndeltas);
+
+    ncount = 0;
+    for(int i=0;i<nstencil;++i)
+      $LSWeights[i] = wvec[ncount++];
+    for(int i=0;i<nbcs;++i)
+      $LSBWeights[i] = wvec[ncount++];
   }
 
   $untype X ;
