@@ -68,12 +68,22 @@ using std::istringstream ;
 
 #ifdef USE_SCOTCH
 typedef float metisreal_t ;
+void scotch_dummy() {
+  SCOTCH_errorPrint("err") ;
+}
+
 #else
+
 #if REALTYPEWIDTH == 32
 typedef float metisreal_t ;
 #else
 typedef double metisreal_t ;
 #endif
+
+#ifdef LOCI_USE_METIS
+void METISdummy() {int *ptr = 0; METIS_Free(ptr) ; }
+#endif
+
 #endif
 
 #endif

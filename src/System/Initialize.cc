@@ -99,6 +99,10 @@ using std::bad_alloc ;
 #include <papi.h>
 #endif
 
+#ifdef USE_SCOTCH
+#include <scotch.h>
+#endif
+
 using std::cout ;
 using std::cerr ;
 using std::endl ;
@@ -498,6 +502,13 @@ namespace Loci {
 
     MPI_Comm_size(MPI_COMM_WORLD, &MPI_processes) ;
     MPI_Comm_rank(MPI_COMM_WORLD, &MPI_rank) ;
+
+#ifdef USE_SCOTCH
+    // Reset the random number seed so we can have consistent
+    // partitions between runs
+
+    SCOTCH_randomReset() ;
+#endif
 
     int sprng_seed = 985456376 ;
     int sprng_gtype = SPRNG_LFG ; // sprng generator type

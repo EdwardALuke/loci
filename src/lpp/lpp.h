@@ -150,6 +150,7 @@ class parseFile {
   void setup_Rule(std::ostream &outputFile,const std::string &comment) ;
   void setup_cudaRule(std::ostream &outputFile,const std::string &comment) ;
 
+  void skip_lpp_conditional(std::ostream &outputFile) ;
   void setup_Test(std::ostream &outputFile) ;
 public:
   parseFile() {
@@ -180,5 +181,11 @@ public:
 } ;
 
 extern std::list<std::string> include_dirs ;
+
+void setSystemVar(const std::string &var, const std::string &val) ;
+bool checkSystemVar(const std::string &var) ;
+std::string getSystemVar(const std::string &var) ;
+void evalSystemVars(std::map<std::string,int> &varmap) ;
+
 
 #endif

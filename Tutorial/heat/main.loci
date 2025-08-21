@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
   Loci::Init(&argc,&argv) ;
 
   // Setup exceptions so program aborts on floating point exceptions
-  set_fpe_abort() ;
+  bool setup_fpe_abort = false ;
 
   // query for this variable by default
   std::string query = "solution" ;
@@ -21,12 +21,22 @@ int main(int argc, char *argv[])
   for (int i=1; i<argc; i++) {
     if (!strcmp(argv[i], "-q") && (i+1) < argc) {
       query = argv[i+1];
+      // Remove parsed argument from command line
       for (int j=0; j<argc-i-2; j++) {
 	argv[i+j] = argv[i+j+2];
       }
       argc -= 2;
       i--;
-    } if(argv[i][0] == '-') {
+    } else if(!strcmp(argv[i], "--fpe")) {
+      // Remove parsed argument from command line
+      for (int j=0; j<argc-i-1; j++) {
+	argv[i+j] = argv[i+j+1];
+      }
+      argc-- ;
+      i-- ;
+      // Turn on fpe exception handling option
+      setup_fpe_abort = true ;
+    }else if(argv[i][0] == '-') {
       std::cerr << "argument " << argv[i] << " is not understood."
 		<< std::endl;
     }
@@ -80,7 +90,10 @@ int main(int argc, char *argv[])
     setupBoundaryConditions(facts) ;
     
     createLowerUpper(facts) ;
-    
+
+    // If fpe exceptions active, turn them on.
+    if(setup_fpe_abort)
+      set_fpe_abort() ;
     // Query Loci for fact derived fact 'solution'
     Loci::makeQuery(rdb,facts,query) ;
   }
