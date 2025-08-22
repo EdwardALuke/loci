@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    # Build on tags that look like releases
+    tags:
+      - v*
+  pull_request:
+    # Build when a pull request targets the dev branch
+    branches:
+      - dev
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Many color libraries just need this variable to be set to any value.
+  # Set it to 3 to support 8-bit color graphics (256 colors per channel)
+  # for libraries that care about the value set.
+  FORCE_COLOR: 3
+
+jobs:
+  build-loci:
+    name: Build Loci on ${{ matrix.runs-on }}
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: true
+      matrix:
+        runs-on: [ubuntu-24.04] #, macos-14]
+        partitioner: [space-filling, scotch, parmetis]
+        compiler: [gcc_all, llvm_gfortran]
+        mpi: [mpich, openmpi] # mvapich2,
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Spack
+      uses: spack/setup-spack@v2
+      with:
+        ref: develop      # Spack version (examples: develop, releases/v0.23)
+        color: true       # Force color output (SPACK_COLOR=always)
+        path: spack       # Where to clone Spack
+
+    - name: Set up loci_spack repo
+      shell: spack-bash {0}
+      run: |
+        export SPACK_USER_CONFIG_PATH=".spack"
+        spack repo update
+
+    - name: Find built-in compilers
+      run: spack compiler find
+
+    - name: Set up Spack environment
+      shell: spack-bash {0}
+      run: |
+        spack env create loci_build
+        spack env activate -p loci_build
+        spack develop --no-clone --path=. loci \
+          +hdf5 +petsc +cgns partitioner=${{ matrix.partitioner }} \
+          %${{ matrix.compiler }} ^${{ matrix.mpi }} %${{ matrix.compiler }}
+        spack concretize
+
+    - name: Compile and install Loci
+      shell: spack-bash {0}
+      run: spack install
+
+    - name: Run quickTest
+      run: make test
