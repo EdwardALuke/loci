@@ -1,6 +1,7 @@
 spack:
   include:
   - toolchains.yaml
+  - mirrors.yaml
 
   definitions:
   - compilers: [gcc_all, llvm_gfortran]
@@ -33,13 +34,6 @@ spack:
     install_tree:
       root: .spack/spack_root
       padded_length: 128
-  mirrors:
-    local-buildcache:
-      url: oci://ghcr.io/EdwardALuke/spack-buildcache
-      signed: false
-      access_pair:
-        id_variable: GITHUB_USER
-        secret_variable: GITHUB_TOKEN
 
   packages:
     gcc:
