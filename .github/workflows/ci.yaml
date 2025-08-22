@@ -31,6 +31,8 @@ jobs:
         partitioner: [space-filling, scotch, parmetis]
         compiler: [gcc_all, llvm_gfortran]
         mpi: [mpich, openmpi] # mvapich2,
+    env:
+      SPACK_USER_CONFIG_PATH: ".spack"
 
     steps:
     - name: Checkout
@@ -47,9 +49,7 @@ jobs:
 
     - name: Set up loci_spack repo
       shell: spack-bash {0}
-      run: |
-        export SPACK_USER_CONFIG_PATH=".spack"
-        spack repo update
+      run: spack repo update
 
     - name: Find built-in compilers
       run: spack compiler find
@@ -59,7 +59,7 @@ jobs:
       run: |
         spack env create loci_build
         spack env activate -p loci_build
-        spack develop --no-clone --path=. loci \
+        spack develop --no-clone --path=$(pwd) loci \
           +hdf5 +petsc +cgns partitioner=${{ matrix.partitioner }} \
           %${{ matrix.compiler }} ^${{ matrix.mpi }} %${{ matrix.compiler }}
         spack concretize
