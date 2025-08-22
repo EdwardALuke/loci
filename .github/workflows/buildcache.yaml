@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-24.04, macos-14]
+        runs-on: [ubuntu-24.04] #, macos-14]
     permissions:
       packages: write
 
@@ -36,7 +36,9 @@ jobs:
       run: spack -e .spack/ compiler find
 
     - name: Concretize
-      run: spack -e .spack/ concretize
+      run: |
+        spack -e .spack/ mirror remove local-buildcache
+        spack -e .spack/ concretize
 
     - name: Install
       run: spack -e .spack/ install
