@@ -1,10 +1,13 @@
 name: Build and Cache Dependencies
 
 on:
-  pull_request:
-  push:
-    branches:
-      - master
+  # Allow manually triggering the workflow
+  workflow_dispatch:
+  # Run on pull requests when buildcache.yaml or spack.yaml are modified
+  # pull_request:
+  #   paths:
+  #     - .github/workflows/buildcache.yaml
+  #     - .spack/spack.yaml
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
