@@ -6,7 +6,7 @@ spack:
   - compilers: [gcc_all, llvm_gfortran]
   - mpis: [mpich, openmpi] # mvapich2,
 
-  view: loci_view
+  view: false
   specs:
   - autoconf
   - automake
@@ -17,15 +17,15 @@ spack:
   - matrix:
     - - metis
     - [$%compilers]
-  # - matrix:
-  #   - - cgns
-  #     - hdf5 +cxx +fortran +mpi
-  #     - parmetis
-  #     - petsc@3.23.3 ~superlu-dist
-  #     - petsc@3.23.3 ~superlu-dist +ptscotch ~metis
-  #     - scotch+metis~threads
-  #   - [$^mpis]
-  #   - [$%compilers]
+  - matrix:
+    - - cgns
+      - hdf5 +cxx +fortran +mpi
+      - parmetis
+      - petsc@3.23.3 ~superlu-dist
+      - petsc@3.23.3 ~superlu-dist +ptscotch ~metis
+      - scotch+metis~threads
+    - [$^mpis]
+    - [$%compilers]
   concretizer:
     unify: false
 
