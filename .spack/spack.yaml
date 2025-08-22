@@ -4,7 +4,7 @@ spack:
 
   definitions:
   - compilers: [gcc_all, llvm_gfortran]
-  - mpis: [mpich, mvapich2, openmpi]
+  - mpis: [mpich, openmpi] # mvapich2,
 
   view: false
   specs:
@@ -32,15 +32,15 @@ spack:
 
   config:
     install_tree:
-      root: /opt/spack
+      root: .spack/spack_root
       padded_length: 128
-  mirrors:
-    local-buildcache:
-      url: oci://ghcr.io/EdwardALuke/spack-buildcache
-      signed: false
-      access_pair:
-        id_variable: GITHUB_USER
-        secret_variable: GITHUB_TOKEN
+  # mirrors:
+  #   local-buildcache:
+  #     url: oci://ghcr.io/EdwardALuke/spack-buildcache
+  #     signed: false
+  #     access_pair:
+  #       id_variable: GITHUB_USER
+  #       secret_variable: GITHUB_TOKEN
 
   packages:
     gcc:
