@@ -47,5 +47,9 @@ jobs:
       env:
         GITHUB_USER: ${{ github.actor }}
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: spack -e .spack/ buildcache push --update-index local-buildcache
+      run: |
+        spack -e .spack/ mirror add --oci-username-variable GITHUB_USER \
+          --oci-password-variable GITHUB_TOKEN \
+          local-buildcache oci://ghcr.io/EdwardALuke/spack-buildcache
+        spack -e .spack/ buildcache push --update-index local-buildcache
       if: ${{ !cancelled() }}
