@@ -31,8 +31,6 @@ jobs:
         partitioner: [space-filling, scotch, parmetis]
         compiler: [gcc_all, llvm_gfortran]
         mpi: [mpich, openmpi] # mvapich2,
-    env:
-      SPACK_USER_CONFIG_PATH: ".spack"
 
     steps:
     - name: Checkout
@@ -47,16 +45,29 @@ jobs:
         color: true       # Force color output (SPACK_COLOR=always)
         path: spack       # Where to clone Spack
 
-    - name: Undo setting from setup-spack
-      run: echo "SPACK_DISABLE_LOCAL_CONFIG=0" >> $GITHUB_ENV
+    - name: Set user scope directory
+      run: |
+        echo "SPACK_DISABLE_LOCAL_CONFIG=" >> $GITHUB_ENV
+        echo "SPACK_USER_CONFIG_PATH=$(pwd)/.spack" >> $GITHUB_ENV
 
     - name: Set up loci_spack repo
       shell: spack-bash {0}
       run: |
         echo $SPACK_DISABLE_LOCAL_CONFIG
         echo $SPACK_USER_CONFIG_PATH
-        spack repo list
+        echo "Check if repos.yaml was modified:"
+        cat ${SPACK_USER_CONFIG_PATH}/repos.yaml
+        echo
+        pwd
+        ls
+        echo "Current scopes:"
+        spack config scopes -p
+        echo "Sources for current settings:"
+        spack config blame toolchains
+        spack config blame mirrors
         spack mirror list
+        spack config blame repos
+        spack repo list
         spack repo update
 
     - name: Find built-in compilers
