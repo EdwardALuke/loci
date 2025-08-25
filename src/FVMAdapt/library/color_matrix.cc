@@ -841,46 +841,41 @@ namespace Loci{
   
 }
 
-std::vector<entitySet> getDist( Loci::entitySet &faces,
-                                Loci::entitySet &cells,
-                                Map &cl, Map &cr, multiMap &face2node) {
-  
-  // First establish current distribution of entities across processors
-  std::vector<Loci::entitySet> ptn(Loci::MPI_processes) ; // entity Partition
-
+void getDist( Loci::entitySet &faces, Loci::entitySet &cells,
+              vector<entitySet> &fptn, vector<entitySet> &cptn,
+              Map &cl, Map &cr, multiMap &face2node) {
   // Get entity distributions
   
   faces = face2node.domain() ;
-  entitySet allFaces = Loci::all_collect_entitySet(faces) ;
-  std::vector<int> facesizes(MPI_processes) ;
-  int  size = faces.size() ;
-  MPI_Allgather(&size,1,MPI_INT,&facesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
-  int  cnt = allFaces.Min() ;
-  for(int i=0;i<MPI_processes;++i) {
-    ptn[i] += interval(cnt,cnt+facesizes[i]-1) ;
-    cnt += facesizes[i] ;
-  }
-    
-  entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
+  FATAL(cl.domain() != faces) ;
+  FATAL(cr.domain() != faces) ;
+  fptn = all_collect_vectors(faces,MPI_COMM_WORLD) ;
+
+  entitySet tmp_cells = cl.image(faces)+cr.image(faces) ;
+  for(int i = 0 ; i<MPI_processes;++i)
+    faces += fptn[i] ;
+  // Remove tagged elements from boundary
   entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-  entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
-  int mn = geom_cells.Min() ;
-  int mx = geom_cells.Max() ;
-  std:: vector<int> pl = Loci::simplePartitionVec(mn,mx,MPI_processes) ;
+  int lminC = loc_geom_cells.Min() ;
+  int lmaxC = loc_geom_cells.Max() ;
+  int minC = lminC ;
+  int maxC = lmaxC ;
+  MPI_Allreduce(&lminC, &minC, 1, MPI_INT, MPI_MIN,MPI_COMM_WORLD) ;
+  MPI_Allreduce(&lmaxC, &maxC, 1, MPI_INT, MPI_MAX,MPI_COMM_WORLD) ;
+  std:: vector<int> pl = Loci::simplePartitionVec(minC,maxC,MPI_processes) ;
   for(int i=0;i<MPI_processes;++i)
-    ptn[i] += interval(pl[i],pl[i+1]-1) ;
-  faces = allFaces ;
-  cells = geom_cells ;
-  return ptn ;
+    cptn[i] += interval(pl[i],pl[i+1]-1) ;
+  // Assuming cells are numbered without gaps
+  cells = interval(minC,maxC) ;
 }
 
 void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
     
   entitySet  faces,cells ;
-  std::vector<entitySet> ptn = getDist(faces,cells,
-                                       cl,cr,face2node);
-  entitySet loc_faces = faces & ptn[Loci::MPI_rank] ;
-  entitySet geom_cells = cells & ptn[Loci::MPI_rank] ;
+  std::vector<entitySet> cptn(MPI_processes),fptn(MPI_processes) ; 
+  getDist(faces,cells,fptn,cptn,cl,cr,face2node) ;
+  entitySet loc_faces = faces & fptn[Loci::MPI_rank] ;
+  entitySet geom_cells = cells & cptn[Loci::MPI_rank] ;
   entitySet negs = interval(UNIVERSE_MIN,-1) ;
   entitySet boundary_faces = cr.preimage(negs).first ;
   entitySet interior_faces = loc_faces - boundary_faces ;
@@ -889,11 +884,14 @@ void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
   std:: vector<pair<Entity,Entity> > cellmap(interior_faces.size()*2) ;
   int cnt = 0 ;
   FORALL(interior_faces,fc) {
+    FATAL(cl[fc] == cr[fc]) ;
+    FATAL(cr[fc] < 0) ;
     cellmap[cnt++] = pair<Entity,Entity>(cl[fc],cr[fc]) ;
     cellmap[cnt++] = pair<Entity,Entity>(cr[fc],cl[fc]) ;
   } ENDFORALL ;
+  
   multiMap c2c ;
-  Loci::distributed_inverseMap(c2c,cellmap,cells,cells,ptn) ;
+  Loci::distributed_inverseMap(c2c,cellmap,cells,cells,cptn) ;
   int ncells = cells.size() ;
 
   store<int> ctmp ;
@@ -946,16 +944,17 @@ void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
     + cr.image(interior_faces) ;
   clone_cells -= geom_cells ;
   Loci::storeRepP cp_sp = color.Rep() ;
-  Loci::fill_clone(cp_sp, clone_cells, ptn) ;
+  Loci::fill_clone(cp_sp, clone_cells, cptn) ;
 
   FORALL(interior_faces,fc) {
     int color_l = color[cl[fc]] ;
     int color_r = color[cr[fc]] ;
     if(color_l == color_r) 
       cerr << "color equal == " << color_l << endl ;
+    FATAL(color_l == color_r) ;
     if((color_l == -1) || (color_r == -1))
       cerr << "matrix coloring internal error" << endl ;
-                                                              
+    FATAL((color_l == -1) || (color_r == -1)) ;
     if(color_l > color_r) {
       // change face orientation to match matrix coloring
       std::swap(cl[fc],cr[fc]) ;

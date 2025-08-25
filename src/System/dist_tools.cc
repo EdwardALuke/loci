@@ -659,7 +659,9 @@ namespace Loci {
     }
 
     int j = 0 ;
-    entitySet e = interval(0, size-1) ;
+    entitySet e = EMPTY ;
+    if(size>0)
+      e =interval(0, size-1) ;
     l2g.allocate(e) ;
     l2f.allocate(e) ;
     store<unsigned char> key_domain ;

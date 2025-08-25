@@ -88,6 +88,107 @@ typedef double metisreal_t ;
 #endif
 
 namespace Loci {
+  // get cell2parent map with cells in current global numbering
+  
+  storeRepP getC2PGlobal(fact_db &facts) {
+
+    // Check to see if a global version has already been generated
+    storeRepP ptr = DataXFER_DB.getItem("c2pglobal") ;
+    if(ptr != 0) {
+      return ptr ;
+    }
+    // Now convert c2p from a file numbering of cells to the current
+    // global numbering
+    store<pair<int,int> > c2pset ;
+    c2pset = DataXFER_DB.getItem("c2p") ;
+    entitySet dom = c2pset.domain() ;
+    protoMap c2p(dom.size()) ;
+    int cnt = 0 ;
+    FORALL(dom,ii) {
+      c2p[cnt++] = c2pset[ii] ;
+    } ENDFORALL ;
+    // find the max and min numbering of the file numbering in cells in
+    // c2p
+    int mcol = c2p[0].first ;
+    int xcol = mcol ;
+    for(int i=0;i<cnt;++i) {
+      mcol = min(mcol,c2p[i].first) ;
+      xcol = max(xcol,c2p[i].first) ;
+    }
+    int mco=mcol ;
+    MPI_Allreduce(&mcol,&mco,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    int xco=xcol ;
+    MPI_Allreduce(&xcol,&xco,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    
+    fact_db::distribute_infoP dist = facts.get_distribute_info() ;
+    if(MPI_processes==1) {
+      // If it is running serial then file number is global number
+      entitySet dom = interval(0,c2p.size()-1) ;
+      store<pair<int,int> > c2pg ;
+      c2pg.allocate(dom) ;
+      FORALL(dom,ii) {
+	c2pg[ii] = c2p[ii] ;
+      } ENDFORALL ;
+      DataXFER_DB.insertItem("c2pglobal",c2pg.Rep()) ;
+      return c2pg.Rep() ;
+    }
+    // Now get the maps needed to translate from global to file
+    dMap g2f ;
+    g2f = dist->g2f.Rep() ;
+    Map l2g ;
+    l2g = dist->l2g.Rep() ;
+    constraint geom_cells ;
+    geom_cells = facts.get_fact("geom_cells") ;
+    dom = geom_cells.Rep()->domain() ;
+    dom = dom & dist->my_entities ;
+
+    // Create protomap from cell file number to global number
+    protoMap f2g(dom.size()) ;
+    cnt = 0 ;
+    int mfol = std::numeric_limits<int>::max() ;
+    int xfol = std::numeric_limits<int>::lowest() ;
+    FORALL(dom,ii) {
+      int g = l2g[ii] ;
+      int f = g2f[g] ;
+      f2g[cnt++] = pair<int,int>(f,g) ;
+      mfol = min(mfol,f) ;
+      xfol = max(xfol,f) ;
+    } ENDFORALL ;
+
+    int mfo = mfol ;
+    int xfo = xfol ;
+    MPI_Allreduce(&mfol,&mfo,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&xfol,&xfo,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    // Check to make sure that the c2p map is consistent with the number of
+    // cells in this mesh
+    if(xfo-mfo != xco-mco) {
+      cerr << "ERROR!: Mismatch between cells in c2p map!" << endl ;
+    }
+    // Remap file numbers to be consistent with c2p numbering
+    for(int i=0;i<cnt;++i)
+      f2g[i].first += mco-mfo ;
+
+
+    // Use the equijoin of file-to-global map and file-to-parent map to get
+    // global-to-parent map
+    protoMap v ;
+    equiJoinFF(f2g,c2p,v) ;
+
+    // convert protoMap into a store to be stored in XFER DB
+    entitySet c2pgset = interval(0,v.size()-1) ;
+    if(v.size() == 0)
+      c2pgset = EMPTY ;
+    store<pair<int,int> > c2pg ;
+    c2pg.allocate(c2pgset) ;
+    FORALL(c2pgset,ii) {
+      c2pg[ii] = v[ii] ;
+    } ENDFORALL ;
+    // Write into XFER DB so we don't have to do this multiple times
+    DataXFER_DB.insertItem("c2pglobal",c2pg.Rep()) ;
+    // return new map
+    return c2pg.Rep() ;
+  }
+
   extern int metis_cpp_threshold ;
   
   storeRepP mapCellPartitionWeights(storeRepP wptr,
@@ -1033,41 +1134,6 @@ namespace Loci{
     return qcol_rep ;
   } 
 
-
-  
-  std::vector<entitySet> getDist( Loci::entitySet &faces,
-                                  Loci::entitySet &cells,
-                                  Map &cl, Map &cr, multiMap &face2node) {
-  
-    // First establish current distribution of entities across processors
-    std::vector<Loci::entitySet> ptn(Loci::MPI_processes) ; // entity Partition
-
-    // Get entity distributions
-  
-    faces = face2node.domain() ;
-    entitySet allFaces = Loci::all_collect_entitySet(faces) ;
-    std::vector<int> facesizes(MPI_processes) ;
-    int  size = faces.size() ;
-    MPI_Allgather(&size,1,MPI_INT,&facesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
-    int  cnt = allFaces.Min() ;
-    for(int i=0;i<MPI_processes;++i) {
-      ptn[i] += interval(cnt,cnt+facesizes[i]-1) ;
-      cnt += facesizes[i] ;
-    }
-    
-    entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
-    entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
-    int mn = geom_cells.Min() ;
-    int mx = geom_cells.Max() ;
-    std:: vector<int> pl = Loci::simplePartitionVec(mn,mx,MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
-      ptn[i] += interval(pl[i],pl[i+1]-1) ;
-    faces = allFaces ;
-    cells = geom_cells ;
-    return ptn ;
-  }
-
   extern  bool useDomainKeySpaces  ;
   extern void remapGrid(vector<entitySet> &node_ptn,
                         vector<entitySet> &face_ptn,
@@ -1874,18 +1940,24 @@ namespace Loci {
     //get face domains and allocate the maps 
     int face_min = numNodes;
     for(int i =0; i < MPI_rank; i++) face_min += face_sizes[i];
+
     int face_max = face_min + face_sizes[MPI_rank] -1;
     store<int> count;
-    entitySet faces = interval(face_min, face_max);
+    entitySet faces = EMPTY ;
+    if(face_sizes[MPI_rank] > 0)
+      faces = interval(face_min, face_max);
+
     cl.allocate(faces);
     cr.allocate(faces);
     count.allocate(faces);
+
     local_faces.resize(MPI_processes);
     local_faces = all_collect_vectors(faces);
     //fill up the maps cl , cr and count 
     int cell_base = numNodes + numFaces;
     int cell_max = std::numeric_limits<int>::min();
     int cell_min = std::numeric_limits<int>::max();
+
     entitySet::const_iterator fid = faces.begin();
     for(entitySet::const_iterator ei = domc.begin(); ei != domc.end(); ei++){
       for(unsigned int i = 0; i < fine_faces_cell[*ei].size(); i++){
@@ -1944,6 +2016,7 @@ namespace Loci {
       }
       cell_accum = cell_accum_update ;
     }
+
     //fill up face2node  
     face2node.allocate(count);
     fid = faces.begin();
