@@ -47,18 +47,13 @@ jobs:
         color: true       # Force color output (SPACK_COLOR=always)
         path: spack       # Where to clone Spack
 
-    - name: Check environment setup
-      shell: spack-bash {0}
-      run: |
-        echo $SPACK_USER_CONFIG_PATH
-        spack repo list
-        spack mirror list
+    - name: Undo setting from setup-spack
+      run: echo "SPACK_DISABLE_LOCAL_CONFIG=0" >> $GITHUB_ENV
 
     - name: Set up loci_spack repo
-      env:
-        SPACK_USER_CONFIG_PATH: ".spack"
       shell: spack-bash {0}
       run: |
+        echo $SPACK_DISABLE_LOCAL_CONFIG
         echo $SPACK_USER_CONFIG_PATH
         spack repo list
         spack mirror list
@@ -72,9 +67,6 @@ jobs:
       run: |
         spack env create loci_build
         spack env activate -p loci_build
-        echo $SPACK_USER_CONFIG_PATH
-        spack repo list
-        spack mirror list
         spack develop --no-clone --path=$(pwd) loci \
           +hdf5 +petsc +cgns partitioner=${{ matrix.partitioner }} \
           %${{ matrix.compiler }} ^${{ matrix.mpi }} %${{ matrix.compiler }}
