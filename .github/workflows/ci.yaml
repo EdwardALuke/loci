@@ -56,11 +56,6 @@ jobs:
         spack config add -f .spack/mirrors.yaml
         spack config add -f .spack/repos.yaml
         spack config add -f .spack/toolchains.yaml
-        echo "Sources for current settings:"
-        spack config blame mirrors
-        spack config blame repos
-        spack config blame toolchains
-        spack repo list
         spack repo update
 
     - name: Concretize the dependencies
@@ -78,9 +73,9 @@ jobs:
       run: |
         spack env activate -p loci_build
         spack install
-        ls OBJ/
 
     - name: Run quickTest
+      shell: spack-bash {0}
       run: |
         spack env activate -p loci_build
         make test
