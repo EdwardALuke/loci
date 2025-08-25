@@ -67,7 +67,7 @@ jobs:
       shell: spack-bash {0}
       run: |
         spack env activate -p loci_build
-        spack add loci@develop +petsc +cgns \
+        spack add loci@develop +debug +petsc \
           partitioner=${{ matrix.partitioner }} \
           %${{ matrix.compiler }} ^${{ matrix.mpi }} %${{ matrix.compiler }}
         spack develop --no-clone --path $(pwd) loci@develop
