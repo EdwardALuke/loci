@@ -45,38 +45,27 @@ jobs:
         color: true       # Force color output (SPACK_COLOR=always)
         path: spack       # Where to clone Spack
 
-    - name: Set user scope directory
-      run: |
-        echo "SPACK_DISABLE_LOCAL_CONFIG=" >> $GITHUB_ENV
-        echo "SPACK_USER_CONFIG_PATH=$(pwd)/.spack" >> $GITHUB_ENV
-
-    - name: Set up loci_spack repo
-      shell: spack-bash {0}
-      run: |
-        echo $SPACK_DISABLE_LOCAL_CONFIG
-        echo $SPACK_USER_CONFIG_PATH
-        echo "Check if repos.yaml was modified:"
-        cat ${SPACK_USER_CONFIG_PATH}/repos.yaml
-        echo
-        pwd
-        ls
-        echo "Current scopes:"
-        spack config scopes -p
-        echo "Sources for current settings:"
-        spack config blame toolchains
-        spack config blame mirrors
-        spack mirror list
-        spack config blame repos
-        spack repo list
-        spack repo update
-
     - name: Find built-in compilers
       run: spack compiler find
 
-    - name: Set up Spack environment
+    - name: Set up a Spack environment
       shell: spack-bash {0}
       run: |
         spack env create loci_build
+        spack env activate -p loci_build
+        spack config add -f .spack/mirrors.yaml
+        spack config add -f .spack/repos.yaml
+        spack config add -f .spack/toolchains.yaml
+        echo "Sources for current settings:"
+        spack config blame mirrors
+        spack config blame repos
+        spack config blame toolchains
+        spack repo list
+        spack repo update
+
+    - name: Concretize the dependencies
+      shell: spack-bash {0}
+      run: |
         spack env activate -p loci_build
         spack develop --no-clone --path=$(pwd) loci \
           +hdf5 +petsc +cgns partitioner=${{ matrix.partitioner }} \
