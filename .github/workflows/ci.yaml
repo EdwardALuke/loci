@@ -47,9 +47,22 @@ jobs:
         color: true       # Force color output (SPACK_COLOR=always)
         path: spack       # Where to clone Spack
 
-    - name: Set up loci_spack repo
+    - name: Check environment setup
       shell: spack-bash {0}
-      run: spack repo update
+      run: |
+        echo $SPACK_USER_CONFIG_PATH
+        spack repo list
+        spack mirror list
+
+    - name: Set up loci_spack repo
+      env:
+        SPACK_USER_CONFIG_PATH: ".spack"
+      shell: spack-bash {0}
+      run: |
+        echo $SPACK_USER_CONFIG_PATH
+        spack repo list
+        spack mirror list
+        spack repo update
 
     - name: Find built-in compilers
       run: spack compiler find
@@ -59,6 +72,9 @@ jobs:
       run: |
         spack env create loci_build
         spack env activate -p loci_build
+        echo $SPACK_USER_CONFIG_PATH
+        spack repo list
+        spack mirror list
         spack develop --no-clone --path=$(pwd) loci \
           +hdf5 +petsc +cgns partitioner=${{ matrix.partitioner }} \
           %${{ matrix.compiler }} ^${{ matrix.mpi }} %${{ matrix.compiler }}
@@ -66,7 +82,12 @@ jobs:
 
     - name: Compile and install Loci
       shell: spack-bash {0}
-      run: spack install
+      run: |
+        spack env activate -p loci_build
+        spack install
+        ls OBJ/
 
     - name: Run quickTest
-      run: make test
+      run: |
+        spack env activate -p loci_build
+        make test

@@ -1,4 +1,4 @@
 repos:
-  loci_spack_repo:
+  loci_spack:
     git: https://github.com/TimothyEDawson/loci_spack.git
     branch: automatic-cloning
