@@ -67,10 +67,10 @@ jobs:
       shell: spack-bash {0}
       run: |
         spack env activate -p loci_build
-        spack add loci@develop +hdf5 +petsc +cgns \
+        spack add loci@develop +petsc +cgns \
           partitioner=${{ matrix.partitioner }} \
           %${{ matrix.compiler }} ^${{ matrix.mpi }} %${{ matrix.compiler }}
-        spack develop loci@develop --no-clone --path $(pwd)
+        spack develop --no-clone --path $(pwd) loci@develop
         spack concretize
 
     - name: Compile and install Loci
