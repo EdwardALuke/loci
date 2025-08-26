@@ -141,26 +141,27 @@ namespace Loci {
         }
       }
 
-      std::sort(vals.begin(),vals.end()) ;
+      if(vals.size() > 0) {
+        std::sort(vals.begin(),vals.end()) ;
 
-      vector<int>::iterator uend = std::unique(vals.begin(),vals.end()) ;
-
-      vector<int>::iterator ii = vals.begin() ;
-
-      ++ii ;
-      while(ii+1 != uend) {
-        int i1 = *ii ;
-        int i2 = *(ii+1)  ;
-        if(i1+1 == i2)
-          i2 = i1 ;
-        else
-          ++ii ;
+        vector<int>::iterator uend = std::unique(vals.begin(),vals.end()) ;
+        
+        vector<int>::iterator ii = vals.begin() ;
+        
         ++ii ;
-        interval iv(i1,i2) ;
-        if((entitySet(iv)&totSet) != EMPTY)
-          pvec.push_back(iv) ;
+        while(ii+1 != uend) {
+          int i1 = *ii ;
+          int i2 = *(ii+1)  ;
+          if(i1+1 == i2)
+            i2 = i1 ;
+          else
+            ++ii ;
+          ++ii ;
+          interval iv(i1,i2) ;
+          if((entitySet(iv)&totSet) != EMPTY)
+            pvec.push_back(iv) ;
+        }
       }
-
     }
 
     // Identify categories by the association of attributes (variables)

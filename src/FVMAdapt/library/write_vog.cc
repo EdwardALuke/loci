@@ -145,8 +145,8 @@ namespace Loci {
     // Create protomap from cell file number to global number
     protoMap f2g(dom.size()) ;
     cnt = 0 ;
-    int mfol = g2f[l2g[dom.Min()]] ;
-    int xfol = mfol ;
+    int mfol = std::numeric_limits<int>::max() ;
+    int xfol = std::numeric_limits<int>::lowest() ;
     FORALL(dom,ii) {
       int g = l2g[ii] ;
       int f = g2f[g] ;
@@ -155,7 +155,6 @@ namespace Loci {
       xfol = max(xfol,f) ;
     } ENDFORALL ;
 
-    //    debugout << "mfol=" << mfol << endl ;
     int mfo = mfol ;
     int xfo = xfol ;
     MPI_Allreduce(&mfol,&mfo,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
@@ -163,7 +162,10 @@ namespace Loci {
     // Check to make sure that the c2p map is consistent with the number of
     // cells in this mesh
     if(xfo-mfo != xco-mco) {
-      cerr << "ERROR!: Mismatch between cells in c2p map!" << endl ;
+      if(MPI_rank == 0) {
+        cerr << "ERROR!: Mismatch between number of cells in c2p map!" << endl ;
+        cerr << "      : number of file no cells =" << xfo-mfo << ", local =" << xco-mco << endl ;
+      }
     }
     // Remap file numbers to be consistent with c2p numbering
     for(int i=0;i<cnt;++i)
@@ -1135,41 +1137,6 @@ namespace Loci{
     return qcol_rep ;
   } 
 
-
-  
-  std::vector<entitySet> getDist( Loci::entitySet &faces,
-                                  Loci::entitySet &cells,
-                                  Map &cl, Map &cr, multiMap &face2node) {
-  
-    // First establish current distribution of entities across processors
-    std::vector<Loci::entitySet> ptn(Loci::MPI_processes) ; // entity Partition
-
-    // Get entity distributions
-  
-    faces = face2node.domain() ;
-    entitySet allFaces = Loci::all_collect_entitySet(faces) ;
-    std::vector<int> facesizes(MPI_processes) ;
-    int  size = faces.size() ;
-    MPI_Allgather(&size,1,MPI_INT,&facesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
-    int  cnt = allFaces.Min() ;
-    for(int i=0;i<MPI_processes;++i) {
-      ptn[i] += interval(cnt,cnt+facesizes[i]-1) ;
-      cnt += facesizes[i] ;
-    }
-    
-    entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
-    entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
-    int mn = geom_cells.Min() ;
-    int mx = geom_cells.Max() ;
-    std:: vector<int> pl = Loci::simplePartitionVec(mn,mx,MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
-      ptn[i] += interval(pl[i],pl[i+1]-1) ;
-    faces = allFaces ;
-    cells = geom_cells ;
-    return ptn ;
-  }
-
   extern  bool useDomainKeySpaces  ;
   extern void remapGrid(vector<entitySet> &node_ptn,
                         vector<entitySet> &face_ptn,
@@ -1976,18 +1943,24 @@ namespace Loci {
     //get face domains and allocate the maps 
     int face_min = numNodes;
     for(int i =0; i < MPI_rank; i++) face_min += face_sizes[i];
+
     int face_max = face_min + face_sizes[MPI_rank] -1;
     store<int> count;
-    entitySet faces = interval(face_min, face_max);
+    entitySet faces = EMPTY ;
+    if(face_sizes[MPI_rank] > 0)
+      faces = interval(face_min, face_max);
+
     cl.allocate(faces);
     cr.allocate(faces);
     count.allocate(faces);
+
     local_faces.resize(MPI_processes);
     local_faces = all_collect_vectors(faces);
     //fill up the maps cl , cr and count 
     int cell_base = numNodes + numFaces;
     int cell_max = std::numeric_limits<int>::min();
     int cell_min = std::numeric_limits<int>::max();
+
     entitySet::const_iterator fid = faces.begin();
     for(entitySet::const_iterator ei = domc.begin(); ei != domc.end(); ei++){
       for(unsigned int i = 0; i < fine_faces_cell[*ei].size(); i++){
@@ -2046,6 +2019,7 @@ namespace Loci {
       }
       cell_accum = cell_accum_update ;
     }
+
     //fill up face2node  
     face2node.allocate(count);
     fid = faces.begin();
