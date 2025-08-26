@@ -2443,8 +2443,21 @@ namespace Loci {
     // Now we need to sort the data back to the processor that owns
     // the corresponding face
     int fmin = fdom.Min() ;
+    int fming = fmin ;
+    MPI_Allreduce(&fmin,&fming,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    int fsizes = fdom.size() ;
+    
     vector<int> fsplits(MPI_processes) ;
-    MPI_Allgather(&fmin,1,MPI_INT,&fsplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&fsizes,1,MPI_INT,&fsplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+
+    for(int i=0;i<MPI_processes;++i) {
+      int save = fsplits[i] ;
+      fsplits[i] = fming ;
+      fming += save ; ;
+    }
+      
+
+
     vector<pair<int,int> > splitters(MPI_processes-1) ;
     for(int i=0;i<MPI_processes-1;++i) {
       splitters[i].first  = fsplits[i+1] ;
@@ -2456,12 +2469,12 @@ namespace Loci {
 
     // We now have a partition of faces to processors for interior faces,
     // we use this to develop a cell partition through processor affinity
-    vector<pair<int,pair<int,int> > > scratchPad ;
-    for(int i=0;i<ifsz;++i) {
+    vector<pair<int,pair<int,int> > > scratchPad(proc_pairs.size()*2) ;
+    for(size_t i=0;i<proc_pairs.size();++i) {
       int fc = proc_pairs[i].first ;
       pair<int,int> p2i(proc_pairs[i].second,1) ;
-      scratchPad.push_back(pair<int,pair<int,int> >(cl[fc],p2i)) ;
-      scratchPad.push_back(pair<int,pair<int,int> >(cr[fc],p2i)) ;
+      scratchPad[i*2+0] = pair<int,pair<int,int> >(cl[fc],p2i) ;
+      scratchPad[i*2+1] = pair<int,pair<int,int> >(cr[fc],p2i) ;
     }
 
     // We then use this to assign processors to cells (cells will go to the
