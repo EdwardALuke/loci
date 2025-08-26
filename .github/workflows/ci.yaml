@@ -22,10 +22,10 @@ env:
 
 jobs:
   build-loci:
-    name: Build Loci on ${{ matrix.runs-on }}
+    name: Test with ${{ matrix.partitioner }} partitioner, ${{ matrix.compiler }}, and ${{ matrix.mpi }} on ${{ matrix.runs-on }}
     runs-on: ${{ matrix.runs-on }}
     strategy:
-      fail-fast: true
+      fail-fast: false
       matrix:
         runs-on: [ubuntu-24.04] #, macos-14]
         partitioner: [space-filling, scotch, parmetis]
@@ -78,4 +78,5 @@ jobs:
       shell: spack-bash {0}
       run: |
         spack env activate -p loci_build
+        cd OBJ/
         make test
