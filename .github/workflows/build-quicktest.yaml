@@ -79,6 +79,14 @@ jobs:
         spack env activate -p loci_build
         spack install
 
+    - name: Run quickTest
+      shell: spack-bash {0}
+      run: |
+        spack env activate -p loci_build
+        mpic++ --version
+        mpic++ -show
+        make test
+
     - name: Get build stage output directory
       if: ${{ failure() }}
       shell: spack-bash {0}
@@ -91,17 +99,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: buildlog-${{ inputs.partitioner }}-${{ inputs.compiler }}-${{ inputs.mpi }}-${{ inputs.runs-on }}
-        path: ${{ env.stageOutputDir }}
+        path: |
+          ${{ env.stageOutputDir }}
+          OBJ/*.conf
         if-no-files-found: ignore
-
-    - name: Run quickTest
-      shell: spack-bash {0}
-      run: |
-        spack env activate -p loci_build
-        cat OBJ/Loci.conf
-        cat OBJ/sys.conf
-        cat OBJ/comp.conf
-        mpic++ --version
-        mpic++ -show
-        cd OBJ/
-        make test
