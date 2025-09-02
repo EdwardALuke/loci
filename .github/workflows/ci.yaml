@@ -23,9 +23,7 @@ env:
   FORCE_COLOR: 3
 
 jobs:
-  build-loci:
-    name: Test with ${{ matrix.partitioner }} partitioner, ${{ matrix.compiler }}, and ${{ matrix.mpi }} on ${{ matrix.runs-on }}
-    runs-on: ${{ matrix.runs-on }}
+  full-matrix-test:
     strategy:
       fail-fast: false
       matrix:
@@ -39,68 +37,9 @@ jobs:
         partitioner: scotch
       - mpi: none
         partitioner: parmetis
-
-    steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Setup Spack
-      uses: spack/setup-spack@v2
-      with:
-        ref: develop      # Spack version (examples: develop, releases/v0.23)
-        color: true       # Force color output (SPACK_COLOR=always)
-        path: spack       # Where to clone Spack
-
-    - name: Find built-in compilers
-      run: spack compiler find
-
-    - name: Set up a Spack environment
-      shell: spack-bash {0}
-      run: |
-        spack env create loci_build
-        spack env activate -p loci_build
-        spack config add -f .spack/mirrors.yaml
-        spack config add -f .spack/repos.yaml
-        spack config add -f .spack/toolchains.yaml
-        spack repo update
-
-    - name: Concretize the dependencies (serial Loci)
-      if: ${{ matrix.mpi == 'none' }}
-      shell: spack-bash {0}
-      run: |
-        spack env activate -p loci_build
-        spack add loci@develop +debug -petsc \
-          -mpi %${{ matrix.compiler }}
-        spack develop --no-clone --path $(pwd) loci@develop
-        spack concretize
-
-    - name: Concretize the dependencies (parallel Loci)
-      if: ${{ matrix.mpi != 'none' }}
-      shell: spack-bash {0}
-      run: |
-        spack env activate -p loci_build
-        spack add loci@develop +debug +petsc \
-          partitioner=${{ matrix.partitioner }} \
-          %${{ matrix.compiler }} ^${{ matrix.mpi }} %${{ matrix.compiler }}
-        spack develop --no-clone --path $(pwd) loci@develop
-        spack concretize
-
-    - name: Compile and install Loci
-      shell: spack-bash {0}
-      run: |
-        spack env activate -p loci_build
-        spack install
-
-    - name: Run quickTest
-      shell: spack-bash {0}
-      run: |
-        spack env activate -p loci_build
-        cat OBJ/Loci.conf
-        cat OBJ/sys.conf
-        cat OBJ/comp.conf
-        mpic++ --version
-        mpic++ -show
-        cd OBJ/
-        make test
+    uses: ./.github/workflows/build-quicktest.yaml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      partitioner: ${{ matrix.partitioner }}
+      compiler: ${{ matrix.compiler }}
+      mpi: ${{ matrix.mpi }}
