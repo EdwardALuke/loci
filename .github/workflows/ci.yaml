@@ -1,14 +1,16 @@
 name: CI
 
 on:
+  # Allow manually triggering the workflow
+  workflow_dispatch:
   push:
     # Build on tags that look like releases
     tags:
       - v*
-  pull_request:
-    # Build when a pull request targets the dev branch
-    branches:
-      - dev
+  # pull_request:
+  #   # Build when a pull request targets the dev branch
+  #   branches:
+  #     - dev
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -30,7 +32,13 @@ jobs:
         runs-on: [ubuntu-24.04] #, macos-14]
         partitioner: [space-filling, scotch, parmetis]
         compiler: [gcc_all, llvm_gfortran]
-        mpi: [mpich, openmpi] # mvapich2,
+        mpi: [none, mpich, openmpi] # mvapich2,
+    # Don't run partitioner variations on serial builds
+    exclude:
+      - mpi: none
+        partitioner: scotch
+      - mpi: none
+        partitioner: parmetis
 
     steps:
     - name: Checkout
@@ -58,7 +66,18 @@ jobs:
         spack config add -f .spack/toolchains.yaml
         spack repo update
 
-    - name: Concretize the dependencies
+    - name: Concretize the dependencies (serial Loci)
+      if: ${{ matrix.mpi == 'none' }}
+      shell: spack-bash {0}
+      run: |
+        spack env activate -p loci_build
+        spack add loci@develop +debug -petsc \
+          -mpi %${{ matrix.compiler }}
+        spack develop --no-clone --path $(pwd) loci@develop
+        spack concretize
+
+    - name: Concretize the dependencies (parallel Loci)
+      if: ${{ matrix.mpi != 'none' }}
       shell: spack-bash {0}
       run: |
         spack env activate -p loci_build
