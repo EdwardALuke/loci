@@ -27,12 +27,12 @@ jobs:
         partitioner: [space-filling, scotch, parmetis]
         compiler: [gcc_all, llvm_gfortran]
         mpi: [none, mpich, openmpi] # mvapich2,
-    # Don't run partitioner variations on serial builds
-    exclude:
-      - mpi: none
-        partitioner: scotch
-      - mpi: none
-        partitioner: parmetis
+        # Don't run partitioner variations on serial builds
+        exclude:
+          - mpi: none
+            partitioner: scotch
+          - mpi: none
+            partitioner: parmetis
     uses: ./.github/workflows/build-quicktest.yaml
     with:
       runs-on: ${{ matrix.runs-on }}
