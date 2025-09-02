@@ -1,0 +1,41 @@
+name: Full Test Matrix
+
+on:
+  # Allow manually triggering the workflow
+  workflow_dispatch:
+  # push:
+  #   # Build on tags that look like releases
+  #   tags:
+  #     - v*
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Many color libraries just need this variable to be set to any value.
+  # Set it to 3 to support 8-bit color graphics (256 colors per channel)
+  # for libraries that care about the value set.
+  FORCE_COLOR: 3
+
+jobs:
+  full-matrix-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-24.04] #, macos-14]
+        partitioner: [space-filling, scotch, parmetis]
+        compiler: [gcc_all, llvm_gfortran]
+        mpi: [none, mpich, openmpi] # mvapich2,
+    # Don't run partitioner variations on serial builds
+    exclude:
+      - mpi: none
+        partitioner: scotch
+      - mpi: none
+        partitioner: parmetis
+    uses: ./.github/workflows/build-quicktest.yaml
+    with:
+      runs-on: ${{ matrix.runs-on }}
+      partitioner: ${{ matrix.partitioner }}
+      compiler: ${{ matrix.compiler }}
+      mpi: ${{ matrix.mpi }}

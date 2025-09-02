@@ -3,10 +3,6 @@ name: CI
 on:
   # Allow manually triggering the workflow
   workflow_dispatch:
-  push:
-    # Build on tags that look like releases
-    tags:
-      - v*
   # pull_request:
   #   # Build when a pull request targets the dev branch
   #   branches:
@@ -23,23 +19,6 @@ env:
   FORCE_COLOR: 3
 
 jobs:
-  full-matrix-test:
-    strategy:
-      fail-fast: false
-      matrix:
-        runs-on: [ubuntu-24.04] #, macos-14]
-        partitioner: [space-filling, scotch, parmetis]
-        compiler: [gcc_all, llvm_gfortran]
-        mpi: [none, mpich, openmpi] # mvapich2,
-    # Don't run partitioner variations on serial builds
-    exclude:
-      - mpi: none
-        partitioner: scotch
-      - mpi: none
-        partitioner: parmetis
+  run-quicktest:
+    # Default values for all options.
     uses: ./.github/workflows/build-quicktest.yaml
-    with:
-      runs-on: ${{ matrix.runs-on }}
-      partitioner: ${{ matrix.partitioner }}
-      compiler: ${{ matrix.compiler }}
-      mpi: ${{ matrix.mpi }}
