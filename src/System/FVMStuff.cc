@@ -3146,7 +3146,7 @@ namespace Loci{
     geom_cells_c = facts.get_variable("geom_cells");
     entitySet geom_cells = *geom_cells_c;
     // We need to have all of the geom_cells to do the correct test in the
-    // loop before, so gather clone cells    
+    // loop before, so gather clone cells
     int gkeyspace = geom_cells_c.getDomainKeySpace() ;
     std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
     geom_cells = distribute_entitySet(geom_cells,ptn) ;
@@ -3261,7 +3261,7 @@ namespace Loci{
     ci = facts.get_variable("ci");
     constraint no_symm;
     no_symm = facts.get_variable("boundary_faces");
-    entitySet ci_faces = *no_symm;      
+    entitySet ci_faces = *no_symm;
     Loci::protoMap f2bc ;
     // Get mapping from face to boundary_faces
     FORALL(ci_faces,fc) {
@@ -3270,7 +3270,7 @@ namespace Loci{
     Loci::balanceDistribution(f2bc,MPI_COMM_WORLD) ;
 
     Loci::protoMap n2bc ;
-    Loci::equiJoinFF(f2bc,f2node,n2bc) ;    
+    Loci::equiJoinFF(f2bc,f2node,n2bc) ;
     Loci::balanceDistribution(n2bc,MPI_COMM_WORLD) ;
 
     multiMap node2ci;

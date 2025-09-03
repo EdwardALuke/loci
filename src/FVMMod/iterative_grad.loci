@@ -67,8 +67,10 @@ namespace Loci  {
   $type C        Constraint;
   $type nStepGrad Constraint;
 
-
-  $rule default(gradSteps) { $gradSteps = 3; }
+  $rule default(gradSteps)
+  {
+    $gradSteps = 3;
+  }
 
   $rule constraint(ITER,ITER1,ITER2<-
                    gradType,gradStencil)
@@ -78,8 +80,7 @@ namespace Loci  {
     $ITER2 = EMPTY;
     if($gradStencil == "standard" || $gradStencil == "full"  ||
        $gradStencil == "stable"   || $gradStencil == "symm"  ||
-       $gradStencil == "symmF"    || $gradStencil == "symmC" ||
-       $gradStencil == "green")
+       $gradStencil == "symmF"    || $gradStencil == "symmC")
       {
         if($gradType == "iterative" || $gradType == "iterative1")
           {
@@ -93,14 +94,21 @@ namespace Loci  {
           }
       }else
       {
-        cerr << "WARNING: " << $gradStencil
-             << " not supported with iterative gradients. Use:"
-             << "standard,stable,full,symm,symmF,symmC,green"
-             << endl;
+        if($gradType == "iterative" ||
+           $gradType == "iterative1" ||
+           $gradType == "iterative2")
+          cerr << "WARNING: " << $gradStencil
+               << " not supported with iterative gradients. Use:"
+               << "standard,stable,full,symm,symmF,symmC"
+               << endl;
       }
+    
   }
 
-  $rule default(gradLSQ){$gradLSQ = 0;}// 0=face-only, !=0 face+node
+  $rule default(gradLSQ)
+  {
+    $gradLSQ = 0;
+  }
 
   $type lsq_fnodes Constraint;
   $type lsq_fonly  Constraint;
