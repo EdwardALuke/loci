@@ -73,19 +73,17 @@ jobs:
         spack develop --no-clone --path $(pwd) loci@develop
         spack concretize
 
-    - name: Compile and install Loci
+    - name: Compile, test, and install Loci
       shell: spack-bash {0}
       run: |
         spack env activate -p loci_build
-        spack install
+        spack install --test=root
 
-    - name: Run quickTest
-      shell: spack-bash {0}
-      run: |
-        spack env activate -p loci_build
-        mpic++ --version
-        mpic++ -show
-        make test
+    # - name: Run quickTest
+    #   shell: spack-bash {0}
+    #   run: |
+    #     spack env activate -p loci_build
+    #     make test
 
     - name: Get build stage output directory
       if: ${{ failure() }}
