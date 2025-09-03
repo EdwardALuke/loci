@@ -97,10 +97,13 @@ namespace Loci  {
         if($gradType == "iterative" ||
            $gradType == "iterative1" ||
            $gradType == "iterative2")
-          cerr << "WARNING: " << $gradStencil
-               << " not supported with iterative gradients. Use:"
-               << "standard,stable,full,symm,symmF,symmC"
-               << endl;
+          {
+            cerr << "ERROR: " << $gradStencil
+                 << " not supported with iterative gradients. Use:"
+                 << "standard,stable,full,symm,symmF,symmC"
+                 << endl;
+            Loci::Abort();
+          }
       }
     
   }
