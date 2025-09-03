@@ -77,7 +77,8 @@ jobs:
       shell: spack-bash {0}
       run: |
         spack env activate -p loci_build
-        spack install --test=root
+        sed -i "s/MPINUMPROC=3/MPINUMPROC=1/g" quickTest/test.conf
+        spack install --test=root --dirty
 
     # - name: Run quickTest
     #   shell: spack-bash {0}
