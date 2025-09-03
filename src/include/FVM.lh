@@ -213,3 +213,20 @@ $type axisymmetricCoordinateModel Constraint ;
     will result in an incomplete schedule.
 */
 $type stencil_bias store<Loci::real_t>;
+
+/**
+   Variable used to select between standard 1-step cell gradient
+   operators (standard) and the n-step iterative methods 
+   (iterative1,iterative2).
+*/
+$type gradType  param<string>;
+/**
+   Number of iteration steps for the cell gradient n-step iterative methods 
+   (iterative1,iterative2).
+*/
+$type gradSteps param<int>;
+/**
+   Select the iterative-gradient least-squares stencil, default is 
+   face-only (=0) but a face+node option is available (=1)
+ */
+$type gradLSQ param<int>;

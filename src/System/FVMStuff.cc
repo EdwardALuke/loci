@@ -3127,6 +3127,156 @@ namespace Loci{
     facts.create_fact("cellStencil",cellStencil) ;
   }
 
+  void create_cell2node(fact_db & facts)
+  {
+    if(Loci::MPI_rank == 0)
+      cout << "Creating cell2node map ... " << endl;
+    using std::vector;
+    using std::pair;
+    Map cl,cr;
+    multiMap face2node;
+    cl = facts.get_variable("cl");
+    cr = facts.get_variable("cr");
+    face2node = facts.get_variable("face2node");
+
+    entitySet faces = face2node.domain();
+    entitySet cellmask = cl.image(faces)+cr.image(faces) ;
+
+    constraint geom_cells_c;
+    geom_cells_c = facts.get_variable("geom_cells");
+    entitySet geom_cells = *geom_cells_c;
+    // We need to have all of the geom_cells to do the correct test in the
+    // loop before, so gather clone cells    
+    int gkeyspace = geom_cells_c.getDomainKeySpace() ;
+    std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
+    geom_cells = distribute_entitySet(geom_cells,ptn) ;
+    dist_expand_entitySet(geom_cells,cellmask,ptn) ;
+
+    Loci::protoMap f2cell;
+
+    // Get mapping from face to geometric cells
+    Loci::addToProtoMap(cl,f2cell);
+    FORALL(faces,fc) {
+      if(geom_cells.inSet(cr[fc]))
+        f2cell.push_back(pair<int,int>(fc,cr[fc]));
+    } ENDFORALL;
+
+    // Get mapping from face to nodes
+    Loci::protoMap f2node;
+    Loci::addToProtoMap(face2node,f2node);
+
+    // Equijoin on first of pairs to get node to neighboring cell mapping
+    // This will give us a mapping from nodes to neighboring cells
+    Loci::protoMap n2c;
+    Loci::equiJoinFF(f2node,f2cell,n2c);
+    Loci::balanceDistribution(n2c,MPI_COMM_WORLD) ;
+
+    store<vector3d<double> > pos ;
+    pos = facts.get_variable("pos") ;
+    constraint nodes_c;
+    *nodes_c = pos.domain();
+    entitySet nodes = pos.domain();
+    int gkeyspacen = nodes_c.getDomainKeySpace() ;
+    std::vector<entitySet> ptnn = facts.get_init_ptn(gkeyspacen) ;
+    nodes = distribute_entitySet(nodes,ptnn) ;
+    dist_expand_entitySet(nodes,cellmask,ptnn) ;
+
+    multiMap cell2node;
+    distributed_inverseMap(cell2node,n2c,geom_cells,geom_cells,ptn);
+    // Put in fact database
+    facts.create_fact("cell2node",cell2node);
+  }
+
+  void create_node2cell(fact_db &facts)
+  {
+    if(Loci::MPI_rank == 0)
+      cout << "Creating node2cell/node2ci ... " << endl;
+    using std::vector ;
+    using std::pair ;
+    Map cl,cr ;
+    multiMap face2node ;
+    cl = facts.get_variable("cl") ;
+    cr = facts.get_variable("cr") ;
+    face2node = facts.get_variable("face2node") ;
+    entitySet faces = face2node.domain() ;
+    entitySet cellmask = cl.image(faces)+cr.image(faces) ;
+
+    constraint geom_cells_c ;
+    geom_cells_c = facts.get_variable("geom_cells") ;
+    entitySet geom_cells = *geom_cells_c ;
+
+    // We need to have all of the geom_cells to do the correct test in the
+    // loop before, so gather with clone cells
+    int gkeyspace = geom_cells_c.getDomainKeySpace() ;
+    std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
+    geom_cells = distribute_entitySet(geom_cells,ptn) ;
+    entitySet geom_cell_expand =
+      dist_expand_entitySet(geom_cells,cellmask,ptn) ;
+    Loci::protoMap f2cell ;
+
+#ifdef DEBUG
+    // Check to see if there are any ORPHAN cells in geom_cells.
+    entitySet accessedSet = distribute_entitySet(cellmask,ptn) ;
+    WARN(Loci::GLOBAL_OR((geom_cells-accessedSet) != EMPTY))
+#endif
+
+    // Get mapping from face to geometric cells
+    Loci::addToProtoMap(cl,f2cell) ;
+    FORALL(faces,fc) {
+      WARN(cl[fc] == cr[fc]) ;
+      if(geom_cell_expand.inSet(cr[fc]))
+        f2cell.push_back(pair<int,int>(fc,cr[fc])) ;
+    } ENDFORALL ;
+
+    // Get mapping from face to nodes
+    Loci::protoMap f2node ;
+    Loci::addToProtoMap(face2node,f2node) ;
+
+    // Equijoin on first of pairs to get node to neighboring cell mapping
+    // This will give us a mapping from nodes to neighboring cells
+    Loci::protoMap c2n ;
+    Loci::equiJoinFF(f2cell,f2node,c2n) ;
+
+    // In case there are processors that have no n2c's allocated to them
+    // re-balance map distribution
+    Loci::balanceDistribution(c2n,MPI_COMM_WORLD) ;
+
+    store<vector3d<double> > pos ;
+    pos = facts.get_variable("pos") ;
+    constraint nodes_c;
+    *nodes_c = pos.domain();
+    entitySet nodes = pos.domain();
+    int gkeyspacen = nodes_c.getDomainKeySpace() ;
+    std::vector<entitySet> ptnn = facts.get_init_ptn(gkeyspacen) ;
+    nodes = distribute_entitySet(nodes,ptnn) ;
+    dist_expand_entitySet(nodes,cellmask,ptnn) ;
+
+    // Create cell stencil map from protoMap
+    multiMap node2cell;
+    distributed_inverseMap(node2cell,c2n,nodes,nodes,ptnn) ;
+    facts.create_fact("node2cell",node2cell);
+
+    //////////////////////////////////// boundary
+    Map ci;
+    ci = facts.get_variable("ci");
+    constraint no_symm;
+    no_symm = facts.get_variable("boundary_faces");
+    entitySet ci_faces = *no_symm;      
+    Loci::protoMap f2bc ;
+    // Get mapping from face to boundary_faces
+    FORALL(ci_faces,fc) {
+      f2bc.push_back(pair<int,int>(fc,fc)) ;
+    } ENDFORALL ;
+    Loci::balanceDistribution(f2bc,MPI_COMM_WORLD) ;
+
+    Loci::protoMap n2bc ;
+    Loci::equiJoinFF(f2bc,f2node,n2bc) ;    
+    Loci::balanceDistribution(n2bc,MPI_COMM_WORLD) ;
+
+    multiMap node2ci;
+    distributed_inverseMap(node2ci,n2bc,nodes,nodes,ptnn) ;
+    facts.create_fact("node2ci",node2ci);
+  }
   
   void createLowerUpper(fact_db &facts) {
     constraint geom_cells,interior_faces,boundary_faces;
@@ -3197,6 +3347,17 @@ namespace Loci{
         create_cell_stencil_symmF(facts) ;
       if(*gradStencil == "symmC")
         create_cell_stencil_symmC(facts) ;
+    }
+
+    param<int> gradLSQ ;
+    var = facts.get_variable("gradLSQ") ;
+    if(var != 0) {
+      gradLSQ = var ;
+      if(*gradLSQ != 0)
+        {
+          create_cell2node(facts);
+          create_node2cell(facts);
+        }
     }
   }
 
