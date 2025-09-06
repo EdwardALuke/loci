@@ -1,0 +1,104 @@
+name: Build Loci and run quickTest
+
+on:
+  # Reusable workflow for use in CI
+  workflow_call:
+    inputs:
+      runs-on:
+        default: 'ubuntu-24.04'
+        required: false
+        type: string
+      partitioner:
+        default: 'parmetis'
+        required: false
+        type: string
+      compiler:
+        default: 'gcc_all'
+        required: false
+        type: string
+      mpi:
+        default: 'openmpi'
+        required: false
+        type: string
+
+jobs:
+  build-loci:
+    name: Test with ${{ inputs.partitioner }} partitioner, ${{ inputs.compiler }}, and ${{ inputs.mpi }} on ${{ inputs.runs-on }}
+    runs-on: ${{ inputs.runs-on }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Spack
+      uses: spack/setup-spack@v2
+      with:
+        ref: develop      # Spack version (examples: develop, releases/v0.23)
+        color: true       # Force color output (SPACK_COLOR=always)
+        path: spack       # Where to clone Spack
+
+    - name: Find built-in compilers
+      run: spack compiler find
+
+    - name: Set up a Spack environment
+      shell: spack-bash {0}
+      run: |
+        spack env create loci_build
+        spack env activate -p loci_build
+        spack config add -f .spack/mirrors.yaml
+        spack config add -f .spack/repos.yaml
+        spack config add -f .spack/toolchains.yaml
+        spack repo update
+
+    - name: Concretize the dependencies (serial Loci)
+      if: ${{ inputs.mpi == 'none' }}
+      shell: spack-bash {0}
+      run: |
+        spack env activate -p loci_build
+        spack add loci@develop +debug -petsc \
+          -mpi %${{ inputs.compiler }}
+        spack develop --no-clone --path $(pwd) loci@develop
+        spack concretize
+
+    - name: Concretize the dependencies (parallel Loci)
+      if: ${{ inputs.mpi != 'none' }}
+      shell: spack-bash {0}
+      run: |
+        spack env activate -p loci_build
+        spack add loci@develop +debug +petsc \
+          partitioner=${{ inputs.partitioner }} \
+          %${{ inputs.compiler }} ^${{ inputs.mpi }} %${{ inputs.compiler }}
+        spack develop --no-clone --path $(pwd) loci@develop
+        spack concretize
+
+    - name: Compile, test, and install Loci
+      shell: spack-bash {0}
+      run: |
+        spack env activate -p loci_build
+        sed -i "s/MPINUMPROC=3/MPINUMPROC=1/g" quickTest/test.conf
+        spack install --test=root --dirty
+
+    # - name: Run quickTest
+    #   shell: spack-bash {0}
+    #   run: |
+    #     spack env activate -p loci_build
+    #     make test
+
+    - name: Get build stage output directory
+      if: ${{ failure() }}
+      shell: spack-bash {0}
+      run: |
+        spack env activate -p loci_build
+        echo "stageOutputDir=`spack location -s loci`" >> $GITHUB_ENV
+
+    - name: Upload build stage output files
+      if: ${{ failure() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: buildlog-${{ inputs.partitioner }}-${{ inputs.compiler }}-${{ inputs.mpi }}-${{ inputs.runs-on }}
+        path: |
+          ${{ env.stageOutputDir }}
+          OBJ/*.conf
+        if-no-files-found: ignore

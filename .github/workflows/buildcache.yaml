@@ -1,0 +1,54 @@
+name: Build and Cache Dependencies
+
+on:
+  # Allow manually triggering the workflow
+  workflow_dispatch:
+  # Run on pull requests when buildcache.yaml or spack.yaml are modified
+  # pull_request:
+  #   paths:
+  #     - .github/workflows/buildcache.yaml
+  #     - .spack/spack.yaml
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-deps:
+    name: Build dependencies on ${{ matrix.runs-on }}
+    runs-on: ${{ matrix.runs-on }}
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [ubuntu-24.04] #, macos-14]
+    permissions:
+      packages: write
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup Spack
+      uses: spack/setup-spack@v2
+      with:
+        ref: develop      # Spack version (examples: develop, releases/v0.23)
+        color: true       # Force color output (SPACK_COLOR=always)
+        path: spack       # Where to clone Spack
+
+    - name: Find built-in compilers
+      run: spack -e .spack/ compiler find
+
+    - name: Concretize
+      run: spack -e .spack/ concretize
+
+    - name: Install
+      run: spack -e .spack/ install
+
+    - name: Push packages and update index
+      env:
+        GITHUB_USER: ${{ github.actor }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: spack -e .spack/ buildcache push --update-index local-buildcache
+      if: ${{ !cancelled() }}
