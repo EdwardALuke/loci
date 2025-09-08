@@ -30,22 +30,6 @@ $type Kl param<real> ;
  * 'venkatakrishnan', 'barth', 'none' for second order solutions, and 'zero' 
  * for first order solutions" */
 $type limiter param<std::string> ;
-/** Venkatakrishnan limiter */
-$type Vk_limiter Constraint ;
-/** Barth limiter */
-$type B_limiter Constraint ;
-/** No limiter (limiter = 1) */
-$type N_limiter Constraint ;
-/** Zero limiter (limiter = 0) */
-$type Z_limiter Constraint ;
-/** Nodal Barth limiter  */
-$type NB_limiter Constraint ;
-/** Venkatakrishnan 2 (cell center) limiter */
-$type V2_limiter Constraint ;
-/** Nisikawa limiter to face centers */
-$type NISf_limiter Constraint;
-/** Niskiawak limiter to cell centers */
-$type NISc_limiter Constraint;
 /** Scalar cell to node max */
 $type NGTNodalMax(S) store<real_t> ;
 /** Scalar cell to node min */
