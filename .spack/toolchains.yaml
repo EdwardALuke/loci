@@ -1,0 +1,15 @@
+toolchains:
+  llvm_gfortran:
+  - spec: "%c=llvm"
+    when: "%c"
+  - spec: "%cxx=llvm"
+    when: "%cxx"
+  - spec: "%fortran=gcc"
+    when: "%fortran"
+  gcc_all:
+  - spec: "%c=gcc"
+    when: "%c"
+  - spec: "%cxx=gcc"
+    when: "%cxx"
+  - spec: "%fortran=gcc"
+    when: "%fortran"

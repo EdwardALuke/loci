@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  # Allow manually triggering the workflow
+  workflow_dispatch:
+  # pull_request:
+  #   # Build when a pull request targets the dev branch
+  #   branches:
+  #     - dev
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Many color libraries just need this variable to be set to any value.
+  # Set it to 3 to support 8-bit color graphics (256 colors per channel)
+  # for libraries that care about the value set.
+  FORCE_COLOR: 3
+
+jobs:
+  run-quicktest:
+    # Default values for all options.
+    uses: ./.github/workflows/build-quicktest.yaml

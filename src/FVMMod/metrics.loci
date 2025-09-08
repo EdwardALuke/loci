@@ -49,13 +49,11 @@ namespace Loci {
     }      
   }
 
-  /// compute exact centroid constraint for selecting exact centroid metrics  
-  $rule constraint(exactCentroid<-centroid) {
-    $exactCentroid = EMPTY ;
-    if($centroid == "exact") 
-      $exactCentroid = $*centroid.domain() ;
-  } 
-
+  $rule pointwise(OUTPUT<-selector(centroid,exact)) {}
+  $type centroid_select_exact Constraint ; 
+  $rule pointwise(OUTPUT<-selector(centroid,wireframe)) {}
+  $type centroid_select_wireframe Constraint ;
+  
   /// unit rule used to compute cell z coordinate thickness for processing
   /// 2-D grids
   $rule unit(cell_thickness),constraint(geom_cells) {
@@ -457,7 +455,8 @@ namespace Loci {
   /// centroid is defined as the edge length average of the edge centroids.
   /// This amounts to an centroid computation assuming that the mass is
   /// on the edges of the face.
-  $rule pointwise(facecenter<-face2node->pos) {
+  $rule pointwise(facecenter<-face2node->pos),
+  constraint(face2node->pos,centroid_select_wireframe) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t lensum = 0 ;
     warn($face2node.begin() == $face2node.end() ||
@@ -484,8 +483,8 @@ namespace Loci {
   /// Compute the cell centroid as the area weighted average of the face
   /// centroids that amounts to the centroid assuming that the mass is
   /// only present on the surface of the cell.
-  $rule pointwise(cellcenter<-(upper,lower,boundary_map)->(facecenter,area)
-                  ), constraint(geom_cells,cartesianCoordinateModel) {
+  $rule pointwise(cellcenter<-(upper,lower,boundary_map)->(facecenter,area)),
+  constraint(geom_cells,cartesianCoordinateModel,centroid_select_wireframe) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t areasum = 0 ;
     for(const Entity *id=$upper.begin();id!=$upper.end();++id) {
@@ -509,8 +508,8 @@ namespace Loci {
   /// the nodal average approximation and then iterate with the exact centroid
   /// computation four iterations to arrive at a close approximation to a face
   /// where the centroid also defines the triangulation of the face. 
-  $rule pointwise(truecentroid::facecenter<-face2node->pos
-                  ),constraint(exactCentroid,face2node->pos) {
+  $rule pointwise(facecenter<-face2node->pos),
+  constraint(centroid_select_exact,face2node->pos) {
     
     // Compute approximate centroid
     const int fsz = $face2node.size() ;
@@ -546,11 +545,11 @@ namespace Loci {
   /// Exact centroid override for the cell center computation.  This computes
   /// The exact centroid by dividing the cell into tetrahedra and computing
   /// an exact integration of the positions over the cell.
-  $rule pointwise(truecentroid::cellcenter<-
+  $rule pointwise(cellcenter<-
                   (upper,lower,boundary_map)->(facecenter,area),
                   (upper,lower,boundary_map)->face2node->pos
-                  ),constraint(geom_cells,exactCentroid,
-                               cartesianCoordinateModel) {
+                  ),
+  constraint(geom_cells,centroid_select_exact,cartesianCoordinateModel) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t areasum = 0 ;
     for(const Entity *id=$upper.begin();id!=$upper.end();++id) {
@@ -658,7 +657,8 @@ namespace Loci {
   $rule pointwise(cellcenter<-
                   (upper,lower,boundary_map)->(facecenter,area),
                   (upper,lower,boundary_map)->face2node->pos
-                  ),constraint(geom_cells,axisymmetricCoordinateModel) {
+                  ),
+  constraint(geom_cells,axisymmetricCoordinateModel,centroid_select_wireframe) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
 
     // cellcenter is just average of two symmetry plane face centers

@@ -26,24 +26,29 @@ using std::cerr ;
 using std::endl ;
 
 namespace Loci {
+  $rule pointwise(OUTPUT<-selector(limiter,none)) {}
+  /// No limiter is selected (the limiter is always one, effectively disabling
+  /// this limiter
+  $type limiter_select_none Constraint ;
+  
   typedef vector3d<real_t> vect3d ;
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
 
   $type S store<real> ;
 
-  $rule pointwise(limiters(S)<-S),constraint(geom_cells,N_limiter) {
+  $rule pointwise(limiters(S)<-S),constraint(geom_cells,limiter_select_none) {
     $limiters(S) = 1.0 ;
   }
 
   $type V store<vect3d> ;
   
-  $rule pointwise(limiterv3d(V)<-V),constraint(geom_cells,N_limiter) {
+  $rule pointwise(limiterv3d(V)<-V),constraint(geom_cells,limiter_select_none) {
     $limiterv3d(V) = vect3d(1.0,1.0,1.0) ;
   }
 
   $type M storeVec<real> ;
-  $rule pointwise(limiterv(M)<-M),constraint(geom_cells,N_limiter),prelude {
+  $rule pointwise(limiterv(M)<-M),constraint(geom_cells,limiter_select_none),prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     $limiterv(M) = mk_Scalar(1.) ;

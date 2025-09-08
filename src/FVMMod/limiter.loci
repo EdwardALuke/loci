@@ -105,41 +105,6 @@ namespace Loci {
   {
     $nisPow = 3;
   }
-  
-  $rule constraint(Vk_limiter,B_limiter,N_limiter,Z_limiter,NB_limiter,V2_limiter,NISf_limiter,NISc_limiter<-limiter) {
-    $Vk_limiter = EMPTY ;
-    $V2_limiter = EMPTY ;
-    $B_limiter = EMPTY ;
-    $NB_limiter = EMPTY ;
-    $NISf_limiter = EMPTY;
-    $NISc_limiter = EMPTY;
-    $N_limiter = EMPTY ;
-    $Z_limiter = EMPTY ;
-      
-    if($limiter == "venkatakrishnan" || $limiter == "V") {
-      $Vk_limiter = ~EMPTY ;
-    } else if($limiter == "V2") {
-      $V2_limiter = ~EMPTY ;
-    } else if($limiter == "barth" || $limiter == "B") {
-      $B_limiter = ~EMPTY ;
-    } else if($limiter == "nodalbarth" || $limiter == "NB") {
-      $NB_limiter = ~EMPTY ;
-    } else if($limiter == "nishikawaf" || $limiter == "NISf") {
-      $NISf_limiter = ~EMPTY;
-    } else if($limiter == "nishikawac" || $limiter == "NISc"){
-      $NISc_limiter = ~EMPTY;
-    } else if($limiter == "none") {
-      $N_limiter = ~EMPTY ;
-    } else if($limiter == "zero") {
-      $Z_limiter = ~EMPTY ;
-    } else {
-      cerr << "limiter " << $limiter
-	   << " not supported for generalized grids" << endl ;
-      cerr << "defaulting to venkatakrishnan limiter" << endl ;
-      $Vk_limiter = ~EMPTY ;
-    }
-  }
-
 
   $rule constraint(standardvecLimit,minvecLimit<-vecminLimiter)
   {

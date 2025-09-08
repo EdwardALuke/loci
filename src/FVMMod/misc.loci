@@ -76,4 +76,172 @@ namespace Loci {
     }
   } ;
 
+
+  /// Convert a parametric substitution to a string
+  $rule singleton(parametricName(X)), constraint(UNIVERSE),
+  option(disable_threading) {
+    Loci::rule_impl::info const & info = get_info();
+    Loci::variableSet outset = info.output_vars();
+    Loci::variable out = *outset.begin();
+    std::string name = "X";
+    if(out.get_arg_list().size() != 1) {
+      $[Once] {
+        std::cerr << "Unexpected fault: " << "variable " << out
+                  << " should be parametricName(X)!" << std::endl;
+      }
+      Loci::Abort();
+    }
+    Loci::variable varg = Loci::variable(out.get_arg_list()[0]);
+    Loci::variable::info const & vinfo = varg.get_info();
+    name = vinfo.name;
+    $parametricName(X) = name;
+  }
+
+
+  /// Variable used for creating selection constraints
+  $type SELECTOR param<string> ;
+  /// Verify that the selection is satisfied by one rule
+  $type verifySelector(SELECTOR) param<int> ;
+  /// Unit rule to count valid selections
+  $rule unit(verifySelector(SELECTOR)),constraint(UNIVERSE) {
+    $verifySelector(SELECTOR) = 0 ;
+  }
+  /// Check that SELECTOR input selects SELECTION
+  $rule apply(verifySelector(SELECTOR)<-SELECTOR,
+              parametricName(SELECTION))[Loci::Summation],
+  parametric(verifySelector(SELECTOR,SELECTION)) ,prelude {
+    $[Once] {
+      if(*$SELECTOR == *$parametricName(SELECTION))
+        join(*$verifySelector(SELECTOR),1) ;
+    }
+  };
+
+  $type selectorOptions(SELECTOR) blackbox<vector<pair<string,string> > > ;
+
+  $rule unit(selectorOptions(SELECTOR)),constraint(UNIVERSE),prelude {
+    *$selectorOptions(SELECTOR) = vector<pair<string,string> >() ;
+  } ;
+
+  $rule apply(selectorOptions(SELECTOR)<-
+              parametricName(SELECTION),
+              parametricName(ABBREV))[Loci::NullOp],
+  parametric(selector(SELECTOR,SELECTION,ABBREV)), prelude {
+    pair<string,string> entry(*$parametricName(SELECTION),
+                              *$parametricName(ABBREV)) ;
+    (*$selectorOptions(SELECTOR)).push_back(entry) ;
+  } ;
+  $rule apply(selectorOptions(SELECTOR)<-
+              parametricName(SELECTION))[Loci::NullOp],
+  parametric(selector(SELECTOR,SELECTION)), prelude {
+    pair<string,string> entry(*$parametricName(SELECTION),
+                              string("")) ;
+    (*$selectorOptions(SELECTOR)).push_back(entry) ;
+  } ;
+    
+  
+  /// Control flow path to report errors in selection
+  $type reportSelectorError(SELECTOR) param<int> ;
+
+  /// @brief Shortcut for summarizing valid options for selector
+  void printSelectorMessage(const string &selector,
+                            vector<pair<string,string> > info) {
+    sort(info.begin(),info.end()) ;
+    cerr << "Possible valid settings for '" << selector
+         << "' is:" << endl ;
+    for(size_t i=0;i<info.size();++i) {
+      cerr << "    setting of '" << info[i].first
+           << "'" ;
+      if(info[i].second.size() > 0)
+        cerr << " abbreviated as '" << info[i].second << "'" ;
+      cerr << endl ;
+    }
+  }
+    
+  /// Check verification of selector and print informative message
+  /// if verification fails
+  $rule singleton(reportSelectorError(SELECTOR)<-parametricName(SELECTOR),
+                  verifySelector(SELECTOR),SELECTOR,
+                  selectorOptions(SELECTOR)) {
+    $reportSelectorError(SELECTOR)=$verifySelector(SELECTOR) ;
+    $[Once] {
+      if($verifySelector(SELECTOR) == 0) {
+        cerr << "Error in setting of '" << $parametricName(SELECTOR)
+             << ": " << $SELECTOR << "'!" << endl ;
+        printSelectorMessage($parametricName(SELECTOR),
+                             $selectorOptions(SELECTOR)) ;
+        Loci::Abort() ;
+      }
+      if($verifySelector(SELECTOR) != 1) {
+        cerr << "Unexpected internal error in verification of '"
+             << $parametricName(SELECTOR) << ": " << $SELECTOR << "'" << endl ;
+        printSelectorMessage($parametricName(SELECTOR),
+                             $selectorOptions(SELECTOR)) ;
+        Loci::Abort() ;
+      }
+    }
+  }
+  /// Routes check requests from a specific SELECTION of SELECTOR
+  $type verifySelector(SELECTOR,SELECTION) param<int> ;
+  $rule singleton(verifySelector(SELECTOR,SELECTION)<-
+                  reportSelectorError(SELECTOR)) {
+    $verifySelector(SELECTOR,SELECTION) = $reportSelectorError(SELECTOR) ;
+  }
+
+  /// Constraint that is generate by selector
+  $type SELECTOR_select_SELECTION Constraint ;
+
+  /// Constraint generator for when SELECTOR selects SELECTION or ABBREV
+  $rule constraint(SELECTOR_select_SELECTION<-SELECTOR,
+                   parametricName(SELECTION),parametricName(ABBREV),
+                   verifySelector(SELECTOR,SELECTION),
+                   verifySelector(SELECTOR,ABBREV)),
+  parametric(selector(SELECTOR,SELECTION,ABBREV)) {
+    $SELECTOR_select_SELECTION = EMPTY ;
+    if($SELECTOR == $parametricName(SELECTION) ||
+       $SELECTOR == $parametricName(ABBREV))
+      $SELECTOR_select_SELECTION = ~EMPTY ;
+  }
+
+  /// Constraint generator for when SELECTOR selects SELECTION (no ABBREV)
+  $rule constraint(SELECTOR_select_SELECTION<-SELECTOR,
+                   parametricName(SELECTION),
+                   verifySelector(SELECTOR,SELECTION)),
+  parametric(selector(SELECTOR,SELECTION)) {
+    $SELECTOR_select_SELECTION = EMPTY ;
+    if($SELECTOR == $parametricName(SELECTION))
+      $SELECTOR_select_SELECTION = ~EMPTY ;
+  }
+
+  /// dryrun option for making a query to just validate inputs
+  /// this veriable will contain the number of detected errors.
+  $type dryrun param<int> ;
+
+  $rule unit(dryrun), constraint(UNIVERSE) {
+    $dryrun = 0 ;
+  }
+
+  $rule apply(dryrun<-verifySelector(SELECTOR),
+              parametricName(SELECTOR),
+              SELECTOR, selectorOptions(SELECTOR))[Loci::Summation],
+  parametric(verifySelector(SELECTOR)), prelude {
+    $[Once] {
+      if(*$verifySelector(SELECTOR) == 0) {
+        cerr << "Error in setting of '" << *$parametricName(SELECTOR)
+             << ": " << *$SELECTOR << "'!" << endl ;
+        printSelectorMessage(*$parametricName(SELECTOR),
+                             *$selectorOptions(SELECTOR)) ;
+        join(*$dryrun,1) ;
+      } else   if(*$verifySelector(SELECTOR) != 1) {
+        cerr << "Unexpected internal error in verification of '"
+             << *$parametricName(SELECTOR) << ": " << *$SELECTOR << "'" << endl ;
+        printSelectorMessage(*$parametricName(SELECTOR),
+                             *$selectorOptions(SELECTOR)) ;
+        join(*$dryrun,1) ;
+      }
+    }
+
+  };
+    
+    
+
 }
