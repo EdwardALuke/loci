@@ -130,12 +130,33 @@ namespace Loci {
                               *$parametricName(ABBREV)) ;
     (*$selectorOptions(SELECTOR)).push_back(entry) ;
   } ;
+  $rule apply(selectorOptions(SELECTOR)<-
+              parametricName(SELECTION))[Loci::NullOp],
+  parametric(selector(SELECTOR,SELECTION)), prelude {
+    pair<string,string> entry(*$parametricName(SELECTION),
+                              string("")) ;
+    (*$selectorOptions(SELECTOR)).push_back(entry) ;
+  } ;
     
   
   /// Control flow path to report errors in selection
   $type reportSelectorError(SELECTOR) param<int> ;
 
-
+  /// @brief Shortcut for summarizing valid options for selector
+  void printSelectorMessage(const string &selector,
+                            vector<pair<string,string> > info) {
+    sort(info.begin(),info.end()) ;
+    cerr << "Possible valid settings for '" << selector
+         << "' is:" << endl ;
+    for(size_t i=0;i<info.size();++i) {
+      cerr << "    setting of '" << info[i].first
+           << "'" ;
+      if(info[i].second.size() > 0)
+        cerr << " abbreviated as '" << info[i].second << "'" ;
+      cerr << endl ;
+    }
+  }
+    
   /// Check verification of selector and print informative message
   /// if verification fails
   $rule singleton(reportSelectorError(SELECTOR)<-parametricName(SELECTOR),
@@ -146,25 +167,15 @@ namespace Loci {
       if($verifySelector(SELECTOR) == 0) {
         cerr << "Error in setting of '" << $parametricName(SELECTOR)
              << ": " << $SELECTOR << "'!" << endl ;
-        cerr << "Possible valid settings for '" << $parametricName(SELECTOR)
-             << "' is:" << endl ;
-        for(size_t i=0;i<$selectorOptions(SELECTOR).size();++i) {
-          cerr << "    setting of '" << $selectorOptions(SELECTOR)[i].first
-               << "' abbreviated as '" << $selectorOptions(SELECTOR)[i].second
-               << "'" << endl ;
-        }
+        printSelectorMessage($parametricName(SELECTOR),
+                             $selectorOptions(SELECTOR)) ;
         Loci::Abort() ;
       }
       if($verifySelector(SELECTOR) != 1) {
         cerr << "Unexpected internal error in verification of '"
              << $parametricName(SELECTOR) << ": " << $SELECTOR << "'" << endl ;
-        cerr << "Possible valid settings for '" << $parametricName(SELECTOR)
-             << "' is:" << endl ;
-        for(size_t i=0;i<$selectorOptions(SELECTOR).size();++i) {
-          cerr << "    setting of '" << $selectorOptions(SELECTOR)[i].first
-               << "' abbreviated as '" << $selectorOptions(SELECTOR)[i].second
-               << "'" << endl ;
-        }
+        printSelectorMessage($parametricName(SELECTOR),
+                             $selectorOptions(SELECTOR)) ;
         Loci::Abort() ;
       }
     }
@@ -191,6 +202,18 @@ namespace Loci {
       $SELECTOR_select_SELECTION = ~EMPTY ;
   }
 
+  /// Constraint generator for when SELECTOR selects SELECTION (no ABBREV)
+  $rule constraint(SELECTOR_select_SELECTION<-SELECTOR,
+                   parametricName(SELECTION),
+                   verifySelector(SELECTOR,SELECTION)),
+  parametric(selector(SELECTOR,SELECTION)) {
+    $SELECTOR_select_SELECTION = EMPTY ;
+    if($SELECTOR == $parametricName(SELECTION))
+      $SELECTOR_select_SELECTION = ~EMPTY ;
+  }
+
+  /// dryrun option for making a query to just validate inputs
+  /// this veriable will contain the number of detected errors.
   $type dryrun param<int> ;
 
   $rule unit(dryrun), constraint(UNIVERSE) {
@@ -205,24 +228,14 @@ namespace Loci {
       if(*$verifySelector(SELECTOR) == 0) {
         cerr << "Error in setting of '" << *$parametricName(SELECTOR)
              << ": " << *$SELECTOR << "'!" << endl ;
-        cerr << "Possible valid settings for '" << *$parametricName(SELECTOR)
-             << "' is:" << endl ;
-        for(size_t i=0;i<(*$selectorOptions(SELECTOR)).size();++i) {
-          cerr << "    setting of '" << (*$selectorOptions(SELECTOR))[i].first
-               << "' abbreviated as '" << (*$selectorOptions(SELECTOR))[i].second
-               << "'" << endl ;
-        }
+        printSelectorMessage(*$parametricName(SELECTOR),
+                             *$selectorOptions(SELECTOR)) ;
         join(*$dryrun,1) ;
       } else   if(*$verifySelector(SELECTOR) != 1) {
         cerr << "Unexpected internal error in verification of '"
              << *$parametricName(SELECTOR) << ": " << *$SELECTOR << "'" << endl ;
-        cerr << "Possible valid settings for '" << *$parametricName(SELECTOR)
-             << "' is:" << endl ;
-        for(size_t i=0;i<(*$selectorOptions(SELECTOR)).size();++i) {
-          cerr << "    setting of '" << (*$selectorOptions(SELECTOR))[i].first
-               << "' abbreviated as '" << (*$selectorOptions(SELECTOR))[i].second
-               << "'" << endl ;
-        }
+        printSelectorMessage(*$parametricName(SELECTOR),
+                             *$selectorOptions(SELECTOR)) ;
         join(*$dryrun,1) ;
       }
     }

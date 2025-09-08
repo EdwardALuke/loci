@@ -196,6 +196,8 @@ $type parametricName(X) param<std::string>;
 
 /// Dummy type to facilitate adding selector generators using parametric rules
 $type selector(SELECT,SELECTION,ABBREV) param<bool> ;
+/// Dummy type to facilitate adding selector generators using parametric rules
+$type selector(SELECT,SELECTION) param<bool> ;
 
 /// get vector size of storeVec<real_t>
 $type vecSize(M) param<int> ;

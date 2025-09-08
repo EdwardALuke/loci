@@ -26,7 +26,7 @@ using std::cerr ;
 using std::endl ;
 
 namespace Loci {
-  $rule pointwise(OUTPUT<-selector(limiter,zero,L0)) {}
+  $rule pointwise(OUTPUT<-selector(limiter,zero)) {}
   /// Always limit the extrapolations reducing MUSCL extrapolations first order
   $type limiter_select_zero Constraint ;
   
