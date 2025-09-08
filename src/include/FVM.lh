@@ -54,9 +54,6 @@ $type gridCoordinates param<std::string> ;
 /** Vars file selector for type of centroid calculation */
 $type centroid param<std::string> ;
 
-/** Constraint used to turn on exact centroid calculation */
-$type exactCentroid Constraint ;
-
 /** Compute thickness of extrusion (for axisymmetric case) */
 $type cell_thickness store<real_t> ;
 /** Maximum Grid Thickness (used to check validity of 2-D axisymmetric mesh */
