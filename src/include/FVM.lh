@@ -190,6 +190,13 @@ $type LinfNorm(X) param<Loci::real_t> ;
 /** Get file number of entity */
 $type fileNumber(X) store<int> ;
 
+/// Convert argument into a string that is the name of the substitution used
+/// in parametricName(X)
+$type parametricName(X) param<std::string>;
+
+/// Dummy type to facilitate adding selector generators using parametric rules
+$type selector(SELECT,SELECTION,ABBREV) param<bool> ;
+
 /// get vector size of storeVec<real_t>
 $type vecSize(M) param<int> ;
 

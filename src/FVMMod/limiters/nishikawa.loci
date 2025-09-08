@@ -26,6 +26,10 @@ using std::cerr ;
 using std::endl ;
 
 namespace Loci {
+  $rule pointwise(OUTPUT<-selector(limiter,nishikawaf,NISf)) {}
+  /// Select Nishikawa's limiter which improves convergence characteristics.
+  $type limiter_select_nishikawaf Constraint ;
+  
   typedef vector3d<real_t> vect3d ;
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
@@ -77,7 +81,7 @@ namespace Loci {
                                 upper->cr->S,upper->facecenter,
                                 lower->cl->S,lower->facecenter,
                                 boundary_map->S_f,boundary_map->facecenter),
-        constraint(geom_cells,NISf_limiter) 
+        constraint(geom_cells,limiter_select_nishikawaf) 
   {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
@@ -142,7 +146,7 @@ namespace Loci {
                                   upper->cr->V,upper->facecenter,
                                   lower->cl->V,lower->facecenter,
                                   boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,NISf_limiter,standardv3dLimit) 
+        constraint(geom_cells,limiter_select_nishikawaf,standardv3dLimit) 
   {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
@@ -223,7 +227,7 @@ namespace Loci {
                                   upper->cr->V,upper->facecenter,
                                   lower->cl->V,lower->facecenter,
                                   boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,NISf_limiter,minv3dLimit) 
+        constraint(geom_cells,limiter_select_nishikawaf,minv3dLimit) 
   {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
@@ -306,7 +310,7 @@ namespace Loci {
                                 upper->cr->M,upper->facecenter,
                                 lower->cl->M,lower->facecenter,
                                 boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,NISf_limiter,standardvecLimit),prelude 
+        constraint(geom_cells,limiter_select_nishikawaf,standardvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
@@ -367,7 +371,7 @@ namespace Loci {
                                 upper->cr->M,upper->facecenter,
                                 lower->cl->M,lower->facecenter,
                                 boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,NISf_limiter,minvecLimit),prelude 
+        constraint(geom_cells,limiter_select_nishikawaf,minvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
