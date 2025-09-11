@@ -252,7 +252,7 @@ build_metis() {
   ensure_submodule METIS
   say "==== METIS ===="
 
-  local gk_inst="$ext/GKlib_install"
+  local gk_inst="$prefix/GKlib_install"
   [[ -d "$gk_inst/include" && -d "$gk_inst/lib" ]] || die "METIS needs GKlib installed."
 
   local src="$ext/METIS"
