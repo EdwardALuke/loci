@@ -34,9 +34,14 @@ namespace Loci {
     $firstOrderCells = 0 ;
   }
 
-  $rule apply((cl,cr)->firstOrderCells<-(cl,cr)->vol)[Loci::Maximum],
+  /// Force first order treatment for cells that exceed this volume ratio
+  $type limitVolumeRatio param<double> ;
+
+  $rule default(limitVolumeRatio) { $limitVolumeRatio = 50.0 ; }
+  $rule apply((cl,cr)->firstOrderCells<-(cl,cr)->vol,
+              limitVolumeRatio)[Loci::Maximum],
   constraint((cl,cr)->geom_cells) {
-    if(max($cl->$vol,$cr->$vol) > 50.*min($cl->$vol,$cr->$vol)) {
+    if(max($cl->$vol,$cr->$vol) > $limitVolumeRatio*min($cl->$vol,$cr->$vol)) {
       char tmp = 1 ;
       join($cl->$firstOrderCells,tmp) ;
       join($cr->$firstOrderCells,tmp) ;
@@ -48,7 +53,20 @@ namespace Loci {
     join($ci->$firstOrderCells,tmp) ;
   }
 
-  $rule apply((cl,cr)->firstOrderCells<-(cl,cr)->cellcenter,facecenter)[Loci::Maximum],constraint((cl,cr)->geom_cells) {
+  /// Force first order behavior on cells that exceed this cell face angle
+  /// (in degrees).
+  $type limitCellFaceAngle param<double> ;
+  
+  $rule default(limitCellFaceAngle) { $limitCellFaceAngle = 150 ; }
+
+  $type cosLimitCellFaceAngle param<double> ;
+  $rule singleton(cosLimitCellFaceAngle<-limitCellFaceAngle) {
+    $cosLimitCellFaceAngle = cos($limitCellFaceAngle*M_PI/180.) ;
+  }
+  
+  $rule apply((cl,cr)->firstOrderCells<-(cl,cr)->cellcenter,facecenter,
+              cosLimitCellFaceAngle)[Loci::Maximum],
+  constraint((cl,cr)->geom_cells) {
     // maximum angle between line segment connecting cellcenters and line
     // segments that connect cell centers to face centers.
     vector3d<real_t> v1 = $cr->$cellcenter-$cl->$cellcenter ;
@@ -58,7 +76,7 @@ namespace Loci {
     real_t nv2 = max(norm(v2),real_t(1e-20)) ;
     real_t nv3 = max(norm(v3),real_t(1e-20)) ;
     real_t mincosa = min(dot(v1,v2)/(nv1*nv2),dot(v1,v3)/(nv1*nv3)) ;
-    if(mincosa < -.866) { // Greater than 150 degrees
+    if(mincosa < $cosLimitCellFaceAngle) { // Greater than 150 degrees
       char tmp = 1 ;
       join($cl->$firstOrderCells,tmp) ;
       join($cr->$firstOrderCells,tmp) ;
