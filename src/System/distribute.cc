@@ -46,6 +46,306 @@ using std::sort ;
 
 namespace Loci {
 
+  std::vector<std::pair<int,entitySet> >
+  dataPartitionGeneral::partitionEntitySet(entitySet set) {
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+    if(p==1) {
+      vector<std::pair<int,entitySet> > res ;
+      res.push_back(make_pair(0,set)) ;
+      return res ;
+    }
+    fatal(ptn.size() != p) ;
+    std::vector<std::pair<int,entitySet> > splitlist ;
+    for(int i=0;i<p;++i) {
+      entitySet part = set&ptn[i] ;
+      if(part != EMPTY) {
+        splitlist.push_back(std::make_pair(i,part)) ;
+      }
+    }
+#ifdef DEBUG
+    entitySet sum ;
+    for(auto &elem : splitlist)
+      sum += elem.second ;
+    fatal(sum!=set) ;
+#endif
+    return splitlist ;
+  }
+
+  entitySet dataPartitionGeneral::getAllocation(int i) {
+#ifdef DEBUG
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+    fatal(i<0 || i >= p) ;
+#endif
+    return ptn[i] ;
+  }
+  
+  std::vector<std::pair<int,entitySet> >
+  dataPartitionSplits::partitionEntitySet(entitySet set) {
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+    if(p==1) {
+      vector<std::pair<int,entitySet> > res ;
+      res.push_back(make_pair(0,set)) ;
+      return res ;
+    }
+
+    fatal(splits.size() != p+1) ;
+    // remove any entity not defined by the partition function
+    //    set -= interval(splits[0],splits[p]-1) ;
+    entitySet filter = interval(splits[0],splits[p]-1) ;
+    fatal((set - filter) != EMPTY) ;
+    std::vector<std::pair<int,entitySet> > splitlist ;
+    for(int i=0;i<p;++i) {
+      if(set == EMPTY)
+        break ;
+      if(set.Min() < splits[i+1]) {
+        interval ival(splits[i],splits[i+1]-1) ;
+        entitySet part = set&ival ;
+        //        set -= ival ;
+        splitlist.push_back(std::make_pair(i,part)) ;
+      }
+    }
+#ifdef DEBUG
+    entitySet sum ;
+    for(auto &elem : splitlist)
+      sum += elem.second ;
+    fatal(sum!=set) ;
+#endif
+    return splitlist ;
+  }
+
+  entitySet dataPartitionSplits::getAllocation(int i) {
+#ifdef DEBUG
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+    fatal(i<0 || i >= p) ;
+#endif
+    return entitySet(interval(splits[i],splits[i+1]-1)) ;
+  }
+
+  std::vector<std::pair<int,entitySet> >
+  dataPartitionComputed::partitionEntitySet(entitySet set) {
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+    if(p==1) {
+      vector<std::pair<int,entitySet> > res ;
+      res.push_back(make_pair(0,set)) ;
+      return res ;
+    }
+    
+    // remove any entity not defined by the partition function
+    //    set -= interval(start,start+delta*p-1) ;
+    fatal((set - interval(start,start+delta*p-1)) != EMPTY) ;
+    std::vector<std::pair<int,entitySet> > splitlist ;
+    while(set != EMPTY) {
+      int i = (set.Min()-start)/delta ;
+      int s1 = start+i*delta ;
+      interval ival(s1,s1+delta-1) ;
+      entitySet part = set&ival ;
+      //      set -= ival ;
+      splitlist.push_back(std::make_pair(i,part)) ;
+    }
+#ifdef DEBUG
+    entitySet sum ;
+    for(auto &elem : splitlist)
+      sum += elem.second ;
+    fatal(sum!=set) ;
+#endif
+    return splitlist ;
+  }
+
+  entitySet dataPartitionComputed::getAllocation(int i) {
+#ifdef DEBUG
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+    fatal(i<0 || i >= p) ;
+#endif
+    int s1 = start+i*delta ;
+    return entitySet(interval(s1,s1+delta-1)) ;
+  }
+
+  void gatherCommSchedule::generateSchedule(entitySet request,
+                                            dataPartitionP ptn) {
+    comm = ptn->comm ;
+    MPI_Comm_size(comm,&p) ;
+    MPI_Comm_rank(comm,&r) ;
+    // Divide set into parts based on processor that owns it
+    Loci::debugout << "request = " << request << endl ;
+
+    vector<pair<int,entitySet> > recv_sets = ptn->partitionEntitySet(request) ;
+    Loci::debugout << "recv_sets = " << endl ;
+    for(size_t i = 0 ;i< recv_sets.size() ;++i)
+      Loci::debugout << recv_sets[i].first << " - " << recv_sets[i].second
+                     << endl ;
+    // Transpose this to get sets that we need to send to gather request
+    vector<pair<int,entitySet> > send_sets =
+      transpose_entitySet(recv_sets, comm) ;
+
+
+    // Setup Information for Sending Side
+    int send_sz = 0 ;
+    { vector<int> tmp(p,0) ; send_sizes.swap(tmp) ; }
+    for(auto i = send_sets.begin();i!=send_sets.end();++i) {
+      send_sz += i->second.size() ;
+      send_sizes[i->first] = i->second.size() ;
+    }
+
+    // Entities to gather from sending side
+    { vector<int> tmp(send_sz) ; send_entities.swap(tmp) ; }
+    int j = 0 ;
+    for(auto i = send_sets.begin();i!=send_sets.end();++i) {
+      FORALL(i->second,ii) {
+        send_entities[j] = ii ;
+        j++ ;
+      } ENDFORALL ;
+    }
+
+    // Recv data sizes
+    { vector<int> tmp(p,0) ; recv_sizes.swap(tmp) ; }
+    for(auto i = recv_sets.begin();i!=recv_sets.end();++i)
+      recv_sizes[i->first] = i->second.size() ;
+
+    // Compute offsets into send and recv buffers
+    { vector<int> tmp(p,0) ; send_offsets.swap(tmp) ; }
+    { vector<int> tmp(p,0) ; recv_offsets.swap(tmp) ; }
+    for(int i=1;i<p;++i) {
+      send_offsets[i] = send_offsets[i-1]+send_sizes[i-1] ;
+      recv_offsets[i] = recv_offsets[i-1]+recv_sizes[i-1] ;
+    }
+
+#ifdef DEBUG
+    // Sanity Check
+    size_t buff_size = 0 ;
+    for(int i=0;i<p;++i)
+        buff_size += send_sizes[i] ;
+    warn(buff_size != send_entities.size()) ;
+#endif
+
+  }
+
+  std::vector<std::pair<int, entitySet> >
+  transpose_entitySet(const std::vector<std::pair<int,entitySet> > &in,
+                      MPI_Comm comm) {
+    int np ;
+    MPI_Comm_size(comm, &np) ;
+    
+    
+    vector<bool> pack_interval(np,false) ;
+    // first compute the send count and displacement
+    vector<int> send_counts(np,0) ;
+    vector<int> send_loc(np,-1) ;
+    for(size_t i=0;i<in.size();++i) {
+      // since if sending intervals, the send size will
+      // be 2 * the number of intervals, then if that is
+      // larger than the total element size, then we choose
+      // to communicate elements directly, otherwise, we
+      // choose to send the intervals
+      int num_intervals = in[i].second.num_intervals() ;
+      num_intervals*=2 ;
+      int size = in[i].second.size() ;
+      int j = in[i].first ;
+      send_loc[j] = i ;
+      if(num_intervals >= size) {
+        pack_interval[j] = false ;
+        // +1 since we include a flag in the head to indicate
+        // whether this is interval, or elements packed
+        send_counts[j] = size + 1 ;
+      } else {
+        pack_interval[j] = true ;
+        send_counts[j] = num_intervals + 1 ;
+      }
+    }
+
+    vector<int> send_displs(np,0) ;
+    send_displs[0] = 0 ;
+    for(int i=1;i<np;++i)
+      send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
+    // then communicate this get the recv info.
+    vector<int> recv_counts(np,0) ;
+    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
+                 &recv_counts[0], 1, MPI_INT, comm) ;
+    vector<int> recv_displs(np,0) ;
+    recv_displs[0] = 0 ;
+    for(int i=1;i<np;++i)
+      recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
+    // all info. gathered, ready to do MPI_Alltoallv
+    // first pack data into a raw buffer.
+    int buf_size = send_counts[np-1] +
+      send_displs[np-1] ;
+    
+    vector<int> send_buf(buf_size) ;
+    int buf_idx = 0 ;
+    for(int i=0;i<np;++i) {
+      // only pack non-empty entitySet
+      if(send_counts[i] == 0)
+        continue ;
+
+      const entitySet& eset = in[send_loc[i]].second ;
+      if(pack_interval[i]) {
+        // packing intervals
+        send_buf[buf_idx++] = 1 ; // set flag to indicate
+                                  // that this is intervals packed
+        for(size_t k=0;k<eset.num_intervals();++k) {
+          send_buf[buf_idx++] = eset[k].first ;
+          send_buf[buf_idx++] = eset[k].second ;
+        }
+      } else {
+        send_buf[buf_idx++] = 0 ; // elements directly packed
+        for(entitySet::const_iterator ei=eset.begin();
+            ei!=eset.end();++ei,++buf_idx)
+          send_buf[buf_idx] = *ei ;
+      }
+    }
+    // allocate receive buffer
+    int recv_size = recv_displs[np-1] +
+      recv_counts[np-1] ;
+
+    vector<int> recv_buf(recv_size) ;
+    // communicate
+    MPI_Alltoallv(&send_buf[0], &send_counts[0],
+                  &send_displs[0], MPI_INT,
+                  &recv_buf[0], &recv_counts[0],
+                  &recv_displs[0], MPI_INT, comm) ;
+    // release buffers that are not needed
+    vector<int>().swap(send_counts) ;
+    vector<int>().swap(send_displs) ;
+    vector<int>().swap(send_buf) ;
+
+    // unpack recv buffer into a vector of entitySet
+    vector<pair<int,entitySet> > out ;
+
+    for(int i=0;i<np;++i) {
+      int b = recv_displs[i] ;
+      int e = b + recv_counts[i] ;
+      if(b == e)
+        continue ;              // empty buffer
+
+      entitySet eset ;
+      int flag = recv_buf[b] ;
+      ++b ;
+      if(flag == 1) {
+        // if packed with interval
+        for(;b<e;b+=2) {
+          int l = recv_buf[b] ;
+          int u = recv_buf[b+1] ;
+          eset += interval(l,u) ;
+        }
+      } else {
+        // packed with elements
+        for(;b<e;++b) {
+          eset += recv_buf[b] ;
+        }
+      }
+      out.push_back(make_pair(i,eset)) ;
+    }
+
+    return out ;
+    // the end...
+  }
+
+  
   std::vector<entitySet>
   transpose_entitySet(const std::vector<entitySet>& in, MPI_Comm comm) {
     int np ;

@@ -61,7 +61,252 @@ namespace Loci {
 
   storeRepP getC2PGlobal(fact_db &facts) ;
   
-  template <class T> void AMRinterpolateStore(store<T> &qout,
+  // Holds Data Structures for processing AMR interpolation
+  struct AMRrefinementMapping {
+    entitySet geom_cells_global ;
+    // parent cell numbers 
+    store<int> parent ;
+    // local numbering of parent to child mapping in local numbering
+    // for scattering communication
+    multiStore<int> parent2child_l ;
+    // List of refined parent cells
+    entitySet refinedCells ;
+    // Allocation set for gradient input gather
+    entitySet gradAccessSet ;
+    // Communication schedule needed to compute gradients of parent nodes
+    gatherCommSchedule gradientComm ;
+    // stencils for computing gradient of parent cell data
+    multiStore<int> gradCellStencil ;
+    // weights for computing graidents from stencil
+    multiStore<vector3d<float> > stencilWeights ;
+    // deltas used to compute stencil
+    multiStore<vector3d<float> > grad_dvs ;
+    // Vectors from parent centroid to cell centroids
+    multiStore<vector3d<double> > child_dvs ;
+    // Communication schedule gathering refined cells to parent processor
+    gatherCommSchedule  refineCellComm ;
+    // child -> local numbering of parent data
+    vector<pair<int,int> > c2lp ;
+    // Set of child cells that have direct mapping to parents
+    entitySet directMapCells ;
+    // Communicationschedule gathering parent cell data to children
+    gatherCommSchedule directMapComm ;
+    // Weights for volume weighted average for coarsened cells
+    vector<float>  directWeights ;
+  } ;
+
+  void AMRprocessRefinementMapping(struct AMRrefinementMapping &mappings,
+                                   const store<pair<int,int> > &c2pg,
+                                   const store<float> &volw,
+                                   multiStore<int> &gradCells,
+                                   multiStore<vector3d<float> > &deltas,
+                                   const_store<vector3d<double> > &cell_center,
+                                   const_store<double> &vol,
+                                   fact_db &facts) ;
+  
+  template<class T>
+  void AMRinterpolateData(AMRrefinementMapping &mapping,
+                          storeVec<T> &parent_data,
+                          storeVec<T> &child_data) {
+    //########################################################################
+    //
+    // First interpolate to cells that resulted from splitting parent cells
+    //
+    // Step 1, compute gradients using parent data for parents that form
+    // split cells
+    // Step 2, compute limiter for these gradients
+    // Step 3, compute limited second order interpolation to child cells
+    // Step 4, distribute second order reconstruction from parent to child cells
+    // Step 5, collect direct mapped cells and use volume averaging to
+    //         interpolate from many parents to child for coarsened cells
+    // Note, if the variables given are conservative, the extrapolation is
+    // conservative
+    //
+    const int vs = parent_data.vecSize() ;
+    // gather parent data needed to compute parent gradients
+    storeVec<T> grad_data ;
+    mapping.gradientComm.gatherData(grad_data,parent_data) ;
+    
+    storeVec<T> refineCell_data ;
+    refineCell_data.setVecSize(vs) ;
+    int refcells = mapping.refinedCells.size() ;
+#ifdef DEBUG
+    Loci::debugout  << "#refcells interpolations = " << refcells << endl ;
+#endif
+    entitySet refineCellDomain ;
+    if(refcells>0)
+      refineCellDomain = interval(0,refcells-1) ;
+    refineCell_data.allocate(refineCellDomain) ;
+    int vsz = parent_data.vecSize() ;
+    FORALL(mapping.parent.domain(),ii) {
+      // get stencil size
+      const int ssz = mapping.gradCellStencil[ii].getSize() ;
+      int parent = mapping.parent[ii] ;
+      for(int k=0;k<vsz;++k) { // loop over vector
+        // Compute gradient
+        vector3d<float> gradk(0,0,0) ;
+        T Xcc = parent_data[parent][k] ;
+        T max_val = Xcc ;
+        T min_val = max_val ;
+        for(int j=0;j<ssz;++j) {
+          const int cc = mapping.gradCellStencil[ii][j] ;
+          T val = grad_data[cc][k] ;
+          max_val = max(max_val,val) ;
+          min_val = min(min_val,val) ;
+          gradk += mapping.stencilWeights[ii][j]*(val-Xcc) ;
+        }
+        T limi = 1.0 ;
+        // Apply limiter to source points
+        for(int j=0;j<ssz;++j) {
+          const int cc = mapping.gradCellStencil[ii][j] ;
+          T qdif = dot(gradk,mapping.grad_dvs[ii][j]) ;
+          if(qdif > 0)
+            limi = min(limi,(max_val-Xcc)/(qdif+1e-100)) ;
+          if(qdif < 0)
+            limi = min(limi,(min_val-Xcc)/(qdif-1e-100)) ;
+        }
+        // Apply limiter to target points
+        for(int j=0;j<mapping.child_dvs[ii].getSize();++j) {
+          T qdif =  dot(vector3d<double>(gradk),
+                        mapping.child_dvs[ii][j]) ;
+          if(qdif > 0)
+            limi = min(limi,(max_val-Xcc)/(qdif+1e-100)) ;
+          if(qdif < 0)
+            limi = min(limi,(min_val-Xcc)/(qdif-1e-100)) ;
+        }
+
+        // reduce gradient by limiter factor
+        gradk *= limi ;
+        // compute child cell values
+        for(int j=0;j<mapping.child_dvs[ii].getSize();++j) {
+          T val = Xcc + dot(vector3d<double>(gradk),
+                            mapping.child_dvs[ii][j]) ;
+          refineCell_data[mapping.parent2child_l[ii][j]][k] = val ;
+        }
+      }
+    } ENDFORALL ;
+
+    mapping.refineCellComm.scatterData(refineCell_data,child_data) ;
+
+
+    // direct map cells with averaging for coarse cells
+    storeVec<T> mapCell_data ;
+    mapping.directMapComm.gatherData(mapCell_data,parent_data) ;
+    for(size_t i=0;i<mapping.c2lp.size();++i) {
+      int child = mapping.c2lp[i].first ;
+      float w = mapping.directWeights[i] ;
+      for(int k=0;k<vs;++k)
+        child_data[child][k] = w*mapCell_data[mapping.c2lp[i].second][k] ;
+      size_t j = i+1 ;
+      for(;j<mapping.c2lp.size()&&child == mapping.c2lp[j].first;++j) {
+        float w = mapping.directWeights[j] ;
+        for(int k=0;k<vs;++k)
+          child_data[child][k] +=  w*mapCell_data[mapping.c2lp[j].second][k] ;
+      }
+      int cnt = j-i ;
+      i+= cnt-1 ;
+    }
+  }
+  
+  template<class T>
+  void AMRinterpolateData(AMRrefinementMapping &mapping,
+                          store<T> &parent_data,
+                          store<T> &child_data) {
+    //########################################################################
+    //
+    // First interpolate to cells that resulted from splitting parent cells
+    //
+    // Step 1, compute gradients using parent data for parents that form
+    // split cells
+    // Step 2, compute limiter for these gradients
+    // Step 3, compute limited second order interpolation to child cells
+    // Step 4, distribute second order reconstruction from parent to child cells
+    // Step 5, collect direct mapped cells and use volume averaging to
+    //         interpolate from many parents to child for coarsened cells
+    // Note, if the variables given are conservative, the extrapolation is
+    // conservative
+    //
+    // gather parent data needed to compute parent gradients
+    store<T> grad_data ;
+    mapping.gradientComm.gatherData(grad_data,parent_data) ;
+    
+    store<T> refineCell_data ;
+    int refcells = mapping.refinedCells.size() ;
+#ifdef DEBUG
+    Loci::debugout  << "#refcells interpolations = " << refcells << endl ;
+#endif
+    entitySet refineCellDomain ;
+    if(refcells>0)
+      refineCellDomain = interval(0,refcells-1) ;
+    refineCell_data.allocate(refineCellDomain) ;
+    FORALL(mapping.parent.domain(),ii) {
+      // get stencil size
+      const int ssz = mapping.gradCellStencil[ii].getSize() ;
+      int parent = mapping.parent[ii] ;
+      // Compute gradient
+      vector3d<float> gradk(0,0,0) ;
+      T Xcc = parent_data[parent] ;
+      T max_val = Xcc ;
+      T min_val = max_val ;
+      for(int j=0;j<ssz;++j) {
+        const int cc = mapping.gradCellStencil[ii][j] ;
+        T val = grad_data[cc] ;
+        max_val = max(max_val,val) ;
+        min_val = min(min_val,val) ;
+        gradk += mapping.stencilWeights[ii][j]*(val-Xcc) ;
+      }
+      T limi = 1.0 ;
+      // Apply limiter to source points
+      for(int j=0;j<ssz;++j) {
+        const int cc = mapping.gradCellStencil[ii][j] ;
+        T qdif = dot(gradk,mapping.grad_dvs[ii][j]) ;
+        if(qdif > 0)
+          limi = min(limi,(max_val-Xcc)/(qdif+1e-100)) ;
+        if(qdif < 0)
+          limi = min(limi,(min_val-Xcc)/(qdif-1e-100)) ;
+      }
+      // Apply limiter to target points
+      for(int j=0;j<mapping.child_dvs[ii].getSize();++j) {
+        T qdif =  dot(vector3d<double>(gradk),
+                      mapping.child_dvs[ii][j]) ;
+        if(qdif > 0)
+          limi = min(limi,(max_val-Xcc)/(qdif+1e-100)) ;
+        if(qdif < 0)
+          limi = min(limi,(min_val-Xcc)/(qdif-1e-100)) ;
+      }
+
+      // reduce gradient by limiter factor
+      gradk *= limi ;
+      // compute child cell values
+      for(int j=0;j<mapping.child_dvs[ii].getSize();++j) {
+        T val = Xcc + dot(vector3d<double>(gradk),
+                          mapping.child_dvs[ii][j]) ;
+        refineCell_data[mapping.parent2child_l[ii][j]] = val ;
+      }
+    } ENDFORALL ;
+
+    mapping.refineCellComm.scatterData(refineCell_data,child_data) ;
+
+
+    // direct map cells with averaging for coarse cells
+    store<T> mapCell_data ;
+    mapping.directMapComm.gatherData(mapCell_data,parent_data) ;
+    for(size_t i=0;i<mapping.c2lp.size();++i) {
+      int child = mapping.c2lp[i].first ;
+      float w = mapping.directWeights[i] ;
+      child_data[child] = w*mapCell_data[mapping.c2lp[i].second] ;
+      size_t j = i+1 ;
+      for(;j<mapping.c2lp.size()&&child == mapping.c2lp[j].first;++j) {
+        float w = mapping.directWeights[j] ;
+        child_data[child] +=  w*mapCell_data[mapping.c2lp[j].second] ;
+      }
+      int cnt = j-i ;
+      i+= cnt-1 ;
+    }
+  }
+  
+
+    template <class T> void AMRinterpolateStore(store<T> &qout,
                                               store<T> &qin,
                                               store<pair<int,int> > &c2pg,
                                               entitySet dom) {

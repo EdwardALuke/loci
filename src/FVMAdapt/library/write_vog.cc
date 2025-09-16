@@ -192,6 +192,569 @@ namespace Loci {
     return c2pg.Rep() ;
   }
 
+  namespace {
+    void computeWeights(vector3d<float> *wvec, const vector3d<float> *deltas,
+			const float *areas,
+                        int ndeltas) {
+      tmp_array<vector3d<float> > weights(ndeltas) ;
+
+      float r[3][3] ;
+      r[0][0] = 0 ;
+      for(int i=0;i<ndeltas;++i) {
+        r[0][0] += deltas[i].x*deltas[i].x ;
+        weights[i] = deltas[i] ;
+      }
+      r[0][0] = sqrt(r[0][0]) ;
+      r[0][0] = max(r[0][0],float(1e-30)) ;
+
+      const float rr00 = 1./r[0][0] ;
+      for(int i=0;i<ndeltas;++i)
+        weights[i].x *= rr00 ;
+      r[0][1] = 0 ;
+      for(int i=0;i<ndeltas;++i)
+        r[0][1] += weights[i].x*weights[i].y ;
+      for(int i=0;i<ndeltas;++i)
+        weights[i].y -= r[0][1]*weights[i].x ;
+      r[0][2] = 0 ;
+      for(int i=0;i<ndeltas;++i)
+        r[0][2] += weights[i].x*weights[i].z ;
+      for(int i=0;i<ndeltas;++i)
+        weights[i].z -= r[0][2]*weights[i].x ;
+      r[1][1] = 0 ;
+      for(int i=0;i<ndeltas;++i)
+        r[1][1] += weights[i].y*weights[i].y ;
+      r[1][1] = sqrt(r[1][1]) ;
+      r[1][1] = max(r[1][1],float(1e-30)) ;
+      const float rr11 = 1./r[1][1] ;
+      for(int i=0;i<ndeltas;++i)
+        weights[i].y *= rr11 ;
+
+      r[1][2] = 0 ;
+      for(int i=0;i<ndeltas;++i)
+        r[1][2] += weights[i].y*weights[i].z ;
+      for(int i=0;i<ndeltas;++i)
+        weights[i].z -= r[1][2]*weights[i].y ;
+      r[2][2] = 0 ;
+      for(int i=0;i<ndeltas;++i)
+        r[2][2] += weights[i].z*weights[i].z ;
+      r[2][2] = sqrt(r[2][2]) ;
+      r[2][2] = max(r[2][2],float(1e-30)) ;
+      const float rr22 = 1./r[2][2] ;
+      for(int i=0;i<ndeltas;++i)
+        weights[i].z *= rr22 ;
+      // Compute R inverse
+      //
+      // Rinv[0] = R^-1[0][0]
+      // Rinv[1] = R^-1[0][1]
+      // Rinv[2] = R^-1[0][2]
+      // Rinv[3] = R^-1[1][1]
+      // Rinv[4] = R^-1[1][2]
+      // Rinv[5] = R^-1[2][2]
+      float Rinv[6] ;
+      Rinv[0] = rr00 ;
+      Rinv[1] = -r[0][1]*rr00*rr11 ;
+      Rinv[2] = (r[0][1]*r[1][2]-r[0][2]*r[1][1])*rr00*rr11*rr22 ;
+      Rinv[3] = rr11 ;
+      Rinv[4] = -r[1][2]*rr11*rr22 ;
+      Rinv[5] = rr22 ;
+
+      for(int i=0;i<ndeltas;++i) {
+        float weightx = Rinv[0]*weights[i].x + Rinv[1]*weights[i].y +
+          Rinv[2]*weights[i].z ;
+        float weighty = Rinv[3]*weights[i].y + Rinv[4]*weights[i].z ;
+        float weightz = Rinv[5]*weights[i].z ;
+        wvec[i] = vector3d<float>(weightx,weighty,weightz)*areas[i] ;
+      }
+    }
+  }
+
+  void AMRprocessRefinementMapping(struct AMRrefinementMapping &mappings,
+                                   const store<pair<int,int> > &c2pg,
+                                   const store<float> &volw,
+                                   multiStore<int> &gradCells,
+                                   multiStore<vector3d<float> > &deltas,
+                                   const_store<vector3d<double> > &cell_center,
+                                   const_store<double> &vol,
+                                   fact_db &facts) {
+    //########################################################################
+    //
+    // get the geom_cells of child cells and convert to global  numbering
+    //
+    auto sp = facts.get_variable("geom_cells") ;
+    if(sp==0) {
+      cerr << "expecting facts to contain geom_cells to build AMR second order interpolation" << endl ;
+      Loci::Abort() ;
+    }
+
+    // geom_cells is the local numbering, convert to global numbering
+    fact_db::distribute_infoP dist = facts.get_distribute_info() ;
+    // get the geom_cells owned by this processor
+    entitySet geom_cells_local = sp->domain()&dist->my_entities ;
+    // convert form local to global numbering
+    entitySet geom_cells ;
+    FORALL(geom_cells_local,ii) {
+      geom_cells += dist->l2g[ii] ;
+    } ENDFORALL ;
+    
+    mappings.geom_cells_global = geom_cells ;
+
+#ifdef DEBUG
+    debugout << "geom_cells =" << geom_cells << endl ;
+#endif
+    //########################################################################
+    //
+    // Get partition of child cells by collecting each procesors geom_cells
+    // set
+    //
+    vector<entitySet> ptn = Loci::all_collect_vectors(geom_cells,MPI_COMM_WORLD) ;
+    dataPartitionP partition_child = createPartition(ptn,MPI_COMM_WORLD) ;
+
+    //########################################################################
+    //
+    // Get partition of parent cells by computing first element on each
+    // processor of the volw container
+    //
+    int p = Loci::MPI_processes ;
+    int psplit = volw.domain().Min() ;
+    vector<int> psplits(p) ;
+    // Gather splits
+    MPI_Allgather(&psplit,1,MPI_INT,&psplits[0],1,MPI_INT,
+                  MPI_COMM_WORLD) ;
+#ifdef DEBUG
+    debugout << "parent partition splits = " << endl ;
+    for(int i=0;i<p;++i)
+      debugout << psplits[i] << " " ;
+    debugout << endl ;
+#endif
+    dataPartitionP partition_parent = createPartition(psplits,MPI_COMM_WORLD) ;
+
+    //########################################################################
+    //
+    // Get offsets for c2p map and calculate offsets needed to compensate for
+    // differences of starting numbering in refmesh v.s. the solver run.
+    // Ideally this shouldn't be necessary, so this is sort of a hack, but
+    // a harmless one.
+    //
+    int pstart = psplit ;
+    MPI_Allreduce(&psplit, &pstart,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    // pstart is the starting number for parents
+    // psplit is describing the distribution of parent cells across processors
+
+    // Find the max and min value for parent and child
+    int maxval[2],minval[2] ;
+    minval[0] = std::numeric_limits<int>::max() ;
+    minval[1] = minval[0] ;
+    maxval[0] = std::numeric_limits<int>::lowest() ;
+    maxval[1] = maxval[0] ;
+    entitySet domc2pg = c2pg.domain() ;
+    FORALL(domc2pg,ii) {
+      minval[0] = min(minval[0],c2pg[ii].first) ;
+      minval[1] = min(minval[1],c2pg[ii].second) ;
+      maxval[0] = max(maxval[0],c2pg[ii].first) ;
+      maxval[1] = max(maxval[1],c2pg[ii].second) ;
+    } ENDFORALL ;
+
+    int maxvalg[2] = {maxval[0],maxval[1]} ;
+    int minvalg[2] = {minval[0],minval[1]} ;
+    MPI_Allreduce(&minval[0],&minvalg[0],2,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&maxval[0],&maxvalg[0],2,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+
+    //########################################################################
+    //
+    // Transpose cell to parent map to get parent to cell map.  Add offsets
+    // to directly make the parent to cell maps start with zero indexing.
+    //
+    int sz = domc2pg.size() ;
+    vector<pair<int,int> > p2c(sz) ;
+    int cnt = 0 ;
+    int offsetsecond = -minvalg[1] ;
+    int offsetfirst = -minvalg[0] ;
+    // Transpose cell-to-parent to parent to cell, adjust so the indexing starts
+    // at zero
+    FORALL(domc2pg,ii) {
+      p2c[cnt].first = c2pg[ii].second + offsetsecond ;
+      p2c[cnt].second = c2pg[ii].first + offsetfirst ;
+      cnt++ ;
+    } ENDFORALL ;
+    FATAL(cnt != sz) ;
+
+
+    //########################################################################
+    //
+    // Adjust parent and cell numbering in map to align with numbering used
+    // in volw and geom_cells.
+    //
+    // cstart is child starting number,csplit is describing the distribution of
+    // parent cells across processors.
+    int csplit = geom_cells.Min() ;
+    int cstart = csplit ;
+
+    MPI_Allreduce(&csplit,&cstart,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+
+#ifdef DEBUG
+    debugout << "pstart=" << pstart << endl ;
+    debugout << "cstart=" << cstart << endl ;
+#endif
+    // Convert parent and child numbering to current global numbering
+    for(size_t i=0;i<p2c.size();++i) {
+      p2c[i].first += pstart ;
+      p2c[i].second += cstart ;
+    }
+
+
+    //########################################################################
+    //
+    // Redistribute parent to cell map to be consistent with parent mesh
+    // distribution using parSplitSort with splitters from parent distribution
+    //
+    vector<pair<int,int> > splits(p-1) ;
+    for(int i=0;i<p-1;++i)
+      splits[i] = pair<int,int>(psplits[i+1],std::numeric_limits<int>::lowest()) ;
+
+    sort(p2c.begin(),p2c.end()) ;
+    Loci::parSplitSort(p2c,splits,MPI_COMM_WORLD) ;
+
+    //########################################################################
+    //
+    // Find when a parent gives to multiple children, these will be parent
+    // cells that have been refined and thus we need to interpolate
+    //
+    int refinecnt = 0 ;
+    sz = p2c.size() ;
+    FATAL(sz == 0) ;
+    for(int i=0;i<sz;) { // Finding parents that map to multiple children
+      int nsame = 0 ;
+      for(int j=i;(j<sz)&&(p2c[i].first == p2c[j].first);++j)
+        nsame++ ;
+      if(nsame > 1)
+        refinecnt += nsame ;
+      i += nsame ;
+    }
+#ifdef DEBUG
+    // report total number of refined cells in interpolation
+    int refinecntglobal = refinecnt ;
+    MPI_Allreduce(&refinecnt, &refinecntglobal,1,MPI_INT,MPI_SUM,
+                  MPI_COMM_WORLD) ;
+    debugout<< "refine cnt = " << refinecntglobal << endl ;
+#endif
+    // Remove the refined cells from the parent to cell map and then make a
+    // child-to-parent map distributed in child
+    // c2p is the cell to parent map for cells that were not refined.
+    vector<pair<int,int> > c2p(sz-refinecnt) ;
+    // separate parent to cell map only for refined cells
+    vector<pair<int,int> > p2crefine(refinecnt) ;
+
+    int cnt1 = 0 ;
+    int cnt2 = 0 ;
+    for(int i=0;i<sz;) {
+      int nsame = 0 ;
+      for(int j=i;j<sz&&p2c[i].first == p2c[j].first;++j)
+        nsame++ ;
+      if(nsame > 1) { // If refinement group copy to p2crefine
+        for(int j=0;j<nsame;++j) {
+          p2crefine[cnt1++] = p2c[i+j] ;
+        }
+      } else { // otherwise copy to c2p map for subsequent searches
+        c2p[cnt2] = p2c[i] ;
+        std::swap(c2p[cnt2].first,c2p[cnt2].second) ;
+        cnt2++ ;
+      }
+      i += nsame ;
+    }
+
+    //########################################################################
+    //
+    // Use parSplitSort to map child to parent map to processors according to
+    // child distribution.
+    //
+    vector<int> csplits(p) ;
+    MPI_Allgather(&csplit,1,MPI_INT,&csplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    for(int i=0;i<p-1;++i)
+      splits[i] = pair<int,int>(csplits[i+1],std::numeric_limits<int>::lowest()) ;
+    sort(c2p.begin(),c2p.end()) ;
+
+    Loci::parSplitSort(c2p,splits,MPI_COMM_WORLD) ;
+
+
+    //########################################################################
+    //
+    // Figure out child cells that have multiple parents.  These are derefined
+    // cells that need to be averaged during the interpolation step
+    //
+    int derefinecnt = 0 ;
+    sz = c2p.size() ;
+    //    WARN(sz == 0) ;
+
+    for(int i=0;i<sz;){ 
+      int nsame = 0 ;
+      for(int j=i;(j<sz)&&(c2p[i].first == c2p[j].first);++j)
+        nsame++ ;
+      if(nsame > 1)
+        derefinecnt += nsame ;
+      i += nsame ;
+    }
+#ifdef DEBUG
+    int derefinecntglobal = derefinecnt ;
+    MPI_Allreduce(&derefinecnt, &derefinecntglobal,1,MPI_INT,MPI_SUM,
+                  MPI_COMM_WORLD) ;
+    debugout<< "derefine cnt = " << derefinecntglobal << endl ;
+
+    // Now generate communication schedules for refined cells
+    debugout << "refinesize=" << p2crefine.size() << endl ;
+#endif
+
+    
+    //########################################################################
+    //
+    // Build data structures for refined cells to compute gradients for
+    // interpolation.
+    //
+    entitySet refinedParents ;
+    vector<int> refinecells(p2crefine.size()) ;
+    for(size_t i=0;i<p2crefine.size();++i) { // identify refined children
+      refinecells[i] = p2crefine[i].second ; // and parents
+      refinedParents += p2crefine[i].first ;
+    }
+#ifdef DEBUG
+    debugout << "refinedParents.size()=" << refinedParents.size() << endl ;
+#endif
+
+    // gather data needed to compute gradients for parents of refined cells
+    int numrefparents = refinedParents.size() ;
+    // allocation domain for parents of refinement
+    entitySet refparentdom ;
+    if(numrefparents > 0)
+      refparentdom = interval(0,numrefparents-1) ;
+    store<int> count1 ;
+    store<int> parentCell ;
+    count1.allocate(refparentdom) ;
+    cnt = 0 ;
+    int cntaccess = 0 ;
+    // Count the stencils sizes for refined parents to allocate space for
+    // stencils
+    FORALL(refinedParents,ii) {
+      count1[cnt++] = gradCells[ii].getSize() ;
+      cntaccess += gradCells[ii].getSize() ;
+    } ENDFORALL ;
+
+    // local copy of refined parent subset of cells
+    multiStore<int> gradCells_l ;
+    gradCells_l.allocate(count1) ;
+    multiStore<vector3d<float> > grad_dvs ;
+    grad_dvs.allocate(count1) ;
+    // local copy of weights used to compute gradients
+    multiStore<vector3d<float> > wghts_l ;
+    wghts_l.allocate(count1) ;
+    cnt = 0 ;
+    // gather all stencil access to create an access set
+    vector<int> stencilaccess(cntaccess) ;
+    cntaccess=0 ;
+    // Loop over refined parents and copy grad stencil to local subset
+    // while building list of cells accessed by stencil
+    FORALL(refinedParents,ii) {
+      int sz = gradCells[ii].getSize() ;
+      for(int i=0;i<sz;++i) {
+        gradCells_l[cnt][i] = gradCells[ii][i] ;
+        stencilaccess[cntaccess++] = gradCells[ii][i] ;
+      }
+
+      // Compute weights for gradient computation
+      const int dsz = deltas.vec_size(ii) ;
+      
+      vector<vector3d<float> > dvs(dsz) ;
+      vector<float> areas(dsz) ;
+      for(int i=0;i<dsz;++i) {
+        const vector3d<float> &dv = deltas[ii][i] ;
+        const float W = 1./norm(dv) ;
+        areas[i] = W ;
+        dvs[i] = W*dv ;
+      }
+      vector<vector3d<float> > wts(sz) ;
+      computeWeights(&wts[0],&dvs[0],&areas[0],sz) ;
+      // store weights in local store
+      for(int i=0;i<sz;++i) {
+        wghts_l[cnt][i] = wts[i] ;
+        grad_dvs[cnt][i] = deltas[ii][i] ;
+      }
+      cnt++ ;
+    } ENDFORALL ;
+
+    // sort stencilaccess to make set creation efficient
+    sort(stencilaccess.begin(),stencilaccess.end()) ;
+    entitySet stencilAccessSet ;
+    for(auto &i: stencilaccess)
+      stencilAccessSet += i ;
+
+#ifdef DEBUG
+    debugout << "stencilAccessSet=" << stencilAccessSet <<endl ;
+#endif
+    // build communication schedule for gradient computation
+    mappings.gradientComm.generateSchedule(stencilAccessSet,partition_parent) ;
+    entitySet gradAccessSet ;
+    if(stencilAccessSet != EMPTY)
+      gradAccessSet=interval(0,stencilAccessSet.size()) ;
+    mappings.gradAccessSet = gradAccessSet ;
+    
+    // renumber gradient map
+    std::map<int,int> glocalmap ;
+    Loci::getLocalContextMap(glocalmap,stencilAccessSet) ;
+    FORALL(refparentdom,ii) {
+      int sz = gradCells_l[ii].getSize() ;
+      for(int i=0;i<sz;++i) {
+        FATAL(glocalmap.find(gradCells_l[ii][i]) == glocalmap.end()) ;
+        gradCells_l[ii][i] = glocalmap[gradCells_l[ii][i]] ;
+      }
+    } ENDFORALL ;
+
+    mappings.gradCellStencil = gradCells_l.Rep() ;
+    mappings.stencilWeights = wghts_l.Rep() ;
+    mappings.grad_dvs = grad_dvs.Rep() ;
+    
+    //########################################################################
+    //
+    // Generate communication structure between parents and refined cells
+    //
+    entitySet refinereq = Loci::create_intervalSet(refinecells.begin(),
+                                                   refinecells.end()) ;
+    WARN(p2crefine.size() != refinereq.size()) ;
+
+#ifdef DEBUG
+    debugout << "refinereq=" << refinereq << endl ;
+#endif
+
+    // Setup Communication Structure
+    mappings.refinedCells = refinereq ;
+    // Communication schedule to communicate with refined cells
+    mappings.refineCellComm.generateSchedule(refinereq,partition_child) ;
+    // remap p2c for refined cells to use local numbering
+    map<int,int> c2l ;
+    Loci::getLocalContextMap(c2l,mappings.refinedCells) ;
+    for(size_t i=0;i<p2crefine.size();++i) {
+      FATAL(c2l.find(p2crefine[i].second) == c2l.end()) ;
+      p2crefine[i].second = c2l[p2crefine[i].second] ;
+    }
+    cnt = 0 ;
+    sz = p2crefine.size() ;
+    for(size_t i=0;i<sz;) {
+      int nsame = 0 ;
+      for(int j=i;j<sz&&p2crefine[i].first == p2crefine[j].first;++j)
+        nsame++ ;
+      count1[cnt++] = nsame ;
+      i += nsame ;
+    }
+    multiStore<int> parent2child_l ;
+    parent2child_l.allocate(count1) ;
+    store<int> parent ;
+    parent.allocate(count1.domain()) ;
+    cnt = 0 ;
+    for(size_t i=0;i<sz;) {
+      parent[cnt] = p2crefine[i].first ;
+      for(int j=0;j<count1[cnt];++j)
+        parent2child_l[cnt][j] = p2crefine[i+j].second ;
+      i += count1[cnt] ;
+      cnt++ ;
+    }
+
+    mappings.parent = parent.Rep() ;
+    mappings.parent2child_l = parent2child_l.Rep() ;
+      
+    //    mappings.p2lc_refine.swap(p2crefine) ;
+
+    //########################################################################
+    //
+    // Collect positional information for interpolation to refined cell
+    // centers
+    //
+
+    store<double> volume ;
+    volume.allocate(geom_cells) ;
+    store<vector3d<double> > center ;
+    center.allocate(geom_cells) ;
+    FORALL(geom_cells_local,ii) {
+      volume[dist->l2g[ii]] = vol[ii] ;
+      center[dist->l2g[ii]] = cell_center[ii] ;
+    } ENDFORALL ;
+
+    int refcells = mappings.refinedCells.size() ;
+    store<double> vol_data ;
+    mappings.refineCellComm.gatherData(vol_data,volume) ;
+    
+    store<vector3d<double> > center_data ;
+    mappings.refineCellComm.gatherData(center_data,center) ;
+
+    multiStore<vector3d<double> > child_dvs ;
+    child_dvs.allocate(count1);
+
+    for(int i=0;i<numrefparents;++i) {
+      int sz = parent2child_l[i].getSize() ;
+      // Compute centroid of refined cells
+      double wtot = 0 ;
+      vector3d<double> wcenter(0,0,0) ;
+      for(int j=0;j<sz;++j) {
+        int loc = parent2child_l[i][j] ;
+        double w = vol_data[loc] ;
+        wtot += w ;
+        wcenter += w*center_data[loc] ;
+      }
+      wcenter *= 1./wtot ;
+      for(int j=0;j<sz;++j) {
+        int loc = parent2child_l[i][j] ;
+        child_dvs[i][j] = center_data[loc] - wcenter ;
+      }
+    }
+    mappings.child_dvs = child_dvs.Rep() ;
+    
+    //########################################################################
+    //
+    // Generate communication structure for direct mapped cells and cells
+    // that result from combining refined parent cells (coarsening)
+    //
+    vector<int> requestlist(c2p.size()) ;
+    
+    sz = c2p.size() ;
+    for(int i=0;i<sz;++i) {
+      requestlist[i] = c2p[i].second ;
+    }
+    // set of parent cells that directly map to child cells including
+    // coarsening
+    entitySet requestSet = Loci::create_intervalSet(requestlist.begin(),
+                                                    requestlist.end()) ;
+
+    mappings.directMapCells = requestSet ;
+    mappings.directMapComm.generateSchedule(requestSet,partition_parent) ;
+    map<int,int> p2l ;
+    Loci::getLocalContextMap(p2l,mappings.directMapCells) ;
+    for(size_t i=0;i<c2p.size();++i) {
+      FATAL(p2l.find(c2p[i].second) == p2l.end()) ;
+      c2p[i].second = p2l[c2p[i].second] ;
+      FATAL(c2p[i].second >= int(requestSet.size())) ;
+    }
+    mappings.c2lp.swap(c2p) ;
+    store<float> map_volw ;
+    mappings.directMapComm.gatherData(map_volw,volw) ;
+    vector<float> directWeights(mappings.c2lp.size()) ;
+    entitySet child_set ;
+    for(size_t i=0;i<mappings.c2lp.size();++i)
+      child_set += mappings.c2lp[i].first ;
+    
+    for(size_t i=0;i<mappings.c2lp.size();++i) {
+      int child = mappings.c2lp[i].first ;
+      directWeights[i] = map_volw[mappings.c2lp[i].second] ;
+      double sum = directWeights[i] ;
+      size_t j = i+1 ;
+      for(;j<mappings.c2lp.size()&&child == mappings.c2lp[j].first;++j) {
+        directWeights[j] =  map_volw[mappings.c2lp[j].second] ;
+        sum += directWeights[j] ;
+      }
+      double rsum = 1./sum ;
+      for(int k=i;k<j;++k)
+        directWeights[k] *= rsum ;
+      int cnt = j-i ;
+      i+= cnt-1 ;
+    }
+    mappings.directWeights.swap(directWeights) ;
+  }
+  
   extern int metis_cpp_threshold ;
   
   storeRepP mapCellPartitionWeights(storeRepP wptr,
