@@ -193,21 +193,20 @@ namespace Loci {
   }
 
   namespace {
-    void computeWeights(vector3d<float> *wvec, const vector3d<float> *deltas,
-			const float *areas,
+    void computeWeights(vector3d<real_t> *wvec, const vector3d<real_t> *deltas, const real_t *areas,
                         int ndeltas) {
-      tmp_array<vector3d<float> > weights(ndeltas) ;
+      tmp_array<vector3d<real_t> > weights(ndeltas) ;
 
-      float r[3][3] ;
+      real_t r[3][3] ;
       r[0][0] = 0 ;
       for(int i=0;i<ndeltas;++i) {
         r[0][0] += deltas[i].x*deltas[i].x ;
         weights[i] = deltas[i] ;
       }
       r[0][0] = sqrt(r[0][0]) ;
-      r[0][0] = max(r[0][0],float(1e-30)) ;
+      r[0][0] = max(r[0][0],real_t(1e-30)) ;
 
-      const float rr00 = 1./r[0][0] ;
+      const real_t rr00 = 1./r[0][0] ;
       for(int i=0;i<ndeltas;++i)
         weights[i].x *= rr00 ;
       r[0][1] = 0 ;
@@ -224,8 +223,8 @@ namespace Loci {
       for(int i=0;i<ndeltas;++i)
         r[1][1] += weights[i].y*weights[i].y ;
       r[1][1] = sqrt(r[1][1]) ;
-      r[1][1] = max(r[1][1],float(1e-30)) ;
-      const float rr11 = 1./r[1][1] ;
+      r[1][1] = max(r[1][1],real_t(1e-30)) ;
+      const real_t rr11 = 1./r[1][1] ;
       for(int i=0;i<ndeltas;++i)
         weights[i].y *= rr11 ;
 
@@ -238,8 +237,8 @@ namespace Loci {
       for(int i=0;i<ndeltas;++i)
         r[2][2] += weights[i].z*weights[i].z ;
       r[2][2] = sqrt(r[2][2]) ;
-      r[2][2] = max(r[2][2],float(1e-30)) ;
-      const float rr22 = 1./r[2][2] ;
+      r[2][2] = max(r[2][2],real_t(1e-30)) ;
+      const real_t rr22 = 1./r[2][2] ;
       for(int i=0;i<ndeltas;++i)
         weights[i].z *= rr22 ;
       // Compute R inverse
@@ -250,7 +249,7 @@ namespace Loci {
       // Rinv[3] = R^-1[1][1]
       // Rinv[4] = R^-1[1][2]
       // Rinv[5] = R^-1[2][2]
-      float Rinv[6] ;
+      real_t Rinv[6] ;
       Rinv[0] = rr00 ;
       Rinv[1] = -r[0][1]*rr00*rr11 ;
       Rinv[2] = (r[0][1]*r[1][2]-r[0][2]*r[1][1])*rr00*rr11*rr22 ;
@@ -259,23 +258,23 @@ namespace Loci {
       Rinv[5] = rr22 ;
 
       for(int i=0;i<ndeltas;++i) {
-        float weightx = Rinv[0]*weights[i].x + Rinv[1]*weights[i].y +
+        real_t weightx = Rinv[0]*weights[i].x + Rinv[1]*weights[i].y +
           Rinv[2]*weights[i].z ;
-        float weighty = Rinv[3]*weights[i].y + Rinv[4]*weights[i].z ;
-        float weightz = Rinv[5]*weights[i].z ;
-        wvec[i] = vector3d<float>(weightx,weighty,weightz)*areas[i] ;
+        real_t weighty = Rinv[3]*weights[i].y + Rinv[4]*weights[i].z ;
+        real_t weightz = Rinv[5]*weights[i].z ;
+        wvec[i] = vector3d<real_t>(weightx,weighty,weightz)*areas[i] ;
       }
     }
   }
 
-  void AMRprocessRefinementMapping(struct AMRrefinementMapping &mappings,
-                                   const store<pair<int,int> > &c2pg,
-                                   const store<float> &volw,
-                                   multiStore<int> &gradCells,
-                                   multiStore<vector3d<float> > &deltas,
-                                   const_store<vector3d<double> > &cell_center,
-                                   const_store<double> &vol,
-                                   fact_db &facts) {
+  void AMRrefinementMapping::
+  setupRefinementMapping(const store<pair<int,int> > &c2pg,
+                         const store<double> &volw,
+                         multiStore<int> &gradCells,
+                         multiStore<vector3d<double> > &deltas,
+                         const_store<vector3d<double> > &cell_center,
+                         const_store<double> &vol,
+                         fact_db &facts) {
     //########################################################################
     //
     // get the geom_cells of child cells and convert to global  numbering
@@ -289,24 +288,24 @@ namespace Loci {
     // geom_cells is the local numbering, convert to global numbering
     fact_db::distribute_infoP dist = facts.get_distribute_info() ;
     // get the geom_cells owned by this processor
-    entitySet geom_cells_local = sp->domain()&dist->my_entities ;
+    geom_cells_local = sp->domain()&dist->my_entities ;
     // convert form local to global numbering
-    entitySet geom_cells ;
+    l2g.allocate(geom_cells_local) ;
     FORALL(geom_cells_local,ii) {
-      geom_cells += dist->l2g[ii] ;
+      geom_cells_global += dist->l2g[ii] ;
+      l2g[ii] = dist->l2g[ii] ;
     } ENDFORALL ;
     
-    mappings.geom_cells_global = geom_cells ;
-
 #ifdef DEBUG
-    debugout << "geom_cells =" << geom_cells << endl ;
+    debugout << "geom_cells =" << geom_cells_global << endl ;
 #endif
     //########################################################################
     //
     // Get partition of child cells by collecting each procesors geom_cells
     // set
     //
-    vector<entitySet> ptn = Loci::all_collect_vectors(geom_cells,MPI_COMM_WORLD) ;
+    vector<entitySet> ptn = Loci::all_collect_vectors(geom_cells_global,
+                                                      MPI_COMM_WORLD) ;
     dataPartitionP partition_child = createPartition(ptn,MPI_COMM_WORLD) ;
 
     //########################################################################
@@ -386,7 +385,7 @@ namespace Loci {
     //
     // cstart is child starting number,csplit is describing the distribution of
     // parent cells across processors.
-    int csplit = geom_cells.Min() ;
+    int csplit = geom_cells_global.Min() ;
     int cstart = csplit ;
 
     MPI_Allreduce(&csplit,&cstart,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
@@ -540,10 +539,9 @@ namespace Loci {
     // local copy of refined parent subset of cells
     multiStore<int> gradCells_l ;
     gradCells_l.allocate(count1) ;
-    multiStore<vector3d<float> > grad_dvs ;
     grad_dvs.allocate(count1) ;
     // local copy of weights used to compute gradients
-    multiStore<vector3d<float> > wghts_l ;
+    multiStore<vector3d<double> > wghts_l ;
     wghts_l.allocate(count1) ;
     cnt = 0 ;
     // gather all stencil access to create an access set
@@ -561,16 +559,16 @@ namespace Loci {
       // Compute weights for gradient computation
       const int dsz = deltas.vec_size(ii) ;
       
-      vector<vector3d<float> > dvs(dsz) ;
-      vector<float> areas(dsz) ;
+      vector<vector3d<double> > dvs(dsz) ;
+      vector<double> areas(dsz) ;
       for(int i=0;i<dsz;++i) {
-        const vector3d<float> &dv = deltas[ii][i] ;
-        const float W = 1./norm(dv) ;
+        const vector3d<double> &dv = deltas[ii][i] ;
+        const double W = 1./norm(dv) ;
         areas[i] = W ;
         dvs[i] = W*dv ;
       }
-      vector<vector3d<float> > wts(sz) ;
-      computeWeights(&wts[0],&dvs[0],&areas[0],sz) ;
+      vector<vector3d<double> > wts(dsz) ;
+      computeWeights(&wts[0],&dvs[0],&areas[0],dsz) ;
       // store weights in local store
       for(int i=0;i<sz;++i) {
         wghts_l[cnt][i] = wts[i] ;
@@ -589,11 +587,11 @@ namespace Loci {
     debugout << "stencilAccessSet=" << stencilAccessSet <<endl ;
 #endif
     // build communication schedule for gradient computation
-    mappings.gradientComm.generateSchedule(stencilAccessSet,partition_parent) ;
+    gradientComm.generateSchedule(stencilAccessSet,partition_parent) ;
     entitySet gradAccessSet ;
     if(stencilAccessSet != EMPTY)
       gradAccessSet=interval(0,stencilAccessSet.size()) ;
-    mappings.gradAccessSet = gradAccessSet ;
+    gradAccessSet = gradAccessSet ;
     
     // renumber gradient map
     std::map<int,int> glocalmap ;
@@ -606,9 +604,9 @@ namespace Loci {
       }
     } ENDFORALL ;
 
-    mappings.gradCellStencil = gradCells_l.Rep() ;
-    mappings.stencilWeights = wghts_l.Rep() ;
-    mappings.grad_dvs = grad_dvs.Rep() ;
+    gradCellStencil = gradCells_l.Rep() ;
+    stencilWeights = wghts_l.Rep() ;
+    grad_dvs = grad_dvs.Rep() ;
     
     //########################################################################
     //
@@ -623,12 +621,12 @@ namespace Loci {
 #endif
 
     // Setup Communication Structure
-    mappings.refinedCells = refinereq ;
+    refinedCells = refinereq ;
     // Communication schedule to communicate with refined cells
-    mappings.refineCellComm.generateSchedule(refinereq,partition_child) ;
+    refineCellComm.generateSchedule(refinereq,partition_child) ;
     // remap p2c for refined cells to use local numbering
     map<int,int> c2l ;
-    Loci::getLocalContextMap(c2l,mappings.refinedCells) ;
+    Loci::getLocalContextMap(c2l,refinedCells) ;
     for(size_t i=0;i<p2crefine.size();++i) {
       FATAL(c2l.find(p2crefine[i].second) == c2l.end()) ;
       p2crefine[i].second = c2l[p2crefine[i].second] ;
@@ -642,10 +640,8 @@ namespace Loci {
       count1[cnt++] = nsame ;
       i += nsame ;
     }
-    multiStore<int> parent2child_l ;
     parent2child_l.allocate(count1) ;
-    store<int> parent ;
-    parent.allocate(count1.domain()) ;
+     parent.allocate(count1.domain()) ;
     cnt = 0 ;
     for(size_t i=0;i<sz;) {
       parent[cnt] = p2crefine[i].first ;
@@ -655,11 +651,6 @@ namespace Loci {
       cnt++ ;
     }
 
-    mappings.parent = parent.Rep() ;
-    mappings.parent2child_l = parent2child_l.Rep() ;
-      
-    //    mappings.p2lc_refine.swap(p2crefine) ;
-
     //########################################################################
     //
     // Collect positional information for interpolation to refined cell
@@ -667,22 +658,21 @@ namespace Loci {
     //
 
     store<double> volume ;
-    volume.allocate(geom_cells) ;
+    volume.allocate(geom_cells_global) ;
     store<vector3d<double> > center ;
-    center.allocate(geom_cells) ;
+    center.allocate(geom_cells_global) ;
     FORALL(geom_cells_local,ii) {
       volume[dist->l2g[ii]] = vol[ii] ;
       center[dist->l2g[ii]] = cell_center[ii] ;
     } ENDFORALL ;
 
-    int refcells = mappings.refinedCells.size() ;
+    int refcells = refinedCells.size() ;
     store<double> vol_data ;
-    mappings.refineCellComm.gatherData(vol_data,volume) ;
+    refineCellComm.gatherData(vol_data,volume) ;
     
     store<vector3d<double> > center_data ;
-    mappings.refineCellComm.gatherData(center_data,center) ;
+    refineCellComm.gatherData(center_data,center) ;
 
-    multiStore<vector3d<double> > child_dvs ;
     child_dvs.allocate(count1);
 
     for(int i=0;i<numrefparents;++i) {
@@ -702,7 +692,6 @@ namespace Loci {
         child_dvs[i][j] = center_data[loc] - wcenter ;
       }
     }
-    mappings.child_dvs = child_dvs.Rep() ;
     
     //########################################################################
     //
@@ -720,30 +709,30 @@ namespace Loci {
     entitySet requestSet = Loci::create_intervalSet(requestlist.begin(),
                                                     requestlist.end()) ;
 
-    mappings.directMapCells = requestSet ;
-    mappings.directMapComm.generateSchedule(requestSet,partition_parent) ;
+    directMapCells = requestSet ;
+    directMapComm.generateSchedule(requestSet,partition_parent) ;
     map<int,int> p2l ;
-    Loci::getLocalContextMap(p2l,mappings.directMapCells) ;
+    Loci::getLocalContextMap(p2l,directMapCells) ;
     for(size_t i=0;i<c2p.size();++i) {
       FATAL(p2l.find(c2p[i].second) == p2l.end()) ;
       c2p[i].second = p2l[c2p[i].second] ;
       FATAL(c2p[i].second >= int(requestSet.size())) ;
     }
-    mappings.c2lp.swap(c2p) ;
-    store<float> map_volw ;
-    mappings.directMapComm.gatherData(map_volw,volw) ;
-    vector<float> directWeights(mappings.c2lp.size()) ;
+    c2lp.swap(c2p) ;
+    store<double> map_volw ;
+    directMapComm.gatherData(map_volw,volw) ;
+    { vector<double> tmp(c2lp.size()) ; directWeights.swap(tmp) ; }
     entitySet child_set ;
-    for(size_t i=0;i<mappings.c2lp.size();++i)
-      child_set += mappings.c2lp[i].first ;
+    for(size_t i=0;i<c2lp.size();++i)
+      child_set += c2lp[i].first ;
     
-    for(size_t i=0;i<mappings.c2lp.size();++i) {
-      int child = mappings.c2lp[i].first ;
-      directWeights[i] = map_volw[mappings.c2lp[i].second] ;
+    for(size_t i=0;i<c2lp.size();++i) {
+      int child = c2lp[i].first ;
+      directWeights[i] = map_volw[c2lp[i].second] ;
       double sum = directWeights[i] ;
       size_t j = i+1 ;
-      for(;j<mappings.c2lp.size()&&child == mappings.c2lp[j].first;++j) {
-        directWeights[j] =  map_volw[mappings.c2lp[j].second] ;
+      for(;j<c2lp.size()&&child == c2lp[j].first;++j) {
+        directWeights[j] =  map_volw[c2lp[j].second] ;
         sum += directWeights[j] ;
       }
       double rsum = 1./sum ;
@@ -752,8 +741,8 @@ namespace Loci {
       int cnt = j-i ;
       i+= cnt-1 ;
     }
-    mappings.directWeights.swap(directWeights) ;
   }
+
   
   extern int metis_cpp_threshold ;
   

@@ -194,7 +194,7 @@ namespace Loci {
     /// @param[data] The input const_store container that is distributed across
     /// processors
     template<class T> void gatherData(store<T> &result,
-                                      const_store<T> &data) {
+                                      const_store<T> &data) const {
       int result_size = 0 ;
       for(int i=0;i<p;++i)
         result_size += recv_sizes[i] ;
@@ -273,7 +273,7 @@ namespace Loci {
     /// to store to work the same as const_store
 
     template<class T> inline void gatherData(store<T> &result,
-                                             const store<T> &data) {
+                                             const store<T> &data) const {
       const_store<T> data_const ;
       data_const.setRep(data.Rep()) ;
       gatherData(result,data_const) ;
@@ -288,7 +288,7 @@ namespace Loci {
     /// @param[data] The output store container that is distributed across
     /// processors
     template<class T> void scatterData(const_store<T> &buffer,
-                                       store<T> &data) {
+                                       store<T> &data) const {
 
       // If single processor run, just compy data directly to result
       if(p == 1) {
@@ -363,7 +363,7 @@ namespace Loci {
     /// @brief scatterData scatters compatibility routine that allows const
     /// references to buffer to work the same as const_store
     template<class T> inline void scatterData(const store<T> &buffer,
-                                              store<T> &data) {
+                                              store<T> &data) const {
       const_store<T> buffer_const ;
       buffer_const.setRep(buffer.Rep()) ;
       scatterData(buffer_const,data) ;
@@ -378,7 +378,7 @@ namespace Loci {
     /// @param[data] The input const_store container that is distributed across
     /// processors
     template<class T> void gatherData(storeVec<T> &result,
-                                      const_storeVec<T> &data) {
+                                      const_storeVec<T> &data) const {
       int result_size = 0 ;
       for(int i=0;i<p;++i)
         result_size += recv_sizes[i] ;
@@ -461,7 +461,7 @@ namespace Loci {
     /// to storeVec to work the same as const_storeVec
 
     template<class T> inline void gatherData(storeVec<T> &result,
-                                             const storeVec<T> &data) {
+                                             const storeVec<T> &data) const {
       const_storeVec<T> data_const ;
       data_const.setRep(data.Rep()) ;
       gatherData(result,data_const) ;
@@ -476,7 +476,7 @@ namespace Loci {
     /// @param[data] The output storeVec container that is distributed across
     /// processors
     template<class T> void scatterData(const_storeVec<T> &buffer,
-                                       storeVec<T> &data) {
+                                       storeVec<T> &data) const {
       warn(buffer.vecSize() != data.vecSize()) ;
       const int vs = buffer.vecSize() ;
       // If single processor run, just compy data directly to result
@@ -556,7 +556,7 @@ namespace Loci {
     /// @brief scatterData scatters compatibility routine that allows const
     /// references to buffer to work the same as const_storeVec
     template<class T> inline void scatterData(const storeVec<T> &buffer,
-                                              storeVec<T> &data) {
+                                              storeVec<T> &data) const {
       const_storeVec<T> buffer_const ;
       buffer_const.setRep(buffer.Rep()) ;
       scatterData(buffer_const,data) ;
