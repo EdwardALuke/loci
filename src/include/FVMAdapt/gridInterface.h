@@ -318,6 +318,144 @@ namespace Loci {
         child_data[ii] = child_tmp[l2g[ii]] ;
       } ENDFORALL ;
     }
+    template<class T>
+    void interpolateData(store<vector3d<T> > &parent_data,
+                         store<vector3d<T> > &child_data,
+                         double limstop = 1.0) const {
+      //########################################################################
+      //
+      // First interpolate to cells that resulted from splitting parent cells
+      //
+      // Step 1, compute gradients using parent data for parents that form
+      // split cells
+      // Step 2, compute limiter for these gradients
+      // Step 3, compute limited second order interpolation to child cells
+      // Step 4, distribute second order reconstruction from parent to child
+      //         cells
+      // Step 5, collect direct mapped cells and use volume averaging to
+      //         interpolate from many parents to child for coarsened cells
+      // Note, if the variables given are conservative, the extrapolation is
+      // conservative
+      //
+      // gather parent data needed to compute parent gradients
+      store<vector3d<T> > grad_data ;
+      gradientComm.gatherData(grad_data,parent_data) ;
+    
+      store<vector3d<T> > refineCell_data ;
+      int refcells = refinedCells.size() ;
+#ifdef DEBUG
+      Loci::debugout  << "#refcells interpolations = " << refcells << endl ;
+#endif
+      entitySet refineCellDomain ;
+      if(refcells>0)
+        refineCellDomain = interval(0,refcells-1) ;
+      refineCell_data.allocate(refineCellDomain) ;
+      FORALL(parent.domain(),ii) {
+        // get stencil size
+        const int ssz = gradCellStencil.vec_size(ii) ;
+        // Compute gradient
+        vector3d<double> gradkx(0,0,0) ;
+        vector3d<double> gradky(0,0,0) ;
+        vector3d<double> gradkz(0,0,0) ;
+        vector3d<T> Xcc = parent_data[parent[ii]] ;
+        vector3d<T> max_val = Xcc ;
+        vector3d<T> min_val = max_val ;
+        for(int j=0;j<ssz;++j) {
+          const int cc = gradCellStencil[ii][j] ;
+          vector3d<T> val = grad_data[cc] ;
+          max_val.x = max(max_val.x,val.x) ;
+          max_val.y = max(max_val.y,val.y) ;
+          max_val.z = max(max_val.z,val.z) ;
+          min_val.x = min(min_val.x,val.x) ;
+          min_val.y = min(min_val.y,val.y) ;
+          min_val.z = min(min_val.z,val.z) ;
+          gradkx += stencilWeights[ii][j]*(val.x-Xcc.x) ;
+          gradky += stencilWeights[ii][j]*(val.y-Xcc.y) ;
+          gradkz += stencilWeights[ii][j]*(val.z-Xcc.z) ;
+        }
+              
+        T limi = limstop ;
+        // Apply limiter to source points
+        for(int j=0;j<ssz;++j) {
+          const int cc = gradCellStencil[ii][j] ;
+          T qdifx = dot(gradkx,grad_dvs[ii][j]) ;
+          if(qdifx > 0)
+            limi = min(limi,(max_val.x-Xcc.x)/(qdifx+1e-100)) ;
+          if(qdifx < 0)
+            limi = min(limi,(min_val.x-Xcc.x)/(qdifx-1e-100)) ;
+          T qdify = dot(gradky,grad_dvs[ii][j]) ;
+          if(qdify > 0)
+            limi = min(limi,(max_val.y-Xcc.y)/(qdify+1e-100)) ;
+          if(qdify < 0)
+            limi = min(limi,(min_val.y-Xcc.y)/(qdify-1e-100)) ;
+          T qdifz = dot(gradkz,grad_dvs[ii][j]) ;
+          if(qdifz > 0)
+            limi = min(limi,(max_val.z-Xcc.z)/(qdifz+1e-100)) ;
+          if(qdifz < 0)
+            limi = min(limi,(min_val.z-Xcc.z)/(qdifz-1e-100)) ;
+        }
+        // Apply limiter to target points
+        for(int j=0;j<child_dvs.vec_size(ii);++j) {
+          T qdifx =  dot(vector3d<double>(gradkx),
+                        child_dvs[ii][j]) ;
+          if(qdifx > 0)
+            limi = min(limi,(max_val.x-Xcc.x)/(qdifx+1e-100)) ;
+          if(qdifx < 0)
+            limi = min(limi,(min_val.x-Xcc.x)/(qdifx-1e-100)) ;
+          T qdify =  dot(vector3d<double>(gradky),
+                        child_dvs[ii][j]) ;
+          if(qdify > 0)
+            limi = min(limi,(max_val.y-Xcc.y)/(qdify+1e-100)) ;
+          if(qdify < 0)
+            limi = min(limi,(min_val.y-Xcc.y)/(qdify-1e-100)) ;
+          T qdifz =  dot(vector3d<double>(gradkz),
+                        child_dvs[ii][j]) ;
+          if(qdifz > 0)
+            limi = min(limi,(max_val.z-Xcc.z)/(qdifz+1e-100)) ;
+          if(qdifz < 0)
+            limi = min(limi,(min_val.z-Xcc.z)/(qdifz-1e-100)) ;
+        }
+
+        // reduce gradient by limiter factor
+        gradkx *= limi ;
+        gradky *= limi ;
+        gradkz *= limi ;
+        // compute child cell values
+        for(int j=0;j<child_dvs.vec_size(ii);++j) {
+          T valx = Xcc.x + dot(vector3d<double>(gradkx),
+                               child_dvs[ii][j]) ;
+          T valy = Xcc.y + dot(vector3d<double>(gradky),
+                               child_dvs[ii][j]) ;
+          T valz = Xcc.z + dot(vector3d<double>(gradkz),
+                               child_dvs[ii][j]) ;
+          refineCell_data[parent2child_l[ii][j]] = vector3d<T>(valx,valy,valz) ;
+        }
+      } ENDFORALL ;
+
+      store<vector3d<T> > child_tmp ;
+      child_tmp.allocate(geom_cells_global) ;
+      refineCellComm.scatterData(refineCell_data,child_tmp) ;
+
+
+      // direct map cells with averaging for coarse cells
+      store<vector3d<T> > mapCell_data ;
+      directMapComm.gatherData(mapCell_data,parent_data) ;
+      for(size_t i=0;i<c2lp.size();++i) {
+        int child = c2lp[i].first ;
+        double w = directWeights[i] ;
+        child_tmp[child] = w*mapCell_data[c2lp[i].second] ;
+        size_t j = i+1 ;
+        for(;j<c2lp.size()&&child == c2lp[j].first;++j) {
+          double w = directWeights[j] ;
+          child_tmp[child] +=  w*mapCell_data[c2lp[j].second] ;
+        }
+        int cnt = j-i ;
+        i+= cnt-1 ;
+      }
+      FORALL(geom_cells_local,ii) {
+        child_data[ii] = child_tmp[l2g[ii]] ;
+      } ENDFORALL ;
+    }
   } ;
 
   class AMRinterpolation {
@@ -345,6 +483,12 @@ namespace Loci {
     template<class T>
     void interpolateData(store<T> &parent_data,
                          store<T> &child_data,
+                         double limstop=1.0) const {
+      interpolator->interpolateData(parent_data,child_data,limstop) ;
+    }
+    template<class T>
+    void interpolateData(store<vector3d<T> > &parent_data,
+                         store<vector3d<T> > &child_data,
                          double limstop=1.0) const {
       interpolator->interpolateData(parent_data,child_data,limstop) ;
     }
