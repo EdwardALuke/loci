@@ -1,6 +1,6 @@
 ###############################################################################
 #
-# Copyright 2008, Mississippi State University
+# Copyright 2008-2025, Mississippi State University
 #
 # This file is part of the Loci Framework.
 #

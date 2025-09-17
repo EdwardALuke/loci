@@ -1,4 +1,8 @@
-
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
 //#
 //# The Loci Framework is free software: you can redistribute it and/or modify
 //# it under the terms of the Lesser GNU General Public License as published by
