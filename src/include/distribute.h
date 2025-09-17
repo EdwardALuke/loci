@@ -33,12 +33,15 @@
 #include <ostream>
 #include <fstream>
 #include <string>
+#include <memory>
+
 #include <mpi.h>
 
 #include <Map.h>
 #include <DMap.h>
 #include <store_rep.h>
-
+#include <store_def.h>
+#include <storeVec_def.h>
 namespace Loci {
   class joiner ;
   extern std::ofstream debugout ;
@@ -50,6 +53,517 @@ namespace Loci {
   void Abort() ;
   size_t MPI_process_mem_avail() ;
   
+
+
+  /// Abstract base class to define data partioner interface
+  class dataPartition {
+  public:
+    /// MPI Communicator that the data is partitioned over
+    MPI_Comm comm ;
+    /// Constructor to initialize communicator
+    dataPartition(const MPI_Comm &icomm) : comm(icomm) {}
+    /// Method that will partition an entity set to the owning processor.
+    /// Returns a list of pairs of processor number and set that is owned
+    /// by that processor
+    virtual std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) = 0 ;
+    /// Return set that is owned by processor i
+    virtual entitySet getAllocation(int i) = 0 ;
+  } ;
+
+  /// The most general partition where the assignment of sets to processors is
+  /// just an array of sets.  This will require p intersections to peerform
+  /// the partitionEntitySet operation
+  class dataPartitionGeneral: public dataPartition {
+    /// Partition set array of size p
+    std::vector<entitySet> ptn ;
+  public:
+    dataPartitionGeneral(const std::vector<entitySet> &iptn, const MPI_Comm &icomm):
+    dataPartition(icomm), ptn(iptn) {
+#ifdef DEBUG
+      int p = 1 ;
+      MPI_Comm_size(comm,&p) ;
+      fatal(ptn.size() != p) ;
+      Loci::debugout << "ptn = " << endl ;
+      for(int i=0;i<p;++i)
+        Loci::debugout << i << " - " << ptn[i] << endl ;
+#endif
+    }
+    std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) ;
+    entitySet getAllocation(int i) ;
+  } ;
+
+
+  /// A partition that is provided by a set of split values.  It is assumed
+  /// that the entities are assigned to processors by splitting a continuous
+  /// interval at (p-1) split locations.  The constructor takes an array of
+  /// p values which are the initial value that is owned by that processor
+  class dataPartitionSplits: public dataPartition {
+    std::vector<int> splits ;
+  public:
+    dataPartitionSplits(const std::vector<int> &isplits,const MPI_Comm &icomm):
+    dataPartition(icomm),splits(isplits) {
+      int p = 1 ;
+      MPI_Comm_size(comm,&p) ;
+      fatal(splits.size() != size_t(p)) ;
+      splits[0] = std::numeric_limits<int>::lowest()+1 ;
+      splits.push_back(std::numeric_limits<int>::max()-1) ;
+#ifdef DEBUG
+      Loci::debugout << "splits=" ;
+      for(int i=0;i<=p;++i)
+        Loci::debugout << " " << splits[i] ;
+      Loci::debugout << endl ;
+#endif
+    }
+    std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) ;
+    entitySet getAllocation(int i) ;
+  } ;
+
+
+  /// The most efficient partition which assumes that ownership is assigned to
+  /// processors with splits that are all equally spaced.  This allows for
+  /// the intersection to be computed algorithmically. 
+  class dataPartitionComputed: public dataPartition {
+    int start, delta ;
+  public:
+    dataPartitionComputed(int istart,int idelta,const MPI_Comm &icomm) :
+    dataPartition(icomm),start(istart),delta(idelta) {
+#ifdef DEBUG
+      Loci::debugout << "start=" << start << ", delta=" << delta << endl ;
+#endif
+    }
+    std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) ;
+    entitySet getAllocation(int i) ;
+  } ;    
+
+
+
+  /// A convenience pointer to the data partitioner interface
+  typedef std::shared_ptr<dataPartition> dataPartitionP ;
+
+  /// Factory functions for creating the general partition object, the
+  /// input is a vector of non-overlapping entitySets for each processor
+  /// where it is assumed that ptn[i] contains all entities owned by
+  /// processor i.
+  inline dataPartitionP createPartition(const std::vector<entitySet>  &ptn,
+                                        const MPI_Comm &comm) {
+    return std::make_shared<dataPartitionGeneral>(ptn,comm) ;
+  }
+
+  /// Factory function for creating the splitter based partition object, where
+  /// the input is a vector of p values.  The splits[i] contains the first
+  /// value that is owned by processor i and ownership of entities is
+  /// described by the interval [splits[i],splits[i+1])
+  inline dataPartitionP createPartition(const std::vector<int>  &splits,
+                                        const MPI_Comm &comm) {
+    return std::make_shared<dataPartitionSplits>(splits,comm) ;
+  }
+
+  /// Factory function for creating an algorithmic partition which is described
+  /// by the starting number of the entity set and a delta which is the number
+  /// of entities assigned to each processor.  This is the most constrained
+  /// partition, but also the most efficent for partitioning a general set.
+  inline dataPartitionP createPartition(int start, int delta, 
+                                        const MPI_Comm &comm) {
+    return std::make_shared<dataPartitionComputed>(start,delta,comm) ;
+  }
+
+
+  /// Communication Schedule Generator for gathering data for a set of
+  /// entities to each processor
+  class gatherCommSchedule {
+  public:
+    MPI_Comm comm ;
+    int p,r ;
+    std::vector<int> send_entities ;
+    std::vector<int> send_sizes, send_offsets ;
+    std::vector<int> recv_sizes, recv_offsets ;
+    // -----------------------------------------------------------------------
+    /// @brief generateSchedule generates a communication schedule for
+    /// gathering the entities in [request] distributed according to
+    /// data partition [ptn]
+    ///
+    /// @param [request] Set of entities that is requested by each processor
+    /// @param [ptn] Partition of entities across processors
+    void generateSchedule(entitySet request, dataPartitionP ptn) ;
+    // -----------------------------------------------------------------------
+    /// @brief gatherData gathers the distributed data that will be accessed
+    /// by each processor from a store that is partitioned according to ptn,
+    /// 
+    /// @param[result] store that will contain the gathered data for
+    /// each processor, this will be ordered as the entitySet provided
+    /// @param[data] The input const_store container that is distributed across
+    /// processors
+    template<class T> void gatherData(store<T> &result,
+                                      const_store<T> &data) const {
+      int result_size = 0 ;
+      for(int i=0;i<p;++i)
+        result_size += recv_sizes[i] ;
+
+      entitySet dom  ;
+      if(result_size > 0)
+        dom = interval(0,result_size-1) ;
+      result.allocate(dom) ;
+
+      // If single processor run, just copy data directly to result
+      if(p == 1) {
+        for(size_t i=0;i<send_entities.size();++i) 
+          result[i] = data[send_entities[i]] ;
+        return ;
+      }
+
+      // Allocate buffer for data to be sent
+      int send_sz = send_entities.size() ;
+      std::vector<T> send_data(send_sz) ;
+
+      // copy data to send buffer
+      for(int i=0;i<send_sz;++i) 
+        send_data[i] = data[send_entities[i]] ;
+
+      // copy self data to result buffer first (don't send using MPI)
+      for(size_t i=0;i<send_sizes[r];++i)
+        result[recv_offsets[r]+i] =
+          send_data[send_offsets[r]+i] ;
+
+      // Count how many sends and recvs
+      int reqs = 0 ;
+      for(int i=0;i<p;++i) {
+        if(i!=r && send_sizes[i] > 0)
+          reqs++ ;
+        if(i!=r && recv_sizes[i] > 0)
+          reqs++ ;
+      }
+      if(reqs == 0) // if no comms, we can return
+        return ;
+
+      // requests for outstanding communication
+      std::vector<MPI_Request> requests(reqs) ;
+      int cnt = 0 ; // Count of communication operations (send/recv)
+
+      MPI_Datatype bytearray ;
+      MPI_Type_vector(sizeof(T),1,1,MPI_BYTE,&bytearray) ;
+      MPI_Type_commit(&bytearray) ;
+      // Perform non-blocking recvs
+      for(int i=0;i<p;++i)
+        // If I am not recving from myself and I have something to recv
+        if(i!=r && recv_sizes[i] > 0) {
+          MPI_Irecv(&result[recv_offsets[i]],
+                    recv_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+      // Perform non-blocking sends
+      for(int i=0;i<p;++i)
+        if(i!=r && send_sizes[i] > 0) {
+          // If I am not sending to myself and I have something to send
+          MPI_Isend(&send_data[send_offsets[i]],
+                    send_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+
+      // wait for communication to finish
+      std::vector<MPI_Status> status_list(cnt) ;
+      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+
+      MPI_Type_free(&bytearray) ;
+    }
+
+    // -----------------------------------------------------------------------
+    /// @brief gatherData compatability conversion that allows const references
+    /// to store to work the same as const_store
+
+    template<class T> inline void gatherData(store<T> &result,
+                                             const store<T> &data) const {
+      const_store<T> data_const ;
+      data_const.setRep(data.Rep()) ;
+      gatherData(result,data_const) ;
+    }
+        
+    // -----------------------------------------------------------------------
+    /// @brief scatterData scatters the local buffer to the processor that
+    /// owns the associated entity
+    ///
+    /// @param[buffer] const_store that will contain the data to be 
+    /// scattered, the inverse of the gather operation
+    /// @param[data] The output store container that is distributed across
+    /// processors
+    template<class T> void scatterData(const_store<T> &buffer,
+                                       store<T> &data) const {
+
+      // If single processor run, just compy data directly to result
+      if(p == 1) {
+        warn(buffer.domain().size() != send_entities.size()) ;
+        for(size_t i=0;i<send_entities.size();++i) 
+          data[send_entities[i]] = buffer[i] ;
+        return ;
+      }
+
+      // Allocate buffer for data to be sent
+      int recv_sz = send_entities.size() ;
+      std::vector<T> recv_data(recv_sz) ;
+
+      // copy self data to result buffer first (don't send using MPI)
+      for(size_t i=0;i<send_sizes[r];++i)
+        recv_data[send_offsets[r]+i] = buffer[recv_offsets[r]+i] ;
+
+      // Count how many sends and recvs
+      int reqs = 0 ;
+      for(int i=0;i<p;++i) {
+        if(send_sizes[i] > 0)
+          reqs++ ;
+        if(recv_sizes[i] > 0)
+          reqs++ ;
+      }
+      // If this processor does not commuicate we are done
+      if(reqs == 0) {
+        for(size_t i=0;i<send_entities.size();++i) 
+          data[send_entities[i]] = recv_data[i] ;
+        return ;
+      }
+
+      
+      MPI_Datatype bytearray ;
+      MPI_Type_vector(sizeof(T),1,1,MPI_BYTE,&bytearray) ;
+      MPI_Type_commit(&bytearray) ;
+      
+      // requests for outstanding communication
+      std::vector<MPI_Request> requests(reqs) ;
+
+      int cnt = 0 ; // Count of communication operations (send/recv)
+
+      // Perform non-blocking recvs
+      for(int i=0;i<p;++i)
+        if(i!=r && send_sizes[i] > 0) {
+          // If I am not sending to myself and I have something to send
+          MPI_Irecv(&recv_data[send_offsets[i]],
+                    send_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+      // Perform non-blocking sends
+      for(int i=0;i<p;++i)
+        // If I am not recving from myself and I have something to recv
+        if(i!=r && recv_sizes[i] > 0) {
+          MPI_Isend(&buffer[recv_offsets[i]],
+                    recv_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+
+      // otherwise wait for communication to finish
+      std::vector<MPI_Status> status_list(cnt) ;
+      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      MPI_Type_free(&bytearray) ;
+
+      // copy data from from recv buffer
+      for(size_t i=0;i<send_entities.size();++i) 
+        data[send_entities[i]] = recv_data[i] ;
+    }
+    // -----------------------------------------------------------------------
+    /// @brief scatterData scatters compatibility routine that allows const
+    /// references to buffer to work the same as const_store
+    template<class T> inline void scatterData(const store<T> &buffer,
+                                              store<T> &data) const {
+      const_store<T> buffer_const ;
+      buffer_const.setRep(buffer.Rep()) ;
+      scatterData(buffer_const,data) ;
+    }
+
+    // -----------------------------------------------------------------------
+    /// @brief gatherData gathers the distributed data that will be accessed
+    /// by each processor from a store that is partitioned according to ptn,
+    /// 
+    /// @param[result] store that will contain the gathered data for
+    /// each processor, this will be ordered as the entitySet provided
+    /// @param[data] The input const_store container that is distributed across
+    /// processors
+    template<class T> void gatherData(storeVec<T> &result,
+                                      const_storeVec<T> &data) const {
+      int result_size = 0 ;
+      for(int i=0;i<p;++i)
+        result_size += recv_sizes[i] ;
+
+      const int vs = data.vecSize() ;
+      result.setVecSize(vs) ;
+      entitySet result_set ;
+      if(result_size > 0)
+        result_set = interval(0,result_size-1) ;
+      result.allocate(result_set) ;
+      
+      // If single processor run, just copy data directly to result
+      if(p == 1) {
+        fatal(result_size != (int)send_entities.size()) ;
+        //        fatal(result_size != data.domain().size()) ;
+        for(size_t i=0;i<send_entities.size();++i)
+          result[i] = data[send_entities[i]] ;
+        return ;
+      }
+
+      // Allocate buffer for data to be sent
+      int send_sz = send_entities.size() ;
+      std::vector<T> send_data(send_sz*vs) ;
+
+      // copy data to send buffer
+      for(int i=0;i<send_sz;++i)
+        for(int j=0;j<vs;++j)
+          send_data[i*vs+j] = data[send_entities[i]][j] ;
+
+      // copy self data to result buffer first (don't send using MPI)
+      for(size_t i=0;i<send_sizes[r];++i)
+        for(int j=0;j<vs;++j) 
+          result[recv_offsets[r]+i][j] =
+            send_data[(send_offsets[r]+i)*vs+j] ;
+
+      // Count how many sends and recvs
+      int reqs = 0 ;
+      for(int i=0;i<p;++i) {
+        if(i!=r && send_sizes[i] > 0)
+          reqs++ ;
+        if(i!=r && recv_sizes[i] > 0)
+          reqs++ ;
+      }
+      if(reqs == 0) // if no comms, we can return
+        return ;
+
+      // requests for outstanding communication
+      std::vector<MPI_Request> requests(reqs) ;
+      int cnt = 0 ; // Count of communication operations (send/recv)
+
+      MPI_Datatype bytearray ;
+      MPI_Type_vector(sizeof(T)*vs,1,1,MPI_BYTE,&bytearray) ;
+      MPI_Type_commit(&bytearray) ;
+      // Perform non-blocking recvs
+      for(int i=0;i<p;++i)
+        if(i!=r && recv_sizes[i] > 0) { // if recving from another processor
+          MPI_Irecv(&result[recv_offsets[i]][0],
+                    recv_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+      // Perform non-blocking sends
+      for(int i=0;i<p;++i)
+        if(i!=r && send_sizes[i] > 0) { // if sending to another processor
+          MPI_Isend(&send_data[send_offsets[i]*vs],
+                    send_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+
+      // wait for communication to finish
+      std::vector<MPI_Status> status_list(cnt) ;
+      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+
+      MPI_Type_free(&bytearray) ;
+    }
+
+    // -----------------------------------------------------------------------
+    /// @brief gatherData compatability conversion that allows const references
+    /// to storeVec to work the same as const_storeVec
+
+    template<class T> inline void gatherData(storeVec<T> &result,
+                                             const storeVec<T> &data) const {
+      const_storeVec<T> data_const ;
+      data_const.setRep(data.Rep()) ;
+      gatherData(result,data_const) ;
+    }
+        
+    // -----------------------------------------------------------------------
+    /// @brief scatterData scatters the local buffer to the processor that
+    /// owns the associated entity
+    ///
+    /// @param[buffer] const_storeVec that will contain the data to be 
+    /// scattered, the inverse of the gather operation
+    /// @param[data] The output storeVec container that is distributed across
+    /// processors
+    template<class T> void scatterData(const_storeVec<T> &buffer,
+                                       storeVec<T> &data) const {
+      warn(buffer.vecSize() != data.vecSize()) ;
+      const int vs = buffer.vecSize() ;
+      // If single processor run, just compy data directly to result
+      if(p == 1) {
+        warn(buffer.domain().size() != send_entities.size()) ;
+        for(size_t i=0;i<send_entities.size();++i)
+          data[send_entities[i]] = buffer[i] ;
+        return ;
+      }
+
+      // Allocate buffer for data to be sent
+      int recv_sz = send_entities.size() ;
+      std::vector<T> recv_data(recv_sz*vs) ;
+
+      // copy self data to result buffer first (don't send using MPI)
+      for(size_t i=0;i<send_sizes[r];++i)
+        for(int j=0;j<vs;++j)
+          recv_data[(send_offsets[r]+i)*vs+j] = buffer[recv_offsets[r]+i][j] ;
+
+      // Count how many sends and recvs
+      int reqs = 0 ;
+      for(int i=0;i<p;++i) {
+        if(send_sizes[i] > 0)
+          reqs++ ;
+        if(recv_sizes[i] > 0)
+          reqs++ ;
+      }
+
+      if(reqs == 0) { // No communication case
+        // copy data from buffer to output store
+        for(size_t i=0;i<send_entities.size();++i)
+          for(int j=0;j<vs;++j)
+            data[send_entities[i]][j] = recv_data[i*vs+j] ;
+        return ;
+      }
+
+      
+      MPI_Datatype bytearray ;
+      MPI_Type_vector(sizeof(T)*vs,1,1,MPI_BYTE,&bytearray) ;
+      MPI_Type_commit(&bytearray) ;
+      
+      // requests for outstanding communication
+      std::vector<MPI_Request> requests(reqs) ;
+
+      int cnt = 0 ; // Count of communication operations (send/recv)
+
+      // Perform non-blocking recvs
+      for(int i=0;i<p;++i)
+        if(i!=r && send_sizes[i] > 0) {
+          // If I am not sending to myself and I have something to send
+          MPI_Irecv(&recv_data[send_offsets[i]*vs],
+                    send_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+      // Perform non-blocking sends
+      for(int i=0;i<p;++i)
+        // If I am not recving from myself and I have something to recv
+        if(i!=r && recv_sizes[i] > 0) {
+          MPI_Isend(&buffer[recv_offsets[i]][0],
+                    recv_sizes[i],
+                    bytearray,i,99,comm,&requests[cnt]) ;
+          cnt++ ;
+        }
+
+      // otherwise wait for communication to finish
+      std::vector<MPI_Status> status_list(cnt) ;
+      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      MPI_Type_free(&bytearray) ;
+
+      // copy data from from recv buffer
+      for(size_t i=0;i<send_entities.size();++i) 
+        for(int j=0;j<vs;++j)
+          data[send_entities[i]][j] = recv_data[i*vs+j] ;
+    }
+    // -----------------------------------------------------------------------
+    /// @brief scatterData scatters compatibility routine that allows const
+    /// references to buffer to work the same as const_storeVec
+    template<class T> inline void scatterData(const storeVec<T> &buffer,
+                                              storeVec<T> &data) const {
+      const_storeVec<T> buffer_const ;
+      buffer_const.setRep(buffer.Rep()) ;
+      scatterData(buffer_const,data) ;
+    }
+  } ;
+
+
   dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
 
   std::vector<dMap> send_global_map(Map &attrib_data, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
@@ -57,6 +571,10 @@ namespace Loci {
   
   storeRepP send_clone_non(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
   std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn) ;
+  
+  std::vector<std::pair<int, entitySet> >
+  transpose_entitySet(const std::vector<std::pair<int,entitySet> > &in,
+                      MPI_Comm comm) ;
   
   std::vector<entitySet>
   transpose_entitySet(const std::vector<entitySet>& in, MPI_Comm comm) ;

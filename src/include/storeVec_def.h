@@ -113,7 +113,7 @@ namespace Loci {
     void setSize( int s ) {
       size = s;
     }
-    int getSize() { return size; }
+    int getSize() const { return size; }
     
     Vect(T *p ,int sz) {
       ptr = p ;

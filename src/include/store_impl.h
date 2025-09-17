@@ -749,6 +749,17 @@ namespace Loci {
 #endif
   //*********************************************************************/
 
+  /// @brief A general function to initialize a store to the types zero
+  /// value using the setZero function.
+  ///
+  /// @param [qout] store that will be zeroed
+  /// @param [dom] entitySet in the store that will be zeroed.
+  template <class T> void zeroStore(store<T> &qout, const entitySet &dom) {
+    FORALL(dom,ii) {
+      setZero(qout[ii]) ;
+    } ENDFORALL ;
+  }
+    
 } // end of namespace Loci
 
 #endif

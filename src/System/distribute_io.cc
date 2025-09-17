@@ -2252,6 +2252,36 @@ namespace Loci {
     return op ;
   }
 
+  void redistributeStore(Loci::storeRepP &op,
+                         Loci::storeRepP sp,
+                         entitySet dom,
+                         const Map &toNumbering,
+                         const std::vector<int> &splits,
+                         MPI_Comm comm) {
+    vector<std::pair<Entity,Entity> > commMap(dom.size());
+    int i = 0 ;
+    FORALL(dom,ii) {
+      commMap[i].first = ii ;
+      commMap[i].second = toNumbering[ii] ;
+      i++ ;
+    } ENDFORALL ;
+    
+    Loci::CPTR<Loci::partitionFunctionType> partition = new Loci::generalPartition(splits) ;
+    vector<std::pair<Entity,Entity> > global2local ;
+
+    op = generalCommStore(// input store
+			  sp,
+			  // first: from entity (in container ordering),
+			  // second: to global partitioned entity map
+			  commMap,
+			  // To entity partition
+			  partition,
+			  // mapping from global number to local numbering
+			  global2local,
+			  op,
+			  comm) ;
+  }
+
   // collect file to global map
   entitySet
   getF2G(Map &f2g, entitySet fdom, dMap &g2f, MPI_Comm comm) {
