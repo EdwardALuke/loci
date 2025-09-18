@@ -47,18 +47,6 @@ namespace Loci  {
   $type lsminV(Y)             storeVec<vect3d>;
   $type lsmint3d(X)           store<tens3d>;
   $type lsminv3d(X)           store<vect3d>;
-  $type c2ns(X)   store<real>;
-  $type c2nv3d(X) store<vect3d>;
-  $type c2nt3d(X) store<tens3d>;
-  $type c2nV_v3d(X) storeVec<vect3d>;
-
-  $type nnincell              store<int>;
-  $type maxNent               param<int>;
-  $type lsvec_node            storeVec<real>;
-  $type lsmins_node(Xf,Xnode)         store<real>;
-  $type lsminV_node(Xf,Xnode)        storeVec<vect3d>;
-  $type lsmint3d_node(Xf,Xnode)    store<tens3d>;
-  $type lsminv3d_node(Xf,Xnode)      store<vect3d>;
   $type IGFinished     param<bool>;
 
   $type ITER     Constraint;
@@ -107,28 +95,7 @@ namespace Loci  {
       }
     
   }
-
-  $rule default(gradLSQ)
-  {
-    $gradLSQ = 0;
-  }
-
-  $type lsq_fnodes Constraint;
-  $type lsq_fonly  Constraint;
-  $rule constraint(lsq_fnodes,lsq_fonly<-gradLSQ)
-  {
-    $lsq_fnodes = EMPTY;
-    $lsq_fonly  = ~EMPTY;
-    if($gradLSQ!=0)
-      {
-        $lsq_fnodes = ~EMPTY;
-        $lsq_fonly  = EMPTY;
-      }
-    $[Once] {
-       cout << "Iterative Gradient LSQ="<<(($gradLSQ)?"face+node":"face")<<"\n";
-     };
-  }
-
+  
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -495,7 +462,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = 5./3.; // Weighting reducing to fourth order
+    const real_t alpha = 4./3.; // Weighting reducing to fourth order
     // Extra factor of 2 to balance out 1/2 factor in coef
     const real_t corr4 = 2.*alpha*(Xr-Xl)/edotn;
     $itgrads_f(X) = 0.5*($cl->$itgrads_X+$cr->$itgrads_X + corr4*an);
@@ -518,7 +485,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an);
-    const real_t alpha = 5./3.; // Weighting reducing to fourth order
+    const real_t alpha = 4./3.; // Weighting reducing to fourth order
 
     const real_t corr4 = alpha*(Xr-Xl)/edotn;
     $itgrads_f(X) = ($ci->$itgrads_X + corr4*an);
@@ -605,7 +572,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = 5./3.; // Weighting reducing to fourth order
+    const real_t alpha = 4./3.; // Weighting reducing to fourth order
     // Extra factor of 2 to balance out 1/2 factor in coef
     const vect3d corr4 = 2.*alpha*(Xr-Xl)/edotn;
     $itgradv3d_f(X).x = 0.5*($cl->$itgradv3d_X.x+$cr->$itgradv3d_X.x + corr4.x*an);
@@ -630,7 +597,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an);
-    const real_t alpha = 5./3.; // Weighting reducing to fourth order
+    const real_t alpha = 4./3.; // Weighting reducing to fourth order
 
     const vect3d corr4 = alpha*(Xr-Xl)/edotn;
     $itgradv3d_f(X).x = ($ci->$itgradv3d_X.x + corr4.x*an);
@@ -698,7 +665,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = 5./3.; // Weighting reducing to fourth order
+    const real_t alpha = 4./3.; // Weighting reducing to fourth order
     const int vs = $*itgradv_f(X).vecSize();
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$itgradv_X[i],dvl);
@@ -720,7 +687,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$cl->$cellcenter,an);
-    const real_t alpha = 5./3.; // Weighting reducing to fourth order
+    const real_t alpha = 4./3.; // Weighting reducing to fourth order
     const int vs = $*itgradv_f(X).vecSize();
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$itgradv_X[i],dvl);
@@ -735,93 +702,17 @@ namespace Loci  {
   $rule pointwise(itgrads_X{ig+1}<-lsminv3d(itgrads_f(X)){ig}),
       inplace(itgrads_X{ig+1}|lsminv3d(itgrads_f(X)){ig}),
       parametric(itgrads(X,C)),
-      constraint(geom_cells,ITER,C,lsq_fonly), prelude {};
+      constraint(geom_cells,ITER,C), prelude {};
 
   $rule pointwise(itgradv3d_X{ig+1}<-lsmint3d(itgradv3d_f(X)){ig}),
     inplace(itgradv3d_X{ig+1}|lsmint3d(itgradv3d_f(X)){ig}),
     parametric(itgradv3d(X,C)),
-    constraint(geom_cells,ITER,C,lsq_fonly), prelude {};
+    constraint(geom_cells,ITER,C), prelude {};
 
   $rule pointwise(itgradv_X{ig+1}<-lsminV(itgradv_f(X)){ig}),
     inplace(itgradv_X{ig+1}|lsminV(itgradv_f(X)){ig}),
     parametric(itgradv(X,C)),
-    constraint(geom_cells,ITER,C,lsq_fonly), prelude {};
-
-
-  ///////////////////////////////////////////////////
-  // face+node least squares stencil
-
-  // scalar
-  $rule pointwise(itgrads_X_f<-ci->itgrads_X),
-    constraint(ci,C), parametric(itgrads(X,C))
-  {
-    $itgrads_X_f = $ci->$itgrads_X;
-  }
-
-  $rule pointwise(itgrads_X_f<-(cr,cl)->(itgrads_X,vol)),
-    constraint((cl,cr)->vol,C),
-    parametric(itgrads(X,C))
-  {
-    $itgrads_X_f = ($cl->$vol*$cr->$itgrads_X+
-                    $cr->$vol*$cl->$itgrads_X)/($cl->$vol+$cr->$vol);
-  }
-
-  $rule pointwise(itgrads_X{ig+1}<-lsminv3d_node(itgrads_f(X),c2nv3d(itgrads_X)){ig}),
-    inplace(itgrads_X{ig+1}|lsminv3d_node(itgrads_f(X),c2nv3d(itgrads_X)){ig}),
-    parametric(itgrads(X,C)),
-    constraint(geom_cells,ITER,C,lsq_fnodes), prelude {};
-
-  // vect3d
-  $rule pointwise(itgradv3d_X_f<-ci->itgradv3d_X),
-    constraint(ci,C), parametric(itgradv3d(X,C))
-  {
-    $itgradv3d_X_f = $ci->$itgradv3d_X;
-  }
-
-  $rule pointwise(itgradv3d_X_f<-(cr,cl)->(itgradv3d_X,vol)),
-    constraint((cl,cr)->vol,C),
-    parametric(itgradv3d(X,C))
-  {
-    $itgradv3d_X_f.x = ($cl->$vol*$cr->$itgradv3d_X.x+
-                        $cr->$vol*$cl->$itgradv3d_X.x)/($cl->$vol+$cr->$vol);
-    $itgradv3d_X_f.y = ($cl->$vol*$cr->$itgradv3d_X.y+
-                        $cr->$vol*$cl->$itgradv3d_X.y)/($cl->$vol+$cr->$vol);
-    $itgradv3d_X_f.z = ($cl->$vol*$cr->$itgradv3d_X.z+
-                        $cr->$vol*$cl->$itgradv3d_X.z)/($cl->$vol+$cr->$vol);
-  }
-
-  $rule pointwise(itgradv3d_X{ig+1}<-lsmint3d_node(itgradv3d_f(X),c2nt3d(itgradv3d_X)){ig}),
-    inplace(itgradv3d_X{ig+1}|lsmint3d_node(itgradv3d_f(X),c2nt3d(itgradv3d_X)){ig}),
-    parametric(itgradv3d(X,C)),
-    constraint(geom_cells,ITER,C,lsq_fnodes), prelude {};
-
-  // vector
-  $rule pointwise(itgradv_X_f<-ci->itgradv_X),
-    constraint(ci,C), parametric(itgradv(X,C)), prelude
-  {
-    $itgradv_X_f.setVecSize($itgradv_X.vecSize());
-  }compute
-  {
-    for(int i=0; i<$*itgradv_X.vecSize(); i++)
-      $itgradv_X_f[i] = $ci->$itgradv_X[i];
-  }
-
-  $rule pointwise(itgradv_X_f<-(cr,cl)->(itgradv_X,vol)),
-     constraint((cl,cr)->vol,C),
-     parametric(itgradv(X,C)), prelude
-  {
-    $itgradv_X_f.setVecSize($itgradv_X.vecSize());
-  }compute
-  {
-    for(int i=0; i<$*itgradv_X.vecSize(); i++)
-      $itgradv_X_f[i] = ($cl->$vol*$cr->$itgradv_X[i]+
-                         $cr->$vol*$cl->$itgradv_X[i])/($cl->$vol+$cr->$vol);
-  }
-
-  $rule pointwise(itgradv_X{ig+1}<-lsminV_node(itgradv_f(X),c2nV_v3d(itgradv_X)){ig}),
-     inplace(itgradv_X{ig+1}|lsminV_node(itgradv_f(X),c2nV_v3d(itgradv_X)){ig}),
-     parametric(itgradv(X,C)),
-     constraint(geom_cells,ITER,C,lsq_fnodes), prelude {};
+    constraint(geom_cells,ITER,C), prelude {};
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -857,71 +748,61 @@ namespace Loci  {
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////////////////////////////////////
   // least squares utilities and parametrics needed for itgrads
-  template<class T, class T2> void lu_4x4( T2 *A, T *x, T *b)
-  {
-    T lvar_0 = 1.0/A[0];
-    T lvar_1 = A[12]*lvar_0;
-    T lvar_2 = A[4]*lvar_0;
-    T lvar_3 = -b[0]*lvar_2 + b[1];
-    T lvar_3p5 = -A[1]*lvar_2 + A[5];
-    T sign   = T(lvar_3p5<0.?-1.:1.);
-    T lvar_4 = sign/max<T>(abs(lvar_3p5),T(1e-32));
-    T lvar_5 = lvar_4*(A[13] - A[1]*lvar_1);
-    T lvar_6 = A[8]*lvar_0;
-    T lvar_7 = lvar_4*(-A[1]*lvar_6 + A[9]);
-    T lvar_8 = -b[0]*lvar_6 + b[2] - lvar_3*lvar_7;
-    T lvar_9 = -A[2]*lvar_2 + A[6];
-    T lvar_9p5 = A[10] - A[2]*lvar_6 - lvar_7*lvar_9;
-    sign    = T(lvar_9p5<0.?-1.:1.);
-    T lvar_10 = sign/max<T>(abs(lvar_9p5),T(1e-32));
-    T lvar_11 = lvar_10*(A[14] - A[2]*lvar_1 - lvar_5*lvar_9);
-    T lvar_12 = -A[3]*lvar_2 + A[7];
-    T lvar_13 = A[11] - A[3]*lvar_6 - lvar_12*lvar_7;
-    T lvar_13p5 = (A[15] - A[3]*lvar_1 - lvar_11*lvar_13 - lvar_12*lvar_5);
-    sign    = T(lvar_13p5<0.?-1.:1.);
-    T lvar_14 = (-b[0]*lvar_1 + b[3] - lvar_11*lvar_8 - lvar_3*lvar_5)*sign/max<T>(abs(lvar_13p5),T(1e-32));
-    T lvar_15 = lvar_10*(-lvar_13*lvar_14 + lvar_8);
-    T lvar_16 = lvar_4*(-lvar_12*lvar_14 - lvar_15*lvar_9 + lvar_3);
-    x[0] = lvar_0*(-A[1]*lvar_16 - A[2]*lvar_15 - A[3]*lvar_14 + b[0]);
-    x[1] = lvar_16;
-    x[2] = lvar_15;
-    x[3] = lvar_14;
+  namespace {
+    template<class T, class T2> void lu_4x4( T2 *A, T *x, T *b)
+    {
+      T lvar_0 = 1.0/A[0];
+      T lvar_1 = A[12]*lvar_0;
+      T lvar_2 = A[4]*lvar_0;
+      T lvar_3 = -b[0]*lvar_2 + b[1];
+      T lvar_3p5 = -A[1]*lvar_2 + A[5];
+      T sign   = T(lvar_3p5<0.?-1.:1.);
+      T lvar_4 = sign/max<T>(abs(lvar_3p5),T(1e-32));
+      T lvar_5 = lvar_4*(A[13] - A[1]*lvar_1);
+      T lvar_6 = A[8]*lvar_0;
+      T lvar_7 = lvar_4*(-A[1]*lvar_6 + A[9]);
+      T lvar_8 = -b[0]*lvar_6 + b[2] - lvar_3*lvar_7;
+      T lvar_9 = -A[2]*lvar_2 + A[6];
+      T lvar_9p5 = A[10] - A[2]*lvar_6 - lvar_7*lvar_9;
+      sign    = T(lvar_9p5<0.?-1.:1.);
+      T lvar_10 = sign/max<T>(abs(lvar_9p5),T(1e-32));
+      T lvar_11 = lvar_10*(A[14] - A[2]*lvar_1 - lvar_5*lvar_9);
+      T lvar_12 = -A[3]*lvar_2 + A[7];
+      T lvar_13 = A[11] - A[3]*lvar_6 - lvar_12*lvar_7;
+      T lvar_13p5 = (A[15] - A[3]*lvar_1 - lvar_11*lvar_13 - lvar_12*lvar_5);
+      sign    = T(lvar_13p5<0.?-1.:1.);
+      T lvar_14 = (-b[0]*lvar_1 + b[3] - lvar_11*lvar_8 - lvar_3*lvar_5)*sign/max<T>(abs(lvar_13p5),T(1e-32));
+      T lvar_15 = lvar_10*(-lvar_13*lvar_14 + lvar_8);
+      T lvar_16 = lvar_4*(-lvar_12*lvar_14 - lvar_15*lvar_9 + lvar_3);
+      x[0] = lvar_0*(-A[1]*lvar_16 - A[2]*lvar_15 - A[3]*lvar_14 + b[0]);
+      x[1] = lvar_16;
+      x[2] = lvar_15;
+      x[3] = lvar_14;
+    }
+
+    template<class T> void inv_from_lu(T *A, T *Ainv)
+    {
+      int size = 4;
+      T x[4];
+      T b[4];
+      for(int row=0; row<size; row++)
+        {
+          for(int i=0; i<size; i++)
+            b[i] = 0;
+          b[row] = 1.;
+          lu_4x4(A,&x[0],&b[0]);
+          for(int i=0; i<size; i++)
+            Ainv[i*size+row] = x[i];
+        }
+    }
   }
 
-  template<class T> void inv_from_lu(T *A, T *Ainv)
-  {
-    int size = 4;
-    T x[4];
-    T b[4];
-    for(int row=0; row<size; row++)
-      {
-        for(int i=0; i<size; i++)
-          b[i] = 0;
-        b[row] = 1.;
-        lu_4x4(A,&x[0],&b[0]);
-        for(int i=0; i<size; i++)
-          Ainv[i*size+row] = x[i];
-      }
-  }
   $untype X;
   $untype X_f;
-  // $untype Y;
-  // $untype Z;
-  // $untype V;
   $type X store<real>;
   $type Y storeVec<vect3d>;
   $type Z store<tens3d>;
   $type V store<vect3d>;
-
-  $type X_f store<real>;
-  $type Y_f storeVec<vect3d>;
-  $type Z_f store<tens3d>;
-  $type V_f store<vect3d>;
-
-  $type Xnode store<real>;
-  $type Ynode storeVec<vect3d>;
-  $type Znode store<tens3d>;
-  $type Vnode store<vect3d>;
 
   $rule pointwise(nfincell<-upper->cr,lower->cl,boundary_map->ci),
     constraint(geom_cells)
@@ -1173,633 +1054,5 @@ namespace Loci  {
     $lsmint3d(Z) = tens3d(vect3d(phi_c.x.x/bw.x,phi_c.x.y/bw.y,phi_c.x.z/bw.z),
                           vect3d(phi_c.y.x/bw.x,phi_c.y.y/bw.y,phi_c.y.z/bw.z),
                           vect3d(phi_c.z.x/bw.x,phi_c.z.y/bw.y,phi_c.z.z/bw.z));
-  }
-
-  //////////////////////// node based
-  $type cell2node multiMap;
-  $type node2cell multiMap;
-  $type node2ci multiMap;
-
-  $rule unit(maxNent), constraint(UNIVERSE,lsq_fnodes) { $maxNent = 0; }
-  $rule apply(maxNent<-nfincell,nnincell)[Loci::Maximum],
-    constraint(nnincell,lsq_fnodes){ join($maxNent, $nfincell+$nnincell); }
-
-  $rule pointwise(nnincell<-cell2node->pos,nfincell),
-    constraint(geom_cells,lsq_fnodes)
-  {
-    $nnincell = $cell2node.size();
-  }
-
-  $rule pointwise(lsvec_node<-maxNent,nfincell,cellcenter,
-                  (lower,upper)->(cl,cr)->(vol,cellcenter),
-                  (lower,upper,boundary_map)->(facecenter,area),
-                  nnincell,cell2node->pos),
-    constraint(geom_cells,lsq_fnodes),prelude
-  {
-    $lsvec_node.setVecSize(*$maxNent);
-  } compute
-  {
-    const int vs = $maxNent;
-    const int nnoc = $nnincell;
-    const int nft = $nfincell+nnoc;
-    const int nvar = 4;
-    vector<real> Ac(nvar*nvar,0.0), Ainv(nvar*nvar,.0), Bc(nvar*nft,.0), wi(nft);
-    vector<vect3d> dr(vs);
-    const int lsz = $lower.size();
-    const int usz = $upper.size();
-    const int bsz = $boundary_map.size();
-    const vect3d x1 = $cellcenter;
-    // wi
-    int nf = 0;
-    for(int i=0;i<lsz;i++)
-      {
-        const vect3d x0 = $lower[i]->$facecenter;
-        vect3d ds = (x1-x0);
-        dr[nf] = ds;
-        wi[nf++] = 1./norm(ds);
-      }
-
-    for(int i=0;i<usz;i++)
-      {
-        const vect3d x0 = $upper[i]->$facecenter;
-        vect3d ds = (x1-x0);
-        dr[nf] = ds;
-        wi[nf++] = 1./norm(ds);
-      }
-
-    for(int i=0;i<bsz;i++)
-      {
-        const vect3d x0 = $boundary_map[i]->$facecenter;
-        vect3d ds = (x1-x0);
-        dr[nf] = ds;
-        wi[nf++] = 1./norm(ds);
-      }
-
-    for(int i=0;i<nnoc;i++)
-      {
-        const vect3d x0 = $cell2node[i]->$pos;
-        vect3d ds = (x1-x0);
-        dr[nf] = ds;
-        wi[nf++] = 1./norm(ds);
-      }
-
-
-    // A matrix
-    int row = 0;
-    for (int f=0; f<nft; f++)
-      {
-        row=0;
-        Ac[row*nvar+0] += wi[f];
-        Ac[row*nvar+1] += wi[f]*dr[f].x;
-        Ac[row*nvar+2] += wi[f]*dr[f].y;
-        Ac[row*nvar+3] += wi[f]*dr[f].z;
-
-        row=1;
-        Ac[row*nvar+0] += wi[f]*dr[f].x;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].x;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].x;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].x;
-
-        row=2;
-        Ac[row*nvar+0] += wi[f]*dr[f].y;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].y;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].y;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].y;
-
-        row=3;
-        Ac[row*nvar+0] += wi[f]*dr[f].z;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].z;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].z;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].z;
-      }
-    // A^-1
-    inv_from_lu<real>(&Ac[0], &Ainv[0]);
-    // B Matrix
-    for (int f=0; f<nft; f++)
-      {
-        row=0; Bc[row*nft+f] = wi[f];
-        row=1; Bc[row*nft+f] = wi[f]*dr[f].x;
-        row=2; Bc[row*nft+f] = wi[f]*dr[f].y;
-        row=3; Bc[row*nft+f] = wi[f]*dr[f].z;
-      }
-
-    // ghd::SOLVE_4x4(&Ac[0], &x[0], &Bc[0]);
-    // A^-1 * B, only first variable solution needed.
-    for (int i=0; i<vs; i++)
-      {
-        $lsvec_node[i] = 0.;
-      }
-
-    for (int i=0; i<nft; i++)
-      {
-        real sum = 0;
-        for (int j=0; j<nvar; j++)
-          sum += Ainv[0*nvar+j] * Bc[j*nft+i];
-        $lsvec_node[i] = sum;
-      }
-  }
-
-  $rule pointwise(lsmins_node(X,Xnode)<-cellcenter,lsvec_node,nnincell,
-                  (lower,upper,boundary_map)->(X,area),
-                  cell2node->Xnode),
-      constraint(geom_cells,lsq_fnodes)
-  {
-    int nf = 0;
-    real phi_c = 0.0;
-    const int lsz  = $lower.size();
-    const int usz  = $upper.size();
-    const int bsz  = $boundary_map.size();
-    const int nnoc = $nnincell;
-    for(int i=0;i<lsz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$lower[i]->$X;
-      }
-
-    for(int i=0;i<usz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$upper[i]->$X;
-      }
-
-    for(int i=0;i<bsz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$boundary_map[i]->$X;
-      }
-
-    for(int i=0;i<nnoc;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$cell2node[i]->$Xnode;
-      }
-
-    $lsmins_node(X,Xnode) = phi_c;
-  }
-
-  $rule pointwise(lsminV_node(Y,Ynode)<-cellcenter,lsvec_node,nnincell,
-                  (lower,upper,boundary_map)->(Y,area),
-                  cell2node->Ynode),
-    constraint(geom_cells,lsq_fnodes,ITER1), prelude
-  {
-    $lsminV_node(Y,Ynode).setVecSize($Y.vecSize());
-  } compute
-  {
-    const int lsz  = $lower.size();
-    const int usz  = $upper.size();
-    const int bsz  = $boundary_map.size();
-    const int nnoc = $nnincell;
-    for (int j=0; j<$*Y.vecSize(); j++)
-      {
-        int nf = 0;
-        vect3d phi_c = vect3d(0.,0.,0.);
-        for(int i=0;i<lsz;i++)
-          {
-            phi_c += $lsvec_node[nf++]*$lower[i]->$Y[j];
-          }
-
-        for(int i=0;i<usz;i++)
-          {
-            phi_c += $lsvec_node[nf++]*$upper[i]->$Y[j];
-          }
-
-        for(int i=0;i<bsz;i++)
-          {
-            phi_c += $lsvec_node[nf++]*$boundary_map[i]->$Y[j];
-          }
-
-        for(int i=0;i<nnoc;i++)
-          {
-            phi_c += $lsvec_node[nf++]*$cell2node[i]->$Ynode[j];
-          }
-
-        $lsminV_node(Y,Ynode)[j] = phi_c;
-      }
-  }
-
-  $rule pointwise(lsminV_node(Y,Ynode)<-cellcenter,lsvec_node,nnincell,
-                  (lower,upper,boundary_map)->(Y,area,facecenter),
-                  lower->cl->cellcenter,upper->cr->cellcenter,
-                  cell2node->(Ynode,pos)),
-      constraint(geom_cells,lsq_fnodes,ITER2),prelude
-  {
-    $lsminV_node(Y,Ynode).setVecSize($Y.vecSize());
-  } compute
-  {
-    const int lsz  = $lower.size();
-    const int usz  = $upper.size();
-    const int bsz  = $boundary_map.size();
-    const int nnoc = $nnincell;
-
-    for (int j=0; j<$*Y.vecSize(); j++)
-      {
-        vect3d phi_c = vect3d(0,0,0);
-        vect3d bw = vect3d(0,0,0);
-
-        for(int i=0;i<lsz;i++)
-          {
-            real dx = norm($lower[i]->$cl->$cellcenter - $cellcenter);
-            const vect3d an = vect3d(abs($lower[i]->$area.n.x),
-                                     abs($lower[i]->$area.n.y),
-                                     abs($lower[i]->$area.n.z));
-            phi_c += (vect3d(an.x*$lower[i]->$Y[j].x,
-                             an.y*$lower[i]->$Y[j].y,
-                             an.z*$lower[i]->$Y[j].z))/dx;
-            bw += an/dx;
-          }
-
-        for(int i=0;i<usz;i++)
-          {
-            real dx = norm($upper[i]->$cr->$cellcenter - $cellcenter);
-            const vect3d an = vect3d(abs($upper[i]->$area.n.x),
-                                     abs($upper[i]->$area.n.y),
-                                     abs($upper[i]->$area.n.z));
-            phi_c += (vect3d(an.x*$upper[i]->$Y[j].x,
-                             an.y*$upper[i]->$Y[j].y,
-                             an.z*$upper[i]->$Y[j].z))/dx;
-            bw += an/dx;
-
-          }
-
-        for(int i=0;i<bsz;i++)
-          {
-            real dx = norm($boundary_map[i]->$facecenter - $cellcenter);
-            const vect3d an = vect3d(abs($boundary_map[i]->$area.n.x),
-                                     abs($boundary_map[i]->$area.n.y),
-                                     abs($boundary_map[i]->$area.n.z));
-            phi_c += (vect3d(an.x*$boundary_map[i]->$Y[j].x,
-                             an.y*$boundary_map[i]->$Y[j].y,
-                             an.z*$boundary_map[i]->$Y[j].z))/dx;
-            bw += an/dx;
-          }
-
-        for(int i=0;i<nnoc;i++)
-          {
-            const vect3d dvec = $cell2node[i]->$pos - $cellcenter;
-            real dx = norm(dvec);
-            const vect3d an = vect3d(abs(dvec.x),
-                                     abs(dvec.y),
-                                     abs(dvec.z));
-            phi_c += (vect3d(an.x*$cell2node[i]->$Ynode[j].x,
-                             an.y*$cell2node[i]->$Ynode[j].y,
-                             an.z*$cell2node[i]->$Ynode[j].z))/dx;
-            bw += an/dx;
-          }
-
-        $lsminV_node(Y,Ynode)[j] = vect3d(phi_c.x/bw.x,phi_c.y/bw.y,phi_c.z/bw.z);
-      }
-  }
-  //
-
-  $rule pointwise(lsminv3d_node(V,Vnode)<-cellcenter,lsvec_node,nnincell,
-                  (lower,upper,boundary_map)->(V,area,facecenter),
-                  cell2node->(Vnode,pos),lsvec),
-      constraint(geom_cells,lsq_fnodes,ITER1)
-  {
-    int nf = 0;
-    vect3d phi_c = vect3d(0,0,0);
-    const int lsz  = $lower.size();
-    const int usz  = $upper.size();
-    const int bsz  = $boundary_map.size();
-    const int nnoc = $nnincell;
-    for(int i=0;i<lsz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$lower[i]->$V;
-      }
-
-    for(int i=0;i<usz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$upper[i]->$V;
-      }
-
-    for(int i=0;i<bsz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$boundary_map[i]->$V;
-      }
-
-    for(int i=0;i<nnoc;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$cell2node[i]->$Vnode;
-      }
-
-    $lsminv3d_node(V,Vnode) = phi_c;
-  }
-
-  $rule pointwise(lsminv3d_node(V,Vnode)<-cellcenter,lsvec_node,nnincell,
-                  (lower,upper,boundary_map)->(V,area,facecenter),
-                  lower->cl->cellcenter,upper->cr->cellcenter,
-                  cell2node->(Vnode,pos)),constraint(geom_cells,lsq_fnodes,ITER2)
-  {
-    vect3d phi_c = vect3d(0,0,0);
-    vect3d bw = vect3d(0,0,0);
-    const int lsz  = $lower.size();
-    const int usz  = $upper.size();
-    const int bsz  = $boundary_map.size();
-    const int nnoc = $nnincell;
-
-    for(int i=0;i<lsz;i++)
-      {
-        real dx = norm($lower[i]->$cl->$cellcenter - $cellcenter);
-        const vect3d an = vect3d(abs($lower[i]->$area.n.x),
-                                 abs($lower[i]->$area.n.y),
-                                 abs($lower[i]->$area.n.z));
-        phi_c += (vect3d(an.x*$lower[i]->$V.x,
-                         an.y*$lower[i]->$V.y,
-                         an.z*$lower[i]->$V.z))/dx;
-        bw += an/dx;
-      }
-
-    for(int i=0;i<usz;i++)
-      {
-        real dx = norm($upper[i]->$cr->$cellcenter - $cellcenter);
-        const vect3d an = vect3d(abs($upper[i]->$area.n.x),
-                                 abs($upper[i]->$area.n.y),
-                                 abs($upper[i]->$area.n.z));
-        phi_c += (vect3d(an.x*$upper[i]->$V.x,
-                         an.y*$upper[i]->$V.y,
-                         an.z*$upper[i]->$V.z))/dx;
-        bw += an/dx;
-
-      }
-
-    for(int i=0;i<bsz;i++)
-      {
-        real dx = norm($boundary_map[i]->$facecenter - $cellcenter);
-        const vect3d an = vect3d(abs($boundary_map[i]->$area.n.x),
-                                 abs($boundary_map[i]->$area.n.y),
-                                 abs($boundary_map[i]->$area.n.z));
-        phi_c += (vect3d(an.x*$boundary_map[i]->$V.x,
-                         an.y*$boundary_map[i]->$V.y,
-                         an.z*$boundary_map[i]->$V.z))/dx;
-        bw += an/dx;
-      }
-
-    for(int i=0;i<nnoc;i++)
-      {
-        const vect3d dvec = $cell2node[i]->$pos - $cellcenter;
-        real dx = norm(dvec);
-        const vect3d an = vect3d(abs(dvec.x),
-                                 abs(dvec.y),
-                                 abs(dvec.z));
-        phi_c += (vect3d(an.x*$cell2node[i]->$Vnode.x,
-                         an.y*$cell2node[i]->$Vnode.y,
-                         an.z*$cell2node[i]->$Vnode.z))/dx;
-        bw += an/dx;
-      }
-
-    $lsminv3d_node(V,Vnode) = vect3d(phi_c.x/bw.x,phi_c.y/bw.y,phi_c.z/bw.z);
-  }
-  //
-
-  $rule pointwise(lsmint3d_node(Z,Znode)<-cellcenter,lsvec_node,nnincell,
-                  (lower,upper,boundary_map)->(Z,area),
-                  cell2node->Znode),constraint(geom_cells,lsq_fnodes,ITER1)
-  {
-    int nf = 0;
-    tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
-    const int lsz  = $lower.size();
-    const int usz  = $upper.size();
-    const int bsz  = $boundary_map.size();
-    const int nnoc = $nnincell;
-    for(int i=0;i<lsz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$lower[i]->$Z;
-      }
-
-    for(int i=0;i<usz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$upper[i]->$Z;
-      }
-
-    for(int i=0;i<bsz;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$boundary_map[i]->$Z;
-      }
-
-    for(int i=0;i<nnoc;i++)
-      {
-        phi_c += $lsvec_node[nf++]*$cell2node[i]->$Znode;
-      }
-
-    $lsmint3d_node(Z,Znode) = phi_c;
-  }
-
-  $rule pointwise(lsmint3d_node(Z,Znode)<-cellcenter,lsvec_node,nnincell,
-                  (lower,upper,boundary_map)->(Z,area,facecenter),
-                  lower->cl->cellcenter,upper->cr->cellcenter,
-                  cell2node->(Znode,pos)),
-    constraint(geom_cells,lsq_fnodes,ITER2)
-  {
-    tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
-    vect3d bw = vect3d(0,0,0);
-    const int lsz  = $lower.size();
-    const int usz  = $upper.size();
-    const int bsz  = $boundary_map.size();
-    const int nnoc = $nnincell;
-
-    for(int i=0;i<lsz;i++)
-      {
-        real dx = norm($lower[i]->$cl->$cellcenter - $cellcenter);
-        const vect3d an = vect3d(abs($lower[i]->$area.n.x),
-                                 abs($lower[i]->$area.n.y),
-                                 abs($lower[i]->$area.n.z));
-        phi_c += tens3d(vect3d(an.x*$lower[i]->$Z.x.x,
-                               an.y*$lower[i]->$Z.x.y,
-                               an.z*$lower[i]->$Z.x.z),
-                        vect3d(an.x*$lower[i]->$Z.y.x,
-                               an.y*$lower[i]->$Z.y.y,
-                               an.z*$lower[i]->$Z.y.z),
-                        vect3d(an.x*$lower[i]->$Z.z.x,
-                               an.y*$lower[i]->$Z.z.y,
-                               an.z*$lower[i]->$Z.z.z))/dx;
-        bw += an/dx;
-      }
-
-    for(int i=0;i<usz;i++)
-      {
-        real dx = norm($upper[i]->$cr->$cellcenter - $cellcenter);
-        const vect3d an = vect3d(abs($upper[i]->$area.n.x),
-                                 abs($upper[i]->$area.n.y),
-                                 abs($upper[i]->$area.n.z));
-        phi_c += tens3d(vect3d(an.x*$upper[i]->$Z.x.x,
-                               an.y*$upper[i]->$Z.x.y,
-                               an.z*$upper[i]->$Z.x.z),
-                        vect3d(an.x*$upper[i]->$Z.y.x,
-                               an.y*$upper[i]->$Z.y.y,
-                               an.z*$upper[i]->$Z.y.z),
-                        vect3d(an.x*$upper[i]->$Z.z.x,
-                               an.y*$upper[i]->$Z.z.y,
-                               an.z*$upper[i]->$Z.z.z))/dx;
-        bw += an/dx;
-
-      }
-
-    for(int i=0;i<bsz;i++)
-      {
-        real dx = norm($boundary_map[i]->$facecenter - $cellcenter);
-        const vect3d an = vect3d(abs($boundary_map[i]->$area.n.x),
-                                 abs($boundary_map[i]->$area.n.y),
-                                 abs($boundary_map[i]->$area.n.z));
-        phi_c += tens3d(vect3d(an.x*$boundary_map[i]->$Z.x.x,
-                               an.y*$boundary_map[i]->$Z.x.y,
-                               an.z*$boundary_map[i]->$Z.x.z),
-                        vect3d(an.x*$boundary_map[i]->$Z.y.x,
-                               an.y*$boundary_map[i]->$Z.y.y,
-                               an.z*$boundary_map[i]->$Z.y.z),
-                        vect3d(an.x*$boundary_map[i]->$Z.z.x,
-                               an.y*$boundary_map[i]->$Z.z.y,
-                               an.z*$boundary_map[i]->$Z.z.z))/dx;
-        bw += an/dx;
-      }
-
-    for(int i=0;i<nnoc;i++)
-      {
-        const vect3d dvec = $cell2node[i]->$pos - $cellcenter;
-        real dx = norm(dvec);
-        const vect3d an = vect3d(abs(dvec.x),
-                                 abs(dvec.y),
-                                 abs(dvec.z));
-        phi_c += tens3d(vect3d(an.x*$cell2node[i]->$Znode.x.x,
-                               an.y*$cell2node[i]->$Znode.x.y,
-                               an.z*$cell2node[i]->$Znode.x.z),
-                        vect3d(an.x*$cell2node[i]->$Znode.y.x,
-                               an.y*$cell2node[i]->$Znode.y.y,
-                               an.z*$cell2node[i]->$Znode.y.z),
-                        vect3d(an.x*$cell2node[i]->$Znode.z.x,
-                               an.y*$cell2node[i]->$Znode.z.y,
-                               an.z*$cell2node[i]->$Znode.z.z))/dx;
-        bw += an/dx;
-      }
-
-    $lsmint3d_node(Z,Znode) = tens3d(vect3d(phi_c.x.x/bw.x,
-                                            phi_c.x.y/bw.y,
-                                            phi_c.x.z/bw.z),
-                                     vect3d(phi_c.y.x/bw.x,
-                                            phi_c.y.y/bw.y,
-                                            phi_c.y.z/bw.z),
-                                     vect3d(phi_c.z.x/bw.x,
-                                            phi_c.z.y/bw.y,
-                                            phi_c.z.z/bw.z));
-  }
-
-  /////////////////////////////////////////////////////////////////////
-  // node2cell and node2ci(node to boundary face) maps required
-  $untype X;
-  $untype X_f;
-  $type X store<real>;
-  $type X_f store<real>;
-  $rule pointwise(c2ns(X)<-node2cell->(X,cellcenter),pos,
-                  node2ci->(X_f,facecenter)),
-    constraint(pos)
-  {
-    const int nsc = $node2cell.size();
-    const int nsf = $node2ci.size();
-    real weight_sum = 0.;
-    real num = 0.;
-    for(int i=0; i<nsc; i++)
-      {
-        const real weight = 1./norm($node2cell[i]->$cellcenter - $pos);
-        num += weight*$node2cell[i]->$X;
-        weight_sum += weight;
-      }
-
-    for(int i=0; i<nsf; i++)
-      {
-        const real weight = 1./norm($node2ci[i]->$facecenter - $pos);
-        num += weight*$node2ci[i]->$X_f;
-        weight_sum += weight;
-      }
-
-    $c2ns(X) = num/weight_sum;
-  }
-
-  $untype X;
-  $untype X_f;
-  $type X store<vect3d>;
-  $type X_f store<vect3d>;
-  $rule pointwise(c2nv3d(X)<-node2cell->(X,cellcenter),pos,
-                  node2ci->(X_f,facecenter)),
-    constraint(pos)
-  {
-    const int nsc = $node2cell.size();
-    const int nsf = $node2ci.size();
-    real weight_sum = 0.;
-    vect3d num = vect3d(0.,0.,0.);
-    for(int i=0; i<nsc; i++)
-      {
-        const real weight = 1./norm($node2cell[i]->$cellcenter - $pos);
-        num += weight*$node2cell[i]->$X;
-        weight_sum += weight;
-      }
-
-    for(int i=0; i<nsf; i++)
-      {
-        const real weight = 1./norm($node2ci[i]->$facecenter - $pos);
-        num += weight*$node2ci[i]->$X_f;
-        weight_sum += weight;
-      }
-
-    $c2nv3d(X) = num/weight_sum;
-  }
-
-  $untype X;
-  $untype X_f;
-  $type X store<tens3d>;
-  $type X_f store<tens3d>;
-  $rule pointwise(c2nt3d(X)<-node2cell->(X,cellcenter),pos,
-                  node2ci->(X_f,facecenter)),
-    constraint(pos)
-  {
-    const int nsc = $node2cell.size();
-    const int nsf = $node2ci.size();
-    real weight_sum = 0.;
-    tens3d num = tens3d(vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
-    for(int i=0; i<nsc; i++)
-      {
-        const real weight = 1./norm($node2cell[i]->$cellcenter - $pos);
-        num += weight*$node2cell[i]->$X;
-        weight_sum += weight;
-      }
-
-    for(int i=0; i<nsf; i++)
-      {
-        const real weight = 1./norm($node2ci[i]->$facecenter - $pos);
-        num += weight*$node2ci[i]->$X_f;
-        weight_sum += weight;
-      }
-
-    $c2nt3d(X).x = num.x/weight_sum;
-    $c2nt3d(X).y = num.y/weight_sum;
-    $c2nt3d(X).z = num.z/weight_sum;
-  }
-
-  $untype X;
-  $untype X_f;
-  $type X   storeVec<vect3d>;
-  $type X_f storeVec<vect3d>;
-  $rule pointwise(c2nV_v3d(X)<-node2cell->(X,cellcenter),pos,
-                  node2ci->(X_f,facecenter)),
-    constraint(pos), prelude
-  {
-    $c2nV_v3d(X).setVecSize($X.vecSize());
-  } compute {
-    const int nsc = $node2cell.size();
-    const int nsf = $node2ci.size();
-    for (int j=0; j<$*X.vecSize(); j++)
-      {
-        real weight_sum = 0.;
-        vect3d num = vect3d(0.,0.,0.);
-        for(int i=0; i<nsc; i++)
-          {
-            const real weight = 1./norm($node2cell[i]->$cellcenter - $pos);
-            num += weight*$node2cell[i]->$X[j];
-            weight_sum += weight;
-          }
-
-        for(int i=0; i<nsf; i++)
-          {
-            const real weight = 1./norm($node2ci[i]->$facecenter - $pos);
-            num += weight*$node2ci[i]->$X_f[j];
-            weight_sum += weight;
-          }
-
-        $c2nV_v3d(X)[j] = num/weight_sum;
-      }
   }
 }

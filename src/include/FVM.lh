@@ -225,8 +225,3 @@ $type gradType  param<string>;
    (iterative1,iterative2).
 */
 $type gradSteps param<int>;
-/**
-   Select the iterative-gradient least-squares stencil, default is
-   face-only (=0) but a face+node option is available (=1)
- */
-$type gradLSQ param<int>;
