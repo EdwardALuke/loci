@@ -122,6 +122,88 @@ namespace Loci {
       }
     }
   
+
+  template<class T1, class T2, class T3> 
+  inline void solve_qr(const T1 &A, 
+                      const T2 *restrict b, 
+                      T3 *restrict x, 
+                      const pivot_type *restrict pivot, 
+                      int size) {
+    const int s = size;
+
+    T2 b_temp[s];
+    for(int i = 0; i < s; ++i) {
+        b_temp[i] = b[i];
+    }
+    
+    // Apply Q^T to b
+    for (int k = 0; k < s - 1; ++k) {
+        const T1 *restrict v_ptr = A.ptr + k + k * s;
+        T1 dot_prod_v_b = 0.0;
+        for (int i = k; i < s; ++i) {
+            dot_prod_v_b += v_ptr[i] * b_temp[i];
+        }
+        T1 temp_val = 2.0 * dot_prod_v_b;
+        for (int i = k; i < s; ++i) {
+            b_temp[i] -= temp_val * v_ptr[i];
+        }
+    }
+    
+    // Back substitution to solve Ry = Q^T b
+    for (int i = s - 1; i >= 0; --i) {
+        T3 sum = 0.0;
+        for (int j = i + 1; j < s; ++j) {
+            sum += A.ptr[i + j * s] * x[j];
+        }
+        x[i] = (b_temp[i] - sum) / A.ptr[i + i * s];
+    }
+  }
+
+
+  template<class T1, class T2, class T3> 
+  inline void solve_qr_pivot(const T1 &A, 
+                            const T2 *restrict b, 
+                            T3 *restrict x, 
+                            const pivot_type *restrict pivot, 
+                            int size) 
+  {
+    const int s = size;
+
+    T2 b_temp[s];
+    for (int i = 0; i < s; ++i) {
+        b_temp[i] = b[i];
+    }
+    
+    // Apply Q^T to b
+    for (int k = 0; k < s - 1; ++k) {
+        const T1 *restrict v_ptr = A.ptr + k + k * s;
+        T1 dot_prod_v_b = 0.0;
+        for (int i = k; i < s; ++i) {
+            dot_prod_v_b += v_ptr[i] * b_temp[i];
+        }
+        T1 temp_val = 2.0 * dot_prod_v_b;
+        for (int i = k; i < s; ++i) {
+            b_temp[i] -= temp_val * v_ptr[i];
+        }
+    }
+    
+    // Back substitution to solve Ry = Q^T b
+    T3 y[s];
+    for (int i = s - 1; i >= 0; --i) {
+        T3 sum = 0.0;
+        for (int j = i + 1; j < s; ++j) {
+            sum += A_factored.ptr[i + j * s] * y[j];
+        }
+        y[i] = (b_temp[i] - sum) / A_factored.ptr[i + i * s];
+    }
+    
+
+    // Permute the solution vector y to get the final solution x
+    for (int i = 0; i < s; ++i) {
+        x[pivot[i]] = y[i];
+    }
+  }
+  
   template <class T> class Mat ;
 
   //**************************************************************************
@@ -244,7 +326,58 @@ namespace Loci {
                         const pivot_type *pivot) const restrict {
       Loci::solve_lu_pivot(ptr,b,&x[0],pivot,size) ;
     }
+ // QR
+     //************************************************************************
 
+    template<class S1, class S2> 
+    void solve_qr(const S1 *b, S2 *x) const restrict {
+      Loci::solve_qr(ptr,b,x,size) ;
+    }
+
+    //*************************************************************************
+
+    template<class T1,class T2> 
+    void solve_qr(const_Vect<T1> b, T2 * x) const  restrict {
+      Loci::solve_qr(ptr,&b[0],x,size) ;
+    }
+
+    //************************************************************************
+
+    template<class T1,class T2> 
+    void solve_qr(const_Vect<T1> b, Vect<T2> x) const  restrict {
+      Loci::solve_qr(ptr,&b[0],&x[0],size) ;
+    }
+
+    //************************************************************************
+
+    template<class T1,class T2> 
+    void solve_qr(const T1 *b, Vect<T2> x) const restrict {
+      Loci::solve_qr(ptr,b,&x[0],size) ;
+    }
+
+    //************************************************************************
+
+    template<class S> 
+    void solve_qr_pivot(const S *b, S * x,const pivot_type * pivot) const restrict {
+      Loci::solve_qr_pivot(ptr,b,x,pivot,size) ;
+    }
+
+    //************************************************************************
+
+    template<class T1,class T2> 
+    void solve_qr_pivot( const_Vect<T1> b, Vect<T2> x, 
+                         const_Vect<pivot_type> pivot) const restrict {
+      Loci::solve_qr_pivot(ptr,&b[0],&x[0],&pivot[0],size) ;
+    }
+
+    //************************************************************************
+
+    template<class T1,class T2> 
+    void solve_qr_pivot(const T1 *b, Vect<T2> x,
+                        const pivot_type *pivot) const restrict {
+      Loci::solve_qr_pivot(ptr,b,&x[0],pivot,size) ;
+    }
+    
     //************************************************************************
 
     template<class Tin,class Tout>
@@ -586,6 +719,116 @@ namespace Loci {
       }
     }
     //------------------------------------------------------------------------
+    void decompose_qr() restrict {
+        const int s = this->size;
+
+        for (int k = 0; k < s - 1; ++k) {
+            T *restrict a_k = this->ptr + k + k * s;
+            T norm_a_k_sq = 0.0;
+            for (int i = k; i < s; ++i) {
+                norm_a_k_sq += a_k[i] * a_k[i];
+            }
+            T norm_a_k = std::sqrt(norm_a_k_sq);
+
+            if (norm_a_k < 1e-12) continue;
+
+            T alpha = (a_k[0] >= 0) ? norm_a_k : -norm_a_k;
+            a_k[0] += alpha;
+            T v_norm_sq = 0.0;
+            for (int i = k; i < s; ++i) {
+                v_norm_sq += a_k[i] * a_k[i];
+            }
+            T inv_v_norm = 1.0 / std::sqrt(v_norm_sq);
+
+            for (int i = k; i < s; ++i) {
+                a_k[i] *= inv_v_norm;
+            }
+
+            for (int j = k + 1; j < s; ++j) {
+                T dot_prod_a_v = 0.0;
+                for (int i = k; i < s; ++i) {
+                    dot_prod_a_v += this->ptr[i + j * s] * this->ptr[i + k * s];
+                }
+                T temp_val = 2.0 * dot_prod_a_v;
+                for (int i = k; i < s; ++i) {
+                    this->ptr[i + j * s] -= temp_val * this->ptr[i + k * s];
+                }
+            }
+        }
+    }
+    //------------------------------------------------------------------------
+    
+    void decompose_qr_pivot(pivot_type *restrict pivot) restrict {
+      pivot_type piv[256] ;  // Maximum matrix size for pivoting
+      const int s = this->size;
+        
+        // Initialize pivot array
+        std::iota(pivot, pivot + s, 0);
+
+        T col_norms[s];
+        for (int j = 0; j < s; ++j) {
+            T sum_sq = 0.0;
+            for (int i = 0; i < s; ++i) {
+                sum_sq += this->ptr[i + j * s] * this->ptr[i + j * s];
+            }
+            col_norms[j] = std::sqrt(sum_sq);
+        }
+
+        for (int k = 0; k < s - 1; ++k) {
+            int pivot_col = k;
+            T max_norm = col_norms[k];
+            for (int j = k + 1; j < s; ++j) {
+                if (col_norms[j] > max_norm) {
+                    max_norm = col_norms[j];
+                    pivot_col = j;
+                }
+            }
+            
+            if (pivot_col != k) {
+                // Swap columns in matrix
+                for (int i = 0; i < s; ++i) {
+                    std::swap(this->ptr[i + k * s], this->ptr[i + pivot_col * s]);
+                }
+                // Swap norms and indices
+                std::swap(col_norms[k], col_norms[pivot_col]);
+                std::swap(pivot[k], pivot[pivot_col]);
+            }
+
+            T *restrict a_k = this->ptr + k + k * s;
+            T norm_a_k_sq = 0.0;
+            for (int i = k; i < s; ++i) {
+                norm_a_k_sq += a_k[i] * a_k[i];
+            }
+            T norm_a_k = std::sqrt(norm_a_k_sq);
+
+            if (norm_a_k < 1e-12) continue;
+            
+            T alpha = (a_k[0] >= 0) ? norm_a_k : -norm_a_k;
+            a_k[0] += alpha;
+            T v_norm_sq = 0.0;
+            for (int i = k; i < s; ++i) {
+                v_norm_sq += a_k[i] * a_k[i];
+            }
+            T inv_v_norm = 1.0 / std::sqrt(v_norm_sq);
+
+            for (int i = k; i < s; ++i) {
+                a_k[i] *= inv_v_norm;
+            }
+            
+            for (int j = k + 1; j < s; ++j) {
+                T dot_prod_a_v = 0.0;
+                for (int i = k; i < s; ++i) {
+                    dot_prod_a_v += this->ptr[i + j * s] * this->ptr[i + k * s];
+                }
+                T temp_val = 2.0 * dot_prod_a_v;
+                for (int i = k; i < s; ++i) {
+                    this->ptr[i + j * s] -= temp_val * this->ptr[i + k * s];
+                }
+            }
+        }
+    }
+
+    //------------------------------------------------------------------------
 
     template<class S1, class S2> 
     void solve_lu(const S1 * b, S2 *x) const restrict {
@@ -633,6 +876,56 @@ namespace Loci {
     void solve_lu_pivot(const T1 *b, Vect<T2> &x,
                         const pivot_type *pivot) const restrict {
       Loci::solve_lu_pivot(ptr,b,&x[0],pivot,size) ;
+    }
+
+    //========================================================================
+    
+    template<class S1, class S2> 
+    void solve_qr(const S1 * b, S2 *x) const restrict {
+      Loci::solve_qr(ptr,b,x,size) ;
+    }
+
+    //------------------------------------------------------------------------
+
+    template<class S1, class S2> 
+    void solve_qr(const_Vect<S1> b, S2 * x) const restrict {
+      Loci::solve_qr(ptr,&b[0],x,size) ;
+    }
+
+    //------------------------------------------------------------------------
+
+    template<class S1, class S2> 
+    void solve_qr(const S1 *b, Vect<S2> x) const restrict {
+      Loci::solve_qr(ptr,b,&x[0],size) ;
+    }
+
+    //------------------------------------------------------------------------
+    template<class S1, class S2> 
+    void solve_qr(const_Vect<S1> b, Vect<S2> x) const restrict {
+      Loci::solve_qr(ptr,&b[0],&x[0],size) ;
+    }
+
+    //------------------------------------------------------------------------
+
+    template<class T1, class T2> 
+    void solve_qr_pivot(const T1 *b, T2 *x,
+                        const pivot_type *pivot) const restrict {
+      Loci::solve_qr_pivot(ptr,b,x,pivot,size) ;
+    }
+
+    //------------------------------------------------------------------------
+
+    template<class T1, class T2> 
+    void solve_qr_pivot(const_Vect<T1> &b, T2 *x,
+                        const pivot_type *restrict pivot) const restrict {
+      Loci::solve_qr_pivot(ptr,&b[0],x,pivot,size) ;
+    }
+    //------------------------------------------------------------------------
+
+    template<class T1, class T2> 
+    void solve_qr_pivot(const T1 *b, Vect<T2> &x,
+                        const pivot_type *pivot) const restrict {
+      Loci::solve_qr_pivot(ptr,b,&x[0],pivot,size) ;
     }
   } ;
 
