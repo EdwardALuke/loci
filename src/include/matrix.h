@@ -124,23 +124,23 @@ namespace Loci {
   
 
   template<class T1, class T2, class T3> 
-  inline void solve_qr(const T1 &A, 
+  inline void solve_qr(const T1 * restrict A, 
                       const T2 *restrict b, 
                       T3 *restrict x, 
                       const pivot_type *restrict pivot, 
                       int size) {
     const int s = size;
 
-    T2 b_temp[s];
+    T3 b_temp[s];
     for(int i = 0; i < s; ++i) {
         b_temp[i] = b[i];
     }
     
     // Apply Q^T to b
     for (int k = 0; k < s - 1; ++k) {
-        const T1 *restrict v_ptr = A.ptr + k + k * s;
-        T1 dot_prod_v_b = 0.0;
-        for (int i = k; i < s; ++i) {
+        const T1 *restrict v_ptr = A + k + k * s;
+        T1 dot_prod_v_b = v_ptr[k] * b_temp[k]; // 0.0
+        for (int i = k+1; i < s; ++i) {
             dot_prod_v_b += v_ptr[i] * b_temp[i];
         }
         T1 temp_val = 2.0 * dot_prod_v_b;
@@ -151,17 +151,17 @@ namespace Loci {
     
     // Back substitution to solve Ry = Q^T b
     for (int i = s - 1; i >= 0; --i) {
-        T3 sum = 0.0;
-        for (int j = i + 1; j < s; ++j) {
-            sum += A.ptr[i + j * s] * x[j];
+        T3 sum = A[i + (i+1) * s] * x[i+1];
+        for (int j = i + 2; j < s; ++j) {
+            sum += A[i + j * s] * x[j];
         }
-        x[i] = (b_temp[i] - sum) / A.ptr[i + i * s];
+        x[i] = (b_temp[i] - sum) / A[i + i * s];
     }
   }
 
 
   template<class T1, class T2, class T3> 
-  inline void solve_qr_pivot(const T1 &A, 
+  inline void solve_qr_pivot(const T1 *restrict A, 
                             const T2 *restrict b, 
                             T3 *restrict x, 
                             const pivot_type *restrict pivot, 
@@ -169,16 +169,16 @@ namespace Loci {
   {
     const int s = size;
 
-    T2 b_temp[s];
+    T3 b_temp[s];
     for (int i = 0; i < s; ++i) {
         b_temp[i] = b[i];
     }
     
     // Apply Q^T to b
     for (int k = 0; k < s - 1; ++k) {
-        const T1 *restrict v_ptr = A.ptr + k + k * s;
-        T1 dot_prod_v_b = 0.0;
-        for (int i = k; i < s; ++i) {
+        const T1 *restrict v_ptr = A + k + k * s;
+        T1 dot_prod_v_b = v_ptr[k] * b_temp[k]; // 0.0
+        for (int i = k+1; i < s; ++i) {
             dot_prod_v_b += v_ptr[i] * b_temp[i];
         }
         T1 temp_val = 2.0 * dot_prod_v_b;
@@ -190,11 +190,11 @@ namespace Loci {
     // Back substitution to solve Ry = Q^T b
     T3 y[s];
     for (int i = s - 1; i >= 0; --i) {
-        T3 sum = 0.0;
-        for (int j = i + 1; j < s; ++j) {
-            sum += A_factored.ptr[i + j * s] * y[j];
+        T3 sum = A[i + (i+1) * s] * y[i+1]; // 0.0
+        for (int j = i + 2; j < s; ++j) {
+            sum += A[i + j * s] * y[j];
         }
-        y[i] = (b_temp[i] - sum) / A_factored.ptr[i + i * s];
+        y[i] = (b_temp[i] - sum) / A[i + i * s];
     }
     
 
@@ -720,112 +720,113 @@ namespace Loci {
     }
     //------------------------------------------------------------------------
     void decompose_qr() restrict {
-        const int s = this->size;
+      const int s = this->size;
 
-        for (int k = 0; k < s - 1; ++k) {
-            T *restrict a_k = this->ptr + k + k * s;
-            T norm_a_k_sq = 0.0;
-            for (int i = k; i < s; ++i) {
-                norm_a_k_sq += a_k[i] * a_k[i];
-            }
-            T norm_a_k = std::sqrt(norm_a_k_sq);
-
-            if (norm_a_k < 1e-12) continue;
-
-            T alpha = (a_k[0] >= 0) ? norm_a_k : -norm_a_k;
-            a_k[0] += alpha;
-            T v_norm_sq = 0.0;
-            for (int i = k; i < s; ++i) {
-                v_norm_sq += a_k[i] * a_k[i];
-            }
-            T inv_v_norm = 1.0 / std::sqrt(v_norm_sq);
-
-            for (int i = k; i < s; ++i) {
-                a_k[i] *= inv_v_norm;
-            }
-
-            for (int j = k + 1; j < s; ++j) {
-                T dot_prod_a_v = 0.0;
-                for (int i = k; i < s; ++i) {
-                    dot_prod_a_v += this->ptr[i + j * s] * this->ptr[i + k * s];
-                }
-                T temp_val = 2.0 * dot_prod_a_v;
-                for (int i = k; i < s; ++i) {
-                    this->ptr[i + j * s] -= temp_val * this->ptr[i + k * s];
-                }
-            }
+      for (int k = 0; k < s - 1; ++k) {
+        T *restrict a_k = this->ptr + k + k * s;
+        T norm_a_k_sq = 0.0;
+        for (int i = k; i < s; ++i) {
+            norm_a_k_sq += a_k[i] * a_k[i];
         }
+        T norm_a_k = sqrt(norm_a_k_sq);
+
+        if (norm_a_k < 1e-12) continue;
+
+        T alpha = (a_k[0] >= 0) ? norm_a_k : -norm_a_k;
+        a_k[0] += alpha;
+        T v_norm_sq = 0.0;
+        for (int i = k; i < s; ++i) {
+            v_norm_sq += a_k[i] * a_k[i];
+        }
+        T inv_v_norm = 1.0 / sqrt(v_norm_sq);
+
+        for (int i = k; i < s; ++i) {
+            a_k[i] *= inv_v_norm;
+        }
+
+        for (int j = k + 1; j < s; ++j) {
+          T dot_prod_a_v = 0.0;
+          for (int i = k; i < s; ++i) {
+              dot_prod_a_v += this->ptr[i + j * s] * this->ptr[i + k * s];
+          }
+          T temp_val = 2.0 * dot_prod_a_v;
+          for (int i = k; i < s; ++i) {
+              this->ptr[i + j * s] -= temp_val * this->ptr[i + k * s];
+          }
+        }
+      }
     }
     //------------------------------------------------------------------------
     
     void decompose_qr_pivot(pivot_type *restrict pivot) restrict {
-      pivot_type piv[256] ;  // Maximum matrix size for pivoting
+      // pivot_type piv[256] ;  // Maximum matrix size for pivoting
       const int s = this->size;
         
-        // Initialize pivot array
-        std::iota(pivot, pivot + s, 0);
+      // Initialize pivot array
+      for(int i=0;i<size;++i)
+        pivot[i] = i ;
 
-        T col_norms[s];
-        for (int j = 0; j < s; ++j) {
-            T sum_sq = 0.0;
-            for (int i = 0; i < s; ++i) {
-                sum_sq += this->ptr[i + j * s] * this->ptr[i + j * s];
-            }
-            col_norms[j] = std::sqrt(sum_sq);
+      T col_norms[s];
+      for (int j = 0; j < s; ++j) {
+        T sum_sq = 0.0;
+        for (int i = 0; i < s; ++i) {
+            sum_sq += this->ptr[i + j * s] * this->ptr[i + j * s];
+        }
+        col_norms[j] = sqrt(sum_sq);
+      }
+
+      for (int k = 0; k < s - 1; ++k) {
+        int pivot_col = k;
+        T max_norm = col_norms[k];
+        for (int j = k + 1; j < s; ++j) {
+          if (col_norms[j] > max_norm) {
+              max_norm = col_norms[j];
+              pivot_col = j;
+          }
+        }
+        
+        if (pivot_col != k) {
+          // Swap columns in matrix
+          for (int i = 0; i < s; ++i) {
+              std::swap(this->ptr[i + k * s], this->ptr[i + pivot_col * s]);
+          }
+          // Swap norms and indices
+          std::swap(col_norms[k], col_norms[pivot_col]);
+          std::swap(pivot[k], pivot[pivot_col]);
         }
 
-        for (int k = 0; k < s - 1; ++k) {
-            int pivot_col = k;
-            T max_norm = col_norms[k];
-            for (int j = k + 1; j < s; ++j) {
-                if (col_norms[j] > max_norm) {
-                    max_norm = col_norms[j];
-                    pivot_col = j;
-                }
-            }
-            
-            if (pivot_col != k) {
-                // Swap columns in matrix
-                for (int i = 0; i < s; ++i) {
-                    std::swap(this->ptr[i + k * s], this->ptr[i + pivot_col * s]);
-                }
-                // Swap norms and indices
-                std::swap(col_norms[k], col_norms[pivot_col]);
-                std::swap(pivot[k], pivot[pivot_col]);
-            }
-
-            T *restrict a_k = this->ptr + k + k * s;
-            T norm_a_k_sq = 0.0;
-            for (int i = k; i < s; ++i) {
-                norm_a_k_sq += a_k[i] * a_k[i];
-            }
-            T norm_a_k = std::sqrt(norm_a_k_sq);
-
-            if (norm_a_k < 1e-12) continue;
-            
-            T alpha = (a_k[0] >= 0) ? norm_a_k : -norm_a_k;
-            a_k[0] += alpha;
-            T v_norm_sq = 0.0;
-            for (int i = k; i < s; ++i) {
-                v_norm_sq += a_k[i] * a_k[i];
-            }
-            T inv_v_norm = 1.0 / std::sqrt(v_norm_sq);
-
-            for (int i = k; i < s; ++i) {
-                a_k[i] *= inv_v_norm;
-            }
-            
-            for (int j = k + 1; j < s; ++j) {
-                T dot_prod_a_v = 0.0;
-                for (int i = k; i < s; ++i) {
-                    dot_prod_a_v += this->ptr[i + j * s] * this->ptr[i + k * s];
-                }
-                T temp_val = 2.0 * dot_prod_a_v;
-                for (int i = k; i < s; ++i) {
-                    this->ptr[i + j * s] -= temp_val * this->ptr[i + k * s];
-                }
-            }
+        T *restrict a_k = this->ptr + k + k * s;
+        T norm_a_k_sq = 0.0;
+        for (int i = k; i < s; ++i) {
+            norm_a_k_sq += a_k[i] * a_k[i];
         }
+        T norm_a_k = sqrt(norm_a_k_sq);
+
+        if (norm_a_k < 1e-12) continue;
+        
+        T alpha = (a_k[0] >= 0) ? norm_a_k : -norm_a_k;
+        a_k[0] += alpha;
+        T v_norm_sq = 0.0;
+        for (int i = k; i < s; ++i) {
+            v_norm_sq += a_k[i] * a_k[i];
+        }
+        T inv_v_norm = 1.0 / sqrt(v_norm_sq);
+
+        for (int i = k; i < s; ++i) {
+            a_k[i] *= inv_v_norm;
+        }
+        
+        for (int j = k + 1; j < s; ++j) {
+          T dot_prod_a_v = 0.0;
+          for (int i = k; i < s; ++i) {
+              dot_prod_a_v += this->ptr[i + j * s] * this->ptr[i + k * s];
+          }
+          T temp_val = 2.0 * dot_prod_a_v;
+          for (int i = k; i < s; ++i) {
+              this->ptr[i + j * s] -= temp_val * this->ptr[i + k * s];
+          }
+        }
+      }
     }
 
     //------------------------------------------------------------------------
