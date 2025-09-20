@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2015-2019, Mississippi State University
+//# Copyright 2015-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -1846,6 +1846,37 @@ namespace Loci {
     operator T *() { return p ; }
     operator const T *() const { return p ; }
   } ;
+
+  /// Operator to set a variable to it zero value to be used inside of
+  /// templated functions that need to initialize variables for summation
+  inline void setZero(double &val) { val = double(0) ; }
+  inline void setZero(long double &val) { val = (long double) 0 ; }
+  inline void setZero(float &val) { val = float(0) ; }
+  inline void setZero(int &val) { val = int(0) ; }
+  inline void setZero(unsigned int &val) { val = (unsigned int) 0 ; }
+  inline void setZero(long &val) { val = long(0) ; }
+  inline void setZero(unsigned long &val) { val = (unsigned long) 0 ; }
+  inline void setZero(short &val) { val = short(0) ; }
+  inline void setZero(unsigned short &val) { val = (unsigned short) 0 ; }
+  inline void setZero(char &val) { val = char(0) ; }
+  inline void setZero(unsigned char &val) { val = (unsigned char) 0 ; }
+  inline void setZero(bool &val) { val = false ; }
+  template<class T> inline void setZero(vector2d<T> &val) 
+  { setZero(val.x) ; setZero(val.y) ; }
+  template<class T> inline void setZero(vector3d<T> &val) 
+  { setZero(val.x) ; setZero(val.y) ; setZero(val.z) ; }
+  template<class T, size_t n> inline void setZero(Array<T,n> &val) 
+  { for(size_t i=0;i<n;++i) setZero(val.x[i]) ; }
+
+#ifndef NO_AUTODIFF
+  inline void setZero(FAD2d &val)
+  { setZero(val.value) ; setZero(val.grad) ; setZero(val.grad2) ; }
+  inline void setZero(FADd &val)
+  { setZero(val.value) ; setZero(val.grad) ;  }
+#endif
 }
 
 #endif
+
+
+

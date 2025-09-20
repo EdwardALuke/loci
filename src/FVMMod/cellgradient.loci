@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -23,83 +23,61 @@ $include "FVM.lh"
 
 namespace Loci {
 
-  $rule default(gradType),
-    comments("Select 1-step cell gradient operators (standard) or the n-step iterative methods (iterative1,iterative2)")
-  {
-    $gradType = "standard";
-  }
-  $type oneStepGrad Constraint;
-  $type nStepGrad Constraint;
-  $rule constraint(oneStepGrad,nStepGrad<-gradType)
-  {
-    $oneStepGrad = $*gradType.domain();
-    $nStepGrad   = EMPTY;
-    if($gradType == "iterative" ||
-       $gradType == "iterative1" ||
-       $gradType == "iterative2")
-      {
-        $oneStepGrad = EMPTY;
-        $nStepGrad   = $*gradType.domain();
-      }
-  }
-
   $type gradStencilBias param<std::string>;
-  $rule default(gradStencilBias),
-    comments("Select the biased stencil weights. Requires a cell-based stencil_bias variable. Default is 'off'. ")
-  {
+  /// Select the biased stencil weights. Requires a cell-based stencil_bias
+  /// variable. Default is 'off'. 
+  $rule default(gradStencilBias) {
     $gradStencilBias = "off" ;
   }
 
-  $type stencilBias Constraint ;
-  $type stencilDirect Constraint ;
-  $rule constraint(stencilDirect,stencilBias<-gradStencilBias) {
-    $stencilDirect = EMPTY ;
-    $stencilBias = EMPTY;
-    if($gradStencilBias == "off") {
-      $stencilDirect = $*gradStencilBias.domain() ;
-    } else if($gradStencilBias == "on") {
-      $stencilBias = $*gradStencilBias.domain() ;
-    }else {
-      cerr << "gradStencilBias " << $gradStencilBias << " of unknown type" << endl ;
-      Loci::Abort() ;
-    }
-  }
+  $rule pointwise(OUTPUT<-selector(gradStencilBias,off)) {}
+  $type gradStencilBias_select_off Constraint ;
+  $rule pointwise(OUTPUT<-selector(gradStencilBias,on)) {}
+  $type gradStencilBias_select_on Constraint ;
 
   $type gradStencil param<std::string> ;
-  
-  $rule default(gradStencil),
-    comments("Select stencil used for computing gradients.  Options include 'standard', 'stable', and 'green'.  Standard includes cells that share a face, while the stable stencil includes any cell that satisfies geometric requirements of cell face reconstructions, and 'green' implements a green's theorem gradient.")
-  {
-    $gradStencil = "standard" ;
-  }
 
-  $type stencilStandard Constraint ;
-  $type useCellStencil Constraint ;
-  $type greensGradient Constraint ;
+  /// Select stencil used for computing gradients.  Options include 'standard',
+  /// 'stable', and 'green'.  Standard includes cells that share a face, while
+  /// the stable stencil includes any cell that satisfies geometric
+  /// requirements of cell face reconstructions, and 'green' implements a
+  /// green's theorem gradient.
+  $rule default(gradStencil) { $gradStencil = "standard" ;  }
 
-  $rule constraint(stencilStandard,useCellStencil,greensGradient<-gradStencil) {
-    $stencilStandard = EMPTY ;
-    $useCellStencil = EMPTY ;
-    $greensGradient = EMPTY ;
-    if($gradStencil == "standard") {
-      $stencilStandard = $*gradStencil.domain() ;
-    } else if($gradStencil == "full" || $gradStencil == "stable"||
-              $gradStencil == "symm" || $gradStencil == "symmF" ||
-              $gradStencil == "symmC") {
-      $useCellStencil = $*gradStencil.domain() ;
-    } else if($gradStencil == "green") {
-      $greensGradient = $*gradStencil.domain() ;
-    }else {
-      cerr << "gradStencil " << $gradStencil << " of unknown type" << endl ;
-      Loci::Abort() ;
-    }
-  }
+  $rule pointwise(OUTPUT<-selector(gradStencil,standard)) {} 
+  $type gradStencil_select_standard Constraint ;
+  $rule pointwise(OUTPUT<-selector(gradStencil,full)) {}
+  $type gradStencil_select_full Constraint ;
+  $rule pointwise(OUTPUT<-selector(gradStencil,stable)) {}
+  $type gradStencil_select_stable Constraint ;
+  $rule pointwise(OUTPUT<-selector(gradStencil,symm)) {}
+  $type gradStencil_select_symm Constraint ;
+  $rule pointwise(OUTPUT<-selector(gradStencil,symmF)) {}
+  $type gradStencil_select_symmF Constraint ;
+  $rule pointwise(OUTPUT<-selector(gradStencil,symmC)) {}
+  $type gradStencil_select_symmC Constraint ;
+  $rule pointwise(OUTPUT<-selector(gradStencil,green)) {}
+  $type gradStencil_select_green Constraint ;
+
+  $type useCellStencil param<bool> ;
+  $rule singleton(useCellStencil),constraint(gradStencil_select_full)
+  { $useCellStencil = true ; }
+  $rule singleton(useCellStencil),constraint(gradStencil_select_stable)
+  { $useCellStencil = true ; }
+  $rule singleton(useCellStencil),constraint(gradStencil_select_symm)
+  { $useCellStencil = true ; }
+  $rule singleton(useCellStencil),constraint(gradStencil_select_symmC)
+  { $useCellStencil = true ; }
+  $rule singleton(useCellStencil),constraint(gradStencil_select_symmF)
+  { $useCellStencil = true ; }
+    
+    
 
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
   
   $rule pointwise(gradv(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-                                constraint(geom_cells,oneStepGrad,greensGradient), prelude {
+                                constraint(geom_cells,gradStencil_select_green), prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
   } compute {
     const real_t rvol = 1./$vol ;
@@ -133,7 +111,7 @@ namespace Loci {
   $type X_f store<real_t> ;
 
   $rule pointwise(grads(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-    constraint(geom_cells,oneStepGrad,greensGradient) {
+    constraint(geom_cells,gradStencil_select_green) {
     const real_t rvol = 1./$vol ;
     vector3d<real_t> gradsum = vector3d<real_t>(0.0,0.0,0.0);
     for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
@@ -163,7 +141,7 @@ namespace Loci {
   $type X_f store<vector3d<real_t> > ;
   
   $rule pointwise(gradv3d(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-    constraint(geom_cells,oneStepGrad,greensGradient) {
+    constraint(geom_cells,gradStencil_select_green) {
     tensor3d<real_t>  gradsum = tensor3d<real_t> (vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0)) ;
     const real_t rvol = 1./$vol ;
     
@@ -379,7 +357,7 @@ namespace Loci {
   
   $rule pointwise(grads(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
 		  lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,oneStepGrad,stencilStandard) {
+    constraint(geom_cells,gradStencil_select_standard) {
 
     vector3d<real_t> Qt_b = vector3d<real_t>(0,0,0) ;
     real_t X_center = $X ;
@@ -408,7 +386,7 @@ namespace Loci {
   $type X_f store<vector3d<real_t> > ;
   $rule pointwise(gradv3d(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
 		  lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,oneStepGrad,stencilStandard) {
+    constraint(geom_cells,gradStencil_select_standard) {
 
     tensor3d<real_t>  Qt_b = tensor3d<real_t> (vector3d<real_t>(0,0,0),
 					       vector3d<real_t>(0,0,0),
@@ -450,7 +428,7 @@ namespace Loci {
   
   $rule pointwise(gradv(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
 		  lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,oneStepGrad,stencilStandard),prelude {
+    constraint(geom_cells,gradStencil_select_standard),prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
   } compute {
     int vs = $*X.vecSize()  ;
@@ -630,7 +608,7 @@ namespace Loci {
 		  cellcenter,cellStencil->cellcenter,
 		  boundary_map->facecenter),
             option(disable_threading),
-            constraint(cellcenter,stencilDirect),
+            constraint(cellcenter,gradStencilBias_select_off),
   prelude {
     $LSWeights.setSizes($cellStencil) ;
     $LSBWeights.setSizes($boundary_map) ;
@@ -771,7 +749,7 @@ namespace Loci {
 		  boundary_map->facecenter,
                   lower->cl,upper->cr,stencil_bias),
             option(disable_threading),
-      constraint(cellcenter,stencilBias),
+      constraint(cellcenter,gradStencilBias_select_on),
   prelude {
     $LSWeights.setSizes($cellStencil) ;
     $LSBWeights.setSizes($boundary_map) ;
@@ -888,7 +866,7 @@ namespace Loci {
   
   $rule pointwise(grads(X)<-LSWeights,LSBWeights,cellStencil->X,
 		  boundary_map->X_f,X),
-    constraint(geom_cells,oneStepGrad,useCellStencil) {
+    constraint(geom_cells,useCellStencil) {
     vector3d<real_t> Qt_b = vector3d<real_t>(0,0,0) ;
     real_t X_center = $X ;
     const int stsz = $cellStencil.size() ;
@@ -912,7 +890,7 @@ namespace Loci {
   
   $rule pointwise(gradv3d(X)<-LSWeights,LSBWeights,cellStencil->X,
 		  boundary_map->X_f,X),
-    constraint(geom_cells,oneStepGrad,useCellStencil) {
+    constraint(geom_cells,useCellStencil) {
     tensor3d<real_t> Qt_b = tensor3d<real_t> (vector3d<real_t>(0,0,0),
 					      vector3d<real_t>(0,0,0),
 					      vector3d<real_t>(0,0,0)) ;
@@ -945,7 +923,7 @@ namespace Loci {
   
   $rule pointwise(gradv(X)<-LSWeights,LSBWeights,cellStencil->X,
 		  boundary_map->X_f,X),
-    constraint(geom_cells,oneStepGrad,useCellStencil), prelude {
+    constraint(geom_cells,useCellStencil), prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
   } compute {
     const int vsz = $*X.vecSize() ;

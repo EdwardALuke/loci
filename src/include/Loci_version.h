@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -25,18 +25,13 @@
 #endif
 #include <Config/conf.h>
 
-
 #include <string>
 
-// Tag that this is a distributed memory version of Loci
-#define LOCI_DISTRIBUTED_MEMORY
-
-// Tag that this is a distribution with a revised fact database distribution
-// interface
-
-#define LOCI_MODIFIED_FACT_DISTRIBUTE
-
-#define LOCI_VERSION_3_1_RELEASE
+#define LOCI_VERSION_EQ(X,Y) (LOCI_VERSION_MAJOR == X && LOCI_VERSION_MINOR == Y)
+#define LOCI_VERSION_LT(X,Y) (LOCI_VERSION_MAJOR < X || (LOCI_VERSION_MAJOR == X && LOCI_VERSION_MINOR < Y))
+#define LOCI_VERSION_LE(X,Y) (LOCI_VERSION_MAJOR < X || (LOCI_VERSION_MAJOR == X && LOCI_VERSION_MINOR <= Y))
+#define LOCI_VERSION_GT(X,Y) (LOCI_VERSION_MAJOR > X || (LOCI_VERSION_MAJOR == X && LOCI_VERSION_MINOR > Y))
+#define LOCI_VERSION_GE(X,Y) (LOCI_VERSION_MAJOR > X || (LOCI_VERSION_MAJOR == X && LOCI_VERSION_MINOR >= Y))
 
 namespace Loci {
   std::string version() ;

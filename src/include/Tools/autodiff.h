@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2017-2019, Mississippi State University
+//# Copyright 2017-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#

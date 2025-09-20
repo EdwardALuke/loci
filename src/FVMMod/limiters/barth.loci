@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -26,6 +26,10 @@ using std::cerr ;
 using std::endl ;
 
 namespace Loci {
+  $rule pointwise(OUTPUT<-selector(limiter,barth,B)) {}
+  /// Select barth's limiter
+  $type limiter_select_barth Constraint ;
+  
   typedef vector3d<real_t> vect3d ;
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
@@ -36,7 +40,7 @@ namespace Loci {
 		  upper->cr->S,upper->facecenter,
 		  lower->cl->S,lower->facecenter,
 		  boundary_map->S_f,boundary_map->facecenter),
-      constraint(geom_cells,B_limiter) {
+      constraint(geom_cells,limiter_select_barth) {
     const real Xcc = $S ;
     real qmax = Xcc ;
     real qmin = qmax ;
@@ -93,7 +97,7 @@ namespace Loci {
                                 upper->cr->V,upper->facecenter,
                                 lower->cl->V,lower->facecenter,
                                 boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,B_limiter,standardv3dLimit) 
+        constraint(geom_cells,limiter_select_barth,standardv3dLimit) 
   {
     const vect3d Xcc = $V ;
     vect3d qmax = Xcc ;
@@ -186,7 +190,7 @@ namespace Loci {
                                 upper->cr->V,upper->facecenter,
                                 lower->cl->V,lower->facecenter,
                                 boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,B_limiter,minv3dLimit) 
+        constraint(geom_cells,limiter_select_barth,minv3dLimit) 
   {
     const vect3d Xcc = $V ;
     vect3d qmax = Xcc ;
@@ -281,7 +285,7 @@ namespace Loci {
                                 upper->cr->M,upper->facecenter,
                                 lower->cl->M,lower->facecenter,
                                 boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,B_limiter,standardvecLimit),prelude 
+        constraint(geom_cells,limiter_select_barth,standardvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
@@ -341,7 +345,7 @@ namespace Loci {
                                 upper->cr->M,upper->facecenter,
                                 lower->cl->M,lower->facecenter,
                                 boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,B_limiter,minvecLimit),prelude 
+        constraint(geom_cells,limiter_select_barth,minvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {

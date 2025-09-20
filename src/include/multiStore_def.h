@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -187,6 +187,14 @@ namespace Loci {
       fatal(!((Rep()->domain()).inSet(indx))) ;
 #endif 
       return Vect<T>(base_ptr[indx],base_ptr[indx+1]-base_ptr[indx]) ; 
+    }
+
+    const_Vect<T> operator[](size_t indx) const {
+#ifdef BOUNDS_CHECK
+      fatal(base_ptr==NULL); 
+      fatal(!((Rep()->domain()).inSet(indx))) ;
+#endif 
+      return const_Vect<T>(base_ptr[indx],base_ptr[indx+1]-base_ptr[indx]) ; 
     }
     T *begin(int indx) { return base_ptr[indx] ; }
     T *end(int indx) { return base_ptr[indx+1] ; }

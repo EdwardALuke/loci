@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -113,7 +113,7 @@ namespace Loci {
     void setSize( int s ) {
       size = s;
     }
-    int getSize() { return size; }
+    int getSize() const { return size; }
     
     Vect(T *p ,int sz) {
       ptr = p ;

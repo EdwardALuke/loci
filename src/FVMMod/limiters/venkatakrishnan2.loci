@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -30,7 +30,13 @@ namespace Loci {
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
 
-
+  $rule pointwise(OUTPUT<-selector(limiter,venkatakrishnan2,V2)) {}
+  /// Select a more conservative style of venkatakrishnan limiter that uses the
+  /// originating stencil instead of the extrapolating faces.  This will
+  /// cause much more aggresive limiting which can be helpful for difficult
+  /// cases.
+  $type limiter_select_venkatakrishnan2 Constraint ;
+  
   //==========================================================================
   //
   // Venkatakrishnan Limiter2 (Limit to cell centers)
@@ -62,7 +68,7 @@ namespace Loci {
 		  upper->cr->(cellcenter,S),
 		  lower->cl->(cellcenter,S),
 		  boundary_map->S_f,boundary_map->facecenter),
-      constraint(geom_cells,V2_limiter) {
+      constraint(geom_cells,limiter_select_venkatakrishnan2) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -127,7 +133,7 @@ namespace Loci {
                                   upper->cr->(V,cellcenter),
                                   lower->cl->(V,cellcenter),
                                   boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,V2_limiter,standardv3dLimit) 
+        constraint(geom_cells,limiter_select_venkatakrishnan2,standardv3dLimit) 
   {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
@@ -207,7 +213,7 @@ namespace Loci {
                                   upper->cr->(V,cellcenter),
                                   lower->cl->(V,cellcenter),
                                   boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,V2_limiter,minv3dLimit) 
+        constraint(geom_cells,limiter_select_venkatakrishnan2,minv3dLimit) 
   {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
@@ -289,7 +295,7 @@ namespace Loci {
                                 upper->cr->(M,cellcenter),
                                 lower->cl->(M,cellcenter),
                                 boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,V2_limiter,standardvecLimit),prelude 
+        constraint(geom_cells,limiter_select_venkatakrishnan2,standardvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
@@ -349,7 +355,7 @@ namespace Loci {
                                 upper->cr->(M,cellcenter),
                                 lower->cl->(M,cellcenter),
                                 boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,V2_limiter,minvecLimit),prelude 
+        constraint(geom_cells,limiter_select_venkatakrishnan2,minvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
@@ -417,7 +423,7 @@ namespace Loci {
 		  Kl,vol,grid_vol,
 		  cellStencil->(cellcenter,S),
 		  boundary_map->S_f,boundary_map->facecenter),
-      constraint(geom_cells,V2_limiter) {
+      constraint(geom_cells,limiter_select_venkatakrishnan2) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -464,7 +470,7 @@ namespace Loci {
 		  Kl,vol,grid_vol,
 		  cellStencil->(V,cellcenter),
 		  boundary_map->V_f,boundary_map->facecenter),
-      constraint(geom_cells,V2_limiter) {
+      constraint(geom_cells,limiter_select_venkatakrishnan2) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -520,7 +526,7 @@ namespace Loci {
                                         Kl,vol,grid_vol,
                                         cellStencil->(M,cellcenter),
                                         boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,V2_limiter,standardvecLimit),prelude 
+        constraint(geom_cells,limiter_select_venkatakrishnan2,standardvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
@@ -567,7 +573,7 @@ namespace Loci {
                                         Kl,vol,grid_vol,
                                         cellStencil->(M,cellcenter),
                                         boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,V2_limiter,minvecLimit),prelude 
+        constraint(geom_cells,limiter_select_venkatakrishnan2,minvecLimit),prelude 
   {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {

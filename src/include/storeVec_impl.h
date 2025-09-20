@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -985,6 +985,20 @@ namespace Loci {
   }
 #endif
   //******************************************************************/
+
+  /// @brief A general function to initialize a store to the types zero
+  /// value using the setZero function.
+  ///
+  /// @param [qout] store that will be zeroed
+  /// @param [dom] entitySet in the store that will be zeroed.
+  template <class T> void zeroStore(storeVec<T> &qout, const entitySet &dom) {
+    const int vs = qout.vecSize() ;
+    FORALL(dom,ii) {
+      for(int i=0;i<vs;++i) 
+        setZero(qout[ii][i]) ;
+    } ENDFORALL ;
+  }
+
   
 } // end of namespace Loci
 

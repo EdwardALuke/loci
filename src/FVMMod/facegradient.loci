@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //#
 //# This file is part of the Loci Framework.
 //#
@@ -26,40 +26,23 @@ $include "FVM.lh"
 namespace Loci {
 
   $type faceGradStencil param<std::string> ;
-  
-  $rule default(faceGradStencil),
-    comments("Determines how face gradients will be computed.  May be 'positive' or 'limited'") {
-    //$faceGradStencil = "positive" ;
+
+  /// Determinse ow face gradients will be computed.  May be set to 'positive',
+  /// 'limited', 'centered', or 'nishikawa'.g
+  $rule default(faceGradStencil) {
     $faceGradStencil = "limited" ;
     //$faceGradStencil = "centered" ;
   }
 
-  $type positiveFaceStencil Constraint ;
-  $type limitedFaceStencil Constraint ;
-  $type centeredFaceStencil Constraint ;
-  $type nishikawaFaceStencil Constraint ;
+  $rule pointwise(OUTPUT<-selector(faceGradStencil,positive)) {} 
+  $type faceGradStencil_select_positive Constraint ;
+  $rule pointwise(OUTPUT<-selector(faceGradStencil,limited)) {}
+  $type faceGradStencil_select_limited Constraint ;
+  $rule pointwise(OUTPUT<-selector(faceGradStencil,centered)) {}
+  $type faceGradStencil_select_centered Constraint ;
+  $rule pointwise(OUTPUT<-selector(faceGradStencil,nishikawa)) {}
+  $type faceGradStencil_select_nishikawa Constraint ;
   
-  $rule constraint(positiveFaceStencil,limitedFaceStencil,centeredFaceStencil,
-		   nishikawaFaceStencil <-faceGradStencil) {
-    $positiveFaceStencil = EMPTY ;
-    $limitedFaceStencil = EMPTY ;
-    $centeredFaceStencil = EMPTY ;
-    $nishikawaFaceStencil = EMPTY ;
-    if($faceGradStencil == "positive") {
-      $positiveFaceStencil = $*faceGradStencil.domain() ;
-    } else if($faceGradStencil == "limited") {
-      $limitedFaceStencil = $*faceGradStencil.domain() ;
-    } else if($faceGradStencil == "centered") {
-      $centeredFaceStencil = $*faceGradStencil.domain() ;
-    } else if($faceGradStencil == "nishikawa") {
-      $nishikawaFaceStencil = $*faceGradStencil.domain() ;
-    } else {
-      cerr << "stencil " << $faceGradStencil << " is unknown, defaulting to limited" << endl ;
-      $limitedFaceStencil = $*faceGradStencil.domain() ;
-    }      
-      
-  }
-    
   typedef vector3d<real_t> vect3d ;
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
@@ -68,7 +51,7 @@ namespace Loci {
   $type X_f storeVec<real> ;
   
   $rule pointwise(gradv_f(X)<-(cr,cl)->(X,cellcenter,gradv(X),vol),area),
-    constraint(positiveFaceStencil,(cl,cr)->X), prelude {
+    constraint(faceGradStencil_select_positive,(cl,cr)->X), prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter ;
@@ -87,7 +70,7 @@ namespace Loci {
   }
   
   $rule pointwise(gradv_f(X)<-cl->(X,cellcenter,gradv(X)),X_f,facecenter,area),
-      constraint(positiveFaceStencil,ci->X),prelude {
+      constraint(faceGradStencil_select_positive,ci->X),prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d delta = $facecenter-$cl->$cellcenter ;
@@ -108,7 +91,7 @@ namespace Loci {
   $type X_f store<real> ;
 
   $rule pointwise(grads_f(X)<-(cr,cl)->(X,cellcenter,grads(X),vol),area),
-    constraint(positiveFaceStencil,(cl,cr)->X) {
+    constraint(faceGradStencil_select_positive,(cl,cr)->X) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -123,7 +106,7 @@ namespace Loci {
   }
 
   $rule pointwise(grads_f(X)<-cl->(X,cellcenter,grads(X)),X_f,facecenter,area),
-    constraint(positiveFaceStencil,ci->X) {
+    constraint(faceGradStencil_select_positive,ci->X) {
     const vect3d delta = $facecenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -140,7 +123,7 @@ namespace Loci {
   $type X_f store<vect3d> ;
 
   $rule pointwise(gradv3d_f(X)<-(cr,cl)->(X,cellcenter,gradv3d(X),vol),area),
-    constraint(positiveFaceStencil,(cl,cr)->X) {
+    constraint(faceGradStencil_select_positive,(cl,cr)->X) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -165,7 +148,7 @@ namespace Loci {
   }
 
   $rule pointwise(gradv3d_f(X)<-cl->(X,cellcenter,gradv3d(X)),X_f,facecenter,area),
-    constraint(positiveFaceStencil,ci->X) {
+    constraint(faceGradStencil_select_positive,ci->X) {
     const vect3d delta = $facecenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -196,7 +179,7 @@ namespace Loci {
   
   $rule pointwise(gradv_f(X)<-(cr,cl)->(X,cellcenter,gradv(X),vol),area,
                   (cl,cr)->limiterv(X)),
-    constraint(limitedFaceStencil,(cl,cr)->X), prelude {
+    constraint(faceGradStencil_select_limited,(cl,cr)->X), prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter ;
@@ -220,7 +203,7 @@ namespace Loci {
   
   $rule pointwise(gradv_f(X)<-cl->(X,cellcenter,gradv(X)),X_f,facecenter,
                   cl->limiterv(X),area),
-      constraint(limitedFaceStencil,ci->X),prelude {
+      constraint(faceGradStencil_select_limited,ci->X),prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d delta = $facecenter-$cl->$cellcenter ;
@@ -244,7 +227,7 @@ namespace Loci {
 
   $rule pointwise(grads_f(X)<-(cr,cl)->(X,cellcenter,grads(X),vol),area,
                   (cl,cr)->limiters(X)),
-    constraint(limitedFaceStencil,(cl,cr)->X) {
+    constraint(faceGradStencil_select_limited,(cl,cr)->X) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -266,7 +249,7 @@ namespace Loci {
 
   $rule pointwise(grads_f(X)<-cl->(X,cellcenter,grads(X)),X_f,facecenter,
                   cl->limiters(X),area),
-    constraint(limitedFaceStencil,ci->X) {
+    constraint(faceGradStencil_select_limited,ci->X) {
     const vect3d delta = $facecenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -284,7 +267,7 @@ namespace Loci {
 
   $rule pointwise(gradv3d_f(X)<-(cr,cl)->(X,cellcenter,gradv3d(X),vol),area,
                   (cl,cr)->limiterv3d(X)),
-    constraint(limitedFaceStencil,(cl,cr)->X) {
+    constraint(faceGradStencil_select_limited,(cl,cr)->X) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -319,7 +302,7 @@ namespace Loci {
 
   $rule pointwise(gradv3d_f(X)<-cl->(X,cellcenter,gradv3d(X)),X_f,facecenter,
                   cl->limiterv3d(X),area),
-    constraint(limitedFaceStencil,ci->X) {
+    constraint(faceGradStencil_select_limited,ci->X) {
     const vect3d delta = $facecenter-$cl->$cellcenter ;
     const vect3d n = $area.n ;
     const real rdist = 1./dot(delta,n) ;
@@ -351,7 +334,7 @@ namespace Loci {
 
   $rule pointwise(grads_f(X)<-(cl,cr)->(X,cellcenter,limiters(X),grads(X)),
                   face2node->pos,facecenter,area),
-    constraint(centeredFaceStencil,(cl,cr)->cellcenter) {
+    constraint(faceGradStencil_select_centered,(cl,cr)->cellcenter) {
     const int sz = $face2node.size() ;
     // compute projected distance between cells
     real_t len = dot($cr->$cellcenter-$cl->$cellcenter,$area.n) ;
@@ -399,7 +382,7 @@ namespace Loci {
 
   $rule pointwise(grads_f(X)<-area,ci->(X,cellcenter,grads(X),limiters(X)),
                   X_f,facecenter, face2node->pos),
-    constraint(centeredFaceStencil,ci->cellcenter) {
+    constraint(faceGradStencil_select_centered,ci->cellcenter) {
 
     const vector3d<real_t> n = $area.n ;
     real_t len = dot($facecenter-$ci->$cellcenter,n) ;
@@ -422,7 +405,7 @@ namespace Loci {
 
   $rule pointwise(gradv_f(X)<-(cl,cr)->(X,cellcenter,limiterv(X),gradv(X)),
                   face2node->pos,facecenter,area),
-    constraint(centeredFaceStencil,(cl,cr)->cellcenter), prelude {
+    constraint(faceGradStencil_select_centered,(cl,cr)->cellcenter), prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
     const int sz = $face2node.size() ;
@@ -476,7 +459,7 @@ namespace Loci {
 
   $rule pointwise(gradv_f(X)<-area,ci->(X,cellcenter,gradv(X),limiterv(X)),
                   X_f,facecenter, face2node->pos),
-      constraint(centeredFaceStencil,ci->cellcenter), prelude {
+      constraint(faceGradStencil_select_centered,ci->cellcenter), prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
 
@@ -505,7 +488,7 @@ namespace Loci {
 
   $rule pointwise(gradv3d_f(X)<-(cl,cr)->(X,cellcenter,limiterv3d(X),gradv3d(X)),
                   face2node->pos,facecenter,area),
-    constraint(centeredFaceStencil,(cl,cr)->cellcenter) {
+    constraint(faceGradStencil_select_centered,(cl,cr)->cellcenter) {
     const int sz = $face2node.size() ;
     // compute projected distance between cells
     real_t len = dot($cr->$cellcenter-$cl->$cellcenter,$area.n) ;
@@ -627,7 +610,7 @@ namespace Loci {
 
   $rule pointwise(gradv3d_f(X)<-area,ci->(X,cellcenter,gradv3d(X),limiterv3d(X)),
                   X_f,facecenter, face2node->pos),
-    constraint(centeredFaceStencil,ci->cellcenter) {
+    constraint(faceGradStencil_select_centered,ci->cellcenter) {
 
     const vector3d<real_t> n = $area.n ;
     const real_t len = dot($facecenter-$ci->$cellcenter,n) ;
@@ -664,6 +647,11 @@ namespace Loci {
     $gradv3d_f(X).z = gradTan + gradNorm ;
   }
 
+  $type nishikawaDiffusionAlpha param<real_t> ;
+
+  /// Weighting for upwind correction in Nishikawa Diffusion Flux.  The default
+  /// setting reduces to 4th order on a cartesian mesh.
+  $rule default(nishikawaDiffusionAlpha) { $nishikawaDiffusionAlpha = 4./3. ; }
 
   $untype X ;
   $untype X_f ;
@@ -671,8 +659,8 @@ namespace Loci {
   $type X_f store<real_t> ;
 
   $rule pointwise(grads_f(X)<-(cl,cr)->(X,cellcenter,grads(X)),
-                  facecenter,area),
-    constraint(nishikawaFaceStencil,(cl,cr)->cellcenter) {
+                  facecenter,area,nishikawaDiffusionAlpha),
+    constraint(faceGradStencil_select_nishikawa,(cl,cr)->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -689,7 +677,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     // Extra factor of 2 to balance out 1/2 factor in coef
     const real_t corr4 = 2.*alpha*(Xr-Xl)/edotn ;
     $grads_f(X) = 0.5*($cl->$grads(X)+$cr->$grads(X) + corr4*an) ;
@@ -698,8 +686,8 @@ namespace Loci {
         
 
   $rule pointwise(grads_f(X)<-area,ci->(X,cellcenter,grads(X)),
-                  X_f,facecenter),
-    constraint(nishikawaFaceStencil,ci->cellcenter) {
+                  X_f,facecenter,nishikawaDiffusionAlpha),
+    constraint(faceGradStencil_select_nishikawa,ci->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -715,7 +703,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
 
     const real_t corr4 = alpha*(Xr-Xl)/edotn ;
     $grads_f(X) = ($ci->$grads(X) + corr4*an) ;
@@ -727,8 +715,8 @@ namespace Loci {
   $type X_f store<vector3d<real_t> > ;
 
   $rule pointwise(gradv3d_f(X)<-(cl,cr)->(X,cellcenter,gradv3d(X)),
-                  facecenter,area),
-    constraint(nishikawaFaceStencil,(cl,cr)->cellcenter) {
+                  facecenter,area,nishikawaDiffusionAlpha),
+    constraint(faceGradStencil_select_nishikawa,(cl,cr)->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -749,7 +737,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     // Extra factor of 2 to balance out 1/2 factor in coef
     const vect3d corr4 = 2.*alpha*(Xr-Xl)/edotn ;
     $gradv3d_f(X).x = 0.5*($cl->$gradv3d(X).x+$cr->$gradv3d(X).x + corr4.x*an) ;
@@ -760,8 +748,8 @@ namespace Loci {
         
 
   $rule pointwise(gradv3d_f(X)<-area,ci->(X,cellcenter,gradv3d(X)),
-                  X_f,facecenter),
-    constraint(nishikawaFaceStencil,ci->cellcenter) {
+                  X_f,facecenter,nishikawaDiffusionAlpha),
+    constraint(faceGradStencil_select_nishikawa,ci->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -779,7 +767,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
 
     const vect3d corr4 = alpha*(Xr-Xl)/edotn ;
     $gradv3d_f(X).x = ($ci->$gradv3d(X).x + corr4.x*an) ;
@@ -793,8 +781,9 @@ namespace Loci {
   $type X storeVec<real> ;
   $type X_f storeVec<real> ;
   
-  $rule pointwise(gradv_f(X)<-(cr,cl)->(X,cellcenter,gradv(X)),facecenter,area),
-    constraint(nishikawaFaceStencil,(cl,cr)->X), prelude {
+  $rule pointwise(gradv_f(X)<-(cr,cl)->(X,cellcenter,gradv(X)),
+                  facecenter,area,nishikawaDiffusionAlpha),
+    constraint(faceGradStencil_select_nishikawa,(cl,cr)->X), prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d dvl = $facecenter-$cl->$cellcenter ;
@@ -806,7 +795,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     const int vs = $*gradv_f(X).vecSize() ;
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$gradv(X)[i],dvl) ;
@@ -816,8 +805,9 @@ namespace Loci {
     }
   }
   
-  $rule pointwise(gradv_f(X)<-cl->(X,cellcenter,gradv(X)),X_f,facecenter,area),
-      constraint(nishikawaFaceStencil,ci->X),prelude {
+  $rule pointwise(gradv_f(X)<-cl->(X,cellcenter,gradv(X)),X_f,
+                  facecenter,area,nishikawaDiffusionAlpha),
+      constraint(faceGradStencil_select_nishikawa,ci->X),prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d dvl = $facecenter-$cl->$cellcenter ;
@@ -828,7 +818,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     const int vs = $*gradv_f(X).vecSize() ;
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$gradv(X)[i],dvl) ;

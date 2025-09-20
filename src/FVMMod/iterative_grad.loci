@@ -1,6 +1,6 @@
 //#############################################################################
 //#
-//# Copyright 2008-2019, Mississippi State University
+//# Copyright 2008-2025, Mississippi State University
 //# Author: Manuel P. Gale, CFDRC
 //#
 //# This file is part of the Loci Framework.
@@ -34,6 +34,26 @@ namespace Loci  {
   typedef real_t real;
   typedef vector3d<real_t> vect3d;
   typedef tensor3d<real_t> tens3d;
+
+  $rule default(gradType),
+    comments("Select 1-step cell gradient operators (standard) or the n-step iterative methods (iterative1,iterative2)")
+  {
+    $gradType = "standard";
+  }
+  $type oneStepGrad Constraint;
+  $type nStepGrad Constraint;
+  $rule constraint(oneStepGrad,nStepGrad<-gradType)
+  {
+    $oneStepGrad = $*gradType.domain();
+    $nStepGrad   = EMPTY;
+    if($gradType == "iterative" ||
+       $gradType == "iterative1" ||
+       $gradType == "iterative2")
+      {
+        $oneStepGrad = EMPTY;
+        $nStepGrad   = $*gradType.domain();
+      }
+  }
 
   $type gradStencil param<std::string>;
   $type stencilStandard Constraint;
@@ -96,10 +116,10 @@ namespace Loci  {
     
   }
   
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
   //////////////// for initial conditions, to avoid supernodes
 
   $type Wf_l store<vect3d >;
@@ -394,19 +414,15 @@ namespace Loci  {
   $rule pointwise(itgradv_X{ig=0}<-gradvIC(X,C)),parametric(itgradv(X,C)),constraint(geom_cells,ITER,C),
     inplace(itgradv_X{ig=0}|gradvIC(X,C)), prelude{};
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
   // the update, grad_f -> lsmin -> gradc
   $untype X;
   $untype X_f;
   $type X store<real>;
   $type X_f store<real>;
-  $type positiveFaceStencil Constraint;
-  $type limitedFaceStencil Constraint;
-  $type centeredFaceStencil Constraint;
-  $type nishikawaFaceStencil Constraint;
   $type itgrads_f(X) store<vect3d>;
 
   // old functions from ggfs
@@ -444,7 +460,9 @@ namespace Loci  {
     $itgrads_f(X) = gradTan + gradNorm;
   }
 
-  $rule pointwise(itgrads_f(X)<-(cl,cr)->(X,cellcenter,itgrads_X),facecenter,area),
+  $type nishikawaDiffusionAlpha param<real_t> ;
+  $rule pointwise(itgrads_f(X)<-(cl,cr)->(X,cellcenter,itgrads_X),
+                  facecenter,area,nishikawaDiffusionAlpha),
     constraint((cl,cr)->cellcenter,ITER2) {
 
     // Use gradients to compute upwind extrapolated values for left and right
@@ -462,13 +480,14 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = 4./3.; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     // Extra factor of 2 to balance out 1/2 factor in coef
     const real_t corr4 = 2.*alpha*(Xr-Xl)/edotn;
     $itgrads_f(X) = 0.5*($cl->$itgrads_X+$cr->$itgrads_X + corr4*an);
   }
 
-  $rule pointwise(itgrads_f(X)<-area,ci->(X,cellcenter,itgrads_X),X_f,facecenter),
+  $rule pointwise(itgrads_f(X)<-area,ci->(X,cellcenter,itgrads_X),X_f,
+                  facecenter,nishikawaDiffusionAlpha),
     constraint(ci->cellcenter,ITER2) {
 
     // Use gradients to compute upwind extrapolated values for left and right
@@ -485,7 +504,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an);
-    const real_t alpha = 4./3.; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
 
     const real_t corr4 = alpha*(Xr-Xl)/edotn;
     $itgrads_f(X) = ($ci->$itgrads_X + corr4*an);
@@ -550,7 +569,8 @@ namespace Loci  {
     $itgradv3d_f(X).z = gradTan + gradNorm;
   }
 
-  $rule pointwise(itgradv3d_f(X)<-(cl,cr)->(X,cellcenter,itgradv3d_X),facecenter,area),
+  $rule pointwise(itgradv3d_f(X)<-(cl,cr)->(X,cellcenter,itgradv3d_X),
+                  facecenter,area,nishikawaDiffusionAlpha),
     constraint((cl,cr)->cellcenter,ITER2) {
 
     // Use gradients to compute upwind extrapolated values for left and right
@@ -572,7 +592,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = 4./3.; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     // Extra factor of 2 to balance out 1/2 factor in coef
     const vect3d corr4 = 2.*alpha*(Xr-Xl)/edotn;
     $itgradv3d_f(X).x = 0.5*($cl->$itgradv3d_X.x+$cr->$itgradv3d_X.x + corr4.x*an);
@@ -580,7 +600,8 @@ namespace Loci  {
     $itgradv3d_f(X).z = 0.5*($cl->$itgradv3d_X.z+$cr->$itgradv3d_X.z + corr4.z*an);
   }
 
-  $rule pointwise(itgradv3d_f(X)<-area,ci->(X,cellcenter,itgradv3d_X),X_f,facecenter),
+  $rule pointwise(itgradv3d_f(X)<-area,ci->(X,cellcenter,itgradv3d_X),X_f,
+                  facecenter,nishikawaDiffusionAlpha),
     constraint(ci->cellcenter,ITER2) {
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -597,7 +618,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an);
-    const real_t alpha = 4./3.; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
 
     const vect3d corr4 = alpha*(Xr-Xl)/edotn;
     $itgradv3d_f(X).x = ($ci->$itgradv3d_X.x + corr4.x*an);
@@ -652,7 +673,8 @@ namespace Loci  {
   }
   //
 
-  $rule pointwise(itgradv_f(X)<-(cr,cl)->(X,cellcenter,itgradv_X),facecenter,area),
+  $rule pointwise(itgradv_f(X)<-(cr,cl)->(X,cellcenter,itgradv_X),
+                  facecenter,area,nishikawaDiffusionAlpha),
       constraint((cl,cr)->X,ITER2), prelude {
     $itgradv_f(X).setVecSize($X.vecSize());
   } compute {
@@ -665,7 +687,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = 4./3.; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     const int vs = $*itgradv_f(X).vecSize();
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$itgradv_X[i],dvl);
@@ -675,7 +697,8 @@ namespace Loci  {
     }
   }
 
-  $rule pointwise(itgradv_f(X)<-cl->(X,cellcenter,itgradv_X),X_f,facecenter,area),
+  $rule pointwise(itgradv_f(X)<-cl->(X,cellcenter,itgradv_X),X_f,
+                  facecenter,area,nishikawaDiffusionAlpha),
       constraint(ci->X,ITER2),prelude {
     $itgradv_f(X).setVecSize($X.vecSize());
   } compute {
@@ -687,7 +710,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$cl->$cellcenter,an);
-    const real_t alpha = 4./3.; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     const int vs = $*itgradv_f(X).vecSize();
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$itgradv_X[i],dvl);
@@ -714,10 +737,10 @@ namespace Loci  {
     parametric(itgradv(X,C)),
     constraint(geom_cells,ITER,C), prelude {};
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
   // finalize
   $rule singleton(IGFinished<-gradSteps,$ig) { $IGFinished = ($$ig == $gradSteps); }
   $rule pointwise(itgrads(X,C)<-itgrads_X{ig}),
@@ -736,17 +759,28 @@ namespace Loci  {
     inplace(itgradv(X,C)|itgradv_X{ig}), prelude {};
 
   // hook into standard methods
-  $rule pointwise(grads(X)<-itgrads(X,nStepGrad)),constraint(geom_cells,nStepGrad),
-    inplace(grads(X)|itgrads(X,nStepGrad)), prelude {};
-  $rule pointwise(gradv3d(X)<-itgradv3d(X,nStepGrad)),constraint(geom_cells,nStepGrad),
-    inplace(gradv3d(X)|itgradv3d(X,nStepGrad)), prelude {};
-  $rule pointwise(gradv(X)<-itgradv(X,nStepGrad)),constraint(geom_cells,nStepGrad),
-    inplace(gradv(X)|itgradv(X,nStepGrad)), prelude {};
+  $rule pointwise(iterative::grads(X)<-itgrads(X,nStepGrad)),constraint(geom_cells,nStepGrad) {
+    $grads(X) = $itgrads(X,nStepGrad) ;
+  }
+  //,
+  //    inplace(grads(X)|itgrads(X,nStepGrad)), prelude {};
+  $rule pointwise(iterative::gradv3d(X)<-itgradv3d(X,nStepGrad)),constraint(geom_cells,nStepGrad) {
+    $gradv3d(X) = $itgradv3d(X,nStepGrad) ;
+  }
+  //,
+  //  inplace(iterative::gradv3d(X)|itgradv3d(X,nStepGrad)), prelude {};
+  $rule pointwise(iterative::gradv(X)<-itgradv(X,nStepGrad)),constraint(geom_cells,nStepGrad) , prelude {
+    $gradv(X).setVecSize($itgradv(X,nStepGrad).vecSize()) ;
+  } compute {
+    $gradv(X) = $itgradv(X,nStepGrad) ;
+  }
+  //,
+  //    inplace(gradv(X)|itgradv(X,nStepGrad)), prelude {};
 
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
-  ////////////////////////////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
   // least squares utilities and parametrics needed for itgrads
   namespace {
     template<class T, class T2> void lu_4x4( T2 *A, T *x, T *b)
@@ -1055,4 +1089,5 @@ namespace Loci  {
                           vect3d(phi_c.y.x/bw.x,phi_c.y.y/bw.y,phi_c.y.z/bw.z),
                           vect3d(phi_c.z.x/bw.x,phi_c.z.y/bw.y,phi_c.z.z/bw.z));
   }
+
 }
