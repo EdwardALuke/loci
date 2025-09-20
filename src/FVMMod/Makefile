@@ -25,10 +25,13 @@ include $(LOCI_BASE)/Loci.conf
 LIMITER_FILES=$(call loci_compile_files,limiters/)
 LIMITER_OBJS=$(call loci_file2objs,$(LIMITER_FILES))
 
+CELLGRADIENT_FILES=$(call loci_compile_files,cellgradient/)
+CELLGRADIENT_OBJS=$(call loci_file2objs,$(CELLGRADIENT_FILES))
+
 BASE_FILES=$(call loci_compile_files,)
 BASE_OBJS=$(call loci_file2objs,$(BASE_FILES))
 
-OBJS=$(BASE_OBJS) $(LIMITER_OBJS)
+OBJS=$(BASE_OBJS) $(LIMITER_OBJS) $(CELLGRADIENT_OBJS)
 
 MODULE_NAME = fvm
 

@@ -1,0 +1,125 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <Loci.h>
+$include "FVM.lh"
+$include "FVMMod/cellgradient.lh"
+
+namespace Loci {
+  $type X storeVec<real_t> ;
+  $type X_f storeVec<real_t> ;
+  
+  $rule pointwise(gradv(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
+                                constraint(geom_cells,gradStencil_select_green), prelude {
+    $gradv(X).setVecSize($X.vecSize()) ;
+  } compute {
+    const real_t rvol = 1./$vol ;
+    const int vs = $*X.vecSize() ;
+    for(int i=0;i<vs;++i) {
+      vector3d<real_t> gradsum = vector3d<real_t>(0.0,0.0,0.0);
+      for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
+        const real_t vl = li->$cl->$vol ;
+        const real_t vr = li->$cr->$vol ;
+        const real_t xf = (li->$cl->$X[i]*vr+li->$cr->$X[i]*vl)/(vl+vr) ;
+        gradsum -= xf*li->$area.sada*li->$area.n ;
+      }
+      for(const Entity *ui = $upper.begin();ui!=$upper.end();++ui) {
+        const real_t vl = ui->$cl->$vol ;
+        const real_t vr = ui->$cr->$vol ;
+        const real_t xf = (ui->$cl->$X[i]*vr+ui->$cr->$X[i]*vl)/(vl+vr) ;
+        gradsum += xf*ui->$area.sada*ui->$area.n ;
+      }
+      for(const Entity *bi = $boundary_map.begin();bi!=$boundary_map.end();
+          ++bi) {
+        gradsum += bi->$X_f[i]*bi->$area.sada*bi->$area.n ;
+      }
+
+      $gradv(X)[i] = gradsum*rvol  ; 
+    }
+  }
+
+  $untype X ;
+  $untype X_f ;
+  $type X store<real_t> ;
+  $type X_f store<real_t> ;
+
+  $rule pointwise(grads(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
+    constraint(geom_cells,gradStencil_select_green) {
+    const real_t rvol = 1./$vol ;
+    vector3d<real_t> gradsum = vector3d<real_t>(0.0,0.0,0.0);
+    for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
+      const real_t vl = li->$cl->$vol ;
+      const real_t vr = li->$cr->$vol ;
+      const real_t xf = (li->$cl->$X*vr+li->$cr->$X*vl)/(vl+vr) ;
+      gradsum -= xf*li->$area.sada*li->$area.n ;
+    }
+    for(const Entity *ui = $upper.begin();ui!=$upper.end();++ui) {
+      const real_t vl = ui->$cl->$vol ;
+      const real_t vr = ui->$cr->$vol ;
+      const real_t xf = (ui->$cl->$X*vr+ui->$cr->$X*vl)/(vl+vr) ;
+      gradsum += xf*ui->$area.sada*ui->$area.n ;
+    }
+    for(const Entity *bi = $boundary_map.begin();bi!=$boundary_map.end();
+        ++bi) {
+      gradsum += bi->$X_f*bi->$area.sada*bi->$area.n ;
+    }
+    
+    $grads(X)= gradsum*rvol  ; 
+  }
+
+
+  $untype X ;
+  $untype X_f ;
+  $type X store<vector3d<real_t> > ;
+  $type X_f store<vector3d<real_t> > ;
+  
+  $rule pointwise(gradv3d(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
+    constraint(geom_cells,gradStencil_select_green) {
+    tensor3d<real_t>  gradsum = tensor3d<real_t> (vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0)) ;
+    const real_t rvol = 1./$vol ;
+    
+    for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
+      const real_t vl = li->$cl->$vol ;
+      const real_t vr = li->$cr->$vol ;
+      const vector3d<real_t> xf = (li->$cl->$X*vr+li->$cr->$X*vl)/(vl+vr) ;
+      gradsum.x -= xf.x*li->$area.sada*li->$area.n ;
+      gradsum.y -= xf.y*li->$area.sada*li->$area.n ;
+      gradsum.z -= xf.z*li->$area.sada*li->$area.n ;
+    }
+    for(const Entity *ui = $upper.begin();ui!=$upper.end();++ui) {
+      const real_t vl = ui->$cl->$vol ;
+      const real_t vr = ui->$cr->$vol ;
+      const vector3d<real_t> xf = (ui->$cl->$X*vr+ui->$cr->$X*vl)/(vl+vr) ;
+      gradsum.x += xf.x*ui->$area.sada*ui->$area.n ;
+      gradsum.y += xf.y*ui->$area.sada*ui->$area.n ;
+      gradsum.z += xf.z*ui->$area.sada*ui->$area.n ;
+    }
+    for(const Entity *bi = $boundary_map.begin();bi!=$boundary_map.end();
+        ++bi) {
+      gradsum.x += bi->$X_f.x*bi->$area.sada*bi->$area.n ;
+      gradsum.y += bi->$X_f.y*bi->$area.sada*bi->$area.n ;
+      gradsum.z += bi->$X_f.z*bi->$area.sada*bi->$area.n ;
+    }
+
+    $gradv3d(X).x = gradsum.x*rvol  ; 
+    $gradv3d(X).y = gradsum.y*rvol  ; 
+    $gradv3d(X).z = gradsum.z*rvol  ; 
+  }
+}

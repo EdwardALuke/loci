@@ -1,0 +1,35 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+
+$type gradStencilBias param<std::string>;
+$type gradStencilBias_select_off Constraint ;
+$type gradStencilBias_select_on Constraint ;
+$type gradStencil param<std::string> ;
+$type gradStencil_select_standard Constraint ;
+$type gradStencil_select_full Constraint ;
+$type gradStencil_select_stable Constraint ;
+$type gradStencil_select_symm Constraint ;
+$type gradStencil_select_symmF Constraint ;
+$type gradStencil_select_symmC Constraint ;
+$type gradStencil_select_green Constraint ;
+$type useCellStencil param<bool> ;
+$type Wf_l store<vector3d<real_t> > ;
+$type Wf_r store<vector3d<real_t> > ;
