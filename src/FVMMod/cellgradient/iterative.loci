@@ -61,7 +61,7 @@ namespace Loci  {
   $type lsminV(Y)             storeVec<vect3d>;
   $type lsmint3d(X)           store<tens3d>;
   $type lsminv3d(X)           store<vect3d>;
-  $type FVMIGFinished     param<bool>;
+  $type FVMIGFinished_X     param<bool>;
 
 
   $rule default(gradSteps)
@@ -73,8 +73,11 @@ namespace Loci  {
   // for initial conditions, to avoid supernodes
 
   $type itgradv3d(X) store <tens3d>;
+  $type itgradv3d_X store <tens3d>;
   $type itgrads(X) store <vect3d>;
+  $type itgrads_X store <vect3d>;
   $type itgradv(X) storeVec <vect3d>;
+  $type itgradv_X storeVec <vect3d>;
 
   $type cellStencil multiMap;
 
@@ -86,7 +89,7 @@ namespace Loci  {
   $type X_f store<real>;
   $rule pointwise(gradsIC(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-                constraint(geom_cells,nStepGrad,gradStencil_select_standard) {
+  constraint(geom_cells,X,nStepGrad,gradStencil_select_standard) {
 
     vect3d Qt_b = vect3d(0,0,0);
     real X_center = $X;
@@ -130,7 +133,7 @@ namespace Loci  {
 
   $rule pointwise(gradsIC(X)<-(lower,upper)->(cl,cr)->(X,vol),
                   (lower,upper)->area,boundary_map->(X_f,area),vol),
-    constraint(geom_cells,nStepGrad,gradStencil_select_green) {
+  constraint(geom_cells,X,nStepGrad,gradStencil_select_green) {
     const real rvol = 1./$vol;
     vect3d gradsum = vect3d(0.0,0.0,0.0);
     int lsz = $lower.size() ;
@@ -163,7 +166,7 @@ namespace Loci  {
 
   $rule pointwise(gradv3dIC(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,nStepGrad,gradStencil_select_standard) {
+  constraint(geom_cells,X,nStepGrad,gradStencil_select_standard) {
 
     tens3d  Qt_b = tens3d (vect3d(0,0,0),
                            vect3d(0,0,0),
@@ -199,7 +202,7 @@ namespace Loci  {
 
   $rule pointwise(gradv3dIC(X)<-LSWeights,LSBWeights,cellStencil->X,
                   boundary_map->X_f,X),
-    constraint(geom_cells,nStepGrad,useCellStencil) {
+  constraint(geom_cells,X,nStepGrad,useCellStencil) {
     tensor3d<real> Qt_b = tensor3d<real> (vect3d(0,0,0),
                                           vect3d(0,0,0),
                                           vect3d(0,0,0));
@@ -224,7 +227,7 @@ namespace Loci  {
 
   $rule pointwise(gradv3dIC(X)<-(lower,upper)->(cl,cr)->(X,vol),
                   (lower,upper)->area,boundary_map->(X_f,area),vol),
-    constraint(geom_cells,nStepGrad,gradStencil_select_green) {
+  constraint(geom_cells,X,nStepGrad,gradStencil_select_green) {
     tensor3d<real>  gradsum = tensor3d<real> (vect3d(0,0,0),
                                               vect3d(0,0,0),
                                               vect3d(0,0,0));
@@ -271,7 +274,7 @@ namespace Loci  {
 
   $rule pointwise(gradvIC(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,gradStencil_select_standard,nStepGrad),prelude {
+  constraint(geom_cells,X,gradStencil_select_standard,nStepGrad),prelude {
     $gradvIC(X).setVecSize($X.vecSize());
   } compute {
     int vs = $*X.vecSize();
@@ -306,7 +309,7 @@ namespace Loci  {
 
   $rule pointwise(gradvIC(X)<-LSWeights,LSBWeights,cellStencil->X,
                   boundary_map->X_f,X),
-      constraint(geom_cells,useCellStencil), prelude {
+    constraint(geom_cells,X,useCellStencil), prelude {
     $gradvIC(X).setVecSize($X.vecSize());
   } compute {
     const int vsz = $*X.vecSize();
@@ -330,7 +333,7 @@ namespace Loci  {
 
   $rule pointwise(gradvIC(X)<-(lower,upper)->(cl,cr)->(X,vol),
                   (lower,upper)->area,boundary_map->(X_f,area),vol),
-    constraint(geom_cells,gradStencil_select_green,nStepGrad), prelude {
+    constraint(geom_cells,X,gradStencil_select_green,nStepGrad), prelude {
     $gradvIC(X).setVecSize($X.vecSize());
   } compute {
     const real_t rvol = 1./$vol;
@@ -364,17 +367,17 @@ namespace Loci  {
   }
 
   // initialize the iterative-gradient loop
-  $rule pointwise(itgradv3d(X){FVMig=0}<-gradv3dIC(X)),
-    parametric(itgradv3d(X)),constraint(geom_cells,nStepGrad),
-    inplace(itgradv3d(X){FVMig=0}|gradv3dIC(X)), prelude{};
+  $rule pointwise(itgradv3d_X{FVMig_X=0}<-gradv3dIC(X)),
+    parametric(itgradv3d(X)),constraint(geom_cells,X,nStepGrad),
+    inplace(itgradv3d_X{FVMig_X=0}|gradv3dIC(X)), prelude{};
 
-  $rule pointwise(itgrads(X){FVMig=0}<-gradsIC(X)),
-  parametric(itgrads(X)),constraint(geom_cells,nStepGrad),
-  inplace(itgrads(X){FVMig=0}|gradsIC(X)), prelude{};
+  $rule pointwise(itgrads_X{FVMig_X=0}<-gradsIC(X)),
+  parametric(itgrads(X)),constraint(geom_cells,X,nStepGrad),
+  inplace(itgrads_X{FVMig_X=0}|gradsIC(X)), prelude{};
 
-  $rule pointwise(itgradv(X){FVMig=0}<-gradvIC(X)),
-  parametric(itgradv(X)),constraint(geom_cells,nStepGrad),
-    inplace(itgradv(X){FVMig=0}|gradvIC(X)), prelude{};
+  $rule pointwise(itgradv_X{FVMig_X=0}<-gradvIC(X)),
+  parametric(itgradv(X)),constraint(geom_cells,X,nStepGrad),
+    inplace(itgradv_X{FVMig_X=0}|gradvIC(X)), prelude{};
 
   //###########################################################################
   // the update, grad_f -> lsmin -> gradc
@@ -382,14 +385,11 @@ namespace Loci  {
   $untype X_f;
   $type X store<real>;
   $type X_f store<real>;
-  $type itgrads_f(X) store<vect3d>;
+  $type Y store<vect3d>;
+  $type itgrads_f(X,Y) store<vect3d>;
 
   // old functions from ggfs
-  $type X store<real>;
-  $type X_f store<real>;
-  $type itgrads_f(X) store <vect3d>;
-  // //  original versions
-  $rule pointwise(itgrads_f(X)<-(cr,cl)->(X,cellcenter,itgrads(X),vol),area),
+  $rule pointwise(itgrads_f(X,Y)<-(cr,cl)->(X,cellcenter,Y,vol),area),
     constraint((cl,cr)->X,gradType_select_directionalDerivative) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter;
     const vect3d n = $area.n;
@@ -398,40 +398,40 @@ namespace Loci  {
     const real vl = $cl->$vol;
     const real dvrvl = 1./(vr+vl);
 
-    const vect3d gl = $cl->$itgrads(X);
-    const vect3d gr = $cr->$itgrads(X);
+    const vect3d gl = $cl->$Y;
+    const vect3d gr = $cr->$Y;
     const vect3d gradAvg = (gr*vl+gl*vr)*dvrvl;
     const vect3d gradTan=gradAvg-dot(gradAvg,n)*n;
     const vect3d gradNorm = n*($cr->$X-
                                ($cl->$X+dot(gradTan,delta)))*rdist;
 
-    $itgrads_f(X) = gradTan + gradNorm;
+    $itgrads_f(X,Y) = gradTan + gradNorm;
   }
 
-  $rule pointwise(itgrads_f(X)<-cl->(X,cellcenter,itgrads(X)),X_f,
+  $rule pointwise(itgrads_f(X,Y)<-cl->(X,cellcenter,Y),X_f,
                   facecenter,area),
     constraint(ci->X,gradType_select_directionalDerivative) {
     const vect3d delta = $facecenter-$cl->$cellcenter;
     const vect3d n = $area.n;
     const real rdist = 1./dot(delta,n);
-    const vect3d gradAvg = $cl->$itgrads(X);
+    const vect3d gradAvg = $cl->$Y;
     const vect3d gradTan = gradAvg-dot(gradAvg,n)*n;
     const vect3d gradNorm = n*($X_f-($cl->$X+dot(gradTan,delta)))*rdist;
-    $itgrads_f(X) = gradTan + gradNorm;
+    $itgrads_f(X,Y) = gradTan + gradNorm;
   }
 
   $type nishikawaDiffusionAlpha param<real_t> ;
-  $rule pointwise(itgrads_f(X)<-(cl,cr)->(X,cellcenter,itgrads(X)),
+  $rule pointwise(itgrads_f(X,Y)<-(cl,cr)->(X,cellcenter,Y),
                   facecenter,area,nishikawaDiffusionAlpha),
-    constraint((cl,cr)->cellcenter,gradType_select_nishikawaUpwind) {
+  constraint((cl,cr)->(cellcenter,X),gradType_select_nishikawaUpwind) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
     const vect3d dvl = $facecenter-$cl->$cellcenter;
-    const real_t Xl = $cl->$X+dot($cl->$itgrads(X),dvl);
+    const real_t Xl = $cl->$X+dot($cl->$Y,dvl);
 
     const vect3d dvr = $facecenter-$cr->$cellcenter;
-    const real_t Xr = $cr->$X+dot($cr->$itgrads(X),dvr);
+    const real_t Xr = $cr->$X+dot($cr->$Y,dvr);
 
     const vect3d an = $area.n;
     // fourth order correction to average gradient
@@ -443,17 +443,17 @@ namespace Loci  {
     const real_t alpha = $nishikawaDiffusionAlpha ;
     // Extra factor of 2 to balance out 1/2 factor in coef
     const real_t corr4 = 2.*alpha*(Xr-Xl)/edotn;
-    $itgrads_f(X) = 0.5*($cl->$itgrads(X)+$cr->$itgrads(X) + corr4*an);
+    $itgrads_f(X,Y) = 0.5*($cl->$Y+$cr->$Y + corr4*an);
   }
 
-  $rule pointwise(itgrads_f(X)<-area,ci->(X,cellcenter,itgrads(X)),X_f,
+  $rule pointwise(itgrads_f(X,Y)<-area,ci->(X,cellcenter,Y),X_f,
                   facecenter,nishikawaDiffusionAlpha),
-    constraint(ci->cellcenter,gradType_select_nishikawaUpwind) {
+  constraint(ci->(cellcenter,X),gradType_select_nishikawaUpwind) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
     const vect3d dvl = $facecenter-$ci->$cellcenter;
-    const real_t Xl = $ci->$X+dot($ci->$itgrads(X),dvl);
+    const real_t Xl = $ci->$X+dot($ci->$Y,dvl);
 
     const real_t Xr = $X_f;
 
@@ -467,17 +467,19 @@ namespace Loci  {
     const real_t alpha = $nishikawaDiffusionAlpha ;
 
     const real_t corr4 = alpha*(Xr-Xl)/edotn;
-    $itgrads_f(X) = ($ci->$itgrads(X) + corr4*an);
+    $itgrads_f(X,Y) = ($ci->$Y + corr4*an);
   }
   //
 
   $untype X;
   $untype X_f;
-  $type itgradv3d_f(X) store <tens3d>;
+  $type itgradv3d_f(X,Y) store <tens3d>;
+  $untype Y ;
+  $type Y store <tens3d>;
   $type X store<vect3d>;
   $type X_f store<vect3d>;
-  $rule pointwise(itgradv3d_f(X)<-
-                  (cr,cl)->(X,cellcenter,itgradv3d(X),vol),area),
+  $rule pointwise(itgradv3d_f(X,Y)<-
+                  (cr,cl)->(X,cellcenter,Y,vol),area),
   constraint((cl,cr)->X,gradType_select_directionalDerivative) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter;
     const vect3d n = $area.n;
@@ -486,66 +488,66 @@ namespace Loci  {
     const real vl = $cl->$vol;
     const real dvrvl = 1./(vr+vl);
 
-    vect3d gl = $cl->$itgradv3d(X).x;
-    vect3d gr = $cr->$itgradv3d(X).x;
+    vect3d gl = $cl->$Y.x;
+    vect3d gr = $cr->$Y.x;
     vect3d gradAvg = (gr*vl+gl*vr)*dvrvl;
     vect3d gradTan = gradAvg-dot(gradAvg,n)*n;
     vect3d gradNorm = n*($cr->$X.x-($cl->$X.x+dot(gradTan,delta)) )*rdist;
-    $itgradv3d_f(X).x = gradTan + gradNorm;
+    $itgradv3d_f(X,Y).x = gradTan + gradNorm;
 
-    gl = $cl->$itgradv3d(X).y;
-    gr = $cr->$itgradv3d(X).y;
+    gl = $cl->$Y.y;
+    gr = $cr->$Y.y;
     gradAvg = (gr*vl+gl*vr)*dvrvl;
     gradTan = gradAvg-dot(gradAvg,n)*n;
     gradNorm = n*($cr->$X.y-($cl->$X.y+dot(gradTan,delta)) )*rdist;
-    $itgradv3d_f(X).y  = gradTan + gradNorm;
+    $itgradv3d_f(X,Y).y  = gradTan + gradNorm;
 
-    gl = $cl->$itgradv3d(X).z;
-    gr = $cr->$itgradv3d(X).z;
+    gl = $cl->$Y.z;
+    gr = $cr->$Y.z;
     gradAvg = (gr*vl+gl*vr)*dvrvl;
     gradTan = gradAvg-dot(gradAvg,n)*n;
     gradNorm = n*($cr->$X.z-($cl->$X.z+dot(gradTan,delta)) )*rdist;
-    $itgradv3d_f(X).z  = gradTan + gradNorm;
+    $itgradv3d_f(X,Y).z  = gradTan + gradNorm;
   }
 
-  $rule pointwise(itgradv3d_f(X)<-cl->(X,cellcenter,itgradv3d(X)),X_f,
+  $rule pointwise(itgradv3d_f(X,Y)<-cl->(X,cellcenter,Y),X_f,
                   facecenter,area),
   constraint(ci->X,gradType_select_directionalDerivative) {
     const vect3d delta = $facecenter-$cl->$cellcenter;
     const vect3d n = $area.n;
     const real rdist = 1./dot(delta,n);
 
-    vect3d gradAvg = $cl->$itgradv3d(X).x;
+    vect3d gradAvg = $cl->$Y.x;
     vect3d gradTan = gradAvg-dot(gradAvg,n)*n;
     vect3d gradNorm = n*( $X_f.x-($cl->$X.x+dot(gradTan,delta)) )*rdist;
-    $itgradv3d_f(X).x = gradTan + gradNorm;
+    $itgradv3d_f(X,Y).x = gradTan + gradNorm;
 
-    gradAvg = $cl->$itgradv3d(X).y;
+    gradAvg = $cl->$Y.y;
     gradTan = gradAvg-dot(gradAvg,n)*n;
     gradNorm = n*( $X_f.y-($cl->$X.y+dot(gradTan,delta)) )*rdist;
-    $itgradv3d_f(X).y = gradTan + gradNorm;
+    $itgradv3d_f(X,Y).y = gradTan + gradNorm;
 
-    gradAvg = $cl->$itgradv3d(X).z;
+    gradAvg = $cl->$Y.z;
     gradTan = gradAvg-dot(gradAvg,n)*n;
     gradNorm = n*( $X_f.z-($cl->$X.z+dot(gradTan,delta)) )*rdist;
-    $itgradv3d_f(X).z = gradTan + gradNorm;
+    $itgradv3d_f(X,Y).z = gradTan + gradNorm;
   }
 
-  $rule pointwise(itgradv3d_f(X)<-(cl,cr)->(X,cellcenter,itgradv3d(X)),
+  $rule pointwise(itgradv3d_f(X,Y)<-(cl,cr)->(X,cellcenter,Y),
                   facecenter,area,nishikawaDiffusionAlpha),
-    constraint((cl,cr)->cellcenter,gradType_select_nishikawaUpwind) {
+  constraint((cl,cr)->(cellcenter,X),gradType_select_nishikawaUpwind) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
     const vect3d dvl = $facecenter-$cl->$cellcenter;
-    const vect3d Xl = $cl->$X+vect3d(dot($cl->$itgradv3d(X).x,dvl),
-                                     dot($cl->$itgradv3d(X).y,dvl),
-                                     dot($cl->$itgradv3d(X).z,dvl));
+    const vect3d Xl = $cl->$X+vect3d(dot($cl->$Y.x,dvl),
+                                     dot($cl->$Y.y,dvl),
+                                     dot($cl->$Y.z,dvl));
 
     const vect3d dvr = $facecenter-$cr->$cellcenter;
-    const vect3d Xr = $cr->$X+vect3d(dot($cr->$itgradv3d(X).x,dvr),
-                                     dot($cr->$itgradv3d(X).y,dvr),
-                                     dot($cr->$itgradv3d(X).z,dvr));
+    const vect3d Xr = $cr->$X+vect3d(dot($cr->$Y.x,dvr),
+                                     dot($cr->$Y.y,dvr),
+                                     dot($cr->$Y.z,dvr));
 
     const vect3d an = $area.n;
     // fourth order correction to average gradient
@@ -557,23 +559,23 @@ namespace Loci  {
     const real_t alpha = $nishikawaDiffusionAlpha ;
     // Extra factor of 2 to balance out 1/2 factor in coef
     const vect3d corr4 = 2.*alpha*(Xr-Xl)/edotn;
-    $itgradv3d_f(X).x = 0.5*($cl->$itgradv3d(X).x+$cr->$itgradv3d(X).x +
+    $itgradv3d_f(X,Y).x = 0.5*($cl->$Y.x+$cr->$Y.x +
                              corr4.x*an);
-    $itgradv3d_f(X).y = 0.5*($cl->$itgradv3d(X).y+$cr->$itgradv3d(X).y +
+    $itgradv3d_f(X,Y).y = 0.5*($cl->$Y.y+$cr->$Y.y +
                              corr4.y*an);
-    $itgradv3d_f(X).z = 0.5*($cl->$itgradv3d(X).z+$cr->$itgradv3d(X).z +
+    $itgradv3d_f(X,Y).z = 0.5*($cl->$Y.z+$cr->$Y.z +
                              corr4.z*an);
   }
 
-  $rule pointwise(itgradv3d_f(X)<-area,ci->(X,cellcenter,itgradv3d(X)),X_f,
+  $rule pointwise(itgradv3d_f(X,Y)<-area,ci->(X,cellcenter,Y),X_f,
                   facecenter,nishikawaDiffusionAlpha),
-    constraint(ci->cellcenter,gradType_select_nishikawaUpwind) {
+  constraint(ci->(cellcenter,X),gradType_select_nishikawaUpwind) {
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
     const vect3d dvl = $facecenter-$ci->$cellcenter;
-    const vect3d Xl = $ci->$X+vect3d(dot($ci->$itgradv3d(X).x,dvl),
-                                     dot($ci->$itgradv3d(X).y,dvl),
-                                     dot($ci->$itgradv3d(X).z,dvl));
+    const vect3d Xl = $ci->$X+vect3d(dot($ci->$Y.x,dvl),
+                                     dot($ci->$Y.y,dvl),
+                                     dot($ci->$Y.z,dvl));
     const vect3d Xr = $X_f;
 
     const vect3d an = $area.n;
@@ -586,9 +588,9 @@ namespace Loci  {
     const real_t alpha = $nishikawaDiffusionAlpha ;
 
     const vect3d corr4 = alpha*(Xr-Xl)/edotn;
-    $itgradv3d_f(X).x = ($ci->$itgradv3d(X).x + corr4.x*an);
-    $itgradv3d_f(X).y = ($ci->$itgradv3d(X).y + corr4.y*an);
-    $itgradv3d_f(X).z = ($ci->$itgradv3d(X).z + corr4.z*an);
+    $itgradv3d_f(X,Y).x = ($ci->$Y.x + corr4.x*an);
+    $itgradv3d_f(X,Y).y = ($ci->$Y.y + corr4.y*an);
+    $itgradv3d_f(X,Y).z = ($ci->$Y.z + corr4.z*an);
   }
   //
 
@@ -596,11 +598,13 @@ namespace Loci  {
   $untype X_f;
   $type X storeVec<real>;
   $type X_f storeVec<real>;
-  $type itgradv_f(X) storeVec<vect3d>;
+  $untype Y ;
+  $type Y storeVec<vect3d>;
+  $type itgradv_f(X,Y) storeVec<vect3d>;
 
-  $rule pointwise(itgradv_f(X)<-(cr,cl)->(X,cellcenter,itgradv(X),vol),area),
+  $rule pointwise(itgradv_f(X,Y)<-(cr,cl)->(X,cellcenter,Y,vol),area),
     constraint((cl,cr)->X,gradType_select_directionalDerivative), prelude {
-    $itgradv_f(X).setVecSize($X.vecSize());
+    $itgradv_f(X,Y).setVecSize($X.vecSize());
   } compute {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter;
     const vect3d n = $area.n;
@@ -608,40 +612,40 @@ namespace Loci  {
     const real vr = $cr->$vol;
     const real vl = $cl->$vol;
     const real dvrvl = 1./(vr+vl);
-    const int vs = $*itgradv_f(X).vecSize();
+    const int vs = $*itgradv_f(X,Y).vecSize();
     for(int i=0;i<vs;++i) {
-      const vect3d gl = $cl->$itgradv(X)[i];
-      const vect3d gr = $cr->$itgradv(X)[i];
+      const vect3d gl = $cl->$Y[i];
+      const vect3d gr = $cr->$Y[i];
       const vect3d itgradAvg=(gr*vl+gl*vr)*dvrvl;
       const vect3d itgradTan=itgradAvg-dot(itgradAvg,n)*n;
       const vect3d itgradNorm=n*($cr->$X[i]-
                                  ($cl->$X[i] + dot(itgradTan,delta)) )*rdist;
-      $itgradv_f(X)[i] = itgradTan + itgradNorm;
+      $itgradv_f(X,Y)[i] = itgradTan + itgradNorm;
     }
   }
 
-  $rule pointwise(itgradv_f(X)<-cl->(X,cellcenter,itgradv(X)),X_f,
+  $rule pointwise(itgradv_f(X,Y)<-cl->(X,cellcenter,Y),X_f,
                   facecenter,area),
     constraint(ci->X,gradType_select_directionalDerivative),prelude {
-    $itgradv_f(X).setVecSize($X.vecSize());
+    $itgradv_f(X,Y).setVecSize($X.vecSize());
   } compute {
     const vect3d delta = $facecenter-$cl->$cellcenter;
     const vect3d n = $area.n;
     const real rdist = 1./dot(delta,n);
-    const int vs = $*itgradv_f(X).vecSize();
+    const int vs = $*itgradv_f(X,Y).vecSize();
     for(int i=0;i<vs;++i){
-      const vect3d itgradAvg = $cl->$itgradv(X)[i];
+      const vect3d itgradAvg = $cl->$Y[i];
       const vect3d itgradTan=itgradAvg-dot(itgradAvg,n)*n;
       const vect3d itgradNorm = n*($X_f[i]-
                                    ($cl->$X[i] + dot(itgradTan,delta)))*rdist;
-      $itgradv_f(X)[i] = itgradTan + itgradNorm;
+      $itgradv_f(X,Y)[i] = itgradTan + itgradNorm;
     }
   }
 
-  $rule pointwise(itgradv_f(X)<-(cr,cl)->(X,cellcenter,itgradv(X)),
+  $rule pointwise(itgradv_f(X,Y)<-(cr,cl)->(X,cellcenter,Y),
                   facecenter,area,nishikawaDiffusionAlpha),
       constraint((cl,cr)->X,gradType_select_nishikawaUpwind), prelude {
-    $itgradv_f(X).setVecSize($X.vecSize());
+    $itgradv_f(X,Y).setVecSize($X.vecSize());
   } compute {
     const vect3d dvl = $facecenter-$cl->$cellcenter;
     const vect3d dvr = $facecenter-$cr->$cellcenter;
@@ -653,19 +657,19 @@ namespace Loci  {
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
     const real_t alpha = $nishikawaDiffusionAlpha ;
-    const int vs = $*itgradv_f(X).vecSize();
+    const int vs = $*itgradv_f(X,Y).vecSize();
     for(int i=0;i<vs;++i) {
-      const real_t Xl = $cl->$X[i]+dot($cl->$itgradv(X)[i],dvl);
-      const real_t Xr = $cr->$X[i]+dot($cr->$itgradv(X)[i],dvr);
+      const real_t Xl = $cl->$X[i]+dot($cl->$Y[i],dvl);
+      const real_t Xr = $cr->$X[i]+dot($cr->$Y[i],dvr);
       const real_t corr4 = 2.*alpha*(Xr-Xl)/edotn;
-      $itgradv_f(X)[i] = 0.5*($cl->$itgradv(X)[i]+$cr->$itgradv(X)[i] + corr4*an);
+      $itgradv_f(X,Y)[i] = 0.5*($cl->$Y[i]+$cr->$Y[i] + corr4*an);
     }
   }
 
-  $rule pointwise(itgradv_f(X)<-cl->(X,cellcenter,itgradv(X)),X_f,
+  $rule pointwise(itgradv_f(X,Y)<-cl->(X,cellcenter,Y),X_f,
                   facecenter,area,nishikawaDiffusionAlpha),
       constraint(ci->X,gradType_select_nishikawaUpwind),prelude {
-    $itgradv_f(X).setVecSize($X.vecSize());
+    $itgradv_f(X,Y).setVecSize($X.vecSize());
   } compute {
     const vect3d dvl = $facecenter-$cl->$cellcenter;
     const vect3d an = $area.n;
@@ -676,51 +680,55 @@ namespace Loci  {
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$cl->$cellcenter,an);
     const real_t alpha = $nishikawaDiffusionAlpha ;
-    const int vs = $*itgradv_f(X).vecSize();
+    const int vs = $*itgradv_f(X,Y).vecSize();
     for(int i=0;i<vs;++i) {
-      const real_t Xl = $cl->$X[i]+dot($cl->$itgradv(X)[i],dvl);
+      const real_t Xl = $cl->$X[i]+dot($cl->$Y[i],dvl);
       const real_t Xr = $X_f[i];
       const real_t corr4 = alpha*(Xr-Xl)/edotn;
-      $itgradv_f(X)[i] = ($cl->$itgradv(X)[i] + corr4*an);
+      $itgradv_f(X,Y)[i] = ($cl->$Y[i] + corr4*an);
     }
   }
 
   //###########################################################################
   // face-only least squares stencil
-  $rule pointwise(itgrads(X){FVMig+1}<-lsminv3d(itgrads_f(X)){FVMig}),
-      inplace(itgrads(X){FVMig+1}|lsminv3d(itgrads_f(X)){FVMig}),
+  $rule pointwise(itgrads_X{FVMig_X+1}<-lsminv3d(itgrads_f(X,itgrads_X)){FVMig_X}),
+    inplace(itgrads_X{FVMig_X+1}|lsminv3d(itgrads_f(X,itgrads_X)){FVMig_X}),
       parametric(itgrads(X)),
-      constraint(geom_cells,nStepGrad), prelude {};
+    constraint(geom_cells,X,nStepGrad), prelude {};
 
-  $rule pointwise(itgradv3d(X){FVMig+1}<-lsmint3d(itgradv3d_f(X)){FVMig}),
-    inplace(itgradv3d(X){FVMig+1}|lsmint3d(itgradv3d_f(X)){FVMig}),
+  $rule pointwise(itgradv3d_X{FVMig_X+1}<-lsmint3d(itgradv3d_f(X,itgradv3d_X)){FVMig_X}),
+  inplace(itgradv3d_X{FVMig_X+1}|lsmint3d(itgradv3d_f(X,itgradv3d_X)){FVMig_X}),
     parametric(itgradv3d(X)),
-    constraint(geom_cells,nStepGrad), prelude {};
+  constraint(geom_cells,X,nStepGrad), prelude {};
 
-  $rule pointwise(itgradv(X){FVMig+1}<-lsminV(itgradv_f(X)){FVMig}),
-    inplace(itgradv(X){FVMig+1}|lsminV(itgradv_f(X)){FVMig}),
+  $rule pointwise(itgradv_X{FVMig_X+1}<-lsminV(itgradv_f(X,itgradv_X)){FVMig_X}),
+  inplace(itgradv_X{FVMig_X+1}|lsminV(itgradv_f(X,itgradv_X)){FVMig_X}),
     parametric(itgradv(X)),
-    constraint(geom_cells,nStepGrad), prelude {};
+  constraint(geom_cells,X,nStepGrad), prelude {};
 
   //###########################################################################
   // finalize
-  $rule singleton(FVMIGFinished<-gradSteps,$FVMig)
-  { $FVMIGFinished = ($$FVMig < $gradSteps); }
+  $rule singleton(FVMIGFinished_X<-gradSteps,$FVMig_X),parametric(itgrads(X))
+  { $FVMIGFinished_X = ($$FVMig_X < $gradSteps); }
+  $rule singleton(FVMIGFinished_X<-gradSteps,$FVMig_X),parametric(itgradv3d(X))
+  { $FVMIGFinished_X = ($$FVMig_X < $gradSteps); }
+  $rule singleton(FVMIGFinished_X<-gradSteps,$FVMig_X),parametric(itgradv(X))
+  { $FVMIGFinished_X = ($$FVMig_X < $gradSteps); }
 
-  $rule pointwise(itgrads(X)<-itgrads(X){FVMig}),
-    conditional(FVMIGFinished{FVMig}),
-    constraint(geom_cells,nStepGrad),
-    inplace(itgrads(X)|itgrads(X){FVMig}), prelude {};
+  $rule pointwise(itgrads(X)<-itgrads_X{FVMig_X}),
+    conditional(FVMIGFinished_X{FVMig_X}),
+  constraint(geom_cells,X,nStepGrad),
+    inplace(itgrads(X)|itgrads_X{FVMig_X}), prelude {};
 
-  $rule pointwise(itgradv3d(X)<-itgradv3d(X){FVMig}),
-    conditional(FVMIGFinished{FVMig}),
-    constraint(geom_cells,nStepGrad),
-    inplace(itgradv3d(X)|itgradv3d(X){FVMig}), prelude {};
+  $rule pointwise(itgradv3d(X)<-itgradv3d_X{FVMig_X}),
+    conditional(FVMIGFinished_X{FVMig_X}),
+  constraint(geom_cells,X,nStepGrad),
+    inplace(itgradv3d(X)|itgradv3d_X{FVMig_X}), prelude {};
 
-  $rule pointwise(itgradv(X)<-itgradv(X){FVMig}),
-    conditional(FVMIGFinished{FVMig}),
-    constraint(geom_cells,nStepGrad),
-    inplace(itgradv(X)|itgradv(X){FVMig}), prelude {};
+  $rule pointwise(itgradv(X)<-itgradv_X{FVMig_X}),
+  conditional(FVMIGFinished_X{FVMig_X}),
+  constraint(geom_cells,X,nStepGrad),
+    inplace(itgradv(X)|itgradv_X{FVMig_X}), prelude {};
 
 
   //###########################################################################
@@ -901,7 +909,7 @@ namespace Loci  {
   $rule pointwise(lsminV(Y)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(Y,area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-      constraint(geom_cells,gradType_select_nishikawaUpwind), prelude {
+    constraint(geom_cells,gradType_select_nishikawaUpwind), prelude {
     $lsminV(Y).setVecSize($Y.vecSize());
   } compute {
     for (int j=0; j<$*Y.vecSize(); j++) {
@@ -948,7 +956,7 @@ namespace Loci  {
 
   $rule pointwise(lsminv3d(V)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(V,area)),
-      constraint(geom_cells,gradType_select_directionalDerivative) {
+    constraint(geom_cells,gradType_select_directionalDerivative) {
     int nf = 0;
     vect3d phi_c = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -966,7 +974,7 @@ namespace Loci  {
   $rule pointwise(lsminv3d(V)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(V,area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-    constraint(geom_cells,gradType_select_nishikawaUpwind) {
+  constraint(geom_cells,gradType_select_nishikawaUpwind) {
     vect3d phi_c = vect3d(0,0,0);
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1027,7 +1035,7 @@ namespace Loci  {
   $rule pointwise(lsmint3d(Z)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(Z,area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-    constraint(geom_cells,gradType_select_nishikawaUpwind) {
+  constraint(geom_cells,gradType_select_nishikawaUpwind) {
     tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1036,16 +1044,10 @@ namespace Loci  {
       const vect3d an = vect3d(abs($lower[i]->$area.n.x),
                                abs($lower[i]->$area.n.y),
                                abs($lower[i]->$area.n.z));
-      phi_c += tens3d(vect3d(an.x*$lower[i]->$Z.x.x,
-                             an.y*$lower[i]->$Z.x.y,
-                             an.z*$lower[i]->$Z.x.z),
-                      vect3d(an.x*$lower[i]->$Z.y.x,
-                             an.y*$lower[i]->$Z.y.y,
-                             an.z*$lower[i]->$Z.y.z),
-                      vect3d(an.x*$lower[i]->$Z.z.x,
-                             an.y*$lower[i]->$Z.z.y,
-                             an.z*$lower[i]->$Z.z.z))/dx;
-
+      const tens3d &grad = $lower[i]->$Z ;
+      phi_c += tens3d(vect3d(an.x*grad.x.x, an.y*grad.x.y, an.z*grad.x.z),
+                      vect3d(an.x*grad.y.x, an.y*grad.y.y, an.z*grad.y.z),
+                      vect3d(an.x*grad.z.x, an.y*grad.z.y, an.z*grad.z.z))/dx;
       bw += an/dx;
     }
     const int usz = $upper.size() ;
@@ -1054,16 +1056,10 @@ namespace Loci  {
       const vect3d an = vect3d(abs($upper[i]->$area.n.x),
                                abs($upper[i]->$area.n.y),
                                abs($upper[i]->$area.n.z));
-      phi_c += tens3d(vect3d(an.x*$upper[i]->$Z.x.x,
-                             an.y*$upper[i]->$Z.x.y,
-                             an.z*$upper[i]->$Z.x.z),
-                      vect3d(an.x*$upper[i]->$Z.y.x,
-                             an.y*$upper[i]->$Z.y.y,
-                             an.z*$upper[i]->$Z.y.z),
-                      vect3d(an.x*$upper[i]->$Z.z.x,
-                             an.y*$upper[i]->$Z.z.y,
-                             an.z*$upper[i]->$Z.z.z))/dx;
-
+      const tens3d &grad = $upper[i]->$Z ;
+      phi_c += tens3d(vect3d(an.x*grad.x.x, an.y*grad.x.y, an.z*grad.x.z),
+                      vect3d(an.x*grad.y.x, an.y*grad.y.y, an.z*grad.y.z),
+                      vect3d(an.x*grad.z.x, an.y*grad.z.y, an.z*grad.z.z))/dx ;
       bw += an/dx;
     }
     const int bsz = $boundary_map.size() ;
@@ -1072,16 +1068,10 @@ namespace Loci  {
       const vect3d an = vect3d(abs($boundary_map[i]->$area.n.x),
                                abs($boundary_map[i]->$area.n.y),
                                abs($boundary_map[i]->$area.n.z));
-      phi_c += tens3d(vect3d(an.x*$boundary_map[i]->$Z.x.x,
-                             an.y*$boundary_map[i]->$Z.x.y,
-                             an.z*$boundary_map[i]->$Z.x.z),
-                      vect3d(an.x*$boundary_map[i]->$Z.y.x,
-                             an.y*$boundary_map[i]->$Z.y.y,
-                             an.z*$boundary_map[i]->$Z.y.z),
-                      vect3d(an.x*$boundary_map[i]->$Z.z.x,
-                             an.y*$boundary_map[i]->$Z.z.y,
-                             an.z*$boundary_map[i]->$Z.z.z))/dx;
-
+      const tens3d &grad = $boundary_map[i]->$Z ;
+      phi_c += tens3d(vect3d(an.x*grad.x.x, an.y*grad.x.y, an.z*grad.x.z),
+                      vect3d(an.x*grad.y.x, an.y*grad.y.y, an.z*grad.y.z),
+                      vect3d(an.x*grad.z.x, an.y*grad.z.y, an.z*grad.z.z))/dx ;
       bw += an/dx;
     }
     $lsmint3d(Z) = tens3d(vect3d(phi_c.x.x/bw.x,phi_c.x.y/bw.y,phi_c.x.z/bw.z),
@@ -1093,27 +1083,27 @@ namespace Loci  {
   /// Do last step of iterative scalar gradient for directionalDerivative
 
   $rule pointwise(iterative::grads(X)<-cellcenter,lsvec,
-                  (lower,upper,boundary_map)->(itgrads_f(X),area)),
-  constraint(geom_cells,gradType_select_directionalDerivative) {
+                  (lower,upper,boundary_map)->(itgrads_f(X,itgrads(X)),area)),
+  constraint(geom_cells,X,gradType_select_directionalDerivative) {
     int nf = 0;
     vect3d phi_c = vect3d(0,0,0);
     const int lsz = $lower.size() ;
     for(int i=0;i<lsz;++i)
-      phi_c += $lsvec[nf++]*$lower[i]->$itgrads_f(X);
+      phi_c += $lsvec[nf++]*$lower[i]->$itgrads_f(X,itgrads(X));
     const int usz = $upper.size() ;
     for(int i=0;i<usz;++i)
-      phi_c += $lsvec[nf++]*$upper[i]->$itgrads_f(X);
+      phi_c += $lsvec[nf++]*$upper[i]->$itgrads_f(X,itgrads(X));
     const int bsz = $boundary_map.size() ;
     for(int i=0;i<bsz;++i)
-      phi_c += $lsvec[nf++]*$boundary_map[i]->$itgrads_f(X);
+      phi_c += $lsvec[nf++]*$boundary_map[i]->$itgrads_f(X,itgrads(X));
     $iterative::grads(X) = phi_c;
   }
 
   /// Do last step of iterative scalar gradient for nishikawaUpwind
   $rule pointwise(iterative::grads(X)<-cellcenter,lsvec,
-                  (lower,upper,boundary_map)->(itgrads_f(X),area,facecenter),
+                  (lower,upper,boundary_map)->(itgrads_f(X,itgrads(X)),area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-  constraint(geom_cells,gradType_select_nishikawaUpwind) {
+  constraint(geom_cells,X,gradType_select_nishikawaUpwind) {
     vect3d phi_c = vect3d(0,0,0);
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1122,10 +1112,8 @@ namespace Loci  {
       const vect3d an = vect3d(abs($lower[i]->$area.n.x),
                                abs($lower[i]->$area.n.y),
                                abs($lower[i]->$area.n.z));
-      phi_c += (vect3d(an.x*$lower[i]->$itgrads_f(X).x,
-                       an.y*$lower[i]->$itgrads_f(X).y,
-                       an.z*$lower[i]->$itgrads_f(X).z))/dx;
-
+      const vect3d &grads = $lower[i]->$itgrads_f(X,itgrads(X)) ;
+      phi_c += (vect3d(an.x*grads.x, an.y*grads.y, an.z*grads.z))/dx;
       bw += an/dx;
     }
     int usz = $upper.size() ;
@@ -1134,10 +1122,8 @@ namespace Loci  {
       const vect3d an = vect3d(abs($upper[i]->$area.n.x),
                                abs($upper[i]->$area.n.y),
                                abs($upper[i]->$area.n.z));
-      phi_c += (vect3d(an.x*$upper[i]->$itgrads_f(X).x,
-                       an.y*$upper[i]->$itgrads_f(X).y,
-                       an.z*$upper[i]->$itgrads_f(X).z))/dx;
-
+      const vect3d &grads = $upper[i]->$itgrads_f(X,itgrads(X)) ;
+      phi_c += (vect3d(an.x*grads.x, an.y*grads.y, an.z*grads.z))/dx;
       bw += an/dx;
     }
     const int bsz = $boundary_map.size() ;
@@ -1146,35 +1132,34 @@ namespace Loci  {
       const vect3d an = vect3d(abs($boundary_map[i]->$area.n.x),
                                abs($boundary_map[i]->$area.n.y),
                                abs($boundary_map[i]->$area.n.z));
-      phi_c += (vect3d(an.x*$boundary_map[i]->$itgrads_f(X).x,
-                       an.y*$boundary_map[i]->$itgrads_f(X).y,
-                       an.z*$boundary_map[i]->$itgrads_f(X).z))/dx;
+      const vect3d &grads = $boundary_map[i]->$itgrads_f(X,itgrads(X)) ;
+      phi_c += (vect3d(an.x*grads.x, an.y*grads.y, an.z*grads.z))/dx;
       bw += an/dx;
     }
     $iterative::grads(X) = vect3d(phi_c.x/bw.x,phi_c.y/bw.y,phi_c.z/bw.z);
   }
 
   $rule pointwise(iterative::gradv3d(V)<-cellcenter,lsvec,
-                  (lower,upper,boundary_map)->(itgradv3d_f(V),area)),
-    constraint(geom_cells,gradType_select_directionalDerivative) {
+                  (lower,upper,boundary_map)->(itgradv3d_f(V,itgradv3d(V)),area)),
+  constraint(geom_cells,V,gradType_select_directionalDerivative) {
     int nf = 0;
     tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
     const int lsz = $lower.size() ;
     for(int i=0;i<lsz;++i)
-      phi_c += $lsvec[nf++]*$lower[i]->$itgradv3d_f(V);
+      phi_c += $lsvec[nf++]*$lower[i]->$itgradv3d_f(V,itgradv3d(V));
     const int usz = $upper.size() ;
     for(int i=0;i<usz;++i)
-      phi_c += $lsvec[nf++]*$upper[i]->$itgradv3d_f(V);
+      phi_c += $lsvec[nf++]*$upper[i]->$itgradv3d_f(V,itgradv3d(V));
     const int bsz = $boundary_map.size() ;
     for(int i=0;i<bsz;++i)
-      phi_c += $lsvec[nf++]*$boundary_map[i]->$itgradv3d_f(V);
+      phi_c += $lsvec[nf++]*$boundary_map[i]->$itgradv3d_f(V,itgradv3d(V));
     $gradv3d(V) = phi_c;
   }
 
   $rule pointwise(iterative::gradv3d(V)<-cellcenter,lsvec,
-                  (lower,upper,boundary_map)->(itgradv3d_f(V),area,facecenter),
+                  (lower,upper,boundary_map)->(itgradv3d_f(V,itgradv3d(V)),area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-    constraint(geom_cells,gradType_select_nishikawaUpwind) {
+  constraint(geom_cells,V,gradType_select_nishikawaUpwind) {
     tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1183,15 +1168,16 @@ namespace Loci  {
       const vect3d an = vect3d(abs($lower[i]->$area.n.x),
                                abs($lower[i]->$area.n.y),
                                abs($lower[i]->$area.n.z));
-      phi_c += tens3d(vect3d(an.x*$lower[i]->$itgradv3d_f(V).x.x,
-                             an.y*$lower[i]->$itgradv3d_f(V).x.y,
-                             an.z*$lower[i]->$itgradv3d_f(V).x.z),
-                      vect3d(an.x*$lower[i]->$itgradv3d_f(V).y.x,
-                             an.y*$lower[i]->$itgradv3d_f(V).y.y,
-                             an.z*$lower[i]->$itgradv3d_f(V).y.z),
-                      vect3d(an.x*$lower[i]->$itgradv3d_f(V).z.x,
-                             an.y*$lower[i]->$itgradv3d_f(V).z.y,
-                             an.z*$lower[i]->$itgradv3d_f(V).z.z))/dx;
+      const tens3d &gradv3d = $lower[i]->$itgradv3d_f(V,itgradv3d(V)) ;
+      phi_c += tens3d(vect3d(an.x*gradv3d.x.x,
+                             an.y*gradv3d.x.y,
+                             an.z*gradv3d.x.z),
+                      vect3d(an.x*gradv3d.y.x,
+                             an.y*gradv3d.y.y,
+                             an.z*gradv3d.y.z),
+                      vect3d(an.x*gradv3d.z.x,
+                             an.y*gradv3d.z.y,
+                             an.z*gradv3d.z.z))/dx;
       bw += an/dx;
     }
     const int usz = $upper.size() ;
@@ -1200,16 +1186,16 @@ namespace Loci  {
       const vect3d an = vect3d(abs($upper[i]->$area.n.x),
                                abs($upper[i]->$area.n.y),
                                abs($upper[i]->$area.n.z));
-      phi_c += tens3d(vect3d(an.x*$upper[i]->$itgradv3d_f(V).x.x,
-                             an.y*$upper[i]->$itgradv3d_f(V).x.y,
-                             an.z*$upper[i]->$itgradv3d_f(V).x.z),
-                      vect3d(an.x*$upper[i]->$itgradv3d_f(V).y.x,
-                             an.y*$upper[i]->$itgradv3d_f(V).y.y,
-                             an.z*$upper[i]->$itgradv3d_f(V).y.z),
-                      vect3d(an.x*$upper[i]->$itgradv3d_f(V).z.x,
-                             an.y*$upper[i]->$itgradv3d_f(V).z.y,
-                             an.z*$upper[i]->$itgradv3d_f(V).z.z))/dx;
-
+      const tens3d &gradv3d = $upper[i]->$itgradv3d_f(V,itgradv3d(V)) ;
+      phi_c += tens3d(vect3d(an.x*gradv3d.x.x,
+                             an.y*gradv3d.x.y,
+                             an.z*gradv3d.x.z),
+                      vect3d(an.x*gradv3d.y.x,
+                             an.y*gradv3d.y.y,
+                             an.z*gradv3d.y.z),
+                      vect3d(an.x*gradv3d.z.x,
+                             an.y*gradv3d.z.y,
+                             an.z*gradv3d.z.z))/dx;
       bw += an/dx;
     }
     const int bsz = $boundary_map.size() ;
@@ -1218,16 +1204,16 @@ namespace Loci  {
       const vect3d an = vect3d(abs($boundary_map[i]->$area.n.x),
                                abs($boundary_map[i]->$area.n.y),
                                abs($boundary_map[i]->$area.n.z));
-      phi_c += tens3d(vect3d(an.x*$boundary_map[i]->$itgradv3d_f(V).x.x,
-                             an.y*$boundary_map[i]->$itgradv3d_f(V).x.y,
-                             an.z*$boundary_map[i]->$itgradv3d_f(V).x.z),
-                      vect3d(an.x*$boundary_map[i]->$itgradv3d_f(V).y.x,
-                             an.y*$boundary_map[i]->$itgradv3d_f(V).y.y,
-                             an.z*$boundary_map[i]->$itgradv3d_f(V).y.z),
-                      vect3d(an.x*$boundary_map[i]->$itgradv3d_f(V).z.x,
-                             an.y*$boundary_map[i]->$itgradv3d_f(V).z.y,
-                             an.z*$boundary_map[i]->$itgradv3d_f(V).z.z))/dx;
-
+      const tens3d &gradv3d = $boundary_map[i]->$itgradv3d_f(V,itgradv3d(V)) ;
+      phi_c += tens3d(vect3d(an.x*gradv3d.x.x,
+                             an.y*gradv3d.x.y,
+                             an.z*gradv3d.x.z),
+                      vect3d(an.x*gradv3d.y.x,
+                             an.y*gradv3d.y.y,
+                             an.z*gradv3d.y.z),
+                      vect3d(an.x*gradv3d.z.x,
+                             an.y*gradv3d.z.y,
+                             an.z*gradv3d.z.z))/dx;
       bw += an/dx;
     }
     $gradv3d(V) = tens3d(vect3d(phi_c.x.x/bw.x,phi_c.x.y/bw.y,phi_c.x.z/bw.z),
@@ -1237,34 +1223,34 @@ namespace Loci  {
 
 
   $rule pointwise(iterative::gradv(Y)<-cellcenter,lsvec,
-                  (lower,upper,boundary_map)->(itgradv_f(Y),area)),
-    constraint(geom_cells,gradType_select_directionalDerivative), prelude {
-    $iterative::gradv(Y).setVecSize($itgradv_f(Y).vecSize());
+                  (lower,upper,boundary_map)->(itgradv_f(Y,itgradv(Y)),area)),
+  constraint(geom_cells,Y,gradType_select_directionalDerivative), prelude {
+    $iterative::gradv(Y).setVecSize($itgradv_f(Y,itgradv(Y)).vecSize());
   } compute {
-    for (int j=0; j<$*itgradv_f(Y).vecSize(); j++) {
+    for (int j=0; j<$*itgradv_f(Y,itgradv(Y)).vecSize(); j++) {
       int nf = 0;
       vect3d phi_c = vect3d(0.,0.,0.);
       const int lsz = $lower.size() ;
       for(int i=0;i<lsz;++i)
-        phi_c += $lsvec[nf++]*$lower[i]->$itgradv_f(Y)[j];
+        phi_c += $lsvec[nf++]*$lower[i]->$itgradv_f(Y,itgradv(Y))[j];
       const int usz = $upper.size() ;
       for(int i=0;i<usz;++i)
-        phi_c += $lsvec[nf++]*$upper[i]->$itgradv_f(Y)[j];
+        phi_c += $lsvec[nf++]*$upper[i]->$itgradv_f(Y,itgradv(Y))[j];
       const int bsz = $boundary_map.size() ;
       for(int i=0;i<bsz;++i)
-        phi_c += $lsvec[nf++]*$boundary_map[i]->$itgradv_f(Y)[j];
+        phi_c += $lsvec[nf++]*$boundary_map[i]->$itgradv_f(Y,itgradv(Y))[j];
 
       $iterative::gradv(Y)[j] = phi_c;
     }
   }
 
   $rule pointwise(iterative::gradv(Y)<-cellcenter,lsvec,
-                  (lower,upper,boundary_map)->(itgradv_f(Y),area,facecenter),
+                  (lower,upper,boundary_map)->(itgradv_f(Y,itgradv(Y)),area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-      constraint(geom_cells,gradType_select_nishikawaUpwind), prelude {
-    $iterative::gradv(Y).setVecSize($itgradv_f(Y).vecSize());
+    constraint(geom_cells,Y,gradType_select_nishikawaUpwind), prelude {
+    $iterative::gradv(Y).setVecSize($itgradv_f(Y,itgradv(Y)).vecSize());
   } compute {
-    for (int j=0; j<$*itgradv_f(Y).vecSize(); j++)  {
+    for (int j=0; j<$*itgradv_f(Y,itgradv(Y)).vecSize(); j++)  {
       vect3d phi_c = vect3d(0,0,0);
       vect3d bw = vect3d(0,0,0);
       const int lsz = $lower.size() ;
@@ -1273,10 +1259,8 @@ namespace Loci  {
         const vect3d an = vect3d(abs($lower[i]->$area.n.x),
                                  abs($lower[i]->$area.n.y),
                                  abs($lower[i]->$area.n.z));
-        phi_c += (vect3d(an.x*$lower[i]->$itgradv_f(Y)[j].x,
-                         an.y*$lower[i]->$itgradv_f(Y)[j].y,
-                         an.z*$lower[i]->$itgradv_f(Y)[j].z))/dx;
-
+        const vect3d &gradv = $lower[i]->$itgradv_f(Y,itgradv(Y))[j] ;
+        phi_c += (vect3d(an.x*gradv.x,an.y*gradv.y,an.z*gradv.z))/dx;
         bw += an/dx;
       }
       const int usz = $upper.size() ;
@@ -1285,10 +1269,8 @@ namespace Loci  {
         const vect3d an = vect3d(abs($upper[i]->$area.n.x),
                                  abs($upper[i]->$area.n.y),
                                  abs($upper[i]->$area.n.z));
-        phi_c += (vect3d(an.x*$upper[i]->$itgradv_f(Y)[j].x,
-                         an.y*$upper[i]->$itgradv_f(Y)[j].y,
-                         an.z*$upper[i]->$itgradv_f(Y)[j].z))/dx;
-
+        const vect3d &gradv = $upper[i]->$itgradv_f(Y,itgradv(Y))[j] ;
+        phi_c += (vect3d(an.x*gradv.x,an.y*gradv.y,an.z*gradv.z))/dx;
         bw += an/dx;
       }
       const int bsz = $boundary_map.size() ;
@@ -1297,9 +1279,8 @@ namespace Loci  {
         const vect3d an = vect3d(abs($boundary_map[i]->$area.n.x),
                                  abs($boundary_map[i]->$area.n.y),
                                  abs($boundary_map[i]->$area.n.z));
-        phi_c += (vect3d(an.x*$boundary_map[i]->$itgradv_f(Y)[j].x,
-                         an.y*$boundary_map[i]->$itgradv_f(Y)[j].y,
-                         an.z*$boundary_map[i]->$itgradv_f(Y)[j].z))/dx;
+        const vect3d &gradv = $boundary_map[i]->$itgradv_f(Y,itgradv(Y))[j] ;
+        phi_c += (vect3d(an.x*gradv.x,an.y*gradv.y,an.z*gradv.z))/dx;
         bw += an/dx;
       }
       $iterative::gradv(Y)[j] = vect3d(phi_c.x/bw.x,phi_c.y/bw.y,phi_c.z/bw.z);
