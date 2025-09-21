@@ -59,6 +59,13 @@ namespace Loci {
   $rule singleton(useCellStencil),constraint(gradStencil_select_symmF)
   { $useCellStencil = true ; }
     
+  ///Select 1-step cell gradient operators (standard) or the n-step
+  /// iterative methods (iterative1,iterative2)
+  $rule default(gradType) {
+    $gradType = "standard";
+  }
+  $rule pointwise(OUTPUT<-selector(gradType,standard)) {}
+
   $type periodicTransform store<rigid_transform> ;
 
   $untype X ;

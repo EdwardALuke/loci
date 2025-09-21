@@ -131,7 +131,7 @@ namespace Loci {
 
   $rule pointwise(grads(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,gradStencil_select_standard) {
+  constraint(geom_cells,gradStencil_select_standard,gradType_select_standard) {
 
     vector3d<real_t> Qt_b = vector3d<real_t>(0,0,0) ;
     real_t X_center = $X ;
@@ -160,7 +160,7 @@ namespace Loci {
   $type X_f store<vector3d<real_t> > ;
   $rule pointwise(gradv3d(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,gradStencil_select_standard) {
+  constraint(geom_cells,gradStencil_select_standard,gradType_select_standard) {
 
     tensor3d<real_t>  Qt_b = tensor3d<real_t> (vector3d<real_t>(0,0,0),
                                                vector3d<real_t>(0,0,0),
@@ -202,7 +202,7 @@ namespace Loci {
 
   $rule pointwise(gradv(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
-    constraint(geom_cells,gradStencil_select_standard),prelude {
+  constraint(geom_cells,gradStencil_select_standard,gradType_select_standard),prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
   } compute {
     int vs = $*X.vecSize()  ;

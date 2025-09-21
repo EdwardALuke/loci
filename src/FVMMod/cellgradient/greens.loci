@@ -27,7 +27,7 @@ namespace Loci {
   $type X_f storeVec<real_t> ;
 
   $rule pointwise(gradv(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-                                constraint(geom_cells,gradStencil_select_green), prelude {
+  constraint(geom_cells,gradStencil_select_green,gradType_select_standard), prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
   } compute {
     const real_t rvol = 1./$vol ;
@@ -61,7 +61,7 @@ namespace Loci {
   $type X_f store<real_t> ;
 
   $rule pointwise(grads(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-    constraint(geom_cells,gradStencil_select_green) {
+  constraint(geom_cells,gradStencil_select_green,gradType_select_standard) {
     const real_t rvol = 1./$vol ;
     vector3d<real_t> gradsum = vector3d<real_t>(0.0,0.0,0.0);
     for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
@@ -91,7 +91,7 @@ namespace Loci {
   $type X_f store<vector3d<real_t> > ;
 
   $rule pointwise(gradv3d(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-    constraint(geom_cells,gradStencil_select_green) {
+  constraint(geom_cells,gradStencil_select_green,gradType_select_standard) {
     tensor3d<real_t>  gradsum = tensor3d<real_t> (vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0)) ;
     const real_t rvol = 1./$vol ;
 
