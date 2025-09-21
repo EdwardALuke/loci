@@ -39,22 +39,21 @@ namespace Loci  {
   $rule default(gradType) {
     $gradType = "standard";
   }
-  $type oneStepGrad Constraint;
-  $type nStepGrad Constraint;
-  $rule constraint(oneStepGrad,nStepGrad<-gradType)
-  {
-    $oneStepGrad = $*gradType.domain();
-    $nStepGrad   = EMPTY;
-    if($gradType == "iterative" ||
-       $gradType == "iterative1" ||
-       $gradType == "iterative2")
-      {
-        $oneStepGrad = EMPTY;
-        $nStepGrad   = $*gradType.domain();
-      }
+  $rule pointwise(OUTPUT<-selector(gradType,standard)) {}
+  $rule pointwise(OUTPUT<-selector(gradType,directionalDerivative,iterative1)) {}
+  $rule pointwise(OUTPUT<-selector(gradType,nishikawaUpwind,iterative2)) {}
+
+  $type gradType_select_directionalDerivative    Constraint;
+  $type gradType_select_nishikawaUpwind    Constraint;
+
+  $type nStepGrad store<bool> ;
+  $rule pointwise(nStepGrad),constraint(gradType_select_directionalDerivative) {
+    $nStepGrad = true ;
+  }
+  $rule pointwise(nStepGrad),constraint(gradType_select_nishikawaUpwind) {
+    $nStepGrad = true ;
   }
 
-  $type gradStencil param<std::string>;
 
   $type nfincell              store<int>;
   $type lsvec                 multiStore<real>;
@@ -64,52 +63,12 @@ namespace Loci  {
   $type lsminv3d(X)           store<vect3d>;
   $type FVMIGFinished     param<bool>;
 
-  $type ITER     Constraint;
-  $type ITER1    Constraint;
-  $type ITER2    Constraint;
-  $type nStepGrad Constraint;
 
   $rule default(gradSteps)
   {
     $gradSteps = 3;
   }
 
-  $rule constraint(ITER,ITER1,ITER2<-
-                   gradType,gradStencil)
-  {
-    $ITER  = EMPTY;
-    $ITER1 = EMPTY;
-    $ITER2 = EMPTY;
-    if($gradStencil == "standard" || $gradStencil == "full"  ||
-       $gradStencil == "stable"   || $gradStencil == "symm"  ||
-       $gradStencil == "symmF"    || $gradStencil == "symmC")
-      {
-        if($gradType == "iterative" || $gradType == "iterative1")
-          {
-            $ITER  = ~EMPTY;
-            $ITER1 = ~EMPTY;
-          }
-        else if($gradType == "iterative2")
-          {
-            $ITER  = ~EMPTY;
-            $ITER2 = ~EMPTY;
-          }
-      }else
-      {
-        if($gradType == "iterative" ||
-           $gradType == "iterative1" ||
-           $gradType == "iterative2")
-          {
-            cerr << "ERROR: " << $gradStencil
-                 << " not supported with iterative gradients. Use:"
-                 << "standard,stable,full,symm,symmF,symmC"
-                 << endl;
-            Loci::Abort();
-          }
-      }
-    
-  }
-  
   //###########################################################################
   // for initial conditions, to avoid supernodes
 
@@ -406,15 +365,15 @@ namespace Loci  {
 
   // initialize the iterative-gradient loop
   $rule pointwise(itgradv3d(X){FVMig=0}<-gradv3dIC(X)),
-    parametric(itgradv3d(X)),constraint(geom_cells,ITER,nStepGrad),
+    parametric(itgradv3d(X)),constraint(geom_cells,nStepGrad),
     inplace(itgradv3d(X){FVMig=0}|gradv3dIC(X)), prelude{};
 
   $rule pointwise(itgrads(X){FVMig=0}<-gradsIC(X)),
-  parametric(itgrads(X)),constraint(geom_cells,ITER,nStepGrad),
+  parametric(itgrads(X)),constraint(geom_cells,nStepGrad),
   inplace(itgrads(X){FVMig=0}|gradsIC(X)), prelude{};
 
   $rule pointwise(itgradv(X){FVMig=0}<-gradvIC(X)),
-  parametric(itgradv(X)),constraint(geom_cells,ITER,nStepGrad),
+  parametric(itgradv(X)),constraint(geom_cells,nStepGrad),
     inplace(itgradv(X){FVMig=0}|gradvIC(X)), prelude{};
 
   //###########################################################################
@@ -431,7 +390,7 @@ namespace Loci  {
   $type itgrads_f(X) store <vect3d>;
   // //  original versions
   $rule pointwise(itgrads_f(X)<-(cr,cl)->(X,cellcenter,itgrads(X),vol),area),
-    constraint((cl,cr)->X,ITER1) {
+    constraint((cl,cr)->X,gradType_select_directionalDerivative) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter;
     const vect3d n = $area.n;
     const real rdist = 1./dot(delta,n);
@@ -449,8 +408,9 @@ namespace Loci  {
     $itgrads_f(X) = gradTan + gradNorm;
   }
 
-  $rule pointwise(itgrads_f(X)<-cl->(X,cellcenter,itgrads(X)),X_f,facecenter,area),
-    constraint(ci->X,ITER1) {
+  $rule pointwise(itgrads_f(X)<-cl->(X,cellcenter,itgrads(X)),X_f,
+                  facecenter,area),
+    constraint(ci->X,gradType_select_directionalDerivative) {
     const vect3d delta = $facecenter-$cl->$cellcenter;
     const vect3d n = $area.n;
     const real rdist = 1./dot(delta,n);
@@ -463,7 +423,7 @@ namespace Loci  {
   $type nishikawaDiffusionAlpha param<real_t> ;
   $rule pointwise(itgrads_f(X)<-(cl,cr)->(X,cellcenter,itgrads(X)),
                   facecenter,area,nishikawaDiffusionAlpha),
-    constraint((cl,cr)->cellcenter,ITER2) {
+    constraint((cl,cr)->cellcenter,gradType_select_nishikawaUpwind) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -480,7 +440,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = $nishikawaDiffusionAlpha ; 
+    const real_t alpha = $nishikawaDiffusionAlpha ;
     // Extra factor of 2 to balance out 1/2 factor in coef
     const real_t corr4 = 2.*alpha*(Xr-Xl)/edotn;
     $itgrads_f(X) = 0.5*($cl->$itgrads(X)+$cr->$itgrads(X) + corr4*an);
@@ -488,7 +448,7 @@ namespace Loci  {
 
   $rule pointwise(itgrads_f(X)<-area,ci->(X,cellcenter,itgrads(X)),X_f,
                   facecenter,nishikawaDiffusionAlpha),
-    constraint(ci->cellcenter,ITER2) {
+    constraint(ci->cellcenter,gradType_select_nishikawaUpwind) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -504,7 +464,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an);
-    const real_t alpha = $nishikawaDiffusionAlpha ; 
+    const real_t alpha = $nishikawaDiffusionAlpha ;
 
     const real_t corr4 = alpha*(Xr-Xl)/edotn;
     $itgrads_f(X) = ($ci->$itgrads(X) + corr4*an);
@@ -516,8 +476,9 @@ namespace Loci  {
   $type itgradv3d_f(X) store <tens3d>;
   $type X store<vect3d>;
   $type X_f store<vect3d>;
-  $rule pointwise(itgradv3d_f(X)<-(cr,cl)->(X,cellcenter,itgradv3d(X),vol),
-                  area),constraint((cl,cr)->X,ITER1) {
+  $rule pointwise(itgradv3d_f(X)<-
+                  (cr,cl)->(X,cellcenter,itgradv3d(X),vol),area),
+  constraint((cl,cr)->X,gradType_select_directionalDerivative) {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter;
     const vect3d n = $area.n;
     const real rdist = 1./dot(delta,n);
@@ -548,7 +509,8 @@ namespace Loci  {
   }
 
   $rule pointwise(itgradv3d_f(X)<-cl->(X,cellcenter,itgradv3d(X)),X_f,
-                  facecenter,area), constraint(ci->X,ITER1) {
+                  facecenter,area),
+  constraint(ci->X,gradType_select_directionalDerivative) {
     const vect3d delta = $facecenter-$cl->$cellcenter;
     const vect3d n = $area.n;
     const real rdist = 1./dot(delta,n);
@@ -571,7 +533,7 @@ namespace Loci  {
 
   $rule pointwise(itgradv3d_f(X)<-(cl,cr)->(X,cellcenter,itgradv3d(X)),
                   facecenter,area,nishikawaDiffusionAlpha),
-    constraint((cl,cr)->cellcenter,ITER2) {
+    constraint((cl,cr)->cellcenter,gradType_select_nishikawaUpwind) {
 
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
@@ -592,7 +554,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = $nishikawaDiffusionAlpha ; 
+    const real_t alpha = $nishikawaDiffusionAlpha ;
     // Extra factor of 2 to balance out 1/2 factor in coef
     const vect3d corr4 = 2.*alpha*(Xr-Xl)/edotn;
     $itgradv3d_f(X).x = 0.5*($cl->$itgradv3d(X).x+$cr->$itgradv3d(X).x +
@@ -605,7 +567,7 @@ namespace Loci  {
 
   $rule pointwise(itgradv3d_f(X)<-area,ci->(X,cellcenter,itgradv3d(X)),X_f,
                   facecenter,nishikawaDiffusionAlpha),
-    constraint(ci->cellcenter,ITER2) {
+    constraint(ci->cellcenter,gradType_select_nishikawaUpwind) {
     // Use gradients to compute upwind extrapolated values for left and right
     // sides of face
     const vect3d dvl = $facecenter-$ci->$cellcenter;
@@ -621,7 +583,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an);
-    const real_t alpha = $nishikawaDiffusionAlpha ; 
+    const real_t alpha = $nishikawaDiffusionAlpha ;
 
     const vect3d corr4 = alpha*(Xr-Xl)/edotn;
     $itgradv3d_f(X).x = ($ci->$itgradv3d(X).x + corr4.x*an);
@@ -637,7 +599,7 @@ namespace Loci  {
   $type itgradv_f(X) storeVec<vect3d>;
 
   $rule pointwise(itgradv_f(X)<-(cr,cl)->(X,cellcenter,itgradv(X),vol),area),
-    constraint((cl,cr)->X,ITER1), prelude {
+    constraint((cl,cr)->X,gradType_select_directionalDerivative), prelude {
     $itgradv_f(X).setVecSize($X.vecSize());
   } compute {
     const vect3d delta = $cr->$cellcenter-$cl->$cellcenter;
@@ -659,7 +621,8 @@ namespace Loci  {
   }
 
   $rule pointwise(itgradv_f(X)<-cl->(X,cellcenter,itgradv(X)),X_f,
-                  facecenter,area),  constraint(ci->X,ITER1),prelude {
+                  facecenter,area),
+    constraint(ci->X,gradType_select_directionalDerivative),prelude {
     $itgradv_f(X).setVecSize($X.vecSize());
   } compute {
     const vect3d delta = $facecenter-$cl->$cellcenter;
@@ -677,7 +640,7 @@ namespace Loci  {
 
   $rule pointwise(itgradv_f(X)<-(cr,cl)->(X,cellcenter,itgradv(X)),
                   facecenter,area,nishikawaDiffusionAlpha),
-      constraint((cl,cr)->X,ITER2), prelude {
+      constraint((cl,cr)->X,gradType_select_nishikawaUpwind), prelude {
     $itgradv_f(X).setVecSize($X.vecSize());
   } compute {
     const vect3d dvl = $facecenter-$cl->$cellcenter;
@@ -689,7 +652,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an);
-    const real_t alpha = $nishikawaDiffusionAlpha ; 
+    const real_t alpha = $nishikawaDiffusionAlpha ;
     const int vs = $*itgradv_f(X).vecSize();
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$itgradv(X)[i],dvl);
@@ -701,7 +664,7 @@ namespace Loci  {
 
   $rule pointwise(itgradv_f(X)<-cl->(X,cellcenter,itgradv(X)),X_f,
                   facecenter,area,nishikawaDiffusionAlpha),
-      constraint(ci->X,ITER2),prelude {
+      constraint(ci->X,gradType_select_nishikawaUpwind),prelude {
     $itgradv_f(X).setVecSize($X.vecSize());
   } compute {
     const vect3d dvl = $facecenter-$cl->$cellcenter;
@@ -712,7 +675,7 @@ namespace Loci  {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$cl->$cellcenter,an);
-    const real_t alpha = $nishikawaDiffusionAlpha ; 
+    const real_t alpha = $nishikawaDiffusionAlpha ;
     const int vs = $*itgradv_f(X).vecSize();
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$itgradv(X)[i],dvl);
@@ -727,36 +690,36 @@ namespace Loci  {
   $rule pointwise(itgrads(X){FVMig+1}<-lsminv3d(itgrads_f(X)){FVMig}),
       inplace(itgrads(X){FVMig+1}|lsminv3d(itgrads_f(X)){FVMig}),
       parametric(itgrads(X)),
-      constraint(geom_cells,ITER), prelude {};
+      constraint(geom_cells,nStepGrad), prelude {};
 
   $rule pointwise(itgradv3d(X){FVMig+1}<-lsmint3d(itgradv3d_f(X)){FVMig}),
     inplace(itgradv3d(X){FVMig+1}|lsmint3d(itgradv3d_f(X)){FVMig}),
     parametric(itgradv3d(X)),
-    constraint(geom_cells,ITER), prelude {};
+    constraint(geom_cells,nStepGrad), prelude {};
 
   $rule pointwise(itgradv(X){FVMig+1}<-lsminV(itgradv_f(X)){FVMig}),
     inplace(itgradv(X){FVMig+1}|lsminV(itgradv_f(X)){FVMig}),
     parametric(itgradv(X)),
-    constraint(geom_cells,ITER), prelude {};
+    constraint(geom_cells,nStepGrad), prelude {};
 
   //###########################################################################
   // finalize
   $rule singleton(FVMIGFinished<-gradSteps,$FVMig)
   { $FVMIGFinished = ($$FVMig < $gradSteps); }
-  
+
   $rule pointwise(itgrads(X)<-itgrads(X){FVMig}),
     conditional(FVMIGFinished{FVMig}),
-    constraint(geom_cells,ITER,nStepGrad),
+    constraint(geom_cells,nStepGrad),
     inplace(itgrads(X)|itgrads(X){FVMig}), prelude {};
 
   $rule pointwise(itgradv3d(X)<-itgradv3d(X){FVMig}),
     conditional(FVMIGFinished{FVMig}),
-    constraint(geom_cells,ITER,nStepGrad),
+    constraint(geom_cells,nStepGrad),
     inplace(itgradv3d(X)|itgradv3d(X){FVMig}), prelude {};
 
   $rule pointwise(itgradv(X)<-itgradv(X){FVMig}),
     conditional(FVMIGFinished{FVMig}),
-    constraint(geom_cells,ITER,nStepGrad),
+    constraint(geom_cells,nStepGrad),
     inplace(itgradv(X)|itgradv(X){FVMig}), prelude {};
 
 
@@ -822,7 +785,7 @@ namespace Loci  {
     constraint(geom_cells) {
     $nfincell=$upper.size()+$lower.size()+$boundary_map.size();
   }
-  
+
   $rule pointwise(lsvec<-nfincell,cellcenter,
                   (lower,upper)->(cl,cr)->(vol,cellcenter),
                   (lower,upper,boundary_map)->(facecenter,area)),
@@ -863,7 +826,7 @@ namespace Loci  {
     }
     // A matrix
     tmp_array<real> Ac(nvar*nvar) ;
-    for(int i=0;i<nvar*nvar;++i) 
+    for(int i=0;i<nvar*nvar;++i)
       Ac[i] = 0 ;
     int row = 0;
     for (int f=0; f<nft; f++) {
@@ -914,15 +877,16 @@ namespace Loci  {
     }
   }
 
-  $rule pointwise(lsminV(Y)<-cellcenter,lsvec,(lower,upper,boundary_map)->(Y,area)),
-    constraint(geom_cells,ITER1), prelude {
+  $rule pointwise(lsminV(Y)<-cellcenter,lsvec,
+                  (lower,upper,boundary_map)->(Y,area)),
+    constraint(geom_cells,gradType_select_directionalDerivative), prelude {
     $lsminV(Y).setVecSize($Y.vecSize());
   } compute {
     for (int j=0; j<$*Y.vecSize(); j++) {
       int nf = 0;
       vect3d phi_c = vect3d(0.,0.,0.);
       const int lsz = $lower.size() ;
-      for(int i=0;i<lsz;++i) 
+      for(int i=0;i<lsz;++i)
         phi_c += $lsvec[nf++]*$lower[i]->$Y[j] ;
       const int usz = $upper.size() ;
       for(int i=0;i<usz;++i)
@@ -933,11 +897,11 @@ namespace Loci  {
       $lsminV(Y)[j] = phi_c;
     }
   }
-  
+
   $rule pointwise(lsminV(Y)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(Y,area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-      constraint(geom_cells,ITER2), prelude {
+      constraint(geom_cells,gradType_select_nishikawaUpwind), prelude {
     $lsminV(Y).setVecSize($Y.vecSize());
   } compute {
     for (int j=0; j<$*Y.vecSize(); j++) {
@@ -964,7 +928,7 @@ namespace Loci  {
         phi_c += (vect3d(an.x*$upper[i]->$Y[j].x,
                          an.y*$upper[i]->$Y[j].y,
                          an.z*$upper[i]->$Y[j].z))/dx;
-        
+
         bw += an/dx;
       }
       const int bsz = $boundary_map.size() ;
@@ -984,11 +948,11 @@ namespace Loci  {
 
   $rule pointwise(lsminv3d(V)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(V,area)),
-      constraint(geom_cells,ITER1) {
+      constraint(geom_cells,gradType_select_directionalDerivative) {
     int nf = 0;
     vect3d phi_c = vect3d(0,0,0);
     const int lsz = $lower.size() ;
-    for(int i=0;i<lsz;++i) 
+    for(int i=0;i<lsz;++i)
       phi_c += $lsvec[nf++]*$lower[i]->$V;
     const int usz = $upper.size() ;
     for(int i=0;i<usz;++i)
@@ -1002,7 +966,7 @@ namespace Loci  {
   $rule pointwise(lsminv3d(V)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(V,area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-    constraint(geom_cells,ITER2) {
+    constraint(geom_cells,gradType_select_nishikawaUpwind) {
     vect3d phi_c = vect3d(0,0,0);
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1045,14 +1009,14 @@ namespace Loci  {
 
   $rule pointwise(lsmint3d(Z)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(Z,area)),
-  constraint(geom_cells,ITER1) {
+  constraint(geom_cells,gradType_select_directionalDerivative) {
     int nf = 0;
     tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
     const int lsz = $lower.size() ;
-    for(int i=0;i<lsz;++i) 
+    for(int i=0;i<lsz;++i)
       phi_c += $lsvec[nf++]*$lower[i]->$Z;
     const int usz = $upper.size() ;
-    for(int i=0;i<usz;++i) 
+    for(int i=0;i<usz;++i)
       phi_c += $lsvec[nf++]*$upper[i]->$Z;
     const int bsz = $boundary_map.size() ;
     for(int i=0;i<bsz;++i)
@@ -1063,7 +1027,7 @@ namespace Loci  {
   $rule pointwise(lsmint3d(Z)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(Z,area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-    constraint(geom_cells,ITER2) {
+    constraint(geom_cells,gradType_select_nishikawaUpwind) {
     tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1117,7 +1081,7 @@ namespace Loci  {
                       vect3d(an.x*$boundary_map[i]->$Z.z.x,
                              an.y*$boundary_map[i]->$Z.z.y,
                              an.z*$boundary_map[i]->$Z.z.z))/dx;
-      
+
       bw += an/dx;
     }
     $lsmint3d(Z) = tens3d(vect3d(phi_c.x.x/bw.x,phi_c.x.y/bw.y,phi_c.x.z/bw.z),
@@ -1126,11 +1090,11 @@ namespace Loci  {
   }
 
 
-  /// Do last step of iterative scalar gradient for ITER1
+  /// Do last step of iterative scalar gradient for directionalDerivative
 
   $rule pointwise(iterative::grads(X)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(itgrads_f(X),area)),
-  constraint(geom_cells,ITER1) {
+  constraint(geom_cells,gradType_select_directionalDerivative) {
     int nf = 0;
     vect3d phi_c = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1145,11 +1109,11 @@ namespace Loci  {
     $iterative::grads(X) = phi_c;
   }
 
-  /// Do last step of iterative scalar gradient for ITER2
+  /// Do last step of iterative scalar gradient for nishikawaUpwind
   $rule pointwise(iterative::grads(X)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(itgrads_f(X),area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-  constraint(geom_cells,ITER2) {
+  constraint(geom_cells,gradType_select_nishikawaUpwind) {
     vect3d phi_c = vect3d(0,0,0);
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1192,7 +1156,7 @@ namespace Loci  {
 
   $rule pointwise(iterative::gradv3d(V)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(itgradv3d_f(V),area)),
-    constraint(geom_cells,ITER1) {
+    constraint(geom_cells,gradType_select_directionalDerivative) {
     int nf = 0;
     tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
     const int lsz = $lower.size() ;
@@ -1202,7 +1166,7 @@ namespace Loci  {
     for(int i=0;i<usz;++i)
       phi_c += $lsvec[nf++]*$upper[i]->$itgradv3d_f(V);
     const int bsz = $boundary_map.size() ;
-    for(int i=0;i<bsz;++i) 
+    for(int i=0;i<bsz;++i)
       phi_c += $lsvec[nf++]*$boundary_map[i]->$itgradv3d_f(V);
     $gradv3d(V) = phi_c;
   }
@@ -1210,7 +1174,7 @@ namespace Loci  {
   $rule pointwise(iterative::gradv3d(V)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(itgradv3d_f(V),area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-    constraint(geom_cells,ITER2) {
+    constraint(geom_cells,gradType_select_nishikawaUpwind) {
     tens3d phi_c = tens3d (vect3d(0,0,0),vect3d(0,0,0),vect3d(0,0,0));
     vect3d bw = vect3d(0,0,0);
     const int lsz = $lower.size() ;
@@ -1274,7 +1238,7 @@ namespace Loci  {
 
   $rule pointwise(iterative::gradv(Y)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(itgradv_f(Y),area)),
-    constraint(geom_cells,ITER1), prelude {
+    constraint(geom_cells,gradType_select_directionalDerivative), prelude {
     $iterative::gradv(Y).setVecSize($itgradv_f(Y).vecSize());
   } compute {
     for (int j=0; j<$*itgradv_f(Y).vecSize(); j++) {
@@ -1289,7 +1253,7 @@ namespace Loci  {
       const int bsz = $boundary_map.size() ;
       for(int i=0;i<bsz;++i)
         phi_c += $lsvec[nf++]*$boundary_map[i]->$itgradv_f(Y)[j];
-      
+
       $iterative::gradv(Y)[j] = phi_c;
     }
   }
@@ -1297,7 +1261,7 @@ namespace Loci  {
   $rule pointwise(iterative::gradv(Y)<-cellcenter,lsvec,
                   (lower,upper,boundary_map)->(itgradv_f(Y),area,facecenter),
                   lower->cl->cellcenter,upper->cr->cellcenter),
-      constraint(geom_cells,ITER2), prelude {
+      constraint(geom_cells,gradType_select_nishikawaUpwind), prelude {
     $iterative::gradv(Y).setVecSize($itgradv_f(Y).vecSize());
   } compute {
     for (int j=0; j<$*itgradv_f(Y).vecSize(); j++)  {
@@ -1312,7 +1276,7 @@ namespace Loci  {
         phi_c += (vect3d(an.x*$lower[i]->$itgradv_f(Y)[j].x,
                          an.y*$lower[i]->$itgradv_f(Y)[j].y,
                          an.z*$lower[i]->$itgradv_f(Y)[j].z))/dx;
-        
+
         bw += an/dx;
       }
       const int usz = $upper.size() ;
@@ -1324,7 +1288,7 @@ namespace Loci  {
         phi_c += (vect3d(an.x*$upper[i]->$itgradv_f(Y)[j].x,
                          an.y*$upper[i]->$itgradv_f(Y)[j].y,
                          an.z*$upper[i]->$itgradv_f(Y)[j].z))/dx;
-        
+
         bw += an/dx;
       }
       const int bsz = $boundary_map.size() ;
@@ -1341,5 +1305,4 @@ namespace Loci  {
       $iterative::gradv(Y)[j] = vect3d(phi_c.x/bw.x,phi_c.y/bw.y,phi_c.z/bw.z);
     }
   }
-
 }
