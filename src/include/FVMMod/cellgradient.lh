@@ -19,17 +19,42 @@
 //#
 //#############################################################################
 
+/// Input to select stencil bias option, may be set to either 'on' or 'off'
 $type gradStencilBias param<std::string>;
+/// Constraint to select no stencil bias
 $type gradStencilBias_select_off Constraint ;
+/// Constraint to select stencil bias option
 $type gradStencilBias_select_on Constraint ;
+/// Grad Stencil Selector
 $type gradStencil param<std::string> ;
+/// Constraint to select standard
 $type gradStencil_select_standard Constraint ;
+/// Constraint to select full stencil (all cells that share a node is included
+/// in stencil.
 $type gradStencil_select_full Constraint ;
+/// Constraint to downselect full stencil to provide information stable stencil
 $type gradStencil_select_stable Constraint ;
+/// Constraint to downselect full stencil to symm optimized stencil
 $type gradStencil_select_symm Constraint ;
+/// Constraint to downselect full stencil to symmF optimized stencil
 $type gradStencil_select_symmF Constraint ;
+/// Constraint to downselect full stencil to symmC optimized stencil
 $type gradStencil_select_symmC Constraint ;
+/// Select green's theorem gradient (not accurate)
 $type gradStencil_select_green Constraint ;
+/// Constraint for gradients that use cellStencil data structure
 $type useCellStencil param<bool> ;
+/// Map used to define stencil for full, stable, symm, symmC, and symmF methods
+$type cellStencil multiMap ;
+/// Gradient weights for cell2cell maps
+$type LSWeights multiStore<vector3d<real_t> > ;
+/// Weights for boundary faces
+$type LSBWeights multiStore<vector3d<real_t> > ;
+
+/// Face based storage of stencil weights for standard gradient method
 $type Wf_l store<vector3d<real_t> > ;
+/// Face based storage of stencil weights for standard gradient method
 $type Wf_r store<vector3d<real_t> > ;
+
+
+

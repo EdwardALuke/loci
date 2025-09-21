@@ -25,9 +25,6 @@ $include "FVMMod/cellgradient.lh"
 
 namespace Loci {
 
-  $type LSWeights multiStore<vector3d<real_t> > ;
-  $type LSBWeights multiStore<vector3d<real_t> > ;
-  $type cellStencil multiMap ;
   $rule pointwise(LSWeights,LSBWeights<-
 		  (lower,upper,boundary_map)->(facecenter),
 		  cellcenter,cellStencil->cellcenter,
