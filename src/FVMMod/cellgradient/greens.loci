@@ -25,7 +25,7 @@ $include "FVMMod/cellgradient.lh"
 namespace Loci {
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
-  
+
   $rule pointwise(gradv(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
                                 constraint(geom_cells,gradStencil_select_green), prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
@@ -51,7 +51,7 @@ namespace Loci {
         gradsum += bi->$X_f[i]*bi->$area.sada*bi->$area.n ;
       }
 
-      $gradv(X)[i] = gradsum*rvol  ; 
+      $gradv(X)[i] = gradsum*rvol  ;
     }
   }
 
@@ -80,8 +80,8 @@ namespace Loci {
         ++bi) {
       gradsum += bi->$X_f*bi->$area.sada*bi->$area.n ;
     }
-    
-    $grads(X)= gradsum*rvol  ; 
+
+    $grads(X)= gradsum*rvol  ;
   }
 
 
@@ -89,13 +89,13 @@ namespace Loci {
   $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
-  
+
   $rule pointwise(gradv3d(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
     constraint(geom_cells,gradStencil_select_green) {
     tensor3d<real_t>  gradsum = tensor3d<real_t> (vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0)) ;
     const real_t rvol = 1./$vol ;
-    
-    for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
+
+ for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
       const real_t vl = li->$cl->$vol ;
       const real_t vr = li->$cr->$vol ;
       const vector3d<real_t> xf = (li->$cl->$X*vr+li->$cr->$X*vl)/(vl+vr) ;
@@ -118,8 +118,8 @@ namespace Loci {
       gradsum.z += bi->$X_f.z*bi->$area.sada*bi->$area.n ;
     }
 
-    $gradv3d(X).x = gradsum.x*rvol  ; 
-    $gradv3d(X).y = gradsum.y*rvol  ; 
-    $gradv3d(X).z = gradsum.z*rvol  ; 
+    $gradv3d(X).x = gradsum.x*rvol  ;
+    $gradv3d(X).y = gradsum.y*rvol  ;
+    $gradv3d(X).z = gradsum.z*rvol  ;
   }
 }

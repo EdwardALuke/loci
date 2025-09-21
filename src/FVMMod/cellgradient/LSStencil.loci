@@ -26,9 +26,9 @@ $include "FVMMod/cellgradient.lh"
 namespace Loci {
 
   $rule pointwise(LSWeights,LSBWeights<-
-		  (lower,upper,boundary_map)->(facecenter),
-		  cellcenter,cellStencil->cellcenter,
-		  boundary_map->facecenter),
+                  (lower,upper,boundary_map)->(facecenter),
+                  cellcenter,cellStencil->cellcenter,
+                  boundary_map->facecenter),
             option(disable_threading),
             constraint(cellcenter,gradStencilBias_select_off),
   prelude {
@@ -58,11 +58,11 @@ namespace Loci {
       deltas[ncount++] = rr*diff ;
     }
     tmp_array<vector3d<real_t> > wvec(ndeltas) ;
-      
+
     computeLSWeights(wvec,deltas,areas,ndeltas) ;
-    
+
     ncount = 0 ;
-    for(int i=0;i<nstencil;++i) 
+    for(int i=0;i<nstencil;++i)
       $LSWeights[i] = wvec[ncount++] ;
     for(int i=0;i<nbcs;++i)
       $LSBWeights[i] = wvec[ncount++] ;
@@ -71,8 +71,8 @@ namespace Loci {
   // MPGCOMMENT 08-11-2025 ---> stencil_bias must be set by the simulation tool
   $rule pointwise(LSWeights,LSBWeights<-
                   (lower,upper,boundary_map)->(facecenter),
-		  cellcenter,cellStencil->(cellcenter,stencil_bias),
-		  boundary_map->facecenter,
+                  cellcenter,cellStencil->(cellcenter,stencil_bias),
+                  boundary_map->facecenter,
                   lower->cl,upper->cr,stencil_bias),
             option(disable_threading),
       constraint(cellcenter,gradStencilBias_select_on),
@@ -178,9 +178,9 @@ namespace Loci {
   $untype X_f ;
   $type X store<real_t> ;
   $type X_f store<real_t> ;
-  
+
   $rule pointwise(grads(X)<-LSWeights,LSBWeights,cellStencil->X,
-		  boundary_map->X_f,X),
+                  boundary_map->X_f,X),
     constraint(geom_cells,useCellStencil) {
     vector3d<real_t> Qt_b = vector3d<real_t>(0,0,0) ;
     real_t X_center = $X ;
@@ -195,20 +195,20 @@ namespace Loci {
       Qt_b += df*$LSBWeights[i] ;
     }
 
-    $grads(X) = Qt_b ; 
+    $grads(X) = Qt_b ;
   }
-  
+
   $untype X ;
   $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
-  
+
   $rule pointwise(gradv3d(X)<-LSWeights,LSBWeights,cellStencil->X,
-		  boundary_map->X_f,X),
+                  boundary_map->X_f,X),
     constraint(geom_cells,useCellStencil) {
     tensor3d<real_t> Qt_b = tensor3d<real_t> (vector3d<real_t>(0,0,0),
-					      vector3d<real_t>(0,0,0),
-					      vector3d<real_t>(0,0,0)) ;
+                                              vector3d<real_t>(0,0,0),
+                                              vector3d<real_t>(0,0,0)) ;
 
 
     vector3d<real_t> X_center = $X ;
@@ -227,17 +227,17 @@ namespace Loci {
       Qt_b.z += df.z*$LSBWeights[i] ;
     }
 
-    $gradv3d(X) = Qt_b ; 
+    $gradv3d(X) = Qt_b ;
   }
-  
+
 
   $untype X ;
   $untype X_f ;
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
-  
+
   $rule pointwise(gradv(X)<-LSWeights,LSBWeights,cellStencil->X,
-		  boundary_map->X_f,X),
+                  boundary_map->X_f,X),
     constraint(geom_cells,useCellStencil), prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
   } compute {
@@ -247,17 +247,17 @@ namespace Loci {
     const int stsz = $cellStencil.size() ;
     for(int i=0;i<stsz;++i) {
       for(int v=0;v<vsz;++v) {
-	real_t df = $cellStencil[i]->$X[v] - $X[v] ;
-	$gradv(X)[v] += df*$LSWeights[i] ;
+        real_t df = $cellStencil[i]->$X[v] - $X[v] ;
+        $gradv(X)[v] += df*$LSWeights[i] ;
       }
     }
     const int bsz = $boundary_map.size() ;
     for(int i=0;i<bsz;++i) {
       for(int v=0;v<vsz;++v) {
-	real_t df = $boundary_map[i]->$X_f[v] - $X[v] ;
-	$gradv(X)[v] += df*$LSBWeights[i] ;
+        real_t df = $boundary_map[i]->$X_f[v] - $X[v] ;
+        $gradv(X)[v] += df*$LSBWeights[i] ;
       }
     }
   }
-  
+
 }
