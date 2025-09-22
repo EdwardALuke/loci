@@ -62,6 +62,9 @@ namespace Loci {
     MPI_Comm comm ;
     /// Constructor to initialize communicator
     dataPartition(const MPI_Comm &icomm) : comm(icomm) {}
+    /// virtual distructor
+    virtual ~dataPartition() {} ;
+
     /// Method that will partition an entity set to the owning processor.
     /// Returns a list of pairs of processor number and set that is owned
     /// by that processor

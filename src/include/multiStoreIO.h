@@ -720,7 +720,9 @@ namespace Loci {
     hid_t dataset =-1;
     int rank = 1 ;
 
+#ifdef DEBUG
     herr_t ret;
+#endif
     hid_t datatype =-1; //data type of T
 
     /* Create a large dataset for all processes  */
@@ -784,7 +786,10 @@ namespace Loci {
           dataspace = H5Dget_space (dataset);
           WARN(dataspace<0) ;
           hsize_t count = local_size;
-          ret = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET,
+#ifdef DEBUG
+          ret =
+#endif
+            H5Sselect_hyperslab(dataspace, H5S_SELECT_SET,
                                     &prime_start,&stride,&count, NULL) ;
           WARN(ret <0) ;
 
@@ -804,8 +809,11 @@ namespace Loci {
 
           MPI_Allreduce(&lsz,&gsz,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
           if(gsz != 0) {
-            ret = H5Dwrite(dataset, datatype, memspace, dataspace,
-                           H5P_DEFAULT, &send_buffer[0]);
+#ifdef DEBUG
+            ret =
+#endif
+              H5Dwrite(dataset, datatype, memspace, dataspace,
+                       H5P_DEFAULT, &send_buffer[0]);
             WARN(ret<0) ;
           }
           H5Sclose(memspace) ;
@@ -1147,7 +1155,9 @@ namespace Loci {
     int rank = 1 ;
     hsize_t start = 0 ;
     hsize_t stride = 1 ;
+#ifdef DEBUG
     herr_t ret;
+#endif
     int blksz = 0 ;
     std::vector<int> file_read_sizes(p,0) ;
     for(size_t i=0;i<block_sets.size();++i) {
@@ -1186,18 +1196,23 @@ namespace Loci {
         hsize_t prime_start = start + offset;
 
         hsize_t count = msgsz;
-        ret = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET,
-                                  &prime_start,&stride,&count, NULL) ;
+#ifdef DEBUG
+        ret =
+#endif
+          H5Sselect_hyperslab(dataspace, H5S_SELECT_SET,
+                              &prime_start,&stride,&count, NULL) ;
         WARN(ret<0) ;
         /* create a memory dataspace independently */
         hid_t memspace = H5Screate_simple (rank, &count, NULL);
         WARN(memspace<0) ;
 
         /* set up the collective transfer properties list */
-
-        ret = H5Dread(dataset, datatype, memspace, dataspace,
+#ifdef DEBUG
+        ret =
+#endif
+          H5Dread(dataset, datatype, memspace, dataspace,
                       H5P_DEFAULT, &read_buffer[0]);
-
+        WARN(ret<0) ;
         H5Sclose(memspace) ;
 
         start += block_sets[i]*block_schedule[i];////how many total elements read for this block

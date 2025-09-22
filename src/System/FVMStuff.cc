@@ -2271,12 +2271,9 @@ namespace Loci{
     } ENDFORALL ;
 
     cellStencilFiltered.allocate(sizes) ;
-    int cnt = 0 ;
     FORALL(cells,cc) {
-      for(int i=0;i<cellStencilFiltered[cc].size();++i) {
+      for(int i=0;i<cellStencilFiltered[cc].size();++i)
 	cellStencilFiltered[cc][i] = cellStencil[cc][i] ; 
-	cnt++ ;
-      }
     } ENDFORALL ;
   }
 
