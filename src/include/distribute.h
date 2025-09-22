@@ -82,7 +82,7 @@ namespace Loci {
 #ifdef DEBUG
       int p = 1 ;
       MPI_Comm_size(comm,&p) ;
-      fatal(ptn.size() != p) ;
+      fatal(int(ptn.size()) != p) ;
       Loci::debugout << "ptn = " << endl ;
       for(int i=0;i<p;++i)
         Loci::debugout << i << " - " << ptn[i] << endl ;
@@ -220,7 +220,7 @@ namespace Loci {
         send_data[i] = data[send_entities[i]] ;
 
       // copy self data to result buffer first (don't send using MPI)
-      for(size_t i=0;i<send_sizes[r];++i)
+      for(int i=0;i<send_sizes[r];++i)
         result[recv_offsets[r]+i] =
           send_data[send_offsets[r]+i] ;
 

@@ -1919,9 +1919,9 @@ namespace Loci{
       double wsum = 0 ;
 	
       for(int i=1;i<fsz;++i) {
-        FATAL(g2l[face2node[fc][i-1]] > posdata.size()) ;
+        FATAL(g2l[face2node[fc][i-1]] > int(posdata.size())) ;
         FATAL(g2l[face2node[fc][i-1]] < 0) ;
-        FATAL(g2l[face2node[fc][i]] > posdata.size()) ;
+        FATAL(g2l[face2node[fc][i]] > int(posdata.size())) ;
         FATAL(g2l[face2node[fc][i]] < 0) ;
 	double len = norm(posdata[g2l[face2node[fc][i-1]]]-
                           posdata[g2l[face2node[fc][i  ]]]) ;

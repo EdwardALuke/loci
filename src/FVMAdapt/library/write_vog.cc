@@ -633,7 +633,7 @@ namespace Loci {
     }
     cnt = 0 ;
     sz = p2crefine.size() ;
-    for(size_t i=0;i<sz;) {
+    for(int i=0;i<sz;) {
       int nsame = 0 ;
       for(int j=i;j<sz&&p2crefine[i].first == p2crefine[j].first;++j)
         nsame++ ;
@@ -643,7 +643,7 @@ namespace Loci {
     parent2child_l.allocate(count1) ;
      parent.allocate(count1.domain()) ;
     cnt = 0 ;
-    for(size_t i=0;i<sz;) {
+    for(int i=0;i<sz;) {
       parent[cnt] = p2crefine[i].first ;
       for(int j=0;j<count1[cnt];++j)
         parent2child_l[cnt][j] = p2crefine[i+j].second ;
@@ -666,7 +666,6 @@ namespace Loci {
       center[dist->l2g[ii]] = cell_center[ii] ;
     } ENDFORALL ;
 
-    int refcells = refinedCells.size() ;
     store<double> vol_data ;
     refineCellComm.gatherData(vol_data,volume) ;
     
@@ -736,7 +735,7 @@ namespace Loci {
         sum += directWeights[j] ;
       }
       double rsum = 1./sum ;
-      for(int k=i;k<j;++k)
+      for(size_t k=i;k<j;++k)
         directWeights[k] *= rsum ;
       int cnt = j-i ;
       i+= cnt-1 ;
