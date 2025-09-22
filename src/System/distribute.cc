@@ -55,7 +55,7 @@ namespace Loci {
       res.push_back(make_pair(0,set)) ;
       return res ;
     }
-    fatal(ptn.size() != p) ;
+    fatal(int(ptn.size()) != p) ;
     std::vector<std::pair<int,entitySet> > splitlist ;
     for(int i=0;i<p;++i) {
       entitySet part = set&ptn[i] ;
@@ -91,7 +91,7 @@ namespace Loci {
       return res ;
     }
 
-    fatal(splits.size() != p+1) ;
+    fatal(int(splits.size()) != p+1) ;
     // remove any entity not defined by the partition function
     //    set -= interval(splits[0],splits[p]-1) ;
     entitySet filter = interval(splits[0],splits[p]-1) ;
