@@ -647,6 +647,11 @@ namespace Loci {
     $gradv3d_f(X).z = gradTan + gradNorm ;
   }
 
+  $type nishikawaDiffusionAlpha param<real_t> ;
+
+  /// Weighting for upwind correction in Nishikawa Diffusion Flux.  The default
+  /// setting reduces to 4th order on a cartesian mesh.
+  $rule default(nishikawaDiffusionAlpha) { $nishikawaDiffusionAlpha = 4./3. ; }
 
   $untype X ;
   $untype X_f ;
@@ -654,7 +659,7 @@ namespace Loci {
   $type X_f store<real_t> ;
 
   $rule pointwise(grads_f(X)<-(cl,cr)->(X,cellcenter,grads(X)),
-                  facecenter,area),
+                  facecenter,area,nishikawaDiffusionAlpha),
     constraint(faceGradStencil_select_nishikawa,(cl,cr)->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
@@ -672,7 +677,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     // Extra factor of 2 to balance out 1/2 factor in coef
     const real_t corr4 = 2.*alpha*(Xr-Xl)/edotn ;
     $grads_f(X) = 0.5*($cl->$grads(X)+$cr->$grads(X) + corr4*an) ;
@@ -681,7 +686,7 @@ namespace Loci {
         
 
   $rule pointwise(grads_f(X)<-area,ci->(X,cellcenter,grads(X)),
-                  X_f,facecenter),
+                  X_f,facecenter,nishikawaDiffusionAlpha),
     constraint(faceGradStencil_select_nishikawa,ci->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
@@ -698,7 +703,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
 
     const real_t corr4 = alpha*(Xr-Xl)/edotn ;
     $grads_f(X) = ($ci->$grads(X) + corr4*an) ;
@@ -710,7 +715,7 @@ namespace Loci {
   $type X_f store<vector3d<real_t> > ;
 
   $rule pointwise(gradv3d_f(X)<-(cl,cr)->(X,cellcenter,gradv3d(X)),
-                  facecenter,area),
+                  facecenter,area,nishikawaDiffusionAlpha),
     constraint(faceGradStencil_select_nishikawa,(cl,cr)->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
@@ -732,7 +737,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     // Extra factor of 2 to balance out 1/2 factor in coef
     const vect3d corr4 = 2.*alpha*(Xr-Xl)/edotn ;
     $gradv3d_f(X).x = 0.5*($cl->$gradv3d(X).x+$cr->$gradv3d(X).x + corr4.x*an) ;
@@ -743,7 +748,7 @@ namespace Loci {
         
 
   $rule pointwise(gradv3d_f(X)<-area,ci->(X,cellcenter,gradv3d(X)),
-                  X_f,facecenter),
+                  X_f,facecenter,nishikawaDiffusionAlpha),
     constraint(faceGradStencil_select_nishikawa,ci->cellcenter) {
 
     // Use gradients to compute upwind extrapolated values for left and right
@@ -762,7 +767,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$ci->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
 
     const vect3d corr4 = alpha*(Xr-Xl)/edotn ;
     $gradv3d_f(X).x = ($ci->$gradv3d(X).x + corr4.x*an) ;
@@ -776,7 +781,8 @@ namespace Loci {
   $type X storeVec<real> ;
   $type X_f storeVec<real> ;
   
-  $rule pointwise(gradv_f(X)<-(cr,cl)->(X,cellcenter,gradv(X)),facecenter,area),
+  $rule pointwise(gradv_f(X)<-(cr,cl)->(X,cellcenter,gradv(X)),
+                  facecenter,area,nishikawaDiffusionAlpha),
     constraint(faceGradStencil_select_nishikawa,(cl,cr)->X), prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
@@ -789,7 +795,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = dot($cr->$cellcenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     const int vs = $*gradv_f(X).vecSize() ;
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$gradv(X)[i],dvl) ;
@@ -799,7 +805,8 @@ namespace Loci {
     }
   }
   
-  $rule pointwise(gradv_f(X)<-cl->(X,cellcenter,gradv(X)),X_f,facecenter,area),
+  $rule pointwise(gradv_f(X)<-cl->(X,cellcenter,gradv(X)),X_f,
+                  facecenter,area,nishikawaDiffusionAlpha),
       constraint(faceGradStencil_select_nishikawa,ci->X),prelude {
     $gradv_f(X).setVecSize($X.vecSize()) ;
   } compute {
@@ -811,7 +818,7 @@ namespace Loci {
     // scheme - I: Basic principle.Comput. Fluids, 49(1):62{86, October 2011.
     // estimate of diffusion length
     const real_t edotn = 2.*dot($facecenter-$cl->$cellcenter,an) ;
-    const real_t alpha = 4./3. ; // Weighting reducing to fourth order
+    const real_t alpha = $nishikawaDiffusionAlpha ; 
     const int vs = $*gradv_f(X).vecSize() ;
     for(int i=0;i<vs;++i) {
       const real_t Xl = $cl->$X[i]+dot($cl->$gradv(X)[i],dvl) ;

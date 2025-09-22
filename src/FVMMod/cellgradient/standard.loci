@@ -1,0 +1,238 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <Loci.h>
+#include "FVMMod/LSWeights.h"
+$include "FVM.lh"
+$include "FVMMod/cellgradient.lh"
+
+namespace Loci {
+
+
+  $rule pointwise(lower->Wf_r,upper->Wf_l,boundary_map->Wf_l<-cellcenter,
+                  lower->cl->cellcenter,upper->cr->cellcenter,
+                  boundary_map->facecenter,(lower,upper,boundary_map)->area),
+    constraint(geom_cells,cartesianCoordinateModel) {
+    const int lsz = $lower.size() ;
+    const int usz = $upper.size() ;
+    const int bsz = $boundary_map.size() ;
+    const int ndeltas = lsz+usz+bsz ;
+
+    tmp_array<vector3d<real_t> > deltas(ndeltas) ;
+    tmp_array<vector3d<real_t> > weights(ndeltas) ;
+    tmp_array<real_t> areas(ndeltas) ;
+    const vector3d<real_t> center = $cellcenter ;
+    int ncount = 0 ;
+    for(int i=0;i<lsz;++i) {
+      const real_t W = $lower[i]->$area.sada ;
+      areas[ncount] = W ;
+      deltas[ncount++] = W*($lower[i]->$cl->$cellcenter - center) ;
+      }
+    for(int i=0;i<usz;++i) {
+      const real_t W = $upper[i]->$area.sada ;
+      areas[ncount] = W ;
+      deltas[ncount++] = W*($upper[i]->$cr->$cellcenter - center) ;
+    }
+    for(int i =0;i<bsz;++i) {
+      const real_t W = $boundary_map[i]->$area.sada ;
+      areas[ncount] = W ;
+      deltas[ncount++] = W*($boundary_map[i]->$facecenter - center) ;
+    }
+
+    tmp_array<vector3d<real_t> > wvec(ndeltas) ;
+
+    computeLSWeights(wvec,deltas,areas,ndeltas) ;
+
+    ncount = 0 ;
+
+    for(int i=0;i<lsz;++i) {
+      $lower[i]->$Wf_r = wvec[ncount++] ;
+    }
+    for(int i=0;i<usz;++i) {
+      $upper[i]->$Wf_l = wvec[ncount++] ;
+    }
+    for(int i =0;i<bsz;++i) {
+      $boundary_map[i]->$Wf_l = wvec[ncount++] ;
+    }
+  }
+
+  $rule pointwise(lower->Wf_r,upper->Wf_l,boundary_map->Wf_l<-cellcenter,
+                  lower->cl->cellcenter,upper->cr->cellcenter,
+                  boundary_map->facecenter),
+    constraint(geom_cells,axisymmetricCoordinateModel) {
+    const int lsz = $lower.size() ;
+    const int usz = $upper.size() ;
+    const int bsz = $boundary_map.size() ;
+    const int ndeltas = lsz+usz+bsz ;
+
+    tmp_array<vector3d<real_t> > deltas(ndeltas) ;
+    tmp_array<vector3d<real_t> > weights(ndeltas) ;
+    tmp_array<real_t> areas(ndeltas) ;
+    const vector3d<real_t> center = $cellcenter ;
+    int ncount = 0 ;
+    for(int i=0;i<lsz;++i) {
+      const vector3d<real_t> dv = ($lower[i]->$cl->$cellcenter - center) ;
+      const real_t W = 1./norm(dv) ;
+      areas[ncount] = W ;
+      deltas[ncount++] = W*dv ;
+      }
+    for(int i=0;i<usz;++i) {
+      const vector3d<real_t> dv = ($upper[i]->$cr->$cellcenter - center) ;
+      const real_t W = 1./norm(dv) ;
+      areas[ncount] = W ;
+      deltas[ncount++] = W*dv ;
+    }
+    for(int i =0;i<bsz;++i) {
+      const vector3d<real_t> dv = ($boundary_map[i]->$facecenter - center) ;
+      const real_t W = 1./norm(dv) ;
+      areas[ncount] = W ;
+      deltas[ncount++] = W*dv ;
+    }
+
+    tmp_array<vector3d<real_t> > wvec(ndeltas) ;
+
+    computeLSWeights(wvec,deltas,areas,ndeltas) ;
+
+    ncount = 0 ;
+
+    for(int i=0;i<lsz;++i) {
+      $lower[i]->$Wf_r = wvec[ncount++] ;
+    }
+    for(int i=0;i<usz;++i) {
+      $upper[i]->$Wf_l = wvec[ncount++] ;
+    }
+    for(int i =0;i<bsz;++i) {
+      $boundary_map[i]->$Wf_l = wvec[ncount++] ;
+    }
+  }
+
+
+  $untype X ;
+  $untype X_f ;
+  $type X store<real_t> ;
+  $type X_f store<real_t> ;
+
+  $rule pointwise(grads(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
+                  lower->cl->X,upper->cr->X,boundary_map->X_f,X),
+  constraint(geom_cells,gradStencil_select_standard,gradType_select_standard) {
+
+    vector3d<real_t> Qt_b = vector3d<real_t>(0,0,0) ;
+    real_t X_center = $X ;
+    const int lsz = $lower.size() ;
+    for(int i=0;i<lsz;++i) {
+      real_t df = $lower[i]->$cl->$X - X_center ;
+      Qt_b += df*$lower[i]->$Wf_r ;
+    }
+    const int usz = $upper.size() ;
+    for(int i=0;i<usz;++i) {
+      real_t df = $upper[i]->$cr->$X - X_center ;
+      Qt_b += df*$upper[i]->$Wf_l ;
+    }
+    const int bsz = $boundary_map.size() ;
+    for(int i=0;i<bsz;++i) {
+      real_t df = $boundary_map[i]->$X_f - X_center ;
+      Qt_b += df*$boundary_map[i]->$Wf_l ;
+    }
+
+    $grads(X) = Qt_b ;
+  }
+
+  $untype X ;
+  $untype X_f ;
+  $type X store<vector3d<real_t> > ;
+  $type X_f store<vector3d<real_t> > ;
+  $rule pointwise(gradv3d(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
+                  lower->cl->X,upper->cr->X,boundary_map->X_f,X),
+  constraint(geom_cells,gradStencil_select_standard,gradType_select_standard) {
+
+    tensor3d<real_t>  Qt_b = tensor3d<real_t> (vector3d<real_t>(0,0,0),
+                                               vector3d<real_t>(0,0,0),
+                                               vector3d<real_t>(0,0,0)) ;
+    vector3d<real_t> X_center = $X ;
+    const int lsz = $lower.size() ;
+    for(int i=0;i<lsz;++i) {
+      vector3d<real_t> df = $lower[i]->$cl->$X - X_center ;
+      vector3d<real_t> Wr = $lower[i]->$Wf_r ;
+      Qt_b.x += df.x*Wr ;
+      Qt_b.y += df.y*Wr ;
+      Qt_b.z += df.z*Wr ;
+    }
+    const int usz = $upper.size() ;
+    for(int i=0;i<usz;++i) {
+      vector3d<real_t> df = $upper[i]->$cr->$X - X_center ;
+      vector3d<real_t> Wl = $upper[i]->$Wf_l ;
+      Qt_b.x += df.x*Wl ;
+      Qt_b.y += df.y*Wl ;
+      Qt_b.z += df.z*Wl ;
+    }
+    const int bsz = $boundary_map.size() ;
+    for(int i=0;i<bsz;++i) {
+      vector3d<real_t> df = $boundary_map[i]->$X_f - X_center ;
+      vector3d<real_t> Wl = $boundary_map[i]->$Wf_l ;
+      Qt_b.x += df.x*Wl ;
+      Qt_b.y += df.y*Wl ;
+      Qt_b.z += df.z*Wl ;
+    }
+
+    $gradv3d(X) = Qt_b ;
+  }
+
+
+  $untype X ;
+  $untype X_f ;
+  $type X storeVec<real_t> ;
+  $type X_f storeVec<real_t> ;
+
+  $rule pointwise(gradv(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
+                  lower->cl->X,upper->cr->X,boundary_map->X_f,X),
+  constraint(geom_cells,gradStencil_select_standard,gradType_select_standard),prelude {
+    $gradv(X).setVecSize($X.vecSize()) ;
+  } compute {
+    int vs = $*X.vecSize()  ;
+    for(int v=0;v<vs;++v)
+      $gradv(X)[v] = vector3d<real_t>(0.,0.,0.) ;
+    const int lsz = $lower.size() ;
+    for(int i=0;i<lsz;++i) {
+      const vector3d<real_t> Wr = $lower[i]->$Wf_r ;
+      for(int v=0;v<vs;++v) {
+        real_t df = $lower[i]->$cl->$X[v] - $X[v] ;
+        $gradv(X)[v] += df*Wr ;
+      }
+    }
+    const int usz = $upper.size() ;
+    for(int i=0;i<usz;++i) {
+      const vector3d<real_t> Wl = $upper[i]->$Wf_l ;
+      for(int v=0;v<vs;++v) {
+        real_t df = $upper[i]->$cr->$X[v] - $X[v] ;
+        $gradv(X)[v] += df*Wl ;
+      }
+    }
+    const int bsz = $boundary_map.size() ;
+    for(int i=0;i<bsz;++i) {
+      const vector3d<real_t> Wl = $boundary_map[i]->$Wf_l ;
+
+      for(int v=0;v<vs;++v) {
+        real_t df = $boundary_map[i]->$X_f[v] - $X[v] ;
+        $gradv(X)[v] += df*Wl ;
+      }
+    }
+  }
+
+}
