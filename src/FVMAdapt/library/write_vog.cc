@@ -480,7 +480,9 @@ namespace Loci {
     // Figure out child cells that have multiple parents.  These are derefined
     // cells that need to be averaged during the interpolation step
     //
+#ifdef DEBUG
     int derefinecnt = 0 ;
+#endif
     sz = c2p.size() ;
     //    WARN(sz == 0) ;
 
@@ -488,8 +490,10 @@ namespace Loci {
       int nsame = 0 ;
       for(int j=i;(j<sz)&&(c2p[i].first == c2p[j].first);++j)
         nsame++ ;
+#ifdef DEBUG
       if(nsame > 1)
         derefinecnt += nsame ;
+#endif
       i += nsame ;
     }
 #ifdef DEBUG
@@ -591,7 +595,6 @@ namespace Loci {
     entitySet gradAccessSet ;
     if(stencilAccessSet != EMPTY)
       gradAccessSet=interval(0,stencilAccessSet.size()) ;
-    gradAccessSet = gradAccessSet ;
     
     // renumber gradient map
     std::map<int,int> glocalmap ;
