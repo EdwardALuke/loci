@@ -87,7 +87,11 @@ void (*binaryio_error)(char *msg) = NULL;
 #if ARCH_LOCAL == ARCH_BSIEEE
 # define ieee2short(S)  *((short *)swap2((unsigned char *)(S)))
 # define ieee2int(I)    *((int *)swap4((unsigned char *)(I)))
+#if defined(__x86_64__)
+# define ieee2long(L)   *((long *)swap4to8((unsigned char *)(L)))
+#else
 # define ieee2long(L)   *((long *)swap4((unsigned char *)(L)))
+#endif
 # define ieee2float(F)  *((float *)swap4((unsigned char *)(F)))
 # define ieee2double(D) *((double *)swap8((unsigned char *)(D)))
 # define short2ieee(S)  swap2((unsigned char *)(S))
