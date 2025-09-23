@@ -192,4 +192,30 @@
 
 	Added unit scaling to msh2vog gmsh format converter.
 
+//-----------------------------------------------------------------------------
+	Version V 4.0 p10 -> V 4.0 p11
+
+	Fixed scalability issues
+
+	Fixed issue with petsc solver for periodic boundaries
+
+	Fixed error in gradient gradient stencils full and stable
+
+	Made minor changes to ease transition to 4.1 release of Loci
+
+//-----------------------------------------------------------------------------
+	Version V 4.0.p11 -> V 4.1.0
+
+	Extensive updates from 4.0 line including but not limmited to:
+
+	* New experimental CUDA interface
+	* Added selector idiom as parametric rules in FVMMod
+	* Added new stencil search algorithms and iterative gradient method
+	* Added new limiter options
+	* Extensive revisions to online adaptation API
+	* Extended petsc interface in FVMMod
+	* Added support for PTScotch as an alternative to ParMETIS
+	* Many scalability improvements
+	* Added new online documentation interface
 	
+
