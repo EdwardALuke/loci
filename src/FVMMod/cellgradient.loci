@@ -68,7 +68,6 @@ namespace Loci {
 
   $type periodicTransform store<rigid_transform> ;
 
-  $untype X ;
   $type X store<real_t> ;
   
   $rule pointwise(cr->grads(X)<-pmap->cl->grads(X),

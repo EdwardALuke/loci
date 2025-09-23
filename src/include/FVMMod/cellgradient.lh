@@ -50,6 +50,8 @@ $type cellStencil multiMap ;
 $type LSWeights multiStore<vector3d<real_t> > ;
 /// Weights for boundary faces
 $type LSBWeights multiStore<vector3d<real_t> > ;
+/// Select non-iterative gradient method
+$type gradType_select_standard Constraint ;
 
 /// Face based storage of stencil weights for standard gradient method
 $type Wf_l store<vector3d<real_t> > ;
