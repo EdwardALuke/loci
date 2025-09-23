@@ -124,8 +124,6 @@ namespace Loci {
   }
 
 
-  $untype X ;
-  $untype X_f ;
   $type X store<real_t> ;
   $type X_f store<real_t> ;
 
