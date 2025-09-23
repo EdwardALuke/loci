@@ -179,7 +179,6 @@ namespace Loci {
           T limi = limstop ;
           // Apply limiter to source points
           for(int j=0;j<ssz;++j) {
-            const int cc = gradCellStencil[ii][j] ;
             T qdif = dot(gradk,grad_dvs[ii][j]) ;
             if(qdif > 0)
               limi = min(limi,(max_val-Xcc)/(qdif+1e-100)) ;
@@ -287,7 +286,6 @@ namespace Loci {
         T limi = limstop ;
         // Apply limiter to source points
         for(int j=0;j<ssz;++j) {
-          const int cc = gradCellStencil[ii][j] ;
           T qdif = dot(gradk,grad_dvs[ii][j]) ;
           if(qdif > 0)
             limi = min(limi,(max_val-Xcc)/(qdif+1e-100)) ;
@@ -397,7 +395,6 @@ namespace Loci {
         T limi = limstop ;
         // Apply limiter to source points
         for(int j=0;j<ssz;++j) {
-          const int cc = gradCellStencil[ii][j] ;
           T qdifx = dot(gradkx,grad_dvs[ii][j]) ;
           if(qdifx > 0)
             limi = min(limi,(max_val.x-Xcc.x)/(qdifx+1e-100)) ;

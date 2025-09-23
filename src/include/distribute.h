@@ -306,7 +306,7 @@ namespace Loci {
       std::vector<T> recv_data(recv_sz) ;
 
       // copy self data to result buffer first (don't send using MPI)
-      for(size_t i=0;i<send_sizes[r];++i)
+      for(int i=0;i<send_sizes[r];++i)
         recv_data[send_offsets[r]+i] = buffer[recv_offsets[r]+i] ;
 
       // Count how many sends and recvs
@@ -412,7 +412,7 @@ namespace Loci {
           send_data[i*vs+j] = data[send_entities[i]][j] ;
 
       // copy self data to result buffer first (don't send using MPI)
-      for(size_t i=0;i<send_sizes[r];++i)
+      for(int i=0;i<send_sizes[r];++i)
         for(int j=0;j<vs;++j) 
           result[recv_offsets[r]+i][j] =
             send_data[(send_offsets[r]+i)*vs+j] ;
@@ -495,7 +495,7 @@ namespace Loci {
       std::vector<T> recv_data(recv_sz*vs) ;
 
       // copy self data to result buffer first (don't send using MPI)
-      for(size_t i=0;i<send_sizes[r];++i)
+      for(int i=0;i<send_sizes[r];++i)
         for(int j=0;j<vs;++j)
           recv_data[(send_offsets[r]+i)*vs+j] = buffer[recv_offsets[r]+i][j] ;
 
