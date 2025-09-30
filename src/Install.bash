@@ -104,7 +104,7 @@ cp include/*.h $INSTALL_PATH/include
 cp include/*.lh $INSTALL_PATH/include
 cp include/Loci $INSTALL_PATH/include
 
-for i in  Tools Config MPI_stubb FVMAdapt FVMOverset; do
+for i in  Tools Config MPI_stubb FVMAdapt FVMOverset FVMMod; do
     mkdir -p $INSTALL_PATH/include/$i
     cp include/$i/*.h $INSTALL_PATH/include/$i
 done
