@@ -535,9 +535,11 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
     vector<float> data_store ;
     vector<int> data_size;
     vector<int> conn ;
-    vector<int> cell_offsets ;
+    vector<int> cell_offsets_int ;
+    vector<long long unsigned int> cell_offsets ;
     vector<int> cell_faces ;
-    vector<int> face_offsets ;
+    vector<int> face_offsets_int ;
+    vector<long long unsigned int> face_offsets ;
     vector<unsigned char> cell_types ;
  
     int int_size =bit64 ? sizeof(long long unsigned int) : sizeof(int); 
@@ -652,6 +654,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		  off++ ;
 		}
 		cell_types.push_back(ctype);
+		cell_offsets_int.push_back(off);
 		cell_offsets.push_back(off);
               
 		cell_faces.push_back(nf); face_off++;
@@ -662,6 +665,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		    cell_faces.push_back(nn); face_off++;
 		  }
 		}
+		face_offsets_int.push_back(face_off) ;
 		face_offsets.push_back(face_off) ;
 	      }
 	    }
@@ -673,6 +677,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		  off++ ;
 		}
 		cell_types.push_back(ctype);
+		cell_offsets_int.push_back(off);
 		cell_offsets.push_back(off);
 	      }
 	    }
@@ -721,6 +726,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		off++ ;
 	      }
 	      cell_types.push_back(ctype);
+	      cell_offsets_int.push_back(off);
 	      cell_offsets.push_back(off);
       
 	      cell_faces.push_back(nf); face_off++;
@@ -731,6 +737,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		  cell_faces.push_back(nn); face_off++;
 		}
 	      }
+	      face_offsets_int.push_back(face_off) ;
 	      face_offsets.push_back(face_off) ;
 	    }
 	  }
@@ -742,6 +749,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		off++ ;
 	      }
 	      cell_types.push_back(ctype);
+	      cell_offsets_int.push_back(off);
 	      cell_offsets.push_back(off);
 	    }
 	  }
@@ -790,6 +798,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		off++ ;
 	      }
 	      cell_types.push_back(ctype);
+	      cell_offsets_int.push_back(off);
 	      cell_offsets.push_back(off);
       
 	      cell_faces.push_back(nf); face_off++;
@@ -800,6 +809,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		  cell_faces.push_back(nn); face_off++;
 		}
 	      }
+	      face_offsets_int.push_back(face_off) ;
 	      face_offsets.push_back(face_off) ;
 	    }
 	  }
@@ -811,6 +821,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		off++ ;
 	      }
 	      cell_types.push_back(ctype);
+	      cell_offsets_int.push_back(off);
 	      cell_offsets.push_back(off);
 	    }
 	  }
@@ -859,6 +870,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		off++ ;
 	      }
 	      cell_types.push_back(ctype);
+	      cell_offsets_int.push_back(off);
 	      cell_offsets.push_back(off);
       
 	      cell_faces.push_back(nf); face_off++;
@@ -869,6 +881,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		  cell_faces.push_back(nn); face_off++;
 		}
 	      }
+	      face_offsets_int.push_back(face_off) ;
 	      face_offsets.push_back(face_off) ;
 	    }
 	  }
@@ -880,6 +893,7 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 		off++ ;
 	      }
 	      cell_types.push_back(ctype);
+	      cell_offsets_int.push_back(off);
 	      cell_offsets.push_back(off);
 	    }
 	  }
@@ -932,7 +946,9 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
 	  off += (long long unsigned int) tmp.size() ;
           
 	  cell_types.push_back(ctype) ;
+	  cell_offsets_int.push_back(off) ;
 	  cell_offsets.push_back(off) ;
+	  face_offsets_int.push_back(face_off) ;
 	  face_offsets.push_back(face_off) ;
 	}
         
@@ -949,15 +965,25 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
       fprintf(fid,"      <Cells>\n");
       fprintf(fid,"        <DataArray type='Int32' Name='connectivity' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
       Offset += off * sizeof (int) + int_size ;
-      fprintf(fid,"        <DataArray type='Int32' Name='offsets' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
-      Offset += ncells * sizeof (int) + int_size ;
+      if (bit64) {
+        fprintf(fid,"        <DataArray type='UInt64' Name='offsets' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
+      }
+      else {  
+	fprintf(fid,"        <DataArray type='Int32' Name='offsets' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
+      }
+      Offset += ncells * int_size + int_size ;
       fprintf(fid,"        <DataArray type='UInt8' Name='types' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
       Offset += ncells * sizeof (unsigned char) + int_size ;
       if (ngen) { // include faces and faceoffsets
 	fprintf(fid,"        <DataArray type='Int32' Name='faces' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
 	Offset += (long long unsigned int) cell_faces.size() * sizeof (int) + int_size ;
-	fprintf(fid,"        <DataArray type='Int32' Name='faceoffsets' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
-	Offset += (long long unsigned int) face_offsets.size() * sizeof (int) + int_size ;
+	if (bit64) {
+	  fprintf(fid,"        <DataArray type='UInt64' Name='faceoffsets' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
+	}
+	else {
+	  fprintf(fid,"        <DataArray type='Int32' Name='faceoffsets' NumberOfComponents='1' format='appended' offset='%llu'/>\n",Offset);
+        }
+	Offset += (long long unsigned int) face_offsets.size() * int_size + int_size ;
       }
       fprintf(fid,"      </Cells>\n");
       fprintf(fid,"      <PointData>\n");
@@ -1022,14 +1048,14 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
       fprintf(fid,"  <AppendedData encoding='raw'>\n");
       fprintf(fid,"_");
       long long unsigned int Scalar = npnts * sizeof (float), Vector = 3 * Scalar;
-      long long unsigned int Cells = (long long unsigned int) cell_types.size() * sizeof(int);
+      long long unsigned int Cells = (long long unsigned int) cell_types.size() * int_size ;
       long long unsigned int CellChars = (long long unsigned int) cell_types.size() * sizeof(unsigned char);
       long long unsigned int Conn = (long long unsigned int) conn.size() * sizeof(int);
       if (!bit64) {
-	if ( Scalar > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview 3.98." << endl; exit(1); }
-	if ( Vector > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview 3.98." << endl; exit(1); }
-	if ( Cells > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview 3.98." << endl; exit(1); }
-	if ( Conn > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview 3.98." << endl; exit(1); }
+	if ( Scalar > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview v3.98 or newer." << endl; exit(1); }
+	if ( Vector > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview v3.98 or newer." << endl; exit(1); }
+	if ( Cells > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview v3.98 or newer." << endl; exit(1); }
+	if ( Conn > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview v3.98 or newer." << endl; exit(1); }
       }
       fwrite((const char *) (&Vector), int_size, 1, fid) ;
       fwrite((const char *) (&pos[0]), sizeof (float), 3 * npnts, fid) ;
@@ -1038,28 +1064,41 @@ void vtkPartConverter::exportPostProcessorFiles(string casename, string iteratio
       fwrite((const char *) &conn[0], sizeof (int), (long long unsigned int) conn.size(), fid) ;
       vector<int>().swap(conn) ;
       fwrite((const char *) (&Cells), int_size, 1, fid) ;
-      fwrite((const char *) &cell_offsets[0], sizeof (int), (long long unsigned int) cell_offsets.size(), fid) ;
-      vector<int>().swap(cell_offsets) ;
+      if (bit64) {
+        fwrite((const char *) &cell_offsets[0], int_size, (long long unsigned int) cell_offsets.size(), fid) ;
+      }
+      else {
+        fwrite((const char *) &cell_offsets_int[0], int_size, (long long unsigned int) cell_offsets_int.size(), fid) ;
+      }
+      vector<int>().swap(cell_offsets_int) ;
+      vector<long long unsigned int>().swap(cell_offsets) ;
       fwrite((const char *) (&CellChars), int_size, 1, fid) ;
       fwrite((const char *) &cell_types[0], sizeof (unsigned char), (long long unsigned int) cell_types.size(), fid) ;
       vector<unsigned char>().swap(cell_types) ;
       if (ngen) {
 	long long unsigned int Faces = (long long unsigned int) cell_faces.size() * sizeof(int) ;
-	long long unsigned int FaceConn = (long long unsigned int) face_offsets.size() * sizeof(int) ;
+	long long unsigned int FaceConn = (long long unsigned int) face_offsets.size() * int_size ;
 	if (!bit64) {
-	  if ( Faces > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview 3.98." << endl; exit(1); }
-	  if ( FaceConn > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview 3.98." << endl; exit(1); }
+	  if ( Faces > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview v3.98 or newer." << endl; exit(1); }
+	  if ( FaceConn > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview v3.98 or newer." << endl; exit(1); }
 	}
 	fwrite((const char *) (&Faces), int_size, 1, fid) ;
 	fwrite((const char *) &cell_faces[0], sizeof (int), (long long unsigned int) cell_faces.size(), fid) ;
 	fwrite((const char *) (&FaceConn), int_size, 1, fid) ;
-	fwrite((const char *) &face_offsets[0], sizeof (int), (long long unsigned int) face_offsets.size(), fid) ;
+	if (bit64) {
+	  fwrite((const char *) &face_offsets[0], int_size, (long long unsigned int) face_offsets.size(), fid) ;
+	}
+	else {
+	  fwrite((const char *) &face_offsets_int[0], int_size, (long long unsigned int) face_offsets_int.size(), fid) ;
+        }
+        vector<int>().swap(face_offsets_int) ;
+        vector<long long unsigned int>().swap(face_offsets) ;
       }
       long long unsigned int curr_loc = 0;
       for (long long unsigned int i=0;i<(long long unsigned int)data_size.size();i++) {
 	long long unsigned int ndata = data_size[i], ndata_size = ndata * sizeof (float); 
 	if (!bit64) {
-	  if ( ndata_size > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview 3.98." << endl; exit(1); }
+	  if ( ndata_size > std::numeric_limits<unsigned int>::max()) { cerr << "Dataset too large. Must use -vtk64 and Paraview v3.98 or newer." << endl; exit(1); }
 	}
 	fwrite((const char *) (&ndata_size), int_size, 1, fid) ;
 	fwrite((const char *) (&data_store[curr_loc]), sizeof (float), ndata, fid) ;
