@@ -1,14 +1,44 @@
-*.toc
-*.aux
-*.pdf
-*.log
+# Git submodule build and install local directories
+GKLIB_build
+GKLIB_install
+
+hdf5_install
+hdf5_build
+
+cgns_build
+cgns_install
+
+METIS_build
+METIS_install
+
+ParMETIS_build
+ParMETIS_install
+
+petsc_build
+petsc_install
+
+scotch_build
+scotch_install
+
+# Temporary files
 *~
+
+# Build artifact files
+/Makefile
 *.o
 *.d
-*.code-workspace
-copy.out
 OBJ
-/Makefile
+copy.out
+
+# Code IDE files
+*.code-workspace
+.vscode/
+
+# Documentation artifacts
+*.aux
+*.log
+*.pdf
+*.toc
 Tutorial/docs/Makefile_ex.tex
 Tutorial/docs/entities_cc.tex
 Tutorial/docs/helpers_cc.tex
