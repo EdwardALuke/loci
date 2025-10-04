@@ -181,6 +181,36 @@ namespace Loci {
     }
 
   }
+
+  void options_list::getOptionUnits(const string &option,
+                                    const string &units,
+                                    VFAD &value) const {
+    if(optionExists(option)) {
+      if(getOptionValueType(option) == Loci::REAL) {
+        getOption(option,value) ;
+      } else if(getOptionValueType(option) == Loci::UNIT_VALUE) {
+        Loci::UNIT_type Tu ;
+        getOption(option,Tu) ;
+        if(!Tu.is_compatible(units)) {
+            ostringstream oss ;
+          oss << "wrong type of unit for " << option <<": " << Tu << endl ;
+          oss << "should have units compatible with " << units << endl ;
+          throw StringError(oss.str()) ;
+        } else {
+          value = Tu.get_value_inVF(units) ;
+        }
+      } else {
+          ostringstream oss ;
+          oss << "incorrect type for "<< option << endl ;
+          throw StringError(oss.str()) ;
+      }
+    } else {
+      ostringstream oss ;
+      oss << "options list cannot find option " << option << endl ;
+      throw StringError(oss.str()) ;
+    }
+
+  }
   
   void options_list::getOptionUnits(const std::string &vname, 
 				    const std::string &units,
@@ -601,6 +631,145 @@ namespace Loci {
       throw StringError(oss.str()) ;
     }
   }
+  void options_list::getOptionUnits(const std::string &vname, 
+				    const std::string &units,
+				    vector3d<VFAD> &vec, 
+				    VFAD scale) const {
+    Loci::option_value_type ovt= getOptionValueType(vname) ;
+    if(ovt == Loci::REAL) {
+      VFAD v ;
+      getOption(vname,v) ;
+      vec = vector3d<VFAD>(v*scale,VFAD(),VFAD()) ;
+    } else if(getOptionValueType(vname) == Loci::UNIT_VALUE) {
+      Loci::UNIT_type vu ;
+      getOption(vname,vu) ;
+      if(!vu.is_compatible(units)) {
+	ostringstream oss ;
+        oss << "wrong type of units for vector " << vname
+	    << ": " << vu << std::endl ;
+	throw StringError(oss.str()) ;
+      } else {
+        VFAD v ;
+        v = vu.get_value_inVF(units) ;
+        vec = vector3d<VFAD>(v,VFAD(),VFAD()) ;
+      }
+    } else if(ovt == Loci::LIST) {
+      Loci::options_list::arg_list value_list ;
+      getOption(vname,value_list) ;
+      if(value_list.size() != 3) {
+	ostringstream oss ;
+        oss << "error on reading '" << vname
+	    <<"': vector input must contain 3 terms"
+	    << std::endl ;
+	throw StringError(oss.str()) ;
+      }
+      for(int i=0;i<3;++i)
+        if(value_list[i].type_of() != Loci::REAL &&
+           value_list[i].type_of() != Loci::UNIT_VALUE) {
+	  ostringstream oss ;
+          oss << "improper vector specification for '"
+	      << vname << std::endl ;
+	  throw StringError(oss.str()) ;
+        }
+      VFAD vecval[3] ;
+      for(int i=0;i<3;++i) {
+        if(value_list[i].type_of() == Loci::UNIT_VALUE) {
+          Loci::UNIT_type vu ;
+          value_list[i].get_value(vu) ;
+          if(!vu.is_compatible(units)) {
+	    ostringstream oss ;
+            oss << "wrong type of units for vector " << vname
+		<< ": " << vu << std::endl ;
+	    throw StringError(oss.str()) ;
+          }
+          vecval[i] = vu.get_value_inVF(units) ;
+        } else {
+          value_list[i].get_value(vecval[i]) ;
+          vecval[i] *= scale ;
+        }
+      }
+      vec.x = vecval[0] ;
+      vec.y = vecval[1] ;
+      vec.z = vecval[2] ;
+    } else if(ovt == Loci::FUNCTION) {
+      string name ;
+      Loci::options_list::arg_list value_list ;
+      getOption(vname,name,value_list) ;
+      if(name != "polar") {
+	ostringstream oss ;
+        oss << "don't know coordinate function '" << name
+	    <<"', defaulting to polar" << std::endl ;
+	throw StringError(oss.str()) ;
+      }
+      if(value_list.size() != 3) {
+	ostringstream oss ;
+        oss << "error on reading '"
+	    << vname << "': vector input must contain 3 terms"
+	    << std::endl ;
+	throw StringError(oss.str()) ;
+      }
+      for(int i=0;i<3;++i)
+        if(value_list[i].type_of() != Loci::REAL &&
+           value_list[i].type_of() != Loci::UNIT_VALUE) {
+	  ostringstream oss ;
+          oss << "improper vector specification for '"
+	      << vname << std::endl ;
+	  throw StringError(oss.str()) ;
+        }
+      VFAD r=1 ,theta=0 ,eta=0 ;
+      double conv = M_PI/180.0 ;
+      if(value_list[0].type_of() == Loci::UNIT_VALUE) {
+        Loci::UNIT_type vu ;
+        value_list[0].get_value(vu) ;
+        if(!vu.is_compatible(units)) {
+	  ostringstream oss ;
+          oss << "wrong type of units for vector " << vname
+	      << ": " << vu << std::endl ;
+	  throw StringError(oss.str()) ;
+        }
+        r = vu.get_value_inVF(units) ;
+      } else {
+        value_list[0].get_value(r) ;
+        r *= scale ;
+      }
+      if(value_list[1].type_of() == Loci::UNIT_VALUE) {
+        Loci::UNIT_type vu ;
+        value_list[1].get_value(vu) ;
+        if(!vu.is_compatible("radians")) {
+	  ostringstream oss ;
+          oss << "wrong type of units for vector " << vname
+                    << ": " << vu << std::endl ;
+	  throw StringError(oss.str()) ;
+        }
+        theta = vu.get_value_inVF("radians") ;
+      } else {
+        value_list[1].get_value(theta) ;
+        theta *= conv  ;
+      }
+      if(value_list[2].type_of() == Loci::UNIT_VALUE) {
+        Loci::UNIT_type vu ;
+        value_list[2].get_value(vu) ;
+        if(!vu.is_compatible("radians")) {
+	  ostringstream oss ;
+          oss << "wrong type of units for vector " << vname
+                    << ": " << vu << std::endl ;
+	  throw StringError(oss.str()) ;
+        }
+        eta = vu.get_value_inVF("radians") ;
+      } else {
+        value_list[2].get_value(eta) ;
+        eta *= conv  ;
+      }
+      
+      vec.x = r*cos(theta)*cos(eta) ;
+      vec.y = r*sin(theta)*cos(eta) ;
+      vec.z = r*sin(eta) ;
+    } else {
+      ostringstream oss ;
+      oss << "unable to get vector type!" << std::endl ;
+      throw StringError(oss.str()) ;
+    }
+  }
   
   void options_list::getOptionUnits(const std::string &vname, 
 				    const std::string &units,
@@ -612,6 +781,12 @@ namespace Loci {
 				    const std::string &units,
 				    vector3d<MFADd> &vec) const {
     return getOptionUnits(vname,units,vec,MFADd(1.0)) ;
+  }
+
+  void options_list::getOptionUnits(const std::string &vname, 
+				    const std::string &units,
+				    vector3d<VFAD> &vec) const {
+    return getOptionUnits(vname,units,vec,VFAD(1.0)) ;
   }
 
   void options_list::getOption(const string &option, double &value) const {
@@ -658,6 +833,23 @@ namespace Loci {
       value = MFADd((*tmp).second.real_value,
 		    &(*tmp).second.gradN[0], 
 		    (*tmp).second.grad_size) ;
+  }
+
+  void options_list::getOption(const string &option, VFAD &value) const {
+    option_map::const_iterator tmp ;
+    if((tmp = options_db.find(option)) == options_db.end()) {
+        ostringstream oss ;
+        oss << "attempt to retrieve REAL type option " << option
+            << " failed." << endl ;
+        throw StringError(oss.str()) ;
+      return ;
+    }
+    warn((*tmp).second.value_type != REAL) ;
+    if((*tmp).second.value_type == REAL) {
+      value.data.value = (*tmp).second.real_value ;
+      for(size_t i=0;i<VFAD::maxN;++i)
+        value.data.grad[i] = (*tmp).second.gradN[i] ;
+    }
   }
   
   void options_list::getOption(const string &option, UNIT_type &uvalue) const {
@@ -928,7 +1120,7 @@ namespace Loci {
 				FAD2d(real_value,real_grad,real_grad2),units) ;
 #else
         units_value = UNIT_type(UNIT_type::MKS,"general",
-				MFADd(real_value,&gradN[0],grad_size),units) ;
+				VFAD(real_value,&gradN[0],grad_size),units) ;
 #endif
         value_type = UNIT_VALUE ;
       } else

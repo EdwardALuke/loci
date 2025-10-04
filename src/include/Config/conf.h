@@ -75,7 +75,7 @@
 #endif
 #if (__GNUC__ > 4)
 #define USE_MAP_FOR_HASH_MAP
-#define NO_OFFSETOF
+//#define NO_OFFSETOF
 #endif
 
 #endif

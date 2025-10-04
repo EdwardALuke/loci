@@ -88,6 +88,12 @@ namespace Loci {
   extern MPI_Op MPI_MFADD_PROD ;
   extern MPI_Op MPI_MFADD_MIN ;
   extern MPI_Op MPI_MFADD_MAX ;
+
+  extern MPI_Datatype MPI_VFAD ;
+  extern MPI_Op MPI_VFAD_SUM ;
+  extern MPI_Op MPI_VFAD_PROD ;
+  extern MPI_Op MPI_VFAD_MIN ;
+  extern MPI_Op MPI_VFAD_MAX ;
 }
 
 #endif

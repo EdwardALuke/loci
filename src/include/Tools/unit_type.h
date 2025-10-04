@@ -47,6 +47,7 @@ namespace Loci {
     std::string input_unit;// the unit which you input
     FAD2d input_value;// the value which you input
     MFADd input_value_mfad; // the value which you input
+    VFAD input_value_vfad;
     enum unit_mode{MKS, CGS, check_available};
     // MKS: use MKS system
     // CGS: use CGS system
@@ -55,6 +56,7 @@ namespace Loci {
 
     FAD2d value;//temp container of value calculation
     MFADd value_mfad;//temp container of value calculation
+    VFAD value_vfad;//temp container of value calculation
     std::map<std::string,int> unit_num_map,unit_den_map;//containers of numerator and dnominator
     enum basic_unit_type {Length,Mass,Time,Temperature,Electric_current,
 			  Amount_of_substance,Luminous_intensity, Angle, NoDim};
@@ -92,6 +94,7 @@ namespace Loci {
     int is_single_temperature(const exprP input_expr);
     // if single temperature, do the conversion
     void calculate_temperature(exprP &input_expr, MFADd &value);
+    void calculate_temperature(exprP &input_expr, VFAD &value);
     void calculate_temperature(exprP &input_expr, FAD2d &value);
     void calculate_temperature(exprP &input_expr, FADd &value) {
       FAD2d v ;
@@ -100,6 +103,7 @@ namespace Loci {
     }
     // when you need to convert to other temperature, reserve do it.
     void reverse_calculate_temperature(exprP &input_expr,MFADd &value);
+    void reverse_calculate_temperature(exprP &input_expr,VFAD &value);
     void reverse_calculate_temperature(exprP &input_expr,FAD2d &value);
     void reverse_calculate_temperature(exprP &input_expr, FADd &value) {
       FAD2d v ;
@@ -121,6 +125,7 @@ namespace Loci {
     double get_value_in(const std::string unit_str);
     FAD2d get_value_inD(const std::string unit_str);
     MFADd get_value_inM(const std::string unit_str);
+    VFAD get_value_inVF(const std::string unit_str);
     UNIT_type(unit_mode in_mode, std::string in_kind, double in_value, std::string in_unit) {mode=in_mode,unit_kind=in_kind,value=in_value,input_unit=in_unit;
     input_value=value;
     input_value_mfad.value = value.value ;
@@ -158,6 +163,17 @@ namespace Loci {
       exp=expression::create(input_unit);
       output(exp);
     }
+    UNIT_type(unit_mode in_mode, std::string in_kind, VFAD in_value, std::string in_unit) {
+      mode=in_mode ;
+      unit_kind=in_kind ;
+      value_vfad=in_value ;
+      input_unit=in_unit ;
+      input_value = value_mfad.value ;
+      input_value_mfad=value_mfad;
+      exprP exp;
+      exp=expression::create(input_unit);
+      output(exp);
+    }
 
     UNIT_type() { mode=MKS; unit_kind=""; value = 0 ; conversion_factor=1; input_value = 0;input_value_mfad = 0 ;}
 
@@ -181,6 +197,7 @@ namespace Loci {
     void get_conversion(std::map<std::string,int> &num_map, std::map<std::string,int> &den_map,double &conversion_factor);
     bool check_unit(std::istream &in, double &value);//check input unit and get the value
     bool check_unit(std::istream &in, MFADd &value);//check input unit and get the value
+    bool check_unit(std::istream &in, VFAD &value);//check input unit and get the value
     bool check_unit(std::istream &in, FAD2d &value);//check input unit and get the value
     bool check_unit(std::istream &in, FADd &value) {
       FAD2d v ;

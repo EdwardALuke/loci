@@ -133,6 +133,12 @@ namespace Loci {
   MPI_Op MPI_MFADD_MIN ;
   MPI_Op MPI_MFADD_MAX ;
 
+  MPI_Datatype MPI_VFAD ;
+  MPI_Op MPI_VFAD_SUM ;
+  MPI_Op MPI_VFAD_PROD ;
+  MPI_Op MPI_VFAD_MIN ;
+  MPI_Op MPI_VFAD_MAX ;
+
   MPI_Info PHDF5_MPI_Info ;
   
   int MPI_processes = 1;
@@ -389,6 +395,23 @@ namespace Loci {
       rinout[i] = min(rinout[i],rin[i]) ;
   }
 
+  void sumVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] += rin[i] ;
+  }
+  void prodVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] *= rin[i] ;
+  }
+  void maxVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] = max(rinout[i],rin[i]) ;
+  }
+  void minVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] = min(rinout[i],rin[i]) ;
+  }
+
   MPI_Errhandler Loci_MPI_err_handler ;
   
 
@@ -485,6 +508,17 @@ namespace Loci {
       MPI_Op_create((MPI_User_function *)prodMFADd,1,&MPI_MFADD_PROD) ;
       MPI_Op_create((MPI_User_function *)maxMFADd,1,&MPI_MFADD_MAX) ;
       MPI_Op_create((MPI_User_function *)minMFADd,1,&MPI_MFADD_MIN) ;
+
+    }
+
+    {
+      MPI_Type_vector(sizeof(VFAD),1,1,MPI_BYTE,&MPI_VFAD) ;
+      MPI_Type_commit(&MPI_VFAD) ;
+
+      MPI_Op_create((MPI_User_function *)sumVFAD,1,&MPI_VFAD_SUM) ;
+      MPI_Op_create((MPI_User_function *)prodVFAD,1,&MPI_VFAD_PROD) ;
+      MPI_Op_create((MPI_User_function *)maxVFAD,1,&MPI_VFAD_MAX) ;
+      MPI_Op_create((MPI_User_function *)minVFAD,1,&MPI_VFAD_MIN) ;
 
     }
 #endif

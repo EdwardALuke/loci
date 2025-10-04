@@ -41,7 +41,11 @@ namespace Loci {
 #ifdef MULTIFAD
   typedef Loci::MFADd real_t ;
 #else
+#ifdef USEVFAD
+  typedef Loci::VFAD real_t ;
+#else
   typedef Loci::FADd real_t ;
+#endif
 #endif
 #endif
 #else
@@ -1689,6 +1693,9 @@ namespace Loci {
 
   inline vector3d<float> realToFloat(vector3d<FAD2d> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
   inline vector3d<double> realToDouble(vector3d<FAD2d> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
+
+  inline vector3d<float> realToFloat(vector3d<VFAD> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
+  inline vector3d<double> realToDouble(vector3d<VFAD> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
 #endif
   
   //---------------------vector2d------------------//
@@ -1873,6 +1880,10 @@ namespace Loci {
   { setZero(val.value) ; setZero(val.grad) ; setZero(val.grad2) ; }
   inline void setZero(FADd &val)
   { setZero(val.value) ; setZero(val.grad) ;  }
+  inline void setZero(VFAD &val)
+  { setZero(val.data.value) ;
+    for(size_t i=0;i<VFAD::maxN;++i)
+      setZero(val.data.grad[i]) ; }
 #endif
 }
 

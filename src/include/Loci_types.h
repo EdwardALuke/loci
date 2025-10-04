@@ -160,6 +160,48 @@ namespace Loci {
     }
   };
 
+  // Make special type manager for VFADType
+  class VFADType : public AbstractDatatype {
+  public:
+    VFADType() {}
+    hid_t get_hdf5_type() const {
+      VFAD tmp ;
+      hid_t vDatatype = H5Tcreate( H5T_COMPOUND, sizeof(tmp) ) ;
+#ifdef NO_OFFSETOF
+      size_t offset1 = reinterpret_cast<char *>(&(tmp.data.value)) - reinterpret_cast<char *>(&tmp) ;
+#else
+      size_t offset1 = offsetof(VFAD,data.value) ;	
+#endif
+      H5Tinsert(vDatatype,"value",offset1,H5T_NATIVE_DOUBLE) ;
+
+      // note, not an array, this needs to be fixed
+#ifdef NO_OFFSETOF
+      size_t offset2 = reinterpret_cast<char *>(&(tmp.data.grad[0])) - reinterpret_cast<char *>(&tmp) ;
+#else
+      size_t offset2 = offsetof(VFAD,data.grad) ;
+#endif
+      int dim = VFAD::maxN ;
+      DatatypeP atype = new ArrayType(getLociType(float()),sizeof(tmp.data.grad),1,&dim) ;
+      H5Tinsert(vDatatype,"grad",offset2,atype->get_hdf5_type()) ;
+
+      return vDatatype ;
+    }		
+    std::ostream &output(std::ostream &s, const void *p) const
+      { s << *(reinterpret_cast<const VFAD *>(p)) ; return s ;}
+    std::istream &input(std::istream &s, void *p) const
+      { s >> *(reinterpret_cast<VFAD *>(p)) ; return s ; }
+    int bytesize() const
+    { return sizeof(VFAD) ; }
+  } ;
+  
+  template<> struct data_schema_traits<VFAD> {
+    typedef IDENTITY_CONVERTER Schema_Converter ;
+    static DatatypeP get_type() {
+      return new VFADType() ;
+    }
+  };
+
+  
   template <class T>
     struct data_schema_traits< vector3d<T> > {
       typedef IDENTITY_CONVERTER Schema_Converter;
