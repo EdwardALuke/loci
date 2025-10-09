@@ -25,6 +25,7 @@
 #include <Tools/tools.h>
 #include <algorithm>
 #include <math.h>
+#include <Tools/vtypes.h>
 
 namespace Loci {
 
@@ -432,207 +433,6 @@ namespace Loci {
     return stream;
   }
 
-#ifdef NO_CMATH
-  inline double ceil(const FAD2d u) {
-    return ::ceil(u.value) ;
-  }
-  inline double floor(const FAD2d u) {
-    return ::floor(u.value) ;
-  }
-
-  inline FAD2d erf(const FAD2d u) {
-    double ef = ::erf(u.value) ;
-    double efp = (2./sqrt(M_PI))*::exp(-u.value*u.value) ;
-    double efpp = -2.*u.value*efp ;
-    return FAD2d(ef,u.grad*efp,u.grad*u.grad*efpp+efp*u.grad2) ;
-  }
-
-  inline FAD2d sin(const FAD2d u) {
-    double su = ::sin(u.value) ;
-    double cu = ::cos(u.value) ;
-    return FAD2d(su, u.grad*cu, cu*u.grad2 - u.grad*u.grad*su);
-  }
-  inline FAD2d cos(const FAD2d u) {
-    double su = ::sin(u.value) ;
-    double cu = ::cos(u.value) ;
-    return FAD2d(cu, -u.grad*su, -su*u.grad2 - u.grad*u.grad*cu);
-  }
-  inline FAD2d tan(const FAD2d u) {
-    double tanu = ::tan(u.value) ;
-    double secu = 1./::cos(u.value) ;
-    double secu2 = secu*secu ;
-    return FAD2d(tanu, u.grad*secu2,
-                 u.grad2*secu2+2.*u.grad*u.grad*secu2*tanu) ;
-  }
-
-
-  inline FAD2d exp(const FAD2d u) {
-    double eu = ::exp(u.value) ;
-    return FAD2d(eu, u.grad*eu, eu*u.grad2+u.grad*u.grad*eu);
-  }
-  inline FAD2d log(const FAD2d u) {
-    return FAD2d(::log(u.value), u.grad/u.value,
-                 u.grad2/u.value - u.grad*u.grad/(u.value*u.value));
-  }
-  inline FAD2d log10(const FAD2d u) {
-    return FAD2d(::log(u.value), u.grad/u.value,
-                 u.grad2/u.value - u.grad*u.grad/(u.value*u.value))/::log(10.0);
-  }
-
-  inline FAD2d fabs(FAD2d u) {
-    return FAD2d(::fabs(u.value),
-                 u.grad*( (u.value<0.0)?-1.0:1.0 ),
-                 u.grad2*( (u.value<0.0)?-1.0:1.0 )) ;
-  }
-  inline FAD2d abs(FAD2d u) {
-    return FAD2d(::fabs(u.value),
-                 u.grad*( (u.value<0.0)?-1.0:1.0 ),
-                 u.grad2*( (u.value<0.0)?-1.0:1.0 )) ;
-  }
-  /* MPGCOMMENT [05-12-2017 15:04] ---> POW */
-  inline FAD2d pow(const FAD2d u, const int k) {
-    return FAD2d(::pow(u.value, k),
-                 (double)k * ::pow(u.value, k-1)*u.grad,
-                 k*((k - 1)*(::pow(u.value, k - 2)*::pow(u.grad, 2)) + ::pow(u.value, k - 1)*u.grad2)) ;
-  }
-  inline FAD2d pow(const FAD2d u, const float k) {
-    return FAD2d(::pow(u.value, k),
-                 (double)k * ::pow(u.value, k-1.0)*u.grad,
-                 k*((k - 1)*(::pow(u.value, k - 2)*::pow(u.grad, 2)) + ::pow(u.value, k - 1)*u.grad2)) ;
-  }
-  inline FAD2d pow(const FAD2d u, const double k) {
-    return FAD2d(::pow(u.value, k),
-                 (double)k * ::pow(u.value, k-1.0)*u.grad,
-                 k*((k - 1)*(::pow(u.value, k - 2)*::pow(u.grad, 2)) + ::pow(u.value, k - 1)*u.grad2)) ;
-  }
-  inline FAD2d pow(const FAD2d u, const long double k) {
-    return FAD2d(::pow(u.value, k),
-                 (double)k * ::pow(u.value, k-1.0)*u.grad,
-                 k*((k - 1)*(::pow(u.value, k - 2)*::pow(u.grad, 2)) + ::pow(u.value, k - 1)*u.grad2)) ;
-  }
-  inline FAD2d sqrt(const FAD2d u) {
-    double su = ::sqrt(u.value) ;
-    return FAD2d(su,0.5*u.grad/max(su,1e-30),
-                 0.5*u.grad2/(max(su,1e-30)) - 0.25*u.grad*u.grad/(max(su*su*su,1e-30))) ;
-  }
-  inline FAD2d pow(const FAD2d k, const FAD2d u) {
-    double kpu = ::pow(k.value,u.value) ;
-    double kpu1 = ::pow(k.value,u.value-1.) ;
-    double kpu2 = ::pow(k.value,u.value-2.) ;
-    double lxu = ::log(k.value) ;
-    return FAD2d(kpu,kpu1*k.grad*u.value + kpu*lxu*u.grad,
-                 u.value*(k.grad*(kpu2*(k.grad*(u.value - 1)) +
-                                  kpu1*(lxu*u.grad)) + kpu1*k.grad2) +
-                 2*(kpu1*(k.grad*u.grad)) +
-                 lxu*(u.grad*(kpu1*(k.grad*u.value) +
-                              kpu*(lxu*u.grad)) + kpu*u.grad2)) ;
-
-  }
-  inline FAD2d pow(const int k, const FAD2d u) {
-    double kpu = ::pow(k,u.value) ;
-    double lnk = ::log(double(k)) ;
-    return FAD2d(kpu,kpu*lnk*u.grad,
-                 kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
-  }
-  inline FAD2d pow(const float k, const FAD2d u) {
-    double kpu = ::pow(k,u.value) ;
-    double lnk = ::log(double(k)) ;
-    return FAD2d(kpu,kpu*lnk*u.grad,
-                 kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
-  }
-  inline FAD2d pow(const double k, const FAD2d u) {
-    double kpu = ::pow(k,u.value) ;
-    double lnk = ::log(double(k)) ;
-    return FAD2d(kpu,kpu*lnk*u.grad,
-                 kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
-  }
-  inline FAD2d pow(const long double k, const FAD2d u) {
-    double kpu = ::pow(k,u.value) ;
-    double lnk = ::log(double(k)) ;
-    return FAD2d(kpu,kpu*lnk*u.grad,
-                 kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
-  }
-
-  inline FAD2d sinh(const FAD2d u) {
-    double expu = ::exp(u.value) ;
-    double expmu = ::exp(-u.value) ;
-    return FAD2d(::sinh(u.value),
-                 0.5*u.grad*(expu + expmu),
-                 0.5*(expmu*(u.grad2-u.grad*u.grad)+expu*(u.grad2+u.grad*u.grad))) ;
-  }
-  inline FAD2d cosh(const FAD2d u) {
-    double expu = ::exp(u.value) ;
-    double expmu = ::exp(-u.value) ;
-    return FAD2d(::cosh(u.value),
-                 0.5*u.grad*(expu - expmu),
-                 0.5*(expmu*(u.grad*u.grad-u.grad2)+expu*(u.grad2+u.grad*u.grad))) ;
-  }
-
-  inline FAD2d tanh(const FAD2d u) {
-    double ex = ::exp(min(u.value,350.0)) ;
-    double exm = ::exp(min(-u.value,350.0)) ;
-    double dex = ex-exm ;
-    double sex = ex+exm ;
-    double rex = dex/sex ;
-    double rex2 = rex*rex ;
-    return FAD2d(::tanh(u.value),u.grad*(1.-rex2),
-                 u.grad*u.grad*2.*(rex2-1.)*rex+
-                 u.grad2*(1.-rex2)) ;
-  }
-  inline FAD2d asin(const FAD2d u) {
-    double rsrt = 1./::sqrt(1.-u.value*u.value) ;
-    return FAD2d(::asin(u.value), u.grad*rsrt,
-                 u.grad2*rsrt + u.grad*u.grad*u.value*rsrt*rsrt*rsrt);
-  }
-  inline FAD2d acos(const FAD2d u) {
-    double rsrt = 1./::sqrt(1.-u.value*u.value) ;
-    return FAD2d(::acos(u.value), -u.grad*rsrt,
-                 -u.grad2*rsrt - u.grad*u.grad*u.value*rsrt*rsrt*rsrt);
-  }
-  inline FAD2d atan(const FAD2d u) {
-    double rval = 1./(1.+u.value*u.value) ;
-    return FAD2d(::atan(u.value), u.grad*rval,
-                 u.grad2*rval-2.*u.grad*u.grad*u.value*rval*rval);
-  }
-  //-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  // This will not work in general
-  //-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  inline FAD2d atan2(const FAD2d u, const FAD2d v) {
-    return atan(u/v);
-  }
-
-  inline FAD2d asinh(const FAD2d u) {
-    const double uv = u.value ;
-    const double uv2 = uv*uv ;
-    const double strm = ::sqrt(uv2+1.) ;
-    const double uvstrm = uv+strm ;
-    const double uvstrm2 = uvstrm*uvstrm ;
-    return FAD2d(::asinh(uv), u.grad*(uv/strm+1.)/uvstrm,
-                 ((1. / strm - uv2 / ::pow(strm, 3)) / uvstrm
-                  - ::pow(uv / strm + 1., 2) / uvstrm2)*u.grad*u.grad
-                 + u.grad2*(uv / strm + 1.) / uvstrm) ;
-  }
-  inline FAD2d acosh(const FAD2d u) {
-    const double uv = u.value ;
-    const double uv2 = uv*uv ;
-    const double strm = ::sqrt(uv*uv-1.) ;
-    const double uvstrm = uv+strm ;
-    const double uvstrm2 = uvstrm*uvstrm ;
-    return FAD2d(::acosh(uv), u.grad*(uv/strm +1.)/uvstrm,
-                 ((1 / strm - uv2 / ::pow(strm, 3)) / uvstrm
-                  - ::pow(uv / strm + 1., 2) / uvstrm2)*u.grad*u.grad
-                 + u.grad2*(uv / strm + 1.) / uvstrm) ;
-  }
-  inline FAD2d atanh(const FAD2d u) {
-    const double uv = u.value ;
-    const double uv2 = uv*uv ;
-    const double factor = .5*(1./(1.+uv)+1./(1.-uv)) ;
-    return FAD2d(::atanh(uv), .5*u.grad*factor,
-                 0.5*(1./ (1. - 2.*uv + uv2) - 1./ (1. + 2.*uv + uv2))*u.grad*u.grad + u.grad2*factor) ;
-  }
-
-
-#else
   inline double ceil(const FAD2d u) {
     return std::ceil(u.value) ;
   }
@@ -712,8 +512,8 @@ namespace Loci {
   inline FAD2d sqrt(const FAD2d u) {
 
     double su = std::sqrt(u.value) ;
-    return FAD2d(su,0.5*u.grad/max(su,1e-30),
-                 0.5*u.grad2/(max(su,1e-30)) - 0.25*u.grad*u.grad/(max(su*su*su,1e-30))) ;
+    return FAD2d(su,0.5*u.grad/std::max(su,1e-30),
+                 0.5*u.grad2/(std::max(su,1e-30)) - 0.25*u.grad*u.grad/(std::max(su*su*su,1e-30))) ;
   }
   inline FAD2d pow(const FAD2d k, const FAD2d u) {
     double kpu = std::pow(k.value,u.value) ;
@@ -771,8 +571,8 @@ namespace Loci {
   }
 
   inline FAD2d tanh(const FAD2d u) {
-    double ex = std::exp(min(u.value,350.0)) ;
-    double exm = std::exp(min(-u.value,350.0)) ;
+    double ex = std::exp(std::min(u.value,350.0)) ;
+    double exm = std::exp(std::min(-u.value,350.0)) ;
     double dex = ex-exm ;
     double sex = ex+exm ;
     double rex = dex/sex ;
@@ -833,9 +633,6 @@ namespace Loci {
                  0.5*(1./ (1. - 2.*uv + uv2) -
                       1./ (1. + 2.*uv + uv2))*u.grad*u.grad + u.grad2*factor) ;
   }
-
-
-#endif
 
 
   inline FAD2d operator +(const double u,const FAD2d v)
@@ -1284,136 +1081,6 @@ namespace Loci {
     return stream;
   }
 
-#ifdef NO_CMATH
-  inline double ceil(const FADd u) {
-    return ::ceil(u.value) ;
-  }
-  inline double floor(const FADd u) {
-    return ::floor(u.value) ;
-  }
-
-  inline FADd erf(const FADd u) {
-    double ef = ::erf(u.value) ;
-    double efp = (2./sqrt(M_PI))*::exp(-u.value*u.value) ;
-    return FADd(ef,u.grad*efp) ;
-  }
-  inline FADd sin(const FADd u) {
-    return FADd(::sin(u.value), u.grad*::cos(u.value));
-  }
-  inline FADd cos(const FADd u) {
-    return FADd(::cos(u.value), -u.grad*::sin(u.value));
-  }
-  inline FADd tan(const FADd u) {
-    return FADd(::tan(u.value), u.grad/pow(::cos(u.value),2)) ;
-  }
-  inline FADd exp(const FADd u) {
-    return FADd(::exp(u.value), u.grad*::exp(u.value));
-  }
-  inline FADd log(const FADd u) {
-    return FADd(::log(u.value), u.grad/u.value);
-  }
-  inline FADd log10(const FADd u) {
-    return FADd(::log(u.value), u.grad/u.value)/::log(10.0);
-  }
-
-  inline FADd fabs(FADd u) {
-    return FADd(::fabs(u.value),
-                u.grad*( (u.value<0.0)?-1.0:1.0 ) );
-  }
-  inline FADd abs(FADd u) {
-    return FADd(::fabs(u.value),
-                u.grad*( (u.value<0.0)?-1.0:1.0 ) );
-  }
-  /* MPGCOMMENT [05-12-2017 15:04] ---> POW */
-  inline FADd pow(const FADd u, const int k) {
-    return FADd(::pow(u.value, k),
-                (double)k * ::pow(u.value, (double)k-1.0)*u.grad );
-  }
-  inline FADd pow(const FADd u, const float k) {
-    return FADd(::pow(u.value, k),
-                (double)k * ::pow(u.value, (double)k-1.0)*u.grad );
-  }
-  inline FADd pow(const FADd u, const double k) {
-    return FADd(::pow(u.value, k),
-                k * ::pow(u.value, k-1.0)*u.grad );
-  }
-  inline FADd pow(const FADd u, const long double k) {
-    return FADd(::pow(u.value, k),
-                (double)k * ::pow(u.value,  (double)k-1.0)*u.grad );
-  }
-  inline FADd sqrt(const FADd u) {
-    double su = ::sqrt(u.value) ;
-    return FADd(su,0.5*u.grad/max(su,1e-30)) ;
-  }
-  inline FADd pow(const FADd k, const FADd u) {
-    double kpu = ::pow(k.value,u.value) ;
-    return FADd(kpu,::pow(k.value,u.value-1.)*k.grad*u.value +
-                kpu*::log(k.value)*u.grad) ;
-  }
-  inline FADd pow(const int k, const FADd u) {
-    double kpu = ::pow(k,u.value) ;
-    return FADd(kpu,kpu*::log(double(k))*u.grad) ;
-  }
-  inline FADd pow(const float k, const FADd u) {
-    double kpu = ::pow(k,u.value) ;
-    return FADd(kpu,kpu*::log(double(k))*u.grad) ;
-  }
-  inline FADd pow(const double k, const FADd u) {
-    double kpu = ::pow(k,u.value) ;
-    return FADd(kpu,kpu*::log(k)*u.grad) ;
-  }
-  inline FADd pow(const long double k, const FADd u) {
-    double kpu = ::pow(k,u.value) ;
-    return FADd(kpu,kpu*::log(k)*u.grad) ;
-  }
-
-
-  inline FADd sinh(const FADd u) {
-    return FADd(::sinh(u.value),
-                0.5*u.grad*(::exp(u.value) + ::exp(-(u.value)))) ;
-  }
-  inline FADd cosh(const FADd u) {
-    return FADd(::cosh(u.value),
-                0.5*u.grad*(::exp(u.value) - ::exp(-(u.value)))) ;
-  }
-  inline FADd tanh(const FADd u) {
-    double ex = ::exp(min(u.value,350.0)) ;
-    double exm = ::exp(min(-u.value,350.0)) ;
-    double dex = ex-exm ;
-    double sex = ex+exm ;
-    return FADd(::tanh(u.value),u.grad*(1.-dex*dex/(sex*sex))) ;
-  }
-  inline FADd asin(const FADd u) {
-    return FADd(::asin(u.value), u.grad/::sqrt(1.0-u.value*u.value) );
-  }
-  inline FADd acos(const FADd u) {
-    return FADd(::acos(u.value), -u.grad/::sqrt(1.0-u.value*u.value) );
-  }
-  inline FADd atan(const FADd u) {
-    return FADd(::atan(u.value), u.grad/(1.0+u.value*u.value) );
-  }
-  // This will not work in general
-  inline FADd atan2(const FADd u, const FADd v) {
-    return atan(u/v);
-  }
-
-  inline FADd asinh(const FADd u) {
-    double strm = ::sqrt(u.value*u.value+1.) ;
-    double uvstrm = u.value+strm ;
-    return FADd(::asinh(u.value), u.grad*(u.value/strm+1.)/uvstrm) ;
-  }
-  inline FADd acosh(const FADd u) {
-    double strm = ::sqrt(u.value*u.value-1.) ;
-    double uvstrm = u.value+strm ;
-    return FADd(::acosh(u.value), u.grad*(u.value/strm +1.)/uvstrm) ;
-  }
-  inline FADd atanh(const FADd u) {
-    const double uv = u.value ;
-    return FADd(::atanh(uv), .5*u.grad*(1./(1.+uv)+1./(1.-uv))) ;
-  }
-
-
-#else
   inline double ceil(const FADd u) {
     return std::ceil(u.value) ;
   }
@@ -1472,7 +1139,7 @@ namespace Loci {
   }
   inline FADd sqrt(const FADd u) {
     double su = std::sqrt(u.value) ;
-    return FADd(su,0.5*u.grad/max(su,1e-30)) ;
+    return FADd(su,0.5*u.grad/std::max(su,1e-30)) ;
   }
   inline FADd pow(const FADd k, const FADd u) {
     double kpu = std::pow(k.value,u.value) ;
@@ -1506,8 +1173,8 @@ namespace Loci {
                 0.5*u.grad*(std::exp(u.value) - std::exp(-u.value))) ;
   }
   inline FADd tanh(const FADd u) {
-    double ex = std::exp(min(u.value,350.0)) ;
-    double exm = std::exp(min(-u.value,350.0)) ;
+    double ex = std::exp(std::min(u.value,350.0)) ;
+    double exm = std::exp(std::min(-u.value,350.0)) ;
     double dex = ex-exm ;
     double sex = ex+exm ;
     return FADd(std::tanh(u.value),
@@ -1542,10 +1209,6 @@ namespace Loci {
     const double uv = u.value ;
     return FADd(::atanh(uv), .5*u.grad*(1./(1.+uv)+1./(1.-uv))) ;
   }
-
-
-#endif
-
 
   inline FADd operator +(const double u,const FADd v)
   { return FADd(u+v.value, v.grad); }
@@ -2005,210 +1668,6 @@ namespace Loci {
   using std::max;
   using std::min;
 
-#ifdef NO_CMATH
-  inline double ceil(const MFADd u) {
-    return ::ceil(u.value) ;
-  }
-  inline double floor(const MFADd u) {
-    return ::floor(u.value) ;
-  }
-
-  inline MFADd erf(const MFADd u) {
-    double ef = ::erf(u.value) ;
-    size_t s = MFADd::maxN ;
-    MFADd out(ef,s) ;
-    double efp = (2./sqrt(M_PI))*std::exp(-u.value*u.value) ;
-    for(size_t i=0;i<s;++i)
-      out.grad[i] = u.grad[i]*efp ;
-    return out ;
-  }
-
-  inline MFADd sin(const MFADd &u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::sin(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*::cos(u.value);
-    return out;
-  }
-  inline MFADd cos(const MFADd &u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::cos(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = -u.grad[i]*::sin(u.value);
-    return out;
-  }
-  inline MFADd tan(const MFADd &u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::tan(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/pow(::cos(u.value),2) ;
-    return out;
-  }
-  inline MFADd exp(const MFADd &u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::exp(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*::exp(u.value);
-    return out;
-  }
-  inline MFADd log(const MFADd &u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::log(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/u.value ;
-    return out;
-  }
-  inline MFADd log10(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::log(u.value)/::log(10.0),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/u.value/::log(10.0);
-    return out;
-  }
-
-  inline MFADd abs(MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::fabs(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*( (u.value<0.0)?-1.0:1.0 );
-    return out;
-  }
-  inline MFADd fabs(MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::fabs(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*( (u.value<0.0)?-1.0:1.0 );
-    return out;
-  }
-
-  inline MFADd pow(const MFADd u, const int k) {
-    size_t s = MFADd::maxN;
-    MFADd out(::pow(u.value, k),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = (double)k * ::pow(u.value, (double)k-1.0)*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd pow(const MFADd u, const float k) {
-    size_t s = MFADd::maxN;
-    MFADd out(::pow(u.value, k),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = (double)k * ::pow(u.value, (double)k-1.0)*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd pow(const MFADd u, const double k) {
-    size_t s = MFADd::maxN;
-    MFADd out(::pow(u.value, k),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = k * ::pow(u.value, k-1.0)*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd pow(const MFADd u, const long double k) {
-    size_t s = MFADd::maxN;
-    MFADd out(::pow(u.value, k),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = (double)k * ::pow(u.value, (double)k-1.0)*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd sqrt(const MFADd &u) {
-    size_t s = MFADd::maxN;
-    double sq = ::sqrt(u.value);
-    MFADd out(sq,s) ;
-    for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]/::max(sq,1e-30) ;
-    return out;
-  }
-  inline MFADd pow(const MFADd k, const MFADd u) {
-    size_t s = MFADd::maxN;
-    double kpu = ::pow(k.value,u.value) ;
-    MFADd out(kpu,s);
-    for (size_t i=0; i<s; i++) out.grad[i] = ::pow(k.value,u.value-1.)*k.grad[i]*u.value + kpu*::log(k.value)*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd pow(const int k, const MFADd u) {
-    size_t s = MFADd::maxN;
-    double kpu = ::pow(k,u.value) ;
-    MFADd out(kpu,s);
-    for (size_t i=0; i<s; i++) out.grad[i] = kpu*::log(double(k))*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd pow(const float k, const MFADd u) {
-    size_t s = MFADd::maxN;
-    double kpu = ::pow(k,u.value) ;
-    MFADd out(kpu,s);
-    for (size_t i=0; i<s; i++) out.grad[i] = kpu*::log(double(k))*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd pow(const double k, const MFADd u) {
-    size_t s = MFADd::maxN;
-    double kpu = ::pow(k,u.value) ;
-    MFADd out(kpu,s);
-    for (size_t i=0; i<s; i++) out.grad[i] = kpu*::log(k)*u.grad[i] ;
-    return out ;
-  }
-  inline MFADd pow(const long double k, const MFADd u) {
-    size_t s = MFADd::maxN;
-    double kpu = ::pow(k,u.value) ;
-    MFADd out(kpu,s);
-    for (size_t i=0; i<s; i++) out.grad[i] = kpu*::log(k)*u.grad[i] ;
-    return out ;
-  }
-
-  inline MFADd sinh(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::sinh(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]*(::exp(u.value) + ::exp(-(u.value))) ;
-    return out;
-  }
-  inline MFADd cosh(const MFADd u) {
-    size_t s = FMADd::maxN;
-    MFADd out(::cosh(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]*(::exp(u.value) - ::exp(-(u.value))) ;
-    return out;
-  }
-  inline MFADd tanh(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::tanh(u.value),s);
-    double ex = ::exp(::min(u.value,350.0)) ;
-    double exm = ::exp(::min(-u.value,350.0)) ;
-    double dex = ex-exm ;
-    double sex = ex+exm ;
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(1.-dex*dex/(sex*sex)) ;
-    return out;
-  }
-  inline MFADd asin(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::asin(u.value),s);
-    double val = ::sqrt(1.0-u.value*u.value);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/val;
-    return out;
-  }
-  inline MFADd acos(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::acos(u.value),s);
-    double val = ::sqrt(1.0-u.value*u.value);
-    for (size_t i=0; i<s; i++) out.grad[i] = -u.grad[i]/val;
-    return out;
-  }
-  inline MFADd atan(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::atan(u.value),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/(u.value*u.value + 1.0);
-    return out;
-  }
-  inline MFADd atan2(const MFADd u, const MFADd v) {
-    return atan(u/v);
-  }
-  inline MFADd asinh(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::asinh(u.value),s);
-    double strm = ::sqrt(u.value*u.value+1.) ;
-    double uvstrm = u.value+strm ;
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(u.value/strm+1.)/uvstrm ;
-    return out;
-  }
-  inline MFADd acosh(const MFADd u) {
-    size_t s = MFADd::maxN;
-    MFADd out(::acosh(u.value),s);
-    double strm = ::sqrt(u.value*u.value-1.) ;
-    double uvstrm = u.value+strm ;
-    for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(u.value/strm +1.)/uvstrm ;
-    return out;
-  }
-  inline MFADd atanh(const MFADd &u) {
-    size_t s = MFADd::maxN;
-    const double uv = u.value ;
-    MFADd out(::atanh(uv),s);
-    for (size_t i=0; i<s; i++) out.grad[i] = .5*u.grad[i]*(1./(1.+uv)+1./(1.-uv)) ;
-    return out;
-  }
-#else
   inline double ceil(const MFADd u) {
     return std::ceil(u.value) ;
   }
@@ -2446,7 +1905,7 @@ namespace Loci {
     for (size_t i=0; i<s; i++) out.grad[i] = .5*u.grad[i]*(1./(1.+uv)+1./(1.-uv)) ;
     return out;
   }
-#endif
+
   inline MFADd operator +(const double u,const MFADd v) {
     size_t s = MFADd::maxN;
     MFADd out(u+v.value,s);
@@ -2912,210 +2371,6 @@ namespace Loci {
   using std::max;
   using std::min;
 
-#ifdef NO_CMATH
-  inline double ceil(const VFAD u) {
-    return ::ceil(u.data.value) ;
-  }
-  inline double floor(const VFAD u) {
-    return ::floor(u.data.value) ;
-  }
-
-  inline VFAD erf(const VFAD u) {
-    double ef = ::erf(u.data.value) ;
-    size_t s = VFAD::maxN ;
-    VFAD out(ef,s) ;
-    double efp = (2./sqrt(M_PI))*std::exp(-u.data.value*u.data.value) ;
-    for(size_t i=0;i<s;++i)
-      out.data.grad[i] = u.data.grad[i]*efp ;
-    return out ;
-  }
-
-  inline VFAD sin(const VFAD &u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::sin(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]*::cos(u.data.value);
-    return out;
-  }
-  inline VFAD cos(const VFAD &u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::cos(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = -u.data.grad[i]*::sin(u.data.value);
-    return out;
-  }
-  inline VFAD tan(const VFAD &u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::tan(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]/pow(::cos(u.data.value),2) ;
-    return out;
-  }
-  inline VFAD exp(const VFAD &u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::exp(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]*::exp(u.data.value);
-    return out;
-  }
-  inline VFAD log(const VFAD &u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::log(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]/u.data.value ;
-    return out;
-  }
-  inline VFAD log10(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::log(u.data.value)/::log(10.0),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]/u.data.value/::log(10.0);
-    return out;
-  }
-
-  inline VFAD abs(VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::fabs(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]*( (u.data.value<0.0)?-1.0:1.0 );
-    return out;
-  }
-  inline VFAD fabs(VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::fabs(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]*( (u.data.value<0.0)?-1.0:1.0 );
-    return out;
-  }
-
-  inline VFAD pow(const VFAD u, const int k) {
-    size_t s = VFAD::maxN;
-    VFAD out(::pow(u.data.value, k),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = (double)k * ::pow(u.data.value, (double)k-1.0)*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD pow(const VFAD u, const float k) {
-    size_t s = VFAD::maxN;
-    VFAD out(::pow(u.data.value, k),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = (double)k * ::pow(u.data.value, (double)k-1.0)*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD pow(const VFAD u, const double k) {
-    size_t s = VFAD::maxN;
-    VFAD out(::pow(u.data.value, k),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = k * ::pow(u.data.value, k-1.0)*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD pow(const VFAD u, const long double k) {
-    size_t s = VFAD::maxN;
-    VFAD out(::pow(u.data.value, k),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = (double)k * ::pow(u.data.value, (double)k-1.0)*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD sqrt(const VFAD &u) {
-    size_t s = VFAD::maxN;
-    double sq = ::sqrt(u.data.value);
-    VFAD out(sq,s) ;
-    for (size_t i=0; i<s; i++) out.data.grad[i] = 0.5*u.data.grad[i]/::max(sq,1e-30) ;
-    return out;
-  }
-  inline VFAD pow(const VFAD k, const VFAD u) {
-    size_t s = VFAD::maxN;
-    double kpu = ::pow(k.value,u.data.value) ;
-    VFAD out(kpu,s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = ::pow(k.value,u.data.value-1.)*k.grad[i]*u.data.value + kpu*::log(k.value)*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD pow(const int k, const VFAD u) {
-    size_t s = VFAD::maxN;
-    double kpu = ::pow(k,u.data.value) ;
-    VFAD out(kpu,s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = kpu*::log(double(k))*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD pow(const float k, const VFAD u) {
-    size_t s = VFAD::maxN;
-    double kpu = ::pow(k,u.data.value) ;
-    VFAD out(kpu,s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = kpu*::log(double(k))*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD pow(const double k, const VFAD u) {
-    size_t s = VFAD::maxN;
-    double kpu = ::pow(k,u.data.value) ;
-    VFAD out(kpu,s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = kpu*::log(k)*u.data.grad[i] ;
-    return out ;
-  }
-  inline VFAD pow(const long double k, const VFAD u) {
-    size_t s = VFAD::maxN;
-    double kpu = ::pow(k,u.data.value) ;
-    VFAD out(kpu,s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = kpu*::log(k)*u.data.grad[i] ;
-    return out ;
-  }
-
-  inline VFAD sinh(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::sinh(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = 0.5*u.data.grad[i]*(::exp(u.data.value) + ::exp(-(u.data.value))) ;
-    return out;
-  }
-  inline VFAD cosh(const VFAD u) {
-    size_t s = FMADd::maxN;
-    VFAD out(::cosh(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = 0.5*u.data.grad[i]*(::exp(u.data.value) - ::exp(-(u.data.value))) ;
-    return out;
-  }
-  inline VFAD tanh(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::tanh(u.data.value),s);
-    double ex = ::exp(::min(u.data.value,350.0)) ;
-    double exm = ::exp(::min(-u.data.value,350.0)) ;
-    double dex = ex-exm ;
-    double sex = ex+exm ;
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]*(1.-dex*dex/(sex*sex)) ;
-    return out;
-  }
-  inline VFAD asin(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::asin(u.data.value),s);
-    double val = ::sqrt(1.0-u.data.value*u.data.value);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]/val;
-    return out;
-  }
-  inline VFAD acos(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::acos(u.data.value),s);
-    double val = ::sqrt(1.0-u.data.value*u.data.value);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = -u.data.grad[i]/val;
-    return out;
-  }
-  inline VFAD atan(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::atan(u.data.value),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]/(u.data.value*u.data.value + 1.0);
-    return out;
-  }
-  inline VFAD atan2(const VFAD u, const VFAD v) {
-    return atan(u/v);
-  }
-  inline VFAD asinh(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::asinh(u.data.value),s);
-    double strm = ::sqrt(u.data.value*u.data.value+1.) ;
-    double uvstrm = u.data.value+strm ;
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]*(u.data.value/strm+1.)/uvstrm ;
-    return out;
-  }
-  inline VFAD acosh(const VFAD u) {
-    size_t s = VFAD::maxN;
-    VFAD out(::acosh(u.data.value),s);
-    double strm = ::sqrt(u.data.value*u.data.value-1.) ;
-    double uvstrm = u.data.value+strm ;
-    for (size_t i=0; i<s; i++) out.data.grad[i] = u.data.grad[i]*(u.data.value/strm +1.)/uvstrm ;
-    return out;
-  }
-  inline VFAD atanh(const VFAD &u) {
-    size_t s = VFAD::maxN;
-    const double uv = u.data.value ;
-    VFAD out(::atanh(uv),s);
-    for (size_t i=0; i<s; i++) out.data.grad[i] = .5*u.data.grad[i]*(1./(1.+uv)+1./(1.-uv)) ;
-    return out;
-  }
-#else
   inline double ceil(const VFAD u) {
     return std::ceil(u.data.value) ;
   }
@@ -3337,7 +2592,7 @@ namespace Loci {
     for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = .5*u.data.grad[i]*(1./(1.+uv)+1./(1.-uv)) ;
     return out;
   }
-#endif
+
   inline VFAD operator +(const double u,const VFAD v) {
     VFAD out(u+v.data.value);
     for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = v.data.grad[i];

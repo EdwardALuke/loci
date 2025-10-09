@@ -30,6 +30,7 @@
 #include <data_traits.h>
 
 #include <Tools/basic_types.h>
+#include <Tools/vtypes.h>
 #include <Tools/options_list.h>
 
 namespace Loci {
@@ -269,6 +270,31 @@ namespace Loci {
     static DatatypeP get_type() {
       int dim = n ;
       return new ArrayType(getLociType(T()),sizeof(Array<T,n>),1,&dim) ;
+    }
+  };
+
+    template <class T,size_t n> inline std::ostream &
+    operator<<(std::ostream &s, const vtype<T,n> &v) {
+    for(size_t i=0;i<n;++i)
+      s << v[i] << ' ' ;
+    return s ;
+  }
+
+  template <class T,size_t n> inline std::istream &
+    operator>>(std::istream &s, vtype<T,n> &v) {
+    for(size_t i=0;i<n;++i)
+      s >> v[i] ;
+    return s ;
+  }
+
+  
+  template <class T,size_t n> 
+  class data_schema_traits< vtype<T,n> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = n ;
+      return new ArrayType(getLociType(T()),sizeof(vtype<T,n>),1,&dim) ;
     }
   };
 
