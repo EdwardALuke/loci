@@ -27,9 +27,18 @@
 #include <Config/conf.h>
 
 #if defined(__x86_64__)
+
+#if defined(__AVX2__)
 #include <immintrin.h>
-#define VTYPE_ENABLE_SCALAR_WARNINGS
-#else
+#else 
+#warning "X86_64 architecture without AVX2 support, vtype not vectorized!, include -mavx2 in compiler options"
+#define VTYPE_SCALAR_ONLY
+#endif
+
+#endif
+
+#if !defined(__x86_64__)
+// compatibility for non x86_64 architecures
 #define VTYPE_SCALAR_ONLY
 #endif
 
@@ -778,7 +787,7 @@ namespace Loci {
                            std::sqrt(arg.data[1]),
                            std::sqrt(arg.data[2]),
                            std::sqrt(arg.data[3])
-                           )
+                           ) ;
 #endif
       }
 
