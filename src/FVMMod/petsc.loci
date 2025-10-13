@@ -927,7 +927,10 @@ namespace Loci {
                                      ksp, reltol, abstol, PETSC_CURRENT, maxit
                                      ));
       LociPetscCall(PetscObjectSetOptionsPrefix((PetscObject)ksp, options_prefix));
-      LociPetscCall(KSPSetFromOptions(ksp));
+
+      PC pc;
+      LociPetscCall(KSPGetPC(ksp, &pc));
+      LociPetscCall(PCSetOptionsPrefix(pc, options_prefix));
 
       created = true;
       return 0;
@@ -939,17 +942,13 @@ namespace Loci {
       return numIterations;
     }
 
-    int SetFromOptions() {
-      LociPetscCall(KSPSetFromOptions(ksp));
-      return 0;
-    }
-
     int SetOperators(PetscBlockedMatrix const & m) const {
 #ifdef PETSC_35_API
       LociPetscCall(KSPSetOperators(ksp,m.Data(),m.Data()));
 #else
       LociPetscCall(KSPSetOperators(ksp,m.Data(),m.Data(),SAME_NONZERO_PATTERN));
 #endif
+      LociPetscCall(KSPSetFromOptions(ksp));
       return 0;
     }
 
@@ -959,6 +958,7 @@ namespace Loci {
 #else
       LociPetscCall(KSPSetOperators(ksp,m.Data(),m.Data(),SAME_NONZERO_PATTERN));
 #endif
+      LociPetscCall(KSPSetFromOptions(ksp));
       return 0;
     }
 
