@@ -24,6 +24,7 @@
 #include <iostream>
 #include <Tools/tools.h>
 #include <algorithm>
+#include <array>
 #include <math.h>
 #include <Tools/vtypes.h>
 
@@ -1228,7 +1229,7 @@ namespace Loci {
 
     double value;
     double grad[MFAD_SIZE];
-    static const size_t maxN=MFAD_SIZE;
+    static constexpr size_t maxN=MFAD_SIZE;
 
     //    void setVecSize(size_t s) {
     //      this->maxN = s;
@@ -1931,11 +1932,13 @@ namespace Loci {
     return out;
   }
 
+  
 #define VFAD_SIZE 6
   struct VFADData {
     double value ;
-    float grad[VFAD_SIZE] ;
+    std::array<float,VFAD_SIZE> grad ;
   } ;
+
   class VFAD {
   public:
     union {
@@ -1944,97 +1947,123 @@ namespace Loci {
       __m256 avxReg;
 #endif
     } ;
-    //    double value;
-    //    float grad[VFAD_SIZE];
-    static const size_t maxN=VFAD_SIZE;
+    static constexpr size_t maxN=VFAD_SIZE;
+#ifdef LIVING_DANGEROUS
+    /* MPGCOMMENT [05-12-2017 13:50] ---> type-cast */
+    explicit operator char() {return (char)data.value;}
+    explicit operator bool() {return (bool)data.value;}
+    explicit operator int() {return (int)data.value;}
+    explicit operator float() {return (float)data.value;}
+    operator double() {return (double)data.value;}
+    explicit operator VFAD() {return *this ;}
+    explicit operator long double() const {return (long double)data.value;}
 
-    //    void setVecSize(size_t s) {
-    //      this->maxN = s;
-    //    }
+    //    operator double*()  {return &data.value;}/* MPGCOMMENT [05-15-2017 10:51] ---> only one used, others set for completeness */
+    //    operator const double*()  {return (const double*)&data.value;}/* MPGCOMMENT [05-15-2017 10:51] ---> only one used, others set for completeness */
+#endif
+
+    /* MPGCOMMENT [05-12-2017 13:49] ---> constructor */
     template< class T1>
-    VFAD(T1 a0)
-    { data.value = a0 ; for(int i=0;i<VFAD_SIZE;++i) data.grad[i] =0 ; }
-    VFAD()
-    { data.value = 0.0 ; for(int i=0;i<VFAD_SIZE;++i) data.grad[i] =0 ; }
-    //explicit VFAD(int u) : value(u), grad(){ }
-    //explicit VFAD(float u) : value(u), grad() { }
-    //explicit VFAD(double u) : value(u), grad() { }
-    //explicit VFAD(long double u) : value(u), grad() { }
-    VFAD(double u)
-    { data.value = u ;  for(int i=0;i<VFAD_SIZE;++i) data.grad[i] =0 ; }
-    //explicit VFAD(bool &u)  : value((u)?1.0:0.0), grad() { }
-    VFAD(const double u, const double * g) {
-      data.value = u ; for (size_t i=0; i<maxN; i++) data.grad[i]=g[i];
+    VFAD(T1 a0) {
+      data.value = a0 ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0. ;
     }
-    VFAD(const VFAD &u) {
+    
+    VFAD(const FAD2d &u) {
+      data.value = u.value ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0 ;
+      data.grad[0] = u.grad ;
+    }
+    
+    VFAD(const FADd &u) {
+      data.value = u.value ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0 ;
+      data.grad[0] = u.grad ;
+    }
+    
+    VFAD(const VFAD &u)  {
       data.value = u.data.value ;
-      for (size_t i=0; i<maxN; i++) data.grad[i]=u.data.grad[i];
+      data.grad = u.data.grad ;
     }
+
+    VFAD() { 
+      data.value = 0 ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0 ;
+    }
+
 
     void setValue(double val) { data.value = val ; }
     VFAD& operator =(const VFAD &u) {
       data.value = u.data.value;
-      for (size_t i=0; i<maxN; i++) data.grad[i]=u.data.grad[i];
+      data.grad = u.data.grad;
       return *this;
     }
     VFAD& operator =(const int &u) {
-      data.value = u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] = 0.0 ;
+      data.value = u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0.0;
       return *this;
     }
     VFAD& operator =(const float &u) {
-      data.value = u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] = 0.0 ;
+      data.value = u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0.0;
       return *this;
     }
     VFAD& operator =(const double &u) {
-      data.value = u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] = 0.0 ;
+      data.value = u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0.0;
       return *this;
     }
     VFAD& operator =(const long double &u) {
-      data.value = u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] = 0.0 ;
+      data.value = u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0.0;
       return *this;
     }
 
+
     VFAD operator +(const VFAD &v) const{
-      VFAD out ;
-      out.data.value = out.data.value + v.data.value ;
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i]+v.data.grad[i];
-      return out;
+      VFAD tmp(*this) ;
+      tmp.data.value += v.data.value ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] += v.data.grad[i] ;
+      
+      return tmp ;
     }
-    VFAD operator +() const {
-      VFAD out ;
-      out.data.value = data.value ;
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+    VFAD operator +() const{
+      return VFAD(*this);
     }
     VFAD operator +(const int &v) const{
-      VFAD out(data.value+(double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value += v ;
+      return tmp ;
     }
     VFAD operator +(const float &v) const{
-      VFAD out(data.value+(double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value += v ;
+      return tmp ;
     }
     VFAD operator +(const double &v) const{
-      VFAD out(data.value+(double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value += v ;
+      return tmp ;
     }
     VFAD operator +(const long double &v) const{
-      VFAD out(data.value+(long double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value += v ;
+      return tmp ;
     }
 
     VFAD& operator +=(const VFAD &u) {
       data.value+=u.data.value;
-      for (size_t i=0; i<maxN; i++) data.grad[i]+=u.data.grad[i];
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] += u.data.grad[i];
       return *this;
     }
     VFAD& operator +=(const int &u) {
@@ -2055,181 +2084,195 @@ namespace Loci {
     }
 
     VFAD operator -(const VFAD &v) const{
-      VFAD out(data.value-v.data.value);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i]-v.data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value -= v.data.value ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] -= v.data.grad[i] ;
+      return tmp ;
     }
     VFAD operator -() const {
-      VFAD out(-data.value);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = -data.grad[i];
-      return out;
+      VFAD tmp ;
+      tmp.data.value = -data.value ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] = -data.grad[i] ;
+      return tmp ;
     }
     VFAD operator -(const int &v) const{
-      VFAD out(data.value-(double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value -= v ;
+      return tmp ;
     }
     VFAD operator -(const float &v) const{
-      VFAD out(data.value-(double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value -= v ;
+      return tmp ;
     }
     VFAD operator -(const double &v) const{
-      VFAD out(data.value-(double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value -= v ;
+      return tmp ;
     }
     VFAD operator -(const long double &v) const{
-      VFAD out(data.value-(long double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i];
-      return out;
+      VFAD tmp = *this ;
+      tmp.data.value -= v ;
+      return tmp ;
     }
-
     VFAD& operator -=(const VFAD &u) {
-      data.value -= u.data.value;
-      for (size_t i=0; i<maxN; i++) data.grad[i]-=u.data.grad[i];
+      data.value-=u.data.value;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i]-=u.data.grad[i];
       return *this;
     }
     VFAD& operator -=(const int &u) {
-      data.value -= u;
+      data.value-=u;
       return *this;
     }
     VFAD& operator -=(const float &u) {
-      data.value -= u;
+      data.value-=u;
       return *this;
     }
     VFAD& operator -=(const double &u) {
-      data.value -= u;
+      data.value-=u;
       return *this;
     }
     VFAD& operator -=(const long double &u) {
-      data.value -= u;
+      data.value-=u;
       return *this;
     }
 
     VFAD operator *(const VFAD &v) const {
-      VFAD out(data.value*v.data.value);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = (data.grad[i]*v.data.value +
-                            v.data.grad[i]*data.value) ;
-      return out;
+      VFAD tmp ;
+      tmp.data.value = data.value*v.data.value ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] = data.grad[i]*v.data.value+data.value*v.data.grad[i] ;
+      return tmp ;
     }
-    VFAD operator *(const int &v) const {
-      VFAD out(data.value*(double)v);
-      for (size_t i=0; i<maxN; i++) out.data.grad[i] = data.grad[i] * (double)v;
-      return out;
+    VFAD operator *(const int &v) const{
+      VFAD tmp(*this) ;
+      tmp.data.value *= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] *= v ;
+      return tmp ;
     }
-    VFAD operator *(const float &v) const {
-      VFAD out(data.value*(double)v);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i] * (double)v;
-      return out;
+    VFAD operator *(const float &v) const{
+      VFAD tmp(*this) ;
+      tmp.data.value *= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] *= v ;
+      return tmp ;
     }
-    VFAD operator *(const double &v) const {
-      VFAD out(data.value*(double)v);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i] * (double)v;
-      return out;
+    VFAD operator *(const double &v) const{
+      VFAD tmp(*this) ;
+      tmp.data.value *= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] *= v ;
+      return tmp ;
     }
-    VFAD operator *(const long double &v) const {
-      VFAD out(data.value*(long double)v);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i] * (long double)v;
-      return out;
+    VFAD operator *(const long double &v) const{
+      VFAD tmp(*this) ;
+      tmp.data.value *= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] *= v ;
+      return tmp ;
     }
 
     VFAD& operator *=(const VFAD &u) {
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = data.grad[i]*u.data.value + u.data.grad[i]*data.value;
       data.value*=u.data.value;
-      for (size_t i=0; i<maxN; i++)
-        data.grad[i] = data.grad[i]*u.data.value + u.data.grad[i] * data.value;
       return *this;
     }
     VFAD& operator *=(const int &u) {
-      data.value *=u ;
-      for (size_t i=0; i<maxN; i++)
-        data.grad[i] *= u;
+      data.value*=u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
     VFAD& operator *=(const float &u) {
-      data.value *=u ;
-      for (size_t i=0; i<maxN; i++)
-        data.grad[i] *= u;
+      data.value*=u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
     VFAD& operator *=(const double &u) {
-      data.value *=u ;
-      for (size_t i=0; i<maxN; i++)
-        data.grad[i] *= u;
+      data.value*=u;
+      for(int i=0;i<VFAD_SIZE;++i) 
+        data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
     VFAD& operator *=(const long double &u) {
-      size_t s = maxN;
-      for (size_t i=0; i<s; i++) data.grad[i] *= u;
-      data.value *=u ;
+      data.value*=u;
+      for(int i=0;i<VFAD_SIZE;++i) 
+        data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
 
     VFAD operator /(const VFAD &v) const{
-      double div = data.value/v.data.value;
-      VFAD out(div);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = (data.grad[i] - div*v.data.grad[i])/v.data.value;
-      return out;
+      VFAD tmp ;
+      tmp.data.value = data.value/v.data.value ;
+      for(int i=0;i<VFAD_SIZE;++i) 
+        tmp.data.grad[i] =(data.grad[i]*v.data.value - data.value*v.data.grad[i])/(v.data.value*v.data.value) ;
+      return tmp ;
     }
     VFAD operator /(const int &v) const{
-      double div = data.value/(double)v;
-      VFAD out(div);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i]/(double)v;
-      return out;
+      VFAD tmp(*this) ;
+      tmp.data.value /= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] /= v ;
+      return tmp ;
     }
-    VFAD operator /(const float &v) const{
-      double div = data.value/(double)v;
-      VFAD out(div);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i]/(double)v;
-      return out;
+    VFAD operator /(const float &v) const{ 
+      VFAD tmp(*this) ;
+      tmp.data.value /= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] /= v ;
+      return tmp ;
     }
     VFAD operator /(const double &v) const{
-      double div = data.value/(double)v;
-      VFAD out(div);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i]/(double)v;
-      return out;
+      VFAD tmp(*this) ;
+      tmp.data.value /= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] /= v ;
+      return tmp ;
     }
     VFAD operator /(const long double &v) const{
-      double div = data.value/(long double)v;
-      VFAD out(div);
-      for (size_t i=0; i<maxN; i++)
-        out.data.grad[i] = data.grad[i]/(long double)v;
-      return out;
+      VFAD tmp(*this) ;
+      tmp.data.value /= v ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        tmp.data.grad[i] /= v ;
+      return tmp ;
     }
 
     VFAD& operator /=(const VFAD &u) {
-      double div = data.value/u.data.value;
-      data.value = div ;
-      for (size_t i=0; i<maxN; i++)
-        data.grad[i] = (data.grad[i] - div*u.data.grad[i])/u.data.value;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = (data.grad[i]*u.data.value -
+                        data.value * u.data.grad[i]) /
+        (u.data.value*u.data.value);
+      data.value /= u.data.value;
       return *this;
     }
     VFAD& operator /=(const int &u) {
-      data.value /= u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] /= u;
+      data.value/=u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] /=u;
       return *this;
     }
     VFAD& operator /=(const float &u) {
-      data.value /= u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] /= u;
+      data.value/=u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] /=u;
       return *this;
     }
     VFAD& operator /=(const double &u) {
-      data.value /= u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] /= u;
+      data.value/=u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] /=u;
       return *this;
     }
     VFAD& operator /=(const long double &u) {
-      data.value /= u ;
-      for (size_t i=0; i<maxN; i++) data.grad[i] /= u;
+      data.value/=u;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] /=u;
       return *this;
     }
 
@@ -2323,53 +2366,57 @@ namespace Loci {
     bool operator <=(const long double &u) const {
       return ((data.value<=u)?true:false);
     }
-  } ;
+
+
+
+  };
 
   inline std::ostream &operator <<(std::ostream& stream, const VFAD &u) {
     stream << u.data.value ;
-    for (size_t i=0; i<VFAD::maxN; i++ ) stream << " " << u.data.grad[i];
+    bool hasgrad = false ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      if(u.data.grad[i] != 0)
+        hasgrad = true ;
+    if(hasgrad) {
+      stream << "^[" << u.data.grad[0] ;
+      for(int i=1;i<VFAD_SIZE;++i)
+        stream << " " << u.data.grad[i] ;
+      stream << "]" ;
+    }
     return stream;
   }
   inline std::istream &operator >> (std::istream& stream, VFAD &u) {
-    u.data.value = 0. ;
-    for (size_t i=0;i<VFAD::maxN;i++) u.data.grad[i] = 0. ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      u.data.grad[i] = 0 ;
     stream >> u.data.value;
     if(stream.peek() == '^') {
       stream.get() ;
-      stream >> u.data.grad[0] ;
-      for (size_t i=1;i<VFAD::maxN;i++) {
-        if(stream.peek()=='^') {
-          while(stream.peek()=='^')
+      while(stream.peek() == ' ' || stream.peek() == '\t')
+        stream.get() ;
+      if(stream.peek() == '[') {
+        stream.get() ;
+        for(int i=0;i<VFAD_SIZE;++i) {
+          while(stream.peek() == ' ' || stream.peek() == '\t')
             stream.get() ;
-          stream >> u.data.grad[i] ;
+          if(stream.peek() == ']') 
+            break ;
+          stream >> u.data.grad[i] ; 
         }
+        while(stream.peek() == ' ' || stream.peek() == '\t')
+          stream.get() ;
+        while(stream.peek() != ']') {
+          double val ;
+          stream >> val ;
+          while(stream.peek() == ' ' || stream.peek() == '\t')
+            stream.get() ;
+        }
+        stream.get() ;
+      } else {
+          stream >> u.data.grad[0] ;
       }
     }
     return stream;
   }
-
-  using std::sqrt;
-  using std::sin;
-  using std::cos;
-  using std::tan;
-  using std::exp;
-  using std::log;
-  using std::fabs;
-  //using std::cbrt;
-  using std::sinh;
-  using std::cosh;
-  using std::tanh;
-  using std::asin;
-  using std::acos;
-  using std::atan;
-  //using std::asinh;
-  //using std::acosh;
-  //using std::atanh;
-  using std::floor;
-  using std::ceil;
-  using std::pow;
-  using std::max;
-  using std::min;
 
   inline double ceil(const VFAD u) {
     return std::ceil(u.data.value) ;
@@ -2377,242 +2424,296 @@ namespace Loci {
   inline double floor(const VFAD u) {
     return std::floor(u.data.value) ;
   }
+
   inline VFAD erf(const VFAD u) {
     double ef = ::erf(u.data.value) ;
-    VFAD out(ef) ;
     double efp = (2./sqrt(M_PI))*std::exp(-u.data.value*u.data.value) ;
-    for(size_t i=0;i<VFAD::maxN;++i)
-      out.data.grad[i] = u.data.grad[i]*efp ;
-    return out ;
+    VFAD tmp ;
+    tmp.data.value = ef ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*efp ;
+    return tmp ;
   }
   inline VFAD sin(const VFAD u) {
-    VFAD out(std::sin(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = u.data.grad[i]*std::cos(u.data.value);
-    return out;
+    double su = std::sin(u.data.value) ;
+    double cu = std::cos(u.data.value) ;
+    VFAD tmp ;
+    tmp.data.value = su ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*cu ;
+    return tmp ;
   }
   inline VFAD cos(const VFAD u) {
-    VFAD out(std::cos(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = -u.data.grad[i]*std::sin(u.data.value);
-    return out;
+    double su = std::sin(u.data.value) ;
+    double cu = std::cos(u.data.value) ;
+    VFAD tmp ;
+    tmp.data.value = cu ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = -u.data.grad[i]*su ;
+    return tmp ;
   }
   inline VFAD tan(const VFAD u) {
-    VFAD out(std::tan(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = u.data.grad[i]/pow(std::cos(u.data.value),2) ;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = std::tan(u.data.value) ;
+    double cu = std::cos(u.data.value) ;
+    double rcu2 = 1./(cu*cu) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*rcu2 ;
+    return tmp ;
   }
 
   inline VFAD exp(const VFAD u) {
-    VFAD out(std::exp(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = u.data.grad[i]*std::exp(u.data.value);
-    return out;
+    double expu = std::exp(u.data.value) ;
+    VFAD tmp ;
+    tmp.data.value = expu ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = expu*u.data.grad[i] ;
+    return tmp ;
   }
   inline VFAD log(const VFAD u) {
-    VFAD out(std::log(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = u.data.grad[i]/u.data.value ;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = std::log(u.data.value) ;
+    double rvalue = 1./u.data.value ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] =  u.data.grad[i]*rvalue ;
+    return tmp ;
   }
   inline VFAD log10(const VFAD u) {
-    VFAD out(std::log(u.data.value)/std::log(10.0));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = u.data.grad[i]/u.data.value/std::log(10.0);
-    return out;
+    VFAD tmp ;
+    const double logof10 = std::log(10.0);
+    tmp.data.value = std::log(u.data.value)/logof10 ;
+    double rvalue = 1./(u.data.value*logof10) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] =  u.data.grad[i]*rvalue ;
+    return tmp ;
+    //    return VFAD(std::log(u.data.value), u.data.grad/u.data.value)/std::log(10.0);
   }
   inline VFAD abs(const VFAD u) {
-    VFAD out(std::fabs(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = u.data.grad[i]*( (u.data.value<0.0)?-1.0:1.0 );
-    return out;
+    VFAD tmp(u) ;
+    tmp *= (u.data.value<0.0)?-1.0:1.0 ;
+    return tmp ;
   }
   inline VFAD fabs(const VFAD u) {
-    VFAD out(std::fabs(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = u.data.grad[i]*( (u.data.value<0.0)?-1.0:1.0 );
-    return out;
+    VFAD tmp(u) ;
+    tmp *= (u.data.value<0.0)?-1.0:1.0 ;
+    return tmp ;
   }
-
+  /* MPGCOMMENT [05-12-2017 15:04] ---> POW */
   inline VFAD pow(const VFAD u, const int k) {
-    VFAD out(std::pow(u.data.value, k));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = (double)k * std::pow(u.data.value, (double)k-1.0)*u.data.grad[i] ;
-    return out ;
+    double pk = std::pow(u.data.value,k) ;
+    double pkm1 = std::pow(u.data.value,k-1) ;
+    VFAD tmp ;
+    tmp.data.value = pk ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
+    return tmp ;
   }
   inline VFAD pow(const VFAD u, const float k) {
-    VFAD out(std::pow(u.data.value, double(k)));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = (double)k * std::pow(u.data.value, (double)k-1.0)*u.data.grad[i] ;
-    return out ;
+    double pk = std::pow(u.data.value,k) ;
+    double pkm1 = std::pow(u.data.value,k-1) ;
+    VFAD tmp ;
+    tmp.data.value = pk ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
+    return tmp ;
   }
   inline VFAD pow(const VFAD u, const double k) {
-    VFAD out(std::pow(u.data.value, k));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = k * std::pow(u.data.value, k-1.0)*u.data.grad[i] ;
-    return out ;
+    double pk = std::pow(u.data.value,k) ;
+    double pkm1 = std::pow(u.data.value,k-1) ;
+    VFAD tmp ;
+    tmp.data.value = pk ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
+    return tmp ;
   }
   inline VFAD pow(const VFAD u, const long double k) {
-    VFAD out(std::pow(u.data.value, double(k)));
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = (double)k * std::pow(u.data.value, (double)k-1.0)*u.data.grad[i] ;
-    return out ;
+    double pk = std::pow(u.data.value,k) ;
+    double pkm1 = std::pow(u.data.value,k-1) ;
+    VFAD tmp ;
+    tmp.data.value = pk ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
+    return tmp ;
   }
   inline VFAD sqrt(const VFAD u) {
-    double sq = std::sqrt(u.data.value);
-    VFAD out(sq) ;
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = 0.5*u.data.grad[i]/::max(sq,1e-30) ;
-    return out;
+    double su = std::sqrt(u.data.value) ;
+    VFAD tmp ;
+    tmp.data.value = su ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = 0.5*u.data.grad[i]/max(su,1e-30) ;
+    return tmp ;
   }
   inline VFAD pow(const VFAD k, const VFAD u) {
     double kpu = std::pow(k.data.value,u.data.value) ;
-    VFAD out(kpu);
-    for (size_t i=0; i<VFAD::maxN; i++)
-      out.data.grad[i] = std::pow(k.data.value,u.data.value-1.)*k.data.grad[i]*u.data.value + kpu*std::log(k.data.value)*u.data.grad[i] ;
-    return out ;
+    double kpum1 = std::pow(k.data.value,u.data.value-1.) ;
+    double logk = std::log(k.data.value) ;
+    VFAD tmp ;
+    tmp.data.value = kpu ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = (kpum1*k.data.grad[i]*u.data.value +
+                          kpu*logk*u.data.grad[i]) ;
+    return tmp ;
+    //    return VFAD(kpu,std::pow(k.data.value,u.data.value-1.)*k.grad*u.data.value +
+    //                kpu*std::log(k.data.value)*u.grad) ;
   }
   inline VFAD pow(const int k, const VFAD u) {
     double kpu = std::pow(k,u.data.value) ;
-    VFAD out(kpu);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = kpu*std::log(double(k))*u.data.grad[i] ;
-    return out ;
+    double logk = std::log(k) ;
+    VFAD tmp ;
+    tmp.data.value = kpu ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = (kpu*logk*u.data.grad[i]) ;
+    return tmp ;
+    //    double kpu = std::pow(k,u.data.value) ;
+    //    return VFAD(kpu,kpu*std::log(double(k))*u.grad) ;
   }
   inline VFAD pow(const float k, const VFAD u) {
     double kpu = std::pow(k,u.data.value) ;
-    VFAD out(kpu);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = kpu*std::log(double(k))*u.data.grad[i] ;
-    return out ;
+    double logk = std::log(k) ;
+    VFAD tmp ;
+    tmp.data.value = kpu ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = (kpu*logk*u.data.grad[i]) ;
+    return tmp ;
+    //    double kpu = std::pow(double(k),u.data.value) ;
+    //    return VFAD(kpu,kpu*std::log(double(k))*u.grad) ;
   }
   inline VFAD pow(const double k, const VFAD u) {
     double kpu = std::pow(k,u.data.value) ;
-    VFAD out(kpu);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = kpu*std::log(k)*u.data.grad[i] ;
-    return out ;
+    double logk = std::log(k) ;
+    VFAD tmp ;
+    tmp.data.value = kpu ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = (kpu*logk*u.data.grad[i]) ;
+    return tmp ;
+    //    double kpu = std::pow(k,u.data.value) ;
+    //    return VFAD(kpu,kpu*std::log(k)*u.grad) ;
   }
   inline VFAD pow(const long double k, const VFAD u) {
-    double kpu = std::pow(double(k),u.data.value) ;
-    VFAD out(kpu);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = kpu*std::log(k)*u.data.grad[i] ;
-    return out ;
+    double kpu = std::pow(k,u.data.value) ;
+    double logk = std::log(k) ;
+    VFAD tmp ;
+    tmp.data.value = kpu ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = (kpu*logk*u.data.grad[i]) ;
+    return tmp ;
+    //    double kpu = std::pow(double(k),u.data.value) ;
+    //    return VFAD(kpu,kpu*std::log(k)*u.grad) ;
   }
 
-  inline VFAD max (const VFAD &a, const VFAD& b) {
-    VFAD out((a.data.value<b.data.value)?b.data.value:a.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = (a.data.value<b.data.value)?b.data.grad[i]:a.data.grad[i];
-    return out;
-  }
-  inline VFAD max (const VFAD &a, const int& b) {
-    return max(a,VFAD((double)b));
-  }
-  inline VFAD max (const VFAD &a, const float& b) {
-    return max(a,VFAD((double)b));
-  }
-  inline VFAD max (const VFAD &a, const double & b) {
-    return max(a,VFAD((double)b));
-  }
-  inline VFAD max (const VFAD &a, const long double & b) {
-    return max(a,VFAD((double)b));
-  }
-  inline VFAD min (const VFAD &a, const VFAD& b) {
-    VFAD out((a.data.value<b.data.value)?a.data.value:b.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = (a.data.value<b.data.value)?a.data.grad[i]:b.data.grad[i];
-    return out;
-  }
-  inline VFAD min (const VFAD &a, const int& b) {
-    return min(a, VFAD((double)b));
-  }
-  inline VFAD min (const VFAD &a, const float& b) {
-    return min(a, VFAD((double)b));
-  }
-  inline VFAD min (const VFAD &a, const double& b) {
-    return min(a, VFAD((double)b));
-  }
-  inline VFAD min (const VFAD &a, const long double& b) {
-    return min(a, VFAD((double)b));
-  }
 
   inline VFAD sinh(const VFAD u) {
-    VFAD out(std::sinh(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = 0.5*u.data.grad[i]*(std::exp(u.data.value) + std::exp(-(u.data.value))) ;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = std::sinh(u.data.value) ;
+    double expu = std::exp(u.data.value) ;
+    double expmu = std::exp(-u.data.value) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = 0.5*u.data.grad[i]*(expu+expmu) ;
+    return tmp ;
+    //    return VFAD(std::sinh(u.data.value),
+    //                0.5*u.grad*(std::exp(u.data.value) + std::exp(-u.data.value))) ;
   }
   inline VFAD cosh(const VFAD u) {
-    VFAD out(std::cosh(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = 0.5*u.data.grad[i]*(std::exp(u.data.value) - std::exp(-(u.data.value))) ;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = std::cosh(u.data.value) ;
+    double expu = std::exp(u.data.value) ;
+    double expmu = std::exp(-u.data.value) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = 0.5*u.data.grad[i]*(expu-expmu) ;
+    return tmp ;
+    //    return VFAD(std::cosh(u.data.value),
+    //                0.5*u.grad*(std::exp(u.data.value) - std::exp(-u.data.value))) ;
   }
   inline VFAD tanh(const VFAD u) {
-    VFAD out(std::tanh(u.data.value));
-    double ex = std::exp(::min(u.data.value,350.0)) ;
-    double exm = std::exp(::min(-u.data.value,350.0)) ;
+    double ex = std::exp(std::min(u.data.value,350.0)) ;
+    double exm = std::exp(std::min(-u.data.value,350.0)) ;
     double dex = ex-exm ;
     double sex = ex+exm ;
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = u.data.grad[i]*(1.-dex*dex/(sex*sex)) ;
-    return out;
+    double factor = (1.-dex*dex/(sex*sex)) ;
+    VFAD tmp ;
+    tmp.data.value = std::tanh(u.data.value) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*factor ;
+    return tmp ;
+    //    return VFAD(std::tanh(u.data.value),
+    //                u.grad*(1.-dex*dex/(sex*sex))) ;
   }
 
   inline VFAD asin(const VFAD u) {
-    VFAD out(std::asin(u.data.value));
-    double val = std::sqrt(1.0-u.data.value*u.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = u.data.grad[i]/val;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = std::asin(u.data.value) ;
+    double factor = 1./std::sqrt(1.0-u.data.value*u.data.value) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*factor ;
+    return tmp ;
+    //    return VFAD(std::asin(u.data.value), u.grad/std::sqrt(1.0-u.data.value*u.data.value) );
   }
   inline VFAD acos(const VFAD u) {
-    VFAD out(std::acos(u.data.value));
-    double val = std::sqrt(1.0-u.data.value*u.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = -u.data.grad[i]/val;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = std::acos(u.data.value) ;
+    double factor = -1./std::sqrt(1.0-u.data.value*u.data.value) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*factor ;
+    return tmp ;
+    //return VFAD(std::acos(u.data.value), -u.grad/std::sqrt(1.0-u.data.value*u.data.value) );
   }
   inline VFAD atan(const VFAD u) {
-    VFAD out(std::atan(u.data.value));
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = u.data.grad[i]/(u.data.value*u.data.value + 1.0);
-    return out;
+    VFAD tmp ;
+    tmp.data.value = std::atan(u.data.value) ;
+    double factor = 1./(1.0+u.data.value*u.data.value) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*factor ;
+    return tmp ;
+    //    return VFAD(std::atan(u.data.value), u.grad/(1.0+u.data.value*u.data.value) );
   }
-  inline VFAD atan2(const VFAD u, const VFAD v) { return atan(u/v); }
+  // This will not work in general
+  inline VFAD atan2(const VFAD u, const VFAD v) {
+    return atan(u/v);
+  }
 
   inline VFAD asinh(const VFAD u) {
-    VFAD out(::asinh(u.data.value));
     double strm = std::sqrt(u.data.value*u.data.value+1.) ;
     double uvstrm = u.data.value+strm ;
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = u.data.grad[i]*(u.data.value/strm+1.)/uvstrm ;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = ::asinh(u.data.value) ;
+    double factor = (u.data.value/strm+1.)/uvstrm ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*factor ;
+    return tmp ;
+  //return VFAD(::asinh(u.data.value), u.grad*(u.data.value/strm+1.)/uvstrm) ;
   }
   inline VFAD acosh(const VFAD u) {
-    VFAD out(::acosh(u.data.value));
     double strm = std::sqrt(u.data.value*u.data.value-1.) ;
     double uvstrm = u.data.value+strm ;
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = u.data.grad[i]*(u.data.value/strm +1.)/uvstrm ;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = ::acosh(u.data.value) ;
+    double factor = (u.data.value/strm +1.)/uvstrm ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*factor ;
+    return tmp ;
+    //    return VFAD(::acosh(u.data.value), u.grad*(u.data.value/strm +1.)/uvstrm) ;
   }
   inline VFAD atanh(const VFAD u) {
     const double uv = u.data.value ;
-    VFAD out(::atanh(uv));
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = .5*u.data.grad[i]*(1./(1.+uv)+1./(1.-uv)) ;
-    return out;
+    VFAD tmp ;
+    tmp.data.value = ::atanh(uv) ;
+    double factor =  .5*(1./(1.+uv)+1./(1.-uv)) ;
+    for(int i=0;i<VFAD_SIZE;++i)
+      tmp.data.grad[i] = u.data.grad[i]*factor ;
+    return tmp ;
+  //    return VFAD(::atanh(uv), .5*u.grad*(1./(1.+uv)+1./(1.-uv))) ;
   }
 
-  inline VFAD operator +(const double u,const VFAD v) {
-    VFAD out(u+v.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = v.data.grad[i];
-    return out;
-  }
-  inline VFAD operator -(const double u,const VFAD v) {
-    VFAD out(u-v.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = v.data.grad[i];
-    return out;
-  }
-  inline VFAD operator *(const double u,const VFAD v) {
-    VFAD out(u*v.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = u * v.data.grad[i];
-    return out;
-  }
-  inline VFAD operator /(const double &u,const VFAD &v) {
-    VFAD out(u/v.data.value);
-    for (size_t i=0; i<VFAD::maxN; i++) out.data.grad[i] = -u*v.data.grad[i]/v.data.value/v.data.value;
-    return out;
-  }
+  inline VFAD operator +(const double u,const VFAD v)
+  { return VFAD(u) + v ; }
+  inline VFAD operator -(const double u,const VFAD v)
+  { return VFAD(u) - v ; }
+  inline VFAD operator *(const double u,const VFAD v)
+  { return VFAD(u)*v ; }
+  inline VFAD operator /(const double &u,const VFAD &v)
+  { return VFAD(u)/v ; }
+
+  
   //----------------helpers
   inline float realToFloat(double v) { return float(v) ; }
   inline double realToDouble(double v) { return v ; }

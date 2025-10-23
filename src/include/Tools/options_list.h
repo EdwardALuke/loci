@@ -58,16 +58,29 @@ namespace Loci {
     UNIT_type units_value ;
     friend class options_list ;
   public:
-    option_values() { value_type = NOT_ASSIGNED ; real_value = 0 ; real_grad = 0; boolean_value = false ; grad_size = max(MFAD_SIZE,VFAD_SIZE) ; gradN.resize(grad_size) ; for(int i=0;i<grad_size;i++) gradN[i] = 0; }
+    option_values() { value_type = NOT_ASSIGNED ; real_value = 0 ; real_grad = 0; boolean_value = false ; }
 
     option_value_type type_of() const { return value_type ; }
 
     void get_value(bool &b) const { b = boolean_value; }
     void get_value(double &r) const { r = real_value ; }
-    void get_value(MFADd &r) const { r = MFADd(real_value,&gradN[0],grad_size) ; }
-    void get_value(VFAD &r) const { r.data.value = real_value ;
+    void get_value(MFADd &r) const {
+      r = MFADd(real_value) ;
+      for(size_t i=0;i<MFADd::maxN;++i)
+        r.grad[i] = 0 ;
+      r.grad[0] = real_grad ;
+      for(size_t i=1;i<min(gradN.size(),MFADd::maxN);++i)
+        r.grad[i] = gradN[i] ;
+    }
+    void get_value(VFAD &r) const {
+      VFAD val ;
+      val.data.value = real_value ;
       for(size_t i=0;i<VFAD::maxN;++i)
-        r.data.grad[i] = gradN[i] ;
+        val.data.grad[i] = 0 ;
+      val.data.grad[0] = real_grad ;
+      for(size_t i=1;i<min(gradN.size(),VFAD::maxN);++i)
+        val.data.grad[i] = gradN[i] ;
+      r = val ;
     }
     void get_value(FADd &r) const { r = FADd(real_value,real_grad) ; }
     void get_value(FAD2d &r) const { r = FAD2d(real_value,real_grad,real_grad2) ; }

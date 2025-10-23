@@ -848,8 +848,16 @@ namespace Loci {
     if((*tmp).second.value_type == REAL) {
       value.data.value = (*tmp).second.real_value ;
       for(size_t i=0;i<VFAD::maxN;++i)
-        value.data.grad[i] = (*tmp).second.gradN[i] ;
+        value.data.grad[i] = 0 ;
+      value.data.grad[0] = (*tmp).second.real_grad  ;
+
+      //      for(size_t i=0;i<VFAD::maxN;++i)
+      //        value.data.grad[i] = (*tmp).second.gradN[i] ;
+    } else { 
+      cerr << "(*tmp).second.value_type = " <<
+        (*tmp).second.value_type <<endl  ;
     }
+
   }
   
   void options_list::getOption(const string &option, UNIT_type &uvalue) const {
@@ -1006,6 +1014,20 @@ namespace Loci {
       break ;
     case REAL:
       s << real_value ;
+      if(gradN.size() > 1) {
+        s << "^[" ;
+        s << gradN[0] ;
+        for(size_t i=1;i<gradN.size();++i) 
+          s << ' ' << gradN[i] ;
+        s << "]" ;
+      } else {
+        if(real_grad != 0 || real_grad2 != 0)
+          s << "^" << real_grad ;
+        if(real_grad2 != 0) {
+          s << "^^" << real_grad2 ;
+        }
+      }
+        
       break ;
     case UNIT_VALUE:
       s << units_value ;
@@ -1068,26 +1090,40 @@ namespace Loci {
       real_grad = 0 ;
       if(s.peek()=='^') {
 	s.get() ;
-	real_grad = parse::get_real(s) ;
-	if(gradN.size() > 0)
-	  gradN[0] = real_grad ;
+        if(s.peek() == '[') { // multiple gradients
+          s.get() ;
+          size_t N = 0 ;
+          while(s.peek() != ']') {
+            if(parse::is_real(s)) {
+              N++ ;
+              double val = parse::get_real(s) ;
+              if(N == 1)
+                real_grad = val ;
+              if(gradN.size() < N)
+                gradN.push_back(val) ;
+              else
+                gradN[N-1] = val ;
+              parse::kill_white_space(s) ;
+              if(s.peek() == ',') {
+                s.get() ;
+                parse::kill_white_space(s) ;
+              }
+            } else
+              throw StringError("Expecting real in derivative list!") ;
+          }
+          s.get() ;
+        } else {
+          real_grad = parse::get_real(s) ;
+          if(gradN.size() == 0)
+            gradN.push_back(real_grad) ;
+          gradN[0] = real_grad ;
+        }
       }
       real_grad2 = 0 ;
       if(s.peek()=='^') {
 	while(s.peek()=='^')
 	  s.get() ;
 	real_grad2 = parse::get_real(s) ;
-	if(gradN.size()>1)
-	  gradN[1] = real_grad2 ;
-      }
-      size_t cnt = 2 ;
-      while(s.peek()=='^') {
-	while(s.peek()=='^')
-	  s.get() ;
-	if(gradN.size() >cnt) {
-	  gradN[cnt] = parse::get_real(s) ;
-	  cnt++ ;
-	}
       }
 
       parse::kill_white_space(s) ;
@@ -1115,14 +1151,26 @@ namespace Loci {
 	  if(rc == 0) 
 	    throw StringError("having trouble reading units in input") ;
         } while(opens!=0) ;
-#ifndef MULTIFAD
-        units_value = UNIT_type(UNIT_type::MKS,"general",
-				FAD2d(real_value,real_grad,real_grad2),units) ;
-#else
-        units_value = UNIT_type(UNIT_type::MKS,"general",
-				VFAD(real_value,&gradN[0],grad_size),units) ;
-#endif
+
+        units_value = UNIT_type(UNIT_type::MKS,"general",units,
+                                real_value, real_grad, real_grad2,gradN) ;
+        
         value_type = UNIT_VALUE ;
+
+        //        if(gradN.size() <= 1) {
+        //          units_value = UNIT_type(UNIT_type::MKS,"general",
+        //                                  FAD2d(real_value,real_grad,real_grad2),
+        //                                  units) ;
+        //        } else {
+        //          VFAD val(real_value) ;
+        //          for(size_t i=0;i<VFAD::maxN;++i)
+        //            val.data.grad[i] = 0 ;
+        //          val.data.grad[0] = real_grad ;
+        //          for(size_t i=1;i<min(VFAD::maxN,gradN.size());++i)
+        //            val.data.grad[i] = gradN[i] ;
+        //          units_value = UNIT_type(UNIT_type::MKS,"general",val,units) ;
+        //        }
+        //        value_type = UNIT_VALUE ;
       } else
         value_type = REAL ;
     } else if(parse::is_name(s)) {
