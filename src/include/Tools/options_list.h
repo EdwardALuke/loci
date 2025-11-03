@@ -52,7 +52,6 @@ namespace Loci {
     double real_value ;
     double real_grad ;
     double real_grad2 ;
-    int grad_size ;
     std::vector<double> gradN ;
     bool boolean_value ;
     UNIT_type units_value ;
@@ -64,22 +63,22 @@ namespace Loci {
 
     void get_value(bool &b) const { b = boolean_value; }
     void get_value(double &r) const { r = real_value ; }
-    void get_value(MFADd &r) const {
-      r = MFADd(real_value) ;
-      for(size_t i=0;i<MFADd::maxN;++i)
-        r.grad[i] = 0 ;
-      r.grad[0] = real_grad ;
-      for(size_t i=1;i<min(gradN.size(),MFADd::maxN);++i)
-        r.grad[i] = gradN[i] ;
-    }
-    void get_value(VFAD &r) const {
+    void get_value(VFAD &r,int batch=0) const {
       VFAD val ;
       val.data.value = real_value ;
       for(size_t i=0;i<VFAD::maxN;++i)
         val.data.grad[i] = 0 ;
-      val.data.grad[0] = real_grad ;
-      for(size_t i=1;i<min(gradN.size(),VFAD::maxN);++i)
-        val.data.grad[i] = gradN[i] ;
+
+      if(batch == 0) {
+        val.data.grad[0] = real_grad ;
+        for(size_t i=1;i<min(gradN.size()+1,VFAD::maxN);++i)
+          val.data.grad[i] = gradN[i-1] ;
+      } else {
+        size_t offset = batch*VFAD::maxN ;
+        size_t num = min(VFAD::maxN, offset-(gradN.size()+1)) ;
+        for(size_t i=0;i<num;++i)
+          val.data.grad[i] = gradN[i+offset-1] ;
+      }
       r = val ;
     }
     void get_value(FADd &r) const { r = FADd(real_value,real_grad) ; }
@@ -129,8 +128,7 @@ namespace Loci {
     option_values getOption(const std::string &option) const ;
     void getOption(const std::string &option, bool &value) const ;
     void getOption(const std::string &option, double &value) const ;
-    void getOption(const std::string &option, MFADd & value) const ;
-    void getOption(const std::string &option, VFAD & value) const ;
+    void getOption(const std::string &option, VFAD & value,int batch=0) const ;
     void getOption(const std::string &option, FAD2d & value) const ;
     void getOption(const std::string &option, FADd & value) const {
       FAD2d v ;
@@ -145,9 +143,7 @@ namespace Loci {
     void getOptionUnits(const std::string &option, const std::string &units,
                         double &value) const ;
     void getOptionUnits(const std::string &option, const std::string &units,
-                        MFADd &value) const ;
-    void getOptionUnits(const std::string &option, const std::string &units,
-                        VFAD &value) const ;
+                        VFAD &value,int batch=0) const ;
     void getOptionUnits(const std::string &option, const std::string &units,
                         FAD2d &value) const ;
     void getOptionUnits(const std::string &option, const std::string &units,
@@ -159,15 +155,10 @@ namespace Loci {
     void getOptionUnits(const std::string &option, const std::string &units,
 			vector3d<double> &value, double scale=1.0) const ;
     void getOptionUnits(const std::string &option, const std::string &units,
-			vector3d<MFADd> &value) const ;
+			vector3d<VFAD> &value, int batch=0) const ;
     void getOptionUnits(const std::string &option, const std::string &units,
-			vector3d<VFAD> &value) const ;
-    void getOptionUnits(const std::string &option, const std::string &units,
-			vector3d<MFADd> &value,
-			MFADd scale) const ;
-    void getOptionUnits(const std::string &option, const std::string &units,
-			vector3d<VFAD> &value,
-			VFAD scale) const ;
+			vector3d<VFAD> &value, 
+			VFAD scale, int batch=0) const ;
     void getOptionUnits(const std::string &option, const std::string &units,
 			vector3d<FAD2d> &value) const ;
     void getOptionUnits(const std::string &option, const std::string &units,

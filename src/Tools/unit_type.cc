@@ -1053,38 +1053,8 @@ namespace Loci {
     double factor = (*this).conversion_factor/sec_unit.conversion_factor;
     return FAD2d(input_value,gradient,secondGradient)*factor;
   }
-  MFADd UNIT_type::get_value_inM(const std::string unit_str){
-    UNIT_type sec_unit;
-    exprP sec_exp = 0 ;
 
-    sec_unit.mode=(*this).mode;
-    sec_unit.unit_kind=(*this).unit_kind;
-
-    sec_unit.input_value=1;
-    sec_unit.gradient=0 ;
-    sec_unit.secondGradient = 0 ;
-
-    sec_exp=expression::create(unit_str);
-    MFADd val ;
-    val.value = input_value ;
-    for(int i=0;i<MFAD_SIZE;++i)
-      val.grad[i] = 0 ;
-    val.grad[0] = gradient ;
-    for(int i=0;i<min<int>(gradientList.size(),MFAD_SIZE-1);++i)
-      val.grad[i+1] = gradientList[i] ;
-
-    if(is_single_temperature(sec_exp)!=0){
-      reverse_calculate_temperature(sec_exp,val);
-      return val;
-    }
-    else
-      sec_unit.output(sec_exp);
-    //cout<<sec_unit;
-
-    return val*(*this).conversion_factor/sec_unit.conversion_factor;
-  }
-
-  VFAD UNIT_type::get_value_inVF(const std::string unit_str){
+  VFAD UNIT_type::get_value_inVF(const std::string unit_str, int batch){
     UNIT_type sec_unit;
 
     sec_unit.mode=(*this).mode;
@@ -1099,10 +1069,17 @@ namespace Loci {
     val.data.value = input_value ;
     for(int i=0;i<VFAD_SIZE;++i)
       val.data.grad[i] = 0 ;
-    val.data.grad[0] = gradient ;
-    for(int i=0;i<min<int>(gradientList.size(),VFAD_SIZE);++i)
-      val.data.grad[i+1] = gradientList[i] ;
-
+    if(batch == 0) {
+      val.data.grad[0] = gradient ;
+      for(size_t i=1;i<min(gradientList.size()+1,VFAD::maxN);++i)
+        val.data.grad[i] = gradientList[i-1] ;
+    } else {
+      size_t offset = batch*VFAD::maxN ;
+      size_t num = min(VFAD::maxN, offset-(gradientList.size()+1)) ;
+      for(size_t i=0;i<num;++i)
+        val.data.grad[i] = gradientList[i+offset-1] ;
+    }
+    
     if(is_single_temperature(sec_exp)!=0){
       reverse_calculate_temperature(sec_exp,val);
       return val;

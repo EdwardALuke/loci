@@ -143,8 +143,7 @@ namespace Loci {
     //get the value in converted unit
     double get_value_in(const std::string unit_str);
     FAD2d get_value_inD(const std::string unit_str);
-    MFADd get_value_inM(const std::string unit_str);
-    VFAD get_value_inVF(const std::string unit_str);
+    VFAD get_value_inVF(const std::string unit_str, int batch =0 );
     void get_values_in(const std::string unit_str,double &val, double &grad, double &secondGrad, std::vector<double> &gradlist) ;
     UNIT_type(unit_mode in_mode, std::string in_kind, double in_value, std::string in_unit) {
       mode=in_mode,unit_kind=in_kind,input_value=in_value,input_unit=in_unit;
@@ -162,9 +161,7 @@ namespace Loci {
       input_value=in_value ;
       gradient = in_gradient ;
       secondGradient = in_gradient2 ;
-      if(gradList.size() >0)
-        gradient = gradList[0] ;
-      for(size_t i=1;i<gradList.size();++i)
+      for(size_t i=0;i<gradList.size();++i)
         gradientList.push_back(gradList[i]) ;
       input_unit=in_unit;
       exprP exp;
@@ -192,16 +189,7 @@ namespace Loci {
       exp=expression::create(input_unit);
       output(exp);
     }
-    UNIT_type(unit_mode in_mode, std::string in_kind, MFADd in_value, std::string in_unit) {
-      mode=in_mode,unit_kind=in_kind,input_unit=in_unit;
-      gradient = in_value.grad[0] ;
-      secondGradient = 0 ;
-      for(int i=1;i<MFAD_SIZE;++i)
-        gradientList.push_back(in_value.grad[i]) ;
-      exprP exp;
-      exp=expression::create(input_unit);
-      output(exp);
-    }
+
     UNIT_type(unit_mode in_mode, std::string in_kind, VFAD in_value, std::string in_unit) {
       mode=in_mode ;
       unit_kind=in_kind ;

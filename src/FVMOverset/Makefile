@@ -33,10 +33,11 @@ JUNK = *~  core ti_files ii_files rii_files
 
 LIB_OBJS=$(OBJS:.o=_lo.o)
 FAD_OBJS=$(OBJS:.o=_FAD.o)
+VFAD_OBJS=$(OBJS:.o=_VFAD.o)
 
-default: $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so
+default: $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(MODULE_NAME)VFAD_m.so
 
-all: $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so
+all: $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(MODULE_NAME)VFAD_m.so
 
 $(MODULE_NAME)_m.so: $(LIB_OBJS)
 	$(SHARED_LD) $(SHARED_LD_FLAGS) $(MODULE_NAME)_m.so $(LIB_FLAGS) $(LIB_OBJS) $(BASE_LIBS)
@@ -44,10 +45,13 @@ $(MODULE_NAME)_m.so: $(LIB_OBJS)
 $(MODULE_NAME)FAD_m.so: $(FAD_OBJS)
 	$(SHARED_LD) $(SHARED_LD_FLAGS) $(MODULE_NAME)FAD_m.so $(LIB_FLAGS) $(FAD_OBJS) $(BASE_LIBS)
 
+$(MODULE_NAME)VFAD_m.so: $(VFAD_OBJS)
+	$(SHARED_LD) $(SHARED_LD_FLAGS) $(MODULE_NAME)VFAD_m.so $(LIB_FLAGS) $(VFAD_OBJS) $(BASE_LIBS)
+
 FRC : 
 
 clean:
-	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so 
+	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(VFAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(MODULE_NAME)VFAD_m.so 
 
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~)  core 
@@ -55,12 +59,12 @@ JUNK = $(wildcard *~)  core
 LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
 
 uninstall:
-	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)FAD_m.so
+	rm -f $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)_m.so $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)FAD_m.so $(LOCI_INSTALL_PATH)/lib/$(MODULE_NAME)VFAD_m.so
 	rm -fr $(LOCI_INSTALL_PATH)/include/FVMOverset
 
 
 distclean: 
-	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(JUNK) $(LOCI_INTERMEDIATE_FILES) $(DEPEND_FILES)
+	rm -fr $(OBJS) $(LIB_OBJS) $(FAD_OBJS) $(VFAD_OBJS) $(MODULE_NAME)_m.so $(MODULE_NAME)FAD_m.so $(MODULE_NAME)VFAD_m.so $(JUNK) $(LOCI_INTERMEDIATE_FILES) $(DEPEND_FILES)
 
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
