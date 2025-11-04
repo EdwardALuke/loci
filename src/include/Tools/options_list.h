@@ -150,7 +150,7 @@ namespace Loci {
                         FADd &value) const {
       FAD2d v ;
       getOptionUnits(option,units,v) ;
-      value = v ;
+      value = FADd(v.value,v.grad) ;
     }
     void getOptionUnits(const std::string &option, const std::string &units,
 			vector3d<double> &value, double scale=1.0) const ;
@@ -169,16 +169,20 @@ namespace Loci {
 			vector3d<FADd> &value) const {
       vector3d<FAD2d> v ;
       getOptionUnits(option,units,v) ;
-      value = vector3d<FADd>(FADd(v.x),FADd(v.y),FADd(v.z)) ;
+      value = vector3d<FADd>(FADd(v.x.value,v.x.grad),
+                             FADd(v.y.value,v.y.grad),
+                             FADd(v.z.value,v.z.grad)) ;
     }
 
     void getOptionUnits(const std::string &option, const std::string &units,
 			vector3d<FADd> &value,
 			FADd scale) const {
       vector3d<FAD2d> v ;
-      FAD2d scalec = FAD2d(scale.value,scale.grad,0.0)  ;
+      FAD2d scalec = FAD2d(scale.value,scale.grad,0)  ;
       getOptionUnits(option,units,v,scalec) ;
-      value = vector3d<FADd>(v.x,v.y,v.z) ;
+      value = vector3d<FADd>(FADd(v.x.value,v.x.grad),
+                             FADd(v.y.value,v.y.grad),
+                             FADd(v.z.value,v.z.grad)) ;
     }
 
     void setOption(const std::string &option, bool value) ;

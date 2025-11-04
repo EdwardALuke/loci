@@ -38,56 +38,59 @@ namespace Loci {
     double value;
     double grad;
     double grad2;
+#define TO_BE_DEPRECATED
+#ifdef TO_BE_DEPRECATED
     /* MPGCOMMENT [05-12-2017 13:49] ---> constructor */
-#define gradcheck() //if(grad!=0) debugger_() ; //fatal(grad!=0.0) ;
     template< class T1>
-    FAD2d(T1 a0): value(a0), grad(0.0),grad2(0.0) { gradcheck();}
-    FAD2d(double a0, double b0, double c0): value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { gradcheck();}
+    FAD2d(T1 a0): value(a0), grad(0.0),grad2(0.0) { }
+#endif
+    FAD2d(double a0, double b0, double c0): value(a0), grad(b0), grad2(c0) { }
+    FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { }
 
-    FAD2d() : value(0.0), grad(0.0),grad2(0.0) { gradcheck();}
+    FAD2d() : value(0.0), grad(0.0),grad2(0.0) { }
     // --------------------------------------------------------------------
     // REH ADDED BELOW - 20220202 - Missing code from initial 2017 dev mods
     // --------------------------------------------------------------------
-    FAD2d(int a0         ,int b0)        : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(int a0         ,float b0)        : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(int a0         ,double b0)        : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(int a0         ,long double b0)        : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(float a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(float a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(float a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(float a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(long double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(long double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(long double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
-    FAD2d(long double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { gradcheck();}
+    FAD2d(int a0         ,int b0)        : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(int a0         ,float b0)        : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(int a0         ,double b0)        : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(int a0         ,long double b0)        : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(float a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(float a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(float a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(float a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(long double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(long double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(long double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    FAD2d(long double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
 
-    FAD2d(double a0      ,int b0        , int c0)       : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,int b0        , float c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,int b0        , double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,int b0        , long double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,float b0      , int c0)       : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,float b0      , float c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,float b0      , double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,float b0      , long double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,double b0     , int c0)       : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,double b0     , float c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    //FAD2d(double a0      ,double b0     , double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,double b0     , long double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,long double b0, int c0)       : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,long double b0, float c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,long double b0, double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(double a0      ,long double b0, long double c0)     : value(a0), grad(b0), grad2(c0) { gradcheck();}
-    FAD2d(bool &u)        : value((u)?1.0:0.0), grad(0.0), grad2(0.0) { gradcheck();}
-    //FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { gradcheck();}
-    FAD2d(int a0)        : value(a0), grad(0.0), grad2(0.0) { gradcheck();}
-    FAD2d(float a0)        : value(a0), grad(0.0), grad2(0.0) { gradcheck();}
-    FAD2d(double a0)        : value(a0), grad(0.0), grad2(0.0) { gradcheck();}
-    FAD2d(long double a0)        : value(a0), grad(0.0), grad2(0.0) { gradcheck();}
+    FAD2d(double a0      ,int b0        , int c0)       : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,int b0        , float c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,int b0        , double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,int b0        , long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,float b0      , int c0)       : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,float b0      , float c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,float b0      , double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,float b0      , long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,double b0     , int c0)       : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,double b0     , float c0)     : value(a0), grad(b0), grad2(c0) { }
+    //FAD2d(double a0      ,double b0     , double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,double b0     , long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,long double b0, int c0)       : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,long double b0, float c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,long double b0, double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(double a0      ,long double b0, long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    FAD2d(bool &u)        : value((u)?1.0:0.0), grad(0.0), grad2(0.0) { }
+    //FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { }
+    FAD2d(int a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    FAD2d(size_t a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    FAD2d(float a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    FAD2d(double a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    FAD2d(long double a0)        : value(a0), grad(0.0), grad2(0.0) {  }
     // --------------------------------------------------------------------
     void setValue(double val) { value = val ; }
     FAD2d& operator =(const FAD2d &u) {
@@ -652,70 +655,36 @@ namespace Loci {
 
     double value;
     double grad;
-#ifdef LIVING_DANGEROUS
-    /* MPGCOMMENT [05-12-2017 13:50] ---> type-cast */
-    explicit operator char() {return (char)value;}
-    explicit operator bool() {return (bool)value;}
-    explicit operator int() {return (int)value;}
-    explicit operator float() {return (float)value;}
-    operator double() {return (double)value;}
-    explicit operator FADd() {return FADd(value,grad);}
-    explicit operator long double() const {return (long double)value;}
-
-    //    operator double*()  {return &value;}/* MPGCOMMENT [05-15-2017 10:51] ---> only one used, others set for completeness */
-    //    operator const double*()  {return (const double*)&value;}/* MPGCOMMENT [05-15-2017 10:51] ---> only one used, others set for completeness */
-#endif
-
     /* MPGCOMMENT [05-12-2017 13:49] ---> constructor */
-#define gradcheck() //if(grad!=0) debugger_() ; //fatal(grad!=0.0) ;
+#ifdef TO_BE_DEPRECATED
     template< class T1>
-    FADd(T1 a0): value(a0), grad(0.0){ gradcheck();}/* MPGCOMMENT [05-15-2017 14:46] ---> used in chem, chem::Temperature */
-    FADd(int a0         ,int b0)        : value(a0), grad(b0) { gradcheck();}
-    FADd(int a0         ,float b0)        : value(a0), grad(b0) { gradcheck();}
-    FADd(int a0         ,double b0)        : value(a0), grad(b0) { gradcheck();}
-    FADd(int a0         ,long double b0)        : value(a0), grad(b0) { gradcheck();}
-    FADd(float a0      ,int b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(float a0      ,float b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(float a0      ,double b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(float a0      ,long double b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(double a0      ,int b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(double a0      ,float b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(double a0      ,double b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(double a0      ,long double b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(long double a0      ,int b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(long double a0      ,float b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(long double a0      ,double b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(long double a0      ,long double b0)       : value(a0), grad(b0) { gradcheck();}
-    FADd(const FAD2d &u): value(u.value), grad(u.grad) { gradcheck();}
-    //    explicit FADd(bool &u) : value((u)?1.0:0.0), grad(0.0) { gradcheck();}
-    FADd(const FADd &u) : value(u.value), grad(u.grad) { gradcheck();}
-    //  explicit FADd(int a0)        : value(a0), grad(0.0) { gradcheck();}
-    //  explicit FADd(float a0)        : value(a0), grad(0.0) { gradcheck();}
-    //  explicit FADd(double a0)        : value(a0), grad(0.0) { gradcheck();}
-    //  explicit FADd(long double a0)        : value(a0), grad(0.0) { gradcheck();}
-    FADd() : value(0.0), grad(0.0) { gradcheck();}
+    FADd(T1 a0): value(a0), grad(0.0) { }
+#endif
+    FADd(int a0         ,int b0)        : value(a0), grad(b0) { }
+    FADd(int a0         ,float b0)        : value(a0), grad(b0) { }
+    FADd(int a0         ,double b0)        : value(a0), grad(b0) { }
+    FADd(int a0         ,long double b0)        : value(a0), grad(b0) { }
+    FADd(float a0      ,int b0)       : value(a0), grad(b0) { }
+    FADd(float a0      ,float b0)       : value(a0), grad(b0) { }
+    FADd(float a0      ,double b0)       : value(a0), grad(b0) { }
+    FADd(float a0      ,long double b0)       : value(a0), grad(b0) { }
+    FADd(double a0      ,int b0)       : value(a0), grad(b0) { }
+    FADd(double a0      ,float b0)       : value(a0), grad(b0) { }
+    FADd(double a0      ,double b0)       : value(a0), grad(b0) { }
+    FADd(double a0      ,long double b0)       : value(a0), grad(b0) { }
+    FADd(long double a0      ,int b0)       : value(a0), grad(b0) { }
+    FADd(long double a0      ,float b0)       : value(a0), grad(b0) { }
+    FADd(long double a0      ,double b0)       : value(a0), grad(b0) { }
+    FADd(long double a0      ,long double b0)       : value(a0), grad(b0) { }
 
+    FADd(const double u): value(u),grad(0.0) { }
+    FADd(const float u): value(u),grad(0.0) { }
+    FADd(const int u): value(u),grad(0.0) { }
+    FADd(const size_t u): value(u),grad(0.0) { }
+    FADd(const FADd &u) : value(u.value), grad(u.grad) { }
 
-    //    friend void swap(double& a, FADd& b) {
-    //      using std::swap;
-    //      swap(a, b.value);
-    //    }
+    FADd() : value(0.0), grad(0.0) {}
 
-    /**************************************************************/
-    /* MPGCOMMENT [05-12-2017 10:38] ---> FADd --- FADd OPERATORS */
-
-    /* MPGCOMMENT [05-12-2017 10:35] ---> ASSIGNMENT */
-    /* template<class T> Loci::const_store<Loci::vector3d<FADd> >& operator =(Loci::const_store<Loci::vector3d<T> > &u) { */
-    /*   value = u; */
-    /*   grad = 0.0; */
-    /*   return *this; */
-    /* } */
-
-    //    template<class T> FADd& operator =(const T &u) {
-    //      value = u;
-    //      grad = 0.0;
-    //      return *this;
-    //    }
     void setValue(double val) { value = val ; }
     FADd& operator =(const FADd &u) {
       value = u.value;
@@ -1219,6 +1188,9 @@ namespace Loci {
   { return FADd(u*v.value,  v.grad*u); }
   inline FADd operator /(const double &u,const FADd &v)
   { return FADd(u/v.value, -u*v.grad/v.value/v.value); }
+
+
+#ifdef TO_BE_DEPRECATED
 
 #ifndef MFAD_SIZE
 #define MFAD_SIZE 1
@@ -1931,7 +1903,7 @@ namespace Loci {
     for (size_t i=0; i<s; i++) out.grad[i] = -u*v.grad[i]/v.value/v.value;
     return out;
   }
-
+#endif
   
 #define VFAD_SIZE 6
   struct VFADData {
@@ -1958,32 +1930,29 @@ namespace Loci {
     explicit operator VFAD() {return *this ;}
     explicit operator long double() const {return (long double)data.value;}
 
-    //    operator double*()  {return &data.value;}/* MPGCOMMENT [05-15-2017 10:51] ---> only one used, others set for completeness */
-    //    operator const double*()  {return (const double*)&data.value;}/* MPGCOMMENT [05-15-2017 10:51] ---> only one used, others set for completeness */
 #endif
 
-    /* MPGCOMMENT [05-12-2017 13:49] ---> constructor */
-    template< class T1>
-    VFAD(T1 a0) {
-      data.value = a0 ;
+    VFAD(const double u) {
+      data.value = u ;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0. ;
     }
-    
-    VFAD(const FAD2d &u) {
-      data.value = u.value ;
+    VFAD(const int u) {
+      data.value = u ;
       for(int i=0;i<VFAD_SIZE;++i)
-        data.grad[i] = 0 ;
-      data.grad[0] = u.grad ;
+        data.grad[i] = 0. ;
     }
-    
-    VFAD(const FADd &u) {
-      data.value = u.value ;
+    VFAD(const size_t u) {
+      data.value = u ;
       for(int i=0;i<VFAD_SIZE;++i)
-        data.grad[i] = 0 ;
-      data.grad[0] = u.grad ;
+        data.grad[i] = 0. ;
     }
-    
+    VFAD(const float u) {
+      data.value = u ;
+      for(int i=0;i<VFAD_SIZE;++i)
+        data.grad[i] = 0. ;
+    }
+      
     VFAD(const VFAD &u)  {
       data.value = u.data.value ;
       data.grad = u.data.grad ;
@@ -2210,15 +2179,17 @@ namespace Loci {
     VFAD operator /(const VFAD &v) const{
       VFAD tmp ;
       tmp.data.value = data.value/v.data.value ;
+      float value2 = 1./max(v.data.value*v.data.value,1e-30) ;
       for(int i=0;i<VFAD_SIZE;++i) 
-        tmp.data.grad[i] =(data.grad[i]*v.data.value - data.value*v.data.grad[i])/(v.data.value*v.data.value) ;
+        tmp.data.grad[i] =(data.grad[i]*v.data.value -
+                           data.value*v.data.grad[i])*value2 ;
       return tmp ;
     }
     VFAD operator /(const int &v) const{
       VFAD tmp(*this) ;
-      tmp.data.value /= v ;
+      tmp.data.value /= double(v) ;
       for(int i=0;i<VFAD_SIZE;++i)
-        tmp.data.grad[i] /= v ;
+        tmp.data.grad[i] /= float(v) ;
       return tmp ;
     }
     VFAD operator /(const float &v) const{ 
@@ -2244,17 +2215,17 @@ namespace Loci {
     }
 
     VFAD& operator /=(const VFAD &u) {
+      float value2 = 1./max(u.data.value*u.data.value,1e-30) ;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = (data.grad[i]*u.data.value -
-                        data.value * u.data.grad[i]) /
-        (u.data.value*u.data.value);
+                        data.value * u.data.grad[i]) *value2 ;
       data.value /= u.data.value;
       return *this;
     }
     VFAD& operator /=(const int &u) {
-      data.value/=u;
+      data.value/=double(u);
       for(int i=0;i<VFAD_SIZE;++i)
-        data.grad[i] /=u;
+        data.grad[i] /=float(u);
       return *this;
     }
     VFAD& operator /=(const float &u) {

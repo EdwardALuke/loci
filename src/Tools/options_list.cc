@@ -548,7 +548,7 @@ namespace Loci {
 	      << vname << std::endl ;
 	  throw StringError(oss.str()) ;
         }
-      VFAD r=1 ,theta=0 ,eta=0 ;
+      VFAD r(1.0) ,theta(0.0) ,eta(0.0) ;
       double conv = M_PI/180.0 ;
       if(value_list[0].type_of() == Loci::UNIT_VALUE) {
         Loci::UNIT_type vu ;
