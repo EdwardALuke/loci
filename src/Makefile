@@ -60,8 +60,8 @@ SPRNG :
 
 .PHONY: FORCE
 
-LOCI_MAJOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v\([0-9][0-9]*\).*/\1/")
-LOCI_MINOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v[0-9][0-9]*[.]\([0-9][0-9]*\).*/\1/")
+LOCI_MAJOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v\([0-9][0-9]*\).*/\1/p; t; s/.*/0/")
+LOCI_MINOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v[0-9][0-9]*[.]\([0-9][0-9]*\).*/\1/p; t; s/.*/0/")
 include/Config/version_info.h: FORCE
 	@echo \#ifndef CONFIG_LOCI_INFO_H > version_info.h
 	@echo \#define CONFIG_LOCI_INFO_H >> version_info.h
