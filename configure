@@ -440,6 +440,18 @@ if [ "$METIS_BASE" == "/notselected" ] ; then
     fi
 fi
 
+# check for git repo information
+if [ ! -d .git ] && [ ! -f "src/version.conf" ]; then
+    echo "ERROR: neither .git directory or src/version.conf found, cannot determine versioning.";
+    echo "If you downloaded the source tarball from https://github.com/EdwardALuke/loci/tags that is not supported; instead do the following:";
+    echo "git clone https://github.com/EdwardALuke/loci.git";
+    echo "cd loci";
+    echo "git submodule init";
+    echo "git checkout <tag>";
+    echo "where <tag> is the version you want to compile"
+    exit -1
+fi
+
 # if Loci is not installing METIS setup METIS_LIBS and METIS_INCLUDES
 if [ $NO_MPI == 1 ] ; then
     INSTALL_METIS=0
