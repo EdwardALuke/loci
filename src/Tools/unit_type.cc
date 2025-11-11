@@ -1068,7 +1068,7 @@ namespace Loci {
     exprP sec_exp=expression::create(unit_str);
     VFAD val ;
     val.data.value = input_value ;
-    for(int i=0;i<VFAD_SIZE;++i)
+    for(size_t i=0;i<VFAD::maxN;++i)
       val.data.grad[i] = 0 ;
     if(batch == 0) {
       val.data.grad[0] = gradient ;

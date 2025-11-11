@@ -65,7 +65,7 @@ namespace Loci {
     T data[N];
 
   public:
-    StaticSizedArray() {}
+    StaticSizedArray() = default ;
 
     StaticSizedArray(T e) {
       for(int i = 0; i < N; ++i) {
@@ -133,7 +133,7 @@ namespace Loci {
 
     };
 
-    vtype() { }
+    vtype() = default ;
 
     vtype(
           int32_t e0, int32_t e1, int32_t e2, int32_t e3,
@@ -541,7 +541,7 @@ namespace Loci {
 #endif
     };
 
-    vtype() { }
+    vtype() = default ;
 
 #if !defined(VTYPE_SCALAR_ONLY) && defined(__AVX2__)
     explicit vtype(__m128 reg) : sseReg(reg) { }
@@ -823,7 +823,7 @@ namespace Loci {
 
     };
 
-    vtype() { }
+    vtype() = default ;
 
 #if !defined(VTYPE_SCALAR_ONLY) && defined(__AVX2__)
     explicit vtype(__m256 reg) : avxReg(reg) { }
@@ -1043,6 +1043,48 @@ namespace Loci {
 #endif
   }
 
+  inline vtype<float, 8> operator*(vtype<float, 8> const & lhs, float const & rhs) {
+#if !defined(VTYPE_SCALAR_ONLY) && defined(__AVX2__)
+    __m256 C = _mm256_set1_ps(rhs) ;
+    return vtype<float, 8>(_mm256_mul_ps(lhs.avxReg, C));
+#else
+# if defined(VTYPE_ENABLE_SCALAR_WARNINGS)
+#warning "scalar implementation"
+# endif
+    return vtype<float, 8>(
+                           lhs.data[0] * rhs,
+                           lhs.data[1] * rhs,
+                           lhs.data[2] * rhs,
+                           lhs.data[3] * rhs,
+                           lhs.data[4] * rhs,
+                           lhs.data[5] * rhs,
+                           lhs.data[6] * rhs,
+                           lhs.data[7] * rhs
+                           );
+#endif
+  }
+
+  inline vtype<float, 8> operator*(float const & lhs, vtype<float, 8> const & rhs) {
+#if !defined(VTYPE_SCALAR_ONLY) && defined(__AVX2__)
+    __m256 C = _mm256_set1_ps(lhs) ;
+    return vtype<float, 8>(_mm256_mul_ps(C, rhs.avxReg));
+#else
+# if defined(VTYPE_ENABLE_SCALAR_WARNINGS)
+#warning "scalar implementation"
+# endif
+    return vtype<float, 8>(
+                           lhs * rhs.data[0],
+                           lhs * rhs.data[1],
+                           lhs * rhs.data[2],
+                           lhs * rhs.data[3],
+                           lhs * rhs.data[4],
+                           lhs * rhs.data[5],
+                           lhs * rhs.data[6],
+                           lhs * rhs.data[7]
+                           );
+#endif
+  }
+
   inline vtype<float, 8> operator/(vtype<float, 8> const & lhs, vtype<float, 8> const & rhs) {
 #if !defined(VTYPE_SCALAR_ONLY) && defined(__AVX2__)
     return vtype<float, 8>(_mm256_div_ps(lhs.avxReg, rhs.avxReg));
@@ -1059,6 +1101,27 @@ namespace Loci {
                            lhs.data[5] / rhs.data[5],
                            lhs.data[6] / rhs.data[6],
                            lhs.data[7] / rhs.data[7]
+                           );
+#endif
+  }
+
+  inline vtype<float, 8> operator/(vtype<float, 8> const & lhs, float const & rhs) {
+#if !defined(VTYPE_SCALAR_ONLY) && defined(__AVX2__)
+    __m256 C = _mm256_set1_ps(rhs) ;
+    return vtype<float, 8>(_mm256_div_ps(lhs.avxReg, C));
+#else
+# if defined(VTYPE_ENABLE_SCALAR_WARNINGS)
+#warning "scalar implementation"
+# endif
+    return vtype<float, 8>(
+                           lhs.data[0] / rhs,
+                           lhs.data[1] / rhs,
+                           lhs.data[2] / rhs,
+                           lhs.data[3] / rhs,
+                           lhs.data[4] / rhs,
+                           lhs.data[5] / rhs,
+                           lhs.data[6] / rhs,
+                           lhs.data[7] / rhs
                            );
 #endif
   }
@@ -1179,7 +1242,7 @@ namespace Loci {
 
     };
 
-    vtype() { }
+    vtype() = default ;
 
     vtype(
           double e0, double e1, double e2, double e3

@@ -47,7 +47,7 @@ namespace Loci {
     FAD2d(double a0, double b0, double c0): value(a0), grad(b0), grad2(c0) { }
     FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { }
 
-    FAD2d() : value(0.0), grad(0.0),grad2(0.0) { }
+    FAD2d() = default ;
     // --------------------------------------------------------------------
     // REH ADDED BELOW - 20220202 - Missing code from initial 2017 dev mods
     // --------------------------------------------------------------------
@@ -681,9 +681,10 @@ namespace Loci {
     FADd(const float u): value(u),grad(0.0) { }
     FADd(const int u): value(u),grad(0.0) { }
     FADd(const size_t u): value(u),grad(0.0) { }
-    FADd(const FADd &u) : value(u.value), grad(u.grad) { }
+    //    FADd(const FADd &u) : value(u.value), grad(u.grad) { }
+    FADd(const FADd &u) = default ;
 
-    FADd() : value(0.0), grad(0.0) {}
+    FADd() = default ;
 
     void setValue(double val) { value = val ; }
     FADd& operator =(const FADd &u) {
@@ -1953,17 +1954,9 @@ namespace Loci {
         data.grad[i] = 0. ;
     }
       
-    VFAD(const VFAD &u)  {
-      data.value = u.data.value ;
-      data.grad = u.data.grad ;
-    }
+    VFAD(const VFAD &u)   = default ;
 
-    VFAD() { 
-      data.value = 0 ;
-      for(int i=0;i<VFAD_SIZE;++i)
-        data.grad[i] = 0 ;
-    }
-
+    VFAD() = default ;
 
     void setValue(double val) { data.value = val ; }
     VFAD& operator =(const VFAD &u) {

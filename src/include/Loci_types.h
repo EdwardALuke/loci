@@ -273,7 +273,7 @@ namespace Loci {
     }
   };
 
-    template <class T,size_t n> inline std::ostream &
+  template <class T,size_t n> inline std::ostream &
     operator<<(std::ostream &s, const vtype<T,n> &v) {
     for(size_t i=0;i<n;++i)
       s << v[i] << ' ' ;
@@ -298,6 +298,39 @@ namespace Loci {
     }
   };
 
+  template <> 
+  class data_schema_traits< vtype<float,8> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = 8 ;
+      return new ArrayType(getLociType(float()),
+                           sizeof(vtype<float,8>),1,&dim) ;
+    }
+  };
+
+  template <> 
+  class data_schema_traits< vtype<double,4> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = 4 ;
+      return new ArrayType(getLociType(double()),
+                           sizeof(vtype<double,4>),1,&dim) ;
+    }
+  };
+
+  template <> 
+  class data_schema_traits< vtype<int32_t,8> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = 8 ;
+      return new ArrayType(getLociType(int32_t()),
+                           sizeof(vtype<int32_t,8>),1,&dim) ;
+    }
+  };
+  
   template <> struct data_schema_traits<options_list> {
     typedef USER_DEFINED_CONVERTER Schema_Converter ;
     typedef char Converter_Base_Type ;

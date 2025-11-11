@@ -196,7 +196,7 @@ namespace Loci {
       input_value = in_value.data.value ;
       gradient = in_value.data.grad[0] ;
       secondGradient = 0 ;
-      for(int i=1;i<VFAD_SIZE;++i)
+      for(size_t i=1;i<VFAD::maxN;++i)
         gradientList.push_back(in_value.data.grad[i]) ;
       
       input_unit=in_unit ;

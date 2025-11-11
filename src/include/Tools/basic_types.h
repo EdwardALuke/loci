@@ -1550,7 +1550,7 @@ namespace Loci {
   template <class T> 
   struct vector3d {
     T x,y,z ;
-    vector3d() {} 
+    vector3d() =default ;
     vector3d(const vector3d &v): x(v.x),y(v.y),z(v.z) {}
     vector3d(T xx,T yy, T zz) : x(xx),y(yy),z(zz) {}
     template <class S> vector3d(const vector3d<S> &v): x(v.x),y(v.y),z(v.z) {}
@@ -1651,7 +1651,7 @@ namespace Loci {
   }
 
   template<class T>  struct tensor3d : public vector3d<vector3d< T > > {
-    tensor3d() {}
+    tensor3d() = default ;
     tensor3d(vector3d<T> xx,vector3d<T> yy, vector3d<T> zz)
       : vector3d<vector3d< T> > (xx,yy,zz) {}
     tensor3d(const tensor3d &v) : vector3d<vector3d< T> >(v) {}
@@ -1702,7 +1702,7 @@ namespace Loci {
   template <class T> 
   struct vector2d {
     T x,y ;
-    vector2d() {} 
+    vector2d() = default ; 
     vector2d(T xx,T yy) : x(xx),y(yy) {}
     vector2d(const vector2d &v) {x=v.x;y=v.y;}
     T &operator[](int i) {

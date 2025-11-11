@@ -207,11 +207,14 @@ TEST_CASE("vtype<float, 8> arithmetic operations") {
   
   std::vector<type> a(N), b(N), c(N);
   
+  std::vector<float> d(N) ;
+
   for(unsigned int e = 0; e < N; ++e) {
     for(unsigned int i = 0; i < type::W; ++i) {
       a[e][i] = rdist(re);
       b[e][i] = rdist(re);
     }
+    d[e] = fabs(rdist(re))+1e-20 ;
   }
   
   for(unsigned int e = 0; e < N; ++e) {
@@ -277,14 +280,36 @@ TEST_CASE("vtype<float, 8> arithmetic operations") {
   }
   
   for(unsigned int e = 0; e < N; ++e) {
-    c[e] = a[e]*type(10.0f);
+    c[e] = a[e]*d[e];
   }
   
   for(unsigned int e = 0; e < N; ++e) {
     for(unsigned int i = 0; i < type::W; ++i) {
-      CHECK(c[e][i] == a[e][i]*10.0f);
+      CHECK(c[e][i] == a[e][i]*d[e]);
     }
   }
+
+
+  for(unsigned int e = 0; e < N; ++e) {
+    c[e] = d[e]*a[e];
+  }
+  
+  for(unsigned int e = 0; e < N; ++e) {
+    for(unsigned int i = 0; i < type::W; ++i) {
+      CHECK(c[e][i] == d[e]*a[e][i]);
+    }
+  }
+
+  for(unsigned int e = 0; e < N; ++e) {
+    c[e] = a[e]/d[e];
+  }
+  
+  for(unsigned int e = 0; e < N; ++e) {
+    for(unsigned int i = 0; i < type::W; ++i) {
+      CHECK(c[e][i] == a[e][i]/d[e]);
+    }
+  }  
+
 }
 
 TEST_CASE("vtype<double, 4> arithmetic operations") {
