@@ -86,6 +86,11 @@ PTHREADS_DEFINE=
 PTHREADS_LIB=
 USE_PTHREADS=0
 
+
+USE_CUDA=0
+CUDA_BASE=
+CUDA_ARCH=native
+
 PREFIX=/usr/local
 if [ $# -eq 0 ]; then
     echo "*******************************************************************************"
@@ -119,8 +124,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    PREFIX=${tmp#--prefix\=}
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--petsc-dir)
 	    shift
 	    PETSC_BASE=$1
@@ -137,8 +142,30 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    PETSC_BASE=${tmp#--with-petsc\=}
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
+	--cuda-dir)
+	    shift
+	    CUDA_BASE=$1
+            USE_CUDA=1
+	    ;;
+	--cuda-dir\=*)
+	    tmp=$1
+	    CUDA_BASE=${tmp#--cuda-dir\=}
+            USE_CUDA=1
+	    ;;
+	--with-cuda)
+	    shift
+	    CUDA_BASE=$1
+            USE_CUDA=1
+	    ;;
+	--with-cuda\=*)
+	    tmp=$1
+	    CUDA_BASE=${tmp#--with-cuda\=}
+            USE_CUDA=1
+	    ;;
+	#######################################################################
+	#######################################################################
 	--with-pthreads)
 	    PTHREADS_DEFINE=-DPTHREADS
 	    PTHREADS_LIB=-lpthread
@@ -154,8 +181,8 @@ while [ $# -ne 0 ]; do
 	    PTHREADS_LIB=
 	    USE_PTHREADS=0
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--no-metis)
 	    METIS_BASE=""
 	    METIS_LIBS=""
@@ -208,8 +235,8 @@ while [ $# -ne 0 ]; do
 	    INSTALL_METIS=0
 	    USE_METIS=1
             ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--hdf5-dir)
 	    shift
 	    H5PATH=$1
@@ -226,8 +253,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    H5PATH=${tmp#--with-hdf5\=}
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--cgns-dir)
 	    shift
 	    CGNSPATH=$1
@@ -244,8 +271,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    CGNSPATH=${tmp#--with-cgns\=}
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--w-tecio)
 	    TECIOPATH=find
 	    ;;
@@ -269,8 +296,8 @@ while [ $# -ne 0 ]; do
 	    shift
 	    TECIOPATH=$1
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--tec360-dir)
 	    shift
 	    TEC360PATH=$1
@@ -287,8 +314,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    TEC360PATH=${tmp#--with-tec360\=}
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--mpi-dir)
 	    shift
 	    MPI_BASE=$1
@@ -313,8 +340,8 @@ while [ $# -ne 0 ]; do
 	    USE_METIS=0
 	    INSTALL_METIS=0
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--compiler)
 	    shift
 	    COMPILER=$1
@@ -323,8 +350,8 @@ while [ $# -ne 0 ]; do
 	    tmp=$1
 	    COMPILER=${tmp#--compiler\=}
 	    ;;
-	############################################################################
-	############################################################################
+	#######################################################################
+	#######################################################################
 	--obj-dir)
 	    shift
 	    OBJDIR=$1
@@ -550,7 +577,9 @@ if [ $MPI_BASE == "/notselected" ]; then
 	fi
     fi
 
-    MPI_BASE=`echo $MPI_PATH | sed "s/\/.[a-zA-Z0-9]*$//"`
+    echo MPI_PATH=$MPI_PATH
+    MPI_BASE=`echo $MPI_PATH | sed "s/\/.[a-zA-Z0-9]*\/$//"`
+    echo MPI_BASE=$MPI_BASE
 else
     MPI_PATH=$MPI_BASE/bin
     MPI_C_COMPILER=none
@@ -620,12 +649,12 @@ else
     if [ "$MPI_C_COMPILER" == "none" ]; then
 	echo MPI_BASE =  $MPI_BASE >> sys.conf
 	echo MPI_LIBS =  -L$MPI_BASE/lib $MPI_LIBRARY >> sys.conf
-	echo MPI_INCLUDE = -DMPI_NO_CXXBIND -I$MPI_BASE/include  >> sys.conf
+	echo MPI_INCLUDE = -I$MPI_BASE/include  >> sys.conf
 	echo MPI_RUN=$MPI_PATH/$MPIEXEC >> sys.conf
     else
 	echo MPI_BASE =  $MPI_BASE >> sys.conf
 	echo MPI_LIBS =   >> sys.conf
-	echo MPI_INCLUDE = -DMPI_NO_CPPBIND -DMPICH_IGNORE_CXX_SEEK >> sys.conf
+	echo MPI_INCLUDE =  >> sys.conf
 	echo MPI_RUN=$MPI_PATH/$MPIEXEC >> sys.conf
     fi
     echo MPI_C_COMPILER = $MPI_C_COMPILER >> sys.conf
@@ -870,6 +899,15 @@ else
     echo "         the PETSc libraries enabled."
 fi
 
+if [ $USE_CUDA == 1 ]; then
+    echo >> sys.conf
+    echo \# CUDA setup >> sys.conf
+    echo CUDA_BASE = $CUDA_BASE >> sys.conf
+    echo CUDA_LIBS = -L\$\(CUDA_BASE\)/lib64 -lcudart \$\(RPATH\)\$\(CUDA_BASE\)/lib64 >> sys.conf
+    echo CUDA_INCLUDE = -I\$\(CUDA_BASE\)/include -I\$\(MPI_BASE\)/include -DUSE_CUDA_RT >> sys.conf
+    echo NVCC = nvcc -O3 -lineinfo -g -arch native >> sys.conf
+    
+fi
 echo >> sys.conf
 echo \# POSIX threads setup >> sys.conf
 echo PTHREADS_DEFINE=$PTHREADS_DEFINE >> sys.conf
@@ -954,10 +992,17 @@ echo >> sys.conf
 
 echo "MACHINE_SPECIFIC = \$(PETSC_DEFINE) \$(PETSC_INCLUDE) \$(HDF5_INCLUDE)\\">> sys.conf
 echo "                   \$(MPI_INCLUDE) \$(METIS_INCLUDE) \$(CGNS_INCLUDE) \$(MISC)\\" >> sys.conf
+if [ $USE_CUDA == 1 ]; then
+    echo "                   \$(CUDA_INCLUDE) \\" >> sys.conf
+fi
 echo "                   \$(DYNAMIC_LOADING_DEFINES) \$(PTHREADS_DEFINE)" >> sys.conf
 echo >> sys.conf
 echo "BASE_LIBS = \$(HDF5_LIBS) \$(PETSC_LIBS)  \$(METIS_LIBS) \\" >> sys.conf
 echo "            \$(MISC_LIBS) \$(CGNS_LIBS) \$(DYNAMIC_LOADING_LINK) \\" >> sys.conf
+if [ $USE_CUDA == 1 ]; then
+    echo "            \$(CUDA_LIBS) \\" >> sys.conf
+fi
+
 echo "            \$(MPI_LIBS) \$(PTHREADS_LIB)" >> sys.conf
 
 
