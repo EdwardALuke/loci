@@ -95,7 +95,7 @@ jobs:
 
     - name: Upload build stage output files
       if: ${{ failure() }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: buildlog-${{ inputs.partitioner }}-${{ inputs.compiler }}-${{ inputs.mpi }}-${{ inputs.runs-on }}
         path: |

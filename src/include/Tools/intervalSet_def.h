@@ -198,7 +198,7 @@ namespace Loci {
     size_t num_intervals() const { return Rep->size() ; }
     //use size_t for index of genIntervalSet?
     const genInterval & operator[](size_t indx) const { 
-      fatal(indx<0); fatal(indx>=num_intervals()) ;
+      fatal(indx>=num_intervals()) ;
       return (*Rep)[indx]; 
     }
 
@@ -623,7 +623,7 @@ namespace Loci {
     size_t num_intervals() const { return Rep->size();  }
 
     const genInterval& operator[](size_t indx) const 
-    { fatal(indx<0); fatal(indx>=num_intervals()) ;
+    { fatal(indx>=num_intervals()) ;
       return (*Rep)[indx]; }
 
     void Append(const std::pair<T, T> &ivl) ;

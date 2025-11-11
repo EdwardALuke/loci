@@ -461,7 +461,7 @@ namespace Loci {
   }
 
 #ifdef USE_CUDA_RT
-  int MAXGPUStreamAlloc = 1<<3;
+  int MAXGPUStreamAlloc = 1 ;//1<<3;
   int GPUStreamAlloc = 0 ;
   
   cudaStream_t streamSet[256] ;
