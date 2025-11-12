@@ -32,43 +32,17 @@ INCLUDES = -I./include
 
 TESTS = test_vtypes test_VFAD
 
-.PHONY: FORCE
+.PHONY: test_vtypes test_VFAD
+
 
 tests: $(TESTS)
 
-test_vtypes: test_vtypes.o 
-	$(LD) -o $@ $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	rm $^
-	./$@
-	rm $@
+test_vtypes: test_vtypes.o  
+	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
+	./$@.exe
+	rm $@.exe
 
-test_VFAD: test_VFAD.o
-	$(LD) -o $@ $^ $(LOCA# L_LIBS) $(LIBS) $(LDFLAGS)
-	rm $^
-	./$@
-	rm $@
-
-
-
-
-#tests: $(TARGET) FORCE
-#	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
-
-clean:
-	rm -fr *.o *.d
-
-# Junk files that are created while editing and running cases
-JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) 
-# ".cc" files created from .loci files
-LOCI_LPP_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
-
-distclean: clean
-	rm -fr test_vtypes $(JUNK) $(LOCI_LPP_FILES) $(DEPEND_FILES)
-
-DEPEND_FILES=$(subst .o,.d,$(OBJS))
-
-#include automatically generated dependencies
-ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
--include $(DEPEND_FILES)
-endif
+test_VFAD: test_VFAD.o 
+	$(LD) -o $@.exe $^ $(LOCA# L_LIBS) $(LIBS) $(LDFLAGS)
+	./$@.exeendif
 

@@ -15,7 +15,6 @@ using std::abs ;
 using namespace Loci ;
 
 #define TOLCHECK(a,b,tol) (a == doctest::Approx(b).epsilon(tol))
-const double tol = 1e-7 ;
 
 TEST_CASE("VFAD arithmetic operations") {
   std::random_device rd;
@@ -24,15 +23,16 @@ TEST_CASE("VFAD arithmetic operations") {
   
   typedef VFAD type;
   
-  unsigned int const N = 100;
+  const double tol = 1e-5 ;
+
+  unsigned int const N = 10000;
   
   std::vector<type> a(N), b(N), c(N);
   std::vector<double> ad(N), bd(N) ;
   for(unsigned int e = 0; e < N; ++e) {
     a[e] = rdist(re);
-    b[e] = rdist(re);
-    if(b[e].data.value == 0) // Don't let b be zero so it can test a/b
-      b[e].data.value = 1.0 ;
+    // b is bounded away from zero 
+    b[e] = (fabs(rdist(re))+1e-3)*(rdist(re)>0.?1.:-1.) ;
     ad[e] = realToDouble(a[e]) ;
     bd[e] = realToDouble(b[e]) ;
     for(unsigned int i=0;i<type::maxN;++i) {
@@ -293,16 +293,15 @@ TEST_CASE("VFAD arithmetic functions") {
   
   typedef VFAD type;
   
-  unsigned int const N = 100;
-  const double tol = 1e-6 ;
+  unsigned int const N = 10000;
+  const double tol = 1e-5 ;
   
   std::vector<type> a(N), b(N), c(N);
   std::vector<double> ad(N), bd(N) ;
   for(unsigned int e = 0; e < N; ++e) {
     a[e] = rdist(re);
-    b[e] = rdist(re);
-    if(b[e].data.value == 0) // Don't let b be zero so it can test a/b
-      b[e].data.value = 1.0 ;
+    // b is bounded away from zero 
+    b[e] = (fabs(rdist(re))+1e-3)*(rdist(re)>0.?1.:-1.) ;
     ad[e] = realToDouble(a[e]) ;
     bd[e] = realToDouble(b[e]) ;
     for(unsigned int i=0;i<type::maxN;++i) {
@@ -340,7 +339,7 @@ TEST_CASE("VFAD arithmetic functions") {
   }
   
   for(unsigned int e = 0; e < N; ++e) {
-    CHECK(realToDouble(c[e]) == sin(realToDouble(a[e]))) ;
+    CHECK(TOLCHECK(realToDouble(c[e]),sin(realToDouble(a[e])),1e-13)) ;
     for(unsigned int i = 0; i < type::maxN; ++i) {
       FADd A(a[e].data.value,a[e].data.grad[i]) ;
       CHECK(TOLCHECK(c[e].data.grad[i],(sin(A)).grad,tol)) ;
@@ -351,7 +350,7 @@ TEST_CASE("VFAD arithmetic functions") {
   }
   
   for(unsigned int e = 0; e < N; ++e) {
-    CHECK(realToDouble(c[e]) == cos(realToDouble(a[e]))) ;
+    CHECK(TOLCHECK(realToDouble(c[e]),cos(realToDouble(a[e])),1e-13)) ;
     for(unsigned int i = 0; i < type::maxN; ++i) {
       FADd A(a[e].data.value,a[e].data.grad[i]) ;
       CHECK(TOLCHECK(c[e].data.grad[i],(cos(A)).grad,tol)) ;

@@ -35,19 +35,23 @@
 namespace Loci {
 
 #ifdef USE_AUTODIFF
+
+#if !defined(AUTODIFF2ND) && !defined(USEVFAD) && !defined(MULTIFAD)
+#define USEFAD
+#endif
 #ifdef AUTODIFF2ND
   typedef Loci::FAD2d real_t ;
-#else
+#endif
 #ifdef MULTIFAD
   typedef Loci::MFADd real_t ;
-#else
+#endif
 #ifdef USEVFAD
   typedef Loci::VFAD real_t ;
-#else
+#endif
+#ifdef USEFAD
   typedef Loci::FADd real_t ;
 #endif
-#endif
-#endif
+
 #else
   // No autodiff
   typedef double real_t ;
