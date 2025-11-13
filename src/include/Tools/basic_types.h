@@ -26,11 +26,19 @@
 #endif
 #include <Config/conf.h>
 
+#include <iostream>
+#include <sstream>
+#include <string>
+
+
 #ifndef NO_AUTODIFF
 #include <Tools/autodiff.h>
 #endif
 
 #include <Tools/debug.h>
+#include <Tools/parse.h>
+#include <Tools/expr.h>
+#include <Tools/unit_type.h>
 
 namespace Loci {
 
@@ -1857,6 +1865,461 @@ namespace Loci {
     operator T *() { return p ; }
     operator const T *() const { return p ; }
   } ;
+
+
+  // Class for inputing parameters with units and derivatives from the
+  // vars file
+  class unitValue {
+    double val ;  // Value
+    double grad ; // First Deriviative 
+    double secondGrad ; // Second Deriviativ
+    std::vector<double> gradList ; // Remaining first derivatives in multiple deriviatve lists
+  public:
+    // Get the value as a double precision value
+    void getValue(double &value) const {
+      value = val ;
+    }
+    // Get the value as a FADd value
+    void getValue(Loci::FADd &value) const {
+      value = Loci::FADd(val,grad) ;
+    }
+    // Get the value as a FAD2d value
+    void getValue(Loci::FAD2d &value) const {
+      value = Loci::FAD2d(val,grad,secondGrad) ;
+    }
+    // Get the value as a VFAD derivative. optional batch number can be used
+    // to get different batches of derivatives
+    void getValue(Loci::VFAD &value,int batch=0) const {
+      value.data.value = val ;
+      for(size_t i=1;i<Loci::VFAD::maxN;++i)
+        value.data.grad[i] = 0 ;
+      if(batch == 0) {
+        value.data.grad[0] = grad ;
+        for(size_t i=1;i<min(Loci::VFAD::maxN,gradList.size()+1);++i)
+          value.data.grad[i] = gradList[i-1] ;
+      } else {
+        size_t offset = batch*Loci::VFAD::maxN ;
+        size_t num = min(Loci::VFAD::maxN, offset-(gradList.size()+1)) ;
+        for(size_t i=0;i<num;++i)
+          value.data.grad[i] = gradList[i+offset-1] ;
+      }
+    }      
+    explicit operator double() const { return val ; }
+    operator Loci::FADd() const
+    { Loci::FADd tmp ; getValue(tmp); return tmp; }
+    operator Loci::FAD2d() const
+    { Loci::FAD2d tmp ; getValue(tmp); return tmp; }
+    operator Loci::VFAD() const
+    { Loci::VFAD tmp ; getValue(tmp); return tmp; }
+  protected:
+    // Units information (provided by constructors of derived classes
+    std::string baseunit ;
+    std::string unitclass ; 
+  public:
+    // Set the value to a double precision constant value (e.g. derivatives are zero)
+    void setDouble(double v) {
+      val = v ;
+      grad = 0 ;
+      secondGrad = 0 ;
+      gradList = std::vector<double>() ;
+    }
+    // Default constructor initializeds to zero
+    unitValue() :val(0.0),grad(0.0),secondGrad(0.0) {}
+
+    // Get the size for data traits
+    int getSize() const { return 3+gradList.size() ; }
+    // Get state for data traits
+    void getState(double *buf, int &size) const {
+      buf[0] = val ;
+      buf[1] = grad ;
+      buf[2] = secondGrad ;
+      for(size_t i=0;i<gradList.size();++i)
+        buf[3+i] = gradList[i] ;
+      size = 3+gradList.size() ;
+    }
+    // Set the state for data traits
+    void setState(double *buf, int size) {
+      val = buf[0] ;
+      grad = buf[1] ;
+      secondGrad = buf[2] ;
+      for(int i=3;i<size;++i)
+        gradList.push_back(buf[3+i]) ;
+    }
+
+    // Print out the value with derivatives and units
+    std::ostream &print(std::ostream &s) const {
+      s << val ;
+      if(grad != 0 || secondGrad != 0 || gradList.size() !=0) {
+        if(gradList.size() == 0) {
+          s << "^" << grad ;
+          if(secondGrad != 0)
+            s << "^^" << secondGrad ;
+        } else {
+          s << "^[" << grad ;
+          for(size_t i=0; i<gradList.size();++i)
+            s << " " << gradList[i] ;
+          s << "]" ;
+        }
+      }
+      if(baseunit != "none")
+        s << baseunit ;
+      return s ;
+    }
+    // Input the value with derivatives and units suitable for parsing
+    // from vars file
+    std::istream &input(std::istream &s) {
+      Loci::UNIT_type unitval(Loci::UNIT_type::MKS,unitclass,1,baseunit) ;
+      std::string inputstring ;
+      while(s.peek() == ' ' || s.peek() == '\t')
+        s.get() ;
+      // Get the number part
+      while(std::isdigit(s.peek()) || s.peek() == '.'
+            || s.peek() == 'e' || s.peek() == 'E'
+            || s.peek()=='+' || s.peek() == '-')
+        inputstring += s.get() ;
+      while(s.peek() == ' ' || s.peek() == '\t')
+        inputstring += s.get() ;
+      if(s.peek() == '^') { // get sensitivities
+        inputstring += s.get() ;
+        if(s.peek() == '[') {
+          while(s.peek() != ']' && s.peek() != EOF && !s.eof()) 
+            inputstring += s.get() ;
+          if(s.peek() == ']')
+            inputstring += s.get() ;
+          else
+            throw Loci::exprError("Syntax", "Unterminated sensitivity list",
+                                  Loci::ERR_SYNTAX) ;
+        } else {
+          while(std::isdigit(s.peek()) || s.peek() == '.'
+                || s.peek() == 'e' || s.peek() == 'E'
+                || s.peek()=='+' || s.peek() == '-'
+                || s.peek()=='^')
+            inputstring += s.get() ;
+        }
+      }
+      while(s.peek() == ' ' || s.peek() == '\t')
+        inputstring += s.get() ;
+      // Now get units if available
+      while(s.peek() != '\n' && s.peek() != '\r' && s.peek() != EOF)
+        inputstring += s.get() ;
+
+      std::istringstream iss(inputstring) ;
+      iss >> unitval ;
+      if(unitval.is_compatible(baseunit)) {
+        unitval.get_values_in(baseunit,val,grad,secondGrad,gradList) ;
+      } else {
+        std::ostringstream oss ;
+        oss << "Expecting units compatible with " << baseunit
+            << "!" << std::endl
+            << "incompatible with input of '"<<unitval<<"'" << std::endl ;
+        throw Loci::StringError(oss.str()) ;
+      }
+      return s ;
+    }
+    // Assignment operator
+    unitValue &operator=(const unitValue &v)
+    { val = v.val ;
+      grad = v.grad ;
+      secondGrad = v.secondGrad ;
+      gradList = v.gradList ;
+      return *this ;}
+    // Assign to double precision value
+    unitValue &operator=(double v) {
+      val = v ;
+      grad = 0 ;
+      secondGrad = 0 ;
+      gradList = std::vector<double>() ;
+      return *this; }
+    // Assign to float value
+    unitValue &operator=(float v) { val = v ;
+      grad = 0 ;
+      secondGrad = 0 ;
+      gradList = std::vector<double>() ;
+      return *this; }
+    // Assign to integer value
+    unitValue &operator=(int v) { val = v ;
+      grad = 0 ;
+      secondGrad = 0 ;
+      gradList = std::vector<double>() ;
+      return *this; }
+  } ;
+
+  // Input type for nondimensional data (with derivatives)
+  class NonDimensionalValue: public unitValue {
+  public:
+    NonDimensionalValue() { unitclass="general" ; baseunit="none" ; }
+    NonDimensionalValue &operator=(double v) { setDouble(v) ; return *this; }
+    NonDimensionalValue &operator=(float v) { setDouble(v) ; return *this; }
+    NonDimensionalValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const NonDimensionalValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, NonDimensionalValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  // Input a value with Time units
+  class TimeValue: public unitValue {
+  public:
+    TimeValue() { baseunit="second" ; unitclass="time" ; }
+    TimeValue &operator=(double v) { setDouble(v) ; return *this; }
+    TimeValue &operator=(float v) { setDouble(v) ; return *this; }
+    TimeValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const TimeValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, TimeValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  // Input a value with Length units
+  class LengthValue: public unitValue {
+  public:
+    LengthValue() { baseunit="meter" ; unitclass="length" ; }
+    LengthValue &operator=(double v) { setDouble(v) ; return *this; }
+    LengthValue &operator=(float v) { setDouble(v) ; return *this; }
+    LengthValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const LengthValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, LengthValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class MassValue: public unitValue {
+  public:
+    MassValue() { baseunit="kilogram" ; unitclass="mass" ; }
+    MassValue &operator=(double v) { setDouble(v) ; return *this; }
+    MassValue &operator=(float v) { setDouble(v) ; return *this; }
+    MassValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const MassValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, MassValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class AreaValue: public unitValue {
+  public:
+    AreaValue() { baseunit="m*m" ; unitclass="area" ; }
+    AreaValue &operator=(double v) { setDouble(v) ; return *this; }
+    AreaValue &operator=(float v) { setDouble(v) ; return *this; }
+    AreaValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const AreaValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, AreaValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class DensityValue: public unitValue {
+  public:
+    DensityValue() { unitclass="density" ; baseunit="kg/m/m/m" ; }
+    DensityValue &operator=(double v) { setDouble(v) ; return *this; }
+    DensityValue &operator=(float v) { setDouble(v) ; return *this; }
+    DensityValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const DensityValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, DensityValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class EnergyValue: public unitValue {
+  public:
+    EnergyValue() { unitclass="energy" ; baseunit="J" ; }
+    EnergyValue &operator=(double v) { setDouble(v) ; return *this; }
+    EnergyValue &operator=(float v) { setDouble(v) ; return *this; }
+    EnergyValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const EnergyValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, EnergyValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class PowerValue: public unitValue {
+  public:
+    PowerValue() { unitclass="power" ; baseunit="W" ; }
+    PowerValue &operator=(double v) { setDouble(v) ; return *this; }
+    PowerValue &operator=(float v) { setDouble(v) ; return *this; }
+    PowerValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const PowerValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, PowerValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class FlowValue: public unitValue {
+  public:
+    FlowValue() { unitclass="flow" ; baseunit="kg/s" ; }
+    FlowValue &operator=(double v) { setDouble(v) ; return *this; }
+    FlowValue &operator=(float v) { setDouble(v) ; return *this; }
+    FlowValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const FlowValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, FlowValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class SpeedValue: public unitValue {
+  public:
+    SpeedValue() { unitclass="speed" ; baseunit="m/s" ; }
+    SpeedValue &operator=(double v) { setDouble(v) ; return *this; }
+    SpeedValue &operator=(float v) { setDouble(v) ; return *this; }
+    SpeedValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const SpeedValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, SpeedValue &ss) {
+    return ss.input(s) ;
+  }        
+  
+  class DynamicViscosityValue: public unitValue {
+  public:
+    DynamicViscosityValue() { unitclass="viscosityD" ; baseunit="Pa*s" ; }
+    DynamicViscosityValue &operator=(double v) { setDouble(v) ; return *this; }
+    DynamicViscosityValue &operator=(float v) { setDouble(v) ; return *this; }
+    DynamicViscosityValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const DynamicViscosityValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, DynamicViscosityValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class KinematicViscosityValue: public unitValue {
+  public:
+    KinematicViscosityValue() { unitclass="viscosityK" ; baseunit="m*m/s" ; }
+    KinematicViscosityValue &operator=(double v) { setDouble(v) ; return *this; }
+    KinematicViscosityValue &operator=(float v) { setDouble(v) ; return *this; }
+    KinematicViscosityValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const KinematicViscosityValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, KinematicViscosityValue &ss) {
+    return ss.input(s) ;
+  }        
+  class ThermalConductivityValue: public unitValue {
+  public:
+    ThermalConductivityValue() { unitclass="thermalConductivity" ; baseunit="W/m/K" ; }
+    ThermalConductivityValue &operator=(double v) { setDouble(v) ; return *this; }
+    ThermalConductivityValue &operator=(float v) { setDouble(v) ; return *this; }
+    ThermalConductivityValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const ThermalConductivityValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, ThermalConductivityValue &ss) {
+    return ss.input(s) ;
+  }        
+
+  class VolumeValue: public unitValue {
+  public:
+    VolumeValue() { unitclass="volume" ; baseunit="m*m*m" ; }
+    VolumeValue &operator=(double v) { setDouble(v) ; return *this; }
+    VolumeValue &operator=(float v) { setDouble(v) ; return *this; }
+    VolumeValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+    
+  inline std::ostream & operator<<(std::ostream &s, const VolumeValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, VolumeValue &ss) {
+    return ss.input(s) ;
+  }        
+
+
+  class TemperatureValue: public unitValue {
+  public:
+    TemperatureValue() { baseunit="kelvin" ; unitclass="temperature" ; }
+    TemperatureValue &operator=(double v) { setDouble(v) ; return *this; }
+    TemperatureValue &operator=(float v) { setDouble(v) ; return *this; }
+    TemperatureValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+
+  inline std::ostream & operator<<(std::ostream &s, const TemperatureValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, TemperatureValue &ss) {
+    return ss.input(s) ;
+
+  }        
+
+  class PressureValue: public unitValue {
+  public:
+    PressureValue() { baseunit="pascal" ; unitclass="pressure" ; }
+    PressureValue &operator=(double v) { setDouble(v) ; return *this; }
+    PressureValue &operator=(float v) { setDouble(v) ; return *this; }
+    PressureValue &operator=(int v) { setDouble(v) ; return *this; }
+  } ;
+
+
+  inline std::ostream & operator<<(std::ostream &s, const PressureValue &ss)
+  {
+    return ss.print(s) ;
+  }
+    
+  inline std::istream &operator>>(std::istream &s, PressureValue &ss) {
+    return ss.input(s) ;
+  }        
 
   /// Operator to set a variable to it zero value to be used inside of
   /// templated functions that need to initialize variables for summation

@@ -26,7 +26,6 @@
 #endif
 #include <Config/conf.h>
 
-
 #include <data_traits.h>
 
 #include <Tools/basic_types.h>
@@ -337,6 +336,113 @@ namespace Loci {
     typedef StringStreamConverter<options_list> Converter_Type ;
   } ;
 
+  template<class T> class UnitValueConverter {
+    T & ref ;
+  public:
+    UnitValueConverter(T &iref) : ref(iref) {}
+    int getSize() const {
+      return ref.getSize() ;
+    }
+    void getState(double *buf, int &size) const {
+      ref.getState(buf,size) ;
+    }
+    void setState(double *buf, int size) {
+      ref.setState(buf,size) ;
+    }
+  } ;
+
+  template<> struct data_schema_traits<NonDimensionalValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<NonDimensionalValue> Converter_Type ;
+  } ;
+  template<> struct data_schema_traits<TimeValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<TimeValue> Converter_Type ;
+  } ;
+  template<> struct data_schema_traits<LengthValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<LengthValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<MassValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<MassValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<AreaValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<AreaValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<DensityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<DensityValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<EnergyValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<EnergyValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<PowerValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<PowerValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<FlowValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<FlowValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<SpeedValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<SpeedValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<DynamicViscosityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<DynamicViscosityValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<KinematicViscosityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<KinematicViscosityValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<ThermalConductivityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<ThermalConductivityValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<VolumeValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<VolumeValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<TemperatureValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<TemperatureValue> Converter_Type ;
+  } ;
+  template<> struct data_schema_traits<PressureValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<PressureValue> Converter_Type ;
+  } ;
       
 }
 
