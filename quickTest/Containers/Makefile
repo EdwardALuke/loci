@@ -44,5 +44,30 @@ test_vtypes: test_vtypes.o
 
 test_VFAD: test_VFAD.o 
 	$(LD) -o $@.exe $^ $(LOCA# L_LIBS) $(LIBS) $(LDFLAGS)
-	./$@.exeendif
+	./$@.exe
+	rm $@.exe
+
+
+
+
+#tests: $(TARGET) FORCE
+#	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+
+clean:
+	rm -fr *.o *.exe *.d
+
+# Junk files that are created while editing and running cases
+JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) 
+# ".cc" files created from .loci files
+LOCI_LPP_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
+
+distclean: clean
+	rm -fr test_vtypes $(JUNK) $(LOCI_LPP_FILES) $(DEPEND_FILES)
+
+DEPEND_FILES=$(subst .o,.d,$(OBJS))
+
+#include automatically generated dependencies
+ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
+-include $(DEPEND_FILES)
+endif
 
