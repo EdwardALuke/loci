@@ -1111,13 +1111,11 @@ namespace Loci {
   public:
     typedef T * iterator ;
     typedef const T * const_iterator ;
-    
-    //    Array() {} ;
-    //    Array(const Array<T,n> &v)
-    //    { for(size_t i=0;i<n;++i) x[i] = v.x[i] ; } 
-    //    Array<T,n> &operator=(const Array<T,n> &v)
-    //    { for(size_t i=0;i<n;++i) x[i] = v.x[i] ; return *this ; } 
 
+    // default constructor
+    Array() = default ;
+    // constructor to create an array initialized to a single value
+    explicit Array(const T &v) { for(size_t i=0;i<n;++i) x[i] = v ; }
     Array<T,n> &operator=(const T &v) {
       for(size_t i=0;i<n;++i)
 	x[i] = v ;
