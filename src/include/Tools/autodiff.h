@@ -1906,18 +1906,26 @@ namespace Loci {
   }
 #endif
   
-#define VFAD_SIZE 6
+#define VFAD_SIZE 7
   struct VFADData {
     double value ;
-    std::array<float,VFAD_SIZE> grad ;
+    std::array<double,VFAD_SIZE> grad ;
   } ;
 
   class VFAD {
   public:
     union {
       struct VFADData data ;
-#if !defined(VTYPE_SCALAR_ONLY) && defined(__AVX2__)
-      __m256 avxReg;
+#if !defined(VTYPE_SCALAR_ONLY)
+
+#if defined(__AVX512F__)
+      __m512 avx512Reg ;
+#else
+#if defined(__AVX2__)
+      __m256 avxReg[2];
+#endif
+#endif
+
 #endif
     } ;
     static constexpr size_t maxN=VFAD_SIZE;
