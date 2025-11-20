@@ -37,6 +37,9 @@ cd loci
 git submodule init
 ```
 
+Do not use the source tarballs from [tags](https://github.com/EdwardALuke/loci/tags)
+since they will not compile because they are lacking git version information.
+
 ## Dependencies
 **Required:**
 * MPI implementation, such as [Open MPI](https://www.open-mpi.org/) or [MPICH](https://www.mpich.org)
