@@ -28,9 +28,9 @@
 
 #if defined(__x86_64__)
 
-#if defined(__AVX2__)
+#if defined(__AVX2__) || defined(__AVX512F__)
 #include <immintrin.h>
-#else 
+#else
 #warning "X86_64 architecture without AVX2 support, vtype not vectorized!, include -mavx2 in compiler options"
 #define VTYPE_SCALAR_ONLY
 #endif
