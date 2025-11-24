@@ -441,7 +441,7 @@ if [ "$METIS_BASE" == "/notselected" ] ; then
 fi
 
 # check for git repo information
-if [ ! -d .git ] && [ ! -f "src/version.conf" ]; then
+if [ ! -e .git ] && [ ! -f "src/version.conf" ]; then
     echo "ERROR: neither .git directory or src/version.conf found, cannot determine versioning.";
     echo "If you downloaded the source tarball from https://github.com/EdwardALuke/loci/tags that is not supported; instead do the following:";
     echo "git clone https://github.com/EdwardALuke/loci.git";
