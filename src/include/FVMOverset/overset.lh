@@ -18,48 +18,48 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-$type node2surf Loci::Map ;
-$type componentMotion Loci::param<Loci::options_list> ;
-$type componentHierarchy Loci::param<Loci::options_list> ;
-$type componentGeometry Loci::param<Loci::options_list> ;
-$type componentGeometryData Loci::blackbox<std::map<std::string, Loci::CPTR<Loci::geometry_type> > > ;
-$type componentGeometryList Loci::blackbox<std::vector<Loci::CPTR<Loci::geometry_type> > > ;
+$type node2surf Map ;
+$type componentMotion param<options_list> ;
+$type componentHierarchy param<options_list> ;
+$type componentGeometry param<options_list> ;
+$type componentGeometryData blackbox<map<string, Loci::CPTR<geometry_type> > > ;
+$type componentGeometryList blackbox<vector<Loci::CPTR<geometry_type> > > ;
 
-$type componentMotionData Loci::blackbox<std::map<std::string,Loci::componentXform> > ;
-$type componentPriority Loci::param<Loci::options_list> ;
-$type componentPriorityList Loci::param<std::vector<Loci::real_t> > ;
+$type componentMotionData blackbox<map<string,Loci::componentXform> > ;
+$type componentPriority param<options_list> ;
+$type componentPriorityList param< vector<Loci::real_t> > ;
 
-$type componentNameList Loci::blackbox<std::vector<std::string> > ;
+$type componentNameList blackbox<vector<string> > ;
 
-$type iblank Loci::store<Loci::byte_t> ;
-$type holeCuttingTolerance Loci::param<Loci::real_t> ;
+$type iblank store<Loci::byte_t> ;
+$type holeCuttingTolerance param<Loci::real_t> ;
 
-$type crossComponentDist_node Loci::store<float> ;
-$type crossComponentDistGrad_node Loci::store<Loci::vector3d<float> > ;
-$type crossComponentID_node Loci::store<int> ;
-$type distanceFieldGradient Loci::store<Loci::vector3d<float> > ;
-$type componentTransformMap Loci::blackbox<std::map<std::string,std::vector<Loci::componentXform> > > ;
+$type crossComponentDist_node store<float> ;
+$type crossComponentDistGrad_node store<vector3d<float> > ;
+$type crossComponentID_node store<int> ;
+$type distanceFieldGradient store<vector3d<float> > ;
+$type componentTransformMap blackbox<map<string,vector<Loci::componentXform> > > ;
 
-$type componentID_node Loci::store<int> ;
-$type componentPriorityList Loci::param<std::vector<Loci::real_t> > ;
+$type componentID_node store<int> ;
+$type componentPriorityList param< vector<Loci::real_t> > ;
 
 // Used for parametric rule defintions
-$type componentTransforms_X Loci::param<std::vector<Loci::componentXform> > ;
-$type componentTransformsn_X Loci::param<std::vector<Loci::componentXform> > ;
-$type componentRotation_X Loci::Constraint ;
-$type componentServo_X Loci::Constraint ;
-$type componentPrescribed_X Loci::Constraint ;
-$type componentStationary_X Loci::Constraint ;
-$type componentName_X Loci::blackbox<std::string> ;
-$type componentNodes_X Loci::store<bool> ;
-$type componentRelationships_X Loci::blackbox<std::vector<std::string> > ;
+$type componentTransforms_X param<vector<Loci::componentXform> > ;
+$type componentTransformsn_X param<vector<Loci::componentXform> > ;
+$type componentRotation_X Constraint ;
+$type componentServo_X Constraint ;
+$type componentPrescribed_X Constraint ;
+$type componentStationary_X Constraint ;
+$type componentName_X blackbox<string> ;
+$type componentNodes_X store<bool> ;
+$type componentRelationships_X blackbox<vector<string> > ;
 
-$type interpolateMinStencilSize Loci::param<double> ;
-$type interpolateFaceStencil Loci::blackbox<Loci::stencil_info> ;
-$type interpolateFace(X) Loci::store<Loci::real_t> ;
-$type interpolateFace_v3d(X) Loci::store<Loci::vector3d<Loci::real_t> > ;
-$type interpolateFace_vec(X) Loci::storeVec<Loci::real_t> ;
+$type interpolateMinStencilSize param<double> ;
+$type interpolateFaceStencil blackbox<stencil_info> ;
+$type interpolateFace(X) store<Loci::real_t> ;
+$type interpolateFace_v3d(X) store<Loci::vector3d<Loci::real_t> > ;
+$type interpolateFace_vec(X) storeVec<Loci::real_t> ;
 
-$type scalarInterpolateToBlankedCells(Xout,Xin) Loci::store<Loci::real_t> ;
-$type v3dInterpolateToBlankedCells(Xout,Xin) Loci::store<Loci::vector3d<Loci::real_t> > ;
-$type vecInterpolateToBlankedCells(Xout,Xin) Loci::storeVec<Loci::real_t> ;
+$type scalarInterpolateToBlankedCells(Xout,Xin) store<Loci::real_t> ;
+$type v3dInterpolateToBlankedCells(Xout,Xin) store<Loci::vector3d<Loci::real_t> > ;
+$type vecInterpolateToBlankedCells(Xout,Xin) storeVec<Loci::real_t> ;
