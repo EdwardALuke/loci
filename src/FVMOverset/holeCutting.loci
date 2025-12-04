@@ -53,9 +53,8 @@ namespace Loci {
 
   //--------------------------------------------------------------------------
   //--
-  //-- Establish component identities and relationships.  Parse
-  //-- componentPriority so that they can be
-  //-- processed in later stages
+  //-- Establish component identities and relationships. Parse
+  //-- componentPriority so that they can be processed in later stages
   //--
   //--------------------------------------------------------------------------
 
@@ -75,12 +74,12 @@ namespace Loci {
     std::sort((*$componentNameList).begin(),(*$componentNameList).end()) ;
   } ;
 
-  // Convert component names to integer id which is just the index in the 
+  // Convert component names to integer id which is just the index in the
   // componentNameList
   $type componentID_X param<int> ;
   $rule singleton(componentID_X<-componentName_X,componentNameList),parametric(volumeTag(X)) {
     $componentID_X = -1 ;
-    
+
     for(size_t i=0;i<$componentNameList.size();++i)
       if($componentNameList[i] == $componentName_X)
         $componentID_X = i ;
@@ -130,10 +129,10 @@ namespace Loci {
     for(int i=0;i<fsz;++i)
       join($face2node[i]->$componentID_node,cid) ;
   }
-  
+
   //--------------------------------------------------------------------------
   //--
-  //-- Surface2surface distance evaluatons
+  //-- Surface2surface distance evaluations
   //--
   //--------------------------------------------------------------------------
   $type stencilSize2 param<double> ;
@@ -166,7 +165,6 @@ namespace Loci {
   }
 
   // Compute the cone angle (in dot product form) for surfaceNodeNormal
-
   $rule pointwise(distanceFieldGradient<-pos,node2surf->(pos,surfaceNodeNormal)) {
     vector3d<float> dv = realToFloat($pos-$node2surf->$pos) ;
     float ldv = max(norm(dv),1e-30f) ;
@@ -476,7 +474,6 @@ namespace Loci {
   //
 
 
-
   $type xblank store<Loci::byte_t> ; // Just hole cutting
   $type yblank store<Loci::byte_t> ; // With proximity override
 
@@ -484,10 +481,12 @@ namespace Loci {
     $xblank = 0 ;
   }
 
-  $rule pointwise(face2node->componentNodes_X),constraint(cl->volumeTag(X)),parametric(volumeTag(X)) {} 
-  $rule pointwise(face2node->right::componentNodes_X),constraint(cr->volumeTag(X)),parametric(volumeTag(X)) {} 
-  
-  $rule pointwise(component::xblank<-pos,componentGeometryData,componentName_X), constraint(pos,componentNodes_X,componentGeometry), parametric(volumeTag(X)), option(disable_threading), prelude {
+  $rule pointwise(face2node->componentNodes_X),constraint(cl->volumeTag(X)),parametric(volumeTag(X)) {}
+  $rule pointwise(face2node->right::componentNodes_X),constraint(cr->volumeTag(X)),parametric(volumeTag(X)) {}
+
+  $rule pointwise(component::xblank<-pos,componentGeometryData,componentName_X),
+  constraint(pos,componentNodes_X,componentGeometry), parametric(volumeTag(X)),
+  option(disable_threading), prelude {
 
     Loci::entitySet e = Loci::entitySet(seq) ;
     FORALL(e,nd) {
@@ -776,7 +775,7 @@ namespace Loci {
   }
 
   $type cblank store<Loci::byte_t> ; // collision blank
-  
+
   $rule pointwise(cblank<-(upper,lower,boundary_map)->face2node->(zblank)),
     constraint((upper,lower,boundary_map)->face2node->zblank,componentGeometry) {
     $cblank = 0 ;
@@ -799,7 +798,7 @@ namespace Loci {
     if(maxzblank == 3)
       $cblank = 1 ;
   }
-  
+
   // nodal values of iblank
   $type nblank store<Loci::byte_t> ;
   $rule unit(nblank),constraint(pos) {

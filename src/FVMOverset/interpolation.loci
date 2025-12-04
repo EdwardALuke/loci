@@ -54,7 +54,7 @@ namespace {
   void memSpace(string s) {
     using Loci::debugout ;
     debugout << s <<":" << endl;
-    
+
     struct mallinfo info = mallinfo() ;
     int mem_alloc_local
       = (((info.hblkhd+512)>>10) + // mmap allocation in Kbytes
@@ -76,11 +76,11 @@ namespace {
     debugout << "   alloc=" << ((mem_alloc_global+512)>>10) <<"Mb"
              << ",imb="
              << floor(((double(Loci::MPI_processes)*double(mem_alloc_max))/
-                       double(mem_alloc_global)-1.)*100.) << "%" 
+                       double(mem_alloc_global)-1.)*100.) << "%"
              << ",sys=" << ((mem_req_global+512)>>10) << "Mb"
              << ",imb="
              << floor(((double(Loci::MPI_processes)*double(mem_req_max))/
-                       double(mem_req_global)-1.)*100.) << "%" 
+                       double(mem_req_global)-1.)*100.) << "%"
              << ",local=" << ((mem_alloc_local+512)>>10) << "Mb" << endl ;
 
     debugout.flush() ;
@@ -103,13 +103,15 @@ namespace {
 #endif
 
 namespace Loci {
+
+  /// Construct a globally indexed set of interpolation points and store in a KDTree.
   void fillInterpolationPoints(interpolate_points &ip,entitySet dom,
 			       const_store<vector3d<real_t> > &pnts,
 			       const_store<byte_t> &iblank) {
     int r = Loci::MPI_rank ;
     int p = Loci::MPI_processes ;
     int sz = dom.size() ;
-    
+
     vector<int> dist_sizes(p,0) ;
     MPI_Allgather(&sz,1,MPI_INT,&dist_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
     vector<int> offsets(p+1,0) ;
@@ -126,7 +128,7 @@ namespace Loci {
     ip.pos.allocate(mydom) ;
     ip.posid.allocate(mydom) ;
     MEMORY_PROFILE(after_pos) ;
-    
+
     int ncnt = offsets[r] ;
     FORALL(dom,i) {
       ip.pos[ncnt] = realToDouble(pnts[i]) ;
@@ -142,11 +144,13 @@ namespace Loci {
     vector<int> pt_id(mydom.size(),0) ;
     MEMORY_PROFILE(before_pack) ;
 
+    // Store points, excluding iblank==3 entries
     int cnt = 0 ;
     FORALL(mydom,ii) {
       pt_id[cnt] = ii ;
-      if(iblank[ip.posid[ii]] == 3)
-	pt_id[cnt] = std::numeric_limits<int>::max() ;
+      if(iblank[ip.posid[ii]] == 3) {
+        pt_id[cnt] = std::numeric_limits<int>::max() ;
+      }
       pts[cnt][0] = realToFloat(ip.pos[ii].x) ;
       pts[cnt][1] = realToFloat(ip.pos[ii].y) ;
       pts[cnt][2] = realToFloat(ip.pos[ii].z) ;
@@ -160,9 +164,13 @@ namespace Loci {
   $type interpolatePoints(PNTS,MASK) blackbox<interpolate_points> ;
   $type PNTS store<vector3d<real_t> > ;
   $type MASK store<byte_t> ;
-  
   $type ovc_check param<bool> ;
 
+  /// Parametric rule where the output is a blackbox that holds a
+  /// interpolation points data structure. The MASK variable is used to
+  /// exclude points from the interpolation set and the PNTS variable
+  /// holds the coordinates of the points to be included. Points with MASK==0
+  /// and MASK==3 are included in the interpolation search set.
   $rule blackbox(interpolatePoints(PNTS,MASK)<-MASK,PNTS,ovc_check),
   option(disable_threading), prelude {
     MEMORY_PROFILE(compute_start) ;
@@ -172,56 +180,62 @@ namespace Loci {
 
     if(p > 1)
       odom &= Loci::exec_current_fact_db->get_distribute_info()->my_entities ;
-    
+
     // Remove any iblanked cells from the interpolation stencil.
     entitySet dom = EMPTY ;
     FORALL(odom,ii) {
       // Only zero iblanks donate to interpolation
-      if($MASK[ii] == 0)
+      if($MASK[ii] == 0) {
         dom += ii ;
+      }
       // 3 iblanks included to block interpolation across gaps
-      if(*$ovc_check && $MASK[ii] == 3)
-	dom += ii ;
-      
+      if(*$ovc_check && $MASK[ii] == 3) {
+        dom += ii ;
+      }
     } ENDFORALL ;
 
-    if($interpolatePoints(PNTS,MASK)->kd != 0)
+    if($interpolatePoints(PNTS,MASK)->kd != 0) {
       delete $interpolatePoints(PNTS,MASK)->kd ;
+    }
     $interpolatePoints(PNTS,MASK)->kd = 0 ;
     fillInterpolationPoints(*$interpolatePoints(PNTS,MASK),dom,$PNTS,$MASK) ;
   } ;
-    
+
 
   typedef vector3d<float> coord3df ;
-  
 
   ////////////////////////////////////////////////////////////////////////////
   //
   // Helpers for estimating stencil sizes
   //
   ////////////////////////////////////////////////////////////////////////////
-  
 
-  // donor cells are at the edge of a hole cut region.  They define the target
+
+  // Donor cells are at the edge of a hole cut region.  They define the target
   // sizes for stencil searching
   $type donorCell store<Loci::byte_t> ;
 
+  /// Fill donorCell flag for identifying cells that donate to an interpolation
+  /// stencil if their iblank variable is 0.
   $rule unit(donorCell),constraint(geom_cells) {
     $donorCell = 0 ;
   }
 
   $type interface_BC Constraint ;
 
+  /// For interface boundary faces, if the adjacent cell has an iblank of 0,
+  /// then it is marked as a donor cell.
   $rule apply(ci->donorCell<-ci->iblank)[Loci::Maximum],constraint(interface_BC) {
-
     Loci::byte_t val = 1 ;
     if($ci->$iblank == 0)
       join($ci->$donorCell,val);
   }
 
+  /// For internal faces, mark both adjacent cells as donor cells if ONE of the
+  /// cells has an iblank of 0. If both are zero or both are non-zero then
+  /// neither is marked as a donor cell.
   $rule apply((cl,cr)->donorCell<-(cl,cr)->iblank)[Loci::Maximum],constraint((cl,cr)->geom_cells) {
-    if(($cl->$iblank & $cr->$iblank) == 0 &&
-       ($cl->$iblank | $cr->$iblank) != 0) {
+    if(($cl->$iblank & $cr->$iblank) == False && ($cl->$iblank | $cr->$iblank) != False) {
       Loci::byte_t val = 1 ;
       join($cl->$donorCell,val) ;
       join($cr->$donorCell,val) ;
@@ -229,7 +243,7 @@ namespace Loci {
   }
 
 
-  // CellSize2 is the square of the maximum edge length of a cell
+  /// The square of the maximum edge length of a cell
   $type cellSize2 store<float> ;
 
   $rule unit(cellSize2),constraint(geom_cells) {
@@ -238,7 +252,7 @@ namespace Loci {
 
   $rule apply((cl,cr)->cellSize2<-face2node->pos)[Loci::Maximum],constraint((cl,cr)->geom_cells) {
     int sz = $face2node.size() ;
-    vector3d<double>  vd = realToDouble($face2node[0]->$pos-
+    vector3d<double> vd = realToDouble($face2node[0]->$pos-
 					$face2node[sz-1]->$pos) ;
     double d2 = dot(vd,vd) ;
     for(int i=1;i<sz;++i) {
@@ -248,12 +262,15 @@ namespace Loci {
     join($cl->$cellSize2,realToFloat(d2)) ;
     join($cr->$cellSize2,realToFloat(d2)) ;
   }
-  // StencilSize2 is a global size estimate computed as part of the hole
-  // cutting part.
 
+  /// stencilSize2 is a global size estimate computed as part of the hole
+  /// cutting part.
   $type stencilSize2 param<double> ;
   $type stencilSizer blackbox<StencilSizer> ;
 
+  /// Blackbox rule to build a KDTree-based lookup of donor-cell spacing for
+  /// stencil sizing. This provides per-point spacing hints constructed from
+  /// donor cells to estimate stencil extents during interpolation.
   $rule blackbox(stencilSizer<-cellcenter,cellSize2,donorCell,stencilSize2),
   option(disable_threading),prelude {
     using Loci::vpair ;
@@ -267,16 +284,16 @@ namespace Loci {
     entitySet dom = $cellcenter.domain() & $cellSize2.domain() ;
     if(p > 1)
       dom &= Loci::exec_current_fact_db->get_distribute_info()->my_entities ;
-    
+
     double mxstencil = 10.*sqrt(*$stencilSize2) ;
-    
+
     int cnt = 0 ;
     // Count donor cells
     FORALL(dom,cc) {
       if($donorCell[cc] != 0)
         cnt++ ;
     } ENDFORALL ;
-    
+
     vector<vpair> points(cnt) ;
     cnt = 0 ;
     // Collect points and stencil sizes
@@ -289,27 +306,27 @@ namespace Loci {
         cnt++ ;
       }
     } ENDFORALL ;
-    
+
 
     Loci::balanceDistribution(points,MPI_COMM_WORLD) ;
-    
+
     // Sort points using ORB method
     ORBSort(points,MPI_COMM_WORLD) ;
 
     cnt = points.size() ;
 
-    // Divide this processor points into a set of bounding boxes and
-    // reduce them to a subset of point-to-spacing values
+    // Divide this processor's points into a set of bounding boxes and
+    // reduce them to a subset of point-to-spacing values.
     // Estimate the division depth by finding log base 4 of the number
-    // of processors
+    // of processors.
     int div=6 ;
     int ptmp  = p/4 ;
     while(ptmp>0) {
       div=max(div-1,3) ; // Always divide into at least 8 parts per processor
       ptmp=ptmp/4 ;
     }
-    
-    // The minimum grouping size for the stencil estimate.  This will ensure
+
+    // The minimum grouping size for the stencil estimate. This will ensure
     // that a region is fairly represented.
     int minGroupSize = 50 ;
     vector<vpair> results ;
@@ -319,22 +336,23 @@ namespace Loci {
     vector<int> rcounts(p,0) ;
     int tsz = results.size() ;
     MPI_Allgather(&tsz,1,MPI_INT,&rcounts[0],1,MPI_INT,MPI_COMM_WORLD) ;
-    
+
     int rsize = rcounts[0] ;
     for(int i=1;i<p;++i)
       rsize += rcounts[i] ;
-    
+
     vector<vpair> recvdata(rsize) ;
 
     // Adjust counts to account for bytes in vpair
     for(int i=0;i<p;++i)
       rcounts[i] = rcounts[i] * sizeof(vpair) ;
+
     // Compute displacement array
     vector<int> rdispls(p,0) ;
     rdispls[0] = 0 ;
     for(int i=1;i<p;++i)
       rdispls[i] = rdispls[i-1]+rcounts[i-1] ;
-    
+
     MPI_Allgatherv((void *)&results[0],sizeof(vpair)*tsz,MPI_BYTE,
                    (void *)&recvdata[0],&rcounts[0],&rdispls[0],MPI_BYTE,
                    MPI_COMM_WORLD) ;
@@ -343,9 +361,7 @@ namespace Loci {
     vector<coord3df > pts(rsize,pt0) ;
     for(int i=0;i<rsize;++i) {
       pt_id[i] = recvdata[i].second ;
-      coord3df pt(recvdata[i].first.x,
-                  recvdata[i].first.y,
-                  recvdata[i].first.z) ;
+      coord3df pt(recvdata[i].first.x, recvdata[i].first.y, recvdata[i].first.z) ;
       pts[i] = pt ;
     }
     $stencilSizer->kd = new Loci::kdTree::KDTree<float>(pts,pt_id) ;
@@ -354,13 +370,14 @@ namespace Loci {
     Loci::debugout << "time to build stencilSizer: " << s.stop() << endl ;
 #endif
   } ;
-  
 
-  $rule unit(interpolateFaceStencil), constraint(UNIVERSE),option(disable_threading),prelude {} ;
-  
 
-  $rule apply(interpolateFaceStencil<-interpolatePoints(cellcenter,iblank),stencilSize2,interpolateMinStencilSize,stencilSizer,facecenter,area,ci->cellcenter,ci->iblank)[Loci::NullOp] , option(disable_threading), prelude {
-    
+  $rule unit(interpolateFaceStencil), constraint(UNIVERSE), option(disable_threading),prelude {} ;
+
+  $rule apply(interpolateFaceStencil<-interpolatePoints(cellcenter,iblank),
+  stencilSize2,interpolateMinStencilSize,stencilSizer,facecenter,area,
+  ci->cellcenter,ci->iblank)[Loci::NullOp], option(disable_threading), prelude {
+
 //    using namespace kdTree ;
     MEMORY_PROFILE(compute_start) ;
     using Loci::debugout ;
@@ -371,7 +388,7 @@ namespace Loci {
     MPI_Barrier(MPI_COMM_WORLD) ;
     //    Loci::debugout << "time to sync: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
 
     entitySet odom = entitySet(seq) ;
     entitySet dom ;
@@ -407,7 +424,7 @@ namespace Loci {
     Loci::debugout << "face delta = " << delta_stencil << endl ;
 #endif
     delta_stencil *= 4.0 ; // add margin for error
-    
+
     // This call breaks the coordinate points into a set of bounding
     // boxes
 
@@ -432,7 +449,7 @@ namespace Loci {
     for(size_t i=0;i<pbox.size();++i) {
       int fc = pbox[i].id ;
       vector3d<double>  fcenter = realToDouble($facecenter[fc]) ;
-        
+
       vector3d<double>  n = realToDouble($area[fc].n) ;
       // compute local stencil distance as either the normal projected
       // distance from this side of the face to the interior cell, or
@@ -464,11 +481,11 @@ namespace Loci {
 #ifdef REPORT_TIMES
     Loci::debugout << "time to find bounding boxes: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
 
     // Now distribute the bounding boxes to all processors
     vector<int> box_sp,box_tp,b_sizes,send_block_id,recv_block_id ;
-    
+
     boundingBoxDistribution(box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
                             boxes,MPI_COMM_WORLD) ;
 
@@ -483,11 +500,11 @@ namespace Loci {
     communicateBoxPoints(loc_ndelta,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,ndelta,boxes,
                          MPI_COMM_WORLD) ;
-    
+
 #ifdef REPORT_TIMES
     Loci::debugout << "face time recv box search points: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
     //-------------------------------------------------------------------------
     // recieve target points
 
@@ -553,7 +570,7 @@ namespace Loci {
                            ;
       for(int j=0;j<ssz;++j) {
 
-        
+
 	vector3d<double>  fcenter(loc_pbox[i][j].coords[0],
                        loc_pbox[i][j].coords[1],
                        loc_pbox[i][j].coords[2]) ;
@@ -583,7 +600,7 @@ namespace Loci {
               }
             }
           }
-          
+
           if(invalid_stencil) {
             Loci::kdTree::KDTree<float>::bounds box ;
             coord3df ccenter =realToFloat(fcenter) ;
@@ -652,7 +669,7 @@ namespace Loci {
             }
             if(w_tot != 0) {
               double rw_tot = 1./w_tot ;
-              for(size_t k=0;k<neighbors.size();++k) 
+              for(size_t k=0;k<neighbors.size();++k)
                 w[k] = w[k]*rw_tot ;
             }
           }
@@ -676,8 +693,8 @@ namespace Loci {
               Loci::debugout << "face degenerate, delta = " << delta_stencil << endl ;
             }
           }
-            
-              
+
+
           if(w.size() < 3) {
             st_warnings++ ;
             Loci::debugout << "face cr suboptimal stencil, delta = " << delta_stencil << endl ;
@@ -701,7 +718,7 @@ namespace Loci {
               wt[k] = 0 ;
             }
           }
-          
+
           stencil_block[i][j*2+1] = st ;
           weights_block[i][j*2+1] = wt ;
         }
@@ -709,8 +726,8 @@ namespace Loci {
         // right right stencil
         {
           vector<int> neighbors = get_stencil(stree,prr,delta_stencil*2.0) ;
-	  
-          if(neighbors.size() < 1) 
+
+          if(neighbors.size() < 1)
             st_error++ ;
           if(neighbors.size() < 1)
             Loci::debugout << "face degenerate, delta = " << delta_stencil << endl ;
@@ -733,15 +750,15 @@ namespace Loci {
                 w[k] = 0 ;
               w_tot += w[k] ;
             }
-            if(w_tot == 0) 
+            if(w_tot == 0)
               st_warnings++ ;
             else  {
               double rw_tot = 1./w_tot ;
-              for(size_t k=0;k<neighbors.size();++k) 
+              for(size_t k=0;k<neighbors.size();++k)
                 w[k] = w[k]*rw_tot ;
             }
           }
-            
+
           if(w.size() < 3) {
             st_warnings++ ;
             Loci::debugout << "face suboptimal stencil, delta = " << delta_stencil << endl ;
@@ -788,7 +805,7 @@ namespace Loci {
 #ifdef VERBOSE
     Loci::debugout << "st_error = " << st_error << endl ;
 #endif
-    
+
     int tot = 0 ;
     MPI_Allreduce(&st_error,&tot,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
     if(tot != 0) {
@@ -797,19 +814,19 @@ namespace Loci {
         //        Loci::Abort() ;
       }
     }
-    
+
     MPI_Allreduce(&st_warnings,&tot,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
     if(Loci::MPI_rank == 0 && tot != 0) {
       cerr << "Warning: Suboptimal interface stencil in reconstruction: " << tot << endl ;
     }
-      
+
 #ifdef REPORT_TIMES
     Loci::debugout << "time to generate stencils: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
     // Then we send the stencils back.
     {
-      
+
       vector<Array<int,4> > stencil_rcv ;
       returnBlockData(stencil_rcv,stencil_block,2,boxes,
                       box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
@@ -822,9 +839,9 @@ namespace Loci {
 	  stmp[i*4+j] = stencil_rcv[i][j] ;
         }
       }
-      
+
       std::sort(stmp.begin(),stmp.end()) ;
-      
+
       vector<int>::const_iterator se = std::unique(stmp.begin(),stmp.end()) ;
 
       int nids = se-stmp.begin() ;
@@ -848,11 +865,11 @@ namespace Loci {
 	  //rmap[stencil_rcv[i][j]] ;
 	}
       vector<int> send_info, req_sizes, snd_sizes, access ;
-      
-      
+
+
       getCommSchedFromStencil(send_info,req_sizes,snd_sizes, access,
 			      stencil_rcv,ids,interp_pnts->distribution) ;
-      
+
       for(size_t i=0;i<send_info.size();++i)
 	send_info[i] = interp_pnts->posid[send_info[i]] ;
       remapStencil(stencil_rcv,access, ids) ;
@@ -875,7 +892,7 @@ namespace Loci {
     returnBlockData(weight_rcv,weights_block,2,boxes,
                     box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
                     MPI_COMM_WORLD) ;
-    
+
     $interpolateFaceStencil->weights.swap(weight_rcv) ;
 
     // put stencil blocks into place, renumber to local numbering and set ids
@@ -892,7 +909,7 @@ namespace Loci {
     MPI_Barrier(MPI_COMM_WORLD) ;
     Loci::debugout << "time to sync: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
     MEMORY_PROFILE(compute_end) ;
     return ;
   } ;
@@ -906,11 +923,12 @@ namespace Loci {
     entitySet dom ;
     FORALL(odom,fc) {
       if($iblank[$ci[fc]] > 2) {
-	$interpolateFace(X)[fc] = $X[$ci[fc]] ;
-      } else
-	dom += fc ;
+        $interpolateFace(X)[fc] = $X[$ci[fc]] ;
+      } else {
+        dom += fc ;
+      }
     } ENDFORALL ;
-      
+
     Map slookup ;
     slookup = $interpolateFaceStencil->slookup ;
     store<real_t> Xstencil ;
@@ -923,28 +941,32 @@ namespace Loci {
 
     FORALL(dom,fc) {
       int cnt = slookup[fc]*2 ;
-      int cll = cnt+0 ;
-      int cl =  cnt+1 ;
+      int cll = cnt + 0 ;
+      int cl = cnt + 1 ;
 
+      // Compute the estimate of the variable at the second interpolant point
       real_t vll = 0 ;
       for(int j=0;j<4;++j) {
-	vll += weights[cll][j]*Xstencil[stencils[cll][j]] ;
+        vll += weights[cll][j]*Xstencil[stencils[cll][j]] ;
       }
+
+      // Compute the estimate of the variable at the first interpolant point
       real_t vl = 0 ;
       for(int j=0;j<4;++j) {
-	vl += weights[cl][j]*Xstencil[stencils[cl][j]] ;
+        vl += weights[cl][j]*Xstencil[stencils[cl][j]] ;
       }
+
+      // Use the value at the cell center on the other side of the face
       real_t vr = 0 ;
       vr = $X[$ci[fc]] ;
       real_t dv = (vl-vll) ;
       if(dv < 0.)
-	dv += -1e-30 ;
+        dv += -1e-30 ;
       else
-	dv += 1e-30 ;
+        dv += 1e-30 ;
 
-      // Use Van Albada limiter to estimate second order upwind
-      // extrapolation to the face
-      const real_t r = max<real_t>(0.0,(vr-vl)/dv) ;
+      // Van Albada slope limiter for a limited second-order extrapolation to the face
+      const real_t r = max<real_t>(0.0, (vr-vl)/dv) ;
       const real_t lim = (r+r*r)/(1.+r*r) ;
       $interpolateFace(X)[fc] = vl + 0.5*lim*(vl-vll) ;
 
@@ -954,7 +976,7 @@ namespace Loci {
 
   $untype X ;
   $type X store<vector3d<real_t> > ;
-  
+
   // Please note this is where we might want to use an access map
   $rule pointwise(interpolateFace_v3d(X)<-interpolateFaceStencil,ci->(X,iblank)),option(disable_threading), prelude {
       MEMORY_PROFILE(compute_start) ;
@@ -963,10 +985,11 @@ namespace Loci {
       FORALL(odom,fc) {
         if($iblank[$ci[fc]] > 2) {
           $interpolateFace_v3d(X)[fc] = $X[$ci[fc]] ;
-        } else
+        } else {
           dom += fc ;
+        }
       } ENDFORALL ;
-      
+
       Map slookup ;
       slookup = $interpolateFaceStencil->slookup ;
       store<vector3d<real_t> > Xstencil ;
@@ -974,25 +997,28 @@ namespace Loci {
                       $interpolateFaceStencil->send_info,
                       $interpolateFaceStencil->req_sizes,
                       $interpolateFaceStencil->snd_sizes)  ;
-      const vector<Array<double,4> > &weights 
-	= $interpolateFaceStencil->weights ;
-      const vector<Array<int,4> > &stencils 
-	= $interpolateFaceStencil->stencils ;
+      const vector<Array<double,4> > &weights	= $interpolateFaceStencil->weights ;
+      const vector<Array<int,4> > &stencils = $interpolateFaceStencil->stencils ;
 
       FORALL(dom,fc) {
         int cnt = slookup[fc]*2 ;
 
-        int cll = cnt+0 ;
-        int cl =  cnt+1 ;
+        int cll = cnt + 0 ;
+        int cl = cnt + 1 ;
 
+        // Compute the estimate of the variable at the second interpolant point
         vector3d<real_t>  vll = vector3d<real_t> (0,0,0) ;
         for(int j=0;j<4;++j) {
           vll += weights[cll][j]*Xstencil[stencils[cll][j]] ;
         }
+
+        // Compute the estimate of the variable at the first interpolant point
         vector3d<real_t>  vl = vector3d<real_t> (0,0,0) ;
         for(int j=0;j<4;++j) {
           vl += weights[cl][j]*Xstencil[stencils[cl][j]] ;
         }
+
+        // Use the value at the cell center on the other side of the face
         vector3d<real_t>  vr = vector3d<real_t> (0,0,0) ;
         vr = $X[$ci[fc]] ;
         vector3d<real_t>  dv = (vl-vll) ;
@@ -1011,8 +1037,7 @@ namespace Loci {
         else
           dv.z += 1e-30 ;
 
-        // Use Van Albada limiter to estimate second order upwind
-        // extrapolation to the face
+        // Van Albada slope limiter for a limited second-order extrapolation to the face
         const real_t rx = (vr.x-vl.x)/dv.x ;
         const real_t limx= (rx+rx*rx)/(1.+rx*rx) ;
         $interpolateFace_v3d(X)[fc].x = vl.x + 0.5*limx*(vl.x-vll.x) ;
@@ -1027,7 +1052,7 @@ namespace Loci {
   } ;
 
   $untype X ;
-  $type X storeVec<real_t> ;  
+  $type X storeVec<real_t> ;
   $rule pointwise(interpolateFace_vec(X)<-ci->(X,iblank),interpolateFaceStencil),
     option(disable_threading),prelude {
     MEMORY_PROFILE(compute_start) ;
@@ -1041,14 +1066,14 @@ namespace Loci {
       } else
 	dom += fc ;
     } ENDFORALL ;
-      
+
     if(vs == 1) {
       FORALL(dom,fc) {
-	$interpolateFace_vec(X)[fc][0] = 1.0 ;
+        $interpolateFace_vec(X)[fc][0] = 1.0 ;
       } ENDFORALL ;
       return ;
     }
-    
+
     Map slookup ;
     slookup = $interpolateFaceStencil->slookup ;
     storeVec<real_t> Xstencil ;
@@ -1056,41 +1081,47 @@ namespace Loci {
 		    $interpolateFaceStencil->send_info,
 		    $interpolateFaceStencil->req_sizes,
 		    $interpolateFaceStencil->snd_sizes)  ;
-    const vector<Array<double,4> > &weights 
+    const vector<Array<double,4> > &weights
       = $interpolateFaceStencil->weights ;
-    const vector<Array<int,4> > &stencils 
+    const vector<Array<int,4> > &stencils
       = $interpolateFaceStencil->stencils ;
 
     FORALL(dom,fc) {
       int cnt = slookup[fc]*2 ;
-      int cll = cnt+0 ;
-      int cl =  cnt+1 ;
+      int cll = cnt + 0 ;
+      int cl = cnt + 1 ;
 
+      // Loop over all vector components
       for(int i=0;i<vs;++i) {
-	
-	real_t vll = 0 ;
-	for(int j=0;j<4;++j) 
-	  vll += weights[cll][j]*Xstencil[stencils[cll][j]][i] ;
-	  
-	real_t vl = 0 ;
-	for(int j=0;j<4;++j) 
-	  vl += weights[cl][j]*Xstencil[stencils[cl][j]][i] ;
-	  
-	real_t vr = 0 ;
-	vr = $X[$ci[fc]][i] ;
-          
-	real_t dv = (vl-vll) ;
-	if(dv < 0.)
-	  dv += -1e-30 ;
-	else
-	  dv += 1e-30 ;
-          
-	// Use Van Albada limiter to estimate second order upwind
-	// extrapolation to the face
-	const real_t r = (vr-vl)/dv ;
-	const real_t lim = (r+r*r)/(1.+r*r) ;
-	// Limit mixture fractions should be between 0 and 1
-	$interpolateFace_vec(X)[fc][i] = min<real_t>(max<real_t>(vl + 0.5*lim*(vl-vll),0.0),1.0) ;
+
+        // Compute the estimate of the variable at the second interpolant point
+        real_t vll = 0 ;
+        for(int j=0;j<4;++j) {
+          vll += weights[cll][j]*Xstencil[stencils[cll][j]][i] ;
+        }
+
+        // Compute the estimate of the variable at the first interpolant point
+        real_t vl = 0 ;
+        for(int j=0;j<4;++j) {
+          vl += weights[cl][j]*Xstencil[stencils[cl][j]][i] ;
+        }
+
+        // Use the value at the cell center on the other side of the face
+        real_t vr = 0 ;
+        vr = $X[$ci[fc]][i] ;
+
+        real_t dv = (vl-vll) ;
+        if(dv < 0.)
+          dv += -1e-30 ;
+        else
+          dv += 1e-30 ;
+
+        // Van Albada slope limiter for a limited second-order extrapolation to the face
+        const real_t r = (vr-vl)/dv ;
+        const real_t lim = (r+r*r)/(1.+r*r) ;
+
+        // Limit mixture fractions should be between 0 and 1
+        $interpolateFace_vec(X)[fc][i] = min<real_t>(max<real_t>(vl + 0.5*lim*(vl-vll),0.0),1.0) ;
       }
     } ENDFORALL ;
     MEMORY_PROFILE(compute_end) ;
@@ -1105,18 +1136,19 @@ namespace Loci {
     entitySet dom ;
     FORALL(odom,fc) {
       if($iblank[$ci[fc]] > 2) {
-	$interpolateConnectCell[fc] = -1 ;
-      } else
-	dom += fc ;
+        $interpolateConnectCell[fc] = -1 ;
+      } else {
+        dom += fc ;
+      }
     } ENDFORALL ;
-      
+
     Map slookup ;
     slookup = $interpolateFaceStencil->slookup ;
     entitySet sendSet ;
     for(size_t i=0;i<$interpolateFaceStencil->send_info.size();++i) {
       sendSet += $interpolateFaceStencil->send_info[i] ;
     }
-      
+
     store<int> sendIds ;
     sendIds.allocate(sendSet) ;
     for(size_t i=0;i<$interpolateFaceStencil->send_info.size();++i) {
@@ -1127,7 +1159,7 @@ namespace Loci {
       Map l2g ;
       l2g = Loci::exec_current_fact_db->get_distribute_info()->l2g.Rep() ;
       FORALL(sendSet,ii) {
-	sendIds[ii] = l2g[ii] ;
+        sendIds[ii] = l2g[ii] ;
       } ENDFORALL ;
     }
     store<int> Ids ;
@@ -1145,15 +1177,16 @@ namespace Loci {
     FORALL(dom,fc) {
       int cnt = slookup[fc]*2 ;
       int cl =  cnt ;
-      
+
       double w=-1 ;
       $interpolateConnectCell[fc] = -1 ;
-      for(int i=0;i<4;++i)
-	if(weights[cl][i] > w) {
-	  w = weights[cl][i] ;
-	  $interpolateConnectCell[fc] = Ids[stencils[cl][i]] ;
-	}
-      
+      for(int i=0;i<4;++i) {
+        if(weights[cl][i] > w) {
+          w = weights[cl][i] ;
+          $interpolateConnectCell[fc] = Ids[stencils[cl][i]] ;
+        }
+      }
+
     } ENDFORALL ;
   } ;
 
@@ -1254,11 +1287,11 @@ namespace Loci {
 #ifdef REPORT_TIMES
     Loci::debugout << "time to find bounding boxes: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
 
     // Now distribute the bounding boxes to all processors
     vector<int> box_sp,box_tp,b_sizes,send_block_id,recv_block_id ;
-    
+
     boundingBoxDistribution(box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
                             boxes,MPI_COMM_WORLD) ;
     MEMORY_PROFILE(post_distribution) ;
@@ -1273,7 +1306,7 @@ namespace Loci {
 #ifdef REPORT_TIMES
     Loci::debugout << "time recv box search points: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
 
     MEMORY_PROFILE(post_commBoxPoints) ;
     //-------------------------------------------------------------------------
@@ -1288,7 +1321,7 @@ namespace Loci {
     s.start() ;
 #endif
     const interpolate_points *interp_pnts = &(*$interpolatePoints(cellcenter,iblank)) ;
-    
+
     vector<vector<Loci::kdTree::KDTree<float>::coord_info>  > recv_targets ;
     recieveTargetPoints(recv_targets,interp_pnts->kd,
                         boxes_g,box_sp,box_tp,b_sizes,
@@ -1307,7 +1340,7 @@ namespace Loci {
 
     int st_error = 0 ;
     int st_warning = 0 ;
-    
+
     MEMORY_PROFILE(pre_build_stencils) ;
     // After sending, we can compute stencils for each block.
     for(size_t i=0;i<recv_block_id.size();++i) {
@@ -1357,7 +1390,7 @@ namespace Loci {
 	vector3d<double>  pnt(loc_pbox[i][j].coords[0],
 			      loc_pbox[i][j].coords[1],
 			      loc_pbox[i][j].coords[2]) ;
-        
+
 	vector<int> neighbors = get_stencil(stree,pnt,delta_stencil) ;
 
         if(neighbors.size() < 1) {
@@ -1367,7 +1400,7 @@ namespace Loci {
             scale = scale * 2.0 ;
           } while (neighbors.size() < 1 && scale < 10.0) ;
         }
-        if(neighbors.size() < 1) 
+        if(neighbors.size() < 1)
           st_error++ ;
         if(neighbors.size() < 1)
           Loci::debugout << "degenerate neighbors, delta=" << delta_stencil
@@ -1375,8 +1408,8 @@ namespace Loci {
                          << ",tsz="<< tsz
                          << ",ssz="<< ssz
                          << endl ;
-        
-          
+
+
 	// compute stencil weights
 	vector<double> w  ;
 	stencil_weights(w,neighbors,loc,pnt) ;
@@ -1407,7 +1440,7 @@ namespace Loci {
 #ifdef VERBOSE
 	Loci::debugout << ' ' << neighbors.size() ;
 #endif
-	
+
       }
 #ifdef VERBOSE
       Loci::debugout << endl ;
@@ -1425,14 +1458,14 @@ namespace Loci {
     if(Loci::MPI_rank == 0 && tot != 0) {
       cerr << "Warning: Suboptimal stencil in reconstruction: " << tot << endl ;
     }
-      
-      
+
+
 
     MEMORY_PROFILE(post_stencil_compute) ;
 #ifdef REPORT_TIMES
     Loci::debugout << "time to generate stencils: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
     // Then we send the stencils back.
     {
       vector<Array<int,4> > stencil_rcv ;
@@ -1446,7 +1479,7 @@ namespace Loci {
       for(int i=0;i<stsz;++i)
 	for(int j=0;j<4;++j)
 	  stmp[i*4+j] = stencil_rcv[i][j] ;
-      
+
       std::sort(stmp.begin(),stmp.end()) ;
       vector<int>::const_iterator se = std::unique(stmp.begin(),stmp.end()) ;
 
@@ -1463,7 +1496,7 @@ namespace Loci {
 	if(*ii == std::numeric_limits<int>::max()) {
 	  rmap[*ii] = *ii ;
 	  cerr << "stencil includes max" << endl ;
-	} else 
+	} else
 	  rmap[*ii] = cnt ;
 	cnt++ ;
       }
@@ -1471,13 +1504,13 @@ namespace Loci {
       for(int i=0;i<stsz;++i)
 	for(int j=0;j<4;++j)
 	  stencil_rcv[i][j] = rmap[stencil_rcv[i][j]] ;
-      
+
       vector<int> send_info, req_sizes, snd_sizes, access ;
-      
+
 
       getCommSchedFromStencil(send_info,req_sizes,snd_sizes, access,
 			      stencil_rcv,ids,interp_pnts->distribution) ;
-      
+
       for(size_t i=0;i<send_info.size();++i)
 	send_info[i] = interp_pnts->posid[send_info[i]] ;
       remapStencil(stencil_rcv,access, ids) ;
@@ -1486,7 +1519,7 @@ namespace Loci {
       slookup.allocate(dom) ;
       for(size_t i=0;i<pbox.size();++i)
 	slookup[pbox[i].id] = i ;
-      
+
       $interpolateCellStencil->stencils.swap(stencil_rcv) ;
       $interpolateCellStencil->send_info.swap(send_info) ;
       $interpolateCellStencil->snd_sizes.swap(snd_sizes) ;
@@ -1499,7 +1532,7 @@ namespace Loci {
     returnBlockData(weight_rcv,weights_block,1,boxes,
                     box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
                     MPI_COMM_WORLD) ;
-    
+
     $interpolateCellStencil->weights.swap(weight_rcv) ;
 
     // put stencil blocks into place, renumber to local numbering and set ids
@@ -1514,7 +1547,7 @@ namespace Loci {
     MPI_Barrier(MPI_COMM_WORLD) ;
     Loci::debugout << "time to sync: " << s.stop() << endl ;
     s.start() ;
-#endif    
+#endif
     MEMORY_PROFILE(compute_start) ;
 
   } ;
@@ -1533,7 +1566,7 @@ namespace Loci {
 	dom += ii ;
       tst[ii] = 0 ;
     } ENDFORALL ;
-      
+
     Map slookup ;
     slookup = $interpolateCellStencil->slookup ;
     store<real_t> qstencil ;
@@ -1549,14 +1582,14 @@ namespace Loci {
     FORALL(dom,cc) {
       // lookup cell number
       int cnt = slookup[cc] ;
-      
+
       int co = cnt ;
-      
+
       real_t wtot = weights[co][0]+weights[co][1]+weights[co][2]+weights[co][3] ;
       if(wtot > 0.0) {
 	// Weighted sum interpolation
 	real_t v = 0 ;
-	for(int j=0;j<4;++j) 
+	for(int j=0;j<4;++j)
 	  v += weights[co][j]*qstencil[stencils[co][j]] ;
 	$iblank::Xout[cc] = v ;
       } else
@@ -1580,7 +1613,7 @@ namespace Loci {
 	}
 	qpsum = 0 ;
 	real_t sum = 0 ;
-	
+
 	for(int i=0;i<usz;++i) {
 	  int crc = $cr[$upper[ii][i]] ;
 	  int ib = $iblank[crc] ;
@@ -1626,7 +1659,7 @@ namespace Loci {
 	dom += ii ;
       tst[ii] = 0 ;
     } ENDFORALL ;
-      
+
     Map slookup ;
     slookup = $interpolateCellStencil->slookup ;
     store<vector3d<real_t> > qstencil ;
@@ -1642,13 +1675,13 @@ namespace Loci {
     FORALL(dom,cc) {
       // lookup cell number
       int cnt = slookup[cc] ;
-      
+
       int co = cnt ;
       real_t wtot = weights[co][0]+weights[co][1]+weights[co][2]+weights[co][3] ;
       // Weighted sum interpolation
       if(wtot > 0.0) {
 	vector3d<real_t>  v = vector3d<real_t> (0,0,0) ;
-	for(int j=0;j<4;++j) 
+	for(int j=0;j<4;++j)
 	  v += weights[co][j]*qstencil[stencils[co][j]] ;
 	$iblank::Xout[cc] = v ;
       } else
@@ -1718,7 +1751,7 @@ namespace Loci {
 	dom += ii ;
       tst[ii] = 0 ;
     } ENDFORALL ;
-      
+
     Map slookup ;
     slookup = $interpolateCellStencil->slookup ;
     storeVec<real_t> qstencil ;
@@ -1732,20 +1765,20 @@ namespace Loci {
     const vector<Array<double,4> > &weights = $interpolateCellStencil->weights ;
     const vector<Array<int,4> > &stencils = $interpolateCellStencil->stencils ;
 
-    
+
     FORALL(dom,cc) {
       // lookup cell number
       int cnt = slookup[cc] ;
-      
+
       int co = cnt ;
-      
+
       real_t wtot = weights[co][0]+weights[co][1]+weights[co][2]+weights[co][3] ;
 
       // Weighted sum interpolation
       if(wtot > 0.0) {
 	for(int iv=0;iv<vs;++iv) {
 	  real_t v = 0 ;
-	  for(int j=0;j<4;++j) 
+	  for(int j=0;j<4;++j)
 	    v += weights[co][j]*qstencil[stencils[co][j]][iv] ;
 	  $iblank::Xout[cc][iv] = v ;
 	}
@@ -1755,7 +1788,7 @@ namespace Loci {
     } ENDFORALL ;
 
     // Now for all non-participating cells, average appropriately
-    
+
     vector<real_t> qpsum(vs) ;
     FORALL(odom,ii) {
       if($iblank[ii] == 3 || tst[ii] == 1) {
@@ -1830,7 +1863,7 @@ namespace Loci {
 	gcell[ii] = ii ;
       } ENDFORALL ;
     }
-      
+
     FORALL(odom,ii) {
       $iblankCell[ii] = 0 ;
       if($iblank[ii] == 2)
@@ -1848,13 +1881,13 @@ namespace Loci {
 		    $interpolateCellStencil->snd_sizes)  ;
     const vector<Array<double,4> > &weights = $interpolateCellStencil->weights ;
     const vector<Array<int,4> > &stencils = $interpolateCellStencil->stencils ;
-      
-      
+
+
     FORALL(dom,cc) {
       // lookup cell number
       int cnt = slookup[cc] ;
       int co = cnt ;
-      
+
       // Weighted sum interpolation
       double w=-1 ;
       for(int j=0;j<4;++j)
@@ -1863,7 +1896,7 @@ namespace Loci {
 	  $iblankCell[cc] = cstencil[stencils[co][j]] ;
 	}
     } ENDFORALL ;
-    
+
     MEMORY_PROFILE(compute_end) ;
   } ;
 
@@ -1878,5 +1911,5 @@ namespace Loci {
       join($cr->$firstOrderCells,tmp) ;
     }
   }
-  
+
 }
