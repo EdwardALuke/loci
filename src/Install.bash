@@ -108,6 +108,7 @@ for i in  Tools Config MPI_stubb FVMAdapt FVMOverset FVMMod; do
     mkdir -p $INSTALL_PATH/include/$i
     cp include/$i/*.h $INSTALL_PATH/include/$i
 done
+cp include/FVMOverset/overset $INSTALL_PATH/include/FVMOverset
 cp include/FVMOverset/*.lh $INSTALL_PATH/include/FVMOverset
 cp include/FVMMod/*.lh $INSTALL_PATH/include/FVMMod
 

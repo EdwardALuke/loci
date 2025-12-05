@@ -288,7 +288,7 @@ fi
 for dir in $TARGET_DIRS; do
   echo "Linking" $dir "directory files..."
   cd $source/src/$dir
-  for i in *.cc *.h *.hh *.hpp *.c *.loci *.lh Makefile Loci ; do
+  for i in *.cc *.h *.hh *.hpp *.c *.loci *.lh Makefile Loci overset ; do
     if [ -e  $i ] ; then
       if [ ! -h $fulltarget/$dir/$i ] ; then
         echo ln -s $source/src/$dir/$i $fulltarget/$dir/$i
@@ -301,7 +301,7 @@ done
 for dir in $TOOLS_DIRS; do
   echo "Linking" $dir "directory files..."
   cd $source/$dir
-  for i in *.cc *.h *.hh *.hpp *.c *.loci *.lh Makefile Loci ; do
+  for i in *.cc *.h *.hh *.hpp *.c *.loci *.lh Makefile Loci overset ; do
     if [ -f  $i ] ; then
       if [ ! -h $fulltarget/$dir/$i ] ; then
         echo ln -s $source/$dir/$i $fulltarget/$dir/$i
@@ -438,5 +438,4 @@ popd
 #    cp $source/ParMetis-4.0/Makefile.dummy $fulltarget/ParMetis-4.0/Makefile
 #fi
 #echo "** Be sure to set LOCI_BASE=\"$target/Loci\" **"
-
 
