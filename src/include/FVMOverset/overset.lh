@@ -22,10 +22,10 @@ $type node2surf Map ;
 $type componentMotion param<Loci::options_list> ;
 $type componentHierarchy param<Loci::options_list> ;
 $type componentGeometry param<Loci::options_list> ;
-$type componentGeometryData blackbox<std::map<string, Loci::CPTR<geometry_type> > > ;
-$type componentGeometryList blackbox<std::vector<Loci::CPTR<geometry_type> > > ;
+$type componentGeometryData blackbox<std::map<std::string, Loci::CPTR<Loci::geometry_type> > > ;
+$type componentGeometryList blackbox<std::vector<Loci::CPTR<Loci::geometry_type> > > ;
 
-$type componentMotionData blackbox<std::map<string,Loci::componentXform> > ;
+$type componentMotionData blackbox<std::map<std::string,Loci::componentXform> > ;
 $type componentPriority param<Loci::options_list> ;
 $type componentPriorityList param< std::vector<Loci::real_t> > ;
 
