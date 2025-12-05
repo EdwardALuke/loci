@@ -29,6 +29,7 @@ scotch_install
 *.d
 OBJ
 copy.out
+config.log
 
 # Code IDE files
 *.code-workspace

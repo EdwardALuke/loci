@@ -28,7 +28,6 @@ set +e
 set -u
 set -f
 
-
 if [ "$PETSC_BASE" == "" ]; then
     PETSC_BASE=/notinstalled/petsc
 fi
@@ -72,6 +71,24 @@ find_lib() {
         fi
     done
 }
+
+################################################################################
+# Creates the config.log file and redirects output to it
+################################################################################
+setup_config_logging() {
+    CONFIG_LOG=config.log
+    CONFIG_CMD=$(printf "%q " "$0" "$@")
+    CONFIG_CMD=${CONFIG_CMD% }
+    {
+        echo "###############################################################################"
+        echo "# Loci configure run: $(date)"
+        echo "# Command: $CONFIG_CMD"
+        echo "# Working directory: $(pwd)"
+        echo "###############################################################################"
+    } > "$CONFIG_LOG"
+    exec > >(tee -a "$CONFIG_LOG") 2>&1
+}
+setup_config_logging "$@"
 
 
 OBJDIR=OBJ
@@ -508,7 +525,7 @@ if [ $CHECK_METIS_CONFIG == 1 ] ; then
                     PARMETIS_BASE=$METIS_BASE
                 fi
                 echo METIS_BASE=$METIS_BASE PARMETIS_BASE=$PARMETIS_BASE
-                if [ $METIS_BASE == $PARMETIS_BASE ] ; then 
+                if [ $METIS_BASE == $PARMETIS_BASE ] ; then
                     METIS_LIBS="-L\$(METIS_BASE)/lib \$(RPATH)\$(METIS_BASE)/lib -lparmetis -lmetis "
                     METIS_INCLUDE="-I\$(METIS_BASE)/include -DLOCI_USE_METIS"
                 else
@@ -516,7 +533,7 @@ if [ $CHECK_METIS_CONFIG == 1 ] ; then
                     METIS_INCLUDE="-I\$(METIS_BASE)/include -I\$(PARMETIS_BASE)/include -DLOCI_USE_METIS"
                     USE_PARMETIS_BASE=1
                 fi
-                    
+
             fi
         fi
     fi
@@ -918,7 +935,7 @@ if [ $USE_CUDA == 1 ]; then
     echo CUDA_LIBS = -L\$\(CUDA_BASE\)/lib64 -lcudart \$\(RPATH\)\$\(CUDA_BASE\)/lib64 >> sys.conf
     echo CUDA_INCLUDE = -I\$\(CUDA_BASE\)/include -I\$\(MPI_BASE\)/include -DUSE_CUDA_RT >> sys.conf
     echo NVCC = nvcc -O3 -lineinfo -g -arch native >> sys.conf
-    
+
 fi
 echo >> sys.conf
 echo \# POSIX threads setup >> sys.conf
@@ -1051,7 +1068,7 @@ echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
 echo "uninstall:"                            >> Makefile
 echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
 echo "distclean:"                            >> Makefile
-echo "	rm -fr ${OBJDIR} copy.out Makefile"  >> Makefile
+echo "	rm -fr ${OBJDIR} copy.out Makefile config.log"  >> Makefile
 echo "tarball:"                                                                        >> Makefile
 echo "	version_string=\$\$(sed -e \"s:^GIT_INFO.*:GIT_INFO = \$(GIT_INFO):g\" \\"      >> Makefile
 echo "	                      -e \"s:^GIT_BRANCH.*:GIT_BRANCH = \$(GIT_BRANCH):g\" \\"  >> Makefile
