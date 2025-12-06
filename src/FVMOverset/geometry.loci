@@ -46,6 +46,12 @@ namespace Loci {
   $rule optional(componentGeometry),
     comments("Specifies hole cutting geometry for overset grids") {}
 
+  //--------------------------------------------------------------------------
+  //--
+  //-- Specific component geometry types and their implementations
+  //--
+  //--------------------------------------------------------------------------
+
   class cylinder_type : public geometry_type {
     vector3d<real_t> pt1,pt2 ;
     real_t radius ;
@@ -73,7 +79,7 @@ namespace Loci {
     planelist_type() {
     }
     planelist_type(std::vector<vector3d<real_t> > &ps, std::vector<vector3d<real_t> > &ns) :
-      pts(ps),normals(ns) {} 
+      pts(ps),normals(ns) {}
     geometry_type *applyXform(componentXform xform) const ;
     bool inGeometry(vector3d<real_t> pt) const ;
     real_t distToSurface(vector3d<real_t> pt) const ;
@@ -108,7 +114,7 @@ namespace Loci {
     revolution_type(vector3d<real_t> p1i, vector3d<real_t> p2i,
                     std::vector<pair<real_t,real_t> > rp ) : p1(p1i),p2(p2i),
                                                         radius_pairs(rp)
-    { std::sort(radius_pairs.begin(),radius_pairs.end()) ; 
+    { std::sort(radius_pairs.begin(),radius_pairs.end()) ;
       rlen2 = 1./dot(p2-p1,p2-p1) ; }
     geometry_type *applyXform(componentXform xform) const ;
     bool inGeometry(vector3d<real_t> pt) const ;
@@ -141,12 +147,12 @@ namespace Loci {
       vector3d<real_t> n = pt2-pt1 ;
       n*= 1./norm(n) ;
       if(t > 0.5) {
-	p = pt-pt2 ;
+	      p = pt-pt2 ;
       }
       vector3d<real_t> ps = p-dot(p,n)*n ;
       real_t rt2 = dot(ps,ps) ;
       if(rt2 > radius2)
-	ps *= sqrt(radius2/rt2) ;
+	      ps *= sqrt(radius2/rt2) ;
       return norm(ps-p) ;
     }
 
@@ -195,6 +201,7 @@ namespace Loci {
     return new sphere_type(c,radius) ;
   }
 
+  /// Returns true if the provided point is inside the geometry.
   bool sphere_type::inGeometry(vector3d<real_t> pt) const {
     vector3d<real_t> p = pt-center ;
     real_t r2 = dot(p,p) ;
@@ -268,8 +275,8 @@ namespace Loci {
     *$componentGeometryData = map<string,Loci::CPTR<geometry_type> >() ;
   } ;
 
-  $rule apply(componentGeometryData<-componentGeometry)[Loci::NullOp],
-    prelude {
+  /// Parse the componentGeometry options_list and fill the componentGeometryData map.
+  $rule apply(componentGeometryData<-componentGeometry)[Loci::NullOp], prelude {
     Loci::options_list::option_namelist nl = ($componentGeometry)->getOptionNameList() ;
     Loci::options_list::option_namelist::const_iterator nli ;
     for(nli=nl.begin();nli!=nl.end();++nli) {
@@ -503,17 +510,16 @@ namespace Loci {
 
     // Check to make sure that every geometry
     map<string,Loci::CPTR<geometry_type> >::const_iterator mi ;
-    for(mi=(*$componentGeometryData).begin();
-        mi!=(*$componentGeometryData).end();
-        ++mi) {
+    for(mi=(*$componentGeometryData).begin();mi!=(*$componentGeometryData).end();++mi) {
       const string geo_name = mi->first ;
       bool found = false ;
       for(size_t i=0;i<(*$componentNameList).size();++i) {
-        if(geo_name == (*$componentNameList)[i])
+        if(geo_name == (*$componentNameList)[i]) {
           found = true ;
+        }
       }
       if(!found) {
-	$[Once] {
+	      $[Once] {
           cerr << "componentGeometry id='" << geo_name << "' not found in vog file volume tags"
                << endl ;
 

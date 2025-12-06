@@ -153,18 +153,19 @@ namespace Loci {
 
   $type AllWallBCs Constraint ;
 
+  /// Store the face normal vector at each surface node for all wall BCs
   $rule apply(face2node->surfaceNodeNormal<-area)[Loci::Summation],constraint(AllWallBCs) {
     vector3d<real_t> n = $area.n ;
     real_t a = 1.0; //$area.sada ;
-    vector3d<float> an(realToFloat(a*n.x),
-		       realToFloat(a*n.y),
-		       realToFloat(a*n.z)) ;
+    vector3d<float> an(realToFloat(a*n.x), realToFloat(a*n.y),
+		                   realToFloat(a*n.z)) ;
     int sz = $face2node.size() ;
-    for(int i=0;i<sz;++i)
+    for(int i=0;i<sz;++i) {
       join($face2node[i]->$surfaceNodeNormal,an) ;
+    }
   }
 
-  // Compute the cone angle (in dot product form) for surfaceNodeNormal
+  /// Compute the cone angle (in dot product form) for surfaceNodeNormal
   $rule pointwise(distanceFieldGradient<-pos,node2surf->(pos,surfaceNodeNormal)) {
     vector3d<float> dv = realToFloat($pos-$node2surf->$pos) ;
     float ldv = max(norm(dv),1e-30f) ;
@@ -173,8 +174,10 @@ namespace Loci {
     $distanceFieldGradient = (ldv< 1e-10)?((1./lsn)*sn):((1./ldv)*dv) ;
   }
 
-  $rule pointwise(crossComponentDist_node,crossComponentDistGrad_node,crossComponentID_node<-pos,distanceFieldGradient,node2surf->pos,componentID_node,componentPriorityList,holeCuttingTolerance,componentNameList,componentGeometryList,stencilSize2),
-  option(disable_threading),prelude {
+  $rule pointwise(crossComponentDist_node,crossComponentDistGrad_node,
+  crossComponentID_node<-pos,distanceFieldGradient,node2surf->pos,componentID_node,
+  componentPriorityList,holeCuttingTolerance,componentNameList,componentGeometryList,
+  stencilSize2), option(disable_threading), prelude {
     entitySet dom = entitySet(seq) ;
     int nc = (*$componentNameList).size() ;
     float delta = realToFloat(sqrt(*$stencilSize2)) ;
@@ -473,8 +476,9 @@ namespace Loci {
   // iblank = 3: Don't simulate, advance values in time as constant function
   //
 
+  // Used as a hole-cutting mask with values of 0 or 2
+  $type xblank store<Loci::byte_t> ;
 
-  $type xblank store<Loci::byte_t> ; // Just hole cutting
   $type yblank store<Loci::byte_t> ; // With proximity override
 
   $rule pointwise(xblank<-pos) {
@@ -488,16 +492,18 @@ namespace Loci {
   constraint(pos,componentNodes_X,componentGeometry), parametric(volumeTag(X)),
   option(disable_threading), prelude {
 
+    // Initialize xblank to 0 for all entities in the sequence
     Loci::entitySet e = Loci::entitySet(seq) ;
     FORALL(e,nd) {
       $xblank[nd] = 0 ;
     } ENDFORALL ;
-    map<string, Loci::CPTR<geometry_type> >:: const_iterator ii ;
-    for(ii=$componentGeometryData->begin();
-        ii!=$componentGeometryData->end();++ii) {
-      if(ii->first != *$componentName_X) {
-        Loci::CPTR<geometry_type> gp = ii->second ;
 
+    map<string, Loci::CPTR<geometry_type> >:: const_iterator i ;
+    for(i=$componentGeometryData->begin();i!=$componentGeometryData->end();++i) {
+      if(i->first != *$componentName_X) {
+        Loci::CPTR<geometry_type> gp = i->second ;
+
+        // Mark an entity with an xblank of 2 if it is inside the geometry
         FORALL(e,nd) {
           if(gp->inGeometry($pos[nd]))
             $xblank[nd] = 2 ;
@@ -555,27 +561,41 @@ namespace Loci {
   }
 
 
+  // Initialize stencilSize2 to the square of the minimum interpolate stencil size
   $rule unit(stencilSize2<-interpolateMinStencilSize) {
     $stencilSize2 = $interpolateMinStencilSize*$interpolateMinStencilSize ;
   }
 
-  $type interface_BC Constraint ;
-
+  /// Determine the largest value of the distance metric over all interface boundary faces.
+  /// This is 4 times the squared distance from face center to cell center. This is using
+  /// a fudge factor of 4 to give a conservative estimate of the potential stencil size needed
+  /// for interpolation.
   $rule apply(stencilSize2<-facecenter,ci->cellcenter,face2node->pos)
   [Loci::Maximum],constraint(interface_BC) {
-    vector3d<double> d1 = realToDouble($facecenter-$ci->$cellcenter) ;
-    double md = 4.*dot(d1,d1) ;
-    join($stencilSize2,md) ;
+    vector3d<double> r = realToDouble($facecenter-$ci->$cellcenter) ;
+
+    // Distance metric: 4*|r|^2
+    double distance_metric = 4.*dot(r,r) ;
+    join($stencilSize2,distance_metric) ;
   }
 
+  /// Execute over all faces, and for all edges of a face, contribute the maximum edge
+  /// length squared of that face to the search for the maximum value of the squared
+  /// stencil size metric.
   $rule apply(stencilSize2<-face2node->(xblank,pos))[Loci::Maximum] {
-    int sz = $face2node.size() ;
+    int sz = $face2node.size() ; // number of nodes on face
+
+    // Determine if this face intersects a blanked region.
     int xsum = 0;
-    for(int i=0;i<sz;++i)
+    for(int i=0;i<sz;++i) {
       xsum += $face2node[i]->$xblank ;
+    }
     if(xsum > 0) {
+      // Compute the final edge length that connects the first and last node
       vector3d<double> d = realToDouble($face2node[0]->$pos - $face2node[sz-1]->$pos) ;
       double len = dot(d,d) ;
+
+      // Compute distance over all other edges
       for(int i=1;i<sz;++i) {
         d = realToDouble($face2node[i-1]->$pos - $face2node[i]->$pos) ;
         len = max(len,dot(d,d)) ;
@@ -584,9 +604,10 @@ namespace Loci {
     }
   }
 
-  $rule pointwise(yblank<-xblank,pos,node2surf->pos,
-		  crossComponentDist_node,crossComponentID_node,
-		  componentID_node,componentPriorityList,holeCuttingTolerance) {
+  // Execute over nodes to set the value of yblank based on hole cutting.
+  $rule pointwise(yblank<-xblank,pos,node2surf->pos,crossComponentDist_node,
+  crossComponentID_node,componentID_node,componentPriorityList,
+  holeCuttingTolerance) {
     $yblank = $xblank ;
 
     if($xblank != 0) {
@@ -594,10 +615,10 @@ namespace Loci {
       if($crossComponentDist_node < 0 || $crossComponentID_node < 0)
         $yblank = 3 ;
       else {
-	real_t epsdist = $holeCuttingTolerance ;
+	      real_t epsdist = $holeCuttingTolerance ;
         real_t dist = norm($pos - $node2surf->$pos) ;
         real_t d = priority*max(dist,epsdist) ;
-	real_t cross_priority = $componentPriorityList[$crossComponentID_node] ;
+	      real_t cross_priority = $componentPriorityList[$crossComponentID_node] ;
         if(d < cross_priority*$crossComponentDist_node) {
           $yblank = 0 ;
         }
@@ -708,37 +729,39 @@ namespace Loci {
 #endif
 
 
+  /// Initialize iblank to zero for cells.
   $rule pointwise(iblank<-cellcenter),constraint(geom_cells) {
     $iblank = 0 ;
   }
-  $type overset_collision_check param<string> ;
+
   $rule default(overset_collision_check),comments("Turn on feature to try to detect surface-surface collisions and prevent interpolation leaks. To enable, set to 'on'") {
     $overset_collision_check = "off" ;
   }
-  $type ovc_check param<bool> ;
+
   $rule singleton(ovc_check<-overset_collision_check) {
     $ovc_check = false ;
     if($overset_collision_check == "on" ||
        $overset_collision_check == "true" ||
-       $overset_collision_check == "yes")
+       $overset_collision_check == "yes") {
       $ovc_check = true ;
+    }
   }
 
-  $type oversetCollisionCheck Constraint ;
   $rule constraint(oversetCollisionCheck<-overset_collision_check) {
     $oversetCollisionCheck = EMPTY ;
     if($overset_collision_check == "on" ||
        $overset_collision_check == "true" ||
-       $overset_collision_check == "yes")
+       $overset_collision_check == "yes") {
       $oversetCollisionCheck = ~EMPTY ;
+    }
   }
 
   $rule pointwise(non_trivial::iblank<-(upper,lower,boundary_map)->face2node->(yblank,zblank),ovc_check),
     constraint((upper,lower,boundary_map)->face2node->yblank,componentGeometry) {
     $iblank = 10 ;
-    Loci::byte_t maxblank = 0 ;
-    Loci::byte_t maxzblank = 0 ;
-    Loci::byte_t minzblank = 0x0f ;
+    Loci::byte_t maxblank = 0 ; // Maximum value of yblank over all faces
+    Loci::byte_t maxzblank = 0 ; // Maximum value of zblank over all faces
+    Loci::byte_t minzblank = 0x0f ; // Initialize to 15 to start with
     int usz = $upper.size() ;
     for(int i=0;i<usz;++i) {
       int fsz = $upper[i]->$face2node.size() ;
@@ -760,22 +783,27 @@ namespace Loci {
         minzblank = min(minzblank,$lower[i]->$face2node[f]->$zblank) ;
       }
     }
-    if(maxblank == 3)
-      if($iblank == 0)
-        $iblank = 2 ;
-    // If blanked outsided of layer then change mode to 3
-    if($iblank == 2 && maxzblank == 0)
-      $iblank = 3 ;
-    // Added to remove cells in contact zone
-    if($ovc_check && minzblank == 3)
-      $iblank = 3 ;
 
-    //    if($iblank == 0 && maxzblank == 0)
-    //      $iblank = 1 ;
+    // If any of the faces of a cell have a node with a yblank of 3, and also
+    // a node with an iblank of 0, then set the iblank to 2
+    if(maxblank == 3 && $iblank == 0) {
+      $iblank = 2 ;
+    }
+    // If blanked outside of layer then change iblank state to 3
+    if($iblank == 2 && maxzblank == 0) {
+      $iblank = 3 ;
+    }
+    // Added to remove cells in contact zone
+    if($ovc_check && minzblank == 3) {
+      $iblank = 3 ;
+    }
+
+    //if($iblank == 0 && maxzblank == 0)
+    //  $iblank = 1 ;
   }
 
   $type cblank store<Loci::byte_t> ; // collision blank
-
+  // For all faces, if any face has zblank = 3, then set cblank=1
   $rule pointwise(cblank<-(upper,lower,boundary_map)->face2node->(zblank)),
     constraint((upper,lower,boundary_map)->face2node->zblank,componentGeometry) {
     $cblank = 0 ;
@@ -795,8 +823,9 @@ namespace Loci {
         maxzblank = max(maxzblank,$lower[i]->$face2node[f]->$zblank) ;
       }
     }
-    if(maxzblank == 3)
+    if(maxzblank == 3) {
       $cblank = 1 ;
+    }
   }
 
   // nodal values of iblank
@@ -808,14 +837,16 @@ namespace Loci {
   $rule apply(face2node->nblank<-(cl,cr)->iblank)[Loci::Maximum] {
     Loci::byte_t tmp = max($cl->$iblank,$cr->$iblank) ;
     int fsz = $face2node.size() ;
-    for(int i=0;i<fsz;++i)
+    for(int i=0;i<fsz;++i) {
       join($face2node[i]->$nblank,tmp) ;
+    }
   }
   $rule apply(face2node->nblank<-(ci)->iblank)[Loci::Maximum] {
     Loci::byte_t tmp = $ci->$iblank ;
     int fsz = $face2node.size() ;
-    for(int i=0;i<fsz;++i)
+    for(int i=0;i<fsz;++i) {
       join($face2node[i]->$nblank,tmp) ;
+    }
   }
 
   $type nblankf store<float> ;

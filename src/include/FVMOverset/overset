@@ -29,11 +29,11 @@
 #include <cmath>
 
 namespace Loci {
-  /// Note: iblank cell status codes:
-  /// 0: active cell donates to interpolation
-  /// 1: active but does not donate
-  /// 2: receive-only (interpolated “cloud”)
-  /// 3: inactive, held constant
+  /// Note: iblank state codes:
+  /// 0: not blanked, simulate as normal, donate simulated value to interpolation
+  /// 1: Simulate, but don't donate simulated value to interpolation
+  /// 2: don't simulate, instead interpolate values from a "cloud"
+  /// 3: Don't simulate, advance values in time as constant function
 
   typedef unsigned char byte_t ;
   struct Quaternion {
@@ -208,15 +208,16 @@ namespace Loci {
     }
   } ;
 
-  /// Container for interpolation search data on the donor mesh.
-  /// Holds info formation about point coordinates, ids, an owned
-  /// KDTree<float> for nearest-neighbor queries, posid tracks original entity
-  /// ids, and distribution gives global offsets.
+  /// Container for interpolation search data on a set of points using a
+  /// KDTree for nearest-neighbor queries.
   class interpolate_points {
   public:
     Loci::kdTree::KDTree<float> *kd ;
     store<vector3d<double> > pos ;
     store<int> posid ;
+
+    /// A global offset table of entities across MPI ranks. Used to get the
+    /// number of entities on each rank.
     std::vector<int> distribution ;
     interpolate_points &operator=(const interpolate_points &in) {
       std::cerr << "interpolate_data shouldn't be copied!" << std::endl ;
@@ -236,6 +237,7 @@ namespace Loci {
     }
   } ;
 
+  /// Typedef for 3D float coordinates used in KDTree
   typedef vector3d<float> coord3df ;
 
   /// Used for estimating local stencil spacing.
