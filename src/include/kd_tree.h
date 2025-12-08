@@ -24,11 +24,8 @@
 #include <algorithm>
 #include <Config/conf.h>
 #include <Loci_types.h>
-#ifdef NO_CMATH
-#include <math.h>
-#else
 #include <cmath>
-#endif
+
 #include <limits>
 
 #include <mpi.h>

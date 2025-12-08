@@ -180,6 +180,9 @@ fi
 if [ ! -h fvmFAD_m.so ]; then
   ln -s ../FVMMod/fvmFAD_m.so fvmFAD_m.so
 fi
+if [ ! -h fvmVFAD_m.so ]; then
+  ln -s ../FVMMod/fvmVFAD_m.so fvmVFAD_m.so
+fi
 if [ ! -h libfvmadaptfunc.${LIB_POSTFIX} ]; then
   ln -s ../FVMAdapt/libfvmadaptfunc.${LIB_POSTFIX} libfvmadaptfunc.${LIB_POSTFIX}
 fi
@@ -192,6 +195,9 @@ fi
 
 if [ ! -h fvmoversetFAD_m.so ]; then
   ln -s ../FVMOverset/fvmoversetFAD_m.so fvmoversetFAD_m.so
+fi
+if [ ! -h fvmoversetVFAD_m.so ]; then
+  ln -s ../FVMOverset/fvmoversetVFAD_m.so fvmoversetVFAD_m.so
 fi
 if [ ! ${DO_METIS_INSTALL} == 0 ]; then
     if [ ! -h libgk.${LIB_POSTFIX} ] ; then
@@ -323,6 +329,8 @@ cp $source/quickTest/test.conf $fulltarget/quickTest/test.conf
 echo cp $source/quickTest/test.conf $fulltarget/quickTest/test.conf
 mkdir -p $fulltarget/quickTest/Containers
 echo mkdir -p $fulltarget/quickTest/Containers
+mkdir -p $fulltarget/quickTest/Containers/include
+echo mkdir -p $fulltarget/quickTest/Containers/include
 mkdir -p $fulltarget/quickTest/FVM
 echo mkdir -p $fulltarget/quickTest/FVMModUnitTests
 mkdir -p $fulltarget/quickTest/FVMModUnitTests
@@ -340,6 +348,19 @@ for i in *.cc *.loci Makefile ; do
 	fi
     fi
 done
+#copy contianer include directory
+pushd include
+for i in *.h *.lh  ; do
+    if [ -f $i ] ; then
+	if [ ! -h $fulltarget/quickTest/Containers/include/$i ] ; then
+	    echo ln -s $source/quickTest/Containers/include/$i $fulltarget/quickTest/Containers/include/$i
+	    ln -s $source/quickTest/Containers/include/$i $fulltarget/quickTest/Containers/include/$i
+	fi
+    fi
+done
+#exit include directory
+popd
+#exit Containers directory
 popd
 
 pushd $source/quickTest/FVMAdaptTest

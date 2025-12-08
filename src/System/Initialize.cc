@@ -133,6 +133,18 @@ namespace Loci {
   MPI_Op MPI_MFADD_MIN ;
   MPI_Op MPI_MFADD_MAX ;
 
+  MPI_Datatype MPI_VFAD ;
+  MPI_Op MPI_VFAD_SUM ;
+  MPI_Op MPI_VFAD_PROD ;
+  MPI_Op MPI_VFAD_MIN ;
+  MPI_Op MPI_VFAD_MAX ;
+
+  MPI_Datatype MPI_VECTF8 ;
+  MPI_Op MPI_VECTF8_SUM ;
+  MPI_Op MPI_VECTF8_PROD ;
+  MPI_Op MPI_VECTF8_MIN ;
+  MPI_Op MPI_VECTF8_MAX ;
+  
   MPI_Info PHDF5_MPI_Info ;
   
   int MPI_processes = 1;
@@ -389,6 +401,42 @@ namespace Loci {
       rinout[i] = min(rinout[i],rin[i]) ;
   }
 
+  void sumVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] += rin[i] ;
+  }
+  void prodVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] *= rin[i] ;
+  }
+  void maxVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] = max(rinout[i],rin[i]) ;
+  }
+  void minVFAD(VFAD *rin, VFAD *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] = min(rinout[i],rin[i]) ;
+  }
+
+  void sumVECTF8(vtype<float,8> *rin, vtype<float,8> *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] += rin[i] ;
+  }
+  void prodVECTF8(vtype<float,8> *rin, vtype<float,8> *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      rinout[i] *= rin[i] ;
+  }
+  void maxVECTF8(vtype<float,8> *rin, vtype<float,8> *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+     for(int k=0;k<8;++k)
+       rinout[i].data[k] = max(rinout[i].data[k],rin[i].data[k]) ;
+  }
+  void minVECTF8(vtype<float,8> *rin, vtype<float,8> *rinout, int *len, MPI_Datatype *dtype) {
+    for(int i=0;i<*len;++i)
+      for(int k=0;k<8;++k)
+        rinout[i].data[k] = min(rinout[i].data[k],rin[i].data[k]) ;
+  }
+
   MPI_Errhandler Loci_MPI_err_handler ;
   
 
@@ -485,6 +533,27 @@ namespace Loci {
       MPI_Op_create((MPI_User_function *)prodMFADd,1,&MPI_MFADD_PROD) ;
       MPI_Op_create((MPI_User_function *)maxMFADd,1,&MPI_MFADD_MAX) ;
       MPI_Op_create((MPI_User_function *)minMFADd,1,&MPI_MFADD_MIN) ;
+
+    }
+
+    {
+      MPI_Type_vector(sizeof(VFAD),1,1,MPI_BYTE,&MPI_VFAD) ;
+      MPI_Type_commit(&MPI_VFAD) ;
+
+      MPI_Op_create((MPI_User_function *)sumVFAD,1,&MPI_VFAD_SUM) ;
+      MPI_Op_create((MPI_User_function *)prodVFAD,1,&MPI_VFAD_PROD) ;
+      MPI_Op_create((MPI_User_function *)maxVFAD,1,&MPI_VFAD_MAX) ;
+      MPI_Op_create((MPI_User_function *)minVFAD,1,&MPI_VFAD_MIN) ;
+
+    }
+    {
+      MPI_Type_vector(sizeof(vtype<float,8>),1,1,MPI_BYTE,&MPI_VECTF8) ;
+      MPI_Type_commit(&MPI_VECTF8) ;
+
+      MPI_Op_create((MPI_User_function *)sumVECTF8,1,&MPI_VECTF8_SUM) ;
+      MPI_Op_create((MPI_User_function *)prodVECTF8,1,&MPI_VECTF8_PROD) ;
+      MPI_Op_create((MPI_User_function *)maxVECTF8,1,&MPI_VECTF8_MAX) ;
+      MPI_Op_create((MPI_User_function *)minVECTF8,1,&MPI_VECTF8_MIN) ;
 
     }
 #endif

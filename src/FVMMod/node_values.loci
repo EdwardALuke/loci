@@ -372,21 +372,29 @@ namespace Loci {
       $cell2node_v3d(V) = $boundary_v3d_sum(V)*rsum ;
   }
 
-
-  /// Implements interpolation of derivative terms from cells to nodes
-  $type c2n_scalar_sump(V) store<float> ;
-
-  $rule unit(c2n_scalar_sump(V) ), constraint(pos)  { $c2n_scalar_sump(V) = 0 ; }
-
 #ifdef AUTODIFF2ND
   typedef Loci::FAD2d FADTYPE ;
+  typedef float FADPLOT ;
 #else
 #ifdef MULTIFAD
   typedef Loci::MFADd FADTYPE ;
+  typedef Loci::MFADd FADPLOT ;
+#else
+#ifdef USEVFAD
+  typedef Loci::VFAD FADTYPE ;
+  typedef Loci::VFAD FADPLOT ;
 #else  
   typedef Loci::FADd FADTYPE ;
+  typedef float FADPLOT ;
 #endif
 #endif
+#endif
+  
+
+  /// Implements interpolation of derivative terms from cells to nodes
+  $type c2n_scalar_sump(V) store<FADPLOT> ;
+
+  $rule unit(c2n_scalar_sump(V) ), constraint(pos)  { $c2n_scalar_sump(V) = 0 ; }
 
   $type XF store<FADTYPE> ;
 
@@ -423,22 +431,27 @@ namespace Loci {
       const double weight = realToDouble(1./norm($*pos[nd]-$cellcenter)) ;
 #ifdef MULTIFAD
       int nv = $XF.maxN ;
-      for (int i=0;i<nv;i++) 
-        join($*c2n_scalar_sump(XF)[nd],($XF*weight).grad[i]) ;
+      join($*c2n_scalar_sump(XF)[nd],($XF*weight)) ;
+#else
+#ifdef USEVFAD
+      join($*c2n_scalar_sump(XF)[nd],($XF*weight)) ;
+      
 #else
       join($*c2n_scalar_sump(XF)[nd],($XF*weight).grad) ;
+#endif
 #endif    
     }
   } 
 
-  $type cell2nodep(XF) store<float> ;
+  $type cell2nodep(XF) store<FADPLOT> ;
   
   $rule pointwise(cell2nodep(XF)<-c2n_scalar_sump(XF),nodalw_sum),constraint(pos,hasCellValues(XF)) {
     double rsum = 1./(double($nodalw_sum)+1e-20) ;
     $cell2nodep(XF) = $c2n_scalar_sump(XF)*rsum ;
   }   
 
-  $type boundary_scalar_sump(XF) store<float> ;
+  
+  $type boundary_scalar_sump(XF) store<FADPLOT> ;
   $rule unit(boundary_scalar_sump(XF)), constraint(pos) {
     $boundary_scalar_sump(XF) = 0 ;
   }
@@ -451,11 +464,14 @@ namespace Loci {
     for(int i=0;i<fsz;++i) {
       const double weight = realToDouble(1./norm($face2node[i]->$pos-$facecenter)) ;
 #ifdef MULTIFAD
-      int nv = $XF_f.maxN ;
-      for (int j=0;j<nv;j++) 
-        $face2node[i]->$boundary_scalar_sump(XF) += ($XF_f*weight).grad[j] ;
+      $face2node[i]->$boundary_scalar_sump(XF) += ($XF_f*weight) ;
+#else
+#ifdef USEVFAD
+      $face2node[i]->$boundary_scalar_sump(XF) += ($XF_f*weight) ;
 #else
       $face2node[i]->$boundary_scalar_sump(XF) += ($XF_f*weight).grad ;
+#endif
+      
 #endif    
     }
   }
@@ -465,10 +481,10 @@ namespace Loci {
       $cell2nodep(XF) = $boundary_scalar_sump(XF)*rsum ;
   }
 
-  $type c2n_v3d_sump(XF) store<vector3d<float> > ;
+  $type c2n_v3d_sump(XF) store<vector3d<FADPLOT> > ;
   
   $rule unit(c2n_v3d_sump(XF)),constraint(pos) {
-    $c2n_v3d_sump(XF) = vector3d<float>(0.,0.,0.) ;
+    $c2n_v3d_sump(XF) = vector3d<FADPLOT>(0.,0.,0.) ;
   }
 
   $type VF store<vector3d<FADTYPE> > ;
@@ -505,32 +521,32 @@ namespace Loci {
       int nd = *vi ;
       const double weight = realToDouble(1./norm($*pos[nd]-$cellcenter)) ;
 #ifdef MULTIFAD
-      int nv = $VF.x.maxN ;
-      for (int j=0;j<nv;j++) {
-        vector3d<float> v(($VF.x*weight).grad[j],
-			  ($VF.y*weight).grad[j],
-			  ($VF.z*weight).grad[j]) ;
-        join($*c2n_v3d_sump(VF)[nd],v) ;
-      }
+      vector3d<FADPLOT> v(($VF.x*weight),($VF.y*weight),($VF.z*weight)) ;
+      join($*c2n_v3d_sump(VF)[nd],v) ;
 #else
-      vector3d<float> v(($VF.x*weight).grad,
+#ifdef USEVFAD
+      vector3d<FADPLOT> v(($VF.x*weight),($VF.y*weight),($VF.z*weight)) ;
+      join($*c2n_v3d_sump(VF)[nd],v) ;
+#else
+      vector3d<FADPLOT> v(($VF.x*weight).grad,
 			($VF.y*weight).grad,
 			($VF.z*weight).grad) ;
       join($*c2n_v3d_sump(VF)[nd],v) ;
 #endif
+#endif
     }
   }
 
-  $type cell2nodep_v3d(VF) store<vector3d<float> > ;
+  $type cell2nodep_v3d(VF) store<vector3d<FADPLOT> > ;
   $rule pointwise(cell2nodep_v3d(VF)<-c2n_v3d_sump(VF),nodalw_sum),
   constraint(pos,hasCellValues(VF)) {
     double rsum = 1./(double($nodalw_sum)+1e-20) ;
     $cell2nodep_v3d(VF) = $c2n_v3d_sump(VF)*rsum ;
   }
-  $type boundary_v3d_sump(VF) store<vector3d<float> > ;
+  $type boundary_v3d_sump(VF) store<vector3d<FADPLOT> > ;
   
   $rule unit(boundary_v3d_sump(VF)),constraint(pos) {
-    $boundary_v3d_sump(VF) = vector3d<float>(0.0,0.0,0.0) ;
+    $boundary_v3d_sump(VF) = vector3d<FADPLOT>(0.0,0.0,0.0) ;
   }
 
   $type VF_f store<vector3d<FADTYPE> > ;
@@ -540,19 +556,19 @@ namespace Loci {
     for(int i=0;i<fsz;++i) {
       const double weight = realToDouble(1./norm($face2node[i]->$pos-$facecenter)) ;
 #ifdef MULTIFAD
-      int nv = $VF_f.x.maxN ;
-      for (int j=0;j<nv;j++) {
-        vector3d<float> v(($VF_f.x*weight).grad[j],
-			  ($VF_f.y*weight).grad[j],
-			  ($VF_f.z*weight).grad[j]) ;
-        $face2node[i]->$boundary_v3d_sump(VF) += v ;
-      }
+      vector3d<FADPLOT> v($VF_f.x*weight,$VF_f.y*weight,$VF_f.z*weight) ;
+      $face2node[i]->$boundary_v3d_sump(VF) += v ;
 #else
-      vector3d<float> v(($VF_f.x*weight).grad,
+#ifdef USEVFAD
+      vector3d<FADPLOT> v($VF_f.x*weight,$VF_f.y*weight,$VF_f.z*weight) ;
+      $face2node[i]->$boundary_v3d_sump(VF) += v ;
+#else
+      vector3d<FADPLOT> v(($VF_f.x*weight).grad,
 			($VF_f.y*weight).grad,
 			($VF_f.z*weight).grad) ;
       $face2node[i]->$boundary_v3d_sump(VF) += v ;
-#endif    
+#endif
+#endif
     }
   }
 

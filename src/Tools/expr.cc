@@ -176,11 +176,7 @@ namespace Loci {
               results.pop_back();
               op1 = results.back();
               results.pop_back();
-#ifdef NO_CMATH
-              results.push_back(::pow(op1,op2)) ;
-#else
               results.push_back(std::pow(op1,op2)) ;
-#endif
               break;
             }
             //remaining functions require only 1 operand
@@ -190,54 +186,6 @@ namespace Loci {
             //depending on the math library included
             //different evaluation methods will be used for
             //the same operation
-#ifdef NO_CMATH
-            //determine operation type
-            switch (int (op_vect[x].second))
-              {
-              case 1:
-                results.push_back(::sin(op1)) ;
-                break;
-              case 2:
-                results.push_back(::cos(op1)) ;
-                break;
-              case 3:
-                results.push_back(::tan(op1)) ;
-                break;
-              case 4:
-                results.push_back(::asin(op1)) ;
-                break;
-              case 5:
-                results.push_back(::acos(op1)) ;
-                break;
-              case 6:
-                results.push_back(::atan(op1)) ;
-                break;
-              case 7:
-                results.push_back(::sinh(op1)) ;
-                break;
-              case 8:
-                results.push_back(::cosh(op1)) ;
-                break;
-              case 9:
-                results.push_back(::tanh(op1)) ;
-                break;
-              case 10:
-                results.push_back(::exp(op1)) ;
-                break;
-              case 11:
-                results.push_back(::sqrt(op1)) ;
-                break;
-              case 12:
-                results.push_back(::log(op1)) ;
-                break;
-              case 13:
-                results.push_back(::log(op1)) ;
-                break;
-              case 14:
-                results.push_back(::log10(op1)) ;
-                break;
-              }
-#else
             switch (int (op_vect[x].second))
               {
               case 1:
@@ -283,7 +231,6 @@ namespace Loci {
                 results.push_back(std::log10(op1)) ;
                 break;
               }
-#endif
             break;
             //variable operation,
             //use numeric value as index to actual value in variable vector
@@ -948,11 +895,7 @@ namespace Loci {
 	  if(s.peek() == 'e' || s.peek() == 'E') {
 	    s.get() ;
 	    int e = parse::get_int(s) ;
-#ifdef NO_CMATH
-	    exp = ::pow(10.0,double(e)) ;
-#else
 	    exp = std::pow(10.0,double(e)) ;
-#endif
 	  }
 	  val2 *= (val1<0)?-1.0:1.0 ;
 	  double val = (val1+val2)*exp ;
@@ -998,11 +941,7 @@ namespace Loci {
 	if(s.peek() == 'e' || s.peek() == 'E') {
 	  s.get() ;
 	  int e = parse::get_int(s) ;
-#ifdef NO_CMATH
-	  exp = ::pow(10.0,double(e)) ;
-#else
 	  exp = std::pow(10.0,double(e)) ;
-#endif
 	}
 	val2 *= (val1<0)?-1.0:1.0 ;
 	double val = (val1+val2)*exp ;
@@ -1480,42 +1419,8 @@ namespace Loci {
           double tmp2 = 1 ;
           if(li!=expr_list.end())
             tmp2 = (*li)->evaluate(varmap) ;
-#ifdef NO_CMATH
-          return ::pow(tmp,tmp2) ;
-#else
           return std::pow(tmp,tmp2) ;
-#endif
         }
-#ifdef NO_CMATH
-        if(name == "sin")
-          return ::sin(tmp) ;
-        if(name == "cos")
-          return ::cos(tmp) ;
-        if(name == "tan")
-          return ::tan(tmp) ;
-        if(name == "asin")
-          return ::asin(tmp) ;
-        if(name == "acos")
-          return ::acos(tmp) ;
-        if(name == "atan")
-          return ::atan(tmp) ;
-        if(name == "sinh")
-          return ::sinh(tmp) ;
-        if(name == "cosh")
-          return ::cosh(tmp) ;
-        if(name == "tanh")
-          return ::tanh(tmp) ;
-        if(name == "exp")
-          return ::exp(tmp) ;
-        if(name == "sqrt")
-          return ::sqrt(tmp) ;
-        if(name == "ln")
-          return ::log(tmp) ;
-        if(name == "log")
-          return ::log(tmp) ;
-        if(name == "log10")
-          return ::log10(tmp) ;
-#else
         if(name == "sin")
           return std::sin(tmp) ;
         if(name == "cos")
@@ -1544,7 +1449,6 @@ namespace Loci {
           return std::log(tmp) ;
         if(name == "log10")
           return std::log10(tmp) ;
-#endif
         {
           string msg = "in expression evaluation, function " + name
             + " has no definition";

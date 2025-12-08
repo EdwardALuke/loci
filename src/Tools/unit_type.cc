@@ -26,9 +26,7 @@
 using namespace std ;
 
 namespace Loci {
-  // define maxN from MFADd somewhere
-  const size_t MFADd::maxN ;
-  
+
   //three tables of unit type - basic, composite, reference types----//
   UNIT_type::basic_units UNIT_type::basic_unit_table[]={
     {"meter",Length,1},
@@ -373,8 +371,9 @@ namespace Loci {
     {"velocity","m/s"},
     {"speed","m/s"},
     {"Speed","m/s"},
-    {"viscocityD","Pa*s"},
-    {"viscocityK","m*m/s"},
+    {"viscosityD","Pa*s"},
+    {"viscosityK","m*m/s"},
+    {"thermalConductivity","W/m/K"},
     {"volume","m*m*m"},
     {"Volume","m*m*m"},
     {"pressure","Pa"},
@@ -472,29 +471,6 @@ namespace Loci {
     return -1;
   }
 
-  //operation to print the undecomposed unit ----//
-  void UNIT_type::printing(ostream &s,exprList exlist)
-    {
-      if(exlist.size() !=0) {
-	exprList::const_iterator i= exlist.begin();
-	for (;i!=exlist.end();++i){
-	  switch((*i)->op){
-	  case OP_NAME:
-	    s<<(*i)->name;	
-	    {//print "*" between the elements of units
-	      if(++i!=exlist.end())
-		s<<"*";
-	      i--;
-	    }
-	    break;
-	  default:
-              unit_error(4,"Not the unit operation!") ;
-	    break;
-	  }
-	}
-      }
-      s<<endl;
-    }
   //------build lists of numerator and denominator-----------//
   void UNIT_type::build_lists(exprList &numerator, exprList &denominator, exprP input, bool isnum)
     {
@@ -780,21 +756,6 @@ namespace Loci {
     }
 
   //------unit check---------//
-  bool UNIT_type::is_in_db(const std::string &str){
-    for(int i=0;basic_unit_table[i].name!=0;i++){
-      if(str==basic_unit_table[i].name)
-	return true;
-    }
-    for(int i=0;composite_unit_table[i].name!=0;i++){
-      if(str==composite_unit_table[i].name)
-	return true;
-    }
-    for(int i=0;reference_unit_table[i].name!=0;i++){
-      if(str==reference_unit_table[i].name)
-	return true;
-    }
-    return false;
-  }
 
   int UNIT_type::in_unit_kind(){
     for(int i=0;default_unit_table[i].default_type!=0;i++){
@@ -820,14 +781,125 @@ namespace Loci {
 
   //------input the expression-------//
   exprP UNIT_type::input(istream &in){
-    exprP exp = 0 ;
-    
-    if(check_unit(in, value)){
-      in>>input_unit;
-      exp=expression::create(input_unit);
+    unit_kind="" ;
+    //    input_unit="" ; existing input_unit will be default if no unit is
+    // specified.
+    mode = MKS ;
+    input_value = 0 ;
+    gradient = 0 ;
+    secondGradient = 0 ;
+    gradientList = std::vector<double>() ;
+
+    while(in.peek() == ' ' || in.peek() == '\t')
+      in.get() ; ;
+    if(parse::is_real(in)) {
+      input_value = parse::get_real(in) ;
+
+      while(in.peek() == ' ' || in.peek() == '\t')
+        in.get() ; ;
+      if(in.peek() == '^') {
+        // get gradient information
+        in.get() ;
+        while(in.peek() == ' ' || in.peek() == '\t')
+          in.get() ;
+        if(in.peek() == '[') {
+          // Reading in vector of values
+          in.get();
+          while(in.peek() == ' ' || in.peek() == '\t')
+            in.get() ;
+          if(parse::is_real(in)) {
+            gradient = parse::get_real(in) ;
+            while(in.peek() == ' ' || in.peek() == '\t')
+              in.get() ;
+          }
+
+          while(parse::is_real(in)) {
+            gradientList.push_back(parse::get_real(in)) ;
+            while(in.peek() == ' ' || in.peek() == '\t')
+              in.get() ;
+          }
+          if(in.peek() != ']') {
+            throw exprError("Syntax",
+                            "Unit Type: Error parsing derivative block",
+                            ERR_SYNTAX) ;
+          }  else
+            in.get() ;
+        } else {
+          if(parse::is_real(in)) {
+            gradient = parse::get_real(in) ;
+            while(in.peek() == ' ' || in.peek() == '\t')
+              in.get() ;
+            if(in.peek() == '^') {
+              in.get() ;
+              if(in.peek() == '^')
+                in.get() ;
+              if(parse::is_real(in))
+                secondGradient = parse::get_real(in) ;
+              else
+                throw exprError("Syntax",
+                                "Unit Type: Error parsing second derivative",
+                                ERR_SYNTAX) ;
+            }
+          } else {
+            throw exprError("Syntax",
+                            "Unit Type: Error parsing gradient information",
+                            ERR_SYNTAX) ;
+          }
+        }
+      }
+    } else {
+      throw Loci::exprError("Syntax",
+                            "Unit Value Type: value not parsed!",
+                            ERR_SYNTAX) ;
     }
-    else
-      set_default_unit(exp);
+    while(in.peek() == ' ' || in.peek() == '\t')
+      in.get() ;
+
+    // parse unit information (this needs to be improved)
+    if(isalpha(in.peek())||parse::is_token(in,"(")) {
+      string parsed ;
+      if(parse::is_token(in,"(")) {
+        parse::get_token(in,"(") ;
+        parsed += '(' ;
+        int cnt = 1 ;
+        while(cnt > 0) {
+          if(in.peek() == '(')
+            cnt++ ;
+          if(in.peek() == ')')
+            cnt-- ;
+          parsed += in.get() ;
+        }
+      } else {
+        while(parse::is_name(in)) {
+          parsed += parse::get_name(in) ;
+          parse::kill_white_space(in) ;
+          parsed += ' ' ;
+          // Get operator if it exists
+          if(parse::is_token(in,"(")) {
+            parse::get_token(in,"(") ;
+            parsed += '(' ;
+            int cnt = 1 ;
+            while(cnt > 0) {
+              if(in.peek() == '(')
+                cnt++ ;
+              if(in.peek() == ')')
+                cnt-- ;
+              parsed += in.get() ;
+            }
+          }
+          if(parse::is_token(in,"*")) {
+            parse::get_token(in,"*") ;
+            parsed += "*" ;
+          }
+          if(parse::is_token(in,"/")) {
+            parse::get_token(in,"/") ;
+            parsed += "/" ;
+          }
+        }
+      }
+      input_unit = parsed ;
+    }
+    exprP exp=expression::create(input_unit);
     return exp;
   }
 
@@ -840,229 +912,44 @@ namespace Loci {
     else if(input_expr->name=="Rankine"||input_expr->name=="R")
       return 3;
     return 0;
-    }
-
-  //change single temperature to basic type -kelvin- by special calculation
-  void UNIT_type::calculate_temperature(exprP &input_expr,FAD2d &val){
-    seperate_unit(unit_num_map,unit_den_map,input_expr); 
-    get_conversion(unit_num_map,unit_den_map,conversion_factor);
-    if(conversion_factor>0){
-      conversion_factor=1;
-      switch(is_single_temperature(input_expr)){
-      case 1:
-	val=(val+459.67)/1.8;
-	break;
-      case 2:
-	val=val+273.15;
-	break;
-      case 3:
-	val=val/1.8;
-	break;
-      }
-    }else
-      cout<<"Not a unit"<<endl;
-  }
-  void UNIT_type::calculate_temperature(exprP &input_expr,MFADd &val){
-    seperate_unit(unit_num_map,unit_den_map,input_expr); 
-    get_conversion(unit_num_map,unit_den_map,conversion_factor);
-    if(conversion_factor>0){
-      conversion_factor=1;
-      switch(is_single_temperature(input_expr)){
-      case 1:
-	val=(val+459.67)/1.8;
-	break;
-      case 2:
-	val=val+273.15;
-	break;
-      case 3:
-	val=val/1.8;
-	break;
-      }
-    }else
-      cout<<"Not a unit"<<endl;
   }
 
-//change basic type -kelvin- to other temperature by special calculation
-  void UNIT_type::reverse_calculate_temperature(exprP &input_expr,FAD2d &val){
-    seperate_unit(unit_num_map,unit_den_map,input_expr); 
-    get_conversion(unit_num_map,unit_den_map,conversion_factor);
-    if(conversion_factor>0){
-      conversion_factor=1;
-      switch(is_single_temperature(input_expr)){
-      case 1:
-	val=val*1.8-459.67;
-	break;
-      case 2:
-	val=val-273.15;
-	break;
-      case 3:
-	val=val*1.8;
-	break;
-      }
-    }else
-      cout<<"Not a unit"<<endl;
-  }
-  void UNIT_type::reverse_calculate_temperature(exprP &input_expr,MFADd &val){
-    seperate_unit(unit_num_map,unit_den_map,input_expr); 
-    get_conversion(unit_num_map,unit_den_map,conversion_factor);
-    if(conversion_factor>0){
-      conversion_factor=1;
-      switch(is_single_temperature(input_expr)){
-      case 1:
-	val=val*1.8-459.67;
-	break;
-      case 2:
-	val=val-273.15;
-	break;
-      case 3:
-	val=val*1.8;
-	break;
-      }
-    }else
-      cout<<"Not a unit"<<endl;
-  }
 
   //--- input unit expression and output basic units ---//
   void UNIT_type::output(exprP &in_exp){
-      if(is_single_temperature(in_exp)!=0)
-	calculate_temperature(in_exp, value);
-      else{
-	//cout<<endl;
-	//cout<<"Loci expression:  ";
-	//in_exp->Print(cout);
+    unit_den_map = std::map<std::string,int>() ;
+    unit_num_map = std::map<std::string,int>() ;
+    if(is_single_temperature(in_exp)!=0)
+      calculate_temperature(in_exp, input_value);
+    else{
+      //cout<<endl;
+      //cout<<"Loci expression:  ";
+      //in_exp->Print(cout);
 	
-	/*cout<<endl;
-	  cout<<endl;
-	  cout<<"print the unit:  "<<endl;*/
-	seperate_unit(unit_num_map,unit_den_map,in_exp); 
-	
-	/*cout<<endl;
-	  cout<<endl;
-	  cout<<"change the unit to basic type:"<<endl;*/
-	
-	//change the reference type and composite type to the basic type//
-	get_conversion(unit_num_map,unit_den_map,conversion_factor);
-	if(conversion_factor>0){
-	  //cout<<endl;
-	  //cout<<"Final unit conversion is: "<<endl;
-	  //cout<<"Convert  ";
-	  //in_exp->Print(cout);
-	  //cout<< "  to basic units: "<<endl;
-	  rem_dup(unit_num_map,unit_den_map);
-	  /*cout<<"conversion factor is: "<<conversion_factor<<endl;
-	    cout<<"Input value is: "<<get_value()<<endl;
-	    cout<<"final value is: "<<conversion_factor*val<<endl;*/
-	}else
-	  cout<<"Not an unit!"<<endl;  
-      }
-  }
-
-  //-- check if there is unit and get the value input--//
-  bool UNIT_type::check_unit(std::istream &in, double &val){
-
-    parse::kill_white_space(in);
-  
-    if(in.eof()||in.peek()==EOF){
-      cout<<"Nothing input"<<endl;
-      return false;
+      /*cout<<endl;
+        cout<<endl;
+        cout<<"print the unit:  "<<endl;*/
+      seperate_unit(unit_num_map,unit_den_map,in_exp); 
+      
+      /*cout<<endl;
+        cout<<endl;
+        cout<<"change the unit to basic type:"<<endl;*/
+      
+      //change the reference type and composite type to the basic type//
+      get_conversion(unit_num_map,unit_den_map,conversion_factor);
+      if(conversion_factor>0){
+        //cout<<endl;
+        //cout<<"Final unit conversion is: "<<endl;
+        //cout<<"Convert  ";
+        //in_exp->Print(cout);
+        //cout<< "  to basic units: "<<endl;
+        rem_dup(unit_num_map,unit_den_map);
+        /*cout<<"conversion factor is: "<<conversion_factor<<endl;
+          cout<<"Input value is: "<<get_value()<<endl;
+          cout<<"final value is: "<<conversion_factor*val<<endl;*/
+      }else
+        cout<<"Not an unit!"<<endl;  
     }
-
-    else if(isdigit(in.peek())){
-      if(parse::is_real(in)) 
-	val=parse::get_real(in);}
-    else if(!isdigit(in.peek())){
-      val=1;
-      cout<<"No input value, set default to 1"<<endl;
-    }
-    while(!in.eof()&&isspace(in.peek()))//kill white spaces between the value and unit
-      in.get();
-
-    input_value=val;
-    if(isalpha(in.peek())||parse::is_token(in,"("))
-      return true;
-    else
-      return false;
-  }
-
-  //-- check if there is unit and get the value input--//
-  bool UNIT_type::check_unit(std::istream &in, FAD2d &val){
-
-    parse::kill_white_space(in);
-  
-    if(in.eof()||in.peek()==EOF){
-      cout<<"Nothing input"<<endl;
-      return false;
-    }
-
-    else if(isdigit(in.peek())){
-      if(parse::is_real(in))  {
-	double real = parse::get_real(in) ;
-	double grad = 0 ;
-	double grad2 = 0 ;
-	if(in.peek() == '^') {
-	  in.get() ;
-	  grad = parse::get_real(in) ;
-	}
-	if(in.peek() == '^') {
-	  while(in.peek() == '^')
-	    in.get() ;
-	  grad2 = parse::get_real(in) ;
-	}
-	val=FAD2d(real,grad,grad2) ;
-      }
-    }
-    else if(!isdigit(in.peek())){
-      val=1;
-      cout<<"No input value, set default to 1"<<endl;
-    }
-    while(!in.eof()&&isspace(in.peek()))//kill white spaces between the value and unit
-      in.get();
-    value = val ;
-    input_value=val;
-    if(isalpha(in.peek())||parse::is_token(in,"("))
-      return true;
-    else
-      return false;
-  }
-  bool UNIT_type::check_unit(std::istream &in, MFADd &val){
-
-    parse::kill_white_space(in);
-  
-    if(in.eof()||in.peek()==EOF){
-      cout<<"Nothing input"<<endl;
-      return false;
-    }
-
-    else if(isdigit(in.peek())){
-      if(parse::is_real(in))  {
-	double real = parse::get_real(in) ;
-	vector<double> grad ;
-	if(in.peek() == '^') {
-	  in.get() ;
-	  grad.push_back( parse::get_real(in) ) ;
-	}
-        for (int i=1;i<MFAD_SIZE;i++) {
-          if(in.peek()=='^') {
-	    while(in.peek()=='^')
-	      in.get() ;
- 	    grad.push_back( parse::get_real(in) ) ;
-          }
-        }
-	val=MFADd(real,&grad[0],(int) grad.size() ) ;
-      }
-    }
-    else if(!isdigit(in.peek())){
-      val=1;
-      cout<<"No input value, set default to 1"<<endl;
-    }
-    while(!in.eof()&&isspace(in.peek()))//kill white spaces between the value and unit
-      in.get();
-    value_mfad = val ;
-    input_value_mfad = val;
-    if(isalpha(in.peek())||parse::is_token(in,"("))
-      return true;
-    else
-      return false;
   }
 
   //compare the two units, check if they are comparable
@@ -1073,7 +960,9 @@ namespace Loci {
     std::map<std::string,int> fst_n_map=(*this).unit_num_map,fst_d_map=(*this).unit_den_map;
     sec_unit.mode=(*this).mode;
     sec_unit.unit_kind=(*this).unit_kind;
-    sec_unit.value=1;
+    sec_unit.input_value=1;
+    sec_unit.gradient=0 ;
+    sec_unit.secondGradient = 0 ;
 
     sec_exp=expression::create(unit_str);
     sec_unit.output(sec_exp);
@@ -1083,45 +972,39 @@ namespace Loci {
     std::map<std::string,int> sec_n_map=sec_unit.unit_num_map,sec_d_map=sec_unit.unit_den_map;
     bool num_flag=false,den_flag=false;
 
-    for(fst_mi= fst_n_map.begin();fst_mi!=fst_n_map.end();++fst_mi)
-      {
-	for(sec_mi= sec_n_map.begin();sec_mi!=sec_n_map.end();++sec_mi)
-	  {
-	    if(((*sec_mi).first==(*fst_mi).first)&&((*sec_mi).second==(*fst_mi).second))
-	      num_flag=true;
-	  }
+    //    std::cerr << "unit_num_map ="  ;
+    //    for(auto i=unit_num_map.begin();i!=unit_num_map.end();++i)
+    //      std::cerr << "(" << i->first << "," << i->second << ")" ;
+    //    std::cerr << endl ;
+    //    std::cerr << "unit_den_map ="  ;
+    //    for(auto i=unit_den_map.begin();i!=unit_den_map.end();++i)
+    //      std::cerr << "(" << i->first << "," << i->second << ")" ;
+    //    std::cerr << endl ;
+    for(fst_mi= fst_n_map.begin();fst_mi!=fst_n_map.end();++fst_mi) {
+      for(sec_mi= sec_n_map.begin();sec_mi!=sec_n_map.end();++sec_mi) {
+        if(((*sec_mi).first==(*fst_mi).first)&&((*sec_mi).second==(*fst_mi).second))
+          num_flag=true;
       }
-    for(fst_mi= fst_d_map.begin();fst_mi!=fst_d_map.end();++fst_mi)
-      {
-	for(sec_mi= sec_d_map.begin();sec_mi!=sec_d_map.end();++sec_mi)
-	  {
-	    if(((*sec_mi).first==(*fst_mi).first)&&((*sec_mi).second==(*fst_mi).second))
-	      den_flag=true;
-	  }
+    }
+    for(fst_mi= fst_d_map.begin();fst_mi!=fst_d_map.end();++fst_mi) {
+      for(sec_mi= sec_d_map.begin();sec_mi!=sec_d_map.end();++sec_mi) {
+        if(((*sec_mi).first==(*fst_mi).first)&&((*sec_mi).second==(*fst_mi).second))
+          den_flag=true;
       }
+    }
     if(sec_d_map.size()==0&&fst_d_map.size()==0)
       den_flag=true;
     if(sec_n_map.size()==0&&fst_n_map.size()==0)
       num_flag=true ;
-    
+
+    //    std::cerr << "num_flag=" << num_flag <<",den_flag=" << den_flag
+    //              << ",sec_d_map.size()=" << sec_d_map.size()
+    //              << ",fst_d_map.size()=" << fst_d_map.size()
+    //              << ",sec_n_map.size()=" << sec_n_map.size()
+    //              << ",fst_n_map.size()=" << fst_n_map.size() << std::endl ;
     if((num_flag==true)&&(den_flag==true)&&(sec_d_map.size()==fst_d_map.size())&&(sec_n_map.size()==fst_n_map.size()))
       return true;
     return false;
-  }
-
-  //compare the input unit with the default unit, check if they are comparable
-  bool UNIT_type::private_is_compatible(){
-    exprP exp = 0;
-    string str;
-    if(mode!=check_available){
-      set_default_unit(exp);
-      str=exp->name;
-      if(is_compatible(str))
-	return true;
-      else
-	return false;
-    }
-    return true;
   }
 
   double UNIT_type::get_value_in(const std::string unit_str){
@@ -1130,23 +1013,22 @@ namespace Loci {
 
     sec_unit.mode=(*this).mode;
     sec_unit.unit_kind=(*this).unit_kind;
-    sec_unit.value=1;
+
+    sec_unit.input_value=1;
+    sec_unit.gradient=0 ;
+    sec_unit.secondGradient = 0 ;
 
     sec_exp=expression::create(unit_str);
     if(is_single_temperature(sec_exp)!=0){
-      FAD2d val = value ;
+      double val = input_value ;
       reverse_calculate_temperature(sec_exp,val);
-      return val.value ;
+      return val ;
     }
     else
       sec_unit.output(sec_exp);
     //cout<<sec_unit;
 
-#ifdef MULTIFAD
-    return (value_mfad.value)*(*this).conversion_factor/sec_unit.conversion_factor;
-#else
-    return (value.value)*(*this).conversion_factor/sec_unit.conversion_factor;
-#endif 
+    return (input_value)*(*this).conversion_factor/sec_unit.conversion_factor;
   }
 
   FAD2d UNIT_type::get_value_inD(const std::string unit_str){
@@ -1155,41 +1037,101 @@ namespace Loci {
 
     sec_unit.mode=(*this).mode;
     sec_unit.unit_kind=(*this).unit_kind;
-    sec_unit.value=1;
+
+    sec_unit.input_value=1;
+    sec_unit.gradient=0 ;
+    sec_unit.secondGradient = 0 ;
 
     sec_exp=expression::create(unit_str);
     if(is_single_temperature(sec_exp)!=0){
-      FAD2d val = value ;
+      FAD2d val(input_value,gradient,secondGradient) ;
       reverse_calculate_temperature(sec_exp,val);
       return val;
     }
     else
       sec_unit.output(sec_exp);
     //cout<<sec_unit;
-
-    return value*(*this).conversion_factor/sec_unit.conversion_factor;
+    double factor = (*this).conversion_factor/sec_unit.conversion_factor;
+    return FAD2d(input_value,gradient,secondGradient)*factor;
   }
-  MFADd UNIT_type::get_value_inM(const std::string unit_str){
+
+  VFAD UNIT_type::get_value_inVF(const std::string unit_str, int batch){
     UNIT_type sec_unit;
-    exprP sec_exp = 0 ;
 
     sec_unit.mode=(*this).mode;
     sec_unit.unit_kind=(*this).unit_kind;
-    sec_unit.value=1;
 
-    sec_exp=expression::create(unit_str);
+    sec_unit.input_value=1;
+    sec_unit.gradient=0 ;
+    sec_unit.secondGradient = 0 ;
+
+    exprP sec_exp=expression::create(unit_str);
+    VFAD val ;
+    val.data.value = input_value ;
+    for(size_t i=0;i<VFAD::maxN;++i)
+      val.data.grad[i] = 0 ;
+    if(batch == 0) {
+      val.data.grad[0] = gradient ;
+      for(size_t i=1;i<min(gradientList.size()+1,VFAD::maxN);++i)
+        val.data.grad[i] = gradientList[i-1] ;
+    } else {
+      size_t offset = batch*VFAD::maxN ;
+      size_t num = min(VFAD::maxN, offset-(gradientList.size()+1)) ;
+      for(size_t i=0;i<num;++i)
+        val.data.grad[i] = gradientList[i+offset-1] ;
+    }
+    
     if(is_single_temperature(sec_exp)!=0){
-      MFADd val = value_mfad ;
       reverse_calculate_temperature(sec_exp,val);
       return val;
+
     }
     else
       sec_unit.output(sec_exp);
     //cout<<sec_unit;
 
-    return value_mfad*(*this).conversion_factor/sec_unit.conversion_factor;
+    val *= (*this).conversion_factor/sec_unit.conversion_factor;
+    return val;
+    
   }
 
+  void UNIT_type::get_values_in(const std::string unit_str,
+                                double &val, double &grad, double &secondGrad,
+                                std::vector<double> &gradlist){
+    UNIT_type sec_unit;
+
+    sec_unit.mode=(*this).mode;
+    sec_unit.unit_kind=(*this).unit_kind;
+
+    sec_unit.input_value=1;
+    sec_unit.gradient=0 ;
+    sec_unit.secondGradient = 0 ;
+
+    exprP sec_exp=expression::create(unit_str);
+
+    if(is_single_temperature(sec_exp)!=0){
+      FADd v(input_value,1.0) ;
+      reverse_calculate_temperature(sec_exp,v);
+      val = realToDouble(v) ;
+      double coef = v.grad ;
+      grad = gradient*coef ;
+      secondGrad = secondGradient*coef ;
+      gradlist = gradientList ;
+      for(size_t i=0;i<gradlist.size();++i)
+        gradlist[i] *= coef ;
+      return ;
+    }  else
+      sec_unit.output(sec_exp);
+    //cout<<sec_unit;
+    double coef = conversion_factor/sec_unit.conversion_factor;
+    val = coef*input_value ;
+    grad = gradient*coef ;
+    secondGrad = secondGradient*coef ;
+    gradlist = gradientList ;
+    for(size_t i=0;i<gradlist.size();++i)
+      gradlist[i] *= coef ;
+  }
+  
 
 }
 

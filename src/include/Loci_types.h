@@ -26,10 +26,10 @@
 #endif
 #include <Config/conf.h>
 
-
 #include <data_traits.h>
 
 #include <Tools/basic_types.h>
+#include <Tools/vtypes.h>
 #include <Tools/options_list.h>
 
 namespace Loci {
@@ -160,6 +160,48 @@ namespace Loci {
     }
   };
 
+  // Make special type manager for VFADType
+  class VFADType : public AbstractDatatype {
+  public:
+    VFADType() {}
+    hid_t get_hdf5_type() const {
+      VFAD tmp ;
+      hid_t vDatatype = H5Tcreate( H5T_COMPOUND, sizeof(tmp) ) ;
+#ifdef NO_OFFSETOF
+      size_t offset1 = reinterpret_cast<char *>(&(tmp.data.value)) - reinterpret_cast<char *>(&tmp) ;
+#else
+      size_t offset1 = offsetof(VFAD,data.value) ;	
+#endif
+      H5Tinsert(vDatatype,"value",offset1,H5T_NATIVE_DOUBLE) ;
+
+      // note, not an array, this needs to be fixed
+#ifdef NO_OFFSETOF
+      size_t offset2 = reinterpret_cast<char *>(&(tmp.data.grad[0])) - reinterpret_cast<char *>(&tmp) ;
+#else
+      size_t offset2 = offsetof(VFAD,data.grad) ;
+#endif
+      int dim = VFAD::maxN ;
+      DatatypeP atype = new ArrayType(getLociType(float()),sizeof(tmp.data.grad),1,&dim) ;
+      H5Tinsert(vDatatype,"grad",offset2,atype->get_hdf5_type()) ;
+
+      return vDatatype ;
+    }		
+    std::ostream &output(std::ostream &s, const void *p) const
+      { s << *(reinterpret_cast<const VFAD *>(p)) ; return s ;}
+    std::istream &input(std::istream &s, void *p) const
+      { s >> *(reinterpret_cast<VFAD *>(p)) ; return s ; }
+    int bytesize() const
+    { return sizeof(VFAD) ; }
+  } ;
+  
+  template<> struct data_schema_traits<VFAD> {
+    typedef IDENTITY_CONVERTER Schema_Converter ;
+    static DatatypeP get_type() {
+      return new VFADType() ;
+    }
+  };
+
+  
   template <class T>
     struct data_schema_traits< vector3d<T> > {
       typedef IDENTITY_CONVERTER Schema_Converter;
@@ -230,12 +272,177 @@ namespace Loci {
     }
   };
 
+  template <class T,size_t n> inline std::ostream &
+    operator<<(std::ostream &s, const vtype<T,n> &v) {
+    for(size_t i=0;i<n;++i)
+      s << v[i] << ' ' ;
+    return s ;
+  }
+
+  template <class T,size_t n> inline std::istream &
+    operator>>(std::istream &s, vtype<T,n> &v) {
+    for(size_t i=0;i<n;++i)
+      s >> v[i] ;
+    return s ;
+  }
+
+  
+  template <class T,size_t n> 
+  class data_schema_traits< vtype<T,n> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = n ;
+      return new ArrayType(getLociType(T()),sizeof(vtype<T,n>),1,&dim) ;
+    }
+  };
+
+  template <> 
+  class data_schema_traits< vtype<float,8> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = 8 ;
+      return new ArrayType(getLociType(float()),
+                           sizeof(vtype<float,8>),1,&dim) ;
+    }
+  };
+
+  template <> 
+  class data_schema_traits< vtype<double,4> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = 4 ;
+      return new ArrayType(getLociType(double()),
+                           sizeof(vtype<double,4>),1,&dim) ;
+    }
+  };
+
+  template <> 
+  class data_schema_traits< vtype<int32_t,8> > {
+  public:
+    typedef IDENTITY_CONVERTER Schema_Converter;
+    static DatatypeP get_type() {
+      int dim = 8 ;
+      return new ArrayType(getLociType(int32_t()),
+                           sizeof(vtype<int32_t,8>),1,&dim) ;
+    }
+  };
+  
   template <> struct data_schema_traits<options_list> {
     typedef USER_DEFINED_CONVERTER Schema_Converter ;
     typedef char Converter_Base_Type ;
     typedef StringStreamConverter<options_list> Converter_Type ;
   } ;
 
+  template<class T> class UnitValueConverter {
+    T & ref ;
+  public:
+    UnitValueConverter(T &iref) : ref(iref) {}
+    int getSize() const {
+      return ref.getSize() ;
+    }
+    void getState(double *buf, int &size) const {
+      ref.getState(buf,size) ;
+    }
+    void setState(double *buf, int size) {
+      ref.setState(buf,size) ;
+    }
+  } ;
+
+  template<> struct data_schema_traits<NonDimensionalValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<NonDimensionalValue> Converter_Type ;
+  } ;
+  template<> struct data_schema_traits<TimeValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<TimeValue> Converter_Type ;
+  } ;
+  template<> struct data_schema_traits<LengthValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<LengthValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<MassValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<MassValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<AreaValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<AreaValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<DensityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<DensityValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<EnergyValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<EnergyValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<PowerValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<PowerValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<FlowValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<FlowValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<SpeedValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<SpeedValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<DynamicViscosityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<DynamicViscosityValue> Converter_Type ;
+  } ;
+
+  template<> struct data_schema_traits<KinematicViscosityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<KinematicViscosityValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<ThermalConductivityValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<ThermalConductivityValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<VolumeValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<VolumeValue> Converter_Type ;
+  } ;
+  
+  template<> struct data_schema_traits<TemperatureValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<TemperatureValue> Converter_Type ;
+  } ;
+  template<> struct data_schema_traits<PressureValue> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+    typedef double Converter_Base_Type ;
+    typedef UnitValueConverter<PressureValue> Converter_Type ;
+  } ;
       
 }
 

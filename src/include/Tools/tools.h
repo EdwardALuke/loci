@@ -26,33 +26,6 @@
 #endif
 #include <Config/conf.h>
 
-#ifdef NO_CMATH
-#include <math.h>
-namespace Loci {
-  // trigonemetric
-  using ::acos ;
-  using ::asin ;
-  using ::atan ;
-  using ::atan2 ;
-  using ::cos ;
-  using ::sin ;
-  using ::tan ;
-  // hyperbolic
-  using ::sinh ;
-  using ::cosh ;
-  using ::tanh ;
-  // exponetial and logrithmic
-  using ::exp ;
-  using ::log ;
-  using ::log10 ;
-  using ::sqrt ;
-  using ::pow ;
-  using ::fabs ;
-  // misc
-  using ::ceil ;
-  using ::floor ;
-}
-#else
 #include <cmath>
 
 // trigonemetric
@@ -106,7 +79,7 @@ namespace Loci {
   using std::fmod ;
   using std::isnan ;
 }
-#endif
+
 #ifdef NO_CSTDLIB
 #include <stdlib.h>
 #ifdef NO_ABS

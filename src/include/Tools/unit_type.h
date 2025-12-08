@@ -45,16 +45,17 @@ namespace Loci {
   public:
     std::string unit_kind;//the kind of unit ,such as pressure, time and so on
     std::string input_unit;// the unit which you input
-    FAD2d input_value;// the value which you input
-    MFADd input_value_mfad; // the value which you input
+    double input_value ;
+    double gradient ;
+    double secondGradient ;
+    std::vector<double> gradientList ;
+
     enum unit_mode{MKS, CGS, check_available};
     // MKS: use MKS system
     // CGS: use CGS system
     //check_available: check the system if the unit available
     unit_mode mode;
 
-    FAD2d value;//temp container of value calculation
-    MFADd value_mfad;//temp container of value calculation
     std::map<std::string,int> unit_num_map,unit_den_map;//containers of numerator and dnominator
     enum basic_unit_type {Length,Mass,Time,Temperature,Electric_current,
 			  Amount_of_substance,Luminous_intensity, Angle, NoDim};
@@ -91,75 +92,124 @@ namespace Loci {
     //check there is single temperature or temperature internal
     int is_single_temperature(const exprP input_expr);
     // if single temperature, do the conversion
-    void calculate_temperature(exprP &input_expr, MFADd &value);
-    void calculate_temperature(exprP &input_expr, FAD2d &value);
-    void calculate_temperature(exprP &input_expr, FADd &value) {
-      FAD2d v ;
-      calculate_temperature(input_expr,v) ;
-      value = v ;
+    template<class T>
+    void calculate_temperature(exprP &input_expr, T &val) {
+    seperate_unit(unit_num_map,unit_den_map,input_expr); 
+    get_conversion(unit_num_map,unit_den_map,conversion_factor);
+    if(conversion_factor>0){
+      conversion_factor=1;
+      switch(is_single_temperature(input_expr)){
+      case 1:
+	val=(val+459.67)/1.8;
+	break;
+      case 2:
+	val=val+273.15;
+	break;
+      case 3:
+	val=val/1.8;
+	break;
+      }
+    }else
+      std::cerr<<"Not a unit"<<std::endl;
     }
     // when you need to convert to other temperature, reserve do it.
-    void reverse_calculate_temperature(exprP &input_expr,MFADd &value);
-    void reverse_calculate_temperature(exprP &input_expr,FAD2d &value);
-    void reverse_calculate_temperature(exprP &input_expr, FADd &value) {
-      FAD2d v ;
-      reverse_calculate_temperature(input_expr,v) ;
-      value = v ;
+    template<class T>
+    void reverse_calculate_temperature(exprP &input_expr,T &val) {
+    seperate_unit(unit_num_map,unit_den_map,input_expr); 
+    get_conversion(unit_num_map,unit_den_map,conversion_factor);
+    if(conversion_factor>0){
+      conversion_factor=1;
+      switch(is_single_temperature(input_expr)){
+      case 1:
+	val=val*1.8-459.67;
+	break;
+      case 2:
+	val=val-273.15;
+	break;
+      case 3:
+	val=val*1.8;
+	break;
+      }
+    }else
+      std::cerr<<"Not a unit"<<std::endl;
     }
 
   public:
     exprP input(std::istream &in);// get the input unit
     void output(exprP &in_exp);// ouput the converted basic unit
-    bool is_in_db(const std::string &str);// check is the unit available in db
+
     bool is_compatible(const std::string unit_str);//check two units compatible
-    //private_is_compatible//
-    // check with unit_kind for the input unit, for example: unit_kind=pressure    //input_unit=second, then it is not compatible. But you can set the 
-    //unit_kind to "general" then it will not check again. Or you may not need 
-    //this function for checking
-    bool private_is_compatible();
+
     //get the value in converted unit
     double get_value_in(const std::string unit_str);
     FAD2d get_value_inD(const std::string unit_str);
-    MFADd get_value_inM(const std::string unit_str);
-    UNIT_type(unit_mode in_mode, std::string in_kind, double in_value, std::string in_unit) {mode=in_mode,unit_kind=in_kind,value=in_value,input_unit=in_unit;
-    input_value=value;
-    input_value_mfad.value = value.value ;
-    for(size_t i=0;i<input_value_mfad.maxN;++i)
-      input_value_mfad.grad[i] = 0 ;
-    exprP exp;
-    exp=expression::create(input_unit);
-    output(exp);
+    VFAD get_value_inVF(const std::string unit_str, int batch =0 );
+    void get_values_in(const std::string unit_str,double &val, double &grad, double &secondGrad, std::vector<double> &gradlist) ;
+    UNIT_type(unit_mode in_mode, std::string in_kind, double in_value, std::string in_unit) {
+      mode=in_mode,unit_kind=in_kind,input_value=in_value,input_unit=in_unit;
+      input_value=in_value;
+      gradient = 0 ;
+      secondGradient = 0 ;
+      exprP exp;
+      exp=expression::create(input_unit);
+      output(exp);
     }
+    UNIT_type(unit_mode in_mode, std::string in_kind, std::string in_unit,
+              double in_value, double in_gradient, double in_gradient2,
+              const std::vector<double> &gradList) {
+      mode=in_mode; unit_kind=in_kind; 
+      input_value=in_value ;
+      gradient = in_gradient ;
+      secondGradient = in_gradient2 ;
+      for(size_t i=0;i<gradList.size();++i)
+        gradientList.push_back(gradList[i]) ;
+      input_unit=in_unit;
+      exprP exp;
+      exp=expression::create(input_unit);
+      output(exp);
+    }
+    //#define UNIT_CONSTRUCTORS
+#ifdef UNIT_CONSTRUCTORS
     UNIT_type(unit_mode in_mode, std::string in_kind, FADd in_value, std::string in_unit) {
       mode=in_mode; unit_kind=in_kind; 
-      value=FAD2d(in_value.value,in_value.grad,0.0) ;
+      input_value=in_value.value ;
+      gradient = in_value.grad ;
+      secondGradient = 0 ;
       input_unit=in_unit;
-      input_value=value ;
-      input_value_mfad.value = input_value.value ;
-      for(size_t i=0;i<input_value_mfad.maxN;++i)
-	input_value_mfad.grad[i] = 0 ;
       exprP exp;
       exp=expression::create(input_unit);
       output(exp);
     }
-    UNIT_type(unit_mode in_mode, std::string in_kind, FAD2d in_value, std::string in_unit) {mode=in_mode,unit_kind=in_kind,value=in_value,input_unit=in_unit;
-      input_value=value;
-      input_value_mfad.value = input_value.value ;
-      for(size_t i=0;i<input_value_mfad.maxN;++i)
-	input_value_mfad.grad[i] = 0 ;
-      exprP exp;
-      exp=expression::create(input_unit);
-      output(exp);
-    }
-    UNIT_type(unit_mode in_mode, std::string in_kind, MFADd in_value, std::string in_unit) {mode=in_mode,unit_kind=in_kind,value_mfad=in_value,input_unit=in_unit;
-      input_value = value_mfad.value ;
-      input_value_mfad=value_mfad;
+    UNIT_type(unit_mode in_mode, std::string in_kind, FAD2d in_value, std::string in_unit) {
+      mode=in_mode,unit_kind=in_kind,input_unit=in_unit;
+      input_value=in_value.value;
+      gradient=in_value.grad ;
+      secondGradient = in_value.grad2 ;
       exprP exp;
       exp=expression::create(input_unit);
       output(exp);
     }
 
-    UNIT_type() { mode=MKS; unit_kind=""; value = 0 ; conversion_factor=1; input_value = 0;input_value_mfad = 0 ;}
+    UNIT_type(unit_mode in_mode, std::string in_kind, VFAD in_value, std::string in_unit) {
+      mode=in_mode ;
+      unit_kind=in_kind ;
+      input_value = in_value.data.value ;
+      gradient = in_value.data.grad[0] ;
+      secondGradient = 0 ;
+      for(size_t i=1;i<VFAD::maxN;++i)
+        gradientList.push_back(in_value.data.grad[i]) ;
+      
+      input_unit=in_unit ;
+      exprP exp;
+      exp=expression::create(input_unit);
+      output(exp);
+    }
+#endif
+    
+    UNIT_type() {
+      mode=MKS; unit_kind=""; 
+      conversion_factor=1; input_value = 0;
+      gradient = 0 ; secondGradient = 0 ;}
 
   private:
     bool is_reference_unit(std::string str);
@@ -169,8 +219,6 @@ namespace Loci {
     bool is_basic_unit(std::string str);
     int where_basic_unit(std::string str);
 
-    void printing(std::ostream &s,exprList exlist);//print undecomposed unit
-
     void build_lists(exprList &numerator, exprList &denominator, exprP input, bool isnum=true);
     void count_dim(std::map<std::string,int> &c_map, const exprList c_list);
     void rem_dup(std::map<std::string,int> &num_map,std::map<std::string,int> &den_map);
@@ -179,26 +227,28 @@ namespace Loci {
 
     void change_to_basic_unit(std::map<std::string,int>initial_map,std::map<std::string,int>&num_map,std::map<std::string,int>&den_map,double &conversion_factor);
     void get_conversion(std::map<std::string,int> &num_map, std::map<std::string,int> &den_map,double &conversion_factor);
-    bool check_unit(std::istream &in, double &value);//check input unit and get the value
-    bool check_unit(std::istream &in, MFADd &value);//check input unit and get the value
-    bool check_unit(std::istream &in, FAD2d &value);//check input unit and get the value
-    bool check_unit(std::istream &in, FADd &value) {
-      FAD2d v ;
-      bool ret = check_unit(in,v) ;
-      value = v ;
-      return ret ;
-    }
+
     exprP set_default_unit(exprP &in_exp);
     int in_unit_kind();// check the unit_kind is available in db
 
   };
 
   inline std::ostream &operator<<(std::ostream &s, const UNIT_type &o_unit){
-    //    bool higher_grads = false ;
-    //    for (size_t i=0;i<o_unit.input_value_mfad.maxN;i++) {
-    //      if (o_unit.input_value_mfad.grad[i] == 0) higher_grads = true ;
-    //    }
-    s << o_unit.input_value << ' ' << o_unit.input_unit ;
+    s << o_unit.input_value  ;
+    if(o_unit.gradientList.size() > 0) {
+      s << "^[" << o_unit.gradient ;
+      for(size_t i=0;i<o_unit.gradientList.size();++i)
+        s << " " << o_unit.gradientList[i] ;
+      s << "]" ;
+    } else {
+      if(o_unit.gradient != 0 || o_unit.secondGradient!=0) {
+        s << "^" << o_unit.gradient ;
+        if(o_unit.secondGradient != 0)
+          s << "^^" <<o_unit.secondGradient ;
+      }
+    }
+    if(o_unit.input_unit != "")
+      s << ' ' << o_unit.input_unit ;
     return s ;
   }
 
