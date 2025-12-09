@@ -43,7 +43,8 @@ $include "FVMOverset/overset.lh"
 namespace Loci {
 
   $rule default(holeCuttingTolerance),
-    comments("Specifies the distance to surface that becomes ambiguous for determining which component is closest.") {
+    comments("Specifies the distance to surface that becomes ambiguous for "),
+    comments("determining which component is closest.") {
     $holeCuttingTolerance = 1e-3 ; // default 1mm
   }
 
@@ -77,7 +78,8 @@ namespace Loci {
   // Convert component names to integer id which is just the index in the
   // componentNameList
   $type componentID_X param<int> ;
-  $rule singleton(componentID_X<-componentName_X,componentNameList),parametric(volumeTag(X)) {
+  $rule singleton(componentID_X<-componentName_X,componentNameList),
+  parametric(volumeTag(X)) {
     $componentID_X = -1 ;
 
     for(size_t i=0;i<$componentNameList.size();++i)
@@ -130,11 +132,11 @@ namespace Loci {
       join($face2node[i]->$componentID_node,cid) ;
   }
 
-  //--------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
   //--
   //-- Surface2surface distance evaluations
   //--
-  //--------------------------------------------------------------------------
+  //---------------------------------------------------------------------------
   $type stencilSize2 param<double> ;
   $type crossComponentDist_node store<float> ;
   $type crossComponentDistGrad_node store<vector3d<float> > ;
@@ -154,7 +156,8 @@ namespace Loci {
   $type AllWallBCs Constraint ;
 
   /// Store the face normal vector at each surface node for all wall BCs
-  $rule apply(face2node->surfaceNodeNormal<-area)[Loci::Summation],constraint(AllWallBCs) {
+  $rule apply(face2node->surfaceNodeNormal<-area)[Loci::Summation],
+  constraint(AllWallBCs) {
     vector3d<real_t> n = $area.n ;
     real_t a = 1.0; //$area.sada ;
     vector3d<float> an(realToFloat(a*n.x), realToFloat(a*n.y),
@@ -166,7 +169,8 @@ namespace Loci {
   }
 
   /// Compute the cone angle (in dot product form) for surfaceNodeNormal
-  $rule pointwise(distanceFieldGradient<-pos,node2surf->(pos,surfaceNodeNormal)) {
+  $rule pointwise(distanceFieldGradient<-pos,
+  node2surf->(pos,surfaceNodeNormal)) {
     vector3d<float> dv = realToFloat($pos-$node2surf->$pos) ;
     float ldv = max(norm(dv),1e-30f) ;
     vector3d<float> sn = -1.*$node2surf->$surfaceNodeNormal ;
@@ -175,9 +179,10 @@ namespace Loci {
   }
 
   $rule pointwise(crossComponentDist_node,crossComponentDistGrad_node,
-  crossComponentID_node<-pos,distanceFieldGradient,node2surf->pos,componentID_node,
-  componentPriorityList,holeCuttingTolerance,componentNameList,componentGeometryList,
-  stencilSize2), option(disable_threading), prelude {
+  crossComponentID_node<-pos,distanceFieldGradient,node2surf->pos,
+  componentID_node,componentPriorityList,holeCuttingTolerance,
+  componentNameList,componentGeometryList,stencilSize2),
+  option(disable_threading), prelude {
     entitySet dom = entitySet(seq) ;
     int nc = (*$componentNameList).size() ;
     float delta = realToFloat(sqrt(*$stencilSize2)) ;
@@ -248,8 +253,8 @@ namespace Loci {
 #ifdef VERBOSE
     Loci::debugout << "send_list =" ;
     for(size_t i=0;i<send_list.size();++i)
-      Loci::debugout << " (" << send_list[i].first << ' ' << send_list[i].second
-                     << ")" ;
+      Loci::debugout << " (" << send_list[i].first << ' '
+                     << send_list[i].second << ")" ;
     Loci::debugout << endl ;
 #endif
 
@@ -429,9 +434,13 @@ namespace Loci {
 	      pi = kdlist[i]->find_closest(p,rmin) ;
 	    }
 	    if(pi >= 0) {
-	      vector3d<real_t> loc(recv_pnts[pi][0],recv_pnts[pi][1],recv_pnts[pi][2]) ;
+	      vector3d<real_t> loc(recv_pnts[pi][0],
+                             recv_pnts[pi][1],
+                             recv_pnts[pi][2]) ;
 	      real_t distloc = recv_pnts[pi][3] ;
-	      vector3d<real_t> n(recv_pnts[pi][4],recv_pnts[pi][5],recv_pnts[pi][6]) ;
+	      vector3d<real_t> n(recv_pnts[pi][4],
+                           recv_pnts[pi][5],
+                           recv_pnts[pi][6]) ;
 	      vector3d<real_t> dv = $pos[nd] -loc ;
 	      real_t dn = distloc + dot(dv,n) ;
 	      real_t epsdist = *$holeCuttingTolerance ;
@@ -485,8 +494,11 @@ namespace Loci {
     $xblank = 0 ;
   }
 
-  $rule pointwise(face2node->componentNodes_X),constraint(cl->volumeTag(X)),parametric(volumeTag(X)) {}
-  $rule pointwise(face2node->right::componentNodes_X),constraint(cr->volumeTag(X)),parametric(volumeTag(X)) {}
+  $rule pointwise(face2node->componentNodes_X),constraint(cl->volumeTag(X)),
+  parametric(volumeTag(X)) {}
+
+  $rule pointwise(face2node->right::componentNodes_X),constraint(cr->volumeTag(X)),
+  parametric(volumeTag(X)) {}
 
   $rule pointwise(component::xblank<-pos,componentGeometryData,componentName_X),
   constraint(pos,componentNodes_X,componentGeometry), parametric(volumeTag(X)),
@@ -517,9 +529,9 @@ namespace Loci {
   } ;
 
   $rule pointwise(motion::component::xblank<-pos,componentGeometryData,
-                  componentName_X, componentTransformMap),
-    constraint(pos,componentNodes_X,componentTransformMap,componentGeometry),
-    parametric(volumeTag(X)), option(disable_threading), prelude {
+  componentName_X, componentTransformMap), constraint(pos,componentNodes_X,
+  componentTransformMap,componentGeometry), parametric(volumeTag(X)),
+  option(disable_threading), prelude {
 
     Loci::entitySet e = Loci::entitySet(seq) ;
     FORALL(e,nd) {
@@ -556,7 +568,11 @@ namespace Loci {
 
 
   $rule default(interpolateMinStencilSize),
-    comments("Minimum distance that we should use in excluding points from interpolation stencils.  The default is zero, in which case the estimate used from the number of points and volume of space are used.  In some cases, this may be used to improve interpolation quality") {
+    comments("Minimum distance that we should use in excluding points from "),
+    comments("interpolation stencils.  The default is zero, in which case the "),
+    comments("estimate used from the number of points and volume of space are "),
+    comments("used.  In some cases, this may be used to improve interpolation "),
+    comments("quality") {
     $interpolateMinStencilSize = 0 ;
   }
 
@@ -566,10 +582,10 @@ namespace Loci {
     $stencilSize2 = $interpolateMinStencilSize*$interpolateMinStencilSize ;
   }
 
-  /// Determine the largest value of the distance metric over all interface boundary faces.
-  /// This is 4 times the squared distance from face center to cell center. This is using
-  /// a fudge factor of 4 to give a conservative estimate of the potential stencil size needed
-  /// for interpolation.
+  /// Determine the largest value of the distance metric over all interface
+  /// boundary faces. This is 4 times the squared distance from face center to
+  /// cell center. This is using a fudge factor of 4 to give a conservative
+  /// estimate of the potential stencil size needed for interpolation.
   $rule apply(stencilSize2<-facecenter,ci->cellcenter,face2node->pos)
   [Loci::Maximum],constraint(interface_BC) {
     vector3d<double> r = realToDouble($facecenter-$ci->$cellcenter) ;
@@ -579,9 +595,9 @@ namespace Loci {
     join($stencilSize2,distance_metric) ;
   }
 
-  /// Execute over all faces, and for all edges of a face, contribute the maximum edge
-  /// length squared of that face to the search for the maximum value of the squared
-  /// stencil size metric.
+  /// Execute over all faces, and for all edges of a face, contribute the
+  /// maximum edge length squared of that face to the search for the maximum
+  /// value of the squared stencil size metric.
   $rule apply(stencilSize2<-face2node->(xblank,pos))[Loci::Maximum] {
     int sz = $face2node.size() ; // number of nodes on face
 
@@ -592,7 +608,8 @@ namespace Loci {
     }
     if(xsum > 0) {
       // Compute the final edge length that connects the first and last node
-      vector3d<double> d = realToDouble($face2node[0]->$pos - $face2node[sz-1]->$pos) ;
+      vector3d<double> d = realToDouble($face2node[0]->$pos
+                                        - $face2node[sz-1]->$pos) ;
       double len = dot(d,d) ;
 
       // Compute distance over all other edges
@@ -723,7 +740,8 @@ namespace Loci {
                                 $OversetStencilLayerSize) ;
   }
 
-  $rule pointwise(zblank<-zblank{iblanking}),conditional(blanking_layer_finished{iblanking}) {
+  $rule pointwise(zblank<-zblank{iblanking}),
+  conditional(blanking_layer_finished{iblanking}) {
     $zblank = $zblank{iblanking} ;
   }
 #endif
@@ -734,7 +752,9 @@ namespace Loci {
     $iblank = 0 ;
   }
 
-  $rule default(overset_collision_check),comments("Turn on feature to try to detect surface-surface collisions and prevent interpolation leaks. To enable, set to 'on'") {
+  $rule default(overset_collision_check),
+  comments("Turn on feature to try to detect surface-surface collisions "),
+  comments("and prevent interpolation leaks. To enable, set to 'on'") {
     $overset_collision_check = "off" ;
   }
 
@@ -756,8 +776,9 @@ namespace Loci {
     }
   }
 
-  $rule pointwise(non_trivial::iblank<-(upper,lower,boundary_map)->face2node->(yblank,zblank),ovc_check),
-    constraint((upper,lower,boundary_map)->face2node->yblank,componentGeometry) {
+  $rule pointwise(non_trivial::iblank<-
+  (upper,lower,boundary_map)->face2node->(yblank,zblank),ovc_check),
+  constraint((upper,lower,boundary_map)->face2node->yblank,componentGeometry) {
     $iblank = 10 ;
     Loci::byte_t maxblank = 0 ; // Maximum value of yblank over all faces
     Loci::byte_t maxzblank = 0 ; // Maximum value of zblank over all faces
@@ -805,7 +826,7 @@ namespace Loci {
   $type cblank store<Loci::byte_t> ; // collision blank
   // For all faces, if any face has zblank = 3, then set cblank=1
   $rule pointwise(cblank<-(upper,lower,boundary_map)->face2node->(zblank)),
-    constraint((upper,lower,boundary_map)->face2node->zblank,componentGeometry) {
+  constraint((upper,lower,boundary_map)->face2node->zblank,componentGeometry) {
     $cblank = 0 ;
     Loci::byte_t maxzblank = 0 ;
     int usz = $upper.size() ;
