@@ -29,37 +29,43 @@
 #include <cmath>
 
 namespace Loci {
+  /// Note: iblank state codes:
+  /// 0: not blanked, simulate as normal, donate simulated value to interpolation
+  /// 1: Simulate, but don't donate simulated value to interpolation
+  /// 2: don't simulate, instead interpolate values from a "cloud"
+  /// 3: Don't simulate, advance values in time as constant function
+
   typedef unsigned char byte_t ;
   struct Quaternion {
     real_t x,y,z,w ;
     Quaternion() {}
     Quaternion(real_t xi, real_t yi, real_t zi, real_t wi):x(xi),y(yi),z(zi),w(wi) {}
     Quaternion(vector3d<real_t> axis, real_t angle) {
-      real_t sinAngle; 
-      angle *= 0.5; 
-      axis *= 1.0/(norm(axis)+1e-30) ; 
+      real_t sinAngle;
+      angle *= 0.5;
+      axis *= 1.0/(norm(axis)+1e-30) ;
       sinAngle = sin(angle);
-      x = (axis.x * sinAngle); 
-      y = (axis.y * sinAngle); 
-      z = (axis.z * sinAngle); 
+      x = (axis.x * sinAngle);
+      y = (axis.y * sinAngle);
+      z = (axis.z * sinAngle);
       w = cos(angle);
     }
     Quaternion operator*(const Quaternion &q) const {
-      vector3d<real_t> vector1(x,y,z), vector2(q.x,q.y,q.z); 
+      vector3d<real_t> vector1(x,y,z), vector2(q.x,q.y,q.z);
 
-      const real_t angle = ((w * q.w) - (dot(vector1, vector2))); 
+      const real_t angle = ((w * q.w) - (dot(vector1, vector2)));
       const vector3d<real_t> across = cross(vector1, vector2);
       vector1 *= q.w ;
       vector2 *= w ;
-      Quaternion result; 
-      result.x = (vector1.x + vector2.x + across.x); 
-      result.y = (vector1.y + vector2.y + across.y); 
-      result.z = (vector1.z + vector2.z + across.z); 
+      Quaternion result;
+      result.x = (vector1.x + vector2.x + across.x);
+      result.y = (vector1.y + vector2.y + across.y);
+      result.z = (vector1.z + vector2.z + across.z);
       result.w = angle;
       return result ;
     }
     Quaternion &Normalize() {
-      // reciprocal of the l2 norm 
+      // reciprocal of the l2 norm
       const real_t rl2 = 1.0 / sqrt((x*x) + (y*y) + (z*z) + (w*w)) ;
       x*=rl2 ;
       y*=rl2 ;
@@ -67,12 +73,12 @@ namespace Loci {
       w*=rl2 ;
       return *this ;
     }
-    
+
     Quaternion Inverse() const {
       Quaternion result = *this ;
-      result.x *= -1 ; 
-      result.y *= -1 ; 
-      result.z *= -1 ; 
+      result.x *= -1 ;
+      result.y *= -1 ;
+      result.z *= -1 ;
       return result ;
     }
     vector3d<real_t> operator*(const vector3d<real_t> &v) const {
@@ -122,26 +128,26 @@ namespace Loci {
 
   class motionType : public Loci::CPTR_type {
   public:
-    // Compute initial state
+    /// Compute initial state
     virtual void initialState(std::vector<real_t> &state) const = 0 ;
-    // Advance state in time (usually just timestep), sometimes angle
+    /// Advance state in time (usually just timestep), sometimes angle
     virtual std::vector<real_t>
       advanceStateInTime(const std::vector<real_t> &state,
 			 const std::map<std::string,real_t> &vals) const = 0 ;
-    // Get motion transform from current state
+    /// Get motion transform from current state
     virtual componentXform getXform(const std::vector<real_t> &state) const = 0 ;
   } ;
-  
-  // Find the time interval that we are splining
+
+  /// Find the time interval that we are splining
   int findt(const std::vector<real_t> &t, real_t tval) ;
-  // Compute spline derivatives for hermite spline
+  /// Compute spline derivatives for hermite spline
   void splineD(std::vector<real_t> &xp, const std::vector<real_t> &x,
                const std::vector<real_t> &t) ;
-  // cubic spline
+  /// cubic spline
   real_t spline(int ind,real_t tval,const std::vector<real_t> &t,
                 const std::vector<real_t> &x,
                 const std::vector<real_t> &xp) ;
-  
+
   struct motionSplines {
     std::vector<real_t> t,x,y,z,q0,q1,q2,q3 ;
     std::vector<real_t> xp,yp,zp,q0p,q1p,q2p,q3p ;
@@ -201,11 +207,17 @@ namespace Loci {
       return DatatypeP(ct) ;
     }
   } ;
+
+  /// Container for interpolation search data on a set of points using a
+  /// KDTree for nearest-neighbor queries.
   class interpolate_points {
   public:
     Loci::kdTree::KDTree<float> *kd ;
     store<vector3d<double> > pos ;
     store<int> posid ;
+
+    /// A global offset table of entities across MPI ranks. Used to get the
+    /// number of entities on each rank.
     std::vector<int> distribution ;
     interpolate_points &operator=(const interpolate_points &in) {
       std::cerr << "interpolate_data shouldn't be copied!" << std::endl ;
@@ -225,7 +237,12 @@ namespace Loci {
     }
   } ;
 
+  /// Typedef for 3D float coordinates used in KDTree
   typedef vector3d<float> coord3df ;
+
+  /// Used for estimating local stencil spacing.
+  /// Holds a KDTree of donor centers with a per-point size tag; getSpacing scales a reference length
+  /// by the nearest donor’s tag (or returns the reference when none) to approximate local spacing.
   class StencilSizer {
   public:
     Loci::kdTree::KDTree<float> *kd ;
@@ -236,7 +253,6 @@ namespace Loci {
         return ref_size ;
       return ref_size/float(id) ;
     }
-
 
     StencilSizer &operator=(const StencilSizer &in) {
       std::cerr << "interpolate_data shouldn't be copied!" << std::endl ;
