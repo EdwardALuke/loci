@@ -247,6 +247,18 @@ namespace Loci {
       }
     }
 
+    int Clear() {
+      if(created) {
+#ifdef PETSC_32_API
+        LociPetscCall(VecDestroy(&v));
+#else
+        LociPetscCall(VecDestroy(v));
+#endif
+        created = false;
+      }
+      return 0;
+    }
+
     int AssemblyBegin() const {
       LociPetscCall(VecAssemblyBegin(v));
       return 0;
@@ -385,6 +397,18 @@ namespace Loci {
         VecDestroy(v);
 #endif
       }
+    }
+
+    int Clear() {
+      if(created) {
+#ifdef PETSC_32_API
+        LociPetscCall(VecDestroy(&v));
+#else
+        LociPetscCall(VecDestroy(v));
+#endif
+        created = false;
+      }
+      return 0;
     }
 
     int AssemblyBegin() const {
@@ -528,6 +552,18 @@ namespace Loci {
         MatDestroy(m);
 #endif
       }
+    }
+
+    int Clear() {
+      if(created) {
+#ifdef PETSC_32_API
+        LociPetscCall(MatDestroy(&m));
+#else
+        LociPetscCall(MatDestroy(m));
+#endif
+        created = false;
+      }
+      return 0;
     }
 
     int AssemblyBegin() const {
@@ -704,6 +740,18 @@ namespace Loci {
       }
     }
 
+    int Clear() {
+      if(created) {
+#ifdef PETSC_32_API
+        LociPetscCall(MatDestroy(&m));
+#else
+        LociPetscCall(MatDestroy(m));
+#endif
+        created = false;
+      }
+      return 0;
+    }
+
     int AssemblyBegin() const {
       LociPetscCall(MatAssemblyBegin(m, MAT_FINAL_ASSEMBLY));
       return 0;
@@ -772,7 +820,6 @@ namespace Loci {
     int Create(
                PetscInt bsz, PetscInt n, PetscInt N,
                PetscInt const * dnnz, PetscInt const * onnz,
-               PetscInt const * dnnzs, PetscInt const * onnzs,
                char const * system_name, char const * options_prefix
                ) {
       if(created) return 0;
@@ -817,6 +864,23 @@ namespace Loci {
           break;
         }
       }
+      vector<PetscInt> scalar_dnnz, scalar_onnz ;
+      switch(mtype) {
+      case PETSC_MATRIX_TYPE_PAR_SCALAR:
+      case PETSC_MATRIX_TYPE_SEQ_SCALAR:
+        scalar_dnnz.resize(n*bsz) ;
+        scalar_onnz.resize(n*bsz) ;
+        for(PetscInt i = 0; i < n; ++i) {
+          for(PetscInt j = 0; j < bsz; ++j) {
+            scalar_dnnz[i*bsz+j] = dnnz[i]*bsz ;
+            scalar_onnz[i*bsz+j] = onnz[i]*bsz ;
+          }
+        }
+        break ;
+      default:
+        // Bocked matrix types don't need these arrays.
+        break ;
+      }
       LociPetscCall(MatSetSizes(m, n*bsz, n*bsz, N*bsz, N*bsz));
       LociPetscCall(MatSetBlockSize(m, bsz));
       //switch(mtype) {
@@ -832,13 +896,13 @@ namespace Loci {
         LociPetscCall(MatMPIBAIJSetPreallocation(m, bsz, 0, dnnz, 0, onnz));
         break;
       case PETSC_MATRIX_TYPE_PAR_SCALAR:
-        LociPetscCall(MatMPIAIJSetPreallocation(m, 0, dnnzs, 0, onnzs));
+        LociPetscCall(MatMPIAIJSetPreallocation(m, 0, &scalar_dnnz[0], 0, &scalar_onnz[0]));
         break;
       case PETSC_MATRIX_TYPE_SEQ_BLOCKED:
         LociPetscCall(MatSeqBAIJSetPreallocation(m, bsz, 0, dnnz));
         break;
       case PETSC_MATRIX_TYPE_SEQ_SCALAR:
-        LociPetscCall(MatSeqAIJSetPreallocation(m, 0, dnnzs));
+        LociPetscCall(MatSeqAIJSetPreallocation(m, 0, &scalar_dnnz[0]));
         break;
       default:
         break;
@@ -916,6 +980,18 @@ namespace Loci {
       }
     }
 
+    int Clear() {
+      if(created) {
+#ifdef PETSC_32_API
+        LociPetscCall(KSPDestroy(&ksp));
+#else
+        LociPetscCall(KSPDestroy(ksp));
+#endif
+        created = false;
+      }
+      return 0;
+    }
+
     int Create(
                PetscReal reltol, PetscReal abstol, PetscInt maxit,
                char const * options_prefix
@@ -983,15 +1059,21 @@ namespace Loci {
   };
 
   struct PetscScalarSystem {
+    std::string name;
+    int vector_size;
     PetscScalarMatrix matrix;
     PetscScalarVector rhs;
     PetscKspSolver solver;
+    PetscScalarVector solution;
   };
 
   struct PetscBlockedSystem {
+    std::string name;
+    int vector_size;
     PetscBlockedMatrix matrix;
     PetscBlockedVector rhs;
     PetscKspSolver solver;
+    PetscBlockedVector solution;
   };
 
   //-----------------------------------------------------------------------------
@@ -1002,48 +1084,49 @@ namespace Loci {
   // Gets the number of cells assigned on all processes. This rule is
   // definitely not in the Loci spirit since we are collecting data from
   // other processes.
-  $type petscNumCell param<vector<int> >;
-  $type petscLocalCell  param<entitySet>;
+  $type petscNumCell param<vector<int> > ;
+  $type petscLocalCell param<entitySet> ;
 
   // cuda device number
-  $type petscDevice blackbox<int>;
+  $type petscDevice blackbox<int> ;
 
   // name of the linear system
-  $type petscMatrixName(X) param<std::string>;
+  $type petscMatrixName(X) param<std::string> ;
 
   // petsc options prefix for the linear system
-  $type petscOptionsPrefix(X) param<std::string>;
+  $type petscOptionsPrefix(X) param<std::string> ;
 
   // petsc options for various linear systems
-  $type PETSCSolverControls param<options_list>;
+  $type PETSCSolverControls param<options_list> ;
 
   // cell to row map
-  $type petscCellToRow store<int>;
+  $type petscCellToRow store<int> ;
 
   // diagonal nnz without periodic DoF
-  $type petscNumDiagonal store<int>;
+  $type petscNumDiagonal store<int> ;
 
   // diagonal nnz due to owened periodic DoF
-  $type petscNumDiagonalFromPeriodic store<int>;
+  $type petscNumDiagonalFromPeriodic store<int> ;
 
   // number of diagonal nnz per local cell
-  $type petscDNNZ store<int>;
+  $type petscDNNZ store<int> ;
 
   // number of off-diagonal nnz per local cell
-  $type petscONNZ store<int>;
+  $type petscONNZ store<int> ;
 
   $rule default(petscDummy) {
-    $petscDummy = true;
+    $petscDummy = true ;
   }
 
   $rule default(PETSCSolverControls) {
-    $PETSCSolverControls = options_list();
+    $PETSCSolverControls = options_list() ;
   }
 
   $type PETSCDeviceDiag param<int> ;
   $rule default(PETSCDeviceDiag) {
     $PETSCDeviceDiag = 0 ;
   }
+
   $rule blackbox(petscDevice<-PETSCSolverControls,PETSCDeviceDiag), prelude {
 
 #if PETSC_VERSION_GE(3, 18, 0)
@@ -1099,46 +1182,6 @@ namespace Loci {
       $usePetscAssembly = ~EMPTY;
     }
   }
-
-  struct PetscVecCOO {
-    int size;
-    size_t coo_size;
-    vector<PetscInt> rowidx;
-    vector<Entity> entity;
-  };
-
-  struct PetscVecCoords {
-    PetscCount size;
-    vector<PetscInt> rowidx;
-  };
-
-  struct PetscVecEntities {
-    size_t size;
-    vector<Entity> entity;
-  };
-
-  struct PetscMatCOO {
-    int size;
-    size_t coo_size;
-    vector<PetscInt> rowidx;
-    vector<PetscInt> colidx;
-    vector<Entity> entity;
-    Array<int, 4> off;
-  };
-
-  struct PetscMatCoords {
-    PetscCount size;
-    vector<PetscInt> rowidx;
-    vector<PetscInt> colidx;
-  };
-
-  struct PetscMatEntities {
-    size_t size;
-    Array<size_t, 4> off;
-    vector<Entity> row_cell;
-    vector<Entity> col_cell;
-    vector<Entity> value_entity;
-  };
 
   $type petscGenericOptions blackbox<int>;
 
@@ -1320,46 +1363,45 @@ namespace Loci {
   // Gets the number of cells assigned on all processes. This rule is
   // definitely not in the Loci spirit since we are collecting data from
   // other processes.
-  $rule singleton(
-                  petscNumCell, petscLocalCell <- petscDummy, petscDevice
-                  ), constraint(geom_cells), option(disable_threading) {
+  $rule singleton(petscNumCell, petscLocalCell <- petscDummy, petscDevice),
+  constraint(geom_cells), option(disable_threading) {
     // Get the collection of entities assigned to this processor
     storeRepP myEntities=
-      Loci::exec_current_fact_db->get_variable("my_entities");
-    entitySet localEntities=~EMPTY;
-    if(myEntities!=0) localEntities = (*myEntities).domain();
+      Loci::exec_current_fact_db->get_variable("my_entities") ;
+    entitySet localEntities=~EMPTY ;
+    if(myEntities!=0) localEntities = (*myEntities).domain() ;
 
-    entitySet localCellWithGhost=entitySet(seq);
+    entitySet localCellWithGhost=entitySet(seq) ;
 
     // Get the local cells, not including the ghost cells.
-    $petscLocalCell= (localEntities & localCellWithGhost);
+    $petscLocalCell= (localEntities & localCellWithGhost) ;
 
     // Distribute the number of cells to all processes.
-    $petscNumCell = Loci::all_collect_sizes(($petscLocalCell).size());
+    $petscNumCell = Loci::all_collect_sizes(($petscLocalCell).size()) ;
 
 #ifdef VERBOSE
     for(size_t i=0;i<$petscNumCell.size();++i)
-      cerr << "process,numCell: " << i << " " << $petscNumCell[i] << endl;
+      cerr << "process,numCell: " << i << " " << $petscNumCell[i] << endl ;
 #endif
   }
 
   $rule pointwise(petscCellToRow<-petscNumCell), constraint(geom_cells),
   option(disable_threading), prelude {
     // Compute the row offset for this process.
-    int offset = 0;
+    int offset = 0 ;
     for(int i = 0; i < Loci::MPI_rank; ++i)
-      offset+=(*$petscNumCell)[i];
+      offset+=(*$petscNumCell)[i] ;
 
     // Assign row number.
-    sequence::const_iterator cellPtr = seq.begin();
+    sequence::const_iterator cellPtr = seq.begin() ;
     for(int i = 0; i < (*$petscNumCell)[Loci::MPI_rank]; ++cellPtr, ++i){
-      $petscCellToRow[*cellPtr]=offset+i;
+      $petscCellToRow[*cellPtr]=offset+i ;
     }
   };
 
   // Rule that copies petscCellToRow for periodic boundaries
   $rule pointwise(cr->petscCellToRow<-pmap->cl->petscCellToRow) {
-    $cr->$petscCellToRow = $pmap->$cl->$petscCellToRow;
+    $cr->$petscCellToRow = $pmap->$cl->$petscCellToRow ;
   }
 
   // Determines the number of non-zero entries in the local portion of
@@ -1368,18 +1410,18 @@ namespace Loci {
   // cells local to the process.
   $rule pointwise(petscNumDiagonal <- petscLocalCell, upper->cr, lower->cl),
   constraint(geom_cells) {
-    int cnt = 1; // Diagonal
+    int cnt = 1 ; // Diagonal
     for(int i = 0; i < $lower.size(); ++i) {
       if($petscLocalCell.inSet($lower[i]->$cl)) {
-        cnt++;
+        cnt++ ;
       }
     }
-    for(int i=0;i<$upper.size();++i) {
+    for(int i=0; i<$upper.size(); ++i) {
       if($petscLocalCell.inSet($upper[i]->$cr)) {
-        cnt++;
+        cnt++ ;
       }
     }
-    $petscNumDiagonal = cnt;
+    $petscNumDiagonal = cnt ;
   }
 
   // For cases with periodic boundary conditions where both cells in a
@@ -1387,9 +1429,11 @@ namespace Loci {
   // increase by 1 to account for a cell's periodic partner. Use
   // unit/apply because some cells may have multiple periodic pairs.
   $rule unit(petscNumDiagonalFromPeriodic), constraint(geom_cells) {
-    $petscNumDiagonalFromPeriodic = 0;
+    $petscNumDiagonalFromPeriodic = 0 ;
   }
-  $rule apply(petscNumDiagonalFromPeriodic)[Loci::Summation], constraint(geom_cells) ,prelude { } ;
+
+  $rule apply(petscNumDiagonalFromPeriodic)[Loci::Summation],
+  constraint(geom_cells) ,prelude { } ;
 
 
   $rule apply(
@@ -1398,579 +1442,481 @@ namespace Loci {
     // if both cells in a periodic pair are local, increase diagonal
     if ($cl->$petscLocalCell.inSet($cl) &&
         $cl->$petscLocalCell.inSet($pmap->$cl)) {
-      join($cl->$petscNumDiagonalFromPeriodic, 1);
+      join($cl->$petscNumDiagonalFromPeriodic, 1) ;
     }
   }
 
   $rule pointwise(petscDNNZ <- petscNumDiagonal, petscNumDiagonalFromPeriodic),
   constraint(geom_cells) {
-    $petscDNNZ = $petscNumDiagonal + $petscNumDiagonalFromPeriodic;
+    $petscDNNZ = $petscNumDiagonal + $petscNumDiagonalFromPeriodic ;
   }
 
-  $rule pointwise(petscONNZ<-upper->cr,lower->cl,petscDNNZ), constraint(geom_cells) {
-    $petscONNZ = $upper.size() + $lower.size() + 1 - $petscDNNZ;
+  $rule pointwise(petscONNZ<-upper->cr,lower->cl,petscDNNZ),
+  constraint(geom_cells) {
+    $petscONNZ = $upper.size() + $lower.size() + 1 - $petscDNNZ ;
   }
 
-  // ==========================================================================
-  $type petscDNNZVector blackbox<std::vector<int> > ;
+  $type petscMatNNZ blackbox<size_t> ;
 
-  $rule unit(petscDNNZVector),constraint(geom_cells),
+  $rule unit(petscMatNNZ), constraint(geom_cells),
   option(disable_threading), prelude {
-    *$petscDNNZVector = std::vector<int>() ;
+    *$petscMatNNZ = 0 ;
   } ;
 
-  $rule apply(petscDNNZVector<-petscDNNZ,petscNumCell)[Loci::NullOp],
-  option(disable_threading), prelude {
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
+  $rule apply(petscMatNNZ <-
+              upper->cr->petscCellToRow, lower->cl->petscCellToRow)[Loci::NullOp],
+  constraint(geom_cells), option(disable_threading), prelude {
+    size_t nnz = 0 ;
+    sequence::const_iterator iter = seq.begin() ;
+    while(iter != seq.end()) {
+      nnz += $lower.num_elems(*iter) + 1 ;
+      int const nu = $upper.num_elems(*iter) ;
+      for(int u = 0; u < nu; ++u) {
+        Entity fc = $upper[*iter][u] ;
+        Entity rc = $cr[fc] ;
+        if($petscCellToRow[rc] != $petscCellToRow[*iter]) {
+          ++nnz ;
+        }
+      }
+      ++iter ;
     }
-
-    int count = 0;
-    (*$petscDNNZVector).resize(n);
-    sequence::const_iterator siter = seq.begin();
-    while(siter != seq.end()) {
-      (*$petscDNNZVector)[count] = $petscDNNZ[*siter];
-      ++siter;
-      ++count;
-    }
+    *$petscMatNNZ = nnz ;
   } ;
 
   // ==========================================================================
-  $type petscONNZVector blackbox<std::vector<int> > ;
-
-  $rule unit(petscONNZVector),constraint(geom_cells),
-  option(disable_threading),prelude {
-    *$petscONNZVector = std::vector<int>() ;
-  } ;
-
-  $rule apply(petscONNZVector<-petscONNZ,petscNumCell)[Loci::NullOp],
-  option(disable_threading),prelude {
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    int count = 0;
-    (*$petscONNZVector).resize(n);
-    sequence::const_iterator siter = seq.begin();
-    while(siter != seq.end()) {
-      (*$petscONNZVector)[count] = $petscONNZ[*siter];
-      ++siter;
-      ++count;
-    }
-  } ;
-
-
-  // ==========================================================================
-  $type petscScalarSystem(X) blackbox<PetscScalarSystem> ;
-
-  $rule unit(petscScalarSystem(X)<-petscNumCell,petscDNNZVector,
-             petscONNZVector,petscOptions(X),
-             petscMatrixName(X),petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscAssembly), option(disable_threading),
-  prelude {
-    PetscErrorCode err;
-
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    err = $petscScalarSystem(X)->rhs.Create(n, N, $petscMatrixName(X)->c_str(),
-                                            $petscOptionsPrefix(X)->c_str());
-
-    if(err) {
-      if(Loci::MPI_rank == 0) {
-        cerr << "Error creating PETSc scalar system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err =
-      $petscScalarSystem(X)->matrix.Create(
-                                           n, N, &(*$petscDNNZVector)[0],
-                                           &(*$petscONNZVector)[0],
-                                           $petscMatrixName(X)->c_str(),
-                                           $petscOptionsPrefix(X)->c_str()
-                                           );
-    if(err) {
-      if(Loci::MPI_rank == 0) {
-        cerr << "Error creating PETSc scalar system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscScalarSystem(X)->solver.Create(1e-5, 1e-18, 100,
-                                               $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      if(Loci::MPI_rank == 0) {
-        cerr << "Error creating PETSc scalar solver: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
 
   $type X_B store<real> ;
   $type X_D store<real> ;
   $type X_L store<real> ;
   $type X_U store<real> ;
 
-  $rule apply(petscScalarSystem(X)<- petscCellToRow,max_fpc,
-              upper->cr->petscCellToRow,lower->cl->petscCellToRow,
-              X_B,X_D,lower->X_L,upper->X_U)[Loci::NullOp],
-  constraint(geom_cells,usePetscAssembly),
-    option(disable_threading), prelude {
+  $type petscScalarSystem(X) blackbox<PetscScalarSystem> ;
 
-    entitySet dom = entitySet(seq) ;
+  $rule singleton(petscScalarSystem(X) <- petscMatrixName(X)) {
+    $petscScalarSystem(X).name = $petscMatrixName(X) ;
+    $petscScalarSystem(X).vector_size = -1 ;
+    $petscScalarSystem(X).matrix.Clear() ;
+    $petscScalarSystem(X).rhs.Clear() ;
+    $petscScalarSystem(X).solver.Clear() ;
+    $petscScalarSystem(X).solution.Clear() ;
+  }
+
+  $type petscScalarSystemInit(X) blackbox<int> ;
+
+  $rule unit(petscScalarSystemInit(X) <- petscNumCell, petscDNNZ, petscONNZ,
+             petscOptions(X), petscMatrixName(X), petscOptionsPrefix(X),
+             petscScalarSystem(X)),
+  constraint(geom_cells, usePetscAssembly), option(disable_threading),
+  prelude {
+    PetscErrorCode err ;
+
+    PetscScalarSystem & system = const_cast<PetscScalarSystem &>(*$petscScalarSystem(X)) ;
+
+    if(system.vector_size != 1) {
+      system.vector_size = 1 ;
+      system.matrix.Clear() ;
+      system.rhs.Clear() ;
+      system.solver.Clear() ;
+      system.solution.Clear() ;
+
+      int const n = (*$petscNumCell)[Loci::MPI_rank] ;
+      int N = 0 ;
+      for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
+        N += (*$petscNumCell)[i] ;
+      }
+
+      vector<PetscInt> dnnz(n), onnz(n) ;
+      int cnt = 0 ;
+      sequence::const_iterator iter = seq.begin() ;
+      while(iter != seq.end()) {
+        dnnz[cnt] = $petscDNNZ[*iter] ;
+        onnz[cnt] = $petscONNZ[*iter] ;
+        ++cnt ;
+        ++iter ;
+      }
+
+      err = system.rhs.Create(n, N, $petscMatrixName(X)->c_str(),
+                              $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar system rhs: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.matrix.Create(n, N, &dnnz[0], &onnz[0],
+                                 $petscMatrixName(X)->c_str(),
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar system matrix: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solver.Create(1e-5, 1e-18, 100,
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar solver: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solution.Create(n, N,
+                                   $petscMatrixName(X)->c_str(),
+                                   $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar system solution vector: "
+               << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+    }
+
+    *$petscScalarSystemInit(X) = 0 ;
+  } ;
+
+  $rule apply(petscScalarSystemInit(X) <- petscCellToRow, max_fpc,
+              upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+              X_B, X_D, lower->X_L, upper->X_U,
+              petscScalarSystem(X))[Loci::NullOp],
+  constraint(geom_cells, usePetscAssembly), option(disable_threading),
+  prelude {
+    PetscScalarSystem & system = const_cast<PetscScalarSystem &>(*$petscScalarSystem(X)) ;
+
     int mxcol = *$max_fpc + 1 ;
     vector<PetscInt> colidx(mxcol) ;
     vector<PetscScalar> values(mxcol) ;
 
-    FORALL(dom, cell) {
-      PetscInt rowidx = $petscCellToRow[cell];
-      PetscInt count = 0;
+    sequence::const_iterator iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      PetscInt rowidx = $petscCellToRow[cell] ;
+      PetscInt count = 0 ;
 
-      int const nl = $lower.num_elems(cell);
-      int const nu = $upper.num_elems(cell);
+      int const nl = $lower.num_elems(cell) ;
+      int const nu = $upper.num_elems(cell) ;
 
       for(int l = 0; l < nl; ++l, ++count) {
-        Entity fc = $lower[cell][l];
-        Entity lc = $cl[fc];
-        colidx[count] = $petscCellToRow[lc];
-        values[count] = $X_L[fc];
+        Entity fc = $lower[cell][l] ;
+        Entity lc = $cl[fc] ;
+        colidx[count] = $petscCellToRow[lc] ;
+        values[count] = $X_L[fc] ;
       }
-      colidx[count] = $petscCellToRow[cell];
-      values[count] = $X_D[cell];
-      ++count;
+      colidx[count] = $petscCellToRow[cell] ;
+      values[count] = $X_D[cell] ;
+      ++count ;
       for(int u = 0; u < nu; ++u, ++count) {
-        Entity fc = $upper[cell][u];
-        Entity rc = $cr[fc];
+        Entity fc = $upper[cell][u] ;
+        Entity rc = $cr[fc] ;
         if($petscCellToRow[rc] != $petscCellToRow[cell]) {
-          colidx[count] = $petscCellToRow[rc];
-          values[count] = $X_U[fc];
+          colidx[count] = $petscCellToRow[rc] ;
+          values[count] = $X_U[fc] ;
         }
       }
-      $petscScalarSystem(X)->matrix.SetRowValues(rowidx, count,
-                                                 &colidx[0], &values[0]);
-    } ENDFORALL ;
+      system.matrix.SetRowValues(rowidx, count, &colidx[0], &values[0]) ;
 
-    PetscErrorCode err1 = $petscScalarSystem(X)->matrix.AssemblyBegin();
-    PetscErrorCode err2 = $petscScalarSystem(X)->matrix.AssemblyEnd();
+      ++iter ;
+    }
+
+    PetscErrorCode err1 = system.matrix.AssemblyBegin() ;
+    PetscErrorCode err2 = system.matrix.AssemblyEnd() ;
     if(err1 || err2) {
       if(Loci::MPI_rank == 0) {
         cerr << "Error assembling PETSc scalar system matrix: "
-             << err1 << ", " << err2 << endl;
+             << err1 << ", " << err2 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    FORALL(dom, cell) {
-      PetscInt const rowidx = $petscCellToRow[cell];
-      PetscScalar const value = $X_B[cell];
-      $petscScalarSystem(X)->rhs.SetValue(rowidx, &value);
-    } ENDFORALL ;
-    err1 = $petscScalarSystem(X)->rhs.AssemblyBegin();
-    err2 = $petscScalarSystem(X)->rhs.AssemblyEnd();
+    iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      PetscInt const rowidx = $petscCellToRow[cell] ;
+      PetscScalar const value = $X_B[cell] ;
+      system.rhs.SetValue(rowidx, &value) ;
+      ++iter ;
+    }
+
+    err1 = system.rhs.AssemblyBegin() ;
+    err2 = system.rhs.AssemblyEnd() ;
     if(err1 || err2) {
       if(Loci::MPI_rank == 0) {
         cerr << "Error assembling PETSc scalar system rhs: "
-             << err1 << ", " << err2 << endl;
+             << err1 << ", " << err2 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    err1 = $petscScalarSystem(X)->
-      solver.SetOperators($petscScalarSystem(X)->matrix);
+    err1 = system.solver.SetOperators(system.matrix) ;
     if(err1) {
       if(Loci::MPI_rank == 0) {
-        cerr << "Error setting PETSc scalar solver operator: " << err1 << endl;
+        cerr << "Error setting PETSc scalar solver operator: " << err1 << endl ;
       }
-      Loci::Abort();
-    }
-  } ;
-
-  $type petscScalarSolveBB(X) blackbox<PetscScalarVector> ;
-
-  $rule unit(petscScalarSolveBB(X)<-
-             petscCellToRow,petscNumCell,petscOptions(X),
-             petscMatrixName(X),petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscAssembly), option(disable_threading),
-  prelude {
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
+      Loci::Abort() ;
     }
 
-    PetscErrorCode err =
-      $petscScalarSolveBB(X)->Create(n, N,
-                                     $petscMatrixName(X)->c_str(),
-                                     $petscOptionsPrefix(X)->c_str());
+    err1 = system.solution.SetValue(0.0) ;
 
-    if(err) {
+    if(err1) {
       if(Loci::MPI_rank == 0) {
-        cerr << "Error creating PETSc solution vector for scalar system: " << err << endl;
+        cerr << "Error initializing PETSc scalar system solution vector: "
+             << err1 << endl ;
       }
-      Loci::Abort();
-    }
-
-    err = $petscScalarSolveBB(X)->SetValue(0.0);
-
-    if(err) {
-      if(Loci::MPI_rank == 0) {
-        cerr << "Error initializing PETSc solution vector for scalar system: " << err << endl;
-      }
-      Loci::Abort();
+      Loci::Abort() ;
     }
   } ;
 
 
-  $rule apply(petscScalarSolveBB(X)<-petscScalarSystem(X))[Loci::NullOp],
-  constraint(geom_cells,usePetscAssembly),
-    option(disable_threading),prelude {
-    PetscErrorCode err =
-      $petscScalarSystem(X)->solver.Solve($petscScalarSystem(X)->rhs,
-                                          *$petscScalarSolveBB(X)) ;
-    if(err) {
-      $[Once] {
-        cerr << "Error in PETSc scalar solve: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule pointwise(petscScalarSolve(X)<-petscScalarSolveBB(X)),
-  constraint(geom_cells,usePetscAssembly),option(disable_threading),
+  $rule unit(petscScalarSystemInit(X) <- petscCellToRow,
+             petscNumCell, petscMatNNZ,
+             upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+             petscScalarSystem(X), petscOptions(X),
+             petscMatrixName(X), petscOptionsPrefix(X)),
+  constraint(geom_cells, usePetscCOOAssembly), option(disable_threading),
   prelude {
-    if(seq.size() == 0) return;
+    PetscScalarSystem & system = const_cast<PetscScalarSystem &>(*$petscScalarSystem(X)) ;
 
-    PetscInt minRowNum, maxRowNum;
-    $petscScalarSolveBB(X)->GetOwnershipRange(&minRowNum, &maxRowNum);
-    PetscScalar * X_Copy;
-    $petscScalarSolveBB(X)->GetArray(&X_Copy);
+    if(system.vector_size != 1) {
+      system.vector_size = 1 ;
+      system.matrix.Clear() ;
+      system.rhs.Clear() ;
+      system.solver.Clear() ;
+      system.solution.Clear() ;
 
-    sequence::const_iterator cellPtr = seq.begin();
-    for(PetscInt row = minRowNum; row < maxRowNum; ++row, ++cellPtr) {
-      $petscScalarSolve(X)[*cellPtr]= X_Copy[row-minRowNum];
-    }
-    $petscScalarSolveBB(X)->RestoreArray(&X_Copy);
-  } ;
-
-  $type petscVecEntities blackbox<PetscVecEntities> ;
-
-  $rule unit(petscVecEntities),constraint(geom_cells),
-  option(disable_threading), prelude {
-    *$petscVecEntities = PetscVecEntities();
-  } ;
-
-  $rule apply(petscVecEntities)[Loci::NullOp],constraint(geom_cells),
-  option(disable_threading),prelude {
-    size_t const size = seq.size();
-    $petscVecEntities->entity.resize(size);
-    sequence::const_iterator iter = seq.begin();
-    size_t cnt = 0;
-    while(iter != seq.end()) {
-      $petscVecEntities->entity[cnt++] = *iter++;
-    }
-    $petscVecEntities->size = size;
-  } ;
-
-
-  $type petscScalarVecCoords blackbox<PetscVecCoords> ;
-
-  $rule unit(petscScalarVecCoords),constraint(geom_cells),
-  option(disable_threading),prelude {
-    *$petscScalarVecCoords = PetscVecCoords();
-  } ;
-
-
-  $rule apply(petscScalarVecCoords<-petscCellToRow,petscVecEntities)[Loci::NullOp],
-  constraint(geom_cells), option(disable_threading), prelude {
-    $petscScalarVecCoords->rowidx.resize($petscVecEntities->size);
-
-    for(size_t i = 0; i < $petscVecEntities->size; ++i) {
-      $petscScalarVecCoords->rowidx[i] =
-        $petscCellToRow[$petscVecEntities->entity[i]];
-    }
-
-    $petscScalarVecCoords->size = (PetscCount)($petscVecEntities->size);
-  } ;
-
-  $type petscMatEntities blackbox<PetscMatEntities>  ;
-  $rule unit(petscMatEntities),constraint(geom_cells),
-  option(disable_threading), prelude {
-    *$petscMatEntities = PetscMatEntities();
-  } ;
-
-  $rule apply(petscMatEntities<-
-              petscCellToRow,lower->cl->petscCellToRow,
-              upper->cr->petscCellToRow)[Loci::NullOp],
-  constraint(geom_cells),option(disable_threading), prelude {
-    $petscMatEntities->row_cell.clear();
-    $petscMatEntities->col_cell.clear();
-    $petscMatEntities->value_entity.clear();
-
-    size_t off = 0;
-    sequence::const_iterator iter;
-
-    $petscMatEntities->off[0] = off;
-
-    iter = seq.begin();
-    while(iter != seq.end()) {
-      $petscMatEntities->row_cell.push_back(*iter);
-      $petscMatEntities->col_cell.push_back(*iter);
-      $petscMatEntities->value_entity.push_back(*iter);
-      ++iter;
-      ++off;
-    }
-
-    $petscMatEntities->off[1] = off;
-
-    iter = seq.begin();
-    while(iter != seq.end()) {
-      Entity cell = *iter;
-      int const nl = $lower.num_elems(cell);
-      for(int l = 0; l < nl; ++l) {
-        Entity fc = $lower[cell][l];
-        Entity lc = $cl[fc];
-        $petscMatEntities->row_cell.push_back(cell);
-        $petscMatEntities->col_cell.push_back(lc);
-        $petscMatEntities->value_entity.push_back(fc);
-        ++off;
+      int const n = (*$petscNumCell)[Loci::MPI_rank] ;
+      int N = 0 ;
+      for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
+        N += (*$petscNumCell)[i] ;
       }
-      ++iter;
-    }
 
-    $petscMatEntities->off[2] = off;
+      size_t const vec_nnz = n ;
+      size_t const mat_nnz = *$petscMatNNZ ;
 
-    iter = seq.begin();
-    while(iter != seq.end()) {
-      Entity cell = *iter;
-      int const nu = $upper.num_elems(cell);
-      for(int u = 0; u < nu; ++u) {
-        Entity fc = $upper[cell][u];
-        Entity rc = $cr[fc];
-        if($petscCellToRow[rc] != $petscCellToRow[cell]) {
-          $petscMatEntities->row_cell.push_back(cell);
-          $petscMatEntities->col_cell.push_back(rc);
-          $petscMatEntities->value_entity.push_back(fc);
+      vector<PetscInt> vec_rowidx(vec_nnz) ;
+      vector<PetscInt> mat_rowidx(mat_nnz), mat_colidx(mat_nnz) ;
+
+      size_t vec_cnt = 0 ;
+      size_t mat_cnt = 0 ;
+      sequence::const_iterator iter = seq.begin() ;
+      while(iter != seq.end()) {
+        Entity cell = *iter ;
+        int const nl = $lower.num_elems(cell) ;
+        int const nu = $upper.num_elems(cell) ;
+
+        for(int l = 0; l < nl; ++l) {
+          Entity fc = $lower[cell][l] ;
+          Entity lc = $cl[fc] ;
+          mat_rowidx[mat_cnt] = $petscCellToRow[cell] ;
+          mat_colidx[mat_cnt] = $petscCellToRow[lc] ;
+          ++mat_cnt ;
         }
-        ++off;
+
+        mat_rowidx[mat_cnt] = $petscCellToRow[cell] ;
+        mat_colidx[mat_cnt] = $petscCellToRow[cell] ;
+        ++mat_cnt ;
+
+        vec_rowidx[vec_cnt++] = $petscCellToRow[cell] ;
+
+        for(int u = 0; u < nu; ++u) {
+          Entity fc = $upper[cell][u] ;
+          Entity rc = $cr[fc] ;
+          if($petscCellToRow[rc] != $petscCellToRow[cell]) {
+            mat_rowidx[mat_cnt] = $petscCellToRow[cell] ;
+            mat_colidx[mat_cnt] = $petscCellToRow[rc] ;
+            ++mat_cnt ;
+          }
+        }
+
+        ++iter ;
       }
-      ++iter;
+
+      PetscErrorCode err ;
+
+      err = system.rhs.CreateCOO(n, N, vec_nnz, &vec_rowidx[0],
+                                 $petscMatrixName(X)->c_str(),
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar system rhs: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.matrix.CreateCOO(n, N, mat_nnz,
+                                    &mat_rowidx[0], &mat_colidx[0],
+                                    $petscMatrixName(X)->c_str(),
+                                    $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar system matrix: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solver.Create(1e-5, 1e-18, 100,
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar solver: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solution.CreateCOO(n, N, vec_nnz, &vec_rowidx[0],
+                                      $petscMatrixName(X)->c_str(),
+                                      $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc scalar system solution: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
     }
 
-    $petscMatEntities->off[3] = off;
-
-    $petscMatEntities->size = off;
+    *$petscScalarSystemInit(X) = 0 ;
   } ;
 
-  $type petscScalarMatCoords  blackbox<PetscMatCoords> ;
-
-  $rule unit(petscScalarMatCoords),
-  constraint(geom_cells),option(disable_threading), prelude {
-    *$petscScalarMatCoords = PetscMatCoords();
-  } ;
-
-  $rule apply(petscScalarMatCoords<- petscCellToRow,
-              lower->cl->petscCellToRow,upper->cr->petscCellToRow,
-              petscMatEntities)[Loci::NullOp], constraint(geom_cells),
-    option(disable_threading), prelude {
-    $petscScalarMatCoords->rowidx.resize($petscMatEntities->size);
-    $petscScalarMatCoords->colidx.resize($petscMatEntities->size);
-
-    for(size_t i = 0; i < $petscMatEntities->size; ++i) {
-      $petscScalarMatCoords->rowidx[i] =
-        $petscCellToRow[$petscMatEntities->row_cell[i]];
-      $petscScalarMatCoords->colidx[i] =
-        $petscCellToRow[$petscMatEntities->col_cell[i]];
-    }
-
-    $petscScalarMatCoords->size = (PetscCount)($petscMatEntities->size);
-  } ;
-
-  $type petscScalarSystemCOO(X) blackbox<PetscScalarSystem> ;
-
-  $rule unit(petscScalarSystemCOO(X)<- petscScalarVecCoords,
-             petscScalarMatCoords, petscNumCell,
-             petscOptions(X),petscMatrixName(X),
-             petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscCOOAssembly), option(disable_threading),
+  $rule apply(petscScalarSystemInit(X) <- petscCellToRow, petscNumCell,
+              petscMatNNZ, upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+              X_B, X_D, lower->X_L, upper->X_U,
+              petscScalarSystem(X))[Loci::NullOp],
+  constraint(geom_cells, usePetscCOOAssembly), option(disable_threading),
   prelude {
+    PetscScalarSystem & system = const_cast<PetscScalarSystem &>(*$petscScalarSystem(X)) ;
 
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
+    size_t const vec_nnz = (*$petscNumCell)[Loci::MPI_rank] ;
+    size_t const mat_nnz = *$petscMatNNZ ;
+
+    vector<PetscScalar> vec_values(vec_nnz) ;
+    vector<PetscScalar> mat_values(mat_nnz) ;
+
+    size_t vec_cnt = 0 ;
+    size_t mat_cnt = 0 ;
+    sequence::const_iterator iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      int const nl = $lower.num_elems(cell) ;
+      int const nu = $upper.num_elems(cell) ;
+
+      vec_values[vec_cnt++] = $X_B[cell] ;
+
+      for(int l = 0; l < nl; ++l) {
+        Entity fc = $lower[cell][l] ;
+        mat_values[mat_cnt++] = $X_L[fc] ;
+      }
+
+      mat_values[mat_cnt++] = $X_D[cell] ;
+
+      for(int u = 0; u < nu; ++u) {
+        Entity fc = $upper[cell][u] ;
+        Entity rc = $cr[fc] ;
+        if($petscCellToRow[rc] != $petscCellToRow[cell]) {
+          mat_values[mat_cnt++] = $X_U[fc] ;
+        }
+      }
+
+      ++iter ;
     }
 
-    const vector<PetscInt> &vec_rowidx = $petscScalarVecCoords->rowidx;
-    vector<PetscInt> mat_rowidx = $petscScalarMatCoords->rowidx;
-    vector<PetscInt> mat_colidx = $petscScalarMatCoords->colidx;
+    PetscErrorCode err ;
 
-    PetscErrorCode err =
-      $petscScalarSystemCOO(X)->rhs.CreateCOO(
-                                              n, N, $petscScalarVecCoords->size,
-                                              &vec_rowidx[0],
-                                              $petscMatrixName(X)->c_str(),
-                                              $petscOptionsPrefix(X)->c_str()
-                                              );
+    err = system.rhs.SetValuesCOO(&vec_values[0]) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error assigning values to PETSc scalar system rhs: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    err = system.matrix.SetValuesCOO(&mat_values[0]) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error assigning values to PETSc scalar system matrix: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    err = system.solver.SetOperators(system.matrix) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error setting PETSc scalar solver operator: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    err = system.solution.SetValue(0.0) ;
+
     if(err) {
       if(Loci::MPI_rank == 0) {
-        cerr << "Error creating PETSc scalar system rhs: " << err << endl;
+        cerr << "Error initializing PETSc scalar system solution vector: "
+             << err << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    err =
-      $petscScalarSystemCOO(X)->matrix.CreateCOO(
-                                                 n, N,
-                                                 $petscScalarMatCoords->size,
-                                                 &mat_rowidx[0], &mat_colidx[0],
-                                                 $petscMatrixName(X)->c_str(),
-                                                 $petscOptionsPrefix(X)->c_str()
-                                                 );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc scalar system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err =
-      $petscScalarSystemCOO(X)->solver.Create(1e-5, 1e-18, 100,
-                                              $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc scalar solver: " << err << endl;
-      }
-      Loci::Abort();
-    }
+    $petscScalarSystemInit(X) = 1 ;
   } ;
 
-  $rule apply(petscScalarSystemCOO(X)<- petscVecEntities,petscMatEntities,
-              petscCellToRow, upper->cr->petscCellToRow,
-              lower->cl->petscCellToRow,
-              X_B, X_D, lower->X_L, upper->X_U)[Loci::NullOp],
-  constraint(geom_cells,usePetscCOOAssembly), option(disable_threading),
-    prelude {
-    vector<PetscScalar> vec_values($petscVecEntities->size, 0.0);
-    vector<PetscScalar> mat_values($petscMatEntities->size, 0.0);
+  $type petscScalarSolveBB(X) blackbox<int> ;
 
-    for(size_t i = 0; i < $petscVecEntities->size; ++i) {
-      vec_values[i] = $X_B[$petscVecEntities->entity[i]];
-    }
-
-    for(size_t i = $petscMatEntities->off[0]; i < $petscMatEntities->off[1]; ++i) {
-      mat_values[i] = $X_D[$petscMatEntities->value_entity[i]];
-    }
-
-    for(size_t i = $petscMatEntities->off[1]; i < $petscMatEntities->off[2]; ++i) {
-      mat_values[i] = $X_L[$petscMatEntities->value_entity[i]];
-    }
-
-    for(size_t i = $petscMatEntities->off[2]; i < $petscMatEntities->off[3]; ++i) {
-      mat_values[i] = $X_U[$petscMatEntities->value_entity[i]];
-    }
-
-    PetscErrorCode err =
-      $petscScalarSystemCOO(X)->rhs.SetValuesCOO(&vec_values[0]);
-    if(err) {
-      $[Once] {
-        cerr << "Error assigning values to PETSc scalar system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscScalarSystemCOO(X)->matrix.SetValuesCOO(&mat_values[0]);
-    if(err) {
-      $[Once] {
-        cerr << "Error assigning values to PETSc scalar system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscScalarSystemCOO(X)->solver.SetOperators($petscScalarSystemCOO(X)->matrix);
-    if(err) {
-      $[Once] {
-        cerr << "Error setting PETSc scalar solver operator: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-  } ;
-
-  $type petscScalarSolveCOOBB(X) blackbox<PetscScalarVector> ;
-
-
-  $rule unit(petscScalarSolveCOOBB(X)<- petscCellToRow, petscNumCell,
-             petscScalarVecCoords, petscOptions(X), petscMatrixName(X),
-             petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
+  $rule unit(petscScalarSolveBB(X)),
+  constraint(geom_cells), option(disable_threading),
   prelude {
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    vector<PetscInt> rowidx = $petscScalarVecCoords->rowidx;
-
-    PetscErrorCode err =
-      $petscScalarSolveCOOBB(X)->CreateCOO(
-                                           n, N, $petscScalarVecCoords->size,
-                                           &rowidx[0],
-                                           $petscMatrixName(X)->c_str(),
-                                           $petscOptionsPrefix(X)->c_str()
-                                           );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc scalar solution vector: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscScalarSolveCOOBB(X)->SetValue(0.0);
-    if(err) {
-      $[Once] {
-        cerr << "Error initializing PETSc scalar solution vector: " << err << endl;
-      }
-      Loci::Abort();
-    }
+    *$petscScalarSolveBB(X) = 0 ;
   } ;
 
-
-  $rule apply(petscScalarSolveCOOBB(X)<-petscScalarSystemCOO(X))[Loci::NullOp],
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-    prelude {
-    PetscErrorCode err = $petscScalarSystemCOO(X)->
-      solver.Solve($petscScalarSystemCOO(X)->rhs, *$petscScalarSolveCOOBB(X));
-    if(err) {
-      $[Once] {
-        cerr << "Error solving PETSc scalar system: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule pointwise(petscScalarSolve(X)<-petscScalarSolveCOOBB(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
+  $rule apply(petscScalarSolveBB(X) <- petscScalarSystemInit(X),
+              petscScalarSystem(X))[Loci::NullOp],
+  constraint(geom_cells), option(disable_threading),
   prelude {
-    PetscInt minRowNum, maxRowNum;
-    $petscScalarSolveCOOBB(X)->GetOwnershipRange(&minRowNum, &maxRowNum);
-    PetscScalar * X_Copy;
-    $petscScalarSolveCOOBB(X)->GetArray(&X_Copy);
+    PetscScalarSystem & system = const_cast<PetscScalarSystem &>(*$petscScalarSystem(X)) ;
+    PetscErrorCode err = system.solver.Solve(system.rhs, system.solution) ;
+    if(err) {
+      $[Once] {
+        cerr << "Error in PETSc scalar solve: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+    *$petscScalarSolveBB(X) = 1 ;
+  } ;
 
-    sequence::const_iterator cellPtr = seq.begin();
+  $rule pointwise(petscScalarSolve(X) <- petscScalarSolveBB(X),
+                  petscScalarSystem(X)),
+  constraint(geom_cells), option(disable_threading),
+  prelude {
+    if(seq.size() == 0) return ;
+
+    PetscScalarSystem const & system = *$petscScalarSystem(X) ;
+
+    PetscInt minRowNum, maxRowNum ;
+    system.solution.GetOwnershipRange(&minRowNum, &maxRowNum) ;
+
+    PetscScalar * X_Copy ;
+    system.solution.GetArray(&X_Copy) ;
+
+    sequence::const_iterator cellPtr = seq.begin() ;
     for(PetscInt row = minRowNum; row < maxRowNum; ++row, ++cellPtr) {
-      $petscScalarSolve(X)[*cellPtr]= X_Copy[row-minRowNum];
+      $petscScalarSolve(X)[*cellPtr]= X_Copy[row-minRowNum] ;
     }
-    $petscScalarSolveCOOBB(X)->RestoreArray(&X_Copy);
+
+    system.solution.RestoreArray(&X_Copy) ;
   } ;
+
+  // ==========================================================================
 
   typedef float real_fj;
 
@@ -1986,185 +1932,177 @@ namespace Loci {
 
   $type petscBlockSSize(X) blackbox<int> ;
 
-  $rule unit(petscBlockSSize(X)),constraint(X_B), prelude {
+  $rule unit(petscBlockSSize(X)), constraint(X_B), prelude {
     *$petscBlockSSize(X) = 0 ;
   } ;
 
   $rule apply(petscBlockSSize(X)<-X_B)[Loci::NullOp], prelude {
-    *$petscBlockSSize(X) = max(*$petscBlockSSize(X), $X_B.vecSize());
-  } ;
-
-  $type petscScalarDNNZSVector(X) blackbox<std::vector<int> > ;
-
-  $rule unit(petscScalarDNNZSVector(X)),constraint(geom_cells),
-  option(disable_threading), prelude {
-    $petscScalarDNNZSVector(X) = std::vector<int>() ;
-  } ;
-
-  $rule apply(petscScalarDNNZSVector(X)<-petscDNNZ,
-              petscNumCell,petscBlockSSize(X))[Loci::NullOp],
-  constraint(geom_cells),option(disable_threading),
-    prelude {
-    int const bsz = *$petscBlockSSize(X);
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    int count = 0;
-    (*$petscScalarDNNZSVector(X)).resize(n*bsz);
-    sequence::const_iterator siter = seq.begin();
-    while(siter != seq.end()) {
-      for(int i = 0; i < bsz; ++i) {
-        (*$petscScalarDNNZSVector(X))[count*bsz+i] =$petscDNNZ[*siter]*bsz;
-      }
-      ++siter;
-      ++count;
-    }
-  } ;
-
-  $type petscScalarONNZSVector(X) blackbox<std::vector<int> > ;
-  $rule unit(petscScalarONNZSVector(X)),constraint(geom_cells),
-  option(disable_threading),prelude {
-    *$petscScalarONNZSVector(X) = std::vector<int>() ;
-  } ;
-
-  $rule apply(petscScalarONNZSVector(X)<-petscONNZ,petscNumCell,
-              petscBlockSSize(X))[Loci::NullOp],
-  option(disable_threading),prelude {
-    int const bsz = *$petscBlockSSize(X);
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    int count = 0;
-    (*$petscScalarONNZSVector(X)).resize(n*bsz);
-    sequence::const_iterator siter = seq.begin();
-    while(siter != seq.end()) {
-      for(int i = 0; i < bsz; ++i) {
-        (*$petscScalarONNZSVector(X))[count*bsz+i] = $petscONNZ[*siter]*bsz;
-      }
-      ++siter;
-      ++count;
-    }
+    *$petscBlockSSize(X) = max(*$petscBlockSSize(X), $X_B.vecSize()) ;
   } ;
 
   $type petscBlockedSSystem(X) blackbox<PetscBlockedSystem> ;
-  $rule unit(petscBlockedSSystem(X)<- petscNumCell,
-             petscBlockSSize(X), petscDNNZVector, petscONNZVector,
-             petscScalarDNNZSVector(X), petscScalarONNZSVector(X),
-             petscOptions(X), petscMatrixName(X), petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscAssembly),option(disable_threading),
+
+  $rule singleton(petscBlockedSSystem(X) <- petscMatrixName(X)),
+  constraint(geom_cells), option(disable_threading) {
+    $petscBlockedSSystem(X).name = $petscMatrixName(X) ;
+    $petscBlockedSSystem(X).vector_size = -1 ;
+    $petscBlockedSSystem(X).matrix.Clear() ;
+    $petscBlockedSSystem(X).rhs.Clear() ;
+    $petscBlockedSSystem(X).solver.Clear() ;
+    $petscBlockedSSystem(X).solution.Clear() ;
+  }
+
+  $type petscBlockedSSystemInit(X) blackbox<int> ;
+
+  $rule unit(petscBlockedSSystemInit(X) <- petscNumCell,
+             petscBlockSSize(X), petscDNNZ, petscONNZ,
+             petscOptions(X), petscMatrixName(X), petscOptionsPrefix(X),
+             petscBlockedSSystem(X)),
+  constraint(geom_cells, usePetscAssembly), option(disable_threading),
   prelude {
-    int const bsz = *$petscBlockSSize(X);
+    PetscErrorCode err ;
 
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    PetscErrorCode err
-      = $petscBlockedSSystem(X)->rhs.Create(bsz, n, N,
-                                            $petscMatrixName(X)->c_str(),
-                                            $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSystem(X)->
-      matrix.Create(bsz, n, N, &(*$petscDNNZVector)[0],
-                    &(*$petscONNZVector)[0],
-                    &(*$petscScalarDNNZSVector(X))[0],
-                    &(*$petscScalarONNZSVector(X))[0],
-                    $petscMatrixName(X)->c_str(),
-                    $petscOptionsPrefix(X)->c_str()
-                    );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSystem(X)->
-      solver.Create(1e-5, 1e-18, 100, $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked solver: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule apply(petscBlockedSSystem(X)<- petscCellToRow,
-              upper->cr->petscCellToRow,lower->cl->petscCellToRow,
-              petscBlockSSize(X),max_fpc,
-              X_B, X_D, lower->X_L, upper->X_U)[Loci::NullOp],
-  constraint(geom_cells,usePetscAssembly), option(disable_threading),
-    prelude {
     int const bsz = *$petscBlockSSize(X) ;
 
-    int mwidth = *$max_fpc+1 ;
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSSystem(X)) ;
+
+    if(system.vector_size != bsz) {
+      system.vector_size = bsz ;
+      system.matrix.Clear() ;
+      system.rhs.Clear() ;
+      system.solver.Clear() ;
+      system.solution.Clear() ;
+
+      int const n = (*$petscNumCell)[Loci::MPI_rank] ;
+      int N = 0 ;
+      for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
+        N += (*$petscNumCell)[i] ;
+      }
+
+      vector<PetscInt> dnnz(n), onnz(n) ;
+      int cnt = 0 ;
+      sequence::const_iterator iter = seq.begin() ;
+      while(iter != seq.end()) {
+        dnnz[cnt] = $petscDNNZ[*iter] ;
+        onnz[cnt] = $petscONNZ[*iter] ;
+        ++cnt ;
+        ++iter ;
+      }
+
+      err = system.rhs.Create(bsz, n, N,
+                              $petscMatrixName(X)->c_str(),
+                              $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system rhs: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.matrix.Create(bsz, n, N, &dnnz[0], &onnz[0],
+                                 $petscMatrixName(X)->c_str(),
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system matrix: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solver.Create(1e-5, 1e-18, 100,
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked solver: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solution.Create(bsz, n, N,
+                                   $petscMatrixName(X)->c_str(),
+                                   $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc solution vector for blocked system: "
+               << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+    }
+
+    *$petscBlockedSSystemInit(X) = 0 ;
+  } ;
+
+  $rule apply(petscBlockedSSystemInit(X) <- petscCellToRow, max_fpc,
+              upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+              petscBlockSSize(X),
+              X_B, X_D, lower->X_L, upper->X_U,
+              petscBlockedSSystem(X))[Loci::NullOp],
+  constraint(geom_cells, usePetscAssembly), option(disable_threading),
+  prelude {
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSSystem(X)) ;
+
+    int const bsz = *$petscBlockSSize(X) ;
+
+    int const mwidth = *$max_fpc + 1 ;
     vector<PetscInt> rowsidx(bsz) ;
     vector<PetscInt> colidx(mwidth) ;
     vector<PetscInt> colsidx(mwidth*bsz) ;
     vector<PetscScalar> values(mwidth*bsz*bsz) ;
     vector<PetscScalar> svalues(mwidth*bsz*bsz) ;
 
-    entitySet dom = entitySet(seq) ;
-    FORALL(dom,cell) {
-      PetscInt count = 0, scount = 0, cnt = 0;
-      PetscInt rowidx = $petscCellToRow[cell];
+    sequence::const_iterator iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      PetscInt count = 0, scount = 0, cnt = 0 ;
+      PetscInt rowidx = $petscCellToRow[cell] ;
 
-      int const nl = $lower.num_elems(cell);
-      int const nu = $upper.num_elems(cell);
+      int const nl = $lower.num_elems(cell) ;
+      int const nu = $upper.num_elems(cell) ;
 
       for(int i = 0; i < bsz; ++i) {
-        rowsidx[i] = $petscCellToRow[cell]*bsz+i;
+        rowsidx[i] = $petscCellToRow[cell]*bsz+i ;
       }
 
       for(int l = 0; l < nl; ++l) {
-        Entity fc = $lower[cell][l];
-        Entity lc = $cl[fc];
-        colidx[count++] = $petscCellToRow[lc];
+        Entity fc = $lower[cell][l] ;
+        Entity lc = $cl[fc] ;
+        colidx[count++] = $petscCellToRow[lc] ;
         for(int i = 0; i < bsz; ++i) {
-          colsidx[scount++] = $petscCellToRow[lc]*bsz+i;
+          colsidx[scount++] = $petscCellToRow[lc]*bsz+i ;
         }
         for(int j = 0; j < bsz; ++j) {
           for(int i = 0; i < bsz; ++i) {
-            values[cnt++] = $X_L[fc][i][j];
+            values[cnt++] = $X_L[fc][i][j] ;
           }
         }
       }
       {
-        colidx[count++] = $petscCellToRow[cell];
+        colidx[count++] = $petscCellToRow[cell] ;
         for(int i = 0; i < bsz; ++i) {
-          colsidx[scount++] = $petscCellToRow[cell]*bsz+i;
+          colsidx[scount++] = $petscCellToRow[cell]*bsz+i ;
         }
         for(int j = 0; j < bsz; ++j) {
           for(int i = 0; i < bsz; ++i) {
-            values[cnt++] = $X_D[cell][i][j];
+            values[cnt++] = $X_D[cell][i][j] ;
           }
         }
       }
       for(int u = 0; u < nu; ++u) {
-        Entity fc = $upper[cell][u];
-        Entity rc = $cr[fc];
+        Entity fc = $upper[cell][u] ;
+        Entity rc = $cr[fc] ;
         if($petscCellToRow[cell] != $petscCellToRow[rc]) {
-          colidx[count++] = $petscCellToRow[rc];
+          colidx[count++] = $petscCellToRow[rc] ;
           for(int i = 0; i < bsz; ++i) {
-            colsidx[scount++] = $petscCellToRow[rc]*bsz+i;
+            colsidx[scount++] = $petscCellToRow[rc]*bsz+i ;
           }
           for(int j = 0; j < bsz; ++j) {
             for(int i = 0; i < bsz; ++i) {
-              values[cnt++] = $X_U[fc][i][j];
+              values[cnt++] = $X_U[fc][i][j] ;
             }
           }
         }
@@ -2172,390 +2110,342 @@ namespace Loci {
 
       for(int i = 0; i < bsz; ++i) {
         for(int k = 0; k < scount; ++k) {
-          svalues[i*scount+k] = values[k*bsz+i];
+          svalues[i*scount+k] = values[k*bsz+i] ;
         }
       }
 
-      $petscBlockedSSystem(X)->
-        matrix.SetRowValues(
-                            bsz, rowidx, &rowsidx[0], count,
-                            &colidx[0], &colsidx[0], &svalues[0]
-                            );
-    } ENDFORALL ;
-    PetscErrorCode err1 = $petscBlockedSSystem(X)->matrix.AssemblyBegin();
-    PetscErrorCode err2 = $petscBlockedSSystem(X)->matrix.AssemblyEnd();
-    if(err1 || err2) {
-      if(Loci::MPI_rank == 0) {
-        cerr << "Error assembling PETSc blocked system matrix: "
-             << err1 << ", " << err2 << endl;
-      }
-      Loci::Abort();
+      system.matrix.SetRowValues(bsz, rowidx, &rowsidx[0], count,
+                                 &colidx[0], &colsidx[0], &svalues[0]) ;
+
+      ++iter ;
     }
 
-    FORALL(dom,cell) {
-      PetscInt const row = $petscCellToRow[cell];
-      int cnt = 0;
-      for(int i = 0; i < bsz; ++i) {
-        values[cnt++] = $X_B[cell][i];
+    PetscErrorCode err1 = system.matrix.AssemblyBegin() ;
+    PetscErrorCode err2 = system.matrix.AssemblyEnd() ;
+    if(err1 || err2) {
+      $[Once] {
+        cerr << "Error assembling PETSc blocked system matrix: "
+             << err1 << ", " << err2 << endl ;
       }
-      $petscBlockedSSystem(X)->rhs.SetValue(row, &values[0]);
-    } ENDFORALL ;
-    err1 = $petscBlockedSSystem(X)->rhs.AssemblyBegin();
-    err2 = $petscBlockedSSystem(X)->rhs.AssemblyEnd();
+      Loci::Abort() ;
+    }
+
+    iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      PetscInt const row = $petscCellToRow[cell] ;
+      int cnt = 0 ;
+      for(int i = 0; i < bsz; ++i) {
+        values[cnt++] = $X_B[cell][i] ;
+      }
+      system.rhs.SetValue(row, &values[0]) ;
+      ++iter ;
+    }
+
+    err1 = system.rhs.AssemblyBegin() ;
+    err2 = system.rhs.AssemblyEnd() ;
     if(err1 || err2) {
       if(Loci::MPI_rank == 0) {
         cerr << "Error assembling PETSc blocked system rhs: "
-             << err1 << ", " << err2 << endl;
+             << err1 << ", " << err2 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    err1 = $petscBlockedSSystem(X)->solver.SetOperators($petscBlockedSSystem(X)->matrix);
+    err1 = system.solver.SetOperators(system.matrix) ;
     if(err1) {
-      if(Loci::MPI_rank == 0) {
-        cerr << "Error setting PETSc blocked solver operator: " << err1 << endl;
+      $[Once] {
+        cerr << "Error setting PETSc blocked solver operator: " << err1 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
-  } ;
-  $type petscBlockedSSolveBB(X) blackbox<PetscBlockedVector> ;
 
-  $rule unit(petscBlockedSSolveBB(X)<- petscBlockSSize(X),
-             petscCellToRow, petscNumCell, petscOptions(X),
+    err1 = system.solution.SetValue(0.0) ;
+    if(err1) {
+      $[Once] {
+        cerr << "Error initializing PETSc solution vector for blocked system: "
+             << err1 << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    *$petscBlockedSSystemInit(X) = 1 ;
+  } ;
+
+  $rule unit(petscBlockedSSystemInit(X) <- petscCellToRow,
+             petscNumCell, petscMatNNZ, petscBlockSSize(X),
+             upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+             petscBlockedSSystem(X), petscOptions(X),
              petscMatrixName(X), petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscAssembly),option(disable_threading),
+  constraint(geom_cells, usePetscCOOAssembly), option(disable_threading),
   prelude {
-    int const bsz = *$petscBlockSSize(X);
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSSystem(X)) ;
 
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    PetscErrorCode err = $petscBlockedSSolveBB(X)->
-      Create(
-             bsz, n, N, $petscMatrixName(X)->c_str(),
-             $petscOptionsPrefix(X)->c_str()
-             );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc solution vector for blocked system: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSolveBB(X)->SetValue(0.0);
-    if(err) {
-      $[Once] {
-        cerr << "Error initializing PETSc solution vector for blocked system: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule apply(petscBlockedSSolveBB(X)<-petscBlockedSSystem(X))[Loci::NullOp],
-  constraint(geom_cells,usePetscAssembly), option(disable_threading),
-    prelude {
-    PetscErrorCode err = $petscBlockedSSystem(X)
-      ->solver.Solve($petscBlockedSSystem(X)->rhs,
-                     *$petscBlockedSSolveBB(X)) ;
-    if(err) {
-      $[Once] {
-        cerr << "Error in PETSc blocked solve: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule pointwise(petscBlockedSSolve(X)<-
-                  petscBlockedSSolveBB(X),petscBlockSSize(X)),
-  constraint(geom_cells,usePetscAssembly), option(disable_threading),
-  prelude {
-    PetscInt minRowNum, maxRowNum;
-    $petscBlockedSSolveBB(X)->GetOwnershipRange(&minRowNum, &maxRowNum);
     int const bsz = *$petscBlockSSize(X) ;
-    $petscBlockedSSolve(X).setVecSize(bsz);
-    PetscScalar * X_Copy;
-    $petscBlockedSSolveBB(X)->GetArray(&X_Copy);
-    sequence::const_iterator cellPtr = seq.begin();
-    for(PetscInt row = minRowNum; row < maxRowNum; ++cellPtr) {
-      for(int i = 0; i < bsz; ++i, ++row) {
-        $petscBlockedSSolve(X)[*cellPtr][i] = X_Copy[row-minRowNum];
+
+    if(system.vector_size != bsz) {
+      system.vector_size = bsz ;
+      system.matrix.Clear() ;
+      system.rhs.Clear() ;
+      system.solver.Clear() ;
+      system.solution.Clear() ;
+
+      int const n = (*$petscNumCell)[Loci::MPI_rank] ;
+      int N = 0 ;
+      for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
+        N += (*$petscNumCell)[i] ;
+      }
+
+      size_t const vec_nnz = n*bsz ;
+      size_t const mat_nnz = (*$petscMatNNZ)*bsz*bsz ;
+
+      vector<PetscInt> vec_rowidx(vec_nnz) ;
+      vector<PetscInt> mat_rowidx(mat_nnz), mat_colidx(mat_nnz) ;
+
+      size_t vec_cnt = 0 ;
+      size_t mat_cnt = 0 ;
+      sequence::const_iterator iter = seq.begin() ;
+      while(iter != seq.end()) {
+        Entity cell = *iter ;
+        int const nl = $lower.num_elems(cell) ;
+        int const nu = $upper.num_elems(cell) ;
+
+        PetscInt rowidx = $petscCellToRow[cell]*bsz ;
+
+        for(int br = 0; br < bsz; ++br) {
+          for(int l = 0; l < nl; ++l) {
+            Entity fc = $lower[cell][l] ;
+            Entity lc = $cl[fc] ;
+            PetscInt colidx = $petscCellToRow[lc]*bsz ;
+            for(int bc = 0; bc < bsz; ++bc) {
+              mat_rowidx[mat_cnt] = rowidx+br ;
+              mat_colidx[mat_cnt] = colidx+bc ;
+              ++mat_cnt ;
+            }
+          }
+
+          for(int bc = 0; bc < bsz; ++bc) {
+            mat_rowidx[mat_cnt] = rowidx+br ;
+            mat_colidx[mat_cnt] = rowidx+bc ;
+            ++mat_cnt ;
+          }
+
+          vec_rowidx[vec_cnt++] = rowidx+br ;
+
+          for(int u = 0; u < nu; ++u) {
+            Entity fc = $upper[cell][u] ;
+            Entity rc = $cr[fc] ;
+            if($petscCellToRow[rc] != $petscCellToRow[cell]) {
+              PetscInt colidx = $petscCellToRow[rc]*bsz ;
+              for(int bc = 0; bc < bsz; ++bc) {
+                mat_rowidx[mat_cnt] = rowidx+br ;
+                mat_colidx[mat_cnt] = colidx+bc ;
+                ++mat_cnt ;
+              }
+            }
+          }
+        }
+
+        ++iter ;
+      }
+
+      PetscErrorCode err ;
+
+      err = system.rhs.CreateCOO(bsz, n, N, vec_nnz, &vec_rowidx[0],
+                                 $petscMatrixName(X)->c_str(),
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system rhs: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.matrix.CreateCOO(bsz, n, N, mat_nnz,
+                                    &mat_rowidx[0], &mat_colidx[0],
+                                    $petscMatrixName(X)->c_str(),
+                                    $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system matrix: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solver.Create(1e-5, 1e-18, 100,
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked solver: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solution.CreateCOO(bsz, n, N, vec_nnz, &vec_rowidx[0],
+                                      $petscMatrixName(X)->c_str(),
+                                      $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system solution: " << err << endl ;
+        }
+        Loci::Abort() ;
       }
     }
-    $petscBlockedSSolveBB(X)->RestoreArray(&X_Copy);
+
+    *$petscBlockedSSystemInit(X) = 0 ;
   } ;
 
-  $type petscBlockedVecSCoords(X) blackbox<PetscVecCoords> ;
-
-  $rule unit(petscBlockedVecSCoords(X)),
-  constraint(geom_cells),option(disable_threading),
+  $rule apply(petscBlockedSSystemInit(X) <- petscCellToRow,
+              petscNumCell, petscMatNNZ, petscBlockSSize(X),
+              upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+              X_B, X_D, lower->X_L, upper->X_U,
+              petscBlockedSSystem(X))[Loci::NullOp],
+  constraint(geom_cells, usePetscCOOAssembly), option(disable_threading),
   prelude {
-    $petscBlockedVecSCoords(X) = PetscVecCoords() ;
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSSystem(X)) ;
+
+    int const bsz = *$petscBlockSSize(X) ;
+
+    size_t const vec_nnz = (*$petscNumCell)[MPI_rank]*bsz ;
+    size_t const mat_nnz = (*$petscMatNNZ)*bsz*bsz ;
+
+    vector<PetscScalar> vec_values(vec_nnz) ;
+    vector<PetscScalar> mat_values(mat_nnz) ;
+
+    size_t vec_cnt = 0 ;
+    size_t mat_cnt = 0 ;
+    sequence::const_iterator iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      int const nl = $lower.num_elems(cell) ;
+      int const nu = $upper.num_elems(cell) ;
+
+      for(int br = 0; br < bsz; ++br) {
+        vec_values[vec_cnt++] = $X_B[cell][br] ;
+      }
+
+      for(int br = 0; br < bsz; ++br) {
+        for(int l = 0; l < nl; ++l) {
+          Entity fc = $lower[cell][l] ;
+          for(int bc = 0; bc < bsz; ++bc) {
+            mat_values[mat_cnt++] = $X_L[fc][br][bc] ;
+          }
+        }
+
+        for(int bc = 0; bc < bsz; ++bc) {
+          mat_values[mat_cnt++] = $X_D[cell][br][bc] ;
+        }
+
+        for(int u = 0; u < nu; ++u) {
+          Entity fc = $upper[cell][u] ;
+          Entity rc = $cr[fc] ;
+          if($petscCellToRow[rc] != $petscCellToRow[cell]) {
+            for(int bc = 0; bc < bsz; ++bc) {
+              mat_values[mat_cnt++] = $X_U[fc][br][bc] ;
+            }
+          }
+        }
+      }
+
+      ++iter ;
+    }
+
+    PetscErrorCode err ;
+
+    err = system.rhs.SetValuesCOO(&vec_values[0]) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error assigning values to PETSc blocked system rhs: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    err = system.matrix.SetValuesCOO(&mat_values[0]) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error assigning values to PETSc blocked system matrix: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    err = system.solver.SetOperators(system.matrix) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error setting PETSc blocked solver operator: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    err = system.solution.SetValue(0.0) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error initializing PETSc blocked system solution vector: "
+             << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    $petscBlockedSSystemInit(X) = 1 ;
   } ;
 
-  $rule apply(petscBlockedVecSCoords(X)<-petscCellToRow,
-              petscBlockSSize(X),petscVecEntities)[Loci::NullOp],
+  $type petscBlockedSSolveBB(X) blackbox<int> ;
+
+  $rule unit(petscBlockedSSolveBB(X)),
+  constraint(geom_cells), option(disable_threading), prelude {
+    *$petscBlockedSSolveBB(X) = 0 ;
+  } ;
+
+  $rule apply(petscBlockedSSolveBB(X) <- petscBlockedSSystemInit(X),
+              petscBlockedSSystem(X))[Loci::NullOp],
   constraint(geom_cells), option(disable_threading),
-    prelude {
+  prelude {
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSSystem(X)) ;
+    PetscErrorCode err = system.solver.Solve(system.rhs, system.solution) ;
+    if(err) {
+      $[Once] {
+        cerr << "Error in PETSc blocked solve: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+    *$petscBlockedSSolveBB(X) = 1 ;
+  } ;
+
+  $rule pointwise(petscBlockedSSolve(X)<- petscBlockedSSolveBB(X),
+                  petscBlockedSSystem(X), petscBlockSSize(X)),
+  constraint(geom_cells), option(disable_threading),
+  prelude {
+    if(seq.size() == 0) return ;
+
+    PetscBlockedSystem const & system = *$petscBlockedSSystem(X) ;
+
     int const bsz = *$petscBlockSSize(X) ;
+    $petscBlockedSSolve(X).setVecSize(bsz) ;
 
-    $petscBlockedVecSCoords(X)->rowidx.resize($petscVecEntities->size*bsz);
-    for(size_t i = 0; i < $petscVecEntities->size; ++i) {
-      for(int j = 0; j < bsz; ++j) {
-        $petscBlockedVecSCoords(X)->rowidx[i*bsz+j] =
-          $petscCellToRow[$petscVecEntities->entity[i]]*bsz+j;
-      }
-    }
-
-    $petscBlockedVecSCoords(X)->size =
-      (PetscCount)($petscVecEntities->size*bsz);
-  } ;
-
-
-  $type petscBlockedMatSCoords(X) blackbox<PetscMatCoords> ;
-  $rule unit(petscBlockedMatSCoords(X)),
-  constraint(geom_cells),option(disable_threading),
-  prelude {
-    $petscBlockedMatSCoords(X) = PetscMatCoords() ;
-  } ;
-  $rule apply(petscBlockedMatSCoords(X)<- petscCellToRow,
-              lower->cl->petscCellToRow, upper->cr->petscCellToRow,
-              petscBlockSSize(X), petscMatEntities)[Loci::NullOp],
-  constraint(geom_cells),option(disable_threading),
-    prelude {
-    int const bsz = *$petscBlockSSize(X) ;
-    int const bsz2 = bsz*bsz;
-
-    $petscBlockedMatSCoords(X)->rowidx.resize($petscMatEntities->size*bsz2);
-    $petscBlockedMatSCoords(X)->colidx.resize($petscMatEntities->size*bsz2);
-
-    for(size_t i = 0; i < $petscMatEntities->size; ++i) {
-      int const br = $petscCellToRow[$petscMatEntities->row_cell[i]];
-      int const bc = $petscCellToRow[$petscMatEntities->col_cell[i]];
-      for(int c = 0; c < bsz; ++c) {
-        for(int r = 0; r < bsz; ++r) {
-          size_t const li = i*bsz2+c*bsz+r;
-          $petscBlockedMatSCoords(X)->rowidx[li] = br*bsz+r;
-          $petscBlockedMatSCoords(X)->colidx[li] = bc*bsz+c;
-        }
-      }
-    }
-
-    $petscBlockedMatSCoords(X)->size =
-      (PetscCount)($petscMatEntities->size*bsz2);
-  } ;
-
-  $type petscBlockedSSystemCOO(X) blackbox<PetscBlockedSystem> ;
-  $rule unit( petscBlockedSSystemCOO(X)<-petscBlockedVecSCoords(X),
-              petscBlockedMatSCoords(X),petscNumCell,petscBlockSSize(X),
-              petscOptions(X),petscMatrixName(X), petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-  prelude {
-    int const bsz = *$petscBlockSSize(X);
-
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    vector<PetscInt> vec_rowidx = $petscBlockedVecSCoords(X)->rowidx;
-    vector<PetscInt> mat_rowidx = $petscBlockedMatSCoords(X)->rowidx;
-    vector<PetscInt> mat_colidx = $petscBlockedMatSCoords(X)->colidx;
-
-    PetscErrorCode err =
-      $petscBlockedSSystemCOO(X)
-      ->rhs.CreateCOO(
-                      bsz, n, N, $petscBlockedVecSCoords(X)->size,
-                      &vec_rowidx[0],
-                      $petscMatrixName(X)->c_str(),
-                      $petscOptionsPrefix(X)->c_str()
-                      );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSystemCOO(X)->matrix.CreateCOO(
-                                                       bsz, n, N,
-                                                       $petscBlockedMatSCoords(X)->size,
-                                                       &mat_rowidx[0], &mat_colidx[0],
-                                                       $petscMatrixName(X)->c_str(),
-                                                       $petscOptionsPrefix(X)->c_str()
-                                                       );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSystemCOO(X)
-      ->solver.Create(1e-5, 1e-18, 100, $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc solver: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule apply(petscBlockedSSystemCOO(X)<-petscVecEntities,petscMatEntities,
-              petscCellToRow,petscBlockSSize(X),upper->cr->petscCellToRow,
-              lower->cl->petscCellToRow,
-              X_B,X_D,lower->X_L,upper->X_U)[Loci::NullOp],
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-    prelude {
-    int const bsz = *$petscBlockSSize(X) ;
-    int const bsz2 = bsz*bsz;
-
-    size_t const vec_size = $petscVecEntities->size*bsz;
-    size_t const mat_size = $petscMatEntities->size*bsz2;
-
-    vector<PetscScalar> vec_values(vec_size, 0.0);
-    vector<PetscScalar> mat_values(mat_size, 0.0);
-
-    for(size_t i = 0; i < $petscVecEntities->size; ++i) {
-      for(int b = 0; b < bsz; ++b) {
-        vec_values[i*bsz+b] = $X_B[$petscVecEntities->entity[i]][b];
-      }
-    }
-
-    for(size_t i = $petscMatEntities->off[0]; i < $petscMatEntities->off[1]; ++i) {
-      for(int c = 0; c < bsz; ++c) {
-        for(int r = 0; r < bsz; ++r) {
-          mat_values[i*bsz2+c*bsz+r] = $X_D[$petscMatEntities->value_entity[i]][r][c];
-        }
-      }
-    }
-
-    for(size_t i = $petscMatEntities->off[1]; i < $petscMatEntities->off[2]; ++i) {
-      for(int r = 0; r < bsz; ++r) {
-        for(int c = 0; c < bsz; ++c) {
-          mat_values[i*bsz2+c*bsz+r] = $X_L[$petscMatEntities->value_entity[i]][r][c];
-        }
-      }
-    }
-
-    for(size_t i = $petscMatEntities->off[2]; i < $petscMatEntities->off[3]; ++i) {
-      for(int r = 0; r < bsz; ++r) {
-        for(int c = 0; c < bsz; ++c) {
-          mat_values[i*bsz2+c*bsz+r] = $X_U[$petscMatEntities->value_entity[i]][r][c];
-        }
-      }
-    }
-
-    PetscErrorCode err = $petscBlockedSSystemCOO(X)
-      ->rhs.SetValuesCOO(&vec_values[0]);
-    if(err) {
-      $[Once] {
-        cerr << "Error assigning values to PETSc blocked system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSystemCOO(X)->matrix.SetValuesCOO(&mat_values[0]);
-    if(err) {
-      $[Once] {
-        cerr << "Error assigning values to PETSc blocked system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSystemCOO(X)
-      ->solver.SetOperators($petscBlockedSSystemCOO(X)->matrix);
-    if(err) {
-      $[Once] {
-        cerr << "Error setting PETSc blocked solver operator: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $type petscBlockedSSolveCOOBB(X) blackbox<PetscBlockedVector> ;
-
-  $rule unit(petscBlockedSSolveCOOBB(X)<-petscBlockSSize(X),
-             petscCellToRow,petscNumCell,
-             petscBlockedVecSCoords(X), petscOptions(X),
-             petscMatrixName(X), petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-  prelude {
-
-    int const bsz = *$petscBlockSSize(X);
-
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    vector<PetscInt> rowidx = $petscBlockedVecSCoords(X)->rowidx;
-
-    PetscErrorCode err =
-      $petscBlockedSSolveCOOBB(X)
-      ->CreateCOO(bsz, n, N, $petscBlockedVecSCoords(X)->size, &rowidx[0],
-                  $petscMatrixName(X)->c_str(),
-                  $petscOptionsPrefix(X)->c_str()
-                  );
-
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked solution vector" << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSSolveCOOBB(X)->SetValue(0.0);
-    if(err) {
-      $[Once] {
-        cerr << "Error initializing PETSc blocked solution vector: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule apply(petscBlockedSSolveCOOBB(X)<-
-              petscBlockedSSystemCOO(X))[Loci::NullOp],
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-    prelude {
-    PetscErrorCode err =
-      $petscBlockedSSystemCOO(X)->
-      solver.Solve($petscBlockedSSystemCOO(X)->rhs,
-                   *$petscBlockedSSolveCOOBB(X));
-    if(err) {
-      $[Once] {
-        cerr << "Error solving PETSc blocked system: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $type petscBlockedSSolve(X) storeVec<real> ;
-
-  $rule pointwise(petscBlockedSSolve(X)<-petscBlockedSSolveCOOBB(X),
-                  petscBlockSSize(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-  prelude {
     PetscInt minRowNum, maxRowNum;
-    $petscBlockedSSolveCOOBB(X)->GetOwnershipRange(&minRowNum, &maxRowNum);
-    int const bsz = *$petscBlockSSize(X) ;
-    $petscBlockedSSolve(X).setVecSize(bsz);
+    system.solution.GetOwnershipRange(&minRowNum, &maxRowNum) ;
+
     PetscScalar * X_Copy;
-    $petscBlockedSSolveCOOBB(X)->GetArray(&X_Copy);
-    sequence::const_iterator cellPtr = seq.begin();
+    system.solution.GetArray(&X_Copy);
+
+    sequence::const_iterator cellPtr = seq.begin() ;
     for(PetscInt row = minRowNum; row < maxRowNum; ++cellPtr) {
       for(int i = 0; i < bsz; ++i, ++row) {
-        $petscBlockedSSolve(X)[*cellPtr][i] = X_Copy[row-minRowNum];
+        $petscBlockedSSolve(X)[*cellPtr][i] = X_Copy[row-minRowNum] ;
       }
     }
-    $petscBlockedSSolveCOOBB(X)->RestoreArray(&X_Copy);
+
+    system.solution.RestoreArray(&X_Copy) ;
   } ;
 
-
+  // ==========================================================================
 
   $untype X_B ;
   $untype X_L ;
@@ -2568,241 +2458,185 @@ namespace Loci {
   $type X_D storeMat<real> ;
 
   $type petscBlockSize(X) blackbox<int> ;
+
   $rule unit(petscBlockSize(X)),constraint(X_B), prelude {
     *$petscBlockSize(X) = 0 ;
   } ;
 
-  
   $rule apply(petscBlockSize(X)<-X_B)[Loci::NullOp], prelude {
     *$petscBlockSize(X) = max(*$petscBlockSize(X),$X_B.vecSize()) ;
-  } ;
-    
-  $type petscBlockVecCoords(X) blackbox<PetscVecCoords> ;
-  $rule unit(petscBlockVecCoords(X)),
-  constraint(geom_cells),option(disable_threading),
-  prelude {
-    $petscBlockVecCoords(X) = PetscVecCoords() ;
-  } ;
-
-  $rule apply(petscBlockVecCoords(X)<-petscCellToRow,
-              petscBlockSize(X),petscVecEntities)[Loci::NullOp],
-  constraint(geom_cells), option(disable_threading),
-    prelude {
-    int const bsz = *$petscBlockSize(X) ;
-
-    $petscBlockVecCoords(X)->rowidx.resize($petscVecEntities->size*bsz);
-    for(size_t i = 0; i < $petscVecEntities->size; ++i) {
-      for(int j = 0; j < bsz; ++j) {
-        $petscBlockVecCoords(X)->rowidx[i*bsz+j] =
-          $petscCellToRow[$petscVecEntities->entity[i]]*bsz+j;
-      }
-    }
-
-    $petscBlockVecCoords(X)->size =
-      (PetscCount)($petscVecEntities->size*bsz);
-  } ;
-
-
-  $type petscBlockMatCoords(X) blackbox<PetscMatCoords> ;
-  $rule unit(petscBlockMatCoords(X)),
-  constraint(geom_cells),option(disable_threading),
-  prelude {
-    $petscBlockMatCoords(X) = PetscMatCoords() ;
-  } ;
-  $rule apply(petscBlockMatCoords(X)<- petscCellToRow,
-              lower->cl->petscCellToRow, upper->cr->petscCellToRow,
-              petscBlockSize(X), petscMatEntities)[Loci::NullOp],
-  constraint(geom_cells),option(disable_threading),
-    prelude {
-    int const bsz = *$petscBlockSize(X) ;
-    int const bsz2 = bsz*bsz;
-
-    $petscBlockMatCoords(X)->rowidx.resize($petscMatEntities->size*bsz2);
-    $petscBlockMatCoords(X)->colidx.resize($petscMatEntities->size*bsz2);
-
-    for(size_t i = 0; i < $petscMatEntities->size; ++i) {
-      int const br = $petscCellToRow[$petscMatEntities->row_cell[i]];
-      int const bc = $petscCellToRow[$petscMatEntities->col_cell[i]];
-      for(int c = 0; c < bsz; ++c) {
-        for(int r = 0; r < bsz; ++r) {
-          size_t const li = i*bsz2+c*bsz+r;
-          $petscBlockMatCoords(X)->rowidx[li] = br*bsz+r;
-          $petscBlockMatCoords(X)->colidx[li] = bc*bsz+c;
-        }
-      }
-    }
-
-    $petscBlockMatCoords(X)->size =
-      (PetscCount)($petscMatEntities->size*bsz2);
-  } ;
-
-  $type petscScalarDNNZVector(X) blackbox<std::vector<int> >  ;
-  $rule unit(petscScalarDNNZVector(X)),
-  constraint(geom_cells),option(disable_threading),prelude {
-    $petscScalarDNNZVector(X) = std::vector<int>() ;
-  } ;
-  $rule apply(petscScalarDNNZVector(X)<-petscDNNZ,petscNumCell,
-              petscBlockSize(X))[Loci::NullOp],
-  option(disable_threading),prelude {
-    int const bsz = *$petscBlockSize(X);
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    int count = 0;
-    (*$petscScalarDNNZVector(X)).resize(n*bsz);
-    sequence::const_iterator siter = seq.begin();
-    while(siter != seq.end()) {
-      for(int i = 0; i < bsz; ++i) {
-        (*$petscScalarDNNZVector(X))[count*bsz+i] = $petscDNNZ[*siter]*bsz;
-      }
-      ++siter;
-      ++count;
-    }
-  } ;
-
-  $type petscScalarONNZVector(X) blackbox<std::vector<int> > ;
-
-  $rule unit(petscScalarONNZVector(X)),
-  constraint(geom_cells), prelude {
-    $petscScalarONNZVector(X) = std::vector<int>() ;
-  } ;
-
-  $rule apply(petscScalarONNZVector(X)<-petscONNZ,petscNumCell,
-              petscBlockSize(X))[Loci::NullOp],
-  option(disable_threading),prelude {
-    int const bsz = *$petscBlockSize(X);
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-    
-    int count = 0;
-    (*$petscScalarONNZVector(X)).resize(n*bsz);
-    sequence::const_iterator siter = seq.begin();
-    while(siter != seq.end()) {
-      for(int i = 0; i < bsz; ++i) {
-        (*$petscScalarONNZVector(X))[count*bsz+i] = $petscONNZ[*siter]*bsz;
-      }
-      ++siter;
-      ++count;
-    }
   } ;
 
   $type petscBlockedSystem(X) blackbox<PetscBlockedSystem> ;
 
-  $rule unit(petscBlockedSystem(X)<-petscNumCell,petscBlockSize(X),
-             petscDNNZVector,petscONNZVector,petscScalarDNNZVector(X),
-             petscScalarONNZVector(X),petscOptions(X),
-             petscMatrixName(X),petscOptionsPrefix(X)),
-  constraint(geom_cells),option(disable_threading), prelude {
-    int const bsz = *$petscBlockSize(X);
-    
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
+  $rule singleton(petscBlockedSystem(X) <- petscMatrixName(X)),
+  constraint(geom_cells), option(disable_threading) {
+    $petscBlockedSystem(X).name = $petscMatrixName(X) ;
+    $petscBlockedSystem(X).vector_size = -1 ;
+    $petscBlockedSystem(X).matrix.Clear() ;
+    $petscBlockedSystem(X).rhs.Clear() ;
+    $petscBlockedSystem(X).solver.Clear() ;
+    $petscBlockedSystem(X).solution.Clear() ;
+  }
 
-    PetscErrorCode err =
-      $petscBlockedSystem(X)->rhs.Create(bsz, n, N,
-                                         $petscMatrixName(X)->c_str(),
-                                         $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-    
-    err = $petscBlockedSystem(X)->
-      matrix.Create(
-                    bsz, n, N, &(*$petscDNNZVector)[0],
-                    &(*$petscONNZVector)[0],
-                    &(*$petscScalarDNNZVector(X))[0],
-                    &(*$petscScalarONNZVector(X))[0],
-                    $petscMatrixName(X)->c_str(),
-                    $petscOptionsPrefix(X)->c_str()
-                    );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-    
-    err = $petscBlockedSystem(X)->
-      solver.Create(1e-5, 1e-18, 100, $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked solver: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
+  $type petscBlockedSystemInit(X) blackbox<int> ;
 
-  $rule apply(petscBlockedSystem(X)<-petscCellToRow,
-              upper->cr->petscCellToRow,lower->cl->petscCellToRow,max_fpc,
-              petscBlockSize(X),X_B,X_D,lower->X_L, upper->X_U)[Loci::NullOp],
-  constraint(geom_cells),option(disable_threading),prelude {
+  $rule unit(petscBlockedSystemInit(X) <- petscNumCell,
+             petscBlockSize(X), petscDNNZ, petscONNZ,
+             petscOptions(X), petscMatrixName(X), petscOptionsPrefix(X),
+             petscBlockedSystem(X)),
+  constraint(geom_cells, usePetscAssembly), option(disable_threading),
+  prelude {
+    PetscErrorCode err ;
+
     int const bsz = *$petscBlockSize(X) ;
 
-    int mwidth = *$max_fpc+1 ;
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSystem(X)) ;
+
+    if(system.vector_size != bsz) {
+      system.vector_size = bsz;
+      system.matrix.Clear();
+      system.rhs.Clear();
+      system.solver.Clear();
+      system.solution.Clear();
+
+      int const n = (*$petscNumCell)[Loci::MPI_rank] ;
+      int N = 0 ;
+      for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
+        N += (*$petscNumCell)[i] ;
+      }
+
+      vector<PetscInt> dnnz(n), onnz(n) ;
+      int cnt = 0 ;
+      sequence::const_iterator iter = seq.begin() ;
+      while(iter != seq.end()) {
+        dnnz[cnt] = $petscDNNZ[*iter] ;
+        onnz[cnt] = $petscONNZ[*iter] ;
+        ++cnt ;
+        ++iter ;
+      }
+
+      err = system.rhs.Create(bsz, n, N,
+                              $petscMatrixName(X)->c_str(),
+                              $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system rhs: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.matrix.Create(bsz, n, N, &dnnz[0], &onnz[0],
+                                 $petscMatrixName(X)->c_str(),
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system matrix: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solver.Create(1e-5, 1e-18, 100, $petscOptionsPrefix(X)->c_str()) ;
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked solver: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solver.Create(1e-5, 1e-18, 100, $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked solver: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solution.Create(bsz, n, N,
+                                   $petscMatrixName(X)->c_str(),
+                                   $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc solution vector for blocked system: "
+               << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+    }
+
+    *$petscBlockedSystemInit(X) = 0 ;
+  } ;
+
+  $rule apply(petscBlockedSystemInit(X) <- petscCellToRow, max_fpc,
+              upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+              petscBlockSize(X),
+              X_B, X_D, lower->X_L, upper->X_U,
+              petscBlockedSystem(X))[Loci::NullOp],
+  constraint(geom_cells, usePetscAssembly), option(disable_threading),
+  prelude {
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSystem(X)) ;
+
+    int const bsz = *$petscBlockSize(X) ;
+
+    int const mwidth = *$max_fpc + 1 ;
     vector<PetscInt> rowsidx(bsz) ;
     vector<PetscInt> colidx(mwidth) ;
     vector<PetscInt> colsidx(mwidth*bsz) ;
     vector<PetscScalar> values(mwidth*bsz*bsz) ;
     vector<PetscScalar> svalues(mwidth*bsz*bsz) ;
 
-    entitySet dom = entitySet(seq) ;
-    //    do_loop(seq, this, &PetscBlockedSystemApply::AssembleMatrix);
-    FORALL(dom,cell) {
-      PetscInt count = 0, scount = 0, cnt = 0;
-      PetscInt rowidx = $petscCellToRow[cell];
+    sequence::const_iterator iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      PetscInt count = 0, scount = 0, cnt = 0 ;
+      PetscInt rowidx = $petscCellToRow[cell] ;
 
-      int const nl = $lower.num_elems(cell);
-      int const nu = $upper.num_elems(cell);
+      int const nl = $lower.num_elems(cell) ;
+      int const nu = $upper.num_elems(cell) ;
 
       for(int i = 0; i < bsz; ++i) {
-        rowsidx[i] = $petscCellToRow[cell]*bsz+i;
+        rowsidx[i] = $petscCellToRow[cell]*bsz+i ;
       }
 
       for(int l = 0; l < nl; ++l) {
-        Entity fc = $lower[cell][l];
-        Entity lc = $cl[fc];
-        colidx[count++] = $petscCellToRow[lc];
+        Entity fc = $lower[cell][l] ;
+        Entity lc = $cl[fc] ;
+        colidx[count++] = $petscCellToRow[lc] ;
         for(int i = 0; i < bsz; ++i) {
-          colsidx[scount++] = $petscCellToRow[lc]*bsz+i;
+          colsidx[scount++] = $petscCellToRow[lc]*bsz+i ;
         }
         for(int j = 0; j < bsz; ++j) {
           for(int i = 0; i < bsz; ++i) {
-            values[cnt++] = $X_L[fc][i][j];
+            values[cnt++] = $X_L[fc][i][j] ;
           }
         }
       }
-      colidx[count++] = $petscCellToRow[cell];
-      for(int i = 0; i < bsz; ++i) {
-        colsidx[scount++] = $petscCellToRow[cell]*bsz+i;
-      }
-      for(int j = 0; j < bsz; ++j) {
+      {
+        colidx[count++] = $petscCellToRow[cell] ;
         for(int i = 0; i < bsz; ++i) {
-          values[cnt++] = $X_D[cell][i][j];
+          colsidx[scount++] = $petscCellToRow[cell]*bsz+i ;
+        }
+        for(int j = 0; j < bsz; ++j) {
+          for(int i = 0; i < bsz; ++i) {
+            values[cnt++] = $X_D[cell][i][j] ;
+          }
         }
       }
       for(int u = 0; u < nu; ++u) {
-        Entity fc = $upper[cell][u];
-        Entity rc = $cr[fc];
+        Entity fc = $upper[cell][u] ;
+        Entity rc = $cr[fc] ;
         if($petscCellToRow[cell] != $petscCellToRow[rc]) {
-          colidx[count++] = $petscCellToRow[rc];
+          colidx[count++] = $petscCellToRow[rc] ;
           for(int i = 0; i < bsz; ++i) {
-            colsidx[scount++] = $petscCellToRow[rc]*bsz+i;
+            colsidx[scount++] = $petscCellToRow[rc]*bsz+i ;
           }
           for(int j = 0; j < bsz; ++j) {
             for(int i = 0; i < bsz; ++i) {
-              values[cnt++] = $X_U[fc][i][j];
+              values[cnt++] = $X_U[fc][i][j] ;
             }
           }
         }
@@ -2810,327 +2644,340 @@ namespace Loci {
 
       for(int i = 0; i < bsz; ++i) {
         for(int k = 0; k < bsz*count; ++k) {
-          svalues[i*count*bsz+k] = values[k*bsz+i];
+          svalues[i*scount+k] = values[k*bsz+i] ;
         }
       }
 
-      $petscBlockedSystem(X)->
-        matrix.SetRowValues(
-                            bsz, rowidx, &rowsidx[0], count,
-                            &colidx[0], &colsidx[0], &svalues[0]
-                            );
-    } ENDFORALL ;
+      system.matrix.SetRowValues(bsz, rowidx, &rowsidx[0], count,
+                                 &colidx[0], &colsidx[0], &svalues[0]) ;
 
-    PetscErrorCode err1 =
-      $petscBlockedSystem(X)->matrix.AssemblyBegin();
-    PetscErrorCode  err2 =
-      $petscBlockedSystem(X)->matrix.AssemblyEnd();
+      ++iter ;
+    }
+
+    PetscErrorCode err1 = system.matrix.AssemblyBegin() ;
+    PetscErrorCode err2 = system.matrix.AssemblyEnd() ;
     if(err1 || err2) {
       $[Once] {
         cerr << "Error assembling PETSc blocked system matrix: "
-             << err1 << ", " << err2 << endl;
+             << err1 << ", " << err2 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    //do_loop(seq, this, &PetscBlockedSystemApply::AssembleRHS);
-    FORALL(dom,cell) {
-      PetscInt const row = $petscCellToRow[cell];
-      int cnt = 0;
+    iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      PetscInt const row = $petscCellToRow[cell] ;
+      int cnt = 0 ;
       for(int i = 0; i < bsz; ++i) {
-        values[cnt++] = $X_B[cell][i];
+        values[cnt++] = $X_B[cell][i] ;
       }
-      $petscBlockedSystem(X)->rhs.SetValue(row, &values[0]);
-    } ENDFORALL ;
-    err1 = $petscBlockedSystem(X)->rhs.AssemblyBegin();
-    err2 = $petscBlockedSystem(X)->rhs.AssemblyEnd();
+      system.rhs.SetValue(row, &values[0]) ;
+      ++iter ;
+    }
+
+    err1 = system.rhs.AssemblyBegin() ;
+    err2 = system.rhs.AssemblyEnd() ;
     if(err1 || err2) {
       $[Once] {
         cerr << "Error assembling PETSc blocked system rhs: "
-             << err1 << ", " << err2 << endl;
+             << err1 << ", " << err2 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    err1 = $petscBlockedSystem(X)->
-      solver.SetOperators($petscBlockedSystem(X)->matrix);
+    err1 = system.solver.SetOperators(system.matrix) ;
     if(err1) {
       $[Once] {
-        cerr << "Error setting PETSc blocked solver operator: " << err1 << endl;
+        cerr << "Error setting PETSc blocked solver operator: " << err1 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
-  } ;
-  
-  $type petscBlockedSolveBB(X) blackbox<PetscBlockedVector> ;
-  
-  $rule unit(petscBlockedSolveBB(X)<-petscBlockSize(X),petscCellToRow,
-             petscNumCell,petscOptions(X),
-             petscMatrixName(X),petscOptionsPrefix(X)),
-  option(disable_threading),prelude {
-    int const bsz = *$petscBlockSize(X);
 
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-      
-    PetscErrorCode err =
-      $petscBlockedSolveBB(X)->
-      Create(
-             bsz, n, N, $petscMatrixName(X)->c_str(),
-             $petscOptionsPrefix(X)->c_str()
-             );
-    if(err) {
+    err1 = system.solution.SetValue(0.0) ;
+    if(err1) {
       $[Once] {
-        cerr << "Error creating PETSc solution vector for blocked system: " << err << endl;
+        cerr << "Error initializing PETSc solution vector for blocked system: "
+             << err1 << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    err = $petscBlockedSolveBB(X)->SetValue(0.0);
-    if(err) {
-      $[Once] {
-        cerr << "Error initializing PETSc solution vector for blocked system: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
+    *$petscBlockedSystemInit(X) = 1 ;
   } ;
 
-  $rule apply(petscBlockedSolveBB(X)<-petscBlockedSystem(X))[Loci::NullOp],
-  constraint(geom_cells),option(disable_threading),prelude {
-    PetscErrorCode err =
-      $petscBlockedSystem(X)->solver.Solve($petscBlockedSystem(X)->rhs,
-                                           *$petscBlockedSolveBB(X));
-    if(err) {
-      $[Once] {
-        cerr << "Error in PETSc blocked solve: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-
-  $rule pointwise(petscBlockedSolve(X)<-petscBlockedSolveBB(X),
-                  petscBlockSize(X)),
-  constraint(geom_cells,usePetscAssembly), option(disable_threading),
-  prelude {
-    PetscInt minRowNum, maxRowNum;
-    $petscBlockedSolveBB(X)->GetOwnershipRange(&minRowNum, &maxRowNum);
-    int const bsz = *$petscBlockSize(X) ;
-    $petscBlockedSolve(X).setVecSize(bsz);
-    PetscScalar * X_Copy;
-    $petscBlockedSolveBB(X)->GetArray(&X_Copy);
-    sequence::const_iterator cellPtr = seq.begin();
-    for(PetscInt row = minRowNum; row < maxRowNum; ++cellPtr) {
-      for(int i = 0; i < bsz; ++i, ++row) {
-        $petscBlockedSolve(X)[*cellPtr][i] = X_Copy[row-minRowNum];
-      }
-    }
-    $petscBlockedSolveBB(X)->RestoreArray(&X_Copy);
-  } ;
-  $type petscBlockedSystemCOO(X) blackbox<PetscBlockedSystem> ;
-  $rule unit(petscBlockedSystemCOO(X)<-petscBlockVecCoords(X),
-             petscBlockMatCoords(X),petscNumCell,
-             petscBlockSize(X), petscOptions(X),
+  $rule unit(petscBlockedSystemInit(X) <- petscCellToRow,
+             petscNumCell, petscMatNNZ, petscBlockSize(X),
+             upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+             petscBlockedSystem(X), petscOptions(X),
              petscMatrixName(X), petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
+  constraint(geom_cells, usePetscCOOAssembly), option(disable_threading),
   prelude {
-    int const bsz = *$petscBlockSize(X);
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSystem(X)) ;
 
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
-    }
-
-    vector<PetscInt> vec_rowidx = $petscBlockVecCoords(X)->rowidx;
-    vector<PetscInt> mat_rowidx = $petscBlockMatCoords(X)->rowidx;
-    vector<PetscInt> mat_colidx = $petscBlockMatCoords(X)->colidx;
-
-    PetscErrorCode err =
-      $petscBlockedSystemCOO(X)->
-      rhs.CreateCOO(
-                    bsz, n, N, $petscBlockVecCoords(X)->size, &vec_rowidx[0],
-                    $petscMatrixName(X)->c_str(),
-                    $petscOptionsPrefix(X)->c_str()
-                    );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSystemCOO(X)->
-      matrix.CreateCOO(
-                       bsz, n, N, $petscBlockMatCoords(X)->size,
-                       &mat_rowidx[0], &mat_colidx[0],
-                       $petscMatrixName(X)->c_str(),
-                       $petscOptionsPrefix(X)->c_str()
-                       );
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSystemCOO(X)->
-      solver.Create(1e-5, 1e-18, 100, $petscOptionsPrefix(X)->c_str());
-    if(err) {
-      $[Once] {
-        cerr << "Error creating PETSc blocked solver: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
-  
-
-  $rule apply(petscBlockedSystemCOO(X)<-petscVecEntities,petscMatEntities,
-              petscCellToRow,petscBlockSize(X),
-              upper->cr->petscCellToRow,lower->cl->petscCellToRow,
-              X_B,X_D,lower->X_L,upper->X_U)[Loci::NullOp],
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-  prelude {
     int const bsz = *$petscBlockSize(X) ;
-    int const bsz2 = bsz*bsz;
-    
-    size_t vec_size = $petscVecEntities->size*bsz;
-    size_t mat_size = $petscMatEntities->size*bsz2;
 
-    vector<PetscScalar> vec_values(vec_size, 0.0);
-    vector<PetscScalar> mat_values(mat_size, 0.0);
+    if(system.vector_size != bsz) {
+      system.vector_size = bsz ;
+      system.matrix.Clear() ;
+      system.rhs.Clear() ;
+      system.solver.Clear() ;
+      system.solution.Clear() ;
 
-    for(size_t i = 0; i < $petscVecEntities->size; ++i) {
-      for(int b = 0; b < bsz; ++b) {
-        vec_values[i*bsz+b] = $X_B[$petscVecEntities->entity[i]][b];
+      int const n = (*$petscNumCell)[Loci::MPI_rank] ;
+      int N = 0 ;
+      for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
+        N += (*$petscNumCell)[i] ;
       }
-    }
 
-    for(size_t i = $petscMatEntities->off[0]; i < $petscMatEntities->off[1]; ++i) {
-      for(int r = 0; r < bsz; ++r) {
-        for(int c = 0; c < bsz; ++c) {
-          mat_values[i*bsz2+c*bsz+r] = $X_D[$petscMatEntities->value_entity[i]][r][c];
+      size_t const vec_nnz = n*bsz ;
+      size_t const mat_nnz = (*$petscMatNNZ)*bsz*bsz ;
+
+      vector<PetscInt> vec_rowidx(vec_nnz) ;
+      vector<PetscInt> mat_rowidx(mat_nnz), mat_colidx(mat_nnz) ;
+
+      size_t vec_cnt = 0 ;
+      size_t mat_cnt = 0 ;
+      sequence::const_iterator iter = seq.begin() ;
+      while(iter != seq.end()) {
+        Entity cell = *iter ;
+        int const nl = $lower.num_elems(cell) ;
+        int const nu = $upper.num_elems(cell) ;
+
+        PetscInt rowidx = $petscCellToRow[cell]*bsz ;
+
+        for(int br = 0; br < bsz; ++br) {
+          for(int l = 0; l < nl; ++l) {
+            Entity fc = $lower[cell][l] ;
+            Entity lc = $cl[fc] ;
+            PetscInt colidx = $petscCellToRow[lc]*bsz ;
+            for(int bc = 0; bc < bsz; ++bc) {
+              mat_rowidx[mat_cnt] = rowidx+br ;
+              mat_colidx[mat_cnt] = colidx+bc ;
+              ++mat_cnt ;
+            }
+          }
+
+          for(int bc = 0; bc < bsz; ++bc) {
+            mat_rowidx[mat_cnt] = rowidx+br ;
+            mat_colidx[mat_cnt] = rowidx+bc ;
+            ++mat_cnt ;
+          }
+
+          vec_rowidx[vec_cnt++] = rowidx+br ;
+
+          for(int u = 0; u < nu; ++u) {
+            Entity fc = $upper[cell][u] ;
+            Entity rc = $cr[fc] ;
+            if($petscCellToRow[rc] != $petscCellToRow[cell]) {
+              PetscInt colidx = $petscCellToRow[rc]*bsz ;
+              for(int bc = 0; bc < bsz; ++bc) {
+                mat_rowidx[mat_cnt] = rowidx+br ;
+                mat_colidx[mat_cnt] = colidx+bc ;
+                ++mat_cnt ;
+              }
+            }
+          }
         }
-      }
-    }
 
-    for(size_t i = $petscMatEntities->off[1]; i < $petscMatEntities->off[2]; ++i) {
-      for(int r = 0; r < bsz; ++r) {
-        for(int c = 0; c < bsz; ++c) {
-          mat_values[i*bsz2+c*bsz+r] = $X_L[$petscMatEntities->value_entity[i]][r][c];
+        ++iter ;
+      }
+
+      PetscErrorCode err ;
+
+      err = system.rhs.CreateCOO(bsz, n, N, vec_nnz, &vec_rowidx[0],
+                                 $petscMatrixName(X)->c_str(),
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system rhs: " << err << endl ;
         }
+        Loci::Abort() ;
       }
-    }
 
-    for(size_t i = $petscMatEntities->off[2]; i < $petscMatEntities->off[3]; ++i) {
-      for(int r = 0; r < bsz; ++r) {
-        for(int c = 0; c < bsz; ++c) {
-          mat_values[i*bsz2+c*bsz+r] = $X_U[$petscMatEntities->value_entity[i]][r][c];
+      err = system.matrix.CreateCOO(bsz, n, N, mat_nnz,
+                                    &mat_rowidx[0], &mat_colidx[0],
+                                    $petscMatrixName(X)->c_str(),
+                                    $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system matrix: " << err << endl ;
         }
+        Loci::Abort() ;
+      }
+
+      err = system.solver.Create(1e-5, 1e-18, 100,
+                                 $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked solver: " << err << endl ;
+        }
+        Loci::Abort() ;
+      }
+
+      err = system.solution.CreateCOO(bsz, n, N, vec_nnz, &vec_rowidx[0],
+                                      $petscMatrixName(X)->c_str(),
+                                      $petscOptionsPrefix(X)->c_str()) ;
+
+      if(err) {
+        $[Once] {
+          cerr << "Error creating PETSc blocked system solution: " << err << endl ;
+        }
+        Loci::Abort() ;
       }
     }
 
-    PetscErrorCode err = $petscBlockedSystemCOO(X)->
-      rhs.SetValuesCOO(&vec_values[0]);
-    if(err) {
-      $[Once] {
-        cerr << "Error assigning values to PETSc blocked system rhs: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSystemCOO(X)->matrix.SetValuesCOO(&mat_values[0]);
-    if(err) {
-      $[Once] {
-        cerr << "Error assigning values to PETSc blocked system matrix: " << err << endl;
-      }
-      Loci::Abort();
-    }
-
-    err = $petscBlockedSystemCOO(X)->
-      solver.SetOperators($petscBlockedSystemCOO(X)->matrix);
-    if(err) {
-      $[Once] {
-        cerr << "Error setting PETSc blocked solver operator: " << err << endl;
-      }
-      Loci::Abort();
-    }
+    *$petscBlockedSystemInit(X) = 0 ;
   } ;
 
-  $type petscBlockedSolveCOOBB(X) blackbox<PetscBlockedVector> ;
-
-  $rule unit(petscBlockedSolveCOOBB(X)<-petscBlockSize(X),petscCellToRow,
-             petscNumCell,petscBlockVecCoords(X),petscOptions(X),
-             petscMatrixName(X),petscOptionsPrefix(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
+  $rule apply(petscBlockedSystemInit(X) <- petscCellToRow,
+              petscNumCell, petscMatNNZ, petscBlockSize(X),
+              upper->cr->petscCellToRow, lower->cl->petscCellToRow,
+              X_B, X_D, lower->X_L, upper->X_U,
+              petscBlockedSystem(X))[Loci::NullOp],
+  constraint(geom_cells, usePetscCOOAssembly), option(disable_threading),
   prelude {
-    int const bsz = *$petscBlockSize(X);
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSystem(X)) ;
 
-    int const n = (*$petscNumCell)[Loci::MPI_rank];
-    int N = 0 ;
-    for(size_t i = 0; i < (*$petscNumCell).size(); ++i) {
-      N += (*$petscNumCell)[i];
+    int const bsz = *$petscBlockSize(X) ;
+
+    size_t const vec_nnz = (*$petscNumCell)[MPI_rank]*bsz ;
+    size_t const mat_nnz = (*$petscMatNNZ)*bsz*bsz ;
+
+    vector<PetscScalar> vec_values(vec_nnz) ;
+    vector<PetscScalar> mat_values(mat_nnz) ;
+
+    size_t vec_cnt = 0 ;
+    size_t mat_cnt = 0 ;
+    sequence::const_iterator iter = seq.begin() ;
+    while(iter != seq.end()) {
+      Entity cell = *iter ;
+      int const nl = $lower.num_elems(cell) ;
+      int const nu = $upper.num_elems(cell) ;
+
+      for(int br = 0; br < bsz; ++br) {
+        vec_values[vec_cnt++] = $X_B[cell][br] ;
+      }
+
+      for(int br = 0; br < bsz; ++br) {
+        for(int l = 0; l < nl; ++l) {
+          Entity fc = $lower[cell][l] ;
+          for(int bc = 0; bc < bsz; ++bc) {
+            mat_values[mat_cnt++] = $X_L[fc][br][bc] ;
+          }
+        }
+
+        for(int bc = 0; bc < bsz; ++bc) {
+          mat_values[mat_cnt++] = $X_D[cell][br][bc] ;
+        }
+
+        for(int u = 0; u < nu; ++u) {
+          Entity fc = $upper[cell][u] ;
+          Entity rc = $cr[fc] ;
+          if($petscCellToRow[rc] != $petscCellToRow[cell]) {
+            for(int bc = 0; bc < bsz; ++bc) {
+              mat_values[mat_cnt++] = $X_U[fc][br][bc] ;
+            }
+          }
+        }
+      }
+
+      ++iter ;
     }
 
-    vector<PetscInt> rowidx = $petscBlockVecCoords(X)->rowidx;
+    PetscErrorCode err ;
 
-    PetscErrorCode err =
-      $petscBlockedSolveCOOBB(X)->
-      CreateCOO(
-                bsz, n, N, $petscBlockVecCoords(X)->size, &rowidx[0],
-                $petscMatrixName(X)->c_str(), $petscOptionsPrefix(X)->c_str()
-                );
+    err = system.rhs.SetValuesCOO(&vec_values[0]) ;
+
     if(err) {
       $[Once] {
-        cerr << "Error creating PETSc blocked solution vector: " << err << endl;
+        cerr << "Error assigning values to PETSc blocked system rhs: " << err << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
 
-    err = $petscBlockedSolveCOOBB(X)->SetValue(0.0);
+    err = system.matrix.SetValuesCOO(&mat_values[0]) ;
+
     if(err) {
       $[Once] {
-        cerr << "Error initializing PETSc blocked solution vector: " << err << endl;
+        cerr << "Error assigning values to PETSc blocked system matrix: " << err << endl ;
       }
-      Loci::Abort();
+      Loci::Abort() ;
     }
+
+    err = system.solver.SetOperators(system.matrix) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error setting PETSc blocked solver operator: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    err = system.solution.SetValue(0.0) ;
+
+    if(err) {
+      $[Once] {
+        cerr << "Error initializing PETSc blocked system solution vector: "
+             << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+
+    $petscBlockedSystemInit(X) = 1 ;
   } ;
 
-  $rule apply(petscBlockedSolveCOOBB(X)<-
-              petscBlockedSystemCOO(X))[Loci::NullOp],
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
-    prelude {
-    PetscErrorCode err =
-      $petscBlockedSystemCOO(X)->solver.Solve($petscBlockedSystemCOO(X)->rhs,
-                                              *$petscBlockedSolveCOOBB(X));
-    if(err) {
-      $[Once] {
-        cerr << "Error solving PETSc blocked system: " << err << endl;
-      }
-      Loci::Abort();
-    }
-  } ;
+  $type petscBlockedSolveBB(X) blackbox<int> ;
 
-  $rule pointwise(petscBlockedSolve(X)<-petscBlockedSolveCOOBB(X),
-                  petscBlockSize(X)),
-  constraint(geom_cells,usePetscCOOAssembly),option(disable_threading),
+  $rule unit(petscBlockedSolveBB(X)),
+  constraint(geom_cells), option(disable_threading),
   prelude {
-    PetscInt minRowNum, maxRowNum;
-    $petscBlockedSolveCOOBB(X)->GetOwnershipRange(&minRowNum, &maxRowNum);
-    int const bsz = *$petscBlockSize(X);
-    $petscBlockedSolve(X).setVecSize(bsz);
-    PetscScalar * X_Copy;
-    $petscBlockedSolveCOOBB(X)->GetArray(&X_Copy);
-    sequence::const_iterator cellPtr = seq.begin();
+    *$petscBlockedSolveBB(X) = 0 ;
+  } ;
+
+  $rule apply(petscBlockedSolveBB(X) <- petscBlockedSystemInit(X),
+              petscBlockedSystem(X))[Loci::NullOp],
+  constraint(geom_cells), option(disable_threading),
+  prelude {
+    PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSystem(X)) ;
+    PetscErrorCode err = system.solver.Solve(system.rhs, system.solution) ;
+    if(err) {
+      $[Once] {
+        cerr << "Error in PETSc blocked solve: " << err << endl ;
+      }
+      Loci::Abort() ;
+    }
+    *$petscBlockedSolveBB(X) = 1 ;
+  } ;
+
+  $rule pointwise(petscBlockedSolve(X) <- petscBlockedSolveBB(X),
+                  petscBlockedSystem(X), petscBlockSize(X)),
+  constraint(geom_cells), option(disable_threading),
+  prelude {
+    if(seq.size() == 0) return ;
+
+    PetscBlockedSystem const & system = *$petscBlockedSystem(X) ;
+
+    int const bsz = *$petscBlockSize(X) ;
+    $petscBlockedSolve(X).setVecSize(bsz) ;
+
+    PetscInt minRowNum, maxRowNum ;
+    system.solution.GetOwnershipRange(&minRowNum, &maxRowNum) ;
+
+    PetscScalar * X_Copy ;
+    system.solution.GetArray(&X_Copy) ;
+
+    sequence::const_iterator cellPtr = seq.begin() ;
     for(PetscInt row = minRowNum; row < maxRowNum; ++cellPtr) {
       for(int i = 0; i < bsz; ++i, ++row) {
-        $petscBlockedSolve(X)[*cellPtr][i] = X_Copy[row-minRowNum];
+        $petscBlockedSolve(X)[*cellPtr][i] = X_Copy[row-minRowNum] ;
       }
     }
-    $petscBlockedSolveCOOBB(X)->RestoreArray(&X_Copy);
+
+    system.solution.RestoreArray(&X_Copy) ;
   } ;
 
 } // end: namespace Loci
