@@ -45,60 +45,99 @@ $include "FVM.lh"
 $include "FVMOverset/overset.lh"
 
 namespace Loci {
+
+  /// Options list for specifying the motions of individual mesh components
   $rule optional(componentMotion),
     comments("Specify motions of individual mesh components") {
   }
 
-  $rule default(componentHierarchy),
-    comments("Specifies the parent/child relationships between components used for describing reference frames of component motion") {
+  /// Options list for specifying the parent/child relationships between
+  /// components. This is used to describe reference frames of component motion.
+  $rule default(componentHierarchy),comments("Specifies the parent/child "),
+  comments("relationships between components used for describing reference "),
+  comments("frames of component motion") {
   }
 
-  // Extract Parent and children ids from componentHierarcy Information
-  $type componentParents blackbox< vector<int> > ;
-  $type componentChildren blackbox< vector<vector<int> > > ;
 
-  // Parse componentHierarchy, componentRelationships_X contains names of all
-  // the parents of the current component.
+  //--------------------------------------------------------------------------
+  //--
+  //-- Extract Parent and children ids from componentHierarchy Information
+  //--
+  //--------------------------------------------------------------------------
+
+
+  /// Parse the componentHierarchy options list and fill the
+  /// componentRelationships_X string vector. componentRelationships_X contains
+  /// the names of all the parents of the current component. For a specific
+  /// component named X, the componentRelationships_X vector will be filled
+  /// such that it walks child->parent->grandparent->... to trace the entire
+  /// ancestry of component X.
+  ///
+  /// The componentHierarchy options list has a structure as follows:
+  /// componentHierarchy: <
+  ///   component1 = parent(component0),
+  ///   component2 = parent(component1),
+  ///   component3 = parent(component1),
+  ///   ...
+  /// >
   $rule blackbox(componentRelationships_X<-componentName_X,componentHierarchy),
-    parametric(volumeTag(X)), prelude {
+  parametric(volumeTag(X)), prelude {
     vector<string> tmp ;
     string tag = *$componentName_X ;
+
+    // Loop over the entire ancestry of the component
     while((*$componentHierarchy).optionExists(tag)) {
       string name ;
       Loci::options_list::arg_list value_list ;
       (*$componentHierarchy).getOption(tag,name,value_list) ;
+
+      // All options must be of the form parent(...)
       if(name != "parent") {
-        cerr << "unknown keyword, '" << name << "', in componentHierarchy!" << endl;
+        cerr << "unknown keyword, '" << name
+             << "', in componentHierarchy!" << endl;
         Loci::Abort() ;
       }
-      if(value_list.size() != 1 ||
-         value_list[0].type_of() != Loci::NAME) {
-        cerr << "parent takes single named argument in componentHierarchy!" << endl ;
+
+      // Can only have a single named argument to parent(...) and it must
+      // be a string.
+      if(value_list.size() != 1 || value_list[0].type_of() != Loci::NAME) {
+        cerr << "parent takes single named argument in componentHierarchy!"
+             << endl ;
         Loci::Abort() ;
       }
+
+      // Overwrite the current tag with the tag name of the parent.
       value_list[0].get_value(tag) ;
-      // Now tag is updated to parent!
+
+      // No tag can appear twice in the ancestry of a component.
       for(size_t i=0;i<tmp.size();++i)
         if(tmp[i] == tag) {
           cerr << "cycle in componentHierarchy!" << endl ;
           Loci::Abort() ;
         }
+
+      // Update the vector of ancestors for this component.
       tmp.push_back(tag) ;
     }
 
     *$componentRelationships_X = tmp ;
   } ;
 
-  // Initially componentParent is initialized to -1 (e.g. they are not a child)
+  /// Stores the parent id for each component.
+  $type componentParents blackbox< vector<int> > ;
+
+  /// Initialize componentParents to -1 (i.e. they are not a child)
   $rule unit(componentParents<-componentNameList), prelude {
     int sz = ($componentNameList)->size() ;
     vector<int> vtmp(sz,-1) ;
     (*$componentParents).swap(vtmp) ;
   } ;
 
-
-  $type componentID_X param<int> ;
-  $rule apply(componentParents<-componentRelationships_X,componentID_X,componentNameList)[Loci::NullOp],parametric(volumeTag(X)), prelude {
+  /// Convert component parent names to integer ids. If a component has a
+  /// chain of ancestors, only the "oldest" ancestor is recorded as the
+  /// parent ID.
+  $rule apply(componentParents<-componentRelationships_X,componentID_X,
+  componentNameList)[Loci::NullOp], parametric(volumeTag(X)), prelude {
     int rsz = ($componentRelationships_X)->size() ;
     if(rsz > 1) {
       cerr << "only one parent allowed" << endl ;
@@ -116,6 +155,8 @@ namespace Loci {
     }
   } ;
 
+  $type componentChildren blackbox< vector<vector<int> > > ;
+  /// Transpose the parent relationship to get child relationships
   $rule singleton(componentChildren<-componentParents) {
     int sz = $componentParents.size() ;
     // transpose structure to convert parent relationship to child
@@ -127,53 +168,67 @@ namespace Loci {
     $componentChildren.swap(children) ;
   }
 
+
+  //--------------------------------------------------------------------------
+  //--
+  //-- Populate the component motion types
+  //--
+  //--------------------------------------------------------------------------
+
   $type componentMotionTypes blackbox<std::set<std::string> > ;
 
-  $rule unit(componentMotionTypes<-componentMotion),prelude {
+  $rule unit(componentMotionTypes<-componentMotion), prelude {
     *$componentMotionTypes = std::set<std::string>() ;
   } ;
 
+  /// Insert the valid component motion types into the componentMotionTypes set
   $rule apply(componentMotionTypes)[Loci::NullOp],
-    constraint(UNIVERSE),prelude {
+  constraint(UNIVERSE), prelude {
     $componentMotionTypes->insert(string("rotation")) ;
     $componentMotionTypes->insert(string("servo")) ;
     $componentMotionTypes->insert(string("prescribed")) ;
     $componentMotionTypes->insert(string("stationary")) ;
   } ;
-    
-  
+
+
   $type componentRotation_X Constraint ;
   $type componentServo_X Constraint ;
   $type componentPrescribed_X Constraint ;
   $type componentStationary_X Constraint ;
-  $type volumeTag(X) param<string> ;
-  
-  $rule constraint(componentServo_X,componentRotation_X,componentPrescribed_X,componentStationary_X<-volumeTag(X),componentMotion,componentMotionTypes),
-    parametric(volumeTag(X)) {
+
+  /// Set the parametric constraints for the component motion types for each
+  /// component X. Only one type of component motion can be specified for each
+  /// component.
+  $rule constraint(componentServo_X,componentRotation_X,componentPrescribed_X,
+  componentStationary_X<-volumeTag(X),componentMotion,componentMotionTypes),
+  parametric(volumeTag(X)) {
     string tag = $volumeTag(X) ;
+
+    // Default all motion types to false for this component
     $componentRotation_X = EMPTY ;
     $componentPrescribed_X = EMPTY ;
     $componentStationary_X = EMPTY ;
     $componentServo_X = EMPTY ;
+
+    // Check if there is motion information for this component
     if($componentMotion.optionExists(tag)) {
       string name ;
       Loci::options_list::arg_list value_list ;
       if($componentMotion.getOptionValueType(tag) == Loci::NAME) {
-	$componentMotion.getOption(tag,name) ;
+	      $componentMotion.getOption(tag,name) ;
       } else if($componentMotion.getOptionValueType(tag) == Loci::FUNCTION) {
-	$componentMotion.getOption(tag,name,value_list) ;
+	      $componentMotion.getOption(tag,name,value_list) ;
       } else {
-	cerr << "unable to interpret '" << tag << "' in componentMotion" << endl ;
+	      cerr << "unable to interpret '" << tag << "' in componentMotion" << endl ;
       }
 
-
-      
+      // Check that the motion type is valid
       if($componentMotionTypes.find(name) == $componentMotionTypes.end()) {
-        cerr << "unknown component motion directive '" << name << "' for component '"
-             << tag << "'" << endl ;
+        cerr << "unknown component motion directive '" << name
+             << "' for component '" << tag << "'" << endl ;
         Loci::Abort() ;
       }
-        
+
       if(name == "rotation") {
         $componentRotation_X = ~EMPTY ;
       } else if(name == "servo") {
@@ -184,42 +239,63 @@ namespace Loci {
         $componentStationary_X = ~EMPTY ;
       }
     } else {
-      cerr << "No componentMotion information for component '" << tag << "'" << endl ;
+      cerr << "No componentMotion information for component '" << tag
+           << "'" << endl ;
       Loci::Abort() ;
     }
   }
 
-  // Compute spline derivatives
+
   void splineD(vector<real_t> &xp, const vector<real_t> &x,
                const vector<real_t> &t) {
     int n = x.size() ;
     vector<real_t> tmp(n) ;
     xp.swap(tmp) ;
+
+    // Fill derivatives at interior points
     for(int i=1;i<n-1;++i) {
+      // Use a centered difference to estimate the derivative
       const real_t dt1 = t[i+1]-t[i] ;
       const real_t dt2 = t[i]-t[i-1] ;
       const real_t dx1 = x[i+1]-x[i] ;
       const real_t dx2 = x[i]-x[i-1] ;
-      if(dt1 < 1e-33)
-        xp[i] = dx2/dt2 ;
-      else if(dt2 < 1e-33)
-        xp[i] = dx1/dt1 ;
-      else
+
+      // Check edge cases for intervals that are zero width in time
+      if(dt1 < 1e-33) {
+        xp[i] = dx2/dt2 ; // Use the second interval only
+      } else if(dt2 < 1e-33) {
+        xp[i] = dx1/dt1 ; // Use the first interval only
+      } else {
         xp[i] = (dx1+dx2)/(dt1+dt2) ;
+      }
     }
+
+    // Compute starting endpoint derivative
     real_t x1l = x[1]-x[0] ;
     real_t t1l = t[1]-t[0] ;
+
+    // Initial estimate using first interval only
     xp[0] = x1l/max<real_t>(t1l,1e-33) ;
+
+    // If there are more than 2 points, use a quadratic polynomial to estimate
+    // the derivative at the endpoint.
     if(n>2 && t1l > 1e-33) {
       real_t x2l = x[2]-x[0] ;
       real_t t2l = t[2]-t[0] ;
       if(t[2]-t[1] > 1e-33)
         xp[0] = (t2l*t2l*x1l-t1l*t1l*x2l)/(t1l*t2l*t2l-t2l*t1l*t1l) ;
     }
+
+    // Compute ending endpoint derivative
     int N = n-1 ;
     x1l = x[N-1]-x[N] ;
     t1l = t[N-1]-t[N] ;
+
+    // Initial estimate using last interval only
     xp[N] = x1l/t1l ;
+
+    // If there are more than 2 points, use a quadratic polynomial to estimate
+    // the derivative at the endpoint.
     if(n>2) {
       real_t t2l = t[N-2]-t[N] ;
       real_t x2l = x[N-2]-x[N] ;
@@ -266,12 +342,22 @@ namespace Loci {
     return xi ;
   }
 
+  /// Stationary motion class for components that do not move.
   class stationaryMotion : public motionType {
   public:
     stationaryMotion(std::string name, options_list &ol) {}
+
+    /// For stationary motion, the state flag (first element) is 1, and the
+    /// second element is unused and is set to 0.0.
     void initialState(vector<real_t> &state) const ;
+
+    /// For stationary motion, the state does not change in time. So this just
+    /// returns the input state.
     vector<real_t> advanceStateInTime(const vector<real_t> &state,
-				    const map<string,real_t> &vals) const ;
+				    const map<string,real_t> &motion_info) const ;
+
+    /// For stationary motion, the transform is the identity transform, which
+    /// is just the default componentXform.
     componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
@@ -283,7 +369,7 @@ namespace Loci {
   }
 
   vector<real_t> stationaryMotion::advanceStateInTime(const vector<real_t> &state,
-						    const map<string,real_t> &vals) const  {
+						    const map<string,real_t> &motion_info) const  {
     vector<real_t> tmp = state ;
     if(tmp.size() == 0) {
       initialState(tmp) ;
@@ -294,88 +380,116 @@ namespace Loci {
   componentXform stationaryMotion::getXform(const vector<real_t> &state) const {
     return componentXform() ;
   }
-     
+
+  /// Rotation motion class for components that are rotating as a rigid body.
   class rotationMotion : public motionType {
     vector3d<real_t> axis ;
     vector3d<real_t> center ;
     real_t speed ;
   public:
+    /// Extracts the axis, center, and speed of rotation from the options list.
     rotationMotion(std::string name, options_list &ol) ;
+
+    /// For rotational motion, the state flag (first element) is 2, and the
+    /// second element is the current angle of rotation in radians.
     void initialState(vector<real_t> &state) const  ;
+
     vector<real_t> advanceStateInTime(const vector<real_t> &state,
-				    const map<string,real_t> &vals) const ;
+				    const map<string,real_t> &motion_info) const ;
+
+    /// Given a state vector, returns a componentXform that describes the
+    ///
     componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
   rotationMotion::rotationMotion(std::string name, options_list &ol) {
-    vector3d<real_t> vec(1,0,0) ;
-    if(ol.optionExists("axis")) { 
+    vector3d<real_t> vec(1,0,0) ; // default of x-axis
+    if(ol.optionExists("axis")) {
       ol.getOptionUnits("axis","",vec) ;
       vec = vec/(norm(vec)+1e-30) ;
     } else {
       if(Loci::MPI_rank) {
-        cerr << "WARNING: " << name << ": Defaulting to x-axis in component rotation!" << endl ;
+        cerr << "WARNING: " << name
+             << ": Defaulting to x-axis in component rotation!" << endl ;
       }
     }
     axis = vec ;
 
-    center = vector3d<real_t>(0,0,0) ;
-    if(ol.optionExists("center")) { 
+    center = vector3d<real_t>(0,0,0) ; // default of origin
+    if(ol.optionExists("center")) {
       ol.getOptionUnits("center","m",center) ;
     } else {
       if(Loci::MPI_rank) {
-        cerr << "WARNING: " << name << ": Defaulting to origin for center of component rotation!" << endl ;
+        cerr << "WARNING: " << name
+             << ": Defaulting to origin for center of component rotation!"
+             << endl ;
       }
     }
 
-    speed = 0 ;
+    speed = 0 ; // default of 0 rad/s
     if(ol.optionExists("speed")) {
       ol.getOptionUnits("speed","rpm",speed) ;
       speed *= 2.*M_PI/60.;  //changes rpm to rad/s
     } else {
       if(Loci::MPI_rank) {
-        cerr << "FATAL:  No speed specified in componentMotion rotation specification for '" << name << "'" << endl ;
+        cerr << "FATAL: " << name
+             << ": No speed specified in componentMotion rotation specification!'"
+             << name << "'" << endl ;
         Loci::Abort() ;
       }
     }
   }
+
   void rotationMotion::initialState(vector<real_t> &state) const {
     vector<real_t> tmp(2) ;
     tmp[0] = 2 ; // 2 is for rotational motion
-    tmp[1] = 0 ;
+    tmp[1] = 0 ; // initial angle
     state = tmp ;
   }
 
   vector<real_t> rotationMotion::advanceStateInTime(const vector<real_t> &state,
-						  const std::map<string,real_t> &vals) const  {
+						  const std::map<string,real_t> &motion_info) const  {
     std::map<string,real_t>::const_iterator mi ;
     real_t dt = 0.0 ;
-    if((mi = vals.find("timeStep"))!=vals.end())
+    if((mi = motion_info.find("timeStep"))!=motion_info.end())
       dt = mi->second ;
     else {
-      cerr << "advanceStateinTime for rotationMotion expected  to find 'timeStep' in vals" << endl ;
+      cerr << "advanceStateInTime for rotationMotion expected to find "
+           << "'timeStep' in motion_info" << endl ;
       Loci::Abort() ;
     }
     vector<real_t> tmp = state ;
     if(tmp.size() == 0) {
       initialState(tmp) ;
     }
-    real_t dtheta = dt*speed ;
-    tmp[1] += dtheta ;
-    if(tmp[1] > 2.*M_PI)
+    real_t dtheta = dt*speed ; // change in angle over the timestep
+    tmp[1] += dtheta ; // Increment the total angle
+
+    // Keep angle within 0 to 2pi
+    if(tmp[1] > 2.*M_PI) {
       tmp[1] -= 2.*M_PI ;
-    if(tmp[1] < 0.0)
+    }
+    if(tmp[1] < 0.0) {
       tmp[1] += 2.*M_PI ;
+    }
     return tmp ;
   }
 
   componentXform rotationMotion::getXform(const vector<real_t> &state) const {
     const real_t angle = state[1] ;
+
+    // Built a rotation quaternion from axis of the object and the provided
+    // angle from the state vector.
     Quaternion rotation(axis,angle) ;
     const vector3d<real_t> cg = center ;
     componentXform xform ;
+
+    // Because this is a rigid body rotation about a fixed center, the new
+    // center is the same as the old center.
     xform.cg = cg ;
     xform.new_cg = cg ;
+
+    // Set the rotation quaternion
     xform.q = rotation ;
     return xform ;
   }
@@ -383,14 +497,31 @@ namespace Loci {
   class prescribedMotion : public motionType {
     motionSplines motion ;
   public:
+    /// Reads in the prescribed motion data from a file and fills the
+    /// motionSplines object. Assumes the file is named "motion_<name>.dat",
+    /// where <name> is the name of the component. The data in the file is
+    /// assumed to have the following format:
+    ///   <number of data points>
+    ///   time_0  x_0  y_0  z_0  q0_0  q1_0  q2_0  q3_0
+    ///   time_1  x_1  y_1  z_1  q0_1  q1_1  q2_1  q3_1
+    ///   ...
+    ///
+    /// Where time_i is the time at point i, (x_i,y_i,z_i) is the center of
+    /// gravity of the component at time_i, and (q0_i,q1_i,q2_i,q3_i) is the
+    /// quaternion representing the orientation of the component at time_i.
     prescribedMotion(std::string name, options_list &ol) ;
+
+    /// Creates a dummy state that marks the motion type only.
     void initialState(vector<real_t> &state) const  ;
+
     vector<real_t> advanceStateInTime(const vector<real_t> &state,
-				    const map<string,real_t> &vals) const ;
+				    const map<string,real_t> &motion_info) const ;
+
     componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
   prescribedMotion::prescribedMotion(std::string name, options_list &ol) {
+    // Rank 0 reads in the motion data and broadcasts to all other ranks
     if(Loci::MPI_rank==0) {
       string filename = "motion_" + name + ".dat" ;
       ifstream infile(filename.c_str(),ios::in) ;
@@ -403,7 +534,8 @@ namespace Loci {
       infile >> npnts ;
 
       if(npnts <= 1 || npnts > 10000000) {
-        cerr << "unreasonable number of points, " << npnts << ", in file '" << filename << "'." << endl ;
+        cerr << "unreasonable number of points, " << npnts << ", in file '"
+             << filename << "'." << endl ;
         cerr << "check file for validity"<< endl ;
         Loci::Abort() ;
       }
@@ -447,6 +579,7 @@ namespace Loci {
       motion.initialize(t,x,y,z,q0,q1,q2,q3) ;
     }
   }
+
   void prescribedMotion::initialState(vector<real_t> &state) const {
     vector<real_t> tmp(2) ;
     tmp[0] = 3 ; // three is for prescribed motion
@@ -455,13 +588,13 @@ namespace Loci {
   }
 
   vector<real_t> prescribedMotion::advanceStateInTime(const vector<real_t> &state,
-						  const std::map<string,real_t> &vals) const  {
+						  const std::map<string,real_t> &motion_info) const  {
     std::map<string,real_t>::const_iterator mi ;
     real_t dt = 0.0 ;
-    if((mi = vals.find("timeStep"))!=vals.end())
+    if((mi = motion_info.find("timeStep"))!=motion_info.end())
       dt = mi->second ;
     else {
-      cerr << "advanceStateinTime for prescribedMotion expected  to find 'timeStep' in vals" << endl ;
+      cerr << "advanceStateinTime for prescribedMotion expected  to find 'timeStep' in motion_info" << endl ;
       Loci::Abort() ;
     }
     vector<real_t> tmp = state ;
@@ -491,16 +624,19 @@ namespace Loci {
     string name ;
   public:
     servoMotion(std::string name, options_list &ol) ;
+
     void initialState(vector<real_t> &state) const  ;
+
     vector<real_t> advanceStateInTime(const vector<real_t> &state,
-				    const map<string,real_t> &vals) const ;
+				    const map<string,real_t> &motion_info) const ;
+
     componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
   servoMotion::servoMotion(std::string servoName, options_list &ol) {
     name = servoName ;
     vector3d<real_t> vec(1,0,0) ;
-    if(ol.optionExists("axis")) { 
+    if(ol.optionExists("axis")) {
       ol.getOptionUnits("axis","",vec) ;
       vec = vec/(norm(vec)+1e-30) ;
     } else {
@@ -511,7 +647,7 @@ namespace Loci {
     axis = vec ;
 
     center = vector3d<real_t>(0,0,0) ;
-    if(ol.optionExists("center")) { 
+    if(ol.optionExists("center")) {
       ol.getOptionUnits("center","m",center) ;
     } else {
       if(Loci::MPI_rank) {
@@ -528,13 +664,13 @@ namespace Loci {
   }
 
   vector<real_t> servoMotion::advanceStateInTime(const vector<real_t> &state,
-						 const std::map<string,real_t> &vals) const  {
+						 const std::map<string,real_t> &motion_info) const  {
     std::map<string,real_t>::const_iterator mi ;
     real_t val = 0.0 ;
-    if((mi = vals.find(name))!=vals.end())
+    if((mi = motion_info.find(name))!=motion_info.end())
       val = mi->second ;
     else {
-      cerr << "advanceStateinTime for servoMotion expected  to find '" << name << "' in vals" << endl ;
+      cerr << "advanceStateinTime for servoMotion expected  to find '" << name << "' in motion_info" << endl ;
       Loci::Abort() ;
     }
     vector<real_t> tmp = state ;
@@ -554,10 +690,14 @@ namespace Loci {
     xform.q = servo ;
     return xform ;
   }
-  
+
+  /// The active motionType for component X
   $type motionBehavior_X blackbox<Loci::CPTR<motionType> > ;
 
-  $rule singleton(motionBehavior_X <- componentMotion,componentName_X),constraint(componentStationary_X),parametric(volumeTag(X)),option(disable_threading) {
+  /// Set the motionBehavior_X for component X if the component is stationary.
+  $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
+  constraint(componentStationary_X), parametric(volumeTag(X)),
+  option(disable_threading) {
     string tag = $componentName_X ;
     string name ;
     Loci::options_list::arg_list value_list ;
@@ -565,13 +705,16 @@ namespace Loci {
       $componentMotion.getOption(tag,name,value_list) ;
     else
       $componentMotion.getOption(tag,name) ;
-    options_list ol ; 
+    options_list ol ;
     ol.Input(value_list) ; // Convert to an options list
     Loci::CPTR<motionType> ptr = new stationaryMotion(tag,ol) ;
     $motionBehavior_X = ptr ;
   }
 
-    $rule singleton(motionBehavior_X <- componentMotion,componentName_X),constraint(componentRotation_X),parametric(volumeTag(X)),option(disable_threading) {
+  /// Set the motionBehavior_X for component X if the component is rotational.
+  $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
+  constraint(componentRotation_X), parametric(volumeTag(X)),
+  option(disable_threading) {
     string tag = $componentName_X ;
     string name ;
     Loci::options_list::arg_list value_list ;
@@ -579,13 +722,16 @@ namespace Loci {
       $componentMotion.getOption(tag,name,value_list) ;
     else
       $componentMotion.getOption(tag,name) ;
-    options_list ol ; 
+    options_list ol ;
     ol.Input(value_list) ; // Convert to an options list
     Loci::CPTR<motionType> ptr = new rotationMotion(tag,ol) ;
     $motionBehavior_X = ptr ;
   }
 
-  $rule singleton(motionBehavior_X <- componentMotion,componentName_X),constraint(componentPrescribed_X),parametric(volumeTag(X)),option(disable_threading) {
+  /// Set the motionBehavior_X for component X if the component is prescribed.
+  $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
+  constraint(componentPrescribed_X), parametric(volumeTag(X)),
+  option(disable_threading) {
     string tag = $componentName_X ;
     string name ;
     Loci::options_list::arg_list value_list ;
@@ -593,13 +739,16 @@ namespace Loci {
       $componentMotion.getOption(tag,name,value_list) ;
     else
       $componentMotion.getOption(tag,name) ;
-    options_list ol ; 
+    options_list ol ;
     ol.Input(value_list) ; // Convert to an options list
     Loci::CPTR<motionType> ptr = new prescribedMotion(tag,ol) ;
     $motionBehavior_X = ptr ;
   }
 
-  $rule singleton(motionBehavior_X <- componentMotion,componentName_X),constraint(componentServo_X),parametric(volumeTag(X)),option(disable_threading) {
+  /// Set the motionBehavior_X for component X if the component is servo.
+  $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
+  constraint(componentServo_X), parametric(volumeTag(X)),
+  option(disable_threading) {
     string tag = $componentName_X ;
     string name ;
     Loci::options_list::arg_list value_list ;
@@ -607,14 +756,17 @@ namespace Loci {
       $componentMotion.getOption(tag,name,value_list) ;
     else
       $componentMotion.getOption(tag,name) ;
-    options_list ol ; 
+    options_list ol ;
     ol.Input(value_list) ; // Convert to an options list
     Loci::CPTR<motionType> ptr = new servoMotion(tag,ol) ;
     $motionBehavior_X = ptr ;
   }
 
+  /// Map that stores named pairs of entries that are used to advance a
+  /// component's motion. These entries are parsed by the motionType derived
+  /// classes to update a component's state.
   $type motionInfo blackbox<map<string,real_t> > ;
-  $rule unit(motionInfo),constraint(UNIVERSE),prelude {
+  $rule unit(motionInfo), constraint(UNIVERSE), prelude {
     map<string,real_t> tmp ;
     *$motionInfo = tmp ;
   } ;
@@ -622,13 +774,14 @@ namespace Loci {
   $rule unit(componentTransformMap),constraint(componentMotionData), prelude {
   } ;
 
-  $rule apply(componentTransformMap<-componentTransformsn_X,componentName_X)[Loci::NullOp],parametric(volumeTag(X)),option(disable_threading), prelude {
+  $rule apply(componentTransformMap<-componentTransformsn_X,componentName_X)
+  [Loci::NullOp], parametric(volumeTag(X)), option(disable_threading),
+  prelude {
     (*$componentTransformMap)[(*$componentName_X)] = (*$componentTransformsn_X) ;
   } ;
-  
+
   $rule singleton(componentTransforms_X<-componentMotionData,componentName_X,
-                  componentRelationships_X),
-    parametric(volumeTag(X)) {
+  componentRelationships_X), parametric(volumeTag(X)) {
     $componentTransforms_X.clear() ;
     componentXform xform ;
     map<string,componentXform>::const_iterator mi ;
@@ -654,7 +807,8 @@ namespace Loci {
 
   $type componentVectorRotation_X param<tensor3d<real_t> > ;
 
-  $rule singleton(componentVectorRotation_X<-componentTransformsn_X), parametric(volumeTag(X)) {
+  $rule singleton(componentVectorRotation_X<-componentTransformsn_X),
+  parametric(volumeTag(X)) {
     int sz = $componentTransformsn_X.size() ;
     vector3d<real_t> v = vector3d<real_t>(1,0,0) ;
     for(int i=0;i<sz;++i)

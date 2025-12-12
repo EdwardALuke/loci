@@ -277,7 +277,8 @@ namespace Loci {
   } ;
 
   /// Parse the componentGeometry options_list and fill the
-  /// componentGeometryData map.
+  /// componentGeometryData map. This map contains the names of the specified component
+  /// names and their specified geometry_types.
   $rule apply(componentGeometryData<-componentGeometry)[Loci::NullOp], prelude {
     Loci::options_list::option_namelist nl = ($componentGeometry)->getOptionNameList() ;
     Loci::options_list::option_namelist::const_iterator nli ;

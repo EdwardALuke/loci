@@ -29,6 +29,7 @@ $type componentMotionData blackbox<std::map<std::string,Loci::componentXform> > 
 $type componentPriority param<Loci::options_list> ;
 $type componentPriorityList param< std::vector<Loci::real_t> > ;
 
+$type componentID_X param<int> ;
 $type componentNameList blackbox<std::vector<std::string> > ;
 
 $type iblank store<Loci::byte_t> ;

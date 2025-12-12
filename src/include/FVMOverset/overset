@@ -35,21 +35,32 @@ namespace Loci {
   /// 2: don't simulate, instead interpolate values from a "cloud"
   /// 3: Don't simulate, advance values in time as constant function
 
+  /// Typedef for byte type used for iblank and other flags
   typedef unsigned char byte_t ;
+
+  /// Quaternion helper for rigid-body rotations. Stores the vector
+  /// part (x,y,z) and scalar part (w) and provides composition, inversion,
+  /// normalization, and vector rotation.
   struct Quaternion {
+    // Vector part (x,y,z) and scalar part (w) of the quaternion.
     real_t x,y,z,w ;
     Quaternion() {}
     Quaternion(real_t xi, real_t yi, real_t zi, real_t wi):x(xi),y(yi),z(zi),w(wi) {}
+
+    /// Axis-angle constructor. This creates a quaternion that represents a rotation
+    /// of 'angle' radians about the specified 'axis'.
     Quaternion(vector3d<real_t> axis, real_t angle) {
-      real_t sinAngle;
-      angle *= 0.5;
-      axis *= 1.0/(norm(axis)+1e-30) ;
-      sinAngle = sin(angle);
-      x = (axis.x * sinAngle);
-      y = (axis.y * sinAngle);
-      z = (axis.z * sinAngle);
-      w = cos(angle);
+      real_t sinAngle ;
+      angle *= 0.5 ; // half-angle for quaternion representation
+      axis *= 1.0/(norm(axis)+1e-30) ; // Make axis a unit length vector
+      sinAngle = sin(angle) ;
+      x = (axis.x * sinAngle) ;
+      y = (axis.y * sinAngle) ;
+      z = (axis.z * sinAngle) ;
+      w = cos(angle) ;
     }
+
+    // Compose two rotations: this * q.
     Quaternion operator*(const Quaternion &q) const {
       vector3d<real_t> vector1(x,y,z), vector2(q.x,q.y,q.z);
 
@@ -64,6 +75,8 @@ namespace Loci {
       result.w = angle;
       return result ;
     }
+
+    /// Normalize the quaternion to unit length.
     Quaternion &Normalize() {
       // reciprocal of the l2 norm
       const real_t rl2 = 1.0 / sqrt((x*x) + (y*y) + (z*z) + (w*w)) ;
@@ -74,6 +87,8 @@ namespace Loci {
       return *this ;
     }
 
+    /// For a unit quaternion, the inverse is just the conjugate (negate vector
+    /// part). This is the rotation that undoes this one.
     Quaternion Inverse() const {
       Quaternion result = *this ;
       result.x *= -1 ;
@@ -81,6 +96,9 @@ namespace Loci {
       result.z *= -1 ;
       return result ;
     }
+
+    // Rotate a vector by this quaternion. This is the mathematical operation
+    // v' = q*v*q^-1 where v is treated as a quaternion with w=0.
     vector3d<real_t> operator*(const vector3d<real_t> &v) const {
       const Quaternion Q = *this ;
       const Quaternion Qinv = Inverse() ;
@@ -91,9 +109,18 @@ namespace Loci {
     }
   } ;
 
+  /// Holds a transformation definition for a component. A transformation
+  /// consists of a rotation about a center of geometry and a translation to
+  /// a new center of geometry.
   struct componentXform {
+    /// Current center of geometry and new center of geometry
     vector3d<real_t> cg, new_cg ;
+
+    /// Rotation as a quaternion
     Quaternion q ;
+
+    /// Default constructor initializes to identity transform of no translation
+    /// and no rotation.
     componentXform() {
       cg = vector3d<real_t>(0,0,0) ;
       new_cg = vector3d<real_t>(0,0,0) ;
@@ -102,47 +129,76 @@ namespace Loci {
       q.z = 0 ;
       q.w = 1 ;
     }
+    /// Rotate pos about cg by q, then translate to new_cg. Returns the
+    /// transformed position.
     vector3d<real_t> applyXform(vector3d<real_t> pos) const {
       return (q*(pos-cg)) + new_cg ;
     }
+
+    /// Uses the overloaded Quaternion-vector multiplication to apply the
+    /// rotation to vec.
     vector3d<real_t> applyRotation(vector3d<real_t> vec) const {
       return q*vec ;
     }
   } ;
 
+  /// Streaming is not implemented for componentXform
   inline std::ostream &operator<<(std::ostream &s, const componentXform x) {
     Loci::Abort() ;
     return s ;
   }
+
+  /// Deserialization is not implemented for componentXform
   inline std::istream &operator>>(std::istream &s, const componentXform x) {
     Loci::Abort() ;
     return s ;
   }
-
+  /// Abstract base class for geometry types
   class geometry_type : public Loci::CPTR_type {
   public:
+    // Apply a transform to the geometry and return a new geometry object.
     virtual geometry_type *applyXform(componentXform xform) const = 0 ;
+
+    // Evaluate if a point is inside the geometry.
     virtual bool inGeometry(vector3d<real_t> pt) const = 0 ;
+
+    // Compute a distance from a point to the surface of the geometry.
     virtual real_t distToSurface(vector3d<real_t> pt) const = 0 ;
   } ;
 
+  /// Abstract base class for motion types
   class motionType : public Loci::CPTR_type {
   public:
-    /// Compute initial state
+    /// Compute initial state. The state vector contains the necessary
+    /// dynamic variables for the motion type. The first element of the state
+    /// vector encodes the motion type with (stationary=1,rotational=2,
+    /// prescribed=3,servo=4).
     virtual void initialState(std::vector<real_t> &state) const = 0 ;
-    /// Advance state in time (usually just timestep), sometimes angle
+
+    /// Advance state in time using the current state and a map of values
+    /// that encode information related to how the state should be advanced.
+    /// This would be a timeStep for example or a target position for servo
+    /// motion.
     virtual std::vector<real_t>
       advanceStateInTime(const std::vector<real_t> &state,
-			 const std::map<std::string,real_t> &vals) const = 0 ;
-    /// Get motion transform from current state
+			 const std::map<std::string,real_t> &motion_info) const = 0 ;
+
+    /// Get motion transform from a given state
     virtual componentXform getXform(const std::vector<real_t> &state) const = 0 ;
   } ;
 
   /// Find the time interval that we are splining
   int findt(const std::vector<real_t> &t, real_t tval) ;
-  /// Compute spline derivatives for hermite spline
+
+  /// Compute spline derivatives for a Hermite spline. Uses a central
+  /// difference for interior points and a quadratic fit to evaluate the
+  /// derivatives for endpoints.
+  ///   xp: output spline derivatives
+  ///   x: input spline positions
+  ///   t: input spline times
   void splineD(std::vector<real_t> &xp, const std::vector<real_t> &x,
                const std::vector<real_t> &t) ;
+
   /// cubic spline
   real_t spline(int ind,real_t tval,const std::vector<real_t> &t,
                 const std::vector<real_t> &x,
