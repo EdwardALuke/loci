@@ -199,7 +199,7 @@ int main(int ac, char *av[]) {
 
   if(Lref == "")
     Lref = "1 meter" ;
-  
+
   if(!isdigit(Lref[0])) {
     Lref = string("1") + Lref ;
   }
@@ -264,15 +264,15 @@ int main(int ac, char *av[]) {
 	gridfile.read((char *)&val,sizeof(val)) ;
 	if(val != 1)
 	  swapbytes = true ;
-	      
+
 	cout << "binary file " ;
 	if(swapbytes) {
 	  cout << " using swapbytes to correct endian form" ;
 	}
 	cout << endl ;
-	    
+
       }
-	
+
       do {
 	getline(gridfile,text) ;
       } while(!checkToken(text,"$EndMeshFormat")) ;
@@ -345,7 +345,7 @@ int main(int ac, char *av[]) {
 	READVAR(maxX) ;
 	READVAR(maxY) ;
 	READVAR(maxZ) ;
-	READVAR(numPhysicalTags) 
+	READVAR(numPhysicalTags)
 
 	for(size_t j=0;j<numPhysicalTags;++j) {
 	  int tags ;
@@ -362,7 +362,7 @@ int main(int ac, char *av[]) {
 	int surfTag ;
 	double minX,minY,minZ,maxX,maxY,maxZ ;
 	size_t numPhysicalTags ;
-	
+
 	READVAR(surfTag) ;
 	READVAR(minX) ;
 	READVAR(minY) ;
@@ -370,7 +370,7 @@ int main(int ac, char *av[]) {
 	READVAR(maxX) ;
 	READVAR(maxY) ;
 	READVAR(maxZ) ;
-	READVAR(numPhysicalTags) 
+	READVAR(numPhysicalTags)
 	physicalSurfaceTag[surfTag] = 0 ;
 	for(size_t j=0;j<numPhysicalTags;++j) {
 	  int val ;
@@ -395,7 +395,7 @@ int main(int ac, char *av[]) {
 	READVAR(maxX) ;
 	READVAR(maxY) ;
 	READVAR(maxZ) ;
-	READVAR(numPhysicalTags) 
+	READVAR(numPhysicalTags)
 
 	physicalVolumeTag[volTag] = 0 ;
 	for(size_t j=0;j<numPhysicalTags;++j) {
@@ -412,15 +412,15 @@ int main(int ac, char *av[]) {
 	  int val ;
 	  READVAR(val) ;
 	}
-	
+
       }
       do {
 	getline(gridfile,text) ;
       } while(!checkToken(text,"$EndEntities")) ;
 
-    }    
+    }
     if(checkToken(text,"$Nodes")) {
-      
+
       size_t numEntityBlocks=0 ;
 
       READVAR(numEntityBlocks) ;
@@ -521,7 +521,7 @@ int main(int ac, char *av[]) {
 	      } else {
 		cerr << "id=" << id << ",psid=" << psid << endl ;
 	      }
-	      
+
 	    }
 	    break ;
 	  case 3: // 4-node quadrangle
@@ -630,7 +630,7 @@ int main(int ac, char *av[]) {
 	  case 6: // 6 node prism
 	    {
 	      size_t id, pt1,pt2,pt3,pt4,pt5,pt6 ;
-	      
+
 	      READVAR(id) ;
 	      READVAR(pt1) ;
 	      READVAR(pt2) ;
@@ -818,7 +818,7 @@ int main(int ac, char *av[]) {
   }
 
   cout << "nquads=" << quad_equals.size() << endl ;
-  
+
 
   int ntria = tria_equals.size() ;
   int nquad = quad_equals.size() ;
@@ -832,7 +832,7 @@ int main(int ac, char *av[]) {
     facebase += facesizes[i] ;
 
   if(Loci::MPI_rank == 0) {
-    for(int i=0;i<MPI_processes;++i) 
+    for(int i=0;i<MPI_processes;++i)
       if(facesizes[i] == 0) {
 	cerr << "Run msh2vog with fewer than " << i << " processors for this mesh!" << endl ;
 	Loci::Abort() ;
@@ -846,7 +846,7 @@ int main(int ac, char *av[]) {
   }
   store<int> count ;
   Map cl,cr ;
-  
+
   cl.allocate(faces) ;
   cr.allocate(faces) ;
 
@@ -865,12 +865,12 @@ int main(int ac, char *av[]) {
   fc = facebase ;
   int ccerror = 0 ;
   int unmatched_boundary_faces = 0 ;
-  
+
   int i=0 ;
   for(size_t eq=0;eq<tria_equals.size();++eq) {
     int corner[3];
     if(tria[i].left) {
-      for(int j=0;j<3;++j) 
+      for(int j=0;j<3;++j)
 	corner[j] = tria[i].nodes[j] ;
     } else {
       for(int j=0;j<3;++j)
@@ -909,7 +909,7 @@ int main(int ac, char *av[]) {
       ccerror++ ;
     }
 
-    for(int j=0;j<4;++j) {
+    for(int j=0;j<3;++j) {
       face2node[fc][j] = corner[j] ;
     }
     fc++ ;
@@ -921,7 +921,7 @@ int main(int ac, char *av[]) {
   for(size_t eq=0;eq<quad_equals.size();++eq) {
     int corner[4];
     if(quad[i].left) {
-      for(int j=0;j<4;++j) 
+      for(int j=0;j<4;++j)
 	corner[j] = quad[i].nodes[j] ;
     } else {
       for(int j=0;j<4;++j)
@@ -969,7 +969,7 @@ int main(int ac, char *av[]) {
 
   if(unmatched_boundary_faces > 0) {
     cerr << "There were " << unmatched_boundary_faces << " boundary faces that were not matched!" << endl
-	 << "  ** Check the mesh to make sure all boundary faces are tagged." << endl 
+	 << "  ** Check the mesh to make sure all boundary faces are tagged." << endl
 	 << "  ** The vog file has given these faces the 1024 tag." << endl ;
   }
   if(ccerror > 0) {
@@ -989,7 +989,7 @@ int main(int ac, char *av[]) {
   for(std::map<int,string>::const_iterator mi=surfIds.begin();mi!=surfIds.end();++mi) {
     surf_ids.push_back(pair<int,string>(mi->first,mi->second)) ;
   }
-  
+
   VOG::colorMatrix(pos,cl,cr,face2node) ;
   MPI_Barrier(MPI_COMM_WORLD) ;
   //  if(MPI_rank == 0)
@@ -1005,4 +1005,4 @@ int main(int ac, char *av[]) {
   Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids) ;
   Loci::Finalize() ;
   return 0 ;
-}  
+}
