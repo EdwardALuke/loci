@@ -43,13 +43,14 @@ $include "FVMOverset/overset.lh"
 namespace Loci {
 
   $rule default(holeCuttingTolerance),
-    comments("Specifies the distance to surface that becomes ambiguous for "),
-    comments("determining which component is closest.") {
+  comments("Specifies the distance to surface that becomes ambiguous for "),
+  comments("determining which component is closest.") {
     $holeCuttingTolerance = 1e-3 ; // default 1mm
   }
 
+  /// Used to specify component priority in hole cutting.
   $rule default(componentPriority),
-    comments("Specifies component priority in hole cutting") {}
+  comments("Specifies component priority in hole cutting") {}
 
 
   //--------------------------------------------------------------------------
@@ -60,13 +61,16 @@ namespace Loci {
   //--------------------------------------------------------------------------
 
 
-  // Collect the names of the current components in the grids
+  /// Parametric rule to build the names of the components from the existing
+  /// grid volume tags.
   $type componentName_X blackbox<string> ;
   $rule blackbox(componentName_X<-volumeTag(X)),parametric(volumeTag(X)),
   prelude {
     *$componentName_X = *$volumeTag(X) ;
   } ;
 
+  /// Unit/apply rules to collect all component names into a single list.
+  /// Names are sorted.
   $rule unit(componentNameList),constraint(UNIVERSE) { }
 
   $rule apply(componentNameList<-componentName_X)[Loci::NullOp],
@@ -75,8 +79,8 @@ namespace Loci {
     std::sort((*$componentNameList).begin(),(*$componentNameList).end()) ;
   } ;
 
-  // Convert component names to integer id which is just the index in the
-  // componentNameList
+  /// Convert component names to integer id which is just the index in the
+  /// componentNameList.
   $rule singleton(componentID_X<-componentName_X,componentNameList),
   parametric(volumeTag(X)) {
     $componentID_X = -1 ;
@@ -88,7 +92,11 @@ namespace Loci {
     }
   }
 
-
+  /// Parse componentPriority option list to create a list of priorities for
+  /// hole-cutting based on componentNameList. componentPriority is an
+  /// options list with a set of component name=priority value pairs. This is
+  /// optional variable, and any components not specified get a default
+  /// priority of 1.0.
   $rule singleton(componentPriorityList<-componentNameList,componentPriority) {
     int sz = $componentNameList.size() ;
     vector<real_t> priorities(sz,1.0) ;
@@ -108,7 +116,7 @@ namespace Loci {
   $type componentID store<int> ;
   // Assign component ID to each cell
   $rule pointwise(componentID<-cellcenter,componentID_X),
-  constraint(volumeTag(X)),parametric(volumeTag(X)) {
+  constraint(volumeTag(X)), parametric(volumeTag(X)) {
     $componentID = $componentID_X ;
   }
 
@@ -141,8 +149,6 @@ namespace Loci {
   $type crossComponentDist_node store<float> ;
   $type crossComponentDistGrad_node store<vector3d<float> > ;
   $type crossComponentID_node store<int> ;
-
-  $type node2surf Map ;
 
   $type distanceFieldGradient store<vector3d<float> > ;
 

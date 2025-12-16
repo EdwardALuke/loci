@@ -19,17 +19,39 @@
 //#
 //#############################################################################
 $type node2surf Map ;
+
+// Used for parsing component definitions from input.
 $type componentMotion param<Loci::options_list> ;
 $type componentHierarchy param<Loci::options_list> ;
+
+/// Used to define analytic geometry for use in overset hole cutting from input.
 $type componentGeometry param<Loci::options_list> ;
+
+/// Map of component names to their associated transform sequence ancestry
+$type componentTransformMap blackbox<std::map<std::string,std::vector<Loci::componentXform> > > ;
+
+/// Map of component names to their associated motion definition defined by
+/// componentXform. Solvers provide the implementation of rules that output
+/// this variable.
+$type componentMotionData blackbox<std::map<std::string,Loci::componentXform> > ;
+
+/// Map of component geometry names to their associated geometry types. Used for hole-cutting.
 $type componentGeometryData blackbox<std::map<std::string, Loci::CPTR<Loci::geometry_type> > > ;
+
+/// List of geometry types for each componentGeometry, after the transformation
+/// sequences have been applied. Used for hole-cutting.
 $type componentGeometryList blackbox<std::vector<Loci::CPTR<Loci::geometry_type> > > ;
 
-$type componentMotionData blackbox<std::map<std::string,Loci::componentXform> > ;
+/// Component hole-cutting priority specification from input.
 $type componentPriority param<Loci::options_list> ;
-$type componentPriorityList param< std::vector<Loci::real_t> > ;
 
+/// Used to determine priority of components during hole cutting
+$type componentPriorityList param<std::vector<Loci::real_t> > ;
+
+/// Integer ID of each component, which is just its index in the componentNameList
 $type componentID_X param<int> ;
+
+/// Names of all components
 $type componentNameList blackbox<std::vector<std::string> > ;
 
 $type iblank store<Loci::byte_t> ;
@@ -44,21 +66,29 @@ $type crossComponentDist_node store<float> ;
 $type crossComponentDistGrad_node store<Loci::vector3d<float> > ;
 $type crossComponentID_node store<int> ;
 $type distanceFieldGradient store<Loci::vector3d<float> > ;
-$type componentTransformMap blackbox<std::map<std::string,std::vector<Loci::componentXform> > > ;
 
+/// Stores the component ID of a component that a node belongs to
 $type componentID_node store<int> ;
-$type componentPriorityList param<std::vector<Loci::real_t> > ;
 
-/// Used for parametric rule definitions
+/// For a component X, stores the the sequence of transform ancestry to
+/// associated with that component.
 $type componentTransforms_X param<std::vector<Loci::componentXform> > ;
+
+/// Used for storing component transform sequences ancestry for use in an
+/// iterative solvers. If componentTransforms_X is defined at the timestep
+/// level, n, this variable can be used to store the transforms at various
+/// stages of an iterative solve.
 $type componentTransformsn_X param<std::vector<Loci::componentXform> > ;
+
+$type componentName_X blackbox<std::string> ;
+$type componentNodes_X store<bool> ;
+$type componentRelationships_X blackbox<std::vector<std::string> > ;
+
+/// Constraints for component motion types
 $type componentRotation_X Constraint ;
 $type componentServo_X Constraint ;
 $type componentPrescribed_X Constraint ;
 $type componentStationary_X Constraint ;
-$type componentName_X blackbox<std::string> ;
-$type componentNodes_X store<bool> ;
-$type componentRelationships_X blackbox<std::vector<std::string> > ;
 
 /// For interface boundaries used in overset
 $type interface_BC Constraint ;

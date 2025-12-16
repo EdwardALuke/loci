@@ -64,28 +64,34 @@ namespace Loci {
       pt2=vector3d<real_t>(0,0,1) ;
       radius = 0 ;
       radius2 = 0 ;
-      rlen2 = 1;
+      rlen2 = 1 ;
     }
-    cylinder_type(vector3d<real_t> p1, vector3d<real_t> p2, real_t r) : pt1(p1),pt2(p2),radius(r)
-    { rlen2 = 1./dot(pt2-pt1,pt2-pt1) ; radius2 = r*r; }
+    cylinder_type(vector3d<real_t> p1, vector3d<real_t> p2, real_t r) :
+      pt1(p1),pt2(p2),radius(r) {
+
+      rlen2 = 1./dot(pt2-pt1,pt2-pt1) ;
+      radius2 = r*r ;
+    }
     geometry_type *applyXform(componentXform xform) const ;
     bool inGeometry(vector3d<real_t> pt) const ;
     real_t distToSurface(vector3d<real_t> pt) const ;
   } ;
 
+  /// Planar list geometry type specification
   class planelist_type : public geometry_type {
     std::vector<vector3d<real_t> > pts ;
     std::vector<vector3d<real_t> > normals ;
   public:
     planelist_type() {
     }
-    planelist_type(std::vector<vector3d<real_t> > &ps, std::vector<vector3d<real_t> > &ns) :
-      pts(ps),normals(ns) {}
+    planelist_type(std::vector<vector3d<real_t> > &ps,
+                   std::vector<vector3d<real_t> > &ns) : pts(ps),normals(ns) {}
     geometry_type *applyXform(componentXform xform) const ;
     bool inGeometry(vector3d<real_t> pt) const ;
     real_t distToSurface(vector3d<real_t> pt) const ;
   } ;
 
+  /// Spherical geometry type specification
   class sphere_type : public geometry_type {
     vector3d<real_t> center ;
     real_t radius ;
@@ -96,27 +102,32 @@ namespace Loci {
       radius = 0 ;
       radius2 = 0 ;
     }
-    sphere_type(vector3d<real_t> c,real_t r) : center(c),radius(r)
-    { radius2 = r*r; }
+    sphere_type(vector3d<real_t> c,real_t r) : center(c),radius(r) {
+      radius2 = r*r ;
+    }
     geometry_type *applyXform(componentXform xform) const ;
     bool inGeometry(vector3d<real_t> pt) const ;
     real_t distToSurface(vector3d<real_t> pt) const ;
   } ;
 
+  /// Body of revolution geometry type specification
   class revolution_type : public geometry_type {
-    vector3d<real_t> p1,p2 ;
+    vector3d<real_t> p1,p2 ; // revolution axis endpoints
     real_t rlen2 ; // reciprocal of len(pt1-pt2)^2
-    std::vector<pair<real_t,real_t> > radius_pairs ;
+    vector<pair<real_t,real_t> > radius_pairs ;
   public:
     revolution_type() {
       p1=vector3d<real_t>(0,0,0) ;
       p2=vector3d<real_t>(0,0,0) ;
     }
-    revolution_type(vector3d<real_t> p1i, vector3d<real_t> p2i,
-                    std::vector<pair<real_t,real_t> > rp ) : p1(p1i),p2(p2i),
-                                                        radius_pairs(rp)
-    { std::sort(radius_pairs.begin(),radius_pairs.end()) ;
-      rlen2 = 1./dot(p2-p1,p2-p1) ; }
+    revolution_type(vector3d<real_t> p1i,
+                   vector3d<real_t> p2i,
+                   vector<pair<real_t,real_t> > rp ) :
+        p1(p1i),p2(p2i),radius_pairs(rp)
+    {
+      std::sort(radius_pairs.begin(),radius_pairs.end()) ;
+      rlen2 = 1./dot(p2-p1,p2-p1) ;
+    }
     geometry_type *applyXform(componentXform xform) const ;
     bool inGeometry(vector3d<real_t> pt) const ;
     real_t distToSurface(vector3d<real_t> pt) const ;
@@ -206,16 +217,18 @@ namespace Loci {
   bool sphere_type::inGeometry(vector3d<real_t> pt) const {
     vector3d<real_t> p = pt-center ;
     real_t r2 = dot(p,p) ;
-    if(r2 < radius2)
+    if(r2 < radius2) {
       return true ;
+    }
     return false ;
   }
 
   real_t sphere_type::distToSurface(vector3d<real_t> pt) const {
     vector3d<real_t> p = pt-center ;
     real_t r2 = dot(p,p) ;
-    if(r2 < radius2)
+    if(r2 < radius2) {
       return 0 ;
+    }
     return sqrt(r2)-radius ;
   }
 
@@ -228,21 +241,25 @@ namespace Loci {
   bool revolution_type::inGeometry(vector3d<real_t> pt) const {
     vector3d<real_t> p = pt-p1 ;
     real_t t = dot(p,p2-p1)*rlen2 ;
-    if(t < 0 || t > 1)
+    if(t < 0 || t > 1) {
       return false ;
+    }
+
     vector3d<real_t> v = t*(p2-p1) ;
     real_t r = 0 ;
-    for(size_t i=1;i<radius_pairs.size();++i)
+    for(size_t i=1;i<radius_pairs.size();++i) {
       if(t >= radius_pairs[i-1].first && t < radius_pairs[i].first) {
         real_t t1 = radius_pairs[i-1].first ;
         real_t t2 = radius_pairs[i].first ;
         real_t w = (t1-t)/(t1-t2) ;
         r = radius_pairs[i-1].second*(1.-w)+radius_pairs[i].second*w ;
       }
+    }
 
     real_t r2axis = dot(v-p,v-p) ;
-    if(r2axis < r*r)
+    if(r2axis < r*r) {
       return true ;
+    }
     return false ;
   }
 
@@ -271,15 +288,16 @@ namespace Loci {
   }
 
 
-  $type componentGeometryData blackbox<map<string, Loci::CPTR<geometry_type> > > ;
+  /// Unit/apply rules to parse the componentGeometry options_list and fill the
+  /// componentGeometryData map. This map contains the names of the specified
+  /// component geometry names and their specified geometry_types. This is a
+  /// rule that is used for hole cutting purposes.
   $rule unit(componentGeometryData),constraint(UNIVERSE), prelude {
     *$componentGeometryData = map<string,Loci::CPTR<geometry_type> >() ;
   } ;
 
-  /// Parse the componentGeometry options_list and fill the
-  /// componentGeometryData map. This map contains the names of the specified component
-  /// names and their specified geometry_types.
-  $rule apply(componentGeometryData<-componentGeometry)[Loci::NullOp], prelude {
+  $rule apply(componentGeometryData<-componentGeometry)[Loci::NullOp],
+  prelude {
     Loci::options_list::option_namelist nl = ($componentGeometry)->getOptionNameList() ;
     Loci::options_list::option_namelist::const_iterator nli ;
     for(nli=nl.begin();nli!=nl.end();++nli) {
@@ -295,20 +313,23 @@ namespace Loci {
         bool fail = false ;
         if(ol.optionExists("p1")) {
           ol.getOptionUnits("p1","meter",p1) ;
-        } else
+        } else {
           fail = true ;
+        }
 
         vector3d<real_t> p2(0,0,0) ;
         if(ol.optionExists("p2")) {
           ol.getOptionUnits("p2","meter",p2) ;
-        } else
+        } else {
           fail = true ;
+        }
 
         real_t radius = 0 ;
         if(ol.optionExists("radius")) {
           ol.getOptionUnits("radius","meter",radius) ;
-        } else
+        } else {
           fail = true ;
+        }
 
         if(fail) {
           cerr << "warning, component geometry for " << tag
@@ -316,7 +337,7 @@ namespace Loci {
         }
         Loci::CPTR<geometry_type> cyl = new cylinder_type(p1,p2,radius) ;
 
-	$[Once] {
+	      $[Once] {
           cout << "creating geometry for '" << name << "' radius = "
                << radius << endl ;
         }
@@ -326,14 +347,16 @@ namespace Loci {
         bool fail = false ;
         if(ol.optionExists("center")) {
           ol.getOptionUnits("center","meter",p1) ;
-        } else
+        } else {
           fail = true ;
+        }
 
         real_t radius = 0 ;
         if(ol.optionExists("radius")) {
           ol.getOptionUnits("radius","meter",radius) ;
-        } else
+        } else {
           fail = true ;
+        }
 
         if(fail) {
           cerr << "warning, component geometry for " << tag
@@ -341,26 +364,28 @@ namespace Loci {
         }
         Loci::CPTR<geometry_type> sph = new sphere_type(p1,radius) ;
 
-
-	$[Once] {
+	      $[Once] {
           cout << "creating geometry for '" << tag << "' " << name
-               << " radius = " << radius << endl ;
+               << " radius = " << radius << ", center = " << p1 << endl ;
         }
         (*$componentGeometryData)[tag] = sph ;
       } else if(name=="revolution") {
         vector3d<real_t> p1(0,0,0) ;
-	bool fail = false ;
+	      bool fail = false ;
         if(ol.optionExists("p1")) {
           ol.getOptionUnits("p1","meter",p1) ;
-        } else
+        } else {
           fail = true ;
+        }
 
         vector3d<real_t> p2(0,0,0) ;
         if(ol.optionExists("p2")) {
           ol.getOptionUnits("p2","meter",p2) ;
-        } else
+        } else {
           fail = true ;
+        }
 
+        // For a revolution, a series of radius value and offset values are needed
         vector<real_t> radius ;
         vector<real_t> offsets ;
         if(ol.optionExists("radius")) {
@@ -393,8 +418,10 @@ namespace Loci {
                    << tag << "'" << endl ;
               Loci::Abort() ;
             }
-        } else
-	  fail = true ;
+        } else {
+	        fail = true ;
+        }
+
         if(ol.optionExists("offsets")) {
           Loci::option_value_type ovt= ol.getOptionValueType("offsets") ;
           if(ovt != Loci::LIST) {
@@ -415,18 +442,23 @@ namespace Loci {
                    << tag << "'" << endl ;
               Loci::Abort() ;
             }
-        } else
-	  fail = true ;
-	if(fail) {
-	  cerr << "component revolution needs to have a specified "
-         << " 'p1', 'p2', 'radius', 'offsets'." <<endl ;
-	  Loci::Abort() ;
-	}
+        } else {
+	        fail = true ;
+        }
+
+        if(fail) {
+          cerr << "component revolution needs to have a specified "
+              << " 'p1', 'p2', 'radius', 'offsets'." <<endl ;
+          Loci::Abort() ;
+        }
+
         if(radius.size() != offsets.size()) {
           cerr << "radius and offset should have same number of entries in "
                << "geometry for component '" << tag << "'" << endl ;
           Loci::Abort() ;
         }
+
+        // Create the radius-offset pairs
         int sz = radius.size() ;
         vector<pair<real_t,real_t> > vrad(sz) ;
         for(int i=0;i<sz;++i) {
@@ -449,6 +481,7 @@ namespace Loci {
                  << "' must be a list" << endl ;
             Loci::Abort() ;
           }
+
           Loci::options_list::arg_list value_list ;
           ol.getOption("list",value_list) ;
           int sz = value_list.size() ;
@@ -505,10 +538,14 @@ namespace Loci {
   } ;
 
 
-  // Default, there is no component motion, so the geometry list
-  // is just copied from the geometry data
+  /// Unit/apply rule to fill the list of geometry_types for each component.
+  /// Default is specified here in the unit rule where if there is no
+  /// component motion, the geometry list is just copied from the geometry
+  /// data. This variable is related to the componentGeometry in the sense that
+  /// it is tracking the transformations applied to the analytic geometry
+  /// types for use with hole cutting.
   $rule unit(componentGeometryList<-componentNameList,componentGeometryData),
-    prelude {
+  prelude {
     vector<Loci::CPTR<geometry_type> > tmp ;
     for(size_t i=0;i<(*$componentNameList).size();++i) {
       map<string,Loci::CPTR<geometry_type> >::const_iterator mi ;
@@ -522,7 +559,7 @@ namespace Loci {
     }
     (*$componentGeometryList) = tmp ;
 
-    // Check to make sure that every geometry
+    // Check to make sure that every geometry specified is in the componentNameList
     map<string,Loci::CPTR<geometry_type> >::const_iterator mi ;
     for(mi=(*$componentGeometryData).begin();
         mi!=(*$componentGeometryData).end(); ++mi) {
@@ -533,6 +570,7 @@ namespace Loci {
           found = true ;
         }
       }
+
       if(!found) {
 	      $[Once] {
           cerr << "componentGeometry id='" << geo_name
@@ -554,10 +592,14 @@ namespace Loci {
   $rule apply(componentGeometryList<-componentNameList,componentGeometry)
   [Loci::NullOp], prelude { } ;
 
-  // If there is motion, replace the geometry with the transformed geometry
+  /// If there is motion, replace the component geometry provided by the stationary
+  /// componentGeometryData with the transformed analytical component geometry. This
+  /// is used for hole-cutting purposes.
   $rule apply(componentGeometryList<-componentNameList,componentGeometryData,
   componentTransformMap)[Loci::NullOp], prelude {
     vector<Loci::CPTR<geometry_type> > tmp ;
+
+    // Loop over each component
     for(size_t i=0;i<(*$componentNameList).size();++i) {
       map<string,Loci::CPTR<geometry_type> >::const_iterator mi ;
       mi = (*$componentGeometryData).find((*$componentNameList)[i]) ;
