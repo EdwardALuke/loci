@@ -335,13 +335,15 @@ namespace Loci {
           cerr << "warning, component geometry for " << tag
                << " must specify p1, p2, and radius"<< endl ;
         }
-        Loci::CPTR<geometry_type> cyl = new cylinder_type(p1,p2,radius) ;
 
-	      $[Once] {
-          cout << "creating geometry for '" << name << "' radius = "
-               << radius << endl ;
+        $[Once] {
+          cout << "creating geometry for '" << tag << "' : " << name
+               << ", radius = " << radius << ", p1 = " << p1 << ", p2 = " << p2
+               << endl ;
         }
+        Loci::CPTR<geometry_type> cyl = new cylinder_type(p1,p2,radius) ;
         (*$componentGeometryData)[tag] = cyl ;
+
       } else if(name == "sphere") {
         vector3d<real_t> p1(0,0,0) ;
         bool fail = false ;
@@ -362,13 +364,14 @@ namespace Loci {
           cerr << "warning, component geometry for " << tag
                << " must specify center and radius"<< endl ;
         }
-        Loci::CPTR<geometry_type> sph = new sphere_type(p1,radius) ;
 
 	      $[Once] {
-          cout << "creating geometry for '" << tag << "' " << name
-               << " radius = " << radius << ", center = " << p1 << endl ;
+          cout << "creating geometry for '" << tag << "' : " << name
+               << ", radius = " << radius << ", center = " << p1 << endl ;
         }
+        Loci::CPTR<geometry_type> sph = new sphere_type(p1,radius) ;
         (*$componentGeometryData)[tag] = sph ;
+
       } else if(name=="revolution") {
         vector3d<real_t> p1(0,0,0) ;
 	      bool fail = false ;
@@ -398,7 +401,7 @@ namespace Loci {
           Loci::options_list::arg_list value_list ;
           ol.getOption("radius",value_list) ;
           int sz = value_list.size() ;
-          for(int i=0;i<sz;++i)
+          for(int i=0;i<sz;++i) {
             if(value_list[i].type_of() == Loci::UNIT_VALUE) {
               Loci::UNIT_type vu ;
               value_list[i].get_value(vu) ;
@@ -418,6 +421,7 @@ namespace Loci {
                    << tag << "'" << endl ;
               Loci::Abort() ;
             }
+          }
         } else {
 	        fail = true ;
         }
@@ -432,7 +436,7 @@ namespace Loci {
           Loci::options_list::arg_list value_list ;
           ol.getOption("offsets",value_list) ;
           int sz = value_list.size() ;
-          for(int i=0;i<sz;++i)
+          for(int i=0;i<sz;++i) {
             if(value_list[i].type_of() == Loci::REAL) {
               real_t o =0 ;
               value_list[i].get_value(o) ;
@@ -442,6 +446,7 @@ namespace Loci {
                    << tag << "'" << endl ;
               Loci::Abort() ;
             }
+          }
         } else {
 	        fail = true ;
         }
@@ -464,6 +469,15 @@ namespace Loci {
         for(int i=0;i<sz;++i) {
           vrad[i].first = offsets[i] ;
           vrad[i].second = radius[i] ;
+        }
+
+        $[Once] {
+          cout << "creating geometry for '" << tag << "' : " << name
+               << ", p1 = " << p1 << ", p2 = " << p2 << ", radius-offset pairs = " ;
+          for(int i=0;i<sz;++i) {
+            cout << " ( " << vrad[i].first << " , " << vrad[i].second << " ) " ;
+          }
+          cout << endl ;
         }
 
         Loci::CPTR<geometry_type> rph = new revolution_type(p1,p2,vrad) ;
@@ -520,6 +534,15 @@ namespace Loci {
             normals.push_back(nl) ;
           }
 
+          $[Once] {
+            cout << "creating geometry for '" << tag << "' : " << name
+                 << ", number of planes = " << points.size() << ", planes = " ;
+            for(size_t i=0;i<points.size();++i) {
+              cout << " ( p = " << points[i] << ", n = " << normals[i] << " ) " ;
+            }
+            cout << endl ;
+          }
+
           Loci::CPTR<geometry_type> ph = new planelist_type(points,normals) ;
           (*$componentGeometryData)[tag] = ph ;
 
@@ -530,7 +553,8 @@ namespace Loci {
         }
       }
       else {
-        cerr << "unknown geometry type " << name << endl ;
+        cerr << "unknown geometry type " << name << " for component '"
+             << tag << "'" << endl ;
         Loci::Abort() ;
       }
     }
