@@ -36,24 +36,26 @@ $include "flowPsi.lh"
 
 namespace flowPsi {
 
-  $rule default(plot_modulo),
-    comments("Plot files are output indexed by the iteration number modulo this parameter. "), 
-    comments("A zero indicates that the files will be indexed only by iteration number.") 
-  {
+  /// Plot files are output indexed by the iteration number modulo this parameter.
+  /// A zero indicates that the files will be indexed only by iteration number.
+  $rule default(plot_modulo) {
       $plot_modulo = 0 ;
-  } 
+  }
 
-  $rule default(plot_freq),
-    comments("Output plot files whenever the timestep number is divisible by this input.") 
-  {  $plot_freq=1000 ; }
+  /// Output plot files whenever the timestep number is divisible by this input.
+  $rule default(plot_freq) {
+    $plot_freq=1000 ;
+  }
 
-  $rule default(plot_output),comments("List extra optional variables to output in this input.") {
+  /// List extra optional variables to output in this input.
+  $rule default(plot_output) {
     $plot_output.namelist = "" ;
   }
 
-  $rule default(plot_output_exclusive), comments("List output variables here to disable default varaible outputs.") {
+  /// List output variables here to disable default variable outputs.
+  $rule default(plot_output_exclusive) {
     $plot_output_exclusive.namelist = "" ;
-  }    
+  }
 
   $type c2nD_scalar_sum(X) store<double> ;
 
@@ -65,23 +67,23 @@ namespace flowPsi {
 	      (upper,lower,boundary_map)->face2node->pos,cellcenter,X)[Loci::Summation],
     constraint(geom_cells) {
     int sztot = 0 ;
-    
+
     for(const Entity *fi=$upper.begin();fi!=$upper.end();++fi)
       sztot += fi->$face2node.size() ;
-    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi) 
+    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi)
       sztot += fi->$face2node.size() ;
-    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi) 
+    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi)
       sztot += fi->$face2node.size() ;
-    
+
     vector<Entity> node_list(sztot) ;
     int cnt = 0 ;
     for(const Entity *fi=$upper.begin();fi!=$upper.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
-    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi) 
+    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
-    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi) 
+    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
 
@@ -94,7 +96,7 @@ namespace flowPsi {
       const real weight = 1./norm($*pos[nd]-$cellcenter) ;
       join($*c2nD_scalar_sum(X)[nd],realToDouble($X*weight)) ;
     }
-  } 
+  }
 
   $type nodalw_sumD store<double> ;
 
@@ -104,23 +106,23 @@ namespace flowPsi {
 
   $rule apply((upper,lower,boundary_map)->face2node->nodalw_sumD<-(upper,lower,boundary_map)->face2node->nodalw_sumD,cellcenter,(upper,lower,boundary_map)->face2node->pos)[Loci::Summation],constraint(geom_cells) {
     int sztot = 0 ;
-    
+
     for(const Entity *fi=$upper.begin();fi!=$upper.end();++fi)
       sztot += fi->$face2node.size() ;
-    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi) 
+    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi)
       sztot += fi->$face2node.size() ;
-    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi) 
+    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi)
       sztot += fi->$face2node.size() ;
-    
+
     vector<Entity> node_list(sztot) ;
     int cnt = 0 ;
     for(const Entity *fi=$upper.begin();fi!=$upper.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
-    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi) 
+    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
-    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi) 
+    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
 
@@ -139,7 +141,7 @@ $type cell2nodeD(X) store<double> ;
   $rule pointwise(cell2nodeD(X)<-c2nD_scalar_sum(X),nodalw_sumD),constraint(pos) {
     double rsum = 1./(double($nodalw_sumD)+1e-20) ;
     $cell2nodeD(X) = $c2nD_scalar_sum(X)*rsum ;
-  }   
+  }
 
   $type boundary_scalar_sumD(X) store<double> ;
   $rule unit(boundary_scalar_sumD(X)), constraint(pos) {
@@ -158,7 +160,7 @@ $type cell2nodeD(X) store<double> ;
   }
 
   $type boundary_nodalw_sumD store<double> ;
-  
+
   $rule unit(boundary_nodalw_sumD),constraint(pos) {
     $boundary_nodalw_sumD = 0 ;
   }
@@ -179,34 +181,34 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
   }
 
   $type c2nD_v3d_sum(X) store<vector3d<double> > ;
-  
+
   $rule unit(c2nD_v3d_sum(X)),constraint(pos) {
     $c2nD_v3d_sum(X) = vector3d<double>(0.,0.,0.) ;
   }
 
   $type V store<vect3d> ;
-  
+
   $rule apply((upper,lower,boundary_map)->face2node->c2nD_v3d_sum(V)<-
 	      V,cellcenter,(upper,lower,boundary_map)->face2node->pos)[Loci::Summation],
     constraint(geom_cells) {
     int sztot = 0 ;
-    
+
     for(const Entity *fi=$upper.begin();fi!=$upper.end();++fi)
       sztot += fi->$face2node.size() ;
-    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi) 
+    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi)
       sztot += fi->$face2node.size() ;
-    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi) 
+    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi)
       sztot += fi->$face2node.size() ;
-    
+
     vector<Entity> node_list(sztot) ;
     int cnt = 0 ;
     for(const Entity *fi=$upper.begin();fi!=$upper.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
-    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi) 
+    for(const Entity *fi=$lower.begin();fi!=$lower.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
-    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi) 
+    for(const Entity *fi=$boundary_map.begin();fi!=$boundary_map.end();++fi)
       for(const Entity *ni=fi->$face2node.begin();ni!=fi->$face2node.end();++ni)
         node_list[cnt++] = *ni ;
 
@@ -230,13 +232,13 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     $cell2nodeD_v3d(V) = $c2nD_v3d_sum(V)*rsum ;
   }
   $type boundary_v3d_sumD(V) store<vector3d<double> > ;
-  
+
   $rule unit(boundary_v3d_sumD(V)),constraint(pos) {
     $boundary_v3d_sumD(V) = vector3d<double>(0.0,0.0,0.0) ;
   }
 
   $type V_f store<vect3d> ;
-  
+
   $rule apply(face2node->boundary_v3d_sumD(V)<-face2node->pos,V_f,facecenter)[Loci::Summation],constraint(ci,no_symmetry_BC) {
     int fsz = $face2node.size();
     for(int i=0;i<fsz;++i) {
@@ -258,7 +260,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
 
   variableOperatorList::listset *variableOperatorList::varlist = 0 ;
-  
+
 
   void dump_scalar(const sequence &seq,const_store<double> &c2n,
                    string plot_postfix,
@@ -283,18 +285,18 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
    Loci::hdf5CloseFile(file_id) ;
   }
-  
+
   scalar_node_output::scalar_node_output(const char *vname,
                                          const char *valname) {
     var_name = string(vname) ;
     value_name = string(valname) ;
-    string var_name_time = var_name; 
+    string var_name_time = var_name;
     string constraint_name = string("plotOutput_") + value_name ;
     name_store(var_name_time, c2n) ;
     name_store("modelName",modelName) ;
     name_store("plot_postfix",plot_postfix) ;
     name_store("OUTPUT",OUTPUT) ;
-    
+
     conditional("do_plot") ;
     constraint("pos") ;
     input("modelName") ;
@@ -306,7 +308,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
   void scalar_node_output::compute(const sequence &seq) {
 
     dump_scalar(seq,c2n,*plot_postfix,*modelName,"sca",value_name) ;
-  }	
+  }
 
   class scalar_bndry_value : public pointwise_rule {
     string var_name ;
@@ -321,7 +323,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     }
     virtual void compute(const sequence &seq) ;
   } ;
-  
+
   scalar_bndry_value::scalar_bndry_value(const char *vname, const char *vname_f) {
     var_name = string(vname) ;
     var_name_f = string(vname_f) ;
@@ -330,22 +332,22 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     name_store(var_name_cell, vn) ;
     name_store(var_name_f, vn_f) ;
     name_store("ci",ci) ;
-    
+
     input(var_input) ;
     output(var_name_f) ;
   }
   void scalar_bndry_value::compute(const sequence &seq) {
     do_loop(seq,this) ;
-  }	
+  }
 
     void dump_vector(const sequence &seq,const_store<vector3d<double> > &c2n,
                      string postfix,
                      string modelName,
                      string type,
                      string sname) {
-    
+
     ostringstream oss ;
-    
+
     oss << "output/" << sname << "_" << type << "." << postfix
         << "_" << modelName ;
     string filename = oss.str() ;
@@ -363,20 +365,20 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
    Loci::hdf5CloseFile(file_id) ;
   }
-  
-  
+
+
   vector_node_output::vector_node_output(const char *vname,
                                          const char *valname) {
     var_name = string(vname) ;
     value_name = string(valname) ;
-    string var_name_time = var_name; 
+    string var_name_time = var_name;
     string constraint_name = string("plotOutput_") + value_name ;
     name_store(var_name_time, c2n) ;
     name_store("plot_postfix",plot_postfix) ;
     name_store("modelName",modelName) ;
     input("modelName") ;
     name_store("OUTPUT",OUTPUT) ;
-    
+
     conditional("do_plot") ;
     constraint("pos") ;
     input("plot_postfix") ;
@@ -387,7 +389,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
   void vector_node_output::compute(const sequence &seq) {
     dump_vector(seq,c2n,*plot_postfix,*modelName,
                 "vec",value_name) ;
-  }	
+  }
 
 
   void dump_scalard(const sequence &seq,const_store<double> &c2n,
@@ -395,7 +397,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
                    string modelName,
                    string type,
                    string sname) {
-    
+
     ostringstream oss ;
     oss << "output/" << sname << "_" << type << "." << postfix
         << "_" << modelName ;
@@ -414,7 +416,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
    Loci::hdf5CloseFile(file_id) ;
   }
-  
+
   OUTPUT_SCALAR_ALWAYS("cell2nodeD(temperature)",t) ;
   OUTPUT_SCALAR_ALWAYS("cell2nodeD(gagePressure)",pg) ;
   OUTPUT_SCALAR_ALWAYS("cell2nodeD(rho)",r) ;
@@ -428,9 +430,9 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
                        string type,
                        string sname) {
 
-    
+
     ostringstream oss ;
-    
+
     oss << "output/" << sname << "_" << type << "." << postfix
         << "_" << modelName ;
     string filename = oss.str() ;
@@ -483,7 +485,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     hid_t file_id = Loci::createUnorderedFile(filename.c_str(),set) ;
     Loci::writeUnorderedStore(file_id,var,set,value_name.c_str()) ;
     Loci::closeUnorderedFile(file_id) ;
-  }	
+  }
 
   OUTPUT_BNDRY_SCALAR("gagePressure_f",bpg,"ci") ;
   OUTPUT_BNDRY_SCALAR("temperature_f",bt,"ci") ;
@@ -516,7 +518,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     hid_t file_id = Loci::createUnorderedFile(filename.c_str(),set) ;
     Loci::writeUnorderedStore(file_id,var,set,value_name.c_str()) ;
     Loci::closeUnorderedFile(file_id) ;
-  }	
+  }
 
   OUTPUT_BNDRY_VECTOR("wall_stress",tau,"AllViscousBCs")  ;
   OUTPUT_BNDRY_VECTOR("u_f",bv,"ci") ;
@@ -533,7 +535,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     dump_timestep_info() ;
     virtual void compute(const sequence &seq) ;
   } ;
-  
+
   dump_timestep_info::dump_timestep_info() {
     name_store("ncycle", ncycle) ;
     name_store("stime", stime) ;
@@ -550,7 +552,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
   void dump_timestep_info::compute(const sequence &seq) {
     if(Loci::MPI_rank == 0) {
       ostringstream oss ;
-    
+
       oss << "output/" << "timestep" << "_" << "txt" << "." << *plot_postfix
         << "_" << *modelName ;
       string filename = oss.str() ;
@@ -559,7 +561,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
       // iteration, so the timestep should advance
       file << *ncycle+1 << ' ' << *stime << endl ;
     }
-  }	
+  }
 
   register_rule<dump_timestep_info> register_dump_timestep_info ;
 }

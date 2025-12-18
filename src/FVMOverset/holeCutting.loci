@@ -42,15 +42,14 @@ $include "FVMOverset/overset.lh"
 
 namespace Loci {
 
-  $rule default(holeCuttingTolerance),
-  comments("Specifies the distance to surface that becomes ambiguous for "),
-  comments("determining which component is closest.") {
+  /// Specifies the distance to a surface that becomes ambiguous for
+  /// determining which component is closest.
+  $rule default(holeCuttingTolerance) {
     $holeCuttingTolerance = 1e-3 ; // default 1mm
   }
 
-  /// Used to specify component priority in hole cutting.
-  $rule default(componentPriority),
-  comments("Specifies component priority in hole cutting") {}
+  /// Specifies component priority in hole cutting
+  $rule default(componentPriority) {}
 
 
   //--------------------------------------------------------------------------
@@ -581,16 +580,14 @@ namespace Loci {
     }
   } ;
 
-
-  $rule default(interpolateMinStencilSize),
-    comments("Minimum distance that we should use in excluding points from "),
-    comments("interpolation stencils.  The default is zero, in which case the "),
-    comments("estimate used from the number of points and volume of space are "),
-    comments("used.  In some cases, this may be used to improve interpolation "),
-    comments("quality") {
+  /// Minimum distance that we should use in excluding points from
+  /// interpolation stencils. The default is zero, in which case the
+  /// estimate used from the number of points and volume of space are
+  /// used. In some cases, this may be used to improve interpolation
+  /// quality.
+  $rule default(interpolateMinStencilSize) {
     $interpolateMinStencilSize = 0 ;
   }
-
 
   // Initialize stencilSize2 to the square of the minimum interpolate stencil size
   $rule unit(stencilSize2<-interpolateMinStencilSize) {
@@ -767,9 +764,9 @@ namespace Loci {
     $iblank = 0 ;
   }
 
-  $rule default(overset_collision_check),
-  comments("Turn on feature to try to detect surface-surface collisions "),
-  comments("and prevent interpolation leaks. To enable, set to 'on'") {
+  /// Turn on feature to try to detect surface-surface collisions
+  /// and prevent interpolation leaks. To enable, set to 'on'
+  $rule default(overset_collision_check) {
     $overset_collision_check = "off" ;
   }
 

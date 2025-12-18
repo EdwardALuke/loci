@@ -43,8 +43,8 @@ $include "FVMOverset/overset.lh"
 
 namespace Loci {
 
-  $rule optional(componentGeometry),
-    comments("Specifies hole cutting geometry for overset grids") {}
+  /// Specifies hole cutting geometry for overset grids
+  $rule optional(componentGeometry) {}
 
   //---------------------------------------------------------------------------
   //--

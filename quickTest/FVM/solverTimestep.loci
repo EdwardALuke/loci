@@ -35,38 +35,35 @@ namespace flowPsi {
   $rule default(stop_time) {
     $stop_time = 1e30 ;
   }
-  
+
   $rule optional(cflmax) { }
-  
+
   $rule singleton(plot_status{n=-1}),constraint(UNIVERSE) {
     $plot_status{n=-1} = 0 ;
   }
 
-  
   $rule singleton(timestepFinished{n}<-$n{n},stop_iter,plot_status{n-1},stop_time,stime{n}) {
     $timestepFinished{n} = (($$n{n}>$stop_iter+1) ||
 			    ($plot_status{n-1}>1) ||
 			    ($stime{n} > real($stop_time))) ;
   }
-					    
+
   $rule pointwise(solution<-gagePressure{n},temperature{n},u{n}),
     constraint(geom_cells{n}),conditional(timestepFinished{n}),
     inplace(solution|gagePressure{n}),prelude {} ;
 
-  
+
 
   $type timeStepScheme param<string> ;
   $rule default(timeStepScheme) { $timeStepScheme="explicit"; }
-  
+
   $rule constraint(timeStepExplicit<-timeStepScheme) {
     $timeStepExplicit = EMPTY ;
 
-    if($timeStepScheme == "explicit") 
+    if($timeStepScheme == "explicit")
       $timeStepExplicit = ~EMPTY ;
   }
 
-           
-      
   $rule pointwise(gagePressure{n=0}<-gagePressure_ic) {
     $gagePressure{n=0} = $gagePressure_ic ;
   }
@@ -74,7 +71,7 @@ namespace flowPsi {
   $rule pointwise(temperature{n=0}<-temperature_ic) {
     $temperature{n=0} = $temperature_ic ;
   }
-  
+
   $rule pointwise(u{n=0}<-u_ic) {
     $u{n=0} = $u_ic ;
   }
@@ -82,19 +79,18 @@ namespace flowPsi {
 
   $type ic_stime param<real> ; //computing time ;
   $type ic_ncycle param<int> ; //starting cycle number ;
-  
+
   $rule unit(ic_stime),constraint(UNIVERSE) {
     $ic_stime = 0 ;
   }
 
-  
   $rule apply(ic_stime<-dtmax)[Loci::Maximum], prelude {
   } ;
-  
+
   $rule unit(ic_ncycle),constraint(UNIVERSE) {
     $ic_ncycle = 0 ;
   } ;
-  
+
   $rule apply(ic_ncycle<-dtmax)[Loci::Maximum], prelude {
   } ;
 
@@ -126,7 +122,7 @@ namespace flowPsi {
     hid_t file_id = Loci::hdf5OpenFile((filename).c_str(),
                                        H5F_ACC_RDONLY, H5P_DEFAULT);
     entitySet dom = ~EMPTY ;
-    
+
     // Set up defaults
     *stime = 0 ;
     *ncycle = 0 ;
@@ -151,7 +147,7 @@ namespace flowPsi {
 
   $type ic_ncycle param<int> ;
   $type icf_ncycle param<int> ;
-  
+
   $rule apply(ic_ncycle<-icf_ncycle)[Loci::Maximum],prelude {
     *$ic_ncycle = *$icf_ncycle ;
   } ;
@@ -160,8 +156,8 @@ namespace flowPsi {
     $ncycle{n=0} = $ic_ncycle ;
   }
 
-
-  $rule default(dtmax), comments("setting of maximum timestep") {
+  /// Setting of maximum timestep
+  $rule default(dtmax) {
     $dtmax.val = 1.0 ;
   }
 
@@ -174,7 +170,7 @@ namespace flowPsi {
     $dtcfl = real($dtmax) ;
     $dtcfl = min($dtcfl,$cflmax/$cflpdt) ;
   }
-    
-  
+
+
 
 }

@@ -47,16 +47,11 @@ $include "FVMOverset/overset.lh"
 namespace Loci {
 
   /// Options list for specifying the motions of individual mesh components
-  $rule optional(componentMotion),
-    comments("Specify motions of individual mesh components") {
-  }
+  $rule optional(componentMotion) {}
 
   /// Options list for specifying the parent/child relationships between
   /// components. This is used to describe reference frames of component motion.
-  $rule default(componentHierarchy),comments("Specifies the parent/child "),
-  comments("relationships between components used for describing reference "),
-  comments("frames of component motion") {
-  }
+  $rule default(componentHierarchy) {}
 
 
   //--------------------------------------------------------------------------
