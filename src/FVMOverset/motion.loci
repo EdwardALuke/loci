@@ -62,11 +62,11 @@ namespace Loci {
   $rule default(componentHierarchy) {}
 
 
-  ///--------------------------------------------------------------------------
-  ///--
-  ///-- Extract Parent and children ids from componentHierarchy Information
-  ///--
-  ///--------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
+  //--
+  //-- Extract Parent and children ids from componentHierarchy Information
+  //--
+  //--------------------------------------------------------------------------
 
 
   /// Parametric rule to parse the componentHierarchy options list and fill the
@@ -167,11 +167,11 @@ namespace Loci {
   }
 
 
-  ///--------------------------------------------------------------------------
-  ///--
-  ///-- Populate the component motion types
-  ///--
-  ///--------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
+  //--
+  //-- Populate the component motion types
+  //--
+  //--------------------------------------------------------------------------
 
   /// Set of valid component motion types
   $type componentMotionTypes blackbox<set<string> > ;
@@ -297,7 +297,6 @@ namespace Loci {
     }
   }
 
-  // Find the time interval that we are splining
   int findt(const vector<real_t> &t, real_t tval) {
     int n = t.size() ;
     real_t tmin = t[0] ;

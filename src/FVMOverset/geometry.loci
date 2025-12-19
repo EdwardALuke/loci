@@ -213,7 +213,6 @@ namespace Loci {
     return new sphere_type(c,radius) ;
   }
 
-  /// Returns true if the provided point is inside the geometry.
   bool sphere_type::inGeometry(vector3d<real_t> pt) const {
     vector3d<real_t> p = pt-center ;
     real_t r2 = dot(p,p) ;
@@ -612,7 +611,7 @@ namespace Loci {
     }
   } ;
 
-  // Dummy rule to avoid message
+  /// Dummy rule to avoid message
   $rule apply(componentGeometryList<-componentNameList,componentGeometry)
   [Loci::NullOp], prelude { } ;
 

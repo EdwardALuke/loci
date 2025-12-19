@@ -29,11 +29,11 @@
 #include <cmath>
 
 namespace Loci {
-  /// Note: iblank state codes:
-  /// 0: Simulate. Donate simulated value to interpolation (not blanked)
-  /// 1: Simulate. Do NOT donate simulated value to interpolation
-  /// 2: Don't simulate. Interpolate values from a "cloud"
-  /// 3: Don't simulate. Advance values in time as constant function
+  // Note: iblank state codes:
+  // 0: Simulate. Donate simulated value to interpolation (not blanked)
+  // 1: Simulate. Do NOT donate simulated value to interpolation
+  // 2: Don't simulate. Interpolate values from a "cloud"
+  // 3: Don't simulate. Advance values in time as constant function
 
   /// Typedef for byte type used for iblank and other flags
   typedef unsigned char byte_t ;
