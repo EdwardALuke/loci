@@ -51,30 +51,29 @@ namespace Loci {
 
   /// Options list for specifying the parent/child relationships between
   /// components. This is used to describe reference frames of component motion.
-  $rule default(componentHierarchy) {}
-
-
-  //--------------------------------------------------------------------------
-  //--
-  //-- Extract Parent and children ids from componentHierarchy Information
-  //--
-  //--------------------------------------------------------------------------
-
-
-  /// Parse the componentHierarchy options list and fill the
-  /// componentRelationships_X string vector. componentRelationships_X contains
-  /// the names of all the parents of the current component. For a specific
-  /// component named X, the componentRelationships_X vector will be filled
-  /// such that it walks child->parent->grandparent->... to trace the entire
-  /// ancestry of component X.
   ///
-  /// The componentHierarchy options list has a structure as follows:
   /// componentHierarchy: <
   ///   component1 = parent(component0),
   ///   component2 = parent(component1),
   ///   component3 = parent(component1),
   ///   ...
   /// >
+  ///
+  $rule default(componentHierarchy) {}
+
+
+  ///--------------------------------------------------------------------------
+  ///--
+  ///-- Extract Parent and children ids from componentHierarchy Information
+  ///--
+  ///--------------------------------------------------------------------------
+
+
+  /// Parametric rule to parse the componentHierarchy options list and fill the
+  /// componentRelationships_X vector with the names of all the parents of the
+  /// current component. For component X, componentRelationships_X will be
+  /// filled such that it traces the entire ancestry of component X
+  /// e.g child->parent->grandparent->... up to the top-level ancestor.
   $rule blackbox(componentRelationships_X<-componentName_X,componentHierarchy),
   parametric(volumeTag(X)), prelude {
     vector<string> tmp ;
@@ -168,11 +167,11 @@ namespace Loci {
   }
 
 
-  //--------------------------------------------------------------------------
-  //--
-  //-- Populate the component motion types
-  //--
-  //--------------------------------------------------------------------------
+  ///--------------------------------------------------------------------------
+  ///--
+  ///-- Populate the component motion types
+  ///--
+  ///--------------------------------------------------------------------------
 
   /// Set of valid component motion types
   $type componentMotionTypes blackbox<set<string> > ;
@@ -181,9 +180,9 @@ namespace Loci {
     *$componentMotionTypes = set<string>() ;
   } ;
 
-  /// Insert the valid component motion types into the componentMotionTypes set
-  $rule apply(componentMotionTypes)[Loci::NullOp],
-  constraint(UNIVERSE), prelude {
+  /// Insert the valid component motion types into the set
+  $rule apply(componentMotionTypes)[Loci::NullOp], constraint(UNIVERSE),
+  prelude {
     $componentMotionTypes->insert(string("rotation")) ;
     $componentMotionTypes->insert(string("servo")) ;
     $componentMotionTypes->insert(string("prescribed")) ;
@@ -239,7 +238,6 @@ namespace Loci {
       Loci::Abort() ;
     }
   }
-
 
   void splineD(vector<real_t> &xp, const vector<real_t> &x,
                const vector<real_t> &t) {
@@ -389,13 +387,15 @@ namespace Loci {
     /// second element is the current angle of rotation in radians.
     void initialState(vector<real_t> &state) const  ;
 
-    /// Updates the state variable (angle). Returns a new state that is updated
-    /// based on the timeStep value in motion_info.
+    /// Returns a new state variable with an updated angle. The new state
+    /// (angle) is updated based on the timeStep value in motion_info and the
+    /// speed attribute.
     vector<real_t> advanceStateInTime(const vector<real_t> &state,
 		    const map<string,real_t> &motion_info) const ;
 
-    /// Given a state vector, returns a componentXform that describes the
-    ///
+    /// Given a state, returns a componentXform that describes the
+    /// rotation of the component about the axis defined in the
+    /// object.
     componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
@@ -492,6 +492,8 @@ namespace Loci {
     return xform ;
   }
 
+  /// Prescribed motion class for components that are moving according to a
+  /// time history defined in an input file.
   class prescribedMotion : public motionType {
     motionSplines motion ;
   public:
@@ -509,12 +511,17 @@ namespace Loci {
     /// quaternion representing the orientation of the component at time_i.
     prescribedMotion(std::string name, options_list &ol) ;
 
-    /// Creates a dummy state that marks the motion type only.
+    /// For prescribed motion, the state flag (first element) is 3, and the
+    /// second element is the current time in seconds. Initial time is 0.0.
     void initialState(vector<real_t> &state) const  ;
 
+    /// Returns a new state variable with an updated time. The new state
+    /// (time) is updated based on the timeStep value in motion_info.
     vector<real_t> advanceStateInTime(const vector<real_t> &state,
 				    const map<string,real_t> &motion_info) const ;
 
+    /// Given a state, returns a componentXform that describes the
+    /// translation and rotation of the component.
     componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
@@ -580,7 +587,7 @@ namespace Loci {
 
   void prescribedMotion::initialState(vector<real_t> &state) const {
     vector<real_t> tmp(2) ;
-    tmp[0] = 3 ; // three is for prescribed motion
+    tmp[0] = 3 ; // 3 is for prescribed motion
     tmp[1] = 0.0 ; // initial time
     state = tmp ;
   }
@@ -592,7 +599,7 @@ namespace Loci {
     if((mi = motion_info.find("timeStep"))!=motion_info.end())
       dt = mi->second ;
     else {
-      cerr << "advanceStateinTime for prescribedMotion expected  to find 'timeStep' in motion_info" << endl ;
+      cerr << "advanceStateInTime for prescribedMotion expected to find 'timeStep' in motion_info" << endl ;
       Loci::Abort() ;
     }
     vector<real_t> tmp = state ;
@@ -602,13 +609,12 @@ namespace Loci {
     return tmp ;
   }
 
-
   componentXform prescribedMotion::getXform(const vector<real_t> &state) const {
     real_t t = state[1] ;
     vector3d<real_t> cg, cg_new ;
     Quaternion q ;
-    motion.getMotion(cg,q,0) ;
-    motion.getMotion(cg_new,q,t) ;
+    motion.getMotion(cg,q,0) ; // Get the initial value of cg (q is unused here)
+    motion.getMotion(cg_new,q,t) ; // Get the new value of cg and q at time t
     componentXform xform ;
     xform.cg = cg ;
     xform.new_cg = cg_new ;
@@ -616,18 +622,32 @@ namespace Loci {
     return xform ;
   }
 
+  /// Servo motion class for components that will move like a servo motor. A
+  /// servo motor motion is a rotation that is parameterized by an angle,
+  /// where the angle can change to any value at any time. A servo moves to a
+  /// specific angle and stops until commanded to move again.
   class servoMotion : public motionType {
     vector3d<real_t> axis ;
     vector3d<real_t> center ;
     string name ;
   public:
+    /// Extracts the axis and center from the options list and stores the
+    /// name of the component name that has been assigned this servo motion.
     servoMotion(std::string name, options_list &ol) ;
 
+    /// For servo motion, the state flag (first element) is 4, and the
+    /// second element is the current angle in radians. Initial angle is 0.0.
     void initialState(vector<real_t> &state) const  ;
 
+    /// Returns a new state variable with an updated angle. The new state
+    /// (angle) is updated based on the value in motion_info associated with
+    /// the name of the component.
     vector<real_t> advanceStateInTime(const vector<real_t> &state,
 				    const map<string,real_t> &motion_info) const ;
 
+    /// Given a state, returns a componentXform that describes the
+    /// rotation of the component about the axis defined in the
+    /// object. The servo motion only rotates about a fixed axis and center.
     componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
@@ -656,25 +676,25 @@ namespace Loci {
   }
   void servoMotion::initialState(vector<real_t> &state) const {
     vector<real_t> tmp(2) ;
-    tmp[0] = 4 ;
-    tmp[1] = 0 ;
+    tmp[0] = 4 ; // 4 is for servo motion
+    tmp[1] = 0 ; // initial angle (radians)
     state = tmp ;
   }
 
   vector<real_t> servoMotion::advanceStateInTime(const vector<real_t> &state,
 						 const std::map<string,real_t> &motion_info) const  {
     std::map<string,real_t>::const_iterator mi ;
-    real_t val = 0.0 ;
+    real_t angle = 0.0 ;
     if((mi = motion_info.find(name))!=motion_info.end())
-      val = mi->second ;
+      angle = mi->second ;
     else {
-      cerr << "advanceStateinTime for servoMotion expected  to find '" << name << "' in motion_info" << endl ;
+      cerr << "advanceStateInTime for servoMotion expected to find '" << name << "' in motion_info" << endl ;
       Loci::Abort() ;
     }
     vector<real_t> tmp = state ;
     if(tmp.size() == 0)
       initialState(tmp) ;
-    tmp[1] = val ;
+    tmp[1] = angle ;
     return tmp ;
   }
 
@@ -684,15 +704,12 @@ namespace Loci {
     const vector3d<real_t> cg = center ;
     componentXform xform ;
     xform.cg = cg ;
-    xform.new_cg = cg ;
+    xform.new_cg = cg ; // Servo does not translate, only rotates
     xform.q = servo ;
     return xform ;
   }
 
-  /// The motionType associated with component X
-  $type motionBehavior_X blackbox<Loci::CPTR<motionType> > ;
-
-  /// Set the motionBehavior_X for component X if the component is stationary.
+  /// Assign the motionType for component X for stationary components.
   $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
   constraint(componentStationary_X), parametric(volumeTag(X)),
   option(disable_threading) {
@@ -709,7 +726,7 @@ namespace Loci {
     $motionBehavior_X = ptr ;
   }
 
-  /// Set the motionBehavior_X for component X if the component is rotational.
+  /// Assign the motionType for component X for rotational components.
   $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
   constraint(componentRotation_X), parametric(volumeTag(X)),
   option(disable_threading) {
@@ -726,7 +743,8 @@ namespace Loci {
     $motionBehavior_X = ptr ;
   }
 
-  /// Set the motionBehavior_X for component X if the component is prescribed.
+  /// Assign the motionType for component X if the component is prescribed
+  /// motion.
   $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
   constraint(componentPrescribed_X), parametric(volumeTag(X)),
   option(disable_threading) {
@@ -743,7 +761,8 @@ namespace Loci {
     $motionBehavior_X = ptr ;
   }
 
-  /// Set the motionBehavior_X for component X if the component is servo.
+  /// Assign the motionType for component X if the component is servo
+  /// motion.
   $rule singleton(motionBehavior_X<-componentMotion,componentName_X),
   constraint(componentServo_X), parametric(volumeTag(X)),
   option(disable_threading) {
@@ -760,10 +779,7 @@ namespace Loci {
     $motionBehavior_X = ptr ;
   }
 
-  /// Map of named pairs of entries that are used to advance a
-  /// component's motion. These entries are parsed by the motionType derived
-  /// classes to update a component's state.
-  $type motionInfo blackbox<map<string,real_t> > ;
+  /// Initialize to an empty map.
   $rule unit(motionInfo), constraint(UNIVERSE), prelude {
     map<string,real_t> tmp ;
     *$motionInfo = tmp ;
@@ -781,8 +797,8 @@ namespace Loci {
   } ;
 
   /// Parametric rule to fill a vector of a component's transform and the transforms
-  /// of all its ancestors. Where the first entry in the vector is the component's own
-  /// transform, and the subsequent entries are the transforms of its parents,
+  /// of all its ancestors. The first entry is the component's own transform,
+  /// and the subsequent entries are the transforms of its parents,
   /// grandparents, etc.
   $rule singleton(componentTransforms_X<-componentMotionData,componentName_X,
   componentRelationships_X), parametric(volumeTag(X)) {
@@ -807,7 +823,6 @@ namespace Loci {
       }
     }
   }
-
 
   /// A 3x3 tensor that describes the cumulative rotation of component X due
   /// to rotational transforms. This provides a transform that can be used to

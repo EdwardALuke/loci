@@ -119,12 +119,12 @@ namespace Loci {
     $componentID = $componentID_X ;
   }
 
-  $type componentID_node store<int> ;
   // Assign Component ID to each node, tie break by using larger id for
   // nodes that are shared between components.
   $rule unit(componentID_node),constraint(pos) {
     $componentID_node = -1 ;
   }
+
   $rule apply(face2node->componentID_node<-cl->componentID)[Loci::Maximum] {
     int fsz = $face2node.size() ;
     int cid = $cl->$componentID ;
@@ -139,11 +139,11 @@ namespace Loci {
       join($face2node[i]->$componentID_node,cid) ;
   }
 
-  //---------------------------------------------------------------------------
-  //--
-  //-- Surface2surface distance evaluations
-  //--
-  //---------------------------------------------------------------------------
+  ///--------------------------------------------------------------------------
+  ///--
+  ///-- Surface2surface distance evaluations
+  ///--
+  ///--------------------------------------------------------------------------
   $type stencilSize2 param<double> ;
   $type crossComponentDist_node store<float> ;
   $type crossComponentDistGrad_node store<vector3d<float> > ;

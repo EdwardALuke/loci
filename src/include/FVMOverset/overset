@@ -186,7 +186,8 @@ namespace Loci {
     /// Advance state in time using the current state and a map of values
     /// that encode information related to how the state should be advanced.
     /// This would be a timeStep for example or a target position for servo
-    /// motion.
+    /// motion. If the input state is an empty vector, the returned state
+    /// is the state returned by initialState().
     virtual std::vector<real_t>
       advanceStateInTime(const std::vector<real_t> &state,
 			 const std::map<std::string,real_t> &motion_info) const = 0 ;
@@ -207,7 +208,12 @@ namespace Loci {
   void splineD(std::vector<real_t> &xp, const std::vector<real_t> &x,
                const std::vector<real_t> &t) ;
 
-  /// cubic spline
+  /// Cubic Hermite spline evaluation.
+  ///   ind: index of interval to evaluate on
+  ///   tval: time to evaluate spline at
+  ///   t: input spline times
+  ///   x: input spline positions
+  ///   xp: input spline derivatives
   real_t spline(int ind,real_t tval,const std::vector<real_t> &t,
                 const std::vector<real_t> &x,
                 const std::vector<real_t> &xp) ;
@@ -248,7 +254,7 @@ namespace Loci {
       splineD(q3p,q3,t) ;
     }
 
-    // Evaluate the splines at time tv, filling in cg and a normalized
+    /// Evaluate the splines at time tv, filling in cg and a normalized
     /// orientation quaternion q.
     void getMotion(vector3d<real_t> &cg, Quaternion &q, real_t tv) const {
       int ind = findt(t,tv) ;

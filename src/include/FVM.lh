@@ -21,30 +21,39 @@
 
 /** Geometric Cells of the Mesh (not including ghost cells) */
 $type geom_cells Constraint ;
+
 /** Nodal Positions */
 $type pos store<Loci::vector3d<Loci::real_t> > ;
+
 /** Map from faces to left cells */
 $type cl Map ;
+
 /** Map from faces to right cells */
 $type cr Map ;
+
 /** Map from boundary faces to adjacent geom_cells */
 $type ci Map ;
+
 /** Map from boundary faces to reference surface */
 $type ref Map ;
+
 /** Mapping from periodic boundary faces to periodic face pair */
 $type pmap Map ;
+
 /** Mapping from face to nodes that define the face */
 $type face2node multiMap ;
 
 /** Mapping from cell to faces that form upper matrix entries */
 $type upper multiMap ;
+
 /** Mapping from cell to faces that form lower matrix entries */
 $type lower multiMap ;
+
 /** Mapping from cell to boundary faces */
 $type boundary_map multiMap ;
 
 
-/** 
+/**
  * This sets the coordinate system for the grid metric computations.  May be
  * set to either 'cartesian' or 'axisymmetric'.  Use axisymmetric for
  * two dimensional axisymmetric computations
@@ -56,14 +65,17 @@ $type centroid param<std::string> ;
 
 /** Compute thickness of extrusion (for axisymmetric case) */
 $type cell_thickness store<real_t> ;
+
 /** Maximum Grid Thickness (used to check validity of 2-D axisymmetric mesh */
 $type gridThickMax param<real_t> ;
+
 /** Minimum Grid Thickness (used to check validity of 2-D axisymmetric mesh */
 $type gridThickMin param<real_t> ;
+
 /** Thickness of z axis extrusion in 2-D mesh */
 $type gridThickness param<real_t> ;
 
-/** 
+/**
  * The minimum allowable volume which can be used to override negative volume
  * calculations
  */
@@ -74,104 +86,134 @@ $type max_fpc param<int> ;
 
 /** Cell centroid */
 $type cellcenter store<Loci::vector3d<Loci::real_t> > ;
+
 /** Face centroid */
 $type facecenter store<Loci::vector3d<Loci::real_t> > ;
+
 /** Face area and normal */
 $type area store<Loci::Area> ;
+
 /**  Cell volume */
 $type vol store<Loci::real_t> ;
+
 /** Total grid volume */
 $type grid_vol param<Loci::real_t> ;
 
 /** vector orthogonal to face normal */
 $type mn store<Loci::vector3d<Loci::real_t> > ;
+
 /** vector orthogonal to face normal and mn */
 $type ln store<Loci::vector3d<Loci::real_t> > ;
 
 /** Scalar Gradient (must provide cell and boundary face values) */
 $type grads(Y) store<Loci::vector3d<Loci::real_t> > ;
+
 /** General Vector Gradient (must provide cell and boundary face values) */
 $type gradv(Y) storeVec<Loci::vector3d<Loci::real_t> > ;
+
 /** 3-D vector gradient (must provide cell and boundary face values) */
 $type gradv3d(Y) store<Loci::tensor3d<Loci::real_t> > ;
 
 /** Face scalar gradient (uses cell gradients and boundary face values) */
 $type grads_f(Y) store<Loci::vector3d<Loci::real_t> > ;
+
 /** Face general vector gradient (uses cell gradients and boundary face values) */
 $type gradv_f(Y) storeVec<Loci::vector3d<Loci::real_t> > ;
+
 /** 3-D vector gradient (must provide cell and boundary face values) */
 $type gradv3d_f(Y) store<Loci::tensor3d<Loci::real_t> > ;
 
 /** Scalar variable monotone limiters */
 $type limiters(X) store<Loci::real_t> ;
+
 /** General vector monotone limiters */
 $type limiterv(X) storeVec<Loci::real_t> ;
+
 /** 3-D vector monotone limiter */
 $type limiterv3d(X) store<Loci::vector3d<Loci::real_t> > ;
 
 /** MUSCL extrapolation to left side of face */
 $type lefts(X) store<Loci::real_t> ;
+
 /** MUSCL extrapolation to right side of face */
 $type rights(X) store<Loci::real_t> ;
+
 /** MUSCL scalar extrapolation for positive values to left side of face */
 $type leftsP(X,M) store<Loci::real_t> ;
+
 /** MUSCL scalar extrapolation for positive values to right side of face */
 $type rightsP(X,M) store<Loci::real_t> ;
+
 /** MUSCL general vector extrapolation for left side of face */
 $type leftvM(X) storeVec<Loci::real_t> ;
+
 /** MUSCL general vector extrapolation for right side of face */
 $type rightvM(X) storeVec<Loci::real_t> ;
+
 /** MUSCL 3-D vector extrapolation for left side of face */
 $type leftv3d(X) store<Loci::vector3d<Loci::real_t> > ;
+
 /** MUSCL 3-D vector extrapolation for right side of face */
 $type rightv3d(X) store<Loci::vector3d<Loci::real_t> > ;
 
 
 /** Simple scalar interpolation from geom_cells and boundary faces to nodes */
 $type cell2node(X) store<float > ;
+
 /**
  * Simple general vector interpolation from geom_cells and
  * boundary faces to nodes
  */
 $type cell2node_v(X) storeVec<float > ;
-/** Simple 3-D vector interpolation from geom_cells and boundary faces to 
+
+/** Simple 3-D vector interpolation from geom_cells and boundary faces to
  * nodes
  */
 $type cell2node_v3d(X) store<Loci::vector3d<float> > ;
+
 /** Nodal maximum value of neighboring cell scalars */
 $type cell2nodeMax(X) store<float > ;
+
 /** Nodal minimum value of neighboring cell scalars */
 $type cell2nodeMin(X) store<float > ;
+
 /** Nodal maximum magnitude value of neighboring cells scalars */
 $type cell2nodeMaxMag(X) store<float > ;
+
 /** Nodal Maximum of fields of 3-D vector of neighboring cell vectors */
 $type cell2nodeMaxv3d(X) store<vector3d<float> > ;
 
 /** All boundary faces that are not marked as a symmetry boundary */
 $type no_symmetry_BC Constraint ;
+
 /** All boundary faces */
 $type boundary_faces Constraint ;
+
 /**
  * boundary reference surfaces that are marked as utilizing
  * first-order extrapolation
  */
 $type firstOrder_BCoption Constraint ;
-/** bounary reference surface options specified in boundary conditions */
+
+/** boundary reference surface options specified in boundary conditions */
 $type BC_options store<Loci::options_list> ;
 
 /** Integrate a scalar over the boundary surfaces of a cell */
 $type integrateSurface(X) store<Loci::real_t> ;
+
 /** Integrate a vector valued function dotted with surface vectors over cell */
 $type integrateFlux(X) store<Loci::real_t> ;
 
 /** Helper utility for interfacing with the PETSc solver for scalar equations */
 $type petscScalarSolve(X) store<Loci::real_t> ;
-/** 
+
+/**
  * Helper utility for interfacing with the PETSc solver for storeVec
  * equations with double precision jacobians
  */
 $type petscBlockedSolve(X) storeVec<Loci::real_t> ;
-/** 
+
+/**
  * Helper utility for interfacing with the PETSc solver for storeVec
  * equations with single precision jacobians
  */
@@ -179,8 +221,10 @@ $type petscBlockedSSolve(X) storeVec<Loci::real_t> ;
 
 /** L-2 Norm of scalar over geom_cells */
 $type L2Norm(X) param<Loci::real_t> ;
+
 /** L-1 Norm of scalar over geom_cells */
 $type L1Norm(X) param<Loci::real_t> ;
+
 /** L-Infinity Norm of Scalar of geom_cells */
 $type LinfNorm(X) param<Loci::real_t> ;
 
@@ -193,6 +237,7 @@ $type parametricName(X) param<std::string>;
 
 /// Dummy type to facilitate adding selector generators using parametric rules
 $type selector(SELECT,SELECTION,ABBREV) param<bool> ;
+
 /// Dummy type to facilitate adding selector generators using parametric rules
 $type selector(SELECT,SELECTION) param<bool> ;
 
@@ -201,18 +246,20 @@ $type vecSize(M) param<int> ;
 
 /** Used to store the volume tag name for tagged vog file regions */
 $type volumeTag(X) param<string> ;
+
 /** All boundary faces that are participating in periodic boundary conditions */
 $type periodicFaces Constraint ;
 
 /** Tell grid metrics to use standard cartesian metrics */
 $type cartesianCoordinateModel Constraint ;
+
 /** Tell grid metrics that grid represents a 2-D axisymmetric region */
 $type axisymmetricCoordinateModel Constraint ;
 
-/** cell-based scalar quantity used in the adaptive gradient stencil 
+/** cell-based scalar quantity used in the adaptive gradient stencil
     selection. It can be a volume-fraction, pressure, or any other
-    field of interest, and it is used to adapt the stencil of 
-    full,stable,symm,symmF,symmC methods around large 
+    field of interest, and it is used to adapt the stencil of
+    full,stable,symm,symmF,symmC methods around large
     "stencil_bias" jumps. This variable must
     be provided by the simulation tool, otherwise setting
     gradStencilBias: on
@@ -226,6 +273,7 @@ $type stencil_bias store<Loci::real_t>;
    (iterative1,iterative2).
 */
 $type gradType  param<string>;
+
 /**
    Number of iteration steps for the cell gradient n-step iterative methods
    (iterative1,iterative2).
