@@ -28,13 +28,15 @@ $include "flowPsi.lh"
 namespace flowPsi {
   $rule unit(plot_status{n}),constraint(UNIVERSE{n}) {
     $plot_status{n} = 0 ;
-  } 
+  }
 
   static double elapsed_check_time = -1 ;
-  $type time_interval_check param<double>;
-  $rule default(time_interval_check),comments("time interval to check for stop or plot file in seconds") {
+  $type time_interval_check param<double> ;
+  /// Time interval to check for stop or plot file in seconds
+  $rule default(time_interval_check) {
     $time_interval_check = 240 ;
   }
+
   $rule apply(plot_status{n}<-ncycle{n},time_interval_check{n})[Loci::Maximum],prelude {
     if(Loci::MPI_rank == 0) {
       double ctime = MPI_Wtime() ;
@@ -60,14 +62,13 @@ namespace flowPsi {
     }
   } ;
 
-
-  
-  $rule optional(maximumRunTime),comments("Maximum wallclock time for run.  If this time is exceeded, flowpsi will dump restart files and terminate") {
+  /// Maximum wallclock time for run. If this time is exceeded, flowpsi will dump restart files and terminate
+  $rule optional(maximumRunTime) {
     $maximumRunTime = 0.0 ;
-  } 
+  }
 
   extern double StartTime ;
-  
+
   $rule apply(plot_status{n}<-ncycle{n},maximumRunTime)[Loci::Maximum],prelude {
     double currTime = MPI_Wtime() ;
     double elapsedTime = currTime - flowPsi::StartTime ;
@@ -94,7 +95,7 @@ namespace flowPsi {
     const real af = $soundSpeed_f ;
     $maxev_f = max(fabs(utf-af),fabs(utf+af)) ;
   }
-  
+
   $rule pointwise(cflpdt<-vol,(upper,lower,boundary_map)->(maxev_f,area)) {
     real meva = 0.0 ;
     for(const int *li=$lower.begin();li!=$lower.end();++li) {
@@ -135,5 +136,5 @@ namespace flowPsi {
     $print_freq = 10 ;
   }
 
-  
+
 }

@@ -42,14 +42,14 @@ $include "FVMOverset/overset.lh"
 
 namespace Loci {
 
-  $rule default(holeCuttingTolerance),
-    comments("Specifies the distance to surface that becomes ambiguous for "),
-    comments("determining which component is closest.") {
+  /// Specifies the distance to a surface that becomes ambiguous for
+  /// determining which component is closest.
+  $rule default(holeCuttingTolerance) {
     $holeCuttingTolerance = 1e-3 ; // default 1mm
   }
 
-  $rule default(componentPriority),
-    comments("Specifies component priority in hole cutting") {}
+  /// Specifies component priority in hole cutting
+  $rule default(componentPriority) {}
 
 
   //--------------------------------------------------------------------------
@@ -60,34 +60,42 @@ namespace Loci {
   //--------------------------------------------------------------------------
 
 
-  // Collect the names of the current components in the grids
+  /// Parametric rule to build the names of the components from the existing
+  /// grid volume tags.
   $type componentName_X blackbox<string> ;
   $rule blackbox(componentName_X<-volumeTag(X)),parametric(volumeTag(X)),
-    prelude {
+  prelude {
     *$componentName_X = *$volumeTag(X) ;
   } ;
 
+  /// Unit/apply rules to collect all component names into a single list.
+  /// Names are sorted.
   $rule unit(componentNameList),constraint(UNIVERSE) { }
 
   $rule apply(componentNameList<-componentName_X)[Loci::NullOp],
-    parametric(volumeTag(X)), prelude {
+  parametric(volumeTag(X)), prelude {
     (*$componentNameList).push_back(*$componentName_X) ;
     std::sort((*$componentNameList).begin(),(*$componentNameList).end()) ;
   } ;
 
-  // Convert component names to integer id which is just the index in the
-  // componentNameList
-  $type componentID_X param<int> ;
+  /// Convert component names to integer id which is just the index in the
+  /// componentNameList.
   $rule singleton(componentID_X<-componentName_X,componentNameList),
   parametric(volumeTag(X)) {
     $componentID_X = -1 ;
 
-    for(size_t i=0;i<$componentNameList.size();++i)
-      if($componentNameList[i] == $componentName_X)
+    for(size_t i=0;i<$componentNameList.size();++i) {
+      if($componentNameList[i] == $componentName_X) {
         $componentID_X = i ;
+      }
+    }
   }
 
-
+  /// Parse componentPriority option list to create a list of priorities for
+  /// hole-cutting based on componentNameList. componentPriority is an
+  /// options list with a set of component name=priority value pairs. This is
+  /// optional variable, and any components not specified get a default
+  /// priority of 1.0.
   $rule singleton(componentPriorityList<-componentNameList,componentPriority) {
     int sz = $componentNameList.size() ;
     vector<real_t> priorities(sz,1.0) ;
@@ -95,9 +103,9 @@ namespace Loci {
       string componentName = $componentNameList[i] ;
 
       if($componentPriority.optionExists(componentName)) {
-	real_t p = 1.0 ;
-	$componentPriority.getOption(componentName,p) ;
-	priorities[i] = p ;
+        real_t p = 1.0 ;
+        $componentPriority.getOption(componentName,p) ;
+        priorities[i] = p ;
       }
     }
     $componentPriorityList = priorities ;
@@ -107,12 +115,11 @@ namespace Loci {
   $type componentID store<int> ;
   // Assign component ID to each cell
   $rule pointwise(componentID<-cellcenter,componentID_X),
-    constraint(volumeTag(X)),parametric(volumeTag(X)) {
+  constraint(volumeTag(X)), parametric(volumeTag(X)) {
     $componentID = $componentID_X ;
   }
 
   $type componentID_node store<int> ;
-
   // Assign Component ID to each node, tie break by using larger id for
   // nodes that are shared between components.
   $rule unit(componentID_node),constraint(pos) {
@@ -141,8 +148,6 @@ namespace Loci {
   $type crossComponentDist_node store<float> ;
   $type crossComponentDistGrad_node store<vector3d<float> > ;
   $type crossComponentID_node store<int> ;
-
-  $type node2surf Map ;
 
   $type distanceFieldGradient store<vector3d<float> > ;
 
@@ -277,34 +282,38 @@ namespace Loci {
     // remove duplicates
     for(int i=0;i<p;++i) {
       if(send_set[i].size() > 1) {
-	std::sort(send_set[i].begin(),send_set[i].end()) ;
-	vector<int>::const_iterator se =
-	  std::unique(send_set[i].begin(),send_set[i].end()) ;
-	vector<int> tmp(se-send_set[i].begin()) ;
-	for(size_t j=0;j<tmp.size();++j)
-	  tmp[j] = send_set[i][j] ;
-	tmp.swap(send_set[i]) ;
+        std::sort(send_set[i].begin(),send_set[i].end()) ;
+        vector<int>::const_iterator se =
+          std::unique(send_set[i].begin(),send_set[i].end()) ;
+        vector<int> tmp(se-send_set[i].begin()) ;
+        for(size_t j=0;j<tmp.size();++j) {
+          tmp[j] = send_set[i][j] ;
+        }
+        tmp.swap(send_set[i]) ;
       }
     }
 
 #ifdef VERBOSE
     Loci::debugout << "send_sizes =" ;
-    for(int i=0;i<p;++i)
+    for(int i=0;i<p;++i) {
       Loci::debugout << ' ' << send_set[i].size() ;
+    }
     Loci::debugout << endl;
 #endif
 
     vector<int> send_sz(p) ;
-    for(int i=0;i<p;++i)
+    for(int i=0;i<p;++i) {
       send_sz[i] = send_set[i].size() ;
+    }
     vector<int> recv_sz(p) ;
     MPI_Alltoall(&send_sz[0],1,MPI_INT,&recv_sz[0],1,MPI_INT,
 		 MPI_COMM_WORLD) ;
 
     vector<int> recv_off(p+1) ;
     recv_off[0] = 0 ;
-    for(int i=0;i<p;++i)
+    for(int i=0;i<p;++i) {
       recv_off[i+1] = recv_off[i]+recv_sz[i] ;
+    }
     vector<Array<float,7> > recv_pnts(recv_off[p]) ;
     vector<int> recv_ids(recv_off[p]) ;
 
@@ -312,15 +321,15 @@ namespace Loci {
     vector<MPI_Request> req_queue ;
     for(int i=0;i<p;i++) {
       if(recv_sz[i] > 0) {
-	if(i != Loci::MPI_rank) {
-	  MPI_Request tmp ;
-	  MPI_Irecv(&recv_pnts[recv_off[i]],7*recv_sz[i],MPI_FLOAT,i,10,
-		    MPI_COMM_WORLD,&tmp) ;
-	  req_queue.push_back(tmp) ;
-	  MPI_Irecv(&recv_ids[recv_off[i]],recv_sz[i],MPI_INT,i,11,
-		    MPI_COMM_WORLD,&tmp) ;
-	  req_queue.push_back(tmp) ;
-	}
+        if(i != Loci::MPI_rank) {
+          MPI_Request tmp ;
+          MPI_Irecv(&recv_pnts[recv_off[i]],7*recv_sz[i],MPI_FLOAT,i,10,
+              MPI_COMM_WORLD,&tmp) ;
+          req_queue.push_back(tmp) ;
+          MPI_Irecv(&recv_ids[recv_off[i]],recv_sz[i],MPI_INT,i,11,
+              MPI_COMM_WORLD,&tmp) ;
+          req_queue.push_back(tmp) ;
+        }
       }
     }
 
@@ -328,48 +337,49 @@ namespace Loci {
     // Post sends
     for(int i=0;i<p;i++) {
       if(send_sz[i] > 0) {
-	if(i == Loci::MPI_rank) {
-	  int sz = send_sz[i] ;
-	  if(sz > 0)
-	    self_send = true ;
+        if(i == Loci::MPI_rank) {
+          int sz = send_sz[i] ;
+          if(sz > 0) {
+            self_send = true ;
+          }
 
-	  for(int j=0;j<sz;++j) {
-	    int nd = send_set[i][j] ;
-	    recv_pnts[recv_off[i]+j][0] = realToFloat($pos[nd].x) ;
-	    recv_pnts[recv_off[i]+j][1] = realToFloat($pos[nd].y) ;
-	    recv_pnts[recv_off[i]+j][2] = realToFloat($pos[nd].z) ;
-	    float dist = realToFloat(norm($pos[nd]-$pos[$node2surf[nd]])) ;
-	    recv_pnts[recv_off[i]+j][3] = dist ;
-	    vector3d<float> ncorrect = $distanceFieldGradient[nd] ;
-	    recv_pnts[recv_off[i]+j][4] = ncorrect.x ;
-	    recv_pnts[recv_off[i]+j][5] = ncorrect.y ;
-	    recv_pnts[recv_off[i]+j][6] = ncorrect.z ;
-	    recv_ids[recv_off[i]+j] = $componentID_node[nd] ;
-	  }
-	} else {
-	  int sz = send_sz[i] ;
-	  vector<Array<float,7> > send_buf(send_sz[i]) ;
-	  vector<int> send_id(send_sz[i]) ;
+          for(int j=0;j<sz;++j) {
+            int nd = send_set[i][j] ;
+            recv_pnts[recv_off[i]+j][0] = realToFloat($pos[nd].x) ;
+            recv_pnts[recv_off[i]+j][1] = realToFloat($pos[nd].y) ;
+            recv_pnts[recv_off[i]+j][2] = realToFloat($pos[nd].z) ;
+            float dist = realToFloat(norm($pos[nd]-$pos[$node2surf[nd]])) ;
+            recv_pnts[recv_off[i]+j][3] = dist ;
+            vector3d<float> ncorrect = $distanceFieldGradient[nd] ;
+            recv_pnts[recv_off[i]+j][4] = ncorrect.x ;
+            recv_pnts[recv_off[i]+j][5] = ncorrect.y ;
+            recv_pnts[recv_off[i]+j][6] = ncorrect.z ;
+            recv_ids[recv_off[i]+j] = $componentID_node[nd] ;
+          }
+        } else {
+          int sz = send_sz[i] ;
+          vector<Array<float,7> > send_buf(send_sz[i]) ;
+          vector<int> send_id(send_sz[i]) ;
 
-	  for(int j=0;j<sz;++j) {
-	    int nd = send_set[i][j] ;
-	    send_buf[j][0] = realToFloat($pos[nd].x) ;
-	    send_buf[j][1] = realToFloat($pos[nd].y) ;
-	    send_buf[j][2] = realToFloat($pos[nd].z) ;
-	    float dist = realToFloat(norm($pos[nd]-$pos[$node2surf[nd]])) ;
-	    send_buf[j][3] = dist ;
-	    vector3d<float> ncorrect = $distanceFieldGradient[nd] ;
-	    send_buf[j][4] = ncorrect.x ;
-	    send_buf[j][5] = ncorrect.y ;
-	    send_buf[j][6] = ncorrect.z ;
-	    send_id[j] = $componentID_node[nd] ;
-	    if(send_id[j] > nc || send_id[j]<0) {
-	      cerr << "Something wrong with componentID" << endl ;
-	    }
-	  }
-	  MPI_Send(&send_buf[0],7*sz,MPI_FLOAT,i,10,MPI_COMM_WORLD) ;
-	  MPI_Send(&send_id[0],sz,MPI_INT,i,11,MPI_COMM_WORLD) ;
-	}
+          for(int j=0;j<sz;++j) {
+            int nd = send_set[i][j] ;
+            send_buf[j][0] = realToFloat($pos[nd].x) ;
+            send_buf[j][1] = realToFloat($pos[nd].y) ;
+            send_buf[j][2] = realToFloat($pos[nd].z) ;
+            float dist = realToFloat(norm($pos[nd]-$pos[$node2surf[nd]])) ;
+            send_buf[j][3] = dist ;
+            vector3d<float> ncorrect = $distanceFieldGradient[nd] ;
+            send_buf[j][4] = ncorrect.x ;
+            send_buf[j][5] = ncorrect.y ;
+            send_buf[j][6] = ncorrect.z ;
+            send_id[j] = $componentID_node[nd] ;
+            if(send_id[j] > nc || send_id[j]<0) {
+              cerr << "Something wrong with componentID" << endl ;
+            }
+          }
+          MPI_Send(&send_buf[0],7*sz,MPI_FLOAT,i,10,MPI_COMM_WORLD) ;
+          MPI_Send(&send_id[0],sz,MPI_INT,i,11,MPI_COMM_WORLD) ;
+        }
       }
     }
 
@@ -381,8 +391,9 @@ namespace Loci {
 #ifdef VERBOSE
     Loci::debugout << "req_queue.size() ==" << req_queue.size() << endl ;
     Loci::debugout << "recv_sizes =" ;
-    for(int i=0;i<p;++i)
+    for(int i=0;i<p;++i) {
       Loci::debugout << ' ' << recv_sz[i] ;
+    }
     Loci::debugout << endl;
 #endif
 
@@ -393,80 +404,83 @@ namespace Loci {
       vector<vector<Loci::kdTree::coord3d> > pnts(nc) ;
       vector<vector<int> > pnt_id(nc) ;
       for(int i=0;i<rsz;++i) {
-	Loci::kdTree::coord3d c3d ;
+        Loci::kdTree::coord3d c3d ;
 
-	c3d[0] = recv_pnts[i][0] ;
-	c3d[1] = recv_pnts[i][1] ;
-	c3d[2] = recv_pnts[i][2] ;
-	int id = recv_ids[i] ;
-	if(id > nc || id<0) {
-	  cerr << "received_id invalid" << endl ;
-	} else {
-	  pnts[id].push_back(c3d) ;
-	  pnt_id[id].push_back(i) ;
-	}
+        c3d[0] = recv_pnts[i][0] ;
+        c3d[1] = recv_pnts[i][1] ;
+        c3d[2] = recv_pnts[i][2] ;
+        int id = recv_ids[i] ;
+        if(id > nc || id<0) {
+          cerr << "received_id invalid" << endl ;
+        } else {
+          pnts[id].push_back(c3d) ;
+          pnt_id[id].push_back(i) ;
+        }
       }
       vector<Loci::kdTree::kd_tree *> kdlist(nc) ;
-      for(int i=0;i<nc;++i)
-	if(pnts[i].size() == 0)
-	  kdlist[i] = 0 ;
-	else {
-	  kdlist[i] = new Loci::kdTree::kd_tree(pnts[i],pnt_id[i]) ;
-	}
+      for(int i=0;i<nc;++i) {
+        if(pnts[i].size() == 0) {
+          kdlist[i] = 0 ;
+        } else {
+          kdlist[i] = new Loci::kdTree::kd_tree(pnts[i],pnt_id[i]) ;
+        }
+      }
 
       real_t rmin2 = delta*delta ;
       FORALL(dom,nd) {
-	int id = $componentID_node[nd] ;
-	Loci::kdTree::coord3d p(realToFloat($pos[nd].x),
-				realToFloat($pos[nd].y),
-				realToFloat($pos[nd].z)) ;
-	float nearest_dist = 1e30 ;
-	for(int i=0;i<nc;++i) {
-	  if(id != i) {
-	    double rmin = realToDouble(rmin2) ;
-	    int pi = -1 ;
-	    // If no geometry is defined, then by default the geometry
-	    // is everything.  Otherwise check to see if it is in geometry
-	    bool inGeom =
-	      ($componentGeometryList[nd][i] == 0 ||
-	       $componentGeometryList[nd][i]->inGeometry($pos[nd])) ;
-	    if(kdlist[i] != 0 && inGeom) {
-	      pi = kdlist[i]->find_closest(p,rmin) ;
-	    }
-	    if(pi >= 0) {
-	      vector3d<real_t> loc(recv_pnts[pi][0],
-                             recv_pnts[pi][1],
-                             recv_pnts[pi][2]) ;
-	      real_t distloc = recv_pnts[pi][3] ;
-	      vector3d<real_t> n(recv_pnts[pi][4],
-                           recv_pnts[pi][5],
-                           recv_pnts[pi][6]) ;
-	      vector3d<real_t> dv = $pos[nd] -loc ;
-	      real_t dn = distloc + dot(dv,n) ;
-	      real_t epsdist = *$holeCuttingTolerance ;
-	      real_t d = (dn > -epsdist && dn < epsdist)?epsdist:dn ;
-	      real_t priority = (*$componentPriorityList)[i] ;
-	      real_t dp = d*priority ;
-	      if($crossComponentID_node[nd] < 0 || nearest_dist > realToFloat(dp)) {
-		nearest_dist = realToFloat(dp) ;
-		$crossComponentID_node[nd] = i ;
-		$crossComponentDist_node[nd] = realToFloat(d) ;
-		$crossComponentDistGrad_node[nd] = realToFloat(n) ;
-	      }
-	    } else {
-	      if(inGeom) {
-		nearest_dist = -1e30 ;
-		$crossComponentDist_node[nd] = -1e30 ;
-		$crossComponentID_node[nd] = i ;
-		$crossComponentDistGrad_node[nd] = vector3d<float>(0,0,0) ;
-	      }
-	    }
-	  }
-	}
+        int id = $componentID_node[nd] ;
+        Loci::kdTree::coord3d p(realToFloat($pos[nd].x),
+              realToFloat($pos[nd].y),
+              realToFloat($pos[nd].z)) ;
+        float nearest_dist = 1e30 ;
+        for(int i=0;i<nc;++i) {
+          if(id != i) {
+            double rmin = realToDouble(rmin2) ;
+            int pi = -1 ;
+            // If no geometry is defined, then by default the geometry
+            // is everything.  Otherwise check to see if it is in geometry
+            bool inGeom =
+              ($componentGeometryList[nd][i] == 0 ||
+              $componentGeometryList[nd][i]->inGeometry($pos[nd])) ;
+            if(kdlist[i] != 0 && inGeom) {
+              pi = kdlist[i]->find_closest(p,rmin) ;
+            }
+            if(pi >= 0) {
+              vector3d<real_t> loc(recv_pnts[pi][0],
+                                  recv_pnts[pi][1],
+                                  recv_pnts[pi][2]) ;
+              real_t distloc = recv_pnts[pi][3] ;
+              vector3d<real_t> n(recv_pnts[pi][4],
+                                recv_pnts[pi][5],
+                                recv_pnts[pi][6]) ;
+              vector3d<real_t> dv = $pos[nd] -loc ;
+              real_t dn = distloc + dot(dv,n) ;
+              real_t epsdist = *$holeCuttingTolerance ;
+              real_t d = (dn > -epsdist && dn < epsdist)?epsdist:dn ;
+              real_t priority = (*$componentPriorityList)[i] ;
+              real_t dp = d*priority ;
+              if($crossComponentID_node[nd] < 0 || nearest_dist > realToFloat(dp)) {
+                nearest_dist = realToFloat(dp) ;
+                $crossComponentID_node[nd] = i ;
+                $crossComponentDist_node[nd] = realToFloat(d) ;
+                $crossComponentDistGrad_node[nd] = realToFloat(n) ;
+              }
+            } else {
+              if(inGeom) {
+                nearest_dist = -1e30 ;
+                $crossComponentDist_node[nd] = -1e30 ;
+                $crossComponentID_node[nd] = i ;
+                $crossComponentDistGrad_node[nd] = vector3d<float>(0,0,0) ;
+              }
+            }
+          }
+        }
       } ENDFORALL ;
-      for(int i=0;i<nc;++i)
-	if(kdlist[i] != 0)
-	  delete kdlist[i] ;
+      for(int i=0;i<nc;++i) {
+        if(kdlist[i] != 0) {
+          delete kdlist[i] ;
+        }
+      }
     }
 
   } ;
@@ -566,16 +580,14 @@ namespace Loci {
     }
   } ;
 
-
-  $rule default(interpolateMinStencilSize),
-    comments("Minimum distance that we should use in excluding points from "),
-    comments("interpolation stencils.  The default is zero, in which case the "),
-    comments("estimate used from the number of points and volume of space are "),
-    comments("used.  In some cases, this may be used to improve interpolation "),
-    comments("quality") {
+  /// Minimum distance that we should use in excluding points from
+  /// interpolation stencils. The default is zero, in which case the
+  /// estimate used from the number of points and volume of space are
+  /// used. In some cases, this may be used to improve interpolation
+  /// quality.
+  $rule default(interpolateMinStencilSize) {
     $interpolateMinStencilSize = 0 ;
   }
-
 
   // Initialize stencilSize2 to the square of the minimum interpolate stencil size
   $rule unit(stencilSize2<-interpolateMinStencilSize) {
@@ -752,9 +764,9 @@ namespace Loci {
     $iblank = 0 ;
   }
 
-  $rule default(overset_collision_check),
-  comments("Turn on feature to try to detect surface-surface collisions "),
-  comments("and prevent interpolation leaks. To enable, set to 'on'") {
+  /// Turn on feature to try to detect surface-surface collisions
+  /// and prevent interpolation leaks. To enable, set to 'on'
+  $rule default(overset_collision_check) {
     $overset_collision_check = "off" ;
   }
 

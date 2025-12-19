@@ -24,43 +24,47 @@
 $include "flowPsi.lh"
 
 namespace flowPsi {
-  $rule default(molecularMass), comments("perfect gas mean molecular mass, default setting for air") {
+  /// Perfect gas mean molecular mass, default setting for air
+  $rule default(molecularMass) {
     $molecularMass = 28.96 ;
   }
-  $rule default(gamma), comments("perfect gas isentropic index") {
+
+  /// Perfect gas isentropic index
+  $rule default(gamma) {
     $gamma = 1.4 ;
   }
+
   $rule singleton(Rtilde<-molecularMass) {
     // Univeral Gas Constant
     const double Rh = 8314.4621 ;
     $Rtilde = Rh/$molecularMass ;
   }
 
-  $rule default(p0),
-    comments("The background pressure used in gage pressure computations.  Pa = Pg+p0.") 
-  {
+  /// The background pressure used in gage pressure computations.  Pa = Pg+p0.
+  $rule default(p0) {
     $p0.val = 0 ;
-  } 
-  
+  }
+
   $rule singleton(Pambient<-p0) {
     $Pambient = real($p0) ;
-  } 
+  }
 
-  
   $rule pointwise(rho<-temperature,gagePressure,Rtilde,Pambient) {
     $rho = ($gagePressure+$Pambient)/($Rtilde*$temperature) ;
   }
+
   $rule pointwise(rho_f<-temperature_f,gagePressure_f,Rtilde,Pambient) {
     $rho_f = ($gagePressure_f+$Pambient)/($Rtilde*$temperature_f) ;
   }
-  
+
   $rule pointwise(pressure<-gagePressure,Pambient) {
     $pressure = $gagePressure+$Pambient ;
   }
+
   $rule pointwise(pressure_f<-gagePressure_f,Pambient) {
     $pressure_f = $gagePressure_f+$Pambient ;
   }
-  
+
   $rule pointwise(e_internal<-temperature,gamma,Rtilde) {
     $e_internal = $Rtilde*$temperature/($gamma-1.) ;
   }

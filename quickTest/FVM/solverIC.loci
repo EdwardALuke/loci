@@ -32,7 +32,8 @@ namespace flowPsi {
   using std::string ;
   using std::vector ;
 
-  $rule optional(initialConditions), comments("Specify constant initial conditions settings") {
+  /// Specify constant initial conditions settings
+  $rule optional(initialConditions) {
   }
 
   string toString(const Loci::UNIT_type &vu) {
@@ -69,7 +70,7 @@ namespace flowPsi {
       return true ;
     return false ;
   }
-    
+
 
   class inBox : public geomTest {
     real xmax,xmin,ymax,ymin,zmax,zmin ;
@@ -77,10 +78,10 @@ namespace flowPsi {
     inBox(vect3d p1, vect3d p2) {
       xmax = max(p1.x,p2.x) ;
       xmin = min(p1.x,p2.x) ;
-    
+
       ymax = max(p1.y,p2.y) ;
       ymin = min(p1.y,p2.y) ;
-    
+
       zmax = max(p1.z,p2.z) ;
       zmin = min(p1.z,p2.z) ;
     }
@@ -94,14 +95,14 @@ namespace flowPsi {
       ol.getOptionUnits("p2","m",p2) ;
       xmax = max(p1.x,p2.x) ;
       xmin = min(p1.x,p2.x) ;
-    
+
       ymax = max(p1.y,p2.y) ;
       ymin = min(p1.y,p2.y) ;
-    
+
       zmax = max(p1.z,p2.z) ;
       zmin = min(p1.z,p2.z) ;
     }
-    
+
     bool inGeomPt(vect3d pt) const ;
   } ;
 
@@ -112,7 +113,7 @@ namespace flowPsi {
       return true ;
     return false ;
   }
-      
+
   class inSphere : public geomTest {
     real r ;
     real r2 ;
@@ -128,7 +129,7 @@ namespace flowPsi {
       ol.getOptionUnits("radius","m",r) ;
       ol.getOptionUnits("center","m",center) ;
       r2=r*r ;
-    }      
+    }
     bool inGeomPt(vect3d pt) const ;
   } ;
 
@@ -166,7 +167,7 @@ namespace flowPsi {
       mag = norm(n) ;
       n *= 1./mag ;
       r2=r*r ;
-    }      
+    }
     bool inGeomPt(vect3d pt) const ;
   } ;
 
@@ -209,7 +210,7 @@ namespace flowPsi {
       n = p2-p1 ;
       mag = norm(n) ;
       n *= 1./mag ;
-    }      
+    }
     bool inGeomPt(vect3d pt) const ;
   } ;
 
@@ -247,11 +248,11 @@ namespace flowPsi {
   }
 
 
-  Loci::options_list getStateFromList(const Loci::options_list &ol, 
+  Loci::options_list getStateFromList(const Loci::options_list &ol,
 				      string name) {
     Loci::option_value_type ovt= ol.getOptionValueType(name) ;
     if(ovt != Loci::FUNCTION) {
-      cerr << "getState failed for variable '" << name 
+      cerr << "getState failed for variable '" << name
            << "' expecting state function" << endl ;
       Loci::Abort() ;
     }
@@ -308,7 +309,7 @@ namespace flowPsi {
   $rule singleton(regionsGeomInfo<-initialConditions),option(disable_threading) {
     $regionsGeomInfo = vector<ICgeom_info>() ;
   }
-    
+
   $rule singleton(regionsGeomInfo<-icRegionInfo,initialConditionRegions),option(disable_threading) {
     vector<ICgeom_info> geomInfo ;
     if($initialConditionRegions.optionExists("regions")) {
@@ -346,22 +347,22 @@ namespace flowPsi {
 	int id = 0 ;
 	int ncomp = $icRegionInfo.size() ;
 	for(int i=0;i<ncomp;++i)
-	  if($icRegionInfo[i].name == composition) 
+	  if($icRegionInfo[i].name == composition)
 	    id = i ;
-	
+
 	ginfo.id = id ;
         ginfo.geomTestFunc = geomTestFactory(name,fol) ;
         geomInfo.push_back(ginfo) ;
       }
     } else {
       $[Once] {
-        cerr << "Warning: No regions defined in initialConditionRegions!" 
+        cerr << "Warning: No regions defined in initialConditionRegions!"
 	     << endl ;
       }
     }
     $regionsGeomInfo.swap(geomInfo) ;
   }
-  
+
   $rule pointwise(icRegionId<-regionsGeomInfo,cellcenter) {
     $icRegionId = 0 ;
     const int gsz = $regionsGeomInfo.size() ;
@@ -426,7 +427,7 @@ namespace flowPsi {
 	  throw StringError("incorrect type for 'T' in fluidState") ;
 	}
       }
-    
+
       if(finput.optionExists("p")) {
 	if(finput.getOptionValueType("p") == Loci::REAL) {
 	  finput.getOption("p",p) ;
@@ -452,11 +453,11 @@ namespace flowPsi {
 	cnt++ ;
       if(T_set)
 	cnt++ ;
-      if(cnt > 2) 
+      if(cnt > 2)
 	throw StringError("overspecification of rho,p, and T in initialConditions") ;
-      if(cnt < 2) 
+      if(cnt < 2)
 	throw StringError("underspecification of rho,p, and T in initialConditions") ;
-      
+
       if(p_set && rho_set) {
 	T = p/(rho*$Rtilde) ;
       }
@@ -469,14 +470,14 @@ namespace flowPsi {
       bool u_set = false ;
       bool M_set = false ;
       vect3d u = vect3d(0,0,0) ;
-      
+
       if(finput.optionExists("M")) {
 	finput.getOptionUnits("M","",u) ;
 	real soundSpeed = sqrt($gamma*$Rtilde*T) ;
 	u *= soundSpeed ;
 	M_set = true ;
       }
-    
+
       if(finput.optionExists("u")) {
 	finput.getOptionUnits("u","m/s",u) ;
 	u_set = true ;
@@ -559,11 +560,11 @@ namespace flowPsi {
     $u_ic = $initialConditionsU[$icRegionId]+urot ;
   }
 
-    
+
   $rule pointwise(icfile::temperature_ic,icfile::gagePressure_ic,
 		  icfile::u_ic<-icfile,modelName,Pambient),
     constraint(geom_cells,icfile),  option(disable_threading),  prelude {
-    
+
     string filename = *$icfile+"flowVars_"+*$modelName ;
     $[Once] {
       cout << "restarting flow variables from '" << filename << "'"<<endl ;
