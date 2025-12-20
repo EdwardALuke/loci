@@ -20,19 +20,20 @@
 //#############################################################################
 $type node2surf Map ;
 
-// Used for parsing component definitions from input.
+/// Options for specifying component motion specified from Vars file.
 $type componentMotion param<Loci::options_list> ;
+
+/// Options for specifying the parent/child relationships between components.
 $type componentHierarchy param<Loci::options_list> ;
 
-/// Used to define analytic geometry for use in overset hole cutting from input.
+/// Options for defining analytic geometry for overset hole cutting.
 $type componentGeometry param<Loci::options_list> ;
 
 /// Map of component names to their associated transform sequence ancestry
 $type componentTransformMap blackbox<std::map<std::string,std::vector<Loci::componentXform> > > ;
 
 /// Map of component names to their associated motion definition defined by
-/// componentXform. Solvers provide the implementation of rules that output
-/// this variable.
+/// componentXform. Solvers provide the rules that set this variable.
 $type componentMotionData blackbox<std::map<std::string,Loci::componentXform> > ;
 
 /// Map of component geometry names to their associated geometry types. Used for hole-cutting.
@@ -54,12 +55,14 @@ $type componentID_X param<int> ;
 /// Names of all components
 $type componentNameList blackbox<std::vector<std::string> > ;
 
+/// Iblanking state for cells. Used in hole-cutting and overset
+/// interpolation.
 $type iblank store<Loci::byte_t> ;
 $type holeCuttingTolerance param<Loci::real_t> ;
 
 /// Used for handling collision checking
 $type ovc_check param<bool> ;
-$type overset_collision_check param<string> ;
+$type overset_collision_check param<std::string> ;
 $type oversetCollisionCheck Constraint ;
 
 $type crossComponentDist_node store<float> ;
@@ -73,6 +76,13 @@ $type componentID_node store<int> ;
 /// For a component X, stores the the sequence of transform ancestry to
 /// associated with that component.
 $type componentTransforms_X param<std::vector<Loci::componentXform> > ;
+
+/// The motionType associated with component X
+$type motionBehavior_X blackbox<Loci::CPTR<Loci::motionType> > ;
+
+/// Named pairs of entries that are used by the motionType to advance a
+/// component's motion. This is set by solvers using this module.
+$type motionInfo blackbox<std::map<std::string,Loci::real_t> > ;
 
 /// Used for storing component transform sequences ancestry for use in an
 /// iterative solvers. If componentTransforms_X is defined at the timestep

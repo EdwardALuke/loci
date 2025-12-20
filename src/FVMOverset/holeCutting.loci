@@ -113,18 +113,18 @@ namespace Loci {
 
 
   $type componentID store<int> ;
-  // Assign component ID to each cell
+  /// Assign component ID to each cell
   $rule pointwise(componentID<-cellcenter,componentID_X),
   constraint(volumeTag(X)), parametric(volumeTag(X)) {
     $componentID = $componentID_X ;
   }
 
-  $type componentID_node store<int> ;
-  // Assign Component ID to each node, tie break by using larger id for
-  // nodes that are shared between components.
+  /// Assign Component ID to each node, tie break by using larger id for
+  /// nodes that are shared between components.
   $rule unit(componentID_node),constraint(pos) {
     $componentID_node = -1 ;
   }
+
   $rule apply(face2node->componentID_node<-cl->componentID)[Loci::Maximum] {
     int fsz = $face2node.size() ;
     int cid = $cl->$componentID ;
@@ -139,11 +139,12 @@ namespace Loci {
       join($face2node[i]->$componentID_node,cid) ;
   }
 
-  //---------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
   //--
   //-- Surface2surface distance evaluations
   //--
-  //---------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
+
   $type stencilSize2 param<double> ;
   $type crossComponentDist_node store<float> ;
   $type crossComponentDistGrad_node store<vector3d<float> > ;
@@ -499,7 +500,7 @@ namespace Loci {
   // iblank = 3: Don't simulate, advance values in time as constant function
   //
 
-  // Used as a hole-cutting mask with values of 0 or 2
+  /// Used as a hole-cutting mask with values of 0 or 2
   $type xblank store<Loci::byte_t> ;
 
   $type yblank store<Loci::byte_t> ; // With proximity override
@@ -589,7 +590,7 @@ namespace Loci {
     $interpolateMinStencilSize = 0 ;
   }
 
-  // Initialize stencilSize2 to the square of the minimum interpolate stencil size
+  /// Initialize stencilSize2 to the square of the minimum interpolate stencil size
   $rule unit(stencilSize2<-interpolateMinStencilSize) {
     $stencilSize2 = $interpolateMinStencilSize*$interpolateMinStencilSize ;
   }
@@ -633,7 +634,7 @@ namespace Loci {
     }
   }
 
-  // Execute over nodes to set the value of yblank based on hole cutting.
+  /// Execute over nodes to set the value of yblank based on hole cutting.
   $rule pointwise(yblank<-xblank,pos,node2surf->pos,crossComponentDist_node,
   crossComponentID_node,componentID_node,componentPriorityList,
   holeCuttingTolerance) {
@@ -836,7 +837,7 @@ namespace Loci {
   }
 
   $type cblank store<Loci::byte_t> ; // collision blank
-  // For all faces, if any face has zblank = 3, then set cblank=1
+  /// For all faces, if any face has zblank = 3, then set cblank=1
   $rule pointwise(cblank<-(upper,lower,boundary_map)->face2node->(zblank)),
   constraint((upper,lower,boundary_map)->face2node->zblank,componentGeometry) {
     $cblank = 0 ;
@@ -861,7 +862,7 @@ namespace Loci {
     }
   }
 
-  // nodal values of iblank
+  /// nodal values of iblank
   $type nblank store<Loci::byte_t> ;
   $rule unit(nblank),constraint(pos) {
     $nblank = 0 ;
@@ -883,7 +884,7 @@ namespace Loci {
   }
 
   $type nblankf store<float> ;
-  // This is available for plotting functions
+  /// This is available for plotting functions
   $rule pointwise(nblankf<-nblank) {
     $nblankf = float($nblank) ;
     if($nblank == 0)

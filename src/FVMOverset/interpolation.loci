@@ -211,11 +211,11 @@ namespace Loci {
   } ;
 
 
-  ////////////////////////////////////////////////////////////////////////////
-  //
-  // Helpers for estimating stencil sizes
-  //
-  ////////////////////////////////////////////////////////////////////////////
+  //--------------------------------------------------------------------------
+  //--
+  //-- Helpers for estimating stencil sizes
+  //--
+  //--------------------------------------------------------------------------
 
 
   // Donor cells are at the edge of a hole cut region.  They define the target
@@ -392,7 +392,6 @@ namespace Loci {
     Loci::debugout << "time to build stencilSizer: " << s.stop() << endl ;
 #endif
   } ;
-
 
   /// Fill the interpolateFaceStencil blackbox with information about the
   /// interpolation stencil and weights for each entity based on the provided
