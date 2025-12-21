@@ -142,7 +142,7 @@ namespace Loci {
 
   struct periodic_info {
     std::string name ;
-    bool master,processed ;
+    bool master, processed ;
     vector3d<double> center, v, translate ;
     double angle ;
     entitySet bset ;
@@ -218,6 +218,8 @@ namespace Loci {
   /// @param[in,out] facts Fact database to set up grid into.
   void createLowerUpper(fact_db &facts) ;
 
+  /// Creates `edges`, `edge2node` and `node2edge` facts.
+  /// @param[in,out] facts Fact database to set up grid into.
   void createEdgesPar(fact_db& facts) ;
 
 
