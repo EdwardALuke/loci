@@ -3066,8 +3066,8 @@ namespace Loci {
     return true ;
   }
 
-  /// Creates fact: `ref`
-  /// @param[in,out] facts Fact database to add reference cell information to.
+  /// Creates the `ref` fact.
+  /// @param[in,out] facts Fact database.
   void create_ref(fact_db &facts) {
     store<string> boundary_names ;
     store<string> boundary_tags ;
