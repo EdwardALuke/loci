@@ -173,15 +173,19 @@ namespace Loci {
     }
   } ;
 
-  /// Reads grid structures in the fact database
+  /// Reads an FVM grid and generates facts from the grid information.
+  ///
+  /// Creates facts for the `cl`, `cr`, `pos`, `face2node`, `boundary_names`,
+  /// and `boundary_tags`. The `volumeTag(<tagName>)` fact is created for all
+  /// volume tags found in the grid.
   /// @param[in,out] facts Fact database to add grid-related facts into.
   /// @param[in] filename Input grid filename.
   /// @param[in] cellwts Optional cell weights for partitioning.
   /// @return true if success
   bool readFVMGrid(fact_db &facts, std::string filename,storeRepP cellwts=0) ;
 
-  /// Sets up FVM grid in the fact database
-  /// @param[in,out] facts Fact database to set up grid into.
+  /// Sets up FVM grid in the fact database.
+  /// @param[in,out] facts Fact database.
   /// @param[in] filename Input grid filename.
   /// @param[in] cellwts Optional cell weights for partitioning.
   /// @return true if success

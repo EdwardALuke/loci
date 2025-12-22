@@ -97,12 +97,11 @@ namespace Loci{
   }
 
   /// Return a map from local numbering to output file numbering.
-  /// the file number starts with 1
+  /// The file number is assumed to start with 1 and the nodes will be
+  /// written out in the global ordering.
+  ///
   /// @param[in] facts Fact database.
   /// @param[in] nodes The local store domain that needs to be output.
-  ///
-  /// The file numbering is assumed to start at 1 and the nodes will be
-  /// written out in the global ordering.
   storeRepP get_output_node_remap(fact_db &facts, entitySet nodes) {
     int p = MPI_processes ;
     if(p == 1) {
@@ -268,9 +267,6 @@ namespace Loci{
   }
 
   /// Returns the classification of a cell based on face topology.
-  /// @param[in] faces faces that make up the cell.
-  /// @param[in] nfaces number of faces.
-  /// @param[in] face2node mapping from face to nodes.
   ///
   /// Classification is:
   ///  0 for 4 triangles only i.e. tetrahedron.
@@ -278,6 +274,10 @@ namespace Loci{
   ///  2 if prism_test i.e. triangular prism.
   ///  3 for 4 triangles + 1 quad i.e. pyramid.
   ///  4 for anything else i.e. general/other polyhedron.
+  ///
+  /// @param[in] faces faces that make up the cell.
+  /// @param[in] nfaces number of faces.
+  /// @param[in] face2node mapping from face to nodes.
   int classify_cell(Entity *faces, int nfaces, const_multiMap &face2node) {
     int num_triangles = 0 ;
     int num_quads = 0 ;
@@ -504,6 +504,14 @@ namespace Loci{
   }
 
   /// Writes out the grid topology in parallel to a file.
+  ///
+  /// The node_id range is [1,numNodes]. The face_id range is
+  /// [numNodes,numNodes+numFaces]. The cell_id range is [1,numCells]. This is
+  /// because `get_node_remap()` is used to get the file number of nodes and
+  /// cells, which set the start index to 1, however, g2f(l2g(ff)) is used to
+  /// get the file number of faces. Since boundary variables also use the
+  /// face_id, to avoid changing too many places, we keep the face_id this way.
+  ///
   /// @param[in] filename The name of the output file.
   /// @param[in] upperRep The upper faces.
   /// @param[in] lowerRep The lower faces.
@@ -514,13 +522,6 @@ namespace Loci{
   /// @param[in] posRep The node positions.
   /// @param[in] localCells The local cells to write out.
   /// @param[in,out] facts The fact database.
-  ///
-  /// The node_id range is 1~numNodes. The face_id range is
-  /// numNodes~numNodes+numFaces. The cell_id range is 1~numCells. This is
-  /// because `get_node_remap()` is used to get the file numberr of nodes and
-  /// cells, which set the start index to 1, however, g2f(l2g(ff)) is used to
-  /// get the file number of faces. Since boundary variables also use the
-  /// face_id, to avoid changing too many places, we keep the face_id this way.
   void parallelWriteGridTopology(const char *filename, storeRepP upperRep,
         storeRepP lowerRep, storeRepP boundary_mapRep, storeRepP face2nodeRep,
         storeRepP refRep, storeRepP bnamesRep, storeRepP posRep,
@@ -793,7 +794,7 @@ namespace Loci{
 
       if(kd < 0) {
         cerr << "gridTopology, boundary faces not in single keyspace!"
-            << endl ;
+             << endl ;
         kd = 0 ;
       }
       //debugout << "in write gridTopology, face key domain is " << kd
@@ -900,7 +901,10 @@ namespace Loci{
 
   }
 
-  /// Collect all boundary names.
+  /// Returns all boundary names.
+  /// @param[in] bnamesRep The boundary name store.
+  /// @param[in,out] facts The fact database.
+  /// @return A string vector of all boundary names.
   std::vector<string> get_boundary_names(storeRepP bnamesRep, fact_db &facts){
 
     const_store<string> boundary_names(bnamesRep) ;
@@ -944,6 +948,7 @@ namespace Loci{
   }
 
   /// Creates an directory with the name scheme: `/output/$bc_name`.
+  /// @param[in] bc_name The name of the boundary.
   void get_bc_directory(string bc_name){
     string directory_name = "output/"+bc_name;
     struct stat statbuf ;
@@ -1145,6 +1150,11 @@ namespace Loci{
 
   /// Finds the index of an inner edge for a given `face`, and creates one
   /// if it does not exist.
+  ///
+  /// An inner edge is the edge from facecenter to one of its nodes during
+  /// face triangulation. If the edge already exists, the index is returned,
+  /// otherwise the edge is created and registered in `inner_edges` and
+  /// `edgeIndex`.
   /// @param[in] face The face ID.
   /// @param[in] node The node ID.
   /// @param[in,out] edgeIndex A map of inner edges to its index in
@@ -1152,11 +1162,6 @@ namespace Loci{
   /// @param[in,out] inner_edges The edges from facecenter and one of its
   ///                            nodes.
   /// @return The index of the edge in `inner_edges`, starts with 1.
-  ///
-  /// An inner edge is the edge from facecenter to one of its nodes during
-  /// face triangulation. If the edge already exists, the index is returned,
-  /// otherwise the edge is created and registered in `inner_edges` and
-  /// `edgeIndex`.
   int create_inner_edge(int face, int node,
                        std::map<pair<int, int>, int>& edgeIndex,
                        vector<pair<int, int> >& inner_edges) {
@@ -1235,7 +1240,7 @@ namespace Loci{
     }
   }
 
-  /// Find edges cut in the face and register them into intersects.
+  /// Find edges cut in the face and register them into `intersects`.
   /// @param f The face entity.
   /// @param face2node The face to node map.
   /// @param face2edge The face to edge map.
@@ -1281,10 +1286,10 @@ namespace Loci{
     return (cutsFound > 0) ;
   }
 
-  /// After all the faces of a cell is registered, check the intersects to form
-  /// the faces in cutting plane.
-  /// @param intersects  The pair of edges, if the value number is negative, it
-  ///                    is index to inner_edges.
+  /// After all the faces of a cell are registered, check the intersects to
+  /// form the faces in cutting plane.
+  /// @param intersects The pair of edges, if the value number is negative, it
+  ///                   is index to inner_edges.
   /// @param faceLoops The loops(faces in cutting plane) formed.
   /// @param[in] start The start index to intersects.
   /// @param[in] end The end index to intersects.
@@ -1344,14 +1349,15 @@ namespace Loci{
       debugout << "ERROR: ** Problem cell:  ** (failed loop test)" << endl ;
     }
   }
-  // after the loops are formed, this function will remove all negative value
-  // in loops. faceLoops is the loops(faces in cutting plane) formed.
-  vector<vector<int > > remove_inner_edges(const vector<vector<int > >& faceLoops)
-  {
-    vector<vector<int > >  new_faceLoops ;
-    for(unsigned int i = 0; i < faceLoops.size(); i++){
+
+  /// Removes all negative values in loops after the loops are formed.
+  /// `faceLoops` is the loops(faces in cutting plane) formed.
+  vector<vector<int > > remove_inner_edges(
+        const vector<vector<int > >& faceLoops) {
+    vector<vector<int > > new_faceLoops ;
+    for(unsigned int i=0; i<faceLoops.size(); i++){
       vector<int> loop ;
-      for(unsigned int j = 0; j < faceLoops[i].size(); j++){
+      for(unsigned int j=0; j<faceLoops[i].size(); j++){
         if(faceLoops[i][j] >=0) { loop.push_back(faceLoops[i][j]) ; }
       }
       if(loop.size() >0) { new_faceLoops.push_back(loop) ; }
@@ -1519,7 +1525,7 @@ namespace Loci{
   /// - `periodicTransform`: bc_id -> rigid_transform
   ///
   /// @param[in] periodic_list List of (master, slave) periodic_info pairs with
-  ///        bc_num, bset, and transform parameters.
+  ///                          bc_num, bset, and transform parameters.
   /// @param[in,out] facts Fact database.
   void setup_periodic_bc(list<pair<periodic_info,periodic_info> >
                          &periodic_list,fact_db &facts) {
@@ -1633,15 +1639,18 @@ namespace Loci{
       vector<int> p2closest(p2.size()) ;
       parallelNearestNeighbors(p1,p1id,p2,p2closest,MPI_COMM_WORLD) ;
 
-      for(size_t i=0;i<p1.size();++i)
+      for(size_t i=0;i<p1.size();++i) {
         pmap[p1id[i]] = p1closest[i] ;
-      for(size_t i=0;i<p2.size();++i)
+      }
+      for(size_t i=0;i<p2.size();++i) {
         pmap[p2id[i]] = p2closest[i] ;
+      }
 
       // Check to make sure connection is one-to-one
       dstore<int> check ;
-      for(size_t i=0;i<p2.size();++i)
+      for(size_t i=0;i<p2.size();++i) {
         check[p2id[i]] = p2closest[i] ;
+      }
 
       entitySet p1map = create_entitySet(p1closest.begin(),p1closest.end()) ;
       storeRepP sp = check.Rep() ;
@@ -1651,12 +1660,15 @@ namespace Loci{
         fill_clone(sp, p1map, init_ptn) ;
       }
       bool periodic_problem = false ;
-      for(size_t i=0;i<p1id.size();++i)
-        if(check[pmap[p1id[i]]] != p1id[i])
+      for(size_t i=0;i<p1id.size();++i) {
+        if(check[pmap[p1id[i]]] != p1id[i]) {
           periodic_problem = true ;
+        }
+      }
       if(GLOBAL_OR(periodic_problem)) {
         if(MPI_rank == 0) {
-          cerr << "Periodic boundary did not connect properly, is boundary point matched?" << endl ;
+          cerr << "Periodic boundary did not connect properly, is boundary "
+               << "point matched?" << endl ;
           Loci::Abort() ;
         }
       }
@@ -1854,6 +1866,7 @@ namespace Loci{
 
 
     {
+      // Create constraints for each
       std::map<std::string, entitySet>::const_iterator mi ;
       for(mi=BCsets.begin();mi!=BCsets.end();++mi) {
         if(GLOBAL_OR(mi->second.size())) {
@@ -1977,18 +1990,23 @@ namespace Loci{
 
   }
 
-  // Create Cell Stencil Plan:
+  //--------------------------------------------------------------------------
+  //-- Create Cell Stencil Plan
+  //--
+  //-- Get relations from face2cell and face2node
+  //-- Join to get node2cell
+  //-- Join node2cell & node2cell to get cell2cell (through shared nodes)
+  //-- Remove self2self references
+  //-- Convert resulting structure to multiMap
+  //--------------------------------------------------------------------------
 
-  // Get relations from face2cell and face2node
-  // Join to get node2cell
-  // join node2cell & node2cell to get cell2cell (through shared nodes)
-  // remove self2self references
-  // Convert resulting structure to multiMap
-
-  void getFaceCenter(fact_db &facts,
-                     store<vector3d<double> > &fcenter,
-                     store<double> &area,
-                     store<vector3d<double> > &normal) {
+  /// Computes face centers, areas, and normals for all faces.
+  /// @param[in] facts The fact database.
+  /// @param[out] fcenter Face centers.
+  /// @param[out] area Face areas.
+  /// @param[out] normal Face normals.
+  void getFaceCenter(fact_db &facts, store<vector3d<double> > &fcenter,
+                     store<double> &area, store<vector3d<double> > &normal) {
     // Compute face centers
     store<vector3d<double> > pos ;
     pos = facts.get_variable("pos") ;
@@ -1996,12 +2014,14 @@ namespace Loci{
     multiMap face2node ;
     face2node = facts.get_variable("face2node") ;
     entitySet fdom = face2node.domain() ;
+
     // Find nodes that face2node accesses
     entitySet node_access = Loci::MapRepP(face2node.Rep())->image(fdom) ;
 
     std::vector<vector3d<double> > posdata ;
     int nkeyspace = pos.getDomainKeySpace() ;
     std::vector<entitySet> node_ptn = facts.get_init_ptn(nkeyspace) ;
+
     // gather nodal data needed for the computation.
     std::map<int,int> g2l ;
     getLocalContextMap(g2l,node_access) ;
@@ -2009,6 +2029,8 @@ namespace Loci{
     fcenter.allocate(fdom) ;
     area.allocate(fdom) ;
     normal.allocate(fdom) ;
+
+    // check centroid type
     param<std::string> centroid ;
     centroid = facts.get_variable("centroid") ;
     bool exact = false ;
@@ -2017,9 +2039,10 @@ namespace Loci{
     }
     FORALL(fdom,fc) {
       int fsz = face2node[fc].size() ;
-      vector3d<double>  center = vector3d<double>(0,0,0) ;
+      vector3d<double> center = vector3d<double>(0,0,0) ;
       double wsum = 0 ;
 
+      // loop over face edges to compute a wireframe centroid
       for(int i=1;i<fsz;++i) {
         FATAL(g2l[face2node[fc][i-1]] > int(posdata.size())) ;
         FATAL(g2l[face2node[fc][i-1]] < 0) ;
@@ -2027,27 +2050,28 @@ namespace Loci{
         FATAL(g2l[face2node[fc][i]] < 0) ;
         double len = norm(posdata[g2l[face2node[fc][i-1]]]-
                           posdata[g2l[face2node[fc][i]]]) ;
-        vector3d<double>  eloc = 0.5*(posdata[g2l[face2node[fc][i-1]]]+
-                                      posdata[g2l[face2node[fc][i]]]) ;
+        vector3d<double> eloc = 0.5*(posdata[g2l[face2node[fc][i-1]]]+
+                                     posdata[g2l[face2node[fc][i]]]) ;
         center += len*eloc ;
         wsum += len ;
       }
-      double lenr = norm(posdata[g2l[face2node[fc][0]]]-
-                         posdata[g2l[face2node[fc][fsz-1]]]) ;
-      vector3d<double> elocr = 0.5*(posdata[g2l[face2node[fc][0]]]+
-                                    posdata[g2l[face2node[fc][fsz-1]]]) ;
-      center += lenr*elocr ;
-      wsum += lenr ;
+      // final edge from last to first node
+      double len = norm(posdata[g2l[face2node[fc][0]]]-
+                        posdata[g2l[face2node[fc][fsz-1]]]) ;
+      vector3d<double> eloc = 0.5*(posdata[g2l[face2node[fc][0]]]+
+                                   posdata[g2l[face2node[fc][fsz-1]]]) ;
+      center += len*eloc ;
+      wsum += len ;
       center *= 1./wsum ;
       fcenter[fc] = center ;
       if(exact) {
-        // Iterate to find exact centroid that is on the face
+        // Iterate to find exact centroid that is on the face for an
+        // area-weighted centroid.
         vector3d<double>  tmpcenter = center ;
         const int NITER=4 ;
         for(int iter=0;iter<NITER;++iter) {
-
           // compute centroid using triangles formed by wireframe centroid
-          vector3d<double>  centroidsum(0.0,0.0,0.0) ;
+          vector3d<double> centroidsum(0.0,0.0,0.0) ;
           double facearea = 0 ;
           for(int i=0;i<fsz;++i) {
             int n1 = i ;
@@ -2055,7 +2079,7 @@ namespace Loci{
             vector3d<double>  p1 = posdata[g2l[face2node[fc][n1]]] ;
             vector3d<double>  p2 = posdata[g2l[face2node[fc][n2]]] ;
 
-            const vector3d<double>  t_centroid = (p1 + p2 + tmpcenter)/3.0 ;
+            const vector3d<double> t_centroid = (p1 + p2 + tmpcenter)/3.0 ;
             const double t_area = 0.5*norm(cross(p1-tmpcenter,p2-tmpcenter)) ;
             centroidsum += t_area*t_centroid ;
             facearea += t_area ;
@@ -2065,7 +2089,7 @@ namespace Loci{
         fcenter[fc] = tmpcenter ;
       }
       vector3d<double> facearea = vector3d<double>(0,0,0) ;
-      vector3d<double>  tmpcenter = fcenter[fc] ;
+      vector3d<double> tmpcenter = fcenter[fc] ;
       for(int i=0;i<fsz;++i) {
         int n1 = i ;
         int n2 = (i+1==fsz)?0:i+1 ;
@@ -2080,10 +2104,13 @@ namespace Loci{
     } ENDFORALL ;
   }
 
-  void getCellCenter(fact_db &facts,
-                      store<vector3d<double> > &ccenter,
-                      store<vector3d<double> > &fcenter,
-                      store<double> &area) {
+  /// Computes cell centers
+  /// @param[in] facts The fact database.
+  /// @param[out] ccenter Cell centers.
+  /// @param[in] fcenter Face centers.
+  /// @param[in] area Face areas.
+  void getCellCenter(fact_db &facts, store<vector3d<double> > &ccenter,
+                     store<vector3d<double> > &fcenter, store<double> &area) {
 
     multiMap upper,lower,boundary_map ;
     upper = facts.get_variable("upper") ;
@@ -2138,6 +2165,8 @@ namespace Loci{
     param<std::string> centroid ;
     centroid = facts.get_variable("centroid") ;
     if(*centroid == "exact") {
+      std::cerr << "Warning: exact cell centroids not implemented yet."
+                << std::endl ;
       // Here we add code to compute exact centroid.
       // face2node needs to be expanded to do this..., not trivial
     }
@@ -2434,6 +2463,9 @@ namespace Loci{
 
   }
 
+  /// Builds a symmetric neighbor stencil for each cell.
+  /// @param[out] cellStencilSymm
+  /// @param[in] facts
   void get_symm_cellStencil(multiMap &cellStencilSymm, fact_db & facts) {
     if(Loci::MPI_rank==0) {
       cout <<"Generating symm stencil" << endl ;
@@ -2462,10 +2494,9 @@ namespace Loci{
     getCellCenter(facts,ccenter,fcenter,area) ;
 
     // gather face data needed for the computation.
-    std::map<int,int> fg2l ;
+    std::map<int,int> fg2l ; // face global to local
     getLocalContextMap(fg2l,faceimage) ;
-    vector<vector3d<double> > fcenterdata ;
-    vector<vector3d<double> > fnormaldata ;
+    vector<vector3d<double> > fcenterdata, fnormaldata ;
     gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
     gatherData(fnormaldata,normal,faceimage,face_ptn) ;
 
@@ -2490,7 +2521,7 @@ namespace Loci{
     store<int> sizes ;
     sizes.allocate(cells) ;
     vector<int> cellmap ;
-    double theta = 3.*M_PI/4.0 ;
+    double theta = 3.0*M_PI/4.0 ; // 135 degrees
     FORALL(cells,cc) {
       int csz = cellStencil[cc].size() ;
       int nsz = neighStencil[cc].size() ;
@@ -3516,8 +3547,7 @@ namespace Loci{
 
     /// A utility function that takes an entitySet from a processor and
     /// returns a vector of entitySet gathered from all processors.
-    vector<entitySet>
-    gather_all_entitySet(const entitySet& eset) {
+    vector<entitySet> gather_all_entitySet(const entitySet& eset) {
       int local_size = eset.size() ;
       int global_size = global_sum(local_size) ;
       // compute receive counts from all processors
@@ -3527,14 +3557,16 @@ namespace Loci{
       // then compute receive displacement
       int* recv_displs = new int[MPI_processes] ;
       recv_displs[0] = 0 ;
-      for(int i=1;i<MPI_processes;++i)
+      for(int i=1;i<MPI_processes;++i) {
         recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
+      }
       // pack the local eset into an array
       int* local_eset = new int[local_size] ;
       int count = 0 ;
       for(entitySet::const_iterator ei=eset.begin();
-          ei!=eset.end();++ei,++count)
+          ei!=eset.end();++ei,++count) {
         local_eset[count] = *ei ;
+      }
       // allocate the entire array for all data from all processors
       int* global_eset = new int[global_size] ;
       // communicate to obtain all esets from every processors
@@ -3548,12 +3580,14 @@ namespace Loci{
       int k = 0 ;
       for(int i=0;i<MPI_processes;++i) {
         int limit ;
-        if(i == MPI_processes-1)
+        if(i == MPI_processes-1) {
           limit = global_size ;
-        else
+        } else {
           limit = recv_displs[i+1] ;
-        for(;k<limit;++k)
+        }
+        for(;k<limit;++k) {
           ret[i] += global_eset[k] ;
+        }
       }
       delete[] recv_displs ;
       delete[] global_eset ;
@@ -3566,8 +3600,9 @@ namespace Loci{
       int my_id, num_procs ;
       MPI_Comm_size(comm, &num_procs) ;
       MPI_Comm_rank(comm, &my_id) ;
-      if(num_procs <= 1)
+      if(num_procs <= 1) {
         return ;                  // single process, no need to proceed
+      }
       // get the number of local elements
       int local_size = data.size() ;
       // then select num_procs-1 equally spaced elements as splitters
@@ -3575,8 +3610,9 @@ namespace Loci{
       int even_space = local_size / (num_procs-1) ;
       int start_idx = even_space / 2 ;
       int space_idx = start_idx ;
-      for(int i=0;i<num_procs-1;++i,space_idx+=even_space)
+      for(int i=0;i<num_procs-1;++i,space_idx+=even_space) {
         splitters[i] = data[space_idx].first ;
+      }
       // gather the splitters to all processors as samples
       int sample_size = num_procs * (num_procs-1) ;
       pair<int, int>* samples = new pair<int, int>[sample_size] ;
@@ -3588,8 +3624,9 @@ namespace Loci{
       even_space = sample_size / (num_procs-1) ;
       start_idx = even_space / 2 ;
       space_idx = start_idx ;
-      for(int i=0;i<num_procs-1;++i,space_idx+=even_space)
+      for(int i=0;i<num_procs-1;++i,space_idx+=even_space) {
         splitters[i] = samples[space_idx] ;
+      }
       // the last one set as maximum possible integer
       int maxnumber = std::numeric_limits<int>::max();
       splitters[num_procs-1] =pair<int, int>(maxnumber, maxnumber);
@@ -3599,14 +3636,15 @@ namespace Loci{
       // according to the new splitters. first we will compute
       // the size of each bucket and communicate them first
       int *scounts = new int[num_procs] ;
-      for(int i=0;i<num_procs;++i)
+      for(int i=0;i<num_procs;++i) {
         scounts[i] = 0;
+      }
       { // using a block just to make the definition of "i" and "j" local
         int i, j ;
         for(j=i=0;i<local_size;++i) {
-          if(data[i].first < splitters[j])
+          if(data[i].first < splitters[j]) {
             scounts[j]++ ;
-          else {
+          } else {
             ++j ;
             while(data[i].first >= splitters[j]) {
               scounts[j] = 0 ;
@@ -3618,13 +3656,15 @@ namespace Loci{
       }
       // but since one local element contains two integers (a pair of int),
       // we will need to double the size
-      for(int i=0;i<num_procs;++i)
+      for(int i=0;i<num_procs;++i) {
         scounts[i] *= 3 ;
+      }
       // now we compute the sending displacement for each bucket
       int* sdispls = new int[num_procs] ;
       sdispls[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         sdispls[i] = sdispls[i-1] + scounts[i-1] ;
+      }
       // communicate this information to all processors so that each will
       // know how many elements are expected from every other processor
       int* rcounts = new int[num_procs] ;
@@ -3633,8 +3673,9 @@ namespace Loci{
       // receive displacement
       int* rdispls = new int[num_procs] ;
       rdispls[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         rdispls[i] = rdispls[i-1] + rcounts[i-1] ;
+      }
       // then we will need to pack the elements in local into
       // a buffer and communicate them
       int* local_pairs = new int[local_size*3] ;
@@ -3661,8 +3702,9 @@ namespace Loci{
       // finally we unpack the buffer into a vector of pairs
       data.resize(new_local_size/3) ;
       int data_idx = 0 ;
-      for(int i=0;i<new_local_size;i+=3,data_idx++)
+      for(int i=0;i<new_local_size;i+=3,data_idx++) {
         data[data_idx] = pair<pair<int,int>, int>(pair<int, int>(sorted_pairs[i],sorted_pairs[i+1]), sorted_pairs[i+2]) ;
+      }
       // release the final buffer
       delete[] sorted_pairs ;
       // finally we sort the new local vector
@@ -3675,16 +3717,14 @@ namespace Loci{
       int num_procs = 0 ;
       MPI_Comm_size(comm,&num_procs) ;
 
-      // we still use an all-to-all personalized communication
-      // algorithm to balance the element numbers on processes.
-      // we pick (p-1) equally spaced element as the splitters
-      // and then re-split the global vector sequence to balance
-      // the number of elements on processes.
+      // we still use an all-to-all personalized communication algorithm to
+      // balance the element numbers on processes. We pick (p-1) equally
+      // spaced element as the splitters and then re-split the global vector
+      // sequence to balance the number of elements on processes.
 
       int vp_size = vp.size() ;
       int global_vp_size = 0 ;
-      MPI_Allreduce(&vp_size, &global_vp_size,
-                    1, MPI_INT, MPI_SUM, comm) ;
+      MPI_Allreduce(&vp_size, &global_vp_size, 1, MPI_INT, MPI_SUM, comm) ;
 
       int space = global_vp_size / num_procs ;
       // compute a global range for the elements on each process
@@ -3695,34 +3735,39 @@ namespace Loci{
       vector<int> splitters(num_procs) ;
       // splitters are just global index number
       splitters[0] = space ;
-      for(int i=1;i<num_procs-1;++i)
+      for(int i=1;i<num_procs-1;++i) {
         splitters[i] = splitters[i-1] + space ;
+      }
       splitters[num_procs-1] = global_vp_size ;
 
       // split and communicate the vector of particles
       vector<int> send_counts(num_procs, 0) ;
       int part_start = global_start ;
       for(int idx=0;idx<num_procs;++idx) {
-        if(part_start == global_end)
+        if(part_start == global_end) {
           break ;
+        }
         if(splitters[idx] > part_start) {
           int part_end ;
-          if(splitters[idx] < global_end)
+          if(splitters[idx] < global_end) {
             part_end = splitters[idx] ;
-          else
+          } else {
             part_end = global_end ;
+          }
           send_counts[idx] = part_end - part_start ;
           part_start = part_end ;
         }
       }
 
-      for(size_t i=0;i<send_counts.size();++i)
+      for(size_t i=0;i<send_counts.size();++i) {
         send_counts[i] *= 3 ;
+      }
 
       vector<int> send_displs(num_procs) ;
       send_displs[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
+      }
 
       vector<int> recv_counts(num_procs) ;
       MPI_Alltoall(&send_counts[0], 1, MPI_INT,
@@ -3730,8 +3775,9 @@ namespace Loci{
 
       vector<int> recv_displs(num_procs) ;
       recv_displs[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
+      }
 
       int total_recv_size = recv_displs[num_procs-1] +
         recv_counts[num_procs-1] ;
@@ -3758,13 +3804,14 @@ namespace Loci{
       vector<int>().swap(send_buf) ;
       vp.resize(total_recv_size/3) ;
       count = 0 ;
-      for(int i=0;i<total_recv_size;i+=3,count++)
+      for(int i=0;i<total_recv_size;i+=3,count++) {
         vp[count] = pair<pair<int,int>, int>(pair<int, int>(recv_buf[i], recv_buf[i+1]), recv_buf[i+2]) ;
+      }
     }
-
-
   }
 
+  /// Creates the `face2edge` and `edge2node` maps.
+  /// @param facts
   void createEdgesPar(fact_db &facts) {
     multiMap face2node ;
     face2node = facts.get_variable("face2node") ;
@@ -4260,7 +4307,8 @@ namespace Loci{
 
   } // end of createEdgesPar
 
-
+  /// Creates the `node2surf` fact related to overset grids.
+  /// @param[in,out] facts The fact database
   void setupOverset(fact_db &facts) {
     using namespace Loci ;
     using std::map ;
