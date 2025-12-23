@@ -234,6 +234,17 @@ namespace Loci {
                        Map &cl, Map &cr, multiMap &face2node,
                        std::vector<std::pair<int,std::string> >& surfaceids,
                        std::vector<std::pair<std::string,entitySet> >& volTags) ;
+
+  /// Reads grid structures from grid file in the .vog format.
+  /// @param[in] filename name of grid file
+  /// @param[in] max_alloc (starting of entity assignment - node base)
+  /// @param[out] local_cells Partition of cells
+  /// @param[out] local_nodes Partition of nodes
+  /// @param[out] local_faces Partition of faces
+  /// @param[out] pos Position of nodes
+  /// @param[out] cl Mapping from face to cell on the left side
+  /// @param[out] cr Mapping from face to cell on the right side
+  /// @param[out] face2node MultiMapping from a face to nodes
   bool readGridVOG(std::vector<entitySet> &local_nodes,
                    std::vector<entitySet> &local_faces,
                    std::vector<entitySet> &local_cells,
