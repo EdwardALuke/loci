@@ -141,7 +141,7 @@ namespace Loci {
       hsize_t start = 0 ;
 
       //each process has different start
-      for(int i = 0; i < MPI_rank; i++) { start +=  sizes[i] ; }
+      for(int i=0; i<MPI_rank; i++) { start +=  sizes[i] ; }
       H5Sselect_hyperslab(dspace,H5S_SELECT_SET,&start,&stride,&count, NULL) ;
 
 
@@ -249,6 +249,14 @@ namespace Loci {
     return num_faces ;
   }
 
+  /// Returns the per-face node counts from the `cluster` input and the total
+  /// number of faces encountered.
+  ///
+  /// Reads each block (npnts, nfaces) and writes npnts into the `sizes`
+  /// array once per face.
+  /// @param[in] cluster Pointer to byte stream of face cluster data.
+  /// @param[out] sizes Array of per-face node counts.
+  /// @return total number of faces encountered in `cluster`.
   int fillClusterFaceSizes(unsigned char *cluster, int *sizes) {
     int num_faces = 0 ;
     while(*cluster != 0) {
@@ -261,6 +269,7 @@ namespace Loci {
       }
       num_faces += nfaces ;
 
+      // Skip over remaining face data
       cluster += nfaces * (npnts + 2) ;
     }
     return num_faces ;
@@ -298,6 +307,12 @@ namespace Loci {
     return p ;
   }
 
+  /// Decodes the packed byte stream `p` and puts the data into `table`.
+  /// First byte of `p` is size (0 => 256), then a signed base value
+  /// followed by unsigned delta-encoded offsets.
+  /// @param[in,out] p Pointer to a packed byte stream.
+  /// @param[out] table 1D array IDs parsed from the byte stream.
+  /// @return The updated pointer after the table bytes.
   unsigned char *readTable(unsigned char *p, long table[]) {
     int sz = *p++ ;
     // Get table size... note zero indicates maximum size
@@ -317,10 +332,24 @@ namespace Loci {
     return p ;
   }
 
+  /// Decodes byte buffer containing face information and fills the
+  /// `face2node`, `cl`, and `cr` maps.
+  ///
+  /// The schema for the cluster data is:
+  /// Each block starts with `npnts` (nodes per face) and `nfaces` (how many
+  /// faces have `npnts` nodes). For each face there are npnts node
+  /// indices plus two cell indices (left/right). `face_base` is used as the
+  /// starting index to use in the `face2node`, `cl`, and `cr` maps.
+  ///
+  /// @param[in] cluster Pointer to byte stream of face cluster data.
+  /// @param[in] face_base Starting face index for this cluster.
+  /// @param[out] face2node Map from face to nodes.
+  /// @param[out] cl Map from face to left cell.
+  /// @param[out] cr Map from face to right cell.
   int fillFaceInfo(unsigned char *cluster, multiMap &face2node,
                    Map &cl, Map &cr, int face_base) {
     int num_faces = 0 ;
-    while(*cluster != 0) {
+    while(*cluster != 0) { // Loop until the sentinel zero byte is found
       int npnts = *cluster ;
       cluster++ ;
       int nfaces = *cluster ;
@@ -335,8 +364,9 @@ namespace Loci {
       }
       num_faces += nfaces ;
     }
-    cluster++ ;
-    // read in tables
+    cluster++ ; // Skip sentinel zero byte
+
+    // Read in tables and update face and cell numbering
     long nodeTable[256] ;
     cluster = readTable(cluster,nodeTable) ;
     long cellTable[256] ;
@@ -519,14 +549,6 @@ namespace Loci {
   }
 
 
-  /// Reads grid structures from grid file in the .vog format.
-  /// Input: file name and max_alloc (starting of entity assignment - node base)
-  /// Output:
-  /// local_cells, local_nodes, local_faces: partition of nodes, faces, cells
-  /// pos: position of nodes
-  /// cl: Mapping from face to cell on the left side
-  /// cr: Mapping from face to cell on the right side
-  /// face2node: MultiMapping from a face to nodes
   bool readGridVOG(vector<entitySet> &local_nodes,
                    vector<entitySet> &local_faces,
                    vector<entitySet> &local_cells,
@@ -663,7 +685,7 @@ namespace Loci {
       int node_ivl = npnts / Loci::MPI_processes;
       int node_ivl_rem = npnts % Loci::MPI_processes ;
       int node_accum = 0 ;
-      for(int i = 0; i < Loci::MPI_processes; ++i) {
+      for(int i=0; i<Loci::MPI_processes; ++i) {
         int node_accum_update = node_accum + node_ivl + ((i<node_ivl_rem)?1:0) ;
         if(i == Loci::MPI_processes-1) {
           local_nodes[i] = interval(nodes_base + node_accum,
@@ -690,7 +712,7 @@ namespace Loci {
         hsize_t start = 0 ;
 
         //each process has different start
-        for(int i = 0; i < MPI_rank; i++){
+        for(int i=0; i<MPI_rank; i++){
           start += local_nodes[i].size();
         }
         H5Sselect_hyperslab(dspace,H5S_SELECT_SET,&start,&stride,&count, NULL) ;
@@ -722,7 +744,7 @@ namespace Loci {
         H5Gclose(node_g) ;
       }
     } else { //end of parallel io version
-      // First read in and disribute node positions (serial case)
+      // First read in and distribute node positions (serial case)
       if(MPI_rank == 0) {
         dataset = H5Dopen(node_g,"positions",H5P_DEFAULT) ;
         dspace = H5Dget_space(dataset) ;
@@ -748,7 +770,7 @@ namespace Loci {
       int node_ivl_rem = npnts % Loci::MPI_processes ;
       int node_accum = 0 ;
 
-      for(int i = 0; i < Loci::MPI_processes; ++i) {
+      for(int i=0; i<Loci::MPI_processes; ++i) {
         int node_accum_update = node_accum + node_ivl + ((i<node_ivl_rem)?1:0) ;
         if(i == Loci::MPI_processes-1) {
           local_nodes[i] = interval(nodes_base + node_accum,
@@ -826,7 +848,7 @@ namespace Loci {
         H5Sclose(dspace) ;
         H5Dclose(dataset) ;
         H5Gclose(node_g) ;
-      } else { // non-root nodes send recieve each part from rank 0
+      } else { // non-root nodes send receive each part from rank 0
         // Receive nodes from root processor
         FATAL(local_nodes[MPI_rank].num_intervals()!=1) ;
         int start = local_nodes[MPI_rank].Min() ;
@@ -940,10 +962,12 @@ namespace Loci {
         }
         MPI_Bcast(ibuf,nivals*2,MPI_INT,0,MPI_COMM_WORLD) ;
         entitySet set ;
-        for(int j=0;j<nivals;++j)
+        for(int j=0;j<nivals;++j) {
           set += interval(ibuf[j*2],ibuf[j*2+1]) ;
-        if(MPI_rank != 0)
+        }
+        if(MPI_rank != 0) {
           volDat.push_back(pair<string,entitySet>(name,set)) ;
+        }
         delete[] ibuf ;
       }
     }
@@ -957,14 +981,16 @@ namespace Loci {
     }
 
     MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
-    if(fail_state != 0)
+    if(fail_state != 0) {
       return false ;
+    }
 
     REPORTMEM() ;
     vector<long> cluster_offset(cluster_sizes.size()+1) ;
     cluster_offset[0] = 0 ;
-    for(size_t i=0;i<cluster_sizes.size();++i)
+    for(size_t i=0;i<cluster_sizes.size();++i) {
       cluster_offset[i+1] = cluster_offset[i] + cluster_sizes[i] ;
+    }
 
     int tot_faces = 0 ;
     for(size_t i=0;i<cluster_sizes.size();++i) {
@@ -1145,8 +1171,9 @@ namespace Loci {
 
     multiMap cell2cell ;
     entitySet all_cells ;
-    for(int i=0;i<MPI_processes;++i)
+    for(int i=0;i<MPI_processes;++i) {
       all_cells += local_cells[i] ;
+    }
 
     distributed_inverseMap(cell2cell,rawMap, all_cells,all_cells,local_cells) ;
 
@@ -1155,7 +1182,8 @@ namespace Loci {
     idx_t size_map = local_cells[Loci::MPI_rank].size() ;
     vector<idx_t> size_adj(size_map) ;
     count = 0 ;
-    for(entitySet::const_iterator ei = local_cells[Loci::MPI_rank].begin(); ei != local_cells[Loci::MPI_rank].end(); ++ei) {
+    for(entitySet::const_iterator ei=local_cells[Loci::MPI_rank].begin();
+        ei != local_cells[Loci::MPI_rank].end(); ++ei) {
       size_adj[count] = cell2cell[*ei].size() ;
       ++count ;
     }
@@ -1165,7 +1193,7 @@ namespace Loci {
     idx_t edgecut ;
     vector<idx_t> vdist(Loci::MPI_processes + 1) ;
     int cmin = local_cells[0].Min();
-    for(int i = 0; i < Loci::MPI_processes; i++) {
+    for(int i=0; i<Loci::MPI_processes; i++) {
       cmin = min(local_cells[i].Min(), cmin);
     }
 
@@ -1185,37 +1213,44 @@ namespace Loci {
 
     edgecut = 0 ;
     xadj[0] = 0 ;
-    for(idx_t i = 0; i < size_map; ++i)
+    for(idx_t i = 0; i < size_map; ++i) {
       xadj[i+1] = xadj[i] + size_adj[i] ;
+    }
 
     idx_t min_size = size_adj[0] ;
-    for(idx_t i = 0; i < size_map; ++i)
+    for(idx_t i = 0; i < size_map; ++i) {
       min_size = min(min_size,size_adj[i]) ;
-    if(min_size == 0)
+    }
+    if(min_size == 0) {
       cerr << "cell with no adjacency!" << endl ;
+    }
 
     idx_t tot = xadj[size_map] ;
     vector<idx_t> adjncy(tot) ;
     count = 0 ;
-    for(entitySet::const_iterator ei = local_cells[Loci::MPI_rank].begin(); ei != local_cells[Loci::MPI_rank].end(); ++ei) {
+    for(entitySet::const_iterator ei=local_cells[Loci::MPI_rank].begin();
+        ei != local_cells[Loci::MPI_rank].end(); ++ei) {
       size_t sz = cell2cell[*ei].size() ;
-      for(size_t i = 0; i != sz; ++i)        {
-	adjncy[count] = cell2cell[*ei][i] - cmin ;
-	count ++ ;
+      for(size_t i = 0; i != sz; ++i) {
+        adjncy[count] = cell2cell[*ei][i] - cmin ;
+        count ++ ;
       }
     }
     cell2cell.setRep(multiMap().Rep()) ;// Free up memory from multiMap
 
     vdist[0] = 0 ;
-    for(int i = 1; i <= Loci::MPI_processes; ++i)
+    for(int i = 1; i <= Loci::MPI_processes; ++i) {
       vdist[i] = vdist[i-1] + local_cells[i-1].size() ;
+    }
     idx_t top = vdist[Loci::MPI_processes] ;
 
     bool trouble = false ;
-    for(idx_t i=0;i<tot;++i)
-      if(adjncy[i] >= top)
+    for(idx_t i=0;i<tot;++i) {
+      if(adjncy[i] >= top) {
         trouble = true ;
-    if(trouble)
+      }
+    }
+    if(trouble) {
       cerr << "adjacency list contains out of bounds reference" << endl ;
 
     MPI_Comm mc = MPI_COMM_WORLD ;
@@ -1234,8 +1269,9 @@ namespace Loci {
       if(Loci::MPI_rank == 0) {
         struct stat buf ;
         if(stat(cell_weight_file.c_str(),&buf) == -1 ||
-           !S_ISREG(buf.st_mode))
+           !S_ISREG(buf.st_mode)) {
           file_exists = 0 ;
+        }
       }
       MPI_Bcast(&file_exists,1,MPI_INT,0,MPI_COMM_WORLD) ;
 
@@ -1261,37 +1297,38 @@ namespace Loci {
                          MPI_COMM_WORLD) ;
 
         Loci::hdf5CloseFile(file_id) ;
-      }else if(cell_weight_store !=0){
+      } else if(cell_weight_store !=0) {
 
         entitySet dom = local_cells[Loci::MPI_rank] ;
         cell_weights.allocate(dom);
         redistribute_cell_weight(cell_weight_store,cell_weights.Rep());
       }
 
-      if(file_exists || cell_weight_store != 0){
+      if(file_exists || cell_weight_store != 0) {
         if(cell_weights.domain() != local_cells[Loci::MPI_rank]) {
           cerr << "cell weights partition inconsistent!" << endl ;
           Loci::Abort() ;
         }
 
         // compute necessary ParMETIS data-structure
-        wgtflag = 2 ;           // weights on the vertices only
-        idx_t ncon = 2 ;          // number of weights per vertex
+        wgtflag = 2 ;  // weights on the vertices only
+        idx_t ncon = 2 ;  // number of weights per vertex
         idx_t tpwgts_len = ncon*nparts ;
         vector<metisreal_t> tpwgts(tpwgts_len) ;
 
-        for(idx_t i=0;i<tpwgts_len;++i)
+        for(idx_t i=0;i<tpwgts_len;++i) {
           tpwgts[i] = 1.0 / double(nparts) ;
+        }
 
         vector<metisreal_t> ubvec(ncon) ;
-        for(idx_t i=0;i<ncon;++i)
-          ubvec[i] = 1.05 ;     // as recommended by the ParMETIS manual
+        for(idx_t i=0;i<ncon;++i) {
+          ubvec[i] = 1.05 ;  // as recommended by the ParMETIS manual
+        }
 
         // now construct the vertex weights
         vector<idx_t> vwgt(ncon*size_map) ;
         int cnt = 0 ;
-        for(entitySet::const_iterator
-              ei=local_cells[Loci::MPI_rank].begin();
+        for(entitySet::const_iterator ei=local_cells[Loci::MPI_rank].begin();
             ei!=local_cells[Loci::MPI_rank].end();++ei,cnt+=ncon) {
           // first weight for cell is 1 (the cell computation)
           vwgt[cnt] = 1 ;
@@ -1310,12 +1347,14 @@ namespace Loci {
         idx_t ncon = 2 ;
         idx_t tpwgts_len = ncon*nparts ;
         vector<metisreal_t> tpwgts(tpwgts_len) ;
-        for(idx_t i=0;i<tpwgts_len;++i)
+        for(idx_t i=0;i<tpwgts_len;++i) {
           tpwgts[i] = 1.0 / double(nparts) ;
+        }
 
         vector<metisreal_t> ubvec(ncon) ;
-        for(idx_t i=0;i<ncon;++i)
+        for(idx_t i=0;i<ncon;++i) {
           ubvec[i] = 1.05 ;     // as recommended by the ParMETIS manual
+        }
         wgtflag = 2 ;
         // now construct the vertex weights
         vector<idx_t> vwgt(ncon*size_map) ;
@@ -1339,23 +1378,25 @@ namespace Loci {
       idx_t ncon = 2 ;
       idx_t tpwgts_len = ncon*nparts ;
       vector<metisreal_t> tpwgts(tpwgts_len) ;
-      for(idx_t i=0;i<tpwgts_len;++i)
+      for(idx_t i=0;i<tpwgts_len;++i) {
         tpwgts[i] = 1.0 / double(nparts) ;
+      }
 
       vector<metisreal_t> ubvec(ncon) ;
-      for(idx_t i=0;i<ncon;++i)
-	ubvec[i] = 1.05 ;     // as recommended by the ParMETIS manual
+      for(idx_t i=0;i<ncon;++i) {
+        ubvec[i] = 1.05 ;     // as recommended by the ParMETIS manual
+      }
       wgtflag = 2 ;
       // now construct the vertex weights
       vector<idx_t> vwgt(ncon*size_map) ;
 
       int cnt = 0 ;
       for(int i=0;i<size_map;++i) {
-	// first weight for cell is 1 (the cell computation)
-	vwgt[cnt] = 1 ;
-	// the second weight is from the store cell_weights[*ei]
-	vwgt[cnt+1] =  size_adj[i] ;
-	cnt += ncon ;
+        // first weight for cell is 1 (the cell computation)
+        vwgt[cnt] = 1 ;
+        // the second weight is from the store cell_weights[*ei]
+        vwgt[cnt+1] =  size_adj[i] ;
+        cnt += ncon ;
       }
       ParMETIS_V3_PartKway(&vdist[0],&xadj[0],&adjncy[0],&vwgt[0],NULL,
                            &wgtflag,&numflag,&ncon,&nparts,
@@ -1363,14 +1404,16 @@ namespace Loci {
                            &part[0],&mc) ;
     }
 
-    if(Loci::MPI_rank == 0)
+    if(Loci::MPI_rank == 0) {
       Loci::debugout << " Parmetis Edge cut   " <<  edgecut << endl ;
+    }
 
     //find the partition ptn given by Metis
     vector<entitySet> ptn ;
 
-    for(int i = 0; i < Loci::MPI_processes; ++i)
+    for(int i = 0; i < Loci::MPI_processes; ++i) {
       ptn.push_back(EMPTY) ;
+    }
     cmin = local_cells[Loci::MPI_rank].Min() ;
     for(int i=0;i<size_map;++i) {
       ptn[part[i]] += i + cmin ;
@@ -1636,8 +1679,9 @@ namespace Loci {
     // subsequent steps rely on this but it isn't really conforming to
     // the way other data is handled.
     entitySet bcallalloc = bcalloc[0] ;
-    for(int i=1;i<MPI_processes;++i)
+    for(int i=1;i<MPI_processes;++i) {
       bcallalloc += bcalloc[i] ;
+    }
 
     boundary_names.allocate(bcallalloc) ;
     boundary_tags.allocate(bcallalloc) ;
@@ -1715,9 +1759,11 @@ namespace Loci {
 
     REPORTMEM() ;
     vector<entitySet> recv_req(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
-      if(i!=MPI_rank)
+    for(int i=0;i<MPI_processes;++i) {
+      if(i!=MPI_rank) {
         recv_req[i] = out_of_dom & init_ptn[i] ;
+      }
+    }
 
     REPORTMEM() ;
     // send the recieve requests
@@ -1725,8 +1771,9 @@ namespace Loci {
     int *send_count = new int[ MPI_processes] ;
     int *send_displacement = new int[ MPI_processes] ;
     int *recv_displacement = new int[ MPI_processes] ;
-    for(int i=0;i<MPI_processes;++i)
+    for(int i=0;i<MPI_processes;++i) {
       send_count[i] = recv_req[i].num_intervals() * 2 ;
+    }
     MPI_Alltoall(send_count,1,MPI_INT, recv_count, 1, MPI_INT,MPI_COMM_WORLD) ;
 
 
@@ -1985,11 +2032,12 @@ namespace Loci {
       send_displacement[i] = send_displacement[i-1] + send_sz[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_sz[i-1] ;
     }
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  MPI_processes; ++i) {
       for(size_t j=0;j<ptn[i].num_intervals();++j) {
         send_store[send_displacement[i]+j*2] = ptn[i][j].first ;
         send_store[send_displacement[i]+j*2+1] = ptn[i][j].second ;
       }
+    }
 
 
     MPI_Alltoallv(send_store,&send_sz[0], send_displacement , MPI_INT,
@@ -1997,12 +2045,13 @@ namespace Loci {
 		  MPI_COMM_WORLD) ;
 
     vector<entitySet> ptn_t(MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  MPI_processes; ++i) {
       for(int j=0;j<recv_sz[i]/2;++j) {
         int i1 = recv_store[recv_displacement[i]+j*2]  ;
         int i2 = recv_store[recv_displacement[i]+j*2+1] ;
         ptn_t[i] += interval(i1,i2) ;
       }
+    }
     delete[] recv_displacement ;
     delete[] send_displacement ;
     delete[] recv_store ;
@@ -2088,9 +2137,11 @@ namespace Loci {
 
   }
 
-  ///////////////////////////////////////////////////
-  // these are the codes for hilbert curve partition
-  ///////////////////////////////////////////////////
+  //--------------------------------------------------------------------------
+  //--
+  //-- These are the codes for hilbert curve partition
+  //--
+  //--------------------------------------------------------------------------
 
   // Hilbert Key
   typedef Loci::Array<unsigned int, 3> HilbertCode ;
@@ -2572,8 +2623,9 @@ namespace Loci {
 
     // compute interior face to processor mapping
     vector<pair<int,int> > proc_pairs(key_list.size()) ;
-    for(size_t ii=0;ii<key_list.size();++ii)
+    for(size_t ii=0;ii<key_list.size();++ii) {
       proc_pairs[ii] = pair<int,int>(key_list[ii].id,MPI_rank) ;
+    }
     // Now we need to sort the data back to the processor that owns
     // the corresponding face
     int cmin = local_set.Min() ;
@@ -2643,8 +2695,9 @@ namespace Loci {
     FORALL(fdom,fc) {
       int sz = face2node[fc].size() ;
       vector3d<float> pnt(0.,0.,0.) ;
-      for(int ii=0;ii<sz;++ii)
+      for(int ii=0;ii<sz;++ii) {
         pnt += tmp_pos[face2node[fc][ii]] ;
+      }
       pnt *= 1./float(sz) ;
       fcenter[i++] = pnt ;
     } ENDFORALL ;
@@ -2664,8 +2717,9 @@ namespace Loci {
     FORALL(fdom,fc) {
       pair<int,int> p2i(fprocmap[i++],1) ;
       int sz = face2node[fc].size() ;
-      for(int ii=0;ii<sz;++ii)
+      for(int ii=0;ii<sz;++ii) {
         scratchPad.push_back(pair<int,pair<int,int> >(face2node[fc][ii],p2i)) ;
+      }
     } ENDFORALL ;
 
     assignOwner(scratchPad,local_nodes,node_ptn) ;
@@ -2677,8 +2731,9 @@ namespace Loci {
     FORALL(fdom,fc) {
       pair<int,int> p2i(fprocmap[i++],1) ;
       scratchPad.push_back(pair<int,pair<int,int> >(cl[fc],p2i)) ;
-      if(!refset.inSet(cr[fc]))
+      if(!refset.inSet(cr[fc])) {
         scratchPad.push_back(pair<int,pair<int,int> >(cr[fc],p2i)) ;
+      }
     } ENDFORALL ;
 
     assignOwner(scratchPad,local_cells,cell_ptn) ;
@@ -2854,7 +2909,7 @@ namespace Loci {
         debugout << "Using SFC partition" << endl ;
         store<int> cell_weights ;
         // read in additional vertex weights if any
-        if(cellwts != 0){
+        if(cellwts != 0) {
           //debugout << "getting cell_weights_store" << endl ;
           entitySet dom = local_cells[MPI_rank];
           cell_weights.allocate(dom);
@@ -3176,8 +3231,9 @@ namespace Loci {
   }
 
   bool setupFVMGrid(fact_db &facts, string filename, storeRepP cellwts) {
-    if(!readFVMGrid(facts,filename,cellwts))
+    if(!readFVMGrid(facts,filename,cellwts)) {
       return false ;
+    }
 
     REPORTMEM() ;
     create_face_info(facts) ;
@@ -3189,8 +3245,9 @@ namespace Loci {
   }
 
   bool setupFVMGrid(fact_db &facts, string filename) {
-    if(!readFVMGrid(facts,filename,0))
+    if(!readFVMGrid(facts,filename,0)) {
       return false ;
+    }
 
     REPORTMEM() ;
     create_face_info(facts) ;
@@ -3211,12 +3268,12 @@ namespace Loci {
     int np = ptn_cells.size();
 
     entitySet q_dom = EMPTY;
-    for(int i = 0; i < np; i++){
+    for(int i = 0; i < np; i++) {
       q_dom += ptn_cells[i];
     }
     vector<entitySet> simple_ptn = Loci::simplePartition(q_dom.Min(),q_dom.Max(),MPI_COMM_WORLD) ;
     vector<entitySet> cell_ptn(np);
-    for(int i = 0; i < np; i++){
+    for(int i = 0; i < np; i++) {
       cell_ptn[i] = cells&simple_ptn[i];
     }
     vector<entitySet> cell_ptn_t = transposePtn(cell_ptn);
@@ -3226,7 +3283,7 @@ namespace Loci {
   }
 
   bool setupFVMGridWithWeightInFile(fact_db &facts, string filename, string weightfile) {
-    // if(MPI_rank==0)std::cout<<" using setupFVMGridWithWeight" << std::endl;
+    // if(MPI_rank==0) {std::cout<<" using setupFVMGridWithWeight" << std::endl ; }
     storeRepP cellwts = 0 ;
 
     // check if the file exists
@@ -3234,8 +3291,9 @@ namespace Loci {
     if(Loci::MPI_rank == 0) {
       struct stat buf ;
       if(stat(weightfile.c_str(),&buf) == -1 ||
-        !S_ISREG(buf.st_mode))
+        !S_ISREG(buf.st_mode)) {
         file_exists = 0 ;
+      }
     }
     MPI_Bcast(&file_exists,1,MPI_INT,0,MPI_COMM_WORLD) ;
 
@@ -3275,7 +3333,7 @@ namespace Loci {
   }
 
   bool setupFVMGridWithWeightInStore(fact_db &facts, string filename, storeRepP cellwt ) {
-    //if(MPI_rank==0)std::cout<<" using setupFVMGridWithWeightInStore" << std::endl;
+    //if(MPI_rank==0) {std::cout<<" using setupFVMGridWithWeightInStore" << std::endl ; }
     if(!readFVMGrid(facts,filename,cellwt)) {
       return false ;
     }

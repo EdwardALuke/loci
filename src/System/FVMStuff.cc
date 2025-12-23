@@ -1352,6 +1352,9 @@ namespace Loci{
 
   /// Removes all negative values in loops after the loops are formed.
   /// `faceLoops` is the loops(faces in cutting plane) formed.
+  /// @param[in] faceLoops Loops (faces in cutting plane) formed.
+  /// @return Updated set of `faceLoops` with all negative values in loops
+  ///         removed.
   vector<vector<int > > remove_inner_edges(
         const vector<vector<int > >& faceLoops) {
     vector<vector<int > > new_faceLoops ;
