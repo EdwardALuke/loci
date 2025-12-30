@@ -161,7 +161,6 @@ namespace Loci {
   }
 
   $type V store<vect3d> ;
-  $type periodicTransform store<rigid_transform> ;
   $rule pointwise(cr->limiterv3d(V)<-pmap->cl->limiterv3d(V),pmap->ref->periodicTransform),constraint(periodicFaces,cl->V) {
     const rigid_transform &frame = $pmap->$ref->$periodicTransform ;
     $cr->$limiterv3d(V) = frame.rotate_vec($pmap->$cl->$limiterv3d(V)) ;

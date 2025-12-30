@@ -22,16 +22,16 @@
 #include <Tools/tools.h>
 $include "FVM.lh"
 
-// The following functions help to construct the flux terms 
+// The following functions help to construct the flux terms
 // and flux Jacobian at the interface of the cell.
 // Notes: In the finite volume approach, we need to know the flux
 // terms at the interface. The procedure to compute the flux is shown
-// in the following functions. 1. compute primitive variables from 
-// conservative variables in each cell; 2. extrapolate the primitive 
+// in the following functions. 1. compute primitive variables from
+// conservative variables in each cell; 2. extrapolate the primitive
 // variables to face from the cell (there are right and left values for
 // each face). in the current code, we employ the MUSCL extrapolation
-// scheme; 3. construct the flux at the interface based on right and left 
-// extrapolated conservative variables. In the current code, we apply the Roe 
+// scheme; 3. construct the flux at the interface based on right and left
+// extrapolated conservative variables. In the current code, we apply the Roe
 // scheme; 4. numerical flux Jacobian matrix is calculated, which is a used to
 // assemble matrix M in Mx = b (The solution of which results in the completion
 // of the implicit algorithm).
@@ -44,7 +44,7 @@ namespace Loci {
 
   $type X store<real> ;
   $type M param<real> ;
-  
+
   $rule pointwise(lefts(X)<-facecenter,
 		  cl->(X,grads(X),limiters(X),cellcenter)),
     constraint(cl->(X,geom_cells)) {
@@ -93,7 +93,7 @@ namespace Loci {
 
   $untype X ;
   $type X store<vect3d> ;
-  
+
   $rule pointwise(leftv3d(X)<-facecenter,
 		  cl->(X,gradv3d(X),limiterv3d(X),cellcenter)),
     constraint(cl->(X,geom_cells)) {
@@ -114,13 +114,12 @@ namespace Loci {
 	     $cr->$limiterv3d(X).z*dot($cr->$gradv3d(X).z,drl)) ;
   }
 
-  $type periodicTransform store<rigid_transform> ;
   $rule pointwise(rightv3d(X)<-pmap->leftv3d(X),pmap->ref->periodicTransform),
     constraint(periodicFaces) {
     const rigid_transform &frame = $pmap->$ref->$periodicTransform ;
     $rightv3d(X) = frame.rotate_vec($pmap->$leftv3d(X)) ;
   }
-  
+
 
   void slope_rescale(real *slopes, int vs) {
 
@@ -138,7 +137,7 @@ namespace Loci {
       for(int i=0;i<vs;++i)
         slopes[i] = slopes[i]*((slopes[i]>0.0)?(sump-sum)/(sump-1e-30):1.0) ;
     }
-  }    
+  }
 
   $untype X ;
   $type X storeVec<real> ;
