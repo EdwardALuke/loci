@@ -59,13 +59,13 @@ struct block_topo {
   int num_faces() { return ni*(nj-1)*(nk-1)+(ni-1)*nj*(nk-1)+
 		      (ni-1)*(nj-1)*(nk) ; }
   int num_cells() { return (ni-1)*(nj-1)*(nk-1) ; }
-  
+
   int naddr(int i,int j,int k) { return i+j*ni+k*ni*nj + nodes_base; }
-  int caddr(int i,int j,int k) 
+  int caddr(int i,int j,int k)
   { return (i)+(j)*(ni-1)+(k)*(ni-1)*(nj-1)+cells_base ; }
 
   int num_interior_faces() {
-    return ( (ni-2)*(nj-1)*(nk-1) + 
+    return ( (ni-2)*(nj-1)*(nk-1) +
 	     (ni-1)*(nj-2)*(nk-1) +
 	     (ni-1)*(nj-1)*(nk-2) ) ; }
 
@@ -109,7 +109,7 @@ struct block_topo {
       }
     }
   }
-    
+
 
 } ;
 
@@ -117,12 +117,12 @@ block_topo::block_topo(int NI, int NJ, int NK) {
   block_topo::ni = NI ;
   block_topo::nj = NJ ;
   block_topo::nk = NK ;
-  
+
   cout << "block {" << ni << "," << nj << "," << nk << "}" << endl ;
   nodes_base = -1 ;
 }
 
-// Compute a normalized irrational direction vector (one which 
+// Compute a normalized irrational direction vector (one which
 // it is unlikely that grid lines will align with)
 const double Axx = sqrt(3.0) ;
 const double Ayy = 1./sqrt(3.1415927) ;
@@ -139,25 +139,25 @@ struct block_face_info {
 struct block_boundary_info {
   vector<block_face_info> block_face[6] ;
 } ;
-  
-  
+
+
 void usage() {
   cout << "Parallel plot3d file to VOG file grid converter." << endl
-       << endl 
+       << endl
        << "Input file is ascii unformatted multiblock plot3d file with postfix '.grd'" << endl
        << "or binary unformatted multiblock plot3d file with postfix '.grd.b8'" << endl
        << endl << endl ;
   cout << "Usage:" << endl
-       << endl 
+       << endl
        << "plot3d2vog <options> <basename>" << endl
        << endl
        << "where <basename> is the root name of the file (sans the '.grd' postfix)." << endl
-       << " and options must include one of the following grid units specifications:" << endl 
+       << " and options must include one of the following grid units specifications:" << endl
        << "   -m  - grid is in meters" << endl
        << "   -cm - grid is in centimeters" << endl
        << "   -mm - grid is in millimeters" << endl
        << "   -in - grid is in inches" << endl
-       << "   -ft - grid is in feet" << endl 
+       << "   -ft - grid is in feet" << endl
        << "   -Lref \"1.5 ft\" - grid has specified reference length" << endl
        << endl<<endl ;
   cout << "Other useful options:" << endl
@@ -166,11 +166,11 @@ void usage() {
        << "   -maxAspect <float> :maximum face aspect ratio on boundaries for gluing" << endl
        << "   -lefthanded :set this if grid not in right handed coordinates" << endl
        << "   -creaseAngle <float> :used to combine neighboring bc faces" << endl
-       << "                         set to -1 to disable feature" << endl 
-       << "   -bc <filename> :Use this file to specify boundary surfaces" << endl 
+       << "                         set to -1 to disable feature" << endl
+       << "   -bc <filename> :Use this file to specify boundary surfaces" << endl
        << "   -o :disable mesh optimization that reorders nodes in the vog file" << endl ;
   cout << endl ;
-    
+
   cout << "If you want to control how tags are assigned to boundary" <<endl
        << " faces, then you can do so by providing a supplemental" << endl
        << " boundary specification file with the flag -bc" << endl << endl
@@ -186,9 +186,9 @@ void usage() {
        << " <block number> <faceid> <index1 start> <index1 end> <index2 start> <index2 end>" << endl
        << "  Where:" << endl
        << " <faceid> is one of six strings: [IJ1,IJN,JK1,JKN,IK1,IKN]" << endl
-       << " indices are given in the order indicated by the faceid string." 
+       << " indices are given in the order indicated by the faceid string."
        << endl <<endl;
-    
+
 }
 
 #ifdef __GNUC__
@@ -211,7 +211,7 @@ int fscanread(double *entries, int nentries, FILE *fp) {
       if(cnt == 1 && fscanf(fp,"%[*]",buf)) {
 	nvals = int(entries[i]) ;
 	cnt = fscanf(fp,"%lf",&rval) ;
-	if(cnt != 1) 
+	if(cnt != 1)
 	  return nr ;
 	entries[i] = rval ;
 	nvals-- ;
@@ -223,13 +223,13 @@ int fscanread(double *entries, int nentries, FILE *fp) {
     if(cnt == 1)
       nr++ ;
     else {
-      
+
       char buf[512] ;
       fscanf(fp,"%s",buf) ;
       cerr << "failure reading grid near " << buf << endl ;
       return nr ;
 
-      
+
     }
   }
   return nr ;
@@ -246,7 +246,7 @@ bool readP3DGrid(string filename,vector<block_topo> &blockInfo, vector<vect3d> &
     binary_mode = true ;
   int rank = 0 ;
   MPI_Comm_rank(Comm,&rank) ;
-  
+
   FILE *fp = 0 ;
   int num_blocks = -1 ;
   int num_nodes = -1 ;
@@ -295,7 +295,7 @@ bool readP3DGrid(string filename,vector<block_topo> &blockInfo, vector<vect3d> &
 	  }
 	  blockInfo[b] = block_topo(ni,nj,nk) ;
 	  if(ni<0 || nj < 0 || nk < 0) {
-	    cerr << "error reading in block sizes from file '" << filename 
+	    cerr << "error reading in block sizes from file '" << filename
 		 << "'" << endl ;
 	    fail = 1 ;
 	    break ;
@@ -320,13 +320,13 @@ bool readP3DGrid(string filename,vector<block_topo> &blockInfo, vector<vect3d> &
       }
     }
   }
-  
+
 
   MPI_Bcast(&fail, 1, MPI_INT,0,Comm) ;
   if(fail != 0)
     return false ;
   MPI_Bcast(&num_blocks,1, MPI_INT,0,Comm) ;
-  if(rank != 0) 
+  if(rank != 0)
     blockInfo = vector<block_topo>(num_blocks) ;
   MPI_Bcast(&blockInfo[0],sizeof(block_topo)*num_blocks, MPI_BYTE,0,Comm) ;
   MPI_Bcast(&num_nodes,1,MPI_INT,0,Comm) ;
@@ -426,7 +426,7 @@ bool readP3DGrid(string filename,vector<block_topo> &blockInfo, vector<vect3d> &
     using Loci::EMPTY ;
     vector<int> limits(nP,0) ;
     limits[0] = 0 ;
-    
+
     for(int i=1;i<nP;++i)
       limits[i] = limits[i-1]+node_allocation[i] ;
     vector<entitySet> distribution(nP) ;
@@ -434,12 +434,12 @@ bool readP3DGrid(string filename,vector<block_topo> &blockInfo, vector<vect3d> &
     for(int i=1;i<nP;++i)
       if(0 == node_allocation[i])
 	distribution[i] = EMPTY ;
-      else 
+      else
 	distribution[i] = entitySet(interval(limits[i-1],limits[i]-1)) ;
-    
+
     vector<double> scratch(node_allocation[1]) ;
 
-    if(0 == rank) { 
+    if(0 == rank) {
       // processor zero reads
       for(int b=0;b<num_blocks;++b) {
 	int start = blockInfo[b].nodes_base ;
@@ -489,7 +489,7 @@ bool readP3DGrid(string filename,vector<block_topo> &blockInfo, vector<vect3d> &
 	    MPI_Send(&scratch[0],sendsz,MPI_DOUBLE,i,0,Comm) ;
 	  }
 	}
-      
+
 	// read in z coordinates
 	for(int i=1;i<nP;++i) {
 	  entitySet sendSet = blockSet & distribution[i] ;
@@ -594,7 +594,7 @@ void fixupGluedNodesFace(vector<Loci::Array<int,4> > &fd,
         cnt++ ;
       }
       if(k != -1) {
-        for(int j=k+1;j<4;++j)
+        for(int j=k+1;j<3;++j)
           fd[i][j] = fd[i][j+1] ;
         fd[i][3] = -1 ;
       }
@@ -603,9 +603,9 @@ void fixupGluedNodesFace(vector<Loci::Array<int,4> > &fd,
         dgen_face++ ;
         for(int j=0;j<4;++j)
           fd[i][j] = -1 ;
-      } 
+      }
 
-      
+
     }
   }
   if(dgen_face > 0) {
@@ -616,6 +616,10 @@ void fixupGluedNodesFace(vector<Loci::Array<int,4> > &fd,
 inline int findOffset(const vector<pair<int,int> > &glueSet,
                       int i ) {
   if(i==-1)
+    return 0 ;
+
+  // prevent out of bounds access if an empty glueSet is passed.
+  if(glueSet.size() < 2)
     return 0 ;
   static int hint = 0 ;
   if(i <= glueSet[0].first)
@@ -723,9 +727,9 @@ void  compressPositions(vector<vect3d> &positions, vector<int> &pos_sizes,
       positions.swap(tmp) ;
       npos = rem ;
     }
-    
+
     MPI_Allgather(&npos,1,MPI_INT,&pos_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
-         
+
   }
 }
 
@@ -766,7 +770,7 @@ void setupGlueFaces(vector<Loci::Array<int,4> > &glueFaces,
   glueFaces.resize(gsz) ;
   glueBC.resize(gsz) ;
   glueCell.resize(gsz) ;
-  
+
   int ngsz = noglueFaces.size() ;
   dgen_faces = 0 ;
   while((dgen_faces<ngsz) && (noglueFaces[ngsz-1-dgen_faces][0]==-1))
@@ -831,7 +835,7 @@ void setupGlueFaces(vector<Loci::Array<int,4> > &glueFaces,
         noglueCell.push_back(glueCell[fc]) ;
         noglueBC.push_back(glueBC[fc]) ;
       }
-      
+
     }
   }
   if(glueerror > 0) {
@@ -908,11 +912,11 @@ void creaseGroup(const vector<Loci::Array<int,4> > &glueFaces,
 	++i ;
       }
     }
-   
+
     for(size_t i=0;i<facepairs.size();++i) {
       int f1 = facepairs[i].first ;
       int f2 = facepairs[i].second ;
-    
+
       nodeSet.push_back(glueFaces[f1][0]) ;
       nodeSet.push_back(glueFaces[f1][1]) ;
       nodeSet.push_back(glueFaces[f1][2]) ;
@@ -928,7 +932,7 @@ void creaseGroup(const vector<Loci::Array<int,4> > &glueFaces,
     vector<int>::iterator it ;
     it = unique(nodeSet.begin(),nodeSet.end()) ;
     nodeSet.resize(it-nodeSet.begin()) ;
-  }  
+  }
 
   // Now send glue node positions to processor 0
   int gsize = nodeSet.size() ;
@@ -1034,9 +1038,9 @@ void creaseGroup(const vector<Loci::Array<int,4> > &glueFaces,
 
     double th = cos(creaseThreshold*0.0174532927778) ;
     vector<entitySet> equal(maxbc+1) ;
-      
+
     map<pair<int,int>,double>::const_iterator mi ;
-    
+
     for(mi=eweight.begin();mi!=eweight.end();++mi) {
       if(mi->second > th) {
 	equal[mi->first.first] += mi->first.first ;
@@ -1078,8 +1082,8 @@ void creaseGroup(const vector<Loci::Array<int,4> > &glueFaces,
     for(size_t i=0;i<glueBC.size();++i)
       glueBC[i] = map_bc[glueBC[i]] ;
   }
-  
-  
+
+
 }
 
 int main(int ac, char* av[]) {
@@ -1098,7 +1102,7 @@ int main(int ac, char* av[]) {
 
   bool boundary_file = false ;
   string boundary_filename ;
-  
+
   double tol = 1e-3 ;
   string Lref = "NOSCALE" ;
   double max_aspect = 1e6 ;
@@ -1117,7 +1121,7 @@ int main(int ac, char* av[]) {
       tol = atof(av[2]) ;
       if(tol >= 1.0) {
 	cerr << "tolerance cannot be greater than 1" << endl ;
-	tol = 0.9; 
+	tol = 0.9;
       }
       ac -= 2 ;
       av += 2 ;
@@ -1183,7 +1187,7 @@ int main(int ac, char* av[]) {
 
 if(Lref == "")
     Lref = "1 meter" ;
-  
+
   if(!isdigit(Lref[0])) {
     Lref = string("1") + Lref ;
   }
@@ -1192,7 +1196,7 @@ if(Lref == "")
   istringstream iss(Lref) ;
   iss >> tp ;
   double posScale = tp.get_value_in("meter") ;
-  
+
   MPI_Bcast(&posScale,1,MPI_DOUBLE,0,MPI_COMM_WORLD) ;
   int read_type = 0 ;
   bool found_file = false ;
@@ -1208,12 +1212,12 @@ if(Lref == "")
     if(stat(buf,&finfo)==0 && (S_ISREG(finfo.st_mode))) {
       found_ascii = true ;
       found_file = true ;
-    } 
+    }
     snprintf(buf,511,"%s.grd.b8",av[1]) ;
     if(stat(buf,&finfo)==0 && (S_ISREG(finfo.st_mode))) {
       found_binary = true ;
       found_file = true ;
-    } 
+    }
     if(found_binary && found_ascii) {
       cerr << "both ascii file, '" << file << "' and binary file, '" << buf
 	   << "', found.  Remove one file to disambiguate." << endl ;
@@ -1236,12 +1240,12 @@ if(Lref == "")
     cerr << "error reading grid '" << file << "'" << endl ;
     Loci::Abort() ;
   }
-  
+
   if(blockInfo.size() == 0) {
     cerr << "error reading grid '" << file << "'" << endl ;
     Loci::Abort() ;
   }
-  // Check ni,nj,nk 
+  // Check ni,nj,nk
   int minni=blockInfo[0].ni ;
   int minnj=blockInfo[0].nj ;
   int minnk=blockInfo[0].nk ;
@@ -1297,10 +1301,10 @@ if(Lref == "")
       ftot += blockInfo[b].num_faces() ;
     }
   }
-    
+
 
   // Scale the grid
-  for(size_t i=0;i<positions.size();++i) 
+  for(size_t i=0;i<positions.size();++i)
     positions[i] *= posScale ;
 
   // Read in the bc file
@@ -1323,7 +1327,7 @@ if(Lref == "")
   vector<int> glueCell,glueBC ;
   vector<Loci::Array<int,4> > noglueFaces ;
   vector<int> noglueCell,noglueBC ;
-  
+
   if(Loci::MPI_rank == 0) {
     if(boundary_file) {
       for(size_t b = 0 ; b!= blockInfo.size();++b) {
@@ -1339,7 +1343,7 @@ if(Lref == "")
       int numbcs = 0;
       bfile >> numbcs ;
       Loci::parse::kill_white_space(bfile) ;
-    
+
       for(int i=0;i<numbcs;++i) {
         if(bfile.fail() || bfile.eof()) {
           cerr << "error reading boundary file " << boundary_filename << endl ;
@@ -1349,10 +1353,10 @@ if(Lref == "")
         bfile >> boundary_flag ;
         int boundary_segments = 0 ;
         bfile >> boundary_segments ;
-        
+
         string boundary_name = Loci::parse::get_name(bfile) ;
         bcnamelist[boundary_flag] = boundary_name ;
-        
+
         for(int j=0;j<boundary_segments;++j) {
           int block, face, Is,Ie,Js,Je ;
           bfile >> block ;
@@ -1386,7 +1390,7 @@ if(Lref == "")
 	  tmp.ie = Ie ;
 	  tmp.js = Js ;
 	  tmp.je = Je ;
-	  
+
           bface_info[block].block_face[face].push_back(tmp);
         }
       }
@@ -1548,7 +1552,7 @@ if(Lref == "")
 	      glueNodes.push_back(face[i]) ;
 	  }
         }
-      // JK1 face and JKN face 
+      // JK1 face and JKN face
       for(int j=0;j<nj-1;++j)
         for(int k=0;k<nk-1;++k) {
           bool noglue0 = (j+1 >= bface_info[b].block_face[4][0].is &&
@@ -1687,7 +1691,7 @@ if(Lref == "")
   map<int,int> glue2local ;
   for(int i=0;i<gsize;++i)
     glue2local[glueNodes[i]] = i ;
-  
+
   vector<pair<int,int> > glueSet ;
   if(Loci::MPI_rank == 0) {
     int naspect = 0 ;
@@ -1709,7 +1713,7 @@ if(Lref == "")
       vect3d e4 = 0.5*(p2+p3) ;
       double l1 = norm(e1-e2) ;
       double l2 = norm(e3-e4) ;
-      
+
       double lenmx = max(l1,l2) ;
       double lenmn = min(l1,l2) ;
       // Aspect ratio control, no aspect ratio face over max_aspect
@@ -1794,7 +1798,7 @@ if(Lref == "")
 	  else
 	    glueSet.push_back(pair<int,int>(glueNodes[j],first)) ;
 	} ENDFORALL ;
-       
+
       }
     }
     sort(glueSet.begin(),glueSet.end()) ;
@@ -1805,7 +1809,7 @@ if(Lref == "")
   if(Loci::MPI_rank != 0)
     glueSet = vector<pair<int,int> >(gsz) ;
   MPI_Bcast(&glueSet[0],gsz*2,MPI_INT,0,MPI_COMM_WORLD) ;
-  
+
   // Now lets make the rest of the faces
 
   // Compute total interior faces
@@ -1813,7 +1817,7 @@ if(Lref == "")
   for(size_t b=0;b<blockInfo.size();++b) {
     tot_interior_faces += blockInfo[b].num_interior_faces() ;
   }
-  
+
   // Compute face distribution
   vector<int> iface_dist(Loci::MPI_processes,0) ;
   if(Loci::MPI_processes == 1)
@@ -1827,7 +1831,7 @@ if(Lref == "")
     iface_dist[Loci::MPI_processes-1] = tot_interior_faces-tot ;
   }
 
-    
+
   int mydist = iface_dist[Loci::MPI_rank] ;
   vector<Loci::Array<int,4> > interior_face(mydist) ;
   vector<int> interior_cl(mydist), interior_cr(mydist) ;
@@ -1835,7 +1839,7 @@ if(Lref == "")
   int iface_start = 0 ;
   for(int i=0;i<Loci::MPI_rank;++i)
     iface_start += iface_dist[i] ;
-  
+
   int iface_end = iface_start+iface_dist[Loci::MPI_rank] ;
 
   // Fill in the faces
@@ -1855,7 +1859,7 @@ if(Lref == "")
       }
     }
     loc = nextloc ;
-  }      
+  }
 
   // remove duplicate nodes from face data-structures
   map<int,int> gmap ;
@@ -1900,7 +1904,7 @@ if(Lref == "")
   pos.allocate(pdom) ;
   for(int i=0;i<pos_sizes[r];++i)
     pos[i+snodes] = positions[i] ;
-  
+
   { vector<vect3d> tmp ; positions.swap(tmp) ;  } // clear out positions
 
   int ncells = 0 ;
@@ -1969,7 +1973,7 @@ if(Lref == "")
       face2node[fcnt][j] = noglueFaces[i][j] ;
     fcnt++ ;
   }
-  
+
   // release memory
   count.allocate(EMPTY) ;
   {vector<Loci::Array<int,4> > tmp; interior_face.swap(tmp); }
@@ -1982,7 +1986,7 @@ if(Lref == "")
   {vector<int> tmp; noglueCell.swap(tmp) ; }
   {vector<int> tmp; noglueBC.swap(tmp) ;}
 
-  
+
   if(lefthanded) { // Left handed coordinate system
     // establish face left-right orientation
     if(MPI_rank == 0)
@@ -1990,7 +1994,7 @@ if(Lref == "")
     VOG::orientFaces(pos,cl,cr,face2node) ;
 
   }
-  
+
   // Establish face orientation to be consistent with matrix coloring
   // color matrix according to the numbering of the cells
   FORALL(fdom,fc) {
@@ -2006,17 +2010,17 @@ if(Lref == "")
       }
     }
   }ENDFORALL ;
-  
+
   if(optimize) {
     if(MPI_rank == 0)
       cout << "optimizing mesh layout" << endl ;
     VOG::optimizeMesh(pos,cl,cr,face2node) ;
   }
-  
+
   string outfile = string(filename) + ".vog" ;
   if(MPI_rank == 0)
     cout << "writing VOG file" << endl ;
-  
+
   vector<pair<int,string> > surf_ids ;
   set<string> iset ;
 
@@ -2027,13 +2031,13 @@ if(Lref == "")
     } else {
       char buf[512] ;
       bzero(buf,512) ;
-      snprintf(buf,511,"BC_%d",bc) ; 
+      snprintf(buf,511,"BC_%d",bc) ;
       surf_ids.push_back(pair<int,string>(bc, string(buf))) ;
     }
   } ENDFORALL ;
-  
+
   Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids) ;
-    
+
   Loci::Finalize() ;
   return 0 ;
 }
