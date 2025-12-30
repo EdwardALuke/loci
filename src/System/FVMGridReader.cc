@@ -1252,6 +1252,7 @@ namespace Loci {
     }
     if(trouble) {
       cerr << "adjacency list contains out of bounds reference" << endl ;
+    }
 
     MPI_Comm mc = MPI_COMM_WORLD ;
     idx_t nparts = Loci::MPI_processes ; // number of partitions
