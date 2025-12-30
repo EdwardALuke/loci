@@ -24,7 +24,7 @@ $include "FVMMod/cellgradient.lh"
 namespace Loci {
 
   /// Select the biased stencil weights. Requires a cell-based stencil_bias
-  /// variable. Default is 'off'. 
+  /// variable. Default is 'off'.
   $rule default(gradStencilBias) {
     $gradStencilBias = "off" ;
   }
@@ -40,7 +40,7 @@ namespace Loci {
   /// green's theorem gradient.
   $rule default(gradStencil) { $gradStencil = "standard" ;  }
 
-  $rule pointwise(OUTPUT<-selector(gradStencil,standard)) {} 
+  $rule pointwise(OUTPUT<-selector(gradStencil,standard)) {}
   $rule pointwise(OUTPUT<-selector(gradStencil,full)) {}
   $rule pointwise(OUTPUT<-selector(gradStencil,stable)) {}
   $rule pointwise(OUTPUT<-selector(gradStencil,symm)) {}
@@ -58,18 +58,17 @@ namespace Loci {
   { $useCellStencil = true ; }
   $rule singleton(useCellStencil),constraint(gradStencil_select_symmF)
   { $useCellStencil = true ; }
-    
-  ///Select 1-step cell gradient operators (standard) or the n-step
+
+  /// Select 1-step cell gradient operators (standard) or the n-step
   /// iterative methods (iterative1,iterative2)
   $rule default(gradType) {
     $gradType = "standard";
   }
   $rule pointwise(OUTPUT<-selector(gradType,standard)) {}
 
-  $type periodicTransform store<rigid_transform> ;
 
   $type X store<real_t> ;
-  
+
   $rule pointwise(cr->grads(X)<-pmap->cl->grads(X),
 		  pmap->ref->periodicTransform),
     constraint(periodicFaces,cl->X) {
@@ -85,7 +84,7 @@ namespace Loci {
     const rigid_transform &frame = $pmap->$ref->$periodicTransform ;
     $cr->$gradv3d(X) = frame.rotate_tensor($pmap->$cl->$gradv3d(X)) ;
   }
-  
+
   $untype X ;
   $type X storeVec<real_t> ;
   $rule pointwise(cr->gradv(X)<-pmap->cl->gradv(X),
