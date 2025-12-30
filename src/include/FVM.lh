@@ -40,6 +40,9 @@ $type ref Map ;
 /** Mapping from periodic boundary faces to periodic face pair */
 $type pmap Map ;
 
+/** The transformation that maps periodic faces */
+$type periodicTransform store<rigid_transform> ;
+
 /** Mapping from face to nodes that define the face */
 $type face2node multiMap ;
 
