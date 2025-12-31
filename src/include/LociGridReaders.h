@@ -147,6 +147,19 @@ namespace Loci {
     }
   } ;
 
+  template<> struct data_schema_traits<Loci::rigid_transform> {
+    typedef IDENTITY_CONVERTER Schema_Converter ;
+    static DatatypeP get_type() {
+      CompoundDatatypeP ct = CompoundFactory(Loci::rigid_transform()) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t1) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t2) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,R) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,Rinv) ;
+      return DatatypeP(ct) ;
+
+    }
+  } ;
+
   struct periodic_info {
     std::string name ;
     bool master, processed ;
@@ -167,18 +180,6 @@ namespace Loci {
     }
   } ;
 
-  template<> struct data_schema_traits<Loci::rigid_transform> {
-    typedef IDENTITY_CONVERTER Schema_Converter ;
-    static DatatypeP get_type() {
-      CompoundDatatypeP ct = CompoundFactory(Loci::rigid_transform()) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t1) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t2) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,R) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,Rinv) ;
-      return DatatypeP(ct) ;
-
-    }
-  } ;
 
   /// Reads an FVM grid and generates facts from the grid information.
   ///
@@ -291,8 +292,7 @@ namespace Loci {
   }
 
   template<class T> inline void setupPosAutoDiff(fact_db &facts,
-						 std::string filename,
-						 T val) {
+	      std::string filename, T val) {
 #if defined(USE_AUTODIFF) || defined(MULTIFAD)
     setupPosAutoDiff(facts,val) ;
 #endif
@@ -302,7 +302,5 @@ namespace Loci {
   extern partitionerSelector partitionerMethod ;
 
 }
-
-
 
 #endif
