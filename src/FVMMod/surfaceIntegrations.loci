@@ -26,20 +26,22 @@ namespace Loci {
 
 
   $type X store<vector3d<real_t> > ;
-  
-  $rule unit(integrateSurface(X)),constraint(geom_cells) {
+
+  $rule unit(integrateSurface(X)), constraint(geom_cells) {
     $integrateSurface(X) = 0 ;
   }
 
   // Interior Faces
-  $rule apply((cl,cr)->integrateSurface(X)<-area,X)[Loci::Summation],constraint((cl,cr)->geom_cells) {
+  $rule apply((cl,cr)->integrateSurface(X)<-area,X)[Loci::Summation],
+  constraint((cl,cr)->geom_cells) {
     real_t Xdotn = $area.sada*dot($X,$area.n) ;
     join($cl->$integrateSurface(X),Xdotn) ;
     join($cr->$integrateSurface(X),-Xdotn) ; // Sign change due to normal dir
   }
 
   // Boundary Faces
-  $rule apply(cl->integrateSurface(X)<-area,X)[Loci::Summation],constraint(ref) {
+  $rule apply(cl->integrateSurface(X)<-area,X)[Loci::Summation],
+  constraint(ref) {
     real_t Xdotn = $area.sada*dot($X,$area.n) ;
     join($cl->$integrateSurface(X),Xdotn) ;
   }
@@ -47,21 +49,22 @@ namespace Loci {
   $untype X ;
   $type X store<real_t> ;
 
-  $rule unit(integrateFlux(X)),constraint(geom_cells) {
+  $rule unit(integrateFlux(X)), constraint(geom_cells) {
     $integrateFlux(X) = 0 ;
   }
 
   // Interior Faces
-  $rule apply((cl,cr)->integrateFlux(X)<-area,X)[Loci::Summation],constraint((cl,cr)->geom_cells) {
+  $rule apply((cl,cr)->integrateFlux(X)<-area,X)[Loci::Summation],
+  constraint((cl,cr)->geom_cells) {
     real_t Xdotn = $area.sada*$X ;
     join($cl->$integrateFlux(X),Xdotn) ;
     join($cr->$integrateFlux(X),-Xdotn) ; // Sign change due to normal dir
   }
 
   // Boundary Faces
-  $rule apply(cl->integrateFlux(X)<-area,X)[Loci::Summation],constraint(ref) {
+  $rule apply(cl->integrateFlux(X)<-area,X)[Loci::Summation], constraint(ref) {
     real_t Xdotn = $area.sada*$X ;
     join($cl->$integrateFlux(X),Xdotn) ;
   }
-  
+
 }
