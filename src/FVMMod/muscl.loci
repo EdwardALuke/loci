@@ -120,7 +120,13 @@ namespace Loci {
     $rightv3d(X) = frame.rotate_vec($pmap->$leftv3d(X)) ;
   }
 
-
+  /// Rescales a set of slopes such that any vector that uses them to
+  /// extrapolate values will have the sum of the non-projected values
+  /// preserved. For a species vector, if the `slopes` is the gradients
+  /// of each species, this function ensures that the summation of the species
+  /// vector after extrapolation is the same as it was before extrapolation.
+  /// @param[in,out] slopes array of slopes to be rescaled
+  /// @param[in] vs size of slopes array
   void slope_rescale(real *slopes, int vs) {
 
     real sum = 0.0, sumn = 0.0, sump = 0.0 ;
