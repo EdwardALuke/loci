@@ -2821,7 +2821,13 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment) {
     if(use_compute) {
       if(singletonApply) {
         cerr << "NOTE: parameter only apply rule on '" << output << "' now executes single instance." << endl ;
-        outputFile <<   "      if(Loci::MPI_rank == 0) calculate(0) ;" << endl ;
+        // Note, this is better than before, but if rank 0 owns no entity
+        // we still may get an out of bounds error with bounds checking turned
+        // on.  Technically this isn't wrong except for the edge case that
+        // the rule is applied over an empty set.  This probably will require
+        // some work on the scheduling to fix, but doesn't impact any current
+        // use cases.
+        outputFile <<   "      if(Loci::MPI_rank == 0) calculate(seq.num_intervals()>0?seq[0].first:0)  ; " << endl ;
         syncFile(outputFile) ;
       } else {
         outputFile <<   "      do_loop(seq,this) ;" << endl ;
