@@ -217,5 +217,16 @@
 	* Added support for PTScotch as an alternative to ParMETIS
 	* Many scalability improvements
 	* Added new online documentation interface
-	
+//-----------------------------------------------------------------------------
+	Version V 4.0.0 -> V 4.1.1
+	* Fixes for installation scripts
+	* Fixes for vtk64 extract 32 bit overflow problem
+	* Fixes for gpu enabled petsc and user controls
+	* Added config log file
+	* Fixes for msh2vog converter that failed for triangles
+	* Updates fluent2vog to accept eitehr .cas or .msh file postfix
+	* Partial fixes for lpp preprocessing for param reductions
+	* Added VFAD type for vectorized FAD computations
+	* Added vectorized array type
+	* Added tests for FAD, VFAD and vectorized array types
 
