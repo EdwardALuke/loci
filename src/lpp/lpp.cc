@@ -2824,7 +2824,7 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment) {
         // Note, this is better than before, but if rank 0 owns no entity
         // we still may get an out of bounds error with bounds checking turned
         // on.  Technically this isn't wrong except for the edge case that
-        // the rule is applied over an entityset.  This probably will require
+        // the rule is applied over an empty set.  This probably will require
         // some work on the scheduling to fix, but doesn't impact any current
         // use cases.
         outputFile <<   "      if(Loci::MPI_rank == 0) calculate(seq.num_intervals()>0?seq[0].first:0)  ; " << endl ;
