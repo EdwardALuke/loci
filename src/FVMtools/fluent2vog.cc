@@ -56,6 +56,7 @@ other features are ignored by the converter.
 #include <iostream>
 #include <cstdlib>
 #include <string>
+#include <sys/stat.h>
 
 double extrude_dist = 0.01 ; // In 2-D grids, extrude 1 cm
 
@@ -1019,7 +1020,21 @@ int main(int ac, char *av[]) {
   }
 
   string filename = av[1] ;
-  filename += ".msh" ;
+  // Try ".cas file first as modern fluent outputs this file extension
+  filename += ".cas" ;
+  int validfile = 1 ;
+  // Only run stat on processor rank 0
+  if(Loci::MPI_rank == 0) {
+    struct stat statbuf ;
+    if(stat(filename.c_str(),&statbuf))
+      validfile = 0 ;
+  }
+  // broadcast results of stat call to other processors
+  MPI_Bcast(&validfile,1,MPI_INT,0,MPI_COMM_WORLD) ;
+  // If .cas file is not valid, then switch to older .msh extension
+  if(!validfile)
+    filename = string(av[1])+".msh" ;
+  
 
   string outfile = av[1] ;
   outfile += ".vog" ;
