@@ -461,12 +461,17 @@ namespace Loci {
   }
 
 #ifdef USE_CUDA_RT
-  int MAXGPUStreamAlloc = 1 ;//1<<3;
+  int MAXGPUStreamAlloc = 1<<3;
   int GPUStreamAlloc = 0 ;
   
   cudaStream_t streamSet[256] ;
 #endif
   int setCudaDevice() {
+    static bool GPUDeviceSetup = false ;
+    static int dev = -1 ;
+    if(GPUDeviceSetup)
+      return dev ;
+    GPUDeviceSetup = true ;
 #ifdef USE_CUDA_RT
     int worldRank, rank;
     MPI_Comm comm;
@@ -481,7 +486,7 @@ namespace Loci {
   
     pid_t pid = getpid();
   
-    int dev = -1, devCount = 0;
+    int devCount = 0;
     cudaGetDeviceCount(&devCount);
   
     if(devCount > 0) {
@@ -506,7 +511,7 @@ namespace Loci {
     }
     return dev;
 #else
-    return -1 ;
+    return dev ;
 #endif
   }
 
@@ -581,6 +586,14 @@ namespace Loci {
       
     }
 
+    if(gpurules != EMPTY) {
+      int dev = setCudaDevice() ;
+      if(dev < 0) {
+        cerr << "warning gpu rules but no gpu device" << endl ;
+        Loci::Abort() ;
+      }
+    }
+    
     variableSet loopVarBase ;
     for(auto rsi = gpurules.begin(); rsi != gpurules.end();++rsi) {
       if(rsi->type() == rule::BUILD) {

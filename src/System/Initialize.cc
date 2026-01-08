@@ -973,7 +973,9 @@ namespace Loci {
     
 
 #ifdef USE_CUDA_RT
-      setCudaDevice() ;
+  // Moved to rename_gpu_containers so it is only performed when
+  // gpu rules are present in the schedulNAe
+      //      setCudaDevice() ;
 #endif
     
       // Find number of mpi processes per host
