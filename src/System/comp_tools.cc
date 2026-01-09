@@ -2289,24 +2289,23 @@ namespace Loci {
 
   executeP barrier_compiler::create_execution_schedule(fact_db &facts, sched_db &scheds) {
 
+    CPTR<execute_list> el = new execute_list ;
+    bool isGPUSync = false ; 
+    for(variableSet::const_iterator vi=barrier_vars.begin();
+        vi != barrier_vars.end();++vi) {
+      if(vi->name.substr(0,7) == string("__GPU__"))
+        isGPUSync = true ;
+    }
+    // Add gpu syncronization point
+    if(isGPUSync) {
+      executeP tmp = new execute_gpuSync(barrier_vars) ;
+      el->append_list(tmp) ;
+    }
     if(facts.isDistributed()) {
       std::list<comm_info> clist = scheds.get_comm_info_list(barrier_vars, facts, sched_db::BARRIER_CLIST);
       std::list<comm_info> plist = scheds.get_comm_info_list(barrier_vars, facts, sched_db::BARRIER_PLIST);
       
-      CPTR<execute_list> el = new execute_list ;
 
-      bool isGPUSync = false ;
-      for(variableSet::const_iterator vi=barrier_vars.begin();
-	  vi != barrier_vars.end();++vi) {
-	if(vi->name.substr(0,7) == string("__GPU__"))
-	  isGPUSync = true ;
-      }
-
-      // Add gpu syncronization point
-      if(isGPUSync) {
-	executeP tmp = new execute_gpuSync(barrier_vars) ;
-	el->append_list(tmp) ;
-      }
       execute_comm2::inc_comm_step() ;
       if(!plist.empty()) {
         executeP tmp2 = new execute_comm2(plist, facts) ;
@@ -2317,19 +2316,19 @@ namespace Loci {
         executeP tmp2 = new execute_comm2(clist, facts) ;
         el->append_list(tmp2) ;
       }
-
-      if(MPI_processes==1 && !isGPUSync) {
-	ostringstream oss ;
-	oss << "Sync: " << barrier_vars << endl ;
-	executeP exec_thrd_sync = new execute_msg(oss.str()) ;
-	el->append_list(exec_thrd_sync) ;
-      }
-      return executeP(el) ;
     }
-    ostringstream oss ;
+    if(MPI_processes==1 && !isGPUSync) {
+      ostringstream oss ;
       oss << "Sync: " << barrier_vars << endl ;
-    executeP exec_thrd_sync = new execute_msg(oss.str()) ;
-    return exec_thrd_sync;
+      executeP exec_thrd_sync = new execute_msg(oss.str()) ;
+      el->append_list(exec_thrd_sync) ;
+    }
+    return executeP(el) ;
+
+    //    ostringstream oss ;
+    //      oss << "Sync: " << barrier_vars << endl ;
+    //    executeP exec_thrd_sync = new execute_msg(oss.str()) ;
+    //    return exec_thrd_sync;
   }
 
   void execute_msg::execute(fact_db &facts, sched_db& scheds) {  }
