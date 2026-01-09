@@ -70,7 +70,8 @@ public:
 		    OP_SCOPE=0x000,
 		    OP_AT=0x080, // For using @ to separate namespaces
 		    // Traditional C operators
-		    OP_ARROW=0x100, 
+                    OP_DOT=0x100,
+		    OP_ARROW,
 		    OP_TIMES = 0x300, OP_DIVIDE, OP_MODULUS,
 		    OP_PLUS  = 0x400, OP_MINUS, 
 		    OP_SHIFT_RIGHT = 0x500, OP_SHIFT_LEFT,
@@ -90,7 +91,7 @@ public:
 		    OP_AND_ASSIGN,
 		    OP_OR_ASSIGN,
 		    OP_EXOR_ASSIGN,
-		    OP_COMMA=0xe00, OP_DOT,
+		    OP_COMMA=0xe00, 
 		    OP_COLON=0xf00,
 		    OP_SEMICOLON,
 		    // terminal for empty statement
