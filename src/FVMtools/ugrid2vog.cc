@@ -3088,7 +3088,7 @@ void convert2cellVertexface(store<vector3d<double> > &pos,
 
   multiMap nface2node ;
   nface2node.allocate(count) ;
-  int fcnt =  cellid+ncells ;
+  int fcnt = fdom.Min() ;
   // first fill in hex faces
   for(size_t i=0;i<triangles.size();++i) {
     int n1 = triangles[i][0]+1 ;
