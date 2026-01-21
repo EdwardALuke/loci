@@ -144,6 +144,9 @@ class parseFile {
   void process_Calculate(std::ostream &outputFile,
                          const std::map<Loci::variable,std::string> &vnames,
                          const std::set<std::list<Loci::variable> > & validate_set) ;
+  void process_Calculate2(std::ostream &outputFile,
+                          const std::map<Loci::variable,std::string> &vnames,
+                          const std::set<std::list<Loci::variable> > & validate_set) ;
 
   void setup_Type(std::ostream &outputFile, const std::string &comment) ;
   void setup_Untype(std::ostream &outputFile) ;

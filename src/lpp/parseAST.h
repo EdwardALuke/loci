@@ -46,7 +46,7 @@ using std::cout ;
 
 #include "Tools/variable.h"
 
-// Setup for facilties for parsing and creating abstract syntax trees (AST)
+// Setup for facilties for parsing and creating Abstract Syntax Trees (AST)
 
 class AST_visitor ;
 
@@ -102,6 +102,7 @@ public:
 		    OP_COMMENT,
 		    OP_BRACEBLOCK,
 		    OP_NAME, OP_FUNC, OP_ARRAY, OP_NAME_BRACE, OP_FUNC_BRACE,
+                    OP_TEMPLATE,OP_TEMPLATE_FUNC,
 		    // terminal for string, integer, or unspecified error condition
 		    OP_STRING, OP_NUMBER, OP_ERROR,
 		    // Unary operations
@@ -150,6 +151,7 @@ public:
 		    TK_QUESTION, TK_AMPERSAND, TK_STAR,
 		    TK_OPENPAREN,TK_CLOSEPAREN,TK_OPENBRACKET,TK_CLOSEBRACKET,
 		    TK_OPENBRACE,TK_CLOSEBRACE,
+                    TK_OPENTEMPLATE,TK_CLOSETEMPLATE,
 		    TK_LOCI_DIRECTIVE,TK_LOCI_VARIABLE,TK_LOCI_CONTAINER,
 		    // Now the keywords
 		    TK_ALIGNAS, TK_ALIGNOF, TK_ASM, 
@@ -191,24 +193,34 @@ class AST_syntaxError: public AST_type {
     {nodeType=AST_type::ND_SYNTAXERR;}
   void accept(AST_visitor &v) ;
 } ;
-  
+
+/// Token in AST structure typically will be a terminal symbol
 class AST_Token : public AST_type {
 public:
+  /// string that comprises this token
   string text ;
+  /// line number where this token was read from file
   int lineno ;
+  /// visitor interface
   void accept(AST_visitor &v) ;
-  AST_Token() {nodeType = AST_type::OP_ERROR; }
+  /// Default constructor is an error, will be overridden during parsing
+  AST_Token() {nodeType = AST_type::OP_ERROR; ; lineno=-1; }
 } ;
 
+/// A statement that is typically terminated by a semicolon
 class AST_SimpleStatement: public AST_type {
 public:
   AST_SimpleStatement(ASTP e, ASTP t) : exp(e),Terminal(t)
     {nodeType = AST_type::ND_SIMPLE_STATEMENT ;}
+  /// Expression of statement.
   ASTP exp ;
+  /// Statement Termination
   ASTP Terminal ;
+  /// visitor interface
   void accept(AST_visitor &v) ;
 } ;
 
+/// A block of statements (enclosed by braces)
 class AST_Block : public AST_type {
 public:
   ASTList elements ;
@@ -216,6 +228,7 @@ public:
   AST_Block() {nodeType = AST_type::ND_BLOCK; }
 } ;
 
+/// Variable declaration statement
 class AST_declaration : public AST_type {
 public:
   ASTList type_decl ;
@@ -224,6 +237,7 @@ public:
   AST_declaration() { nodeType = AST_type::ND_DECL; }
 } ;
 
+/// Operator in expression
 class AST_exprOper : public AST_type {
 public:
   ASTList terms ;
@@ -231,6 +245,7 @@ public:
   AST_exprOper() {nodeType = AST_type::OP_ERROR; }
 } ;
 
+/// Control statement (if else 
 class AST_controlStatement: public AST_type {
  public:
   ASTP controlType ;
@@ -250,6 +265,7 @@ class AST_controlStatement: public AST_type {
 } ;
 
 
+/// Visitor abstract base class
 class AST_visitor {
  public :
   virtual ~AST_visitor() {} ;
@@ -262,6 +278,8 @@ class AST_visitor {
   virtual void visit(AST_syntaxError &) {}
 } ;
 
+/// Visitor class that scans an AST to determine if any systax errors were
+/// created during parsing
 class AST_errorCheck : public AST_visitor {
  public:
   int error_count ;
@@ -271,6 +289,8 @@ class AST_errorCheck : public AST_visitor {
   virtual void visit(AST_syntaxError &) ;
 } ;
 
+
+/// Visitor that prints an AST using a simple substitution map
 class AST_simplePrint : public AST_visitor {
  public:
   ostream &out ;
@@ -320,15 +340,17 @@ extern AST_type::ASTP parseBlock(std::istream &is, int &linecount,
 				 const varmap &typemap) ;
 extern AST_type::ASTP parseTerm(std::istream &is, int &linecount) ;
 
+/// Get a token from the lexical analyzer from input stream and update
+/// line count while parsing input stream.
 extern CPTR<AST_Token> getToken(std::istream &is, int &linecount) ;
 
+/// Push a token (effectively undo reading a token from the input stream
 extern void pushToken(CPTR<AST_Token> &pt) ;
-extern bool isTerm(AST_type::elementType e) ;
+
 
 extern istream &killsp(istream &s, int &lines) ;
 extern bool is_name(istream &s) ;
 extern string get_name(istream &s) ;
-
 
 
 

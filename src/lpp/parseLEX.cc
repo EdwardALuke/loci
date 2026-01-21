@@ -51,6 +51,9 @@ using namespace Loci ;
 
 // This is the Lexical Analysis part of the AST infrastructure
 
+/// Stack of tokens used when parsing to implement return tokens to the input
+/// token stream when a parsing rule fails.  This allows alternative rules
+/// to be evaluated.
 vector<CPTR<AST_Token> >  tokenStack ;
 
 void pushToken(CPTR<AST_Token> &pt) {
@@ -58,16 +61,6 @@ void pushToken(CPTR<AST_Token> &pt) {
   cerr << "pushing token " << pt->text << endl ;
 #endif
   tokenStack.push_back(pt) ;
-}
-
-bool isTerm(AST_type::elementType e) {
-  return ((e == AST_type::TK_STRING) ||
-	  (e == AST_type::TK_NAME) ||
-	  (e == AST_type::TK_NUMBER) ||
-	  (e == AST_type::TK_TRUE) ||
-	  (e == AST_type::TK_FALSE) ||
-	  (e == AST_type::TK_LOCI_VARIABLE) ||
-	  (e == AST_type::TK_LOCI_CONTAINER) ) ;
 }
 
 CPTR<AST_Token> getNumberToken(std::istream &is, int &linecount) {
@@ -278,16 +271,8 @@ inline AST_type::elementType findToken(const string &name) {
     return keywordDictionary[max].nodeType ;
   return AST_type::TK_NAME ;
 }
-    
-     
-    
-CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
-  if(tokenStack.size() != 0) {
-    CPTR<AST_Token> tok = tokenStack.back() ;
-    tokenStack.pop_back() ;
-    return tok ;
-  }
-  
+
+CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
   killsp(is,linecount) ;
   if(is.fail() || is.eof()) {
     CPTR<AST_Token> AST_data = new AST_Token() ;
@@ -711,6 +696,7 @@ CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
     // Now we have a Loci variable or a Loci command
     if(is.peek() == '[') { // This is a Loci command
       AST_data->text += is.get() ;
+      AST_data->text = "" ;
       while(!is.fail() && !is.eof() && is.peek() != ']') {
 	if(is.peek() == '[') {
 	  int count = 1 ;
@@ -724,7 +710,7 @@ CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
 	} else 
 	  AST_data->text += is.get() ;
       }
-      AST_data->text += is.get() ;
+      is.get() ;
       AST_data->nodeType = AST_type::TK_LOCI_DIRECTIVE ;
 #ifdef VERBOSE
       cerr << "get token DIRECTIVE("<< AST_data->text<< ")" << endl ;
@@ -786,4 +772,154 @@ CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
   return AST_data ;
 
 }
+  
+    
+CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
+  if(tokenStack.size() != 0) {
+    CPTR<AST_Token> tok = tokenStack.back() ;
+#ifdef VERBOSE
+    cerr << "poping token '" << tok->text << "'" << endl ;
+#endif
+    tokenStack.pop_back() ;
+    return tok ;
+  }
+  //  return getTokenInternal(is,linecount) ;
+  CPTR<AST_Token> tok  = getTokenInternal(is,linecount) ;
 
+  if(tok->nodeType == AST_type::TK_LT) {
+    // Disambiguate between '<' operator and template arguments
+    // Search forward to find a matching '>'
+#ifdef VERBOSE
+    cerr << "searching to find if '<' is for template arguments or less than operator" << endl ;
+#endif
+    vector<int> LT_LIST ;
+    vector<int> LT_DEPTH ;
+    vector<CPTR<AST_Token> > toklist ;
+    toklist.push_back(tok) ;
+    LT_LIST.push_back(toklist.size()-1 ) ;
+    int parencount = 0 ;
+    LT_DEPTH.push_back(parencount) ;
+    do {
+      tok = getTokenInternal(is,linecount) ;
+      toklist.push_back(tok) ;
+      switch(tok->nodeType) {
+      case AST_type::TK_SEMICOLON:
+      case AST_type::TK_LOGICAL_AND:
+      case AST_type::TK_LOGICAL_OR:
+      case AST_type::TK_OPENBRACKET:
+      case AST_type::TK_OPENBRACE:
+      case AST_type::TK_CLOSEBRACKET:
+      case AST_type::TK_CLOSEBRACE:
+      case AST_type::TK_ERROR:
+#ifdef VERBOSE
+        cerr << "search did not find matching '>', found '" << tok->text << "' instead." << endl ;
+#endif
+        { // No matching bracket found so  unwind search
+          // onto token stack
+          while(toklist.size()>1) {
+            pushToken(toklist.back()) ;
+            toklist.pop_back() ;
+          }
+          // return TK_LT or TK_OPENTEMPLATE
+          tok = toklist[0] ;
+          return tok ;
+        }
+        break ;
+      case AST_type::TK_OPENPAREN:
+        parencount++ ;
+        break ;
+      case AST_type::TK_CLOSEPAREN:
+        if(parencount == 0) {
+#ifdef VERBOSE
+        cerr << "search did not find matching '>', found '" << tok->text << "' instead." << endl ;
+#endif
+          // No matching bracket found so  unwind search
+          // onto token stack
+          while(toklist.size()>1) {
+            pushToken(toklist.back()) ;
+            toklist.pop_back() ;
+          }
+          // return TK_LT or TK_OPENTEMPLATE
+          tok = toklist[0] ;
+          return tok ;
+        }
+        parencount-- ;
+        break ;
+      case AST_type::TK_LT:
+        LT_LIST.push_back(toklist.size()-1 ) ;
+        LT_DEPTH.push_back(parencount) ;
+#ifdef VERBOSE
+        cerr << "searching for nested template '<'" << endl ;
+#endif
+        break;
+      case AST_type::TK_GT:
+        // found match to '<'
+        if(parencount == LT_DEPTH.back()) {
+#ifdef VERBOSE
+          cerr << "found matching '>'" << endl ;
+#endif
+          toklist[LT_LIST.back()]->nodeType =
+            AST_type::TK_OPENTEMPLATE ;
+          toklist[LT_LIST.back()]->text = "<<<" ; ;
+          toklist.back()->nodeType =
+            AST_type::TK_CLOSETEMPLATE ;
+          toklist.back()->text = ">>>" ;
+          LT_LIST.pop_back() ;
+          LT_DEPTH.pop_back() ;
+          if(LT_LIST.size() == 0) {
+            while(toklist.size()>1) {
+              pushToken(toklist.back()) ;
+              toklist.pop_back() ;
+            }
+            // return TK_OPENTEMPLATE
+            tok = toklist[0] ;
+            return tok ;
+          }
+        }
+        break ;
+      case AST_type::TK_SHIFT_RIGHT:
+        // find out if we have a pair of < < in the same paren
+        // level to match
+        {
+#ifdef VERBOSE
+          cerr << "found matching '>>'" << endl ;
+#endif
+          int sz = LT_LIST.size() ;
+          if(sz>1 && LT_DEPTH[sz-1] == parencount &&
+             LT_DEPTH[sz-2] == parencount) {
+            toklist[LT_LIST[sz-1]]->nodeType =
+              AST_type::TK_OPENTEMPLATE ;
+            toklist[LT_LIST[sz-2]]->nodeType =
+              AST_type::TK_OPENTEMPLATE ;
+            toklist.back()->nodeType =
+              AST_type::TK_CLOSETEMPLATE ;
+            toklist.back()->text = ">" ;
+            CPTR<AST_Token> AST_data = new AST_Token() ;
+            AST_data->text = ">" ; ;
+            AST_data->lineno = toklist.back()->lineno ;
+            AST_data->nodeType = AST_type::TK_CLOSETEMPLATE ;
+            toklist.push_back(AST_data) ;
+            LT_LIST.pop_back() ;
+            LT_DEPTH.pop_back() ;
+            LT_LIST.pop_back() ;
+            LT_DEPTH.pop_back() ;
+          }
+          if(LT_LIST.size() == 0) {
+            while(toklist.size()>1) {
+              pushToken(toklist.back()) ;
+              toklist.pop_back() ;
+            }
+            // return TK_OPENTEMPLATE
+            tok = toklist[0] ;
+            return tok ;
+          }
+        }
+      default:
+        break ;
+      }
+    } while(true) ;
+  }
+  return tok ;
+
+
+}
