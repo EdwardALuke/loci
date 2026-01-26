@@ -1696,17 +1696,17 @@ namespace Loci {
 
 
 #ifndef NO_AUTODIFF
-  inline GPU_DECL vector3d<float> realToFloat(vector3d<MFADd> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
-  inline GPU_DECL vector3d<double> realToDouble(vector3d<MFADd> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
+  inline vector3d<float> realToFloat(vector3d<MFADd> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
+  inline vector3d<double> realToDouble(vector3d<MFADd> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
 
-  inline GPU_DECL vector3d<float> realToFloat(vector3d<FADd> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
-  inline GPU_DECL vector3d<double> realToDouble(vector3d<FADd> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
+  inline vector3d<float> realToFloat(vector3d<FADd> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
+  inline vector3d<double> realToDouble(vector3d<FADd> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
 
-  inline GPU_DECL vector3d<float> realToFloat(vector3d<FAD2d> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
-  inline GPU_DECL vector3d<double> realToDouble(vector3d<FAD2d> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
+  inline vector3d<float> realToFloat(vector3d<FAD2d> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
+  inline vector3d<double> realToDouble(vector3d<FAD2d> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
 
-  inline GPU_DECL vector3d<float> realToFloat(vector3d<VFAD> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
-  inline GPU_DECL vector3d<double> realToDouble(vector3d<VFAD> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
+  inline vector3d<float> realToFloat(vector3d<VFAD> v) { return vector3d<float>(realToFloat(v.x),realToFloat(v.y),realToFloat(v.z)); }
+  inline vector3d<double> realToDouble(vector3d<VFAD> v) { return vector3d<double>(realToDouble(v.x),realToDouble(v.y),realToDouble(v.z)); }
 #endif
   
   //---------------------vector2d------------------//
@@ -2323,7 +2323,7 @@ namespace Loci {
   /// Operator to set a variable to it zero value to be used inside of
   /// templated functions that need to initialize variables for summation
   inline GPU_DECL void setZero(double &val) { val = double(0) ; }
-  inline GPU_DECL void setZero(long double &val) { val = (long double) 0 ; }
+  inline void setZero(long double &val) { val = (long double) 0 ; }
   inline GPU_DECL void setZero(float &val) { val = float(0) ; }
   inline GPU_DECL void setZero(int &val) { val = int(0) ; }
   inline GPU_DECL void setZero(unsigned int &val) { val = (unsigned int) 0 ; }
@@ -2342,11 +2342,11 @@ namespace Loci {
   { for(size_t i=0;i<n;++i) setZero(val.x[i]) ; }
 
 #ifndef NO_AUTODIFF
-  inline GPU_DECL void setZero(FAD2d &val)
+  inline void setZero(FAD2d &val)
   { setZero(val.value) ; setZero(val.grad) ; setZero(val.grad2) ; }
-  inline GPU_DECL void setZero(FADd &val)
+  inline void setZero(FADd &val)
   { setZero(val.value) ; setZero(val.grad) ;  }
-  inline GPU_DECL void setZero(VFAD &val)
+  inline void setZero(VFAD &val)
   { setZero(val.data.value) ;
     for(size_t i=0;i<VFAD::maxN;++i)
       setZero(val.data.grad[i]) ; }
