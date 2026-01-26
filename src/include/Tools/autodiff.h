@@ -27,6 +27,7 @@
 #include <array>
 #include <math.h>
 #include <Tools/vtypes.h>
+#include <Tools/gpu_attr.h>
 
 namespace Loci {
 
@@ -42,82 +43,82 @@ namespace Loci {
 #ifdef TO_BE_DEPRECATED
     /* MPGCOMMENT [05-12-2017 13:49] ---> constructor */
     template< class T1>
-    FAD2d(T1 a0): value(a0), grad(0.0),grad2(0.0) { }
+    GPU_DECL FAD2d(T1 a0): value(a0), grad(0.0),grad2(0.0) { }
 #endif
-    FAD2d(double a0, double b0, double c0): value(a0), grad(b0), grad2(c0) { }
-    FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { }
+    GPU_DECL FAD2d(double a0, double b0, double c0): value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { }
 
     FAD2d() = default ;
     // --------------------------------------------------------------------
     // REH ADDED BELOW - 20220202 - Missing code from initial 2017 dev mods
     // --------------------------------------------------------------------
-    FAD2d(int a0         ,int b0)        : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(int a0         ,float b0)        : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(int a0         ,double b0)        : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(int a0         ,long double b0)        : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(float a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(float a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(float a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(float a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(long double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(long double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(long double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
-    FAD2d(long double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(int a0         ,int b0)        : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(int a0         ,float b0)        : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(int a0         ,double b0)        : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(int a0         ,long double b0)        : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(float a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(float a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(float a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(float a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(long double a0      ,int b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(long double a0      ,float b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(long double a0      ,double b0)       : value(a0), grad(b0), grad2(0.0) { }
+    GPU_DECL FAD2d(long double a0      ,long double b0)       : value(a0), grad(b0), grad2(0.0) { }
 
-    FAD2d(double a0      ,int b0        , int c0)       : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,int b0        , float c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,int b0        , double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,int b0        , long double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,float b0      , int c0)       : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,float b0      , float c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,float b0      , double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,float b0      , long double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,double b0     , int c0)       : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,double b0     , float c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,int b0        , int c0)       : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,int b0        , float c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,int b0        , double c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,int b0        , long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,float b0      , int c0)       : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,float b0      , float c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,float b0      , double c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,float b0      , long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,double b0     , int c0)       : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,double b0     , float c0)     : value(a0), grad(b0), grad2(c0) { }
     //FAD2d(double a0      ,double b0     , double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,double b0     , long double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,long double b0, int c0)       : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,long double b0, float c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,long double b0, double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(double a0      ,long double b0, long double c0)     : value(a0), grad(b0), grad2(c0) { }
-    FAD2d(bool &u)        : value((u)?1.0:0.0), grad(0.0), grad2(0.0) { }
+    GPU_DECL FAD2d(double a0      ,double b0     , long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,long double b0, int c0)       : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,long double b0, float c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,long double b0, double c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(double a0      ,long double b0, long double c0)     : value(a0), grad(b0), grad2(c0) { }
+    GPU_DECL FAD2d(bool &u)        : value((u)?1.0:0.0), grad(0.0), grad2(0.0) { }
     //FAD2d(const FAD2d &u) : value(u.value), grad(u.grad), grad2(u.grad2) { }
-    FAD2d(int a0)        : value(a0), grad(0.0), grad2(0.0) { }
-    FAD2d(size_t a0)        : value(a0), grad(0.0), grad2(0.0) { }
-    FAD2d(float a0)        : value(a0), grad(0.0), grad2(0.0) { }
-    FAD2d(double a0)        : value(a0), grad(0.0), grad2(0.0) { }
-    FAD2d(long double a0)        : value(a0), grad(0.0), grad2(0.0) {  }
+    GPU_DECL FAD2d(int a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    GPU_DECL FAD2d(size_t a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    GPU_DECL FAD2d(float a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    GPU_DECL FAD2d(double a0)        : value(a0), grad(0.0), grad2(0.0) { }
+    GPU_DECL FAD2d(long double a0)        : value(a0), grad(0.0), grad2(0.0) {  }
     // --------------------------------------------------------------------
-    void setValue(double val) { value = val ; }
-    FAD2d& operator =(const FAD2d &u) {
+    GPU_DECL void setValue(double val) { value = val ; }
+    GPU_DECL FAD2d& operator =(const FAD2d &u) {
       value = u.value;
       grad = u.grad;
       grad2 = u.grad2 ;
       return *this;
     }
-    FAD2d& operator =(const int &u) {
+    GPU_DECL FAD2d& operator =(const int &u) {
       value = u;
       grad = 0.0;
       grad2 = 0.0 ;
       return *this;
     }
-    FAD2d& operator =(const float &u) {
+    GPU_DECL FAD2d& operator =(const float &u) {
       value = u;
       grad = 0.0;
       grad2 = 0.0;
       return *this;
     }
-    FAD2d& operator =(const double &u) {
+    GPU_DECL FAD2d& operator =(const double &u) {
       value = u;
       grad = 0.0;
       grad2 = 0.0;
       return *this;
     }
-    FAD2d& operator =(const long double &u) {
+    GPU_DECL FAD2d& operator =(const long double &u) {
       value = u;
       grad = 0.0;
       grad2 = 0.0;
@@ -125,142 +126,142 @@ namespace Loci {
     }
 
 
-    FAD2d operator +(const FAD2d &v) const{
+    GPU_DECL FAD2d operator +(const FAD2d &v) const{
       return FAD2d(value+v.value, grad+v.grad, grad2+v.grad2);
     }
-    FAD2d operator +() const{
+    GPU_DECL FAD2d operator +() const{
       return FAD2d(value, grad, grad2);
     }
-    FAD2d operator +(const int &v) const{
+    GPU_DECL FAD2d operator +(const int &v) const{
       return FAD2d(value+(double)v, grad, grad2);
     }
-    FAD2d operator +(const float &v) const{
+    GPU_DECL FAD2d operator +(const float &v) const{
       return FAD2d(value+(double)v, grad, grad2);
     }
-    FAD2d operator +(const double &v) const{
+    GPU_DECL FAD2d operator +(const double &v) const{
       return FAD2d(value+(double)v, grad, grad2);
     }
-    FAD2d operator +(const long double &v) const{
+    GPU_DECL FAD2d operator +(const long double &v) const{
       return FAD2d(double(value+v), grad, grad2);
     }
 
-    FAD2d& operator +=(const FAD2d &u) {
+    GPU_DECL FAD2d& operator +=(const FAD2d &u) {
       value+=u.value;
       grad+=u.grad;
       grad2+=u.grad2 ;
       return *this;
     }
-    FAD2d& operator +=(const int &u) {
+    GPU_DECL FAD2d& operator +=(const int &u) {
       value+=u;
       return *this;
     }
-    FAD2d& operator +=(const float &u) {
+    GPU_DECL FAD2d& operator +=(const float &u) {
       value+=u;
       return *this;
     }
-    FAD2d& operator +=(const double &u) {
+    GPU_DECL FAD2d& operator +=(const double &u) {
       value+=u;
       return *this;
     }
-    FAD2d& operator +=(const long double &u) {
+    GPU_DECL FAD2d& operator +=(const long double &u) {
       value+=u;
       return *this;
     }
 
-    FAD2d operator -(const FAD2d &v) const{
+    GPU_DECL FAD2d operator -(const FAD2d &v) const{
       return FAD2d(value-v.value, grad-v.grad,grad2-v.grad2);
     }
-    FAD2d operator -() const {
+    GPU_DECL FAD2d operator -() const {
       return FAD2d(-value, -grad, -grad2);
     }
-    FAD2d operator -(const int &v) const{
+    GPU_DECL FAD2d operator -(const int &v) const{
       return FAD2d(value-(double)v, grad, grad2);
     }
-    FAD2d operator -(const float &v) const{
+    GPU_DECL FAD2d operator -(const float &v) const{
       return FAD2d(value-(double)v, grad, grad2);
     }
-    FAD2d operator -(const double &v) const{
+    GPU_DECL FAD2d operator -(const double &v) const{
       return FAD2d(value-(double)v, grad, grad2);
     }
-    FAD2d operator -(const long double &v) const{
+    GPU_DECL FAD2d operator -(const long double &v) const{
       return FAD2d(double(value-v), grad, grad2);
     }
 
-    FAD2d& operator -=(const FAD2d &u) {
+    GPU_DECL FAD2d& operator -=(const FAD2d &u) {
       value-=u.value;
       grad-=u.grad;
       grad2 -= u.grad2 ;
       return *this;
     }
-    FAD2d& operator -=(const int &u) {
+    GPU_DECL FAD2d& operator -=(const int &u) {
       value-=u;
       return *this;
     }
-    FAD2d& operator -=(const float &u) {
+    GPU_DECL FAD2d& operator -=(const float &u) {
       value-=u;
       return *this;
     }
-    FAD2d& operator -=(const double &u) {
+    GPU_DECL FAD2d& operator -=(const double &u) {
       value-=u;
       return *this;
     }
-    FAD2d& operator -=(const long double &u) {
+    GPU_DECL FAD2d& operator -=(const long double &u) {
       value-=u;
       return *this;
     }
 
-    FAD2d operator *(const FAD2d &v) const {
+    GPU_DECL FAD2d operator *(const FAD2d &v) const {
       return FAD2d(value*v.value,  grad*v.value + v.grad*value,
                    grad2*v.value + value*v.grad2 + 2.*grad*v.grad);
     }
-    FAD2d operator *(const int &v) const{
+    GPU_DECL FAD2d operator *(const int &v) const{
       return FAD2d(value*(double)v,  grad*(double)v, grad2*(double) v);
     }
-    FAD2d operator *(const float &v) const{
+    GPU_DECL FAD2d operator *(const float &v) const{
       return FAD2d(value*(double)v,  grad*(double)v, grad2*(double) v);
     }
-    FAD2d operator *(const double &v) const{
+    GPU_DECL FAD2d operator *(const double &v) const{
       return FAD2d(value*(double)v,  grad*(double)v, grad2*(double) v);
     }
-    FAD2d operator *(const long double &v) const{
+    GPU_DECL FAD2d operator *(const long double &v) const{
       return FAD2d(double(value*v),  double(grad*v), double(grad2*v));
     }
     //    template<class T> FAD2d& operator *=(const T &u) {
     //      value*=(double)u;
     //      return *this;
     //    }
-    FAD2d& operator *=(const FAD2d &u) {
+    GPU_DECL FAD2d& operator *=(const FAD2d &u) {
       grad2 = grad2*u.value + value*u.grad2 + 2.*grad*u.grad ;
       grad = grad*u.value + u.grad * value;
       value*=u.value;
       return *this;
     }
-    FAD2d& operator *=(const int &u) {
+    GPU_DECL FAD2d& operator *=(const int &u) {
       value*=u;
       grad *=u;
       grad2 *= u ;
       return *this;
     }
-    FAD2d& operator *=(const float &u) {
+    GPU_DECL FAD2d& operator *=(const float &u) {
       value*=u;
       grad *=u;
       grad2 *= u;
       return *this;
     }
-    FAD2d& operator *=(const double &u) {
+    GPU_DECL FAD2d& operator *=(const double &u) {
       value*=u;
       grad *=u;
       grad2 *= u ;
       return *this;
     }
-    FAD2d& operator *=(const long double &u) {
+    GPU_DECL FAD2d& operator *=(const long double &u) {
       value*=u;
       grad *=u;
       grad2 *= u;
       return *this;
     }
 
-    FAD2d operator /(const FAD2d &v) const{
+    GPU_DECL FAD2d operator /(const FAD2d &v) const{
       double d = v.value ;
       double d2 = d*d ;
       double d3 = d*d2 ;
@@ -270,20 +271,20 @@ namespace Loci {
                    2.*v.grad*v.grad*value/d3 -
                    (v.grad*grad+v.grad2*value)/d2) ;
     }
-    FAD2d operator /(const int &v) const{
+    GPU_DECL FAD2d operator /(const int &v) const{
       return FAD2d(value/v, (grad/(double)v), (grad2/double(v)));
     }
-    FAD2d operator /(const float &v) const{
+    GPU_DECL FAD2d operator /(const float &v) const{
       return FAD2d(value/v, (grad/(double)v), (grad2/double(v)));
     }
-    FAD2d operator /(const double &v) const{
+    GPU_DECL FAD2d operator /(const double &v) const{
       return FAD2d(value/v, (grad/(double)v), (grad2/double(v)));
     }
-    FAD2d operator /(const long double &v) const{
+    GPU_DECL FAD2d operator /(const long double &v) const{
       return FAD2d(double(value/v), double(grad/v), double(grad2/v));
     }
 
-    FAD2d& operator /=(const FAD2d &u) {
+    GPU_DECL FAD2d& operator /=(const FAD2d &u) {
       double d = u.value ;
       double d2 = d*d ;
       double d3 = d*d2 ;
@@ -293,25 +294,25 @@ namespace Loci {
       value/=u.value;
       return *this;
     }
-    FAD2d& operator /=(const int &u) {
+    GPU_DECL FAD2d& operator /=(const int &u) {
       value/=u;
       grad /=u;
       grad2 /= u ;
       return *this;
     }
-    FAD2d& operator /=(const float &u) {
+    GPU_DECL FAD2d& operator /=(const float &u) {
       value/=u;
       grad /=u;
       grad2 /=u ;
       return *this;
     }
-    FAD2d& operator /=(const double &u) {
+    GPU_DECL FAD2d& operator /=(const double &u) {
       value/=u;
       grad /=u;
       grad2 /= u ;
       return *this;
     }
-    FAD2d& operator /=(const long double &u) {
+    GPU_DECL FAD2d& operator /=(const long double &u) {
       value/=u;
       grad /=u;
       grad2 /= u ;
@@ -319,94 +320,94 @@ namespace Loci {
     }
 
 
-    bool operator ==(const FAD2d &u)const  {
+    GPU_DECL bool operator ==(const FAD2d &u)const  {
       return ((value==u.value)?true:false);
     }
-    bool operator !=(const FAD2d &u) const {
+    GPU_DECL bool operator !=(const FAD2d &u) const {
       return ((value!=u.value)?true:false);
     }
-    bool operator >(const FAD2d &u) const {
+    GPU_DECL bool operator >(const FAD2d &u) const {
       return ((value>u.value)?true:false);
     }
-    bool operator <(const FAD2d &u) const {
+    GPU_DECL bool operator <(const FAD2d &u) const {
       return ((value<u.value)?true:false);
     }
-    bool operator >=(const FAD2d &u) const {
+    GPU_DECL bool operator >=(const FAD2d &u) const {
       return ((value>=u.value)?true:false);
     }
-    bool operator <=(const FAD2d &u) const {
+    GPU_DECL bool operator <=(const FAD2d &u) const {
       return ((value<=u.value)?true:false);
     }
-    bool operator ==(const int &u) const {
+    GPU_DECL bool operator ==(const int &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const int &u) const {
+    GPU_DECL bool operator !=(const int &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator >(const int &u) const {
+    GPU_DECL bool operator >(const int &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const int &u) const {
+    GPU_DECL bool operator <(const int &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const int &u) const {
+    GPU_DECL bool operator >=(const int &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const int &u) const {
+    GPU_DECL bool operator <=(const int &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const float &u) const {
+    GPU_DECL bool operator ==(const float &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const float &u) const {
+    GPU_DECL bool operator !=(const float &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator >(const float &u) const {
+    GPU_DECL bool operator >(const float &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const float &u) const {
+    GPU_DECL bool operator <(const float &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const float &u) const {
+    GPU_DECL bool operator >=(const float &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const float &u) const {
+    GPU_DECL bool operator <=(const float &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const double &u) const {
+    GPU_DECL bool operator ==(const double &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const double &u) const {
+    GPU_DECL bool operator !=(const double &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator  >(const double &u) const {
+    GPU_DECL bool operator  >(const double &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const double &u) const {
+    GPU_DECL bool operator <(const double &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const double &u) const {
+    GPU_DECL bool operator >=(const double &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const double &u) const {
+    GPU_DECL bool operator <=(const double &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const long double &u) const {
+    GPU_DECL bool operator ==(const long double &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const long double &u) const {
+    GPU_DECL bool operator !=(const long double &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator  >(const long double &u) const {
+    GPU_DECL bool operator  >(const long double &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const long double &u) const {
+    GPU_DECL bool operator <(const long double &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const long double &u) const {
+    GPU_DECL bool operator >=(const long double &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const long double &u) const {
+    GPU_DECL bool operator <=(const long double &u) const {
       return ((value<=u)?true:false);
     }
 
@@ -437,30 +438,30 @@ namespace Loci {
     return stream;
   }
 
-  inline double ceil(const FAD2d u) {
+  inline GPU_DECL double ceil(const FAD2d u) {
     return std::ceil(u.value) ;
   }
-  inline double floor(const FAD2d u) {
+  inline GPU_DECL double floor(const FAD2d u) {
     return std::floor(u.value) ;
   }
 
-  inline FAD2d erf(const FAD2d u) {
+  inline GPU_DECL FAD2d erf(const FAD2d u) {
     double ef = ::erf(u.value) ;
     double efp = (2./sqrt(M_PI))*std::exp(-u.value*u.value) ;
     double efpp = -2.*u.value*efp ;
     return FAD2d(ef,u.grad*efp,u.grad*u.grad*efpp+efp*u.grad2) ;
   }
-  inline FAD2d sin(const FAD2d u) {
+  inline GPU_DECL FAD2d sin(const FAD2d u) {
     double su = std::sin(u.value) ;
     double cu = std::cos(u.value) ;
     return FAD2d(su, u.grad*cu, cu*u.grad2 - u.grad*u.grad*su);
   }
-  inline FAD2d cos(const FAD2d u) {
+  inline GPU_DECL FAD2d cos(const FAD2d u) {
     double su = std::sin(u.value) ;
     double cu = std::cos(u.value) ;
     return FAD2d(cu, -u.grad*su, -su*u.grad2 - u.grad*u.grad*cu);
   }
-  inline FAD2d tan(const FAD2d u) {
+  inline GPU_DECL FAD2d tan(const FAD2d u) {
     double tanu = std::tan(u.value) ;
     double secu = 1./std::cos(u.value) ;
     double secu2 = secu*secu ;
@@ -468,58 +469,58 @@ namespace Loci {
                  u.grad2*secu2+2.*u.grad*u.grad*secu2*tanu) ;
   }
 
-  inline FAD2d exp(const FAD2d u) {
+  inline GPU_DECL FAD2d exp(const FAD2d u) {
     double eu = std::exp(u.value) ;
     return FAD2d(eu, u.grad*eu, eu*u.grad2+u.grad*u.grad*eu);
   }
-  inline FAD2d log(const FAD2d u) {
+  inline GPU_DECL FAD2d log(const FAD2d u) {
     return FAD2d(std::log(u.value), u.grad/u.value,
                  u.grad2/u.value - u.grad*u.grad/(u.value*u.value));
   }
-  inline FAD2d log10(const FAD2d u) {
+  inline GPU_DECL FAD2d log10(const FAD2d u) {
     return FAD2d(std::log(u.value), u.grad/u.value,
                  u.grad2/u.value - u.grad*u.grad/(u.value*u.value))/std::log(10.0);
   }
 
-  inline FAD2d fabs(FAD2d u) {
+  inline GPU_DECL FAD2d fabs(FAD2d u) {
     return FAD2d(std::fabs(u.value),
                  u.grad*( (u.value<0.0)?-1.0:1.0 ),
                  u.grad2*( (u.value<0.0)?-1.0:1.0 )) ;
   }
-  inline FAD2d abs(FAD2d u) {
+  inline GPU_DECL FAD2d abs(FAD2d u) {
     return FAD2d(std::fabs(u.value),
                  u.grad*( (u.value<0.0)?-1.0:1.0 ),
                  u.grad2*( (u.value<0.0)?-1.0:1.0 )) ;
   }
   /* MPGCOMMENT [05-12-2017 15:04] ---> POW */
-  inline FAD2d pow(const FAD2d u, const int k) {
+  inline GPU_DECL FAD2d pow(const FAD2d u, const int k) {
     return FAD2d(std::pow(u.value, k),
                  (double)k * std::pow(u.value, k-1)*u.grad,
                  k*((k - 1)*(std::pow(u.value, k - 2)*std::pow(u.grad, 2)) + std::pow(u.value, k - 1)*u.grad2)) ;
   }
-  inline FAD2d pow(const FAD2d u, const float k) {
+  inline GPU_DECL FAD2d pow(const FAD2d u, const float k) {
     return FAD2d(std::pow(u.value, double(k)),
                  (double)k * std::pow(u.value, k-1.0)*u.grad,
                  k*((k - 1)*(std::pow(u.value, k-2.0)*std::pow(u.grad, 2)) + std::pow(u.value, k-1.0)*u.grad2)) ;
   }
-  inline FAD2d pow(const FAD2d u, const double k) {
+  inline GPU_DECL FAD2d pow(const FAD2d u, const double k) {
     return FAD2d(std::pow(u.value, k),
                  (double)k * std::pow(u.value, k-1.0)*u.grad,
                  k*((k - 1)*(std::pow(u.value, k-2.0)*std::pow(u.grad, 2)) + std::pow(u.value, k - 1)*u.grad2)) ;
   }
-  inline FAD2d pow(const FAD2d u, const long double ki) {
+  inline GPU_DECL FAD2d pow(const FAD2d u, const long double ki) {
     double k = double(ki) ;
     return FAD2d(std::pow(u.value, k),
                  (double)k * std::pow(u.value, k-1.0)*u.grad,
                  k*((k - 1)*(std::pow(u.value, k - 2)*std::pow(u.grad, 2)) + std::pow(u.value, k - 1)*u.grad2)) ;
   }
-  inline FAD2d sqrt(const FAD2d u) {
+  inline GPU_DECL FAD2d sqrt(const FAD2d u) {
 
     double su = std::sqrt(u.value) ;
     return FAD2d(su,0.5*u.grad/std::max(su,1e-30),
                  0.5*u.grad2/(std::max(su,1e-30)) - 0.25*u.grad*u.grad/(std::max(su*su*su,1e-30))) ;
   }
-  inline FAD2d pow(const FAD2d k, const FAD2d u) {
+  inline GPU_DECL FAD2d pow(const FAD2d k, const FAD2d u) {
     double kpu = std::pow(k.value,u.value) ;
     double kpu1 = std::pow(k.value,u.value-1.) ;
     double kpu2 = std::pow(k.value,u.value-2.) ;
@@ -532,25 +533,25 @@ namespace Loci {
                               kpu*(lxu*u.grad)) + kpu*u.grad2)) ;
 
   }
-  inline FAD2d pow(const int k, const FAD2d u) {
+  inline GPU_DECL FAD2d pow(const int k, const FAD2d u) {
     double kpu = std::pow(k,u.value) ;
     double lnk = std::log(double(k)) ;
     return FAD2d(kpu,kpu*lnk*u.grad,
                  kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
   }
-  inline FAD2d pow(const float k, const FAD2d u) {
+  inline GPU_DECL FAD2d pow(const float k, const FAD2d u) {
     double kpu = std::pow(double(k),u.value) ;
     double lnk = std::log(double(k)) ;
     return FAD2d(kpu,kpu*lnk*u.grad,
                  kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
   }
-  inline FAD2d pow(const double k, const FAD2d u) {
+  inline GPU_DECL FAD2d pow(const double k, const FAD2d u) {
     double kpu = std::pow(k,u.value) ;
     double lnk = std::log(double(k)) ;
     return FAD2d(kpu,kpu*lnk*u.grad,
                  kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
   }
-  inline FAD2d pow(const long double ki, const FAD2d u) {
+  inline GPU_DECL FAD2d pow(const long double ki, const FAD2d u) {
     double k = double(ki) ;
     double kpu = std::pow(k,u.value) ;
     double lnk = std::log(double(k)) ;
@@ -558,14 +559,14 @@ namespace Loci {
                  kpu*((lnk*lnk)*(u.grad*u.grad)) + kpu*(lnk*u.grad2)) ;
   }
 
-  inline FAD2d sinh(const FAD2d u) {
+  inline GPU_DECL FAD2d sinh(const FAD2d u) {
     double expu = std::exp(u.value) ;
     double expmu = std::exp(-u.value) ;
     return FAD2d(std::sinh(u.value),
                  0.5*u.grad*(expu + expmu),
                  0.5*(expmu*(u.grad2-u.grad*u.grad)+expu*(u.grad2+u.grad*u.grad))) ;
   }
-  inline FAD2d cosh(const FAD2d u) {
+  inline GPU_DECL FAD2d cosh(const FAD2d u) {
     double expu = std::exp(u.value) ;
     double expmu = std::exp(-u.value) ;
     return FAD2d(std::cosh(u.value),
@@ -574,7 +575,7 @@ namespace Loci {
                       expu*(u.grad2+u.grad*u.grad))) ;
   }
 
-  inline FAD2d tanh(const FAD2d u) {
+  inline GPU_DECL FAD2d tanh(const FAD2d u) {
     double ex = std::exp(std::min(u.value,350.0)) ;
     double exm = std::exp(std::min(-u.value,350.0)) ;
     double dex = ex-exm ;
@@ -585,17 +586,17 @@ namespace Loci {
                  u.grad*u.grad*2.*(rex2-1.)*rex+
                  u.grad2*(1.-rex2)) ;
   }
-  inline FAD2d asin(const FAD2d u) {
+  inline GPU_DECL FAD2d asin(const FAD2d u) {
     double rsrt = 1./std::sqrt(1.-u.value*u.value) ;
     return FAD2d(std::asin(u.value), u.grad*rsrt,
                  u.grad2*rsrt + u.grad*u.grad*u.value*rsrt*rsrt*rsrt);
   }
-  inline FAD2d acos(const FAD2d u) {
+  inline GPU_DECL FAD2d acos(const FAD2d u) {
     double rsrt = 1./std::sqrt(1.-u.value*u.value) ;
     return FAD2d(std::acos(u.value), -u.grad*rsrt,
                  -u.grad2*rsrt - u.grad*u.grad*u.value*rsrt*rsrt*rsrt);
   }
-  inline FAD2d atan(const FAD2d u) {
+  inline GPU_DECL FAD2d atan(const FAD2d u) {
     double rval = 1./(1.+u.value*u.value) ;
     return FAD2d(std::atan(u.value), u.grad*rval,
                  u.grad2*rval-2.*u.grad*u.grad*u.value*rval*rval);
@@ -603,11 +604,11 @@ namespace Loci {
   //-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   // This will not work in general
   //-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  inline FAD2d atan2(const FAD2d u, const FAD2d v) {
+  inline GPU_DECL FAD2d atan2(const FAD2d u, const FAD2d v) {
     return atan(u/v);
   }
 
-  inline FAD2d asinh(const FAD2d u) {
+  inline GPU_DECL FAD2d asinh(const FAD2d u) {
     const double uv = u.value ;
     const double uv2 = uv*uv ;
     const double strm = std::sqrt(uv2+1.) ;
@@ -618,7 +619,7 @@ namespace Loci {
                   - std::pow(uv / strm + 1., 2) / uvstrm2)*u.grad*u.grad
                  + u.grad2*(uv / strm + 1.) / uvstrm) ;
   }
-  inline FAD2d acosh(const FAD2d u) {
+  inline GPU_DECL FAD2d acosh(const FAD2d u) {
     const double uv = u.value ;
     const double uv2 = uv*uv ;
     const double strm = std::sqrt(uv*uv-1.) ;
@@ -629,7 +630,7 @@ namespace Loci {
                   - std::pow(uv / strm + 1., 2) / uvstrm2)*u.grad*u.grad
                  + u.grad2*(uv / strm + 1.) / uvstrm) ;
   }
-  inline FAD2d atanh(const FAD2d u) {
+  inline GPU_DECL FAD2d atanh(const FAD2d u) {
     const double uv = u.value ;
     const double uv2 = uv*uv ;
     const double factor = .5*(1./(1.+uv)+1./(1.-uv)) ;
@@ -639,13 +640,13 @@ namespace Loci {
   }
 
 
-  inline FAD2d operator +(const double u,const FAD2d v)
+  inline GPU_DECL FAD2d operator +(const double u,const FAD2d v)
   { return FAD2d(u+v.value, v.grad, v.grad2); }
-  inline FAD2d operator -(const double u,const FAD2d v)
+  inline GPU_DECL FAD2d operator -(const double u,const FAD2d v)
   { return FAD2d(u-v.value, -v.grad, -v.grad2); }
-  inline FAD2d operator *(const double u,const FAD2d v)
+  inline GPU_DECL FAD2d operator *(const double u,const FAD2d v)
   { return FAD2d(u*v.value,  v.grad*u, v.grad2*u ); }
-  inline FAD2d operator /(const double &u,const FAD2d &v)
+  inline GPU_DECL FAD2d operator /(const double &u,const FAD2d &v)
   { return FAD2d(u/v.value, -u*v.grad/v.value/v.value,
                  2.*u*v.grad*v.grad/(v.value*v.value*v.value) -
                  u*v.grad2/(v.value*v.value)); }
@@ -658,56 +659,56 @@ namespace Loci {
     /* MPGCOMMENT [05-12-2017 13:49] ---> constructor */
 #ifdef TO_BE_DEPRECATED
     template< class T1>
-    FADd(T1 a0): value(a0), grad(0.0) { }
+    GPU_DECL FADd(T1 a0): value(a0), grad(0.0) { }
 #endif
-    FADd(int a0         ,int b0)        : value(a0), grad(b0) { }
-    FADd(int a0         ,float b0)        : value(a0), grad(b0) { }
-    FADd(int a0         ,double b0)        : value(a0), grad(b0) { }
-    FADd(int a0         ,long double b0)        : value(a0), grad(b0) { }
-    FADd(float a0      ,int b0)       : value(a0), grad(b0) { }
-    FADd(float a0      ,float b0)       : value(a0), grad(b0) { }
-    FADd(float a0      ,double b0)       : value(a0), grad(b0) { }
-    FADd(float a0      ,long double b0)       : value(a0), grad(b0) { }
-    FADd(double a0      ,int b0)       : value(a0), grad(b0) { }
-    FADd(double a0      ,float b0)       : value(a0), grad(b0) { }
-    FADd(double a0      ,double b0)       : value(a0), grad(b0) { }
-    FADd(double a0      ,long double b0)       : value(a0), grad(b0) { }
-    FADd(long double a0      ,int b0)       : value(a0), grad(b0) { }
-    FADd(long double a0      ,float b0)       : value(a0), grad(b0) { }
-    FADd(long double a0      ,double b0)       : value(a0), grad(b0) { }
-    FADd(long double a0      ,long double b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(int a0         ,int b0)        : value(a0), grad(b0) { }
+    GPU_DECL FADd(int a0         ,float b0)        : value(a0), grad(b0) { }
+    GPU_DECL FADd(int a0         ,double b0)        : value(a0), grad(b0) { }
+    GPU_DECL FADd(int a0         ,long double b0)        : value(a0), grad(b0) { }
+    GPU_DECL FADd(float a0      ,int b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(float a0      ,float b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(float a0      ,double b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(float a0      ,long double b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(double a0      ,int b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(double a0      ,float b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(double a0      ,double b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(double a0      ,long double b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(long double a0      ,int b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(long double a0      ,float b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(long double a0      ,double b0)       : value(a0), grad(b0) { }
+    GPU_DECL FADd(long double a0      ,long double b0)       : value(a0), grad(b0) { }
 
-    FADd(const double u): value(u),grad(0.0) { }
-    FADd(const float u): value(u),grad(0.0) { }
-    FADd(const int u): value(u),grad(0.0) { }
-    FADd(const size_t u): value(u),grad(0.0) { }
+    GPU_DECL FADd(const double u): value(u),grad(0.0) { }
+    GPU_DECL FADd(const float u): value(u),grad(0.0) { }
+    GPU_DECL FADd(const int u): value(u),grad(0.0) { }
+    GPU_DECL FADd(const size_t u): value(u),grad(0.0) { }
     //    FADd(const FADd &u) : value(u.value), grad(u.grad) { }
     FADd(const FADd &u) = default ;
 
     FADd() = default ;
 
-    void setValue(double val) { value = val ; }
-    FADd& operator =(const FADd &u) {
+    GPU_DECL void setValue(double val) { value = val ; }
+    GPU_DECL FADd& operator =(const FADd &u) {
       value = u.value;
       grad = u.grad;
       return *this;
     }
-    FADd& operator =(const int &u) {
+    GPU_DECL FADd& operator =(const int &u) {
       value = u;
       grad = 0.0;
       return *this;
     }
-    FADd& operator =(const float &u) {
+    GPU_DECL FADd& operator =(const float &u) {
       value = u;
       grad = 0.0;
       return *this;
     }
-    FADd& operator =(const double &u) {
+    GPU_DECL FADd& operator =(const double &u) {
       value = u;
       grad = 0.0;
       return *this;
     }
-    FADd& operator =(const long double &u) {
+    GPU_DECL FADd& operator =(const long double &u) {
       value = u;
       grad = 0.0;
       return *this;
@@ -718,46 +719,46 @@ namespace Loci {
     //    template<class T> FADd operator +(const T &v) const{
     //      return FADd(value+(double)v, grad);
     //    }
-    FADd operator +(const FADd &v) const{
+    GPU_DECL FADd operator +(const FADd &v) const{
       return FADd(value+v.value, grad+v.grad);
     }
-    FADd operator +() const{
+    GPU_DECL FADd operator +() const{
       return FADd(value, grad);
     }
-    FADd operator +(const int &v) const{
+    GPU_DECL FADd operator +(const int &v) const{
       return FADd(value+(double)v, grad);
     }
-    FADd operator +(const float &v) const{
+    GPU_DECL FADd operator +(const float &v) const{
       return FADd(value+(double)v, grad);
     }
-    FADd operator +(const double &v) const{
+    GPU_DECL FADd operator +(const double &v) const{
       return FADd(value+(double)v, grad);
     }
-    FADd operator +(const long double &v) const{
+    GPU_DECL FADd operator +(const long double &v) const{
       return FADd(value+(long double)v, grad);
     }
     //    template<class T> FADd& operator +=(const T &u) {
     //      value+=(double)u;
     //      return *this;
     //    }
-    FADd& operator +=(const FADd &u) {
+    GPU_DECL FADd& operator +=(const FADd &u) {
       value+=u.value;
       grad+=u.grad;
       return *this;
     }
-    FADd& operator +=(const int &u) {
+    GPU_DECL FADd& operator +=(const int &u) {
       value+=u;
       return *this;
     }
-    FADd& operator +=(const float &u) {
+    GPU_DECL FADd& operator +=(const float &u) {
       value+=u;
       return *this;
     }
-    FADd& operator +=(const double &u) {
+    GPU_DECL FADd& operator +=(const double &u) {
       value+=u;
       return *this;
     }
-    FADd& operator +=(const long double &u) {
+    GPU_DECL FADd& operator +=(const long double &u) {
       value+=u;
       return *this;
     }
@@ -767,46 +768,46 @@ namespace Loci {
     //    template<class T> FADd operator -(const T &v) const{
     //      return FADd(value-(double)v, grad);
     //    }
-    FADd operator -(const FADd &v) const{
+    GPU_DECL FADd operator -(const FADd &v) const{
       return FADd(value-v.value, grad-v.grad);
     }
-    FADd operator -() const {
+    GPU_DECL FADd operator -() const {
       return FADd(-value, -grad);
     }
-    FADd operator -(const int &v) const{
+    GPU_DECL FADd operator -(const int &v) const{
       return FADd(value-(double)v, grad);
     }
-    FADd operator -(const float &v) const{
+    GPU_DECL FADd operator -(const float &v) const{
       return FADd(value-(double)v, grad);
     }
-    FADd operator -(const double &v) const{
+    GPU_DECL FADd operator -(const double &v) const{
       return FADd(value-(double)v, grad);
     }
-    FADd operator -(const long double &v) const{
+    GPU_DECL FADd operator -(const long double &v) const{
       return FADd(value-(long double)v, grad);
     }
     //    template<class T> FADd& operator -=(const T &u) {
     //      value-=(double)u;
     //      return *this;
     //    }
-    FADd& operator -=(const FADd &u) {
+    GPU_DECL FADd& operator -=(const FADd &u) {
       value-=u.value;
       grad-=u.grad;
       return *this;
     }
-    FADd& operator -=(const int &u) {
+    GPU_DECL FADd& operator -=(const int &u) {
       value-=u;
       return *this;
     }
-    FADd& operator -=(const float &u) {
+    GPU_DECL FADd& operator -=(const float &u) {
       value-=u;
       return *this;
     }
-    FADd& operator -=(const double &u) {
+    GPU_DECL FADd& operator -=(const double &u) {
       value-=u;
       return *this;
     }
-    FADd& operator -=(const long double &u) {
+    GPU_DECL FADd& operator -=(const long double &u) {
       value-=u;
       return *this;
     }
@@ -815,46 +816,46 @@ namespace Loci {
     //    template<class T> FADd operator *(const T &v) const{
     //      return FADd(value*(double)v, grad);
     //    }
-    FADd operator *(const FADd &v) const {
+    GPU_DECL FADd operator *(const FADd &v) const {
       return FADd(value*v.value,  grad*v.value + v.grad*value);
     }
-    FADd operator *(const int &v) const{
+    GPU_DECL FADd operator *(const int &v) const{
       return FADd(value*(double)v,  grad*(double)v);
     }
-    FADd operator *(const float &v) const{
+    GPU_DECL FADd operator *(const float &v) const{
       return FADd(value*(double)v,  grad*(double)v);
     }
-    FADd operator *(const double &v) const{
+    GPU_DECL FADd operator *(const double &v) const{
       return FADd(value*(double)v,  grad*(double)v);
     }
-    FADd operator *(const long double &v) const{
+    GPU_DECL FADd operator *(const long double &v) const{
       return FADd(value*(long double)v,  grad*(long double)v);
     }
     //    template<class T> FADd& operator *=(const T &u) {
     //      value*=(double)u;
     //      return *this;
     //    }
-    FADd& operator *=(const FADd &u) {
+    GPU_DECL FADd& operator *=(const FADd &u) {
       grad = grad*u.value + u.grad * value;
       value*=u.value;
       return *this;
     }
-    FADd& operator *=(const int &u) {
+    GPU_DECL FADd& operator *=(const int &u) {
       value*=u;
       grad *=u;// + (u.grad is zero) * value;
       return *this;
     }
-    FADd& operator *=(const float &u) {
+    GPU_DECL FADd& operator *=(const float &u) {
       value*=u;
       grad *=u;// + (u.grad is zero) * value;
       return *this;
     }
-    FADd& operator *=(const double &u) {
+    GPU_DECL FADd& operator *=(const double &u) {
       value*=u;
       grad *=u;// + (u.grad is zero) * value;
       return *this;
     }
-    FADd& operator *=(const long double &u) {
+    GPU_DECL FADd& operator *=(const long double &u) {
       value*=u;
       grad *=u;// + (u.grad is zero) * value;
       return *this;
@@ -864,46 +865,46 @@ namespace Loci {
     //    template<class T> FADd operator /(const T &v) const{
     //      return FADd(value/(double)v, grad);
     //    }
-    FADd operator /(const FADd &v) const{
+    GPU_DECL FADd operator /(const FADd &v) const{
       return FADd(value/v.value, (grad*v.value - value*v.grad)/v.value/v.value);
     }
-    FADd operator /(const int &v) const{
+    GPU_DECL FADd operator /(const int &v) const{
       return FADd(value/v, (grad/(double)v));
     }
-    FADd operator /(const float &v) const{
+    GPU_DECL FADd operator /(const float &v) const{
       return FADd(value/v, (grad/(double)v));
     }
-    FADd operator /(const double &v) const{
+    GPU_DECL FADd operator /(const double &v) const{
       return FADd(value/v, (grad/(double)v));
     }
-    FADd operator /(const long double &v) const{
+    GPU_DECL FADd operator /(const long double &v) const{
       return FADd(value/v, (grad/(long double)v));
     }
     //    template<class T> FADd& operator /=(const T &u) {
     //      value/=(double)u;
     //      return *this;
     //    }
-    FADd& operator /=(const FADd &u) {
+    GPU_DECL FADd& operator /=(const FADd &u) {
       grad = (grad*u.value - value * u.grad) / u.value / u.value;
       value/=u.value;
       return *this;
     }
-    FADd& operator /=(const int &u) {
+    GPU_DECL FADd& operator /=(const int &u) {
       value/=u;
       grad /=u;// (grad*u.value /*- value * u.grad=0*/) / u / u;
       return *this;
     }
-    FADd& operator /=(const float &u) {
+    GPU_DECL FADd& operator /=(const float &u) {
       value/=u;
       grad /=u;// (grad*u.value /*- value * u.grad=0*/) / u / u;
       return *this;
     }
-    FADd& operator /=(const double &u) {
+    GPU_DECL FADd& operator /=(const double &u) {
       value/=u;
       grad /=u;// (grad*u.value /*- value * u.grad=0*/) / u / u;
       return *this;
     }
-    FADd& operator /=(const long double &u) {
+    GPU_DECL FADd& operator /=(const long double &u) {
       value/=u;
       grad /=u;// (grad*u.value /*- value * u.grad=0*/) / u / u;
       return *this;
@@ -929,94 +930,94 @@ namespace Loci {
     //    template<class T> bool operator <=(const T &u) const {
     //      return ((value<=(double)u)?true:false);
     //    }
-    bool operator ==(const FADd &u)const  {
+    GPU_DECL bool operator ==(const FADd &u)const  {
       return ((value==u.value)?true:false);
     }
-    bool operator !=(const FADd &u) const {
+    GPU_DECL bool operator !=(const FADd &u) const {
       return ((value!=u.value)?true:false);
     }
-    bool operator >(const FADd &u) const {
+    GPU_DECL bool operator >(const FADd &u) const {
       return ((value>u.value)?true:false);
     }
-    bool operator <(const FADd &u) const {
+    GPU_DECL bool operator <(const FADd &u) const {
       return ((value<u.value)?true:false);
     }
-    bool operator >=(const FADd &u) const {
+    GPU_DECL bool operator >=(const FADd &u) const {
       return ((value>=u.value)?true:false);
     }
-    bool operator <=(const FADd &u) const {
+    GPU_DECL bool operator <=(const FADd &u) const {
       return ((value<=u.value)?true:false);
     }
-    bool operator ==(const int &u) const {
+    GPU_DECL bool operator ==(const int &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const int &u) const {
+    GPU_DECL bool operator !=(const int &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator >(const int &u) const {
+    GPU_DECL bool operator >(const int &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const int &u) const {
+    GPU_DECL bool operator <(const int &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const int &u) const {
+    GPU_DECL bool operator >=(const int &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const int &u) const {
+    GPU_DECL bool operator <=(const int &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const float &u) const {
+    GPU_DECL bool operator ==(const float &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const float &u) const {
+    GPU_DECL bool operator !=(const float &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator >(const float &u) const {
+    GPU_DECL bool operator >(const float &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const float &u) const {
+    GPU_DECL bool operator <(const float &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const float &u) const {
+    GPU_DECL bool operator >=(const float &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const float &u) const {
+    GPU_DECL bool operator <=(const float &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const double &u) const {
+    GPU_DECL bool operator ==(const double &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const double &u) const {
+    GPU_DECL bool operator !=(const double &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator  >(const double &u) const {
+    GPU_DECL bool operator  >(const double &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const double &u) const {
+    GPU_DECL bool operator <(const double &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const double &u) const {
+    GPU_DECL bool operator >=(const double &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const double &u) const {
+    GPU_DECL bool operator <=(const double &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const long double &u) const {
+    GPU_DECL bool operator ==(const long double &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const long double &u) const {
+    GPU_DECL bool operator !=(const long double &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator  >(const long double &u) const {
+    GPU_DECL bool operator  >(const long double &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const long double &u) const {
+    GPU_DECL bool operator <(const long double &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const long double &u) const {
+    GPU_DECL bool operator >=(const long double &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const long double &u) const {
+    GPU_DECL bool operator <=(const long double &u) const {
       return ((value<=u)?true:false);
     }
 
@@ -1052,98 +1053,98 @@ namespace Loci {
     return stream;
   }
 
-  inline double ceil(const FADd u) {
+  inline GPU_DECL double ceil(const FADd u) {
     return std::ceil(u.value) ;
   }
-  inline double floor(const FADd u) {
+  inline GPU_DECL double floor(const FADd u) {
     return std::floor(u.value) ;
   }
 
-  inline FADd erf(const FADd u) {
+  inline GPU_DECL FADd erf(const FADd u) {
     double ef = ::erf(u.value) ;
     double efp = (2./sqrt(M_PI))*std::exp(-u.value*u.value) ;
     return FADd(ef,u.grad*efp) ;
   }
-  inline FADd sin(const FADd u) {
+  inline GPU_DECL FADd sin(const FADd u) {
     return FADd(std::sin(u.value), u.grad*std::cos(u.value));
   }
-  inline FADd cos(const FADd u) {
+  inline GPU_DECL FADd cos(const FADd u) {
     return FADd(std::cos(u.value), -u.grad*std::sin(u.value));
   }
-  inline FADd tan(const FADd u) {
+  inline GPU_DECL FADd tan(const FADd u) {
     return FADd(std::tan(u.value), u.grad/pow(std::cos(u.value),2)) ;
   }
 
-  inline FADd exp(const FADd u) {
+  inline GPU_DECL FADd exp(const FADd u) {
     return FADd(std::exp(u.value), u.grad*std::exp(u.value));
   }
-  inline FADd log(const FADd u) {
+  inline GPU_DECL FADd log(const FADd u) {
     return FADd(std::log(u.value), u.grad/u.value);
   }
-  inline FADd log10(const FADd u) {
+  inline GPU_DECL FADd log10(const FADd u) {
     return FADd(std::log(u.value), u.grad/u.value)/std::log(10.0);
   }
-  inline FADd abs(const FADd u) {
+  inline GPU_DECL FADd abs(const FADd u) {
     return FADd(std::fabs(u.value),
                 u.grad*( (u.value<0.0)?-1.0:1.0 ) );
   }
-  inline FADd fabs(const FADd u) {
+  inline GPU_DECL FADd fabs(const FADd u) {
     return FADd(std::fabs(u.value),
                 u.grad*( (u.value<0.0)?-1.0:1.0 ) );
   }
   /* MPGCOMMENT [05-12-2017 15:04] ---> POW */
-  inline FADd pow(const FADd u, const int k) {
+  inline GPU_DECL FADd pow(const FADd u, const int k) {
     return FADd(std::pow(u.value, k),
                 (double)k * std::pow(u.value, (double)k-1.0)*u.grad );
   }
-  inline FADd pow(const FADd u, const float k) {
+  inline GPU_DECL FADd pow(const FADd u, const float k) {
     return FADd(std::pow(u.value, double(k)),
                 (double)k * std::pow(u.value, (double)k-1.0)*u.grad );
   }
-  inline FADd pow(const FADd u, const double k) {
+  inline GPU_DECL FADd pow(const FADd u, const double k) {
     return FADd(std::pow(u.value, k),
                 k * std::pow(u.value, k-1.0)*u.grad );
   }
-  inline FADd pow(const FADd u, const long double k) {
+  inline GPU_DECL FADd pow(const FADd u, const long double k) {
     return FADd(std::pow(u.value,  double(k)),
                 (double)k * std::pow(u.value,  (double)k-1.0)*u.grad );
   }
-  inline FADd sqrt(const FADd u) {
+  inline GPU_DECL FADd sqrt(const FADd u) {
     double su = std::sqrt(u.value) ;
     return FADd(su,0.5*u.grad/std::max(su,1e-30)) ;
   }
-  inline FADd pow(const FADd k, const FADd u) {
+  inline GPU_DECL FADd pow(const FADd k, const FADd u) {
     double kpu = std::pow(k.value,u.value) ;
     return FADd(kpu,std::pow(k.value,u.value-1.)*k.grad*u.value +
                 kpu*std::log(k.value)*u.grad) ;
   }
-  inline FADd pow(const int k, const FADd u) {
+  inline GPU_DECL FADd pow(const int k, const FADd u) {
     double kpu = std::pow(k,u.value) ;
     return FADd(kpu,kpu*std::log(double(k))*u.grad) ;
   }
-  inline FADd pow(const float k, const FADd u) {
+  inline GPU_DECL FADd pow(const float k, const FADd u) {
     double kpu = std::pow(double(k),u.value) ;
     return FADd(kpu,kpu*std::log(double(k))*u.grad) ;
   }
-  inline FADd pow(const double k, const FADd u) {
+  inline GPU_DECL FADd pow(const double k, const FADd u) {
     double kpu = std::pow(k,u.value) ;
     return FADd(kpu,kpu*std::log(k)*u.grad) ;
   }
-  inline FADd pow(const long double k, const FADd u) {
+  inline GPU_DECL FADd pow(const long double k, const FADd u) {
     double kpu = std::pow(double(k),u.value) ;
     return FADd(kpu,kpu*std::log(k)*u.grad) ;
   }
 
 
-  inline FADd sinh(const FADd u) {
+  inline GPU_DECL FADd sinh(const FADd u) {
     return FADd(std::sinh(u.value),
                 0.5*u.grad*(std::exp(u.value) + std::exp(-u.value))) ;
   }
-  inline FADd cosh(const FADd u) {
+  inline GPU_DECL FADd cosh(const FADd u) {
     return FADd(std::cosh(u.value),
                 0.5*u.grad*(std::exp(u.value) - std::exp(-u.value))) ;
   }
-  inline FADd tanh(const FADd u) {
+  inline GPU_DECL FADd tanh(const FADd u) {
     double ex = std::exp(std::min(u.value,350.0)) ;
     double exm = std::exp(std::min(-u.value,350.0)) ;
     double dex = ex-exm ;
@@ -1152,42 +1153,42 @@ namespace Loci {
                 u.grad*(1.-dex*dex/(sex*sex))) ;
   }
 
-  inline FADd asin(const FADd u) {
+  inline GPU_DECL FADd asin(const FADd u) {
     return FADd(std::asin(u.value), u.grad/std::sqrt(1.0-u.value*u.value) );
   }
-  inline FADd acos(const FADd u) {
+  inline GPU_DECL FADd acos(const FADd u) {
     return FADd(std::acos(u.value), -u.grad/std::sqrt(1.0-u.value*u.value) );
   }
-  inline FADd atan(const FADd u) {
+  inline GPU_DECL FADd atan(const FADd u) {
     return FADd(std::atan(u.value), u.grad/(1.0+u.value*u.value) );
   }
   // This will not work in general
-  inline FADd atan2(const FADd u, const FADd v) {
+  inline GPU_DECL FADd atan2(const FADd u, const FADd v) {
     return atan(u/v);
   }
 
-  inline FADd asinh(const FADd u) {
+  inline GPU_DECL FADd asinh(const FADd u) {
     double strm = std::sqrt(u.value*u.value+1.) ;
     double uvstrm = u.value+strm ;
     return FADd(::asinh(u.value), u.grad*(u.value/strm+1.)/uvstrm) ;
   }
-  inline FADd acosh(const FADd u) {
+  inline GPU_DECL FADd acosh(const FADd u) {
     double strm = std::sqrt(u.value*u.value-1.) ;
     double uvstrm = u.value+strm ;
     return FADd(::acosh(u.value), u.grad*(u.value/strm +1.)/uvstrm) ;
   }
-  inline FADd atanh(const FADd u) {
+  inline GPU_DECL FADd atanh(const FADd u) {
     const double uv = u.value ;
     return FADd(::atanh(uv), .5*u.grad*(1./(1.+uv)+1./(1.-uv))) ;
   }
 
-  inline FADd operator +(const double u,const FADd v)
+  inline GPU_DECL FADd operator +(const double u,const FADd v)
   { return FADd(u+v.value, v.grad); }
-  inline FADd operator -(const double u,const FADd v)
+  inline GPU_DECL FADd operator -(const double u,const FADd v)
   { return FADd(u-v.value, -v.grad); }
-  inline FADd operator *(const double u,const FADd v)
+  inline GPU_DECL FADd operator *(const double u,const FADd v)
   { return FADd(u*v.value,  v.grad*u); }
-  inline FADd operator /(const double &u,const FADd &v)
+  inline GPU_DECL FADd operator /(const double &u,const FADd &v)
   { return FADd(u/v.value, -u*v.grad/v.value/v.value); }
 
 
@@ -1208,263 +1209,263 @@ namespace Loci {
     //      this->maxN = s;
     //    }
     template< class T1>
-    MFADd(T1 a0) : value(a0), grad()
+    GPU_DECL MFADd(T1 a0) : value(a0), grad()
     { for(int i=0;i<MFAD_SIZE;++i) grad[i] =0 ; }
-    MFADd() : value(0.0), grad()
+    GPU_DECL MFADd() : value(0.0), grad()
     { for(int i=0;i<MFAD_SIZE;++i) grad[i] =0 ; }
     //explicit MFADd(int u) : value(u), grad(){ }
     //explicit MFADd(float u) : value(u), grad() { }
     //explicit MFADd(double u) : value(u), grad() { }
     //explicit MFADd(long double u) : value(u), grad() { }
-    MFADd(double u, size_t n) : value(u), grad()
+    GPU_DECL MFADd(double u, size_t n) : value(u), grad()
     { for(int i=0;i<MFAD_SIZE;++i) grad[i] =0 ; }
     //explicit MFADd(bool &u)  : value((u)?1.0:0.0), grad() { }
-    MFADd(const double u, const double * g, const int n): value(u), grad() {
+    GPU_DECL MFADd(const double u, const double * g, const int n): value(u), grad() {
       for (size_t i=0; i<maxN; i++) this->grad[i]=g[i];
     }
-    MFADd(const MFADd &u, size_t n): value(u.value), grad() {
+    GPU_DECL MFADd(const MFADd &u, size_t n): value(u.value), grad() {
       for (size_t i=0; i<maxN; i++) this->grad[i]=u.grad[i];
     }
-    MFADd(const MFADd &u): value(u.value), grad() {
+    GPU_DECL MFADd(const MFADd &u): value(u.value), grad() {
       for (size_t i=0; i<maxN; i++) this->grad[i]=u.grad[i];
     }
 
-    void setValue(double val) { value = val ; }
-    MFADd& operator =(const MFADd &u) {
+    GPU_DECL void setValue(double val) { value = val ; }
+    GPU_DECL MFADd& operator =(const MFADd &u) {
       this->value = u.value;
       for (size_t i=0; i<maxN; i++) this->grad[i]=u.grad[i];
       return *this;
     }
-    MFADd& operator =(const int &u) {
+    GPU_DECL MFADd& operator =(const int &u) {
       this->value = u ;
       for (size_t i=0; i<maxN; i++) this->grad[i] = 0.0 ;
       return *this;
     }
-    MFADd& operator =(const float &u) {
+    GPU_DECL MFADd& operator =(const float &u) {
       this->value = u ;
       for (size_t i=0; i<maxN; i++) this->grad[i] = 0.0 ;
       return *this;
     }
-    MFADd& operator =(const double &u) {
+    GPU_DECL MFADd& operator =(const double &u) {
       this->value = u ;
       for (size_t i=0; i<maxN; i++) this->grad[i] = 0.0 ;
       return *this;
     }
-    MFADd& operator =(const long double &u) {
+    GPU_DECL MFADd& operator =(const long double &u) {
       this->value = u ;
       for (size_t i=0; i<maxN; i++) this->grad[i] = 0.0 ;
       return *this;
     }
 
-    MFADd operator +(const MFADd &v) const{
+    GPU_DECL MFADd operator +(const MFADd &v) const{
       size_t s = maxN;
       MFADd out(this->value+v.value,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i]+v.grad[i];
       return out;
     }
-    MFADd operator +() const {
+    GPU_DECL MFADd operator +() const {
       size_t s = maxN;
       MFADd out(this->value,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
-    MFADd operator +(const int &v) const{
+    GPU_DECL MFADd operator +(const int &v) const{
       size_t s = maxN;
       MFADd out(this->value+(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
-    MFADd operator +(const float &v) const{
+    GPU_DECL MFADd operator +(const float &v) const{
       size_t s = maxN;
       MFADd out(this->value+(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
-    MFADd operator +(const double &v) const{
+    GPU_DECL MFADd operator +(const double &v) const{
       size_t s = maxN;
       MFADd out(this->value+(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
-    MFADd operator +(const long double &v) const{
+    GPU_DECL MFADd operator +(const long double &v) const{
       size_t s = maxN;
       MFADd out(this->value+(long double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
 
-    MFADd& operator +=(const MFADd &u) {
+    GPU_DECL MFADd& operator +=(const MFADd &u) {
       this->value+=u.value;
       for (size_t i=0; i<maxN; i++) this->grad[i]+=u.grad[i];
       return *this;
     }
-    MFADd& operator +=(const int &u) {
+    GPU_DECL MFADd& operator +=(const int &u) {
       this->value+=u;
       return *this;
     }
-    MFADd& operator +=(const float &u) {
+    GPU_DECL MFADd& operator +=(const float &u) {
       this->value+=u;
       return *this;
     }
-    MFADd& operator +=(const double &u) {
+    GPU_DECL MFADd& operator +=(const double &u) {
       this->value+=u;
       return *this;
     }
-    MFADd& operator +=(const long double &u) {
+    GPU_DECL MFADd& operator +=(const long double &u) {
       this->value+=u;
       return *this;
     }
 
-    MFADd operator -(const MFADd &v) const{
+    GPU_DECL MFADd operator -(const MFADd &v) const{
       size_t s = maxN ;
       MFADd out(this->value-v.value,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i]-v.grad[i];
       return out;
     }
-    MFADd operator -() const {
+    GPU_DECL MFADd operator -() const {
       size_t s = maxN;
       MFADd out(-this->value,s);
       for (size_t i=0; i<s; i++) out.grad[i] = -this->grad[i];
       return out;
     }
-    MFADd operator -(const int &v) const{
+    GPU_DECL MFADd operator -(const int &v) const{
       size_t s = maxN;
       MFADd out(this->value-(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
-    MFADd operator -(const float &v) const{
+    GPU_DECL MFADd operator -(const float &v) const{
       size_t s = maxN;
       MFADd out(this->value-(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
-    MFADd operator -(const double &v) const{
+    GPU_DECL MFADd operator -(const double &v) const{
       size_t s = maxN;
       MFADd out(this->value-(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
-    MFADd operator -(const long double &v) const{
+    GPU_DECL MFADd operator -(const long double &v) const{
       size_t s = maxN;
       MFADd out(this->value-(long double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i];
       return out;
     }
 
-    MFADd& operator -=(const MFADd &u) {
+    GPU_DECL MFADd& operator -=(const MFADd &u) {
       this->value -= u.value;
       for (size_t i=0; i<maxN; i++) this->grad[i]-=u.grad[i];
       return *this;
     }
-    MFADd& operator -=(const int &u) {
+    GPU_DECL MFADd& operator -=(const int &u) {
       this->value -= u;
       return *this;
     }
-    MFADd& operator -=(const float &u) {
+    GPU_DECL MFADd& operator -=(const float &u) {
       this->value -= u;
       return *this;
     }
-    MFADd& operator -=(const double &u) {
+    GPU_DECL MFADd& operator -=(const double &u) {
       this->value -= u;
       return *this;
     }
-    MFADd& operator -=(const long double &u) {
+    GPU_DECL MFADd& operator -=(const long double &u) {
       this->value -= u;
       return *this;
     }
 
-    MFADd operator *(const MFADd &v) const {
+    GPU_DECL MFADd operator *(const MFADd &v) const {
       size_t s = maxN ;
       MFADd out(this->value*v.value,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i]*v.value + v.grad[i]*this->value;
       return out;
     }
-    MFADd operator *(const int &v) const {
+    GPU_DECL MFADd operator *(const int &v) const {
       size_t s = maxN;
       MFADd out(this->value*(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i] * (double)v;
       return out;
     }
-    MFADd operator *(const float &v) const {
+    GPU_DECL MFADd operator *(const float &v) const {
       size_t s = maxN;
       MFADd out(this->value*(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i] * (double)v;
       return out;
     }
-    MFADd operator *(const double &v) const {
+    GPU_DECL MFADd operator *(const double &v) const {
       size_t s = maxN;
       MFADd out(this->value*(double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i] * (double)v;
       return out;
     }
-    MFADd operator *(const long double &v) const {
+    GPU_DECL MFADd operator *(const long double &v) const {
       size_t s = maxN;
       MFADd out(this->value*(long double)v,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i] * (long double)v;
       return out;
     }
 
-    MFADd& operator *=(const MFADd &u) {
+    GPU_DECL MFADd& operator *=(const MFADd &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] = this->grad[i]*u.value + u.grad[i] * this->value;
       this->value*=u.value;
       return *this;
     }
-    MFADd& operator *=(const int &u) {
+    GPU_DECL MFADd& operator *=(const int &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] *= u;
       this->value *=u ;
       return *this;
     }
-    MFADd& operator *=(const float &u) {
+    GPU_DECL MFADd& operator *=(const float &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] *= u;
       this->value *=u ;
       return *this;
     }
-    MFADd& operator *=(const double &u) {
+    GPU_DECL MFADd& operator *=(const double &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] *= u;
       this->value *=u ;
       return *this;
     }
-    MFADd& operator *=(const long double &u) {
+    GPU_DECL MFADd& operator *=(const long double &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] *= u;
       this->value *=u ;
       return *this;
     }
 
-    MFADd operator /(const MFADd &v) const{
+    GPU_DECL MFADd operator /(const MFADd &v) const{
       size_t s = maxN ;
       double div = this->value/v.value;
       MFADd out(div,s);
       for (size_t i=0; i<s; i++) out.grad[i] = (this->grad[i] - div*v.grad[i])/v.value;
       return out;
     }
-    MFADd operator /(const int &v) const{
+    GPU_DECL MFADd operator /(const int &v) const{
       size_t s = maxN;
       double div = this->value/(double)v;
       MFADd out(div,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i]/(double)v;
       return out;
     }
-    MFADd operator /(const float &v) const{
+    GPU_DECL MFADd operator /(const float &v) const{
       size_t s = maxN;
       double div = this->value/(double)v;
       MFADd out(div,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i]/(double)v;
       return out;
     }
-    MFADd operator /(const double &v) const{
+    GPU_DECL MFADd operator /(const double &v) const{
       size_t s = maxN;
       double div = this->value/(double)v;
       MFADd out(div,s);
       for (size_t i=0; i<s; i++) out.grad[i] = this->grad[i]/(double)v;
       return out;
     }
-    MFADd operator /(const long double &v) const{
+    GPU_DECL MFADd operator /(const long double &v) const{
       size_t s = maxN;
       double div = this->value/(long double)v;
       MFADd out(div,s);
@@ -1472,126 +1473,126 @@ namespace Loci {
       return out;
     }
 
-    MFADd& operator /=(const MFADd &u) {
+    GPU_DECL MFADd& operator /=(const MFADd &u) {
       size_t s = maxN;
       double div = this->value/u.value;
       for (size_t i=0; i<s; i++) this->grad[i] = (this->grad[i] - div*u.grad[i])/u.value;
       this->value = div ;
       return *this;
     }
-    MFADd& operator /=(const int &u) {
+    GPU_DECL MFADd& operator /=(const int &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] /= u;
       this->value /= u ;
       return *this;
     }
-    MFADd& operator /=(const float &u) {
+    GPU_DECL MFADd& operator /=(const float &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] /= u;
       this->value /= u ;
       return *this;
     }
-    MFADd& operator /=(const double &u) {
+    GPU_DECL MFADd& operator /=(const double &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] /= u;
       this->value /= u ;
       return *this;
     }
-    MFADd& operator /=(const long double &u) {
+    GPU_DECL MFADd& operator /=(const long double &u) {
       size_t s = maxN;
       for (size_t i=0; i<s; i++) this->grad[i] /= u;
       this->value /= u ;
       return *this;
     }
 
-    bool operator ==(const MFADd &u)const  {
+    GPU_DECL bool operator ==(const MFADd &u)const  {
       return ((this->value==u.value)?true:false);
     }
-    bool operator !=(const MFADd &u) const {
+    GPU_DECL bool operator !=(const MFADd &u) const {
       return ((this->value!=u.value)?true:false);
     }
-    bool operator >(const MFADd &u) const {
+    GPU_DECL bool operator >(const MFADd &u) const {
       return ((this->value>u.value)?true:false);
     }
-    bool operator <(const MFADd &u) const {
+    GPU_DECL bool operator <(const MFADd &u) const {
       return ((this->value<u.value)?true:false);
     }
-    bool operator >=(const MFADd &u) const {
+    GPU_DECL bool operator >=(const MFADd &u) const {
       return ((this->value>=u.value)?true:false);
     }
-    bool operator <=(const MFADd &u) const {
+    GPU_DECL bool operator <=(const MFADd &u) const {
       return ((this->value<=u.value)?true:false);
     }
-    bool operator ==(const int &u) const {
+    GPU_DECL bool operator ==(const int &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const int &u) const {
+    GPU_DECL bool operator !=(const int &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator >(const int &u) const {
+    GPU_DECL bool operator >(const int &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const int &u) const {
+    GPU_DECL bool operator <(const int &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const int &u) const {
+    GPU_DECL bool operator >=(const int &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const int &u) const {
+    GPU_DECL bool operator <=(const int &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const float &u) const {
+    GPU_DECL bool operator ==(const float &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const float &u) const {
+    GPU_DECL bool operator !=(const float &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator >(const float &u) const {
+    GPU_DECL bool operator >(const float &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const float &u) const {
+    GPU_DECL bool operator <(const float &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const float &u) const {
+    GPU_DECL bool operator >=(const float &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const float &u) const {
+    GPU_DECL bool operator <=(const float &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const double &u) const {
+    GPU_DECL bool operator ==(const double &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const double &u) const {
+    GPU_DECL bool operator !=(const double &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator  >(const double &u) const {
+    GPU_DECL bool operator  >(const double &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const double &u) const {
+    GPU_DECL bool operator <(const double &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const double &u) const {
+    GPU_DECL bool operator >=(const double &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const double &u) const {
+    GPU_DECL bool operator <=(const double &u) const {
       return ((value<=u)?true:false);
     }
-    bool operator ==(const long double &u) const {
+    GPU_DECL bool operator ==(const long double &u) const {
       return ((value==u)?true:false);
     }
-    bool operator !=(const long double &u) const {
+    GPU_DECL bool operator !=(const long double &u) const {
       return ((value!=u)?true:false);
     }
-    bool operator  >(const long double &u) const {
+    GPU_DECL bool operator  >(const long double &u) const {
       return ((value>u)?true:false);
     }
-    bool operator <(const long double &u) const {
+    GPU_DECL bool operator <(const long double &u) const {
       return ((value<u)?true:false);
     }
-    bool operator >=(const long double &u) const {
+    GPU_DECL bool operator >=(const long double &u) const {
       return ((value>=u)?true:false);
     }
-    bool operator <=(const long double &u) const {
+    GPU_DECL bool operator <=(const long double &u) const {
       return ((value<=u)?true:false);
     }
   } ;
@@ -1642,13 +1643,13 @@ namespace Loci {
   using std::max;
   using std::min;
 
-  inline double ceil(const MFADd u) {
+  inline GPU_DECL double ceil(const MFADd u) {
     return std::ceil(u.value) ;
   }
-  inline double floor(const MFADd u) {
+  inline GPU_DECL double floor(const MFADd u) {
     return std::floor(u.value) ;
   }
-  inline MFADd erf(const MFADd u) {
+  inline GPU_DECL MFADd erf(const MFADd u) {
     double ef = ::erf(u.value) ;
     size_t s = MFADd::maxN ;
     MFADd out(ef,s) ;
@@ -1657,116 +1658,116 @@ namespace Loci {
       out.grad[i] = u.grad[i]*efp ;
     return out ;
   }
-  inline MFADd sin(const MFADd u) {
+  inline GPU_DECL MFADd sin(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::sin(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*std::cos(u.value);
     return out;
   }
-  inline MFADd cos(const MFADd u) {
+  inline GPU_DECL MFADd cos(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::cos(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = -u.grad[i]*std::sin(u.value);
     return out;
   }
-  inline MFADd tan(const MFADd u) {
+  inline GPU_DECL MFADd tan(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::tan(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/pow(std::cos(u.value),2) ;
     return out;
   }
 
-  inline MFADd exp(const MFADd u) {
+  inline GPU_DECL MFADd exp(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::exp(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*std::exp(u.value);
     return out;
   }
-  inline MFADd log(const MFADd u) {
+  inline GPU_DECL MFADd log(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::log(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/u.value ;
     return out;
   }
-  inline MFADd log10(const MFADd u) {
+  inline GPU_DECL MFADd log10(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::log(u.value)/std::log(10.0),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/u.value/std::log(10.0);
     return out;
   }
-  inline MFADd abs(const MFADd u) {
+  inline GPU_DECL MFADd abs(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::fabs(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*( (u.value<0.0)?-1.0:1.0 );
     return out;
   }
-  inline MFADd fabs(const MFADd u) {
+  inline GPU_DECL MFADd fabs(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::fabs(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*( (u.value<0.0)?-1.0:1.0 );
     return out;
   }
 
-  inline MFADd pow(const MFADd u, const int k) {
+  inline GPU_DECL MFADd pow(const MFADd u, const int k) {
     size_t s = MFADd::maxN;
     MFADd out(std::pow(u.value, k),s);
     for (size_t i=0; i<s; i++) out.grad[i] = (double)k * std::pow(u.value, (double)k-1.0)*u.grad[i] ;
     return out ;
   }
-  inline MFADd pow(const MFADd u, const float k) {
+  inline GPU_DECL MFADd pow(const MFADd u, const float k) {
     size_t s = MFADd::maxN;
     MFADd out(std::pow(u.value, double(k)),s);
     for (size_t i=0; i<s; i++) out.grad[i] = (double)k * std::pow(u.value, (double)k-1.0)*u.grad[i] ;
     return out ;
   }
-  inline MFADd pow(const MFADd u, const double k) {
+  inline GPU_DECL MFADd pow(const MFADd u, const double k) {
     size_t s = MFADd::maxN;
     MFADd out(std::pow(u.value, k),s);
     for (size_t i=0; i<s; i++) out.grad[i] = k * std::pow(u.value, k-1.0)*u.grad[i] ;
     return out ;
   }
-  inline MFADd pow(const MFADd u, const long double k) {
+  inline GPU_DECL MFADd pow(const MFADd u, const long double k) {
     size_t s = MFADd::maxN;
     MFADd out(std::pow(u.value, double(k)),s);
     for (size_t i=0; i<s; i++) out.grad[i] = (double)k * std::pow(u.value, (double)k-1.0)*u.grad[i] ;
     return out ;
   }
-  inline MFADd sqrt(const MFADd u) {
+  inline GPU_DECL MFADd sqrt(const MFADd u) {
     size_t s = MFADd::maxN;
     double sq = std::sqrt(u.value);
     MFADd out(sq,s) ;
     for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]/::max(sq,1e-30) ;
     return out;
   }
-  inline MFADd pow(const MFADd k, const MFADd u) {
+  inline GPU_DECL MFADd pow(const MFADd k, const MFADd u) {
     size_t s = MFADd::maxN;
     double kpu = std::pow(k.value,u.value) ;
     MFADd out(kpu,s);
     for (size_t i=0; i<s; i++) out.grad[i] = std::pow(k.value,u.value-1.)*k.grad[i]*u.value + kpu*std::log(k.value)*u.grad[i] ;
     return out ;
   }
-  inline MFADd pow(const int k, const MFADd u) {
+  inline GPU_DECL MFADd pow(const int k, const MFADd u) {
     size_t s = MFADd::maxN;
     double kpu = std::pow(k,u.value) ;
     MFADd out(kpu,s);
     for (size_t i=0; i<s; i++) out.grad[i] = kpu*std::log(double(k))*u.grad[i] ;
     return out ;
   }
-  inline MFADd pow(const float k, const MFADd u) {
+  inline GPU_DECL MFADd pow(const float k, const MFADd u) {
     size_t s = MFADd::maxN;
     double kpu = std::pow(k,u.value) ;
     MFADd out(kpu,s);
     for (size_t i=0; i<s; i++) out.grad[i] = kpu*std::log(double(k))*u.grad[i] ;
     return out ;
   }
-  inline MFADd pow(const double k, const MFADd u) {
+  inline GPU_DECL MFADd pow(const double k, const MFADd u) {
     size_t s = MFADd::maxN;
     double kpu = std::pow(k,u.value) ;
     MFADd out(kpu,s);
     for (size_t i=0; i<s; i++) out.grad[i] = kpu*std::log(k)*u.grad[i] ;
     return out ;
   }
-  inline MFADd pow(const long double k, const MFADd u) {
+  inline GPU_DECL MFADd pow(const long double k, const MFADd u) {
     size_t s = MFADd::maxN;
     double kpu = std::pow(double(k),u.value) ;
     MFADd out(kpu,s);
@@ -1774,56 +1775,56 @@ namespace Loci {
     return out ;
   }
 
-  inline MFADd max (const MFADd &a, const MFADd& b) {
+  inline GPU_DECL MFADd max (const MFADd &a, const MFADd& b) {
     size_t s = MFADd::maxN;
     MFADd out((a.value<b.value)?b.value:a.value);
     for (size_t i=0; i<s; i++) out.grad[i] = (a.value<b.value)?b.grad[i]:a.grad[i];
     return out;
   }
-  inline MFADd max (const MFADd &a, const int& b) {
+  inline GPU_DECL MFADd max (const MFADd &a, const int& b) {
     return max(a,MFADd((double)b));
   }
-  inline MFADd max (const MFADd &a, const float& b) {
+  inline GPU_DECL MFADd max (const MFADd &a, const float& b) {
     return max(a,MFADd((double)b));
   }
-  inline MFADd max (const MFADd &a, const double & b) {
+  inline GPU_DECL MFADd max (const MFADd &a, const double & b) {
     return max(a,MFADd((double)b));
   }
-  inline MFADd max (const MFADd &a, const long double & b) {
+  inline GPU_DECL MFADd max (const MFADd &a, const long double & b) {
     return max(a,MFADd((double)b));
   }
-  inline MFADd min (const MFADd &a, const MFADd& b) {
+  inline GPU_DECL MFADd min (const MFADd &a, const MFADd& b) {
     size_t s = MFADd::maxN;
     MFADd out((a.value<b.value)?a.value:b.value);
     for (size_t i=0; i<s; i++) out.grad[i] = (a.value<b.value)?a.grad[i]:b.grad[i];
     return out;
   }
-  inline MFADd min (const MFADd &a, const int& b) {
+  inline GPU_DECL MFADd min (const MFADd &a, const int& b) {
     return min(a, MFADd((double)b));
   }
-  inline MFADd min (const MFADd &a, const float& b) {
+  inline GPU_DECL MFADd min (const MFADd &a, const float& b) {
     return min(a, MFADd((double)b));
   }
-  inline MFADd min (const MFADd &a, const double& b) {
+  inline GPU_DECL MFADd min (const MFADd &a, const double& b) {
     return min(a, MFADd((double)b));
   }
-  inline MFADd min (const MFADd &a, const long double& b) {
+  inline GPU_DECL MFADd min (const MFADd &a, const long double& b) {
     return min(a, MFADd((double)b));
   }
 
-  inline MFADd sinh(const MFADd u) {
+  inline GPU_DECL MFADd sinh(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::sinh(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]*(std::exp(u.value) + std::exp(-(u.value))) ;
     return out;
   }
-  inline MFADd cosh(const MFADd u) {
+  inline GPU_DECL MFADd cosh(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::cosh(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]*(std::exp(u.value) - std::exp(-(u.value))) ;
     return out;
   }
-  inline MFADd tanh(const MFADd u) {
+  inline GPU_DECL MFADd tanh(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::tanh(u.value),s);
     double ex = std::exp(::min(u.value,350.0)) ;
@@ -1834,29 +1835,29 @@ namespace Loci {
     return out;
   }
 
-  inline MFADd asin(const MFADd u) {
+  inline GPU_DECL MFADd asin(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::asin(u.value),s);
     double val = std::sqrt(1.0-u.value*u.value);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/val;
     return out;
   }
-  inline MFADd acos(const MFADd u) {
+  inline GPU_DECL MFADd acos(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::acos(u.value),s);
     double val = std::sqrt(1.0-u.value*u.value);
     for (size_t i=0; i<s; i++) out.grad[i] = -u.grad[i]/val;
     return out;
   }
-  inline MFADd atan(const MFADd u) {
+  inline GPU_DECL MFADd atan(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(std::atan(u.value),s);
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]/(u.value*u.value + 1.0);
     return out;
   }
-  inline MFADd atan2(const MFADd u, const MFADd v) { return atan(u/v); }
+  inline GPU_DECL MFADd atan2(const MFADd u, const MFADd v) { return atan(u/v); }
 
-  inline MFADd asinh(const MFADd u) {
+  inline GPU_DECL MFADd asinh(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(::asinh(u.value),s);
     double strm = std::sqrt(u.value*u.value+1.) ;
@@ -1864,7 +1865,7 @@ namespace Loci {
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(u.value/strm+1.)/uvstrm ;
     return out;
   }
-  inline MFADd acosh(const MFADd u) {
+  inline GPU_DECL MFADd acosh(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(::acosh(u.value),s);
     double strm = std::sqrt(u.value*u.value-1.) ;
@@ -1872,7 +1873,7 @@ namespace Loci {
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(u.value/strm +1.)/uvstrm ;
     return out;
   }
-  inline MFADd atanh(const MFADd u) {
+  inline GPU_DECL MFADd atanh(const MFADd u) {
     size_t s = MFADd::maxN;
     const double uv = u.value ;
     MFADd out(::atanh(uv),s);
@@ -1880,25 +1881,25 @@ namespace Loci {
     return out;
   }
 
-  inline MFADd operator +(const double u,const MFADd v) {
+  inline GPU_DECL MFADd operator +(const double u,const MFADd v) {
     size_t s = MFADd::maxN;
     MFADd out(u+v.value,s);
     for (size_t i=0; i<s; i++) out.grad[i] = v.grad[i];
     return out;
   }
-  inline MFADd operator -(const double u,const MFADd v) {
+  inline GPU_DECL MFADd operator -(const double u,const MFADd v) {
     size_t s = MFADd::maxN;
     MFADd out(u-v.value,s);
     for (size_t i=0; i<s; i++) out.grad[i] = v.grad[i];
     return out;
   }
-  inline MFADd operator *(const double u,const MFADd v) {
+  inline GPU_DECL MFADd operator *(const double u,const MFADd v) {
     size_t s = MFADd::maxN;
     MFADd out(u*v.value,s);
     for (size_t i=0; i<s; i++) out.grad[i] = u * v.grad[i];
     return out;
   }
-  inline MFADd operator /(const double &u,const MFADd &v) {
+  inline GPU_DECL MFADd operator /(const double &u,const MFADd &v) {
     size_t s = MFADd::maxN;
     MFADd out(u/v.value,s);
     for (size_t i=0; i<s; i++) out.grad[i] = -u*v.grad[i]/v.value/v.value;
@@ -1941,22 +1942,22 @@ namespace Loci {
 
 #endif
 
-    VFAD(const double u) {
+    GPU_DECL VFAD(const double u) {
       data.value = u ;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0. ;
     }
-    VFAD(const int u) {
+    GPU_DECL VFAD(const int u) {
       data.value = u ;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0. ;
     }
-    VFAD(const size_t u) {
+    GPU_DECL VFAD(const size_t u) {
       data.value = u ;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0. ;
     }
-    VFAD(const float u) {
+    GPU_DECL VFAD(const float u) {
       data.value = u ;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0. ;
@@ -1966,31 +1967,31 @@ namespace Loci {
 
     VFAD() = default ;
 
-    void setValue(double val) { data.value = val ; }
-    VFAD& operator =(const VFAD &u) {
+    GPU_DECL void setValue(double val) { data.value = val ; }
+    GPU_DECL VFAD& operator =(const VFAD &u) {
       data.value = u.data.value;
       data.grad = u.data.grad;
       return *this;
     }
-    VFAD& operator =(const int &u) {
+    GPU_DECL VFAD& operator =(const int &u) {
       data.value = u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0.0;
       return *this;
     }
-    VFAD& operator =(const float &u) {
+    GPU_DECL VFAD& operator =(const float &u) {
       data.value = u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0.0;
       return *this;
     }
-    VFAD& operator =(const double &u) {
+    GPU_DECL VFAD& operator =(const double &u) {
       data.value = u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0.0;
       return *this;
     }
-    VFAD& operator =(const long double &u) {
+    GPU_DECL VFAD& operator =(const long double &u) {
       data.value = u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = 0.0;
@@ -1998,7 +1999,7 @@ namespace Loci {
     }
 
 
-    VFAD operator +(const VFAD &v) const{
+    GPU_DECL VFAD operator +(const VFAD &v) const{
       VFAD tmp(*this) ;
       tmp.data.value += v.data.value ;
       for(int i=0;i<VFAD_SIZE;++i)
@@ -2006,139 +2007,139 @@ namespace Loci {
       
       return tmp ;
     }
-    VFAD operator +() const{
+    GPU_DECL VFAD operator +() const{
       return VFAD(*this);
     }
-    VFAD operator +(const int &v) const{
+    GPU_DECL VFAD operator +(const int &v) const{
       VFAD tmp = *this ;
       tmp.data.value += v ;
       return tmp ;
     }
-    VFAD operator +(const float &v) const{
+    GPU_DECL VFAD operator +(const float &v) const{
       VFAD tmp = *this ;
       tmp.data.value += v ;
       return tmp ;
     }
-    VFAD operator +(const double &v) const{
+    GPU_DECL VFAD operator +(const double &v) const{
       VFAD tmp = *this ;
       tmp.data.value += v ;
       return tmp ;
     }
-    VFAD operator +(const long double &v) const{
+    GPU_DECL VFAD operator +(const long double &v) const{
       VFAD tmp = *this ;
       tmp.data.value += v ;
       return tmp ;
     }
 
-    VFAD& operator +=(const VFAD &u) {
+    GPU_DECL VFAD& operator +=(const VFAD &u) {
       data.value+=u.data.value;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] += u.data.grad[i];
       return *this;
     }
-    VFAD& operator +=(const int &u) {
+    GPU_DECL VFAD& operator +=(const int &u) {
       data.value+=u;
       return *this;
     }
-    VFAD& operator +=(const float &u) {
+    GPU_DECL VFAD& operator +=(const float &u) {
       data.value+=u;
       return *this;
     }
-    VFAD& operator +=(const double &u) {
+    GPU_DECL VFAD& operator +=(const double &u) {
       data.value+=u;
       return *this;
     }
-    VFAD& operator +=(const long double &u) {
+    GPU_DECL VFAD& operator +=(const long double &u) {
       data.value+=u;
       return *this;
     }
 
-    VFAD operator -(const VFAD &v) const{
+    GPU_DECL VFAD operator -(const VFAD &v) const{
       VFAD tmp = *this ;
       tmp.data.value -= v.data.value ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] -= v.data.grad[i] ;
       return tmp ;
     }
-    VFAD operator -() const {
+    GPU_DECL VFAD operator -() const {
       VFAD tmp ;
       tmp.data.value = -data.value ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] = -data.grad[i] ;
       return tmp ;
     }
-    VFAD operator -(const int &v) const{
+    GPU_DECL VFAD operator -(const int &v) const{
       VFAD tmp = *this ;
       tmp.data.value -= v ;
       return tmp ;
     }
-    VFAD operator -(const float &v) const{
+    GPU_DECL VFAD operator -(const float &v) const{
       VFAD tmp = *this ;
       tmp.data.value -= v ;
       return tmp ;
     }
-    VFAD operator -(const double &v) const{
+    GPU_DECL VFAD operator -(const double &v) const{
       VFAD tmp = *this ;
       tmp.data.value -= v ;
       return tmp ;
     }
-    VFAD operator -(const long double &v) const{
+    GPU_DECL VFAD operator -(const long double &v) const{
       VFAD tmp = *this ;
       tmp.data.value -= v ;
       return tmp ;
     }
-    VFAD& operator -=(const VFAD &u) {
+    GPU_DECL VFAD& operator -=(const VFAD &u) {
       data.value-=u.data.value;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i]-=u.data.grad[i];
       return *this;
     }
-    VFAD& operator -=(const int &u) {
+    GPU_DECL VFAD& operator -=(const int &u) {
       data.value-=u;
       return *this;
     }
-    VFAD& operator -=(const float &u) {
+    GPU_DECL VFAD& operator -=(const float &u) {
       data.value-=u;
       return *this;
     }
-    VFAD& operator -=(const double &u) {
+    GPU_DECL VFAD& operator -=(const double &u) {
       data.value-=u;
       return *this;
     }
-    VFAD& operator -=(const long double &u) {
+    GPU_DECL VFAD& operator -=(const long double &u) {
       data.value-=u;
       return *this;
     }
 
-    VFAD operator *(const VFAD &v) const {
+    GPU_DECL VFAD operator *(const VFAD &v) const {
       VFAD tmp ;
       tmp.data.value = data.value*v.data.value ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] = data.grad[i]*v.data.value+data.value*v.data.grad[i] ;
       return tmp ;
     }
-    VFAD operator *(const int &v) const{
+    GPU_DECL VFAD operator *(const int &v) const{
       VFAD tmp(*this) ;
       tmp.data.value *= v ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] *= v ;
       return tmp ;
     }
-    VFAD operator *(const float &v) const{
+    GPU_DECL VFAD operator *(const float &v) const{
       VFAD tmp(*this) ;
       tmp.data.value *= v ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] *= v ;
       return tmp ;
     }
-    VFAD operator *(const double &v) const{
+    GPU_DECL VFAD operator *(const double &v) const{
       VFAD tmp(*this) ;
       tmp.data.value *= v ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] *= v ;
       return tmp ;
     }
-    VFAD operator *(const long double &v) const{
+    GPU_DECL VFAD operator *(const long double &v) const{
       VFAD tmp(*this) ;
       tmp.data.value *= v ;
       for(int i=0;i<VFAD_SIZE;++i)
@@ -2146,38 +2147,38 @@ namespace Loci {
       return tmp ;
     }
 
-    VFAD& operator *=(const VFAD &u) {
+    GPU_DECL VFAD& operator *=(const VFAD &u) {
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = data.grad[i]*u.data.value + u.data.grad[i]*data.value;
       data.value*=u.data.value;
       return *this;
     }
-    VFAD& operator *=(const int &u) {
+    GPU_DECL VFAD& operator *=(const int &u) {
       data.value*=u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
-    VFAD& operator *=(const float &u) {
+    GPU_DECL VFAD& operator *=(const float &u) {
       data.value*=u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
-    VFAD& operator *=(const double &u) {
+    GPU_DECL VFAD& operator *=(const double &u) {
       data.value*=u;
       for(int i=0;i<VFAD_SIZE;++i) 
         data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
-    VFAD& operator *=(const long double &u) {
+    GPU_DECL VFAD& operator *=(const long double &u) {
       data.value*=u;
       for(int i=0;i<VFAD_SIZE;++i) 
         data.grad[i] *=u;// + (u.grad is zero) * data.value;
       return *this;
     }
 
-    VFAD operator /(const VFAD &v) const{
+    GPU_DECL VFAD operator /(const VFAD &v) const{
       VFAD tmp ;
       tmp.data.value = data.value/v.data.value ;
       float value2 = 1./max(v.data.value*v.data.value,1e-30) ;
@@ -2186,28 +2187,28 @@ namespace Loci {
                            data.value*v.data.grad[i])*value2 ;
       return tmp ;
     }
-    VFAD operator /(const int &v) const{
+    GPU_DECL VFAD operator /(const int &v) const{
       VFAD tmp(*this) ;
       tmp.data.value /= double(v) ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] /= float(v) ;
       return tmp ;
     }
-    VFAD operator /(const float &v) const{ 
+    GPU_DECL VFAD operator /(const float &v) const{ 
       VFAD tmp(*this) ;
       tmp.data.value /= v ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] /= v ;
       return tmp ;
     }
-    VFAD operator /(const double &v) const{
+    GPU_DECL VFAD operator /(const double &v) const{
       VFAD tmp(*this) ;
       tmp.data.value /= v ;
       for(int i=0;i<VFAD_SIZE;++i)
         tmp.data.grad[i] /= v ;
       return tmp ;
     }
-    VFAD operator /(const long double &v) const{
+    GPU_DECL VFAD operator /(const long double &v) const{
       VFAD tmp(*this) ;
       tmp.data.value /= v ;
       for(int i=0;i<VFAD_SIZE;++i)
@@ -2215,7 +2216,7 @@ namespace Loci {
       return tmp ;
     }
 
-    VFAD& operator /=(const VFAD &u) {
+    GPU_DECL VFAD& operator /=(const VFAD &u) {
       float value2 = 1./max(u.data.value*u.data.value,1e-30) ;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] = (data.grad[i]*u.data.value -
@@ -2223,119 +2224,119 @@ namespace Loci {
       data.value /= u.data.value;
       return *this;
     }
-    VFAD& operator /=(const int &u) {
+    GPU_DECL VFAD& operator /=(const int &u) {
       data.value/=double(u);
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] /=float(u);
       return *this;
     }
-    VFAD& operator /=(const float &u) {
+    GPU_DECL VFAD& operator /=(const float &u) {
       data.value/=u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] /=u;
       return *this;
     }
-    VFAD& operator /=(const double &u) {
+    GPU_DECL VFAD& operator /=(const double &u) {
       data.value/=u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] /=u;
       return *this;
     }
-    VFAD& operator /=(const long double &u) {
+    GPU_DECL VFAD& operator /=(const long double &u) {
       data.value/=u;
       for(int i=0;i<VFAD_SIZE;++i)
         data.grad[i] /=u;
       return *this;
     }
 
-    bool operator ==(const VFAD &u)const  {
+    GPU_DECL bool operator ==(const VFAD &u)const  {
       return ((data.value==u.data.value)?true:false);
     }
-    bool operator !=(const VFAD &u) const {
+    GPU_DECL bool operator !=(const VFAD &u) const {
       return ((data.value!=u.data.value)?true:false);
     }
-    bool operator >(const VFAD &u) const {
+    GPU_DECL bool operator >(const VFAD &u) const {
       return ((data.value>u.data.value)?true:false);
     }
-    bool operator <(const VFAD &u) const {
+    GPU_DECL bool operator <(const VFAD &u) const {
       return ((data.value<u.data.value)?true:false);
     }
-    bool operator >=(const VFAD &u) const {
+    GPU_DECL bool operator >=(const VFAD &u) const {
       return ((data.value>=u.data.value)?true:false);
     }
-    bool operator <=(const VFAD &u) const {
+    GPU_DECL bool operator <=(const VFAD &u) const {
       return ((data.value<=u.data.value)?true:false);
     }
-    bool operator ==(const int &u) const {
+    GPU_DECL bool operator ==(const int &u) const {
       return ((data.value==u)?true:false);
     }
-    bool operator !=(const int &u) const {
+    GPU_DECL bool operator !=(const int &u) const {
       return ((data.value!=u)?true:false);
     }
-    bool operator >(const int &u) const {
+    GPU_DECL bool operator >(const int &u) const {
       return ((data.value>u)?true:false);
     }
-    bool operator <(const int &u) const {
+    GPU_DECL bool operator <(const int &u) const {
       return ((data.value<u)?true:false);
     }
-    bool operator >=(const int &u) const {
+    GPU_DECL bool operator >=(const int &u) const {
       return ((data.value>=u)?true:false);
     }
-    bool operator <=(const int &u) const {
+    GPU_DECL bool operator <=(const int &u) const {
       return ((data.value<=u)?true:false);
     }
-    bool operator ==(const float &u) const {
+    GPU_DECL bool operator ==(const float &u) const {
       return ((data.value==u)?true:false);
     }
-    bool operator !=(const float &u) const {
+    GPU_DECL bool operator !=(const float &u) const {
       return ((data.value!=u)?true:false);
     }
-    bool operator >(const float &u) const {
+    GPU_DECL bool operator >(const float &u) const {
       return ((data.value>u)?true:false);
     }
-    bool operator <(const float &u) const {
+    GPU_DECL bool operator <(const float &u) const {
       return ((data.value<u)?true:false);
     }
-    bool operator >=(const float &u) const {
+    GPU_DECL bool operator >=(const float &u) const {
       return ((data.value>=u)?true:false);
     }
-    bool operator <=(const float &u) const {
+    GPU_DECL bool operator <=(const float &u) const {
       return ((data.value<=u)?true:false);
     }
-    bool operator ==(const double &u) const {
+    GPU_DECL bool operator ==(const double &u) const {
       return ((data.value==u)?true:false);
     }
-    bool operator !=(const double &u) const {
+    GPU_DECL bool operator !=(const double &u) const {
       return ((data.value!=u)?true:false);
     }
-    bool operator  >(const double &u) const {
+    GPU_DECL bool operator  >(const double &u) const {
       return ((data.value>u)?true:false);
     }
-    bool operator <(const double &u) const {
+    GPU_DECL bool operator <(const double &u) const {
       return ((data.value<u)?true:false);
     }
-    bool operator >=(const double &u) const {
+    GPU_DECL bool operator >=(const double &u) const {
       return ((data.value>=u)?true:false);
     }
-    bool operator <=(const double &u) const {
+    GPU_DECL bool operator <=(const double &u) const {
       return ((data.value<=u)?true:false);
     }
-    bool operator ==(const long double &u) const {
+    GPU_DECL bool operator ==(const long double &u) const {
       return ((data.value==u)?true:false);
     }
-    bool operator !=(const long double &u) const {
+    GPU_DECL bool operator !=(const long double &u) const {
       return ((data.value!=u)?true:false);
     }
-    bool operator  >(const long double &u) const {
+    GPU_DECL bool operator  >(const long double &u) const {
       return ((data.value>u)?true:false);
     }
-    bool operator <(const long double &u) const {
+    GPU_DECL bool operator <(const long double &u) const {
       return ((data.value<u)?true:false);
     }
-    bool operator >=(const long double &u) const {
+    GPU_DECL bool operator >=(const long double &u) const {
       return ((data.value>=u)?true:false);
     }
-    bool operator <=(const long double &u) const {
+    GPU_DECL bool operator <=(const long double &u) const {
       return ((data.value<=u)?true:false);
     }
 
@@ -2390,14 +2391,14 @@ namespace Loci {
     return stream;
   }
 
-  inline double ceil(const VFAD u) {
+  inline GPU_DECL double ceil(const VFAD u) {
     return std::ceil(u.data.value) ;
   }
-  inline double floor(const VFAD u) {
+  inline GPU_DECL double floor(const VFAD u) {
     return std::floor(u.data.value) ;
   }
 
-  inline VFAD erf(const VFAD u) {
+  inline GPU_DECL VFAD erf(const VFAD u) {
     double ef = ::erf(u.data.value) ;
     double efp = (2./sqrt(M_PI))*std::exp(-u.data.value*u.data.value) ;
     VFAD tmp ;
@@ -2406,7 +2407,7 @@ namespace Loci {
       tmp.data.grad[i] = u.data.grad[i]*efp ;
     return tmp ;
   }
-  inline VFAD sin(const VFAD u) {
+  inline GPU_DECL VFAD sin(const VFAD u) {
     double su = std::sin(u.data.value) ;
     double cu = std::cos(u.data.value) ;
     VFAD tmp ;
@@ -2415,7 +2416,7 @@ namespace Loci {
       tmp.data.grad[i] = u.data.grad[i]*cu ;
     return tmp ;
   }
-  inline VFAD cos(const VFAD u) {
+  inline GPU_DECL VFAD cos(const VFAD u) {
     double su = std::sin(u.data.value) ;
     double cu = std::cos(u.data.value) ;
     VFAD tmp ;
@@ -2424,7 +2425,7 @@ namespace Loci {
       tmp.data.grad[i] = -u.data.grad[i]*su ;
     return tmp ;
   }
-  inline VFAD tan(const VFAD u) {
+  inline GPU_DECL VFAD tan(const VFAD u) {
     VFAD tmp ;
     tmp.data.value = std::tan(u.data.value) ;
     double cu = std::cos(u.data.value) ;
@@ -2434,7 +2435,7 @@ namespace Loci {
     return tmp ;
   }
 
-  inline VFAD exp(const VFAD u) {
+  inline GPU_DECL VFAD exp(const VFAD u) {
     double expu = std::exp(u.data.value) ;
     VFAD tmp ;
     tmp.data.value = expu ;
@@ -2442,7 +2443,7 @@ namespace Loci {
       tmp.data.grad[i] = expu*u.data.grad[i] ;
     return tmp ;
   }
-  inline VFAD log(const VFAD u) {
+  inline GPU_DECL VFAD log(const VFAD u) {
     VFAD tmp ;
     tmp.data.value = std::log(u.data.value) ;
     double rvalue = 1./u.data.value ;
@@ -2450,7 +2451,7 @@ namespace Loci {
       tmp.data.grad[i] =  u.data.grad[i]*rvalue ;
     return tmp ;
   }
-  inline VFAD log10(const VFAD u) {
+  inline GPU_DECL VFAD log10(const VFAD u) {
     VFAD tmp ;
     const double logof10 = std::log(10.0);
     tmp.data.value = std::log(u.data.value)/logof10 ;
@@ -2460,18 +2461,18 @@ namespace Loci {
     return tmp ;
     //    return VFAD(std::log(u.data.value), u.data.grad/u.data.value)/std::log(10.0);
   }
-  inline VFAD abs(const VFAD u) {
+  inline GPU_DECL VFAD abs(const VFAD u) {
     VFAD tmp(u) ;
     tmp *= (u.data.value<0.0)?-1.0:1.0 ;
     return tmp ;
   }
-  inline VFAD fabs(const VFAD u) {
+  inline GPU_DECL VFAD fabs(const VFAD u) {
     VFAD tmp(u) ;
     tmp *= (u.data.value<0.0)?-1.0:1.0 ;
     return tmp ;
   }
   /* MPGCOMMENT [05-12-2017 15:04] ---> POW */
-  inline VFAD pow(const VFAD u, const int k) {
+  inline GPU_DECL VFAD pow(const VFAD u, const int k) {
     double pk = std::pow(u.data.value,k) ;
     double pkm1 = std::pow(u.data.value,k-1) ;
     VFAD tmp ;
@@ -2480,7 +2481,7 @@ namespace Loci {
       tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
     return tmp ;
   }
-  inline VFAD pow(const VFAD u, const float k) {
+  inline GPU_DECL VFAD pow(const VFAD u, const float k) {
     double pk = std::pow(u.data.value,k) ;
     double pkm1 = std::pow(u.data.value,k-1) ;
     VFAD tmp ;
@@ -2489,7 +2490,7 @@ namespace Loci {
       tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
     return tmp ;
   }
-  inline VFAD pow(const VFAD u, const double k) {
+  inline GPU_DECL VFAD pow(const VFAD u, const double k) {
     double pk = std::pow(u.data.value,k) ;
     double pkm1 = std::pow(u.data.value,k-1) ;
     VFAD tmp ;
@@ -2498,7 +2499,7 @@ namespace Loci {
       tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
     return tmp ;
   }
-  inline VFAD pow(const VFAD u, const long double k) {
+  inline GPU_DECL VFAD pow(const VFAD u, const long double k) {
     double pk = std::pow(u.data.value,k) ;
     double pkm1 = std::pow(u.data.value,k-1) ;
     VFAD tmp ;
@@ -2507,7 +2508,7 @@ namespace Loci {
       tmp.data.grad[i] = double(k)*pkm1*u.data.grad[i] ;
     return tmp ;
   }
-  inline VFAD sqrt(const VFAD u) {
+  inline GPU_DECL VFAD sqrt(const VFAD u) {
     double su = std::sqrt(u.data.value) ;
     VFAD tmp ;
     tmp.data.value = su ;
@@ -2515,7 +2516,7 @@ namespace Loci {
       tmp.data.grad[i] = 0.5*u.data.grad[i]/max(su,1e-30) ;
     return tmp ;
   }
-  inline VFAD pow(const VFAD k, const VFAD u) {
+  inline GPU_DECL VFAD pow(const VFAD k, const VFAD u) {
     double kpu = std::pow(k.data.value,u.data.value) ;
     double kpum1 = std::pow(k.data.value,u.data.value-1.) ;
     double logk = std::log(k.data.value) ;
@@ -2528,7 +2529,7 @@ namespace Loci {
     //    return VFAD(kpu,std::pow(k.data.value,u.data.value-1.)*k.grad*u.data.value +
     //                kpu*std::log(k.data.value)*u.grad) ;
   }
-  inline VFAD pow(const int k, const VFAD u) {
+  inline GPU_DECL VFAD pow(const int k, const VFAD u) {
     double kpu = std::pow(k,u.data.value) ;
     double logk = std::log(k) ;
     VFAD tmp ;
@@ -2539,7 +2540,7 @@ namespace Loci {
     //    double kpu = std::pow(k,u.data.value) ;
     //    return VFAD(kpu,kpu*std::log(double(k))*u.grad) ;
   }
-  inline VFAD pow(const float k, const VFAD u) {
+  inline GPU_DECL VFAD pow(const float k, const VFAD u) {
     double kpu = std::pow(k,u.data.value) ;
     double logk = std::log(k) ;
     VFAD tmp ;
@@ -2550,7 +2551,7 @@ namespace Loci {
     //    double kpu = std::pow(double(k),u.data.value) ;
     //    return VFAD(kpu,kpu*std::log(double(k))*u.grad) ;
   }
-  inline VFAD pow(const double k, const VFAD u) {
+  inline GPU_DECL VFAD pow(const double k, const VFAD u) {
     double kpu = std::pow(k,u.data.value) ;
     double logk = std::log(k) ;
     VFAD tmp ;
@@ -2561,7 +2562,7 @@ namespace Loci {
     //    double kpu = std::pow(k,u.data.value) ;
     //    return VFAD(kpu,kpu*std::log(k)*u.grad) ;
   }
-  inline VFAD pow(const long double k, const VFAD u) {
+  inline GPU_DECL VFAD pow(const long double k, const VFAD u) {
     double kpu = std::pow(k,u.data.value) ;
     double logk = std::log(k) ;
     VFAD tmp ;
@@ -2574,7 +2575,7 @@ namespace Loci {
   }
 
 
-  inline VFAD sinh(const VFAD u) {
+  inline GPU_DECL VFAD sinh(const VFAD u) {
     VFAD tmp ;
     tmp.data.value = std::sinh(u.data.value) ;
     double expu = std::exp(u.data.value) ;
@@ -2585,7 +2586,7 @@ namespace Loci {
     //    return VFAD(std::sinh(u.data.value),
     //                0.5*u.grad*(std::exp(u.data.value) + std::exp(-u.data.value))) ;
   }
-  inline VFAD cosh(const VFAD u) {
+  inline GPU_DECL VFAD cosh(const VFAD u) {
     VFAD tmp ;
     tmp.data.value = std::cosh(u.data.value) ;
     double expu = std::exp(u.data.value) ;
@@ -2596,7 +2597,7 @@ namespace Loci {
     //    return VFAD(std::cosh(u.data.value),
     //                0.5*u.grad*(std::exp(u.data.value) - std::exp(-u.data.value))) ;
   }
-  inline VFAD tanh(const VFAD u) {
+  inline GPU_DECL VFAD tanh(const VFAD u) {
     double ex = std::exp(std::min(u.data.value,350.0)) ;
     double exm = std::exp(std::min(-u.data.value,350.0)) ;
     double dex = ex-exm ;
@@ -2611,7 +2612,7 @@ namespace Loci {
     //                u.grad*(1.-dex*dex/(sex*sex))) ;
   }
 
-  inline VFAD asin(const VFAD u) {
+  inline GPU_DECL VFAD asin(const VFAD u) {
     VFAD tmp ;
     tmp.data.value = std::asin(u.data.value) ;
     double factor = 1./std::sqrt(1.0-u.data.value*u.data.value) ;
@@ -2620,7 +2621,7 @@ namespace Loci {
     return tmp ;
     //    return VFAD(std::asin(u.data.value), u.grad/std::sqrt(1.0-u.data.value*u.data.value) );
   }
-  inline VFAD acos(const VFAD u) {
+  inline GPU_DECL VFAD acos(const VFAD u) {
     VFAD tmp ;
     tmp.data.value = std::acos(u.data.value) ;
     double factor = -1./std::sqrt(1.0-u.data.value*u.data.value) ;
@@ -2629,7 +2630,7 @@ namespace Loci {
     return tmp ;
     //return VFAD(std::acos(u.data.value), -u.grad/std::sqrt(1.0-u.data.value*u.data.value) );
   }
-  inline VFAD atan(const VFAD u) {
+  inline GPU_DECL VFAD atan(const VFAD u) {
     VFAD tmp ;
     tmp.data.value = std::atan(u.data.value) ;
     double factor = 1./(1.0+u.data.value*u.data.value) ;
@@ -2639,11 +2640,11 @@ namespace Loci {
     //    return VFAD(std::atan(u.data.value), u.grad/(1.0+u.data.value*u.data.value) );
   }
   // This will not work in general
-  inline VFAD atan2(const VFAD u, const VFAD v) {
+  inline GPU_DECL VFAD atan2(const VFAD u, const VFAD v) {
     return atan(u/v);
   }
 
-  inline VFAD asinh(const VFAD u) {
+  inline GPU_DECL VFAD asinh(const VFAD u) {
     double strm = std::sqrt(u.data.value*u.data.value+1.) ;
     double uvstrm = u.data.value+strm ;
     VFAD tmp ;
@@ -2654,7 +2655,7 @@ namespace Loci {
     return tmp ;
   //return VFAD(::asinh(u.data.value), u.grad*(u.data.value/strm+1.)/uvstrm) ;
   }
-  inline VFAD acosh(const VFAD u) {
+  inline GPU_DECL VFAD acosh(const VFAD u) {
     double strm = std::sqrt(u.data.value*u.data.value-1.) ;
     double uvstrm = u.data.value+strm ;
     VFAD tmp ;
@@ -2665,7 +2666,7 @@ namespace Loci {
     return tmp ;
     //    return VFAD(::acosh(u.data.value), u.grad*(u.data.value/strm +1.)/uvstrm) ;
   }
-  inline VFAD atanh(const VFAD u) {
+  inline GPU_DECL VFAD atanh(const VFAD u) {
     const double uv = u.data.value ;
     VFAD tmp ;
     tmp.data.value = ::atanh(uv) ;
@@ -2676,31 +2677,31 @@ namespace Loci {
   //    return VFAD(::atanh(uv), .5*u.grad*(1./(1.+uv)+1./(1.-uv))) ;
   }
 
-  inline VFAD operator +(const double u,const VFAD v)
+  inline GPU_DECL VFAD operator +(const double u,const VFAD v)
   { return VFAD(u) + v ; }
-  inline VFAD operator -(const double u,const VFAD v)
+  inline GPU_DECL VFAD operator -(const double u,const VFAD v)
   { return VFAD(u) - v ; }
-  inline VFAD operator *(const double u,const VFAD v)
+  inline GPU_DECL VFAD operator *(const double u,const VFAD v)
   { return VFAD(u)*v ; }
-  inline VFAD operator /(const double &u,const VFAD &v)
+  inline GPU_DECL VFAD operator /(const double &u,const VFAD &v)
   { return VFAD(u)/v ; }
 
   
   //----------------helpers
-  inline float realToFloat(double v) { return float(v) ; }
-  inline double realToDouble(double v) { return v ; }
+  inline GPU_DECL float realToFloat(double v) { return float(v) ; }
+  inline GPU_DECL double realToDouble(double v) { return v ; }
 
-  inline float realToFloat(const FADd &v) { return float(v.value) ; }
-  inline double realToDouble(const FADd &v) { return v.value ; }
+  inline GPU_DECL float realToFloat(const FADd &v) { return float(v.value) ; }
+  inline GPU_DECL double realToDouble(const FADd &v) { return v.value ; }
 
-  inline float realToFloat(const FAD2d &v) { return float(v.value) ; }
-  inline double realToDouble(const FAD2d &v) { return v.value ; }
+  inline GPU_DECL float realToFloat(const FAD2d &v) { return float(v.value) ; }
+  inline GPU_DECL double realToDouble(const FAD2d &v) { return v.value ; }
 
-  inline float realToFloat(const MFADd &v) { return float(v.value) ; }
-  inline double realToDouble(const MFADd &v) { return v.value ; }
+  inline GPU_DECL float realToFloat(const MFADd &v) { return float(v.value) ; }
+  inline GPU_DECL double realToDouble(const MFADd &v) { return v.value ; }
 
-  inline float realToFloat(const VFAD &v) { return float(v.data.value) ; }
-  inline double realToDouble(const VFAD &v) { return v.data.value ; }
+  inline GPU_DECL float realToFloat(const VFAD &v) { return float(v.data.value) ; }
+  inline GPU_DECL double realToDouble(const VFAD &v) { return v.data.value ; }
 
 }
 
