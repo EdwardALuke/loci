@@ -43,7 +43,9 @@ struct parseSharedInfo {
   std::vector<std::string> fileNameStack ;
   std::vector<std::string> dependFileList ;
   bool no_cuda ;
-  parseSharedInfo() { no_cuda = true ; }
+  bool test_parse ;
+  int diag_level ;
+  parseSharedInfo() { no_cuda = true ; test_parse= false;  diag_level = 0 ; }
   
 } ;
   
@@ -146,11 +148,13 @@ class parseFile {
                          const std::set<std::list<Loci::variable> > & validate_set) ;
   void process_Calculate2(std::ostream &outputFile,
                           const std::map<Loci::variable,std::string> &vnames,
-                          const std::set<std::list<Loci::variable> > & validate_set) ;
+                          const std::set<std::list<Loci::variable> > & validate_set,
+                          const parseSharedInfo &parseInfo) ;
 
   void setup_Type(std::ostream &outputFile, const std::string &comment) ;
   void setup_Untype(std::ostream &outputFile) ;
-  void setup_Rule(std::ostream &outputFile,const std::string &comment) ;
+  void setup_Rule(std::ostream &outputFile,const std::string &comment,
+                  const parseSharedInfo &parseInfo) ;
   void setup_cudaRule(std::ostream &outputFile,const std::string &comment) ;
 
   void skip_lpp_conditional(std::ostream &outputFile) ;

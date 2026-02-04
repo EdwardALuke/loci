@@ -77,20 +77,6 @@ void AST_exprOper::accept(AST_visitor &v) {  v.visit(*this) ; }
 /// Acceptor method AST node, passes node to visitor object
 void AST_controlStatement::accept(AST_visitor &v) {  v.visit(*this) ; }
 
-/// Check if two AST nodes are equal
-template<class S, class T> inline bool
-ASTEqual(const CPTR<S> &t1, const CPTR<T> &t2) {
-  return t1->nodeType == t2->nodeType ;
-}
-/// Check if two AST nodes are equal
-template<class S> inline bool
-ASTEqual(const CPTR<S> &t1, AST_type::elementType t2) {
-  return t1->nodeType == t2 ;
-}
-//. Check if type of AST node
-inline bool ASTEqual(const AST_type &s, AST_type::elementType t) {
-  return s.nodeType == t ;
-}
 
 /// Check if token is a terminal symbol
 inline bool isTerm(AST_type::elementType e) {
@@ -129,113 +115,6 @@ AST_type::ASTP parseTerm(std::istream &is, int &linecount) {
   }
 }
 
-/// Convert operator code to corresponding string for printing
-inline string OPtoString(AST_type::elementType val) {
-  switch(val) {
-  case AST_type::OP_SCOPE:
-    return string("::") ;
-  case AST_type::OP_AT:
-    return string("@") ;
-  case AST_type::OP_ARROW:
-    return string("->") ;
-  case AST_type::OP_TIMES:
-    return string("*") ;
-  case AST_type::OP_DIVIDE:
-    return string("/") ;
-  case AST_type::OP_MODULUS:
-    return string("%") ;
-  case AST_type::OP_PLUS:
-    return string("+") ;
-  case AST_type::OP_MINUS:
-    return string("-") ;
-  case AST_type::OP_SHIFT_RIGHT:
-    return string(">>") ;
-  case AST_type::OP_SHIFT_LEFT:
-    return string("<<") ;
-  case AST_type::OP_LT:
-    return string("<") ;
-  case AST_type::OP_GT:
-    return string(">") ;
-  case AST_type::OP_GE:
-    return string(">=") ;
-  case AST_type::OP_LE:
-    return string("<=") ;
-  case AST_type::OP_EQUAL:
-    return string("==") ;
-  case AST_type::OP_NOT_EQUAL:
-    return string("!=") ;
-  case AST_type::OP_AND:
-    return string("&") ;
-  case AST_type::OP_EXOR:
-    return string("^") ;
-  case AST_type::OP_OR:
-    return string("|") ;
-  case AST_type::OP_LOGICAL_AND:
-    return string("&&") ;
-  case AST_type::OP_LOGICAL_OR:
-    return string("||") ;
-  case AST_type::OP_ASSIGN:
-    return string("=") ;
-  case AST_type::OP_TIMES_ASSIGN:
-    return string("*=") ;
-  case AST_type::OP_DIVIDE_ASSIGN:
-    return string("/=") ;
-  case AST_type::OP_MODULUS_ASSIGN:
-    return string("%=") ;
-  case AST_type::OP_PLUS_ASSIGN:
-    return string("+=") ;
-  case AST_type::OP_MINUS_ASSIGN:
-    return string("-=") ;
-  case AST_type::OP_SHIFT_LEFT_ASSIGN:
-    return string("<<=") ;
-  case AST_type::OP_SHIFT_RIGHT_ASSIGN:
-    return string(">>=") ;
-  case AST_type::OP_AND_ASSIGN:
-    return string("&=") ;
-  case AST_type::OP_OR_ASSIGN:
-    return string("|=") ;
-  case AST_type::OP_EXOR_ASSIGN:
-    return string("^=") ;
-  case AST_type::OP_COMMA:
-    return string(",") ;
-  case AST_type::OP_DOT:
-    return string(".") ;
-  case AST_type::OP_COLON:
-    return string(":") ;
-  case AST_type::OP_SEMICOLON:
-    return string(";") ;
-  case AST_type::OP_INCREMENT:
-    return string(" ++") ;
-  case AST_type::OP_DECREMENT:
-    return string(" --") ;
-  case AST_type::OP_POSTINCREMENT:
-    return string("++ ") ;
-  case AST_type::OP_POSTDECREMENT:
-    return string("-- ") ;
-  case AST_type::OP_UNARY_PLUS:
-    return string("+") ;
-  case AST_type::OP_UNARY_MINUS:
-    return string("-") ;
-  case AST_type::OP_NOT:
-    return string("!") ;
-  case AST_type::OP_TILDE:
-    return string("~") ;
-  case AST_type::OP_AMPERSAND:
-    return string("&") ;
-  case AST_type::OP_TERNARY:
-    return string("?") ;
-  case AST_type::OP_DOLLAR:
-    return string("$") ;
-  case AST_type::OP_STAR:
-    return string("*") ;
-  default:
-    return string("/*error*/") ;
-  }
-  return string("/*error*/") ;
-}
-
-inline string OPtoString(const AST_type &val)
-{ return OPtoString(val.nodeType) ; }
 
 
 
@@ -710,7 +589,11 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,
     }
   } while(true) ;
 
-  return applyPostFixOperator(AST_type::ASTP(exprStack.front()),is,linecount,fileName,typemap) ;
+  AST_type::ASTP e = CPTR<AST_type>(exprStack.front()) ;
+  if(ASTEqual(exprStack.front(),AST_type::OP_NIL)) 
+    e = CPTR<AST_type>(exprStack.front()->terms.front()) ;
+
+  return applyPostFixOperator(AST_type::ASTP(e),is,linecount,fileName,typemap) ;
 }
 
 
@@ -1248,13 +1131,13 @@ void AST_visitor::visit(AST_SimpleStatement &s) {
     s.Terminal->accept(*this) ;
 }
 void AST_visitor::visit(AST_Block &s) {
-  for(AST_type::ASTList::iterator ii=s.elements.begin();ii!=s.elements.end();++ii)
+  for(auto ii=s.elements.begin();ii!=s.elements.end();++ii)
     if(*ii!=0)
       (*ii)->accept(*this) ;
 }
 
 void AST_visitor::visit(AST_declaration &s) {
-  for(AST_type::ASTList::iterator ii=s.type_decl.begin();ii!=s.type_decl.end();++ii)
+  for(auto ii=s.type_decl.begin();ii!=s.type_decl.end();++ii)
     if(*ii != 0)
       (*ii)->accept(*this) ;
 
@@ -1262,14 +1145,14 @@ void AST_visitor::visit(AST_declaration &s) {
     s.decls->accept(*this) ;
 }
 void AST_visitor::visit(AST_exprOper &s) {
-  for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+  for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
     if(*ii != 0)
       (*ii)->accept(*this) ;
 
 }
 void AST_visitor::visit(AST_controlStatement &s) {
   s.controlType->accept(*this) ;
-  for(AST_type::ASTList::iterator ii=s.parts.begin();ii!=s.parts.end();++ii) {
+  for(auto ii=s.parts.begin();ii!=s.parts.end();++ii) {
     if(*ii != 0)
       (*ii)->accept(*this) ;
   }

@@ -1404,13 +1404,230 @@ void parseFile::process_Calculate(std::ostream &outputFile,
   }
 }
 
+/// Visitor that prints an AST using a simple substitution map
+class AST_printTree : public AST_visitor {
+ public:
+  ostream &out ;
+  int indent_level ;
+  void indent() {
+    for(int i=0;i<indent_level;++i)
+      out << "  " ;
+  }
+  void pushindent(AST_type &s) { out << endl ;
+    indent() ;
+    out << "[[" << OPtoName(s) << " ";
+    indent_level++ ; }
+  void popindent() { indent_level-- ; out <<"]]"<< endl ; indent() ; }
+  AST_printTree(ostream &s): out(s),indent_level(0) {} 
+  virtual void visit(AST_exprOper &)  ;
+  virtual void visit(AST_Token &) ;
+  virtual void visit(AST_Block &) ;
+  virtual void visit(AST_declaration &) ;
+  virtual void visit(AST_SimpleStatement &) ;
+  virtual void visit(AST_controlStatement &) ;
+} ;
+
+void AST_printTree::visit(AST_exprOper &s) {
+  switch (s.nodeType) {
+  case AST_type::OP_GROUP:
+
+    pushindent(s) ;
+    out << '(' ;
+    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+    }
+    out << ')' ;
+    popindent() ;
+    
+    break ;
+  case AST_type::OP_FUNC:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      FATAL(ii == s.terms.end()) ;
+      out << "[[" ;
+      (*ii)->accept(*this) ;
+      out << "]]" ;
+      ++ii ;
+      out << '(' ;
+      out << "[[" ;
+      if(ii != s.terms.end()) {
+	(*ii)->accept(*this) ;
+        ++ii ;
+      }
+      out << "]]" ;
+      out << ')' ;
+      popindent() ;
+      
+      if(ii!=s.terms.end()) {
+	cerr << "internal error processing func" ;
+        (*ii)->accept(*this) ;
+      }
+    }
+    break ;
+  case AST_type::OP_TEMPLATE:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      FATAL(ii == s.terms.end()) ;
+      out << "[[" ;
+      (*ii)->accept(*this) ;
+      out << "]]" ;
+      ++ii ;
+      out << '<' ;
+      out << "[[" ;
+      if(ii != s.terms.end()) {
+	(*ii)->accept(*this) ;
+        ++ii ;
+      }
+      out << "]]" ;
+      out << '>' ;
+      popindent() ;
+      if(ii!=s.terms.end()) {
+	cerr << "internal error processing func" ;
+        (*ii)->accept(*this) ;
+      }
+    }
+    break ;
+  case AST_type::OP_ARRAY:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      ++ii ;
+      out << '[' ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      out << ']' ;
+      popindent() ;
+      ++ii ;
+      if(ii!=s.terms.end()) {
+	cerr << "internal error processing array" ;
+	if(*ii != 0)
+	  (*ii)->accept(*this);
+      }
+    }
+    break ;
+  case AST_type::OP_TERNARY:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      ++ii ;
+      out << '?' ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      out << ':' ;
+      if(ii==s.terms.end()) {
+	cerr << "internal error on tertiary operator" << endl ;
+      } else
+	++ii ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      popindent() ;
+    }
+    break ;
+      
+  case AST_type::OP_UNARY_PLUS:
+  case AST_type::OP_UNARY_MINUS:
+  case AST_type::OP_NOT:
+  case AST_type::OP_AMPERSAND:
+  case AST_type::OP_STAR:
+  case AST_type::OP_INCREMENT:
+  case AST_type::OP_DECREMENT:
+    {
+      pushindent(s) ;
+      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+	if(*ii != 0)
+	  (*ii)->accept(*this) ;
+      popindent() ;
+    }
+    break ;
+  case AST_type::OP_POSTINCREMENT:
+  case AST_type::OP_POSTDECREMENT:
+    {
+      pushindent(s) ; 
+      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+	if(*ii != 0)
+	  (*ii)->accept(*this) ;
+      popindent() ;
+    }
+    break ;
+  default:
+    {
+      pushindent(s) ;
+      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();) {
+	if(*ii != 0)
+	  (*ii)->accept(*this) ;
+	++ii ;
+      }
+      popindent() ;
+    }
+
+    break ;
+  }
+}
+
+void AST_printTree::visit(AST_Token &s) {
+
+  if(ASTEqual(s,AST_type::TK_LOCI_DIRECTIVE)) {
+    out << "$[" << s.text << "]" ;
+  } else if(ASTEqual(s,AST_type::TK_LOCI_CONTAINER)) {
+    out << "$*" << s.text ;
+  } else if(ASTEqual(s,AST_type::TK_LOCI_VARIABLE)) {
+    out << "$" << s.text ;
+  } else 
+    out <<s.text << ' ' ;
+}
+
+void AST_printTree::visit(AST_Block &s) {
+  pushindent(s) ;
+  for(auto ii=s.elements.begin();ii!=s.elements.end();++ii)
+    if(*ii!=0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+}
+
+void AST_printTree::visit(AST_declaration &s) {
+  pushindent(s) ;
+  out << "[[" ;
+  for(auto ii=s.type_decl.begin();ii!=s.type_decl.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  out << "]][[" ;
+  if(s.decls != 0)
+    s.decls->accept(*this) ;
+  out << "]]" ;
+  popindent() ;
+}
+
+void AST_printTree::visit(AST_SimpleStatement &s) {
+  pushindent(s) ;
+  if(s.exp!=0)
+    s.exp->accept(*this) ;
+  if(s.Terminal!=0) 
+    s.Terminal->accept(*this) ;
+  popindent() ;
+}
+void AST_printTree::visit(AST_controlStatement &s) {
+  pushindent(s) ;
+  s.controlType->accept(*this) ;
+  for(auto ii=s.parts.begin();ii!=s.parts.end();++ii) {
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  }
+  popindent() ;
+}
 class AST_editLociVariableAccess : public AST_visitor {
 public:
   const std::map<variable,std::string> &vnames ;
   AST_type::ASTP entityIndex ;
   AST_type::ASTP convertLociVar(AST_type::ASTP var) {
     CPTR<AST_Token> p = CPTR<AST_Token>(var) ;
-    variable v(p->text) ;
+    variable v(p->text.substr(1)) ;
     auto vmi = vnames.find(v) ;
     if(vmi == vnames.end()) {
       cerr << "variable " << v << " is unknown to this rule!" << endl ;
@@ -1529,8 +1746,8 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
 
 void parseFile::process_Calculate2(std::ostream &outputFile,
                                    const map<variable,string> &vnames,
-                                   const set<list<variable> > &validate_set) {
-  
+                                   const set<list<variable> > &validate_set,
+                                   const parseSharedInfo &parseInfo) {
   varmap typemap ;
   typemap["vect3d"] = varinfo(true,false) ;
       
@@ -1541,7 +1758,12 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
       
   CPTR<AST_type> ap = parseBlock(is,line_no,filename,typemap) ;
   //    outputFile << "Parsed TEST:" << endl ;
-      
+
+  if(parseInfo.diag_level > 0) {
+    AST_printTree diagout(cerr) ;
+    ap->accept(diagout) ;
+  }
+  
   AST_errorCheck syntaxChecker ;
   ap->accept(syntaxChecker) ;
   if(syntaxChecker.hasErrors()) {
@@ -1552,6 +1774,10 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
     throw parseError("syntax error") ;
   }
 
+  //  cerr << "vnames = " << endl ;
+  //  for(auto ii=vnames.begin();ii!=vnames.end();++ii) {
+  //    cerr << ii->first << " " << ii->second << endl ;
+  //  }
   AST_editLociVariableAccess AST_editor(vnames) ;
   ap->accept(AST_editor) ;
   AST_simplePrint printer(outputFile,-1,prettyOutput) ;
@@ -2408,7 +2634,8 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment) 
     throw parseError("need prelude to size output type!") ;
 }
 // rule_type
-void parseFile::setup_Rule(std::ostream &outputFile, const string &comment) {
+void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
+                           const parseSharedInfo &parseInfo) {
   killsp() ;
   string rule_type ;
   if(is_name(is)) {
@@ -3031,12 +3258,10 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment) {
     process_Compute(outputFile,vnames) ;
   } else {
     if(use_compute) {
-      //#define TESTNEWPARSER
-#ifndef TESTNEWPARSER
-      process_Calculate(outputFile,vnames,validate_set) ;
-#else
-      process_Calculate2(outputFile,vnames,validate_set) ;
-#endif 
+      if(parseInfo.test_parse) 
+        process_Calculate2(outputFile,vnames,validate_set,parseInfo) ;
+      else
+        process_Calculate(outputFile,vnames,validate_set) ;
     }
     outputFile <<   "    void compute(const Loci::sequence &seq) { " << endl ;
     syncFile(outputFile) ;
@@ -3187,13 +3412,13 @@ void parseFile::processFile(string file, ostream &outputFile,
             if(level != 0) {
               throw parseError("$rule is not allowed in include file!") ;
             }
-            setup_Rule(outputFile,comment) ;
+            setup_Rule(outputFile,comment,parseInfo) ;
 	  } else if(key == "cudarule") {
             if(level != 0) {
               throw parseError("$rule is not allowed in include file!") ;
             }
 	    if(parseInfo.no_cuda)
-	      setup_Rule(outputFile,comment) ;
+	      setup_Rule(outputFile,comment,parseInfo) ;
 	    else
 	      setup_cudaRule(outputFile,comment) ;
           } else if(key == "include") {
