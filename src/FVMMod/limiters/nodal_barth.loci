@@ -216,9 +216,9 @@ namespace Loci {
 
 
   $rule pointwise(limiters(S)<-cellcenter, S, grads(S), firstOrderCells,
-	upper->face2node->(pos, NGTNodalMax(S), NGTNodalMin(S)),
-	lower->face2node->(pos, NGTNodalMax(S), NGTNodalMin(S)),
-	boundary_map->face2node->(pos, NGTNodalMax(S), NGTNodalMin(S))),
+	  upper->face2node->(pos, NGTNodalMax(S), NGTNodalMin(S)),
+	  lower->face2node->(pos, NGTNodalMax(S), NGTNodalMin(S)),
+	  boundary_map->face2node->(pos, NGTNodalMax(S), NGTNodalMin(S))),
   constraint(geom_cells, limiter_select_nodalbarth) {
     const real Xcc = $S ;
     const vect3d Xgr = $grads(S) ;
@@ -259,9 +259,9 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
-  upper->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
-  lower->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
-  boundary_map->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V))),
+    upper->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
+    lower->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
+    boundary_map->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V))),
   constraint(geom_cells, limiter_select_nodalbarth, standardv3dLimit) {
     const vect3d Xcc = $V ;
     const tens3d Xgr = $gradv3d(V) ;
@@ -345,9 +345,9 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
-  upper->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
-  lower->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
-  boundary_map->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V))),
+    upper->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
+    lower->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V)),
+    boundary_map->face2node->(pos, NGTNodalv3dMax(V), NGTNodalv3dMin(V))),
   constraint(geom_cells, limiter_select_nodalbarth, minv3dLimit) {
     const vect3d Xcc = $V ;
     const tens3d Xgr = $gradv3d(V) ;
@@ -425,14 +425,15 @@ namespace Loci {
       }
     }
 
-    double limm = realToDouble(min(limi.x,min(limi.y,limi.z)));
+    double limm = realToDouble(min(limi.x,min(limi.y,limi.z))) ;
     $limiterv3d(V) = vect3d(limm, limm, limm) ;
   }
 
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_nodalbarth, standardvecLimit), prelude {
+    upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nodalbarth, standardvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -493,9 +494,10 @@ namespace Loci {
 
 
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_nodalbarth, minvecLimit), prelude {
+    upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nodalbarth, minvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;

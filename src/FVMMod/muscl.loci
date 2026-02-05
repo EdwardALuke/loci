@@ -46,15 +46,15 @@ namespace Loci {
   $type M param<real> ;
 
   $rule pointwise(lefts(X)<-facecenter,
-		  cl->(X,grads(X),limiters(X),cellcenter)),
-    constraint(cl->(X,geom_cells)) {
+    cl->(X, grads(X), limiters(X), cellcenter)),
+  constraint(cl->(X, geom_cells)) {
     const vect3d drl = $facecenter - $cl->$cellcenter ;
     $lefts(X) = $cl->$X + $cl->$limiters(X)*dot($cl->$grads(X),drl) ;
   }
 
   $rule pointwise(rights(X)<-facecenter,
-		  cr->(X,grads(X),limiters(X),cellcenter)),
-    constraint(cr->(X,geom_cells)) {
+	  cr->(X, grads(X), limiters(X), cellcenter)),
+  constraint(cr->(X, geom_cells)) {
     const vect3d drl = $facecenter - $cr->$cellcenter ;
     $rights(X) = $cr->$X + $cr->$limiters(X)*dot($cr->$grads(X),drl) ;
   }
@@ -65,13 +65,14 @@ namespace Loci {
 
   $type Zero param<real> ;
   $rule singleton(Zero),constraint(UNIVERSE) { $Zero = 0.0; }
+
   $type minPg param<real> ;
   $type Pambient param<real> ;
   $rule singleton(minPg<-Pambient) { $minPg = -$Pambient ;  }
 
   $rule pointwise(leftsP(X,M)<-facecenter,M,
-		  cl->(X,grads(X),limiters(X),cellcenter)),
-    constraint(cl->(X,geom_cells)) {
+	  cl->(X, grads(X), limiters(X), cellcenter)),
+  constraint(cl->(X,geom_cells)) {
     const vect3d drl = $facecenter - $cl->$cellcenter ;
     const real Xl = $cl->$X ;
     const real XP = Xl + $cl->$limiters(X)*dot($cl->$grads(X),drl) ;
@@ -79,8 +80,8 @@ namespace Loci {
   }
 
   $rule pointwise(rightsP(X,M)<-facecenter,M,
-		  cr->(X,grads(X),limiters(X),cellcenter)),
-    constraint(cr->(X,geom_cells)) {
+	  cr->(X, grads(X), limiters(X), cellcenter)),
+  constraint(cr->(X, geom_cells)) {
     const vect3d drl = $facecenter - $cr->$cellcenter ;
     const real Xr = $cr->$X ;
     const real XP = Xr + $cr->$limiters(X)*dot($cr->$grads(X),drl) ;
@@ -95,8 +96,8 @@ namespace Loci {
   $type X store<vect3d> ;
 
   $rule pointwise(leftv3d(X)<-facecenter,
-		  cl->(X,gradv3d(X),limiterv3d(X),cellcenter)),
-    constraint(cl->(X,geom_cells)) {
+	  cl->(X, gradv3d(X), limiterv3d(X), cellcenter)),
+  constraint(cl->(X, geom_cells)) {
     const vect3d drl = $facecenter - $cl->$cellcenter ;
     $leftv3d(X) = $cl->$X +
       vect3d($cl->$limiterv3d(X).x*dot($cl->$gradv3d(X).x,drl),
@@ -105,8 +106,8 @@ namespace Loci {
   }
 
   $rule pointwise(rightv3d(X)<-facecenter,
-		  cr->(X,gradv3d(X),limiterv3d(X),cellcenter)),
-    constraint(cr->(X,geom_cells)) {
+	  cr->(X, gradv3d(X), limiterv3d(X), cellcenter)),
+  constraint(cr->(X, geom_cells)) {
     const vect3d drl = $facecenter - $cr->$cellcenter ;
     $rightv3d(X) = $cr->$X +
       vect3d($cr->$limiterv3d(X).x*dot($cr->$gradv3d(X).x,drl),
@@ -114,8 +115,9 @@ namespace Loci {
 	     $cr->$limiterv3d(X).z*dot($cr->$gradv3d(X).z,drl)) ;
   }
 
-  $rule pointwise(rightv3d(X)<-pmap->leftv3d(X),pmap->ref->periodicTransform),
-    constraint(periodicFaces) {
+  $rule pointwise(rightv3d(X)<-pmap->leftv3d(X),
+    pmap->ref->periodicTransform),
+  constraint(periodicFaces) {
     const rigid_transform &frame = $pmap->$ref->$periodicTransform ;
     $rightv3d(X) = frame.rotate_vec($pmap->$leftv3d(X)) ;
   }
@@ -148,9 +150,9 @@ namespace Loci {
   $untype X ;
   $type X storeVec<real> ;
   $rule pointwise(leftvM(X)<-facecenter,
-		  cl->(X,gradv(X),limiterv(X),cellcenter)),
-    constraint(cl->(X,geom_cells)),
-    prelude {
+	  cl->(X, gradv(X), limiterv(X), cellcenter)),
+  constraint(cl->(X, geom_cells)),
+  prelude {
     $leftvM(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d drl = $facecenter - $cl->$cellcenter ;
@@ -160,10 +162,12 @@ namespace Loci {
     for(int i=0;i<vs;++i) {
       const real Xi = $cl->$X[i] ;
       slopes[i] = $cl->$limiterv(X)[i]*dot($cl->$gradv(X)[i],drl) ;
-      if(Xi+slopes[i] < 0.0)
-	slopes[i] = -Xi ;
-      if(Xi-1.5*slopes[i] < 0.0)
-	slopes[i] = 0 ;
+      if(Xi+slopes[i] < 0.0) {
+	      slopes[i] = -Xi ;
+      }
+      if(Xi-1.5*slopes[i] < 0.0) {
+	      slopes[i] = 0 ;
+      }
     }
     slope_rescale(slopes,vs) ;
     for(int i=0;i<vs;++i) {
@@ -172,8 +176,9 @@ namespace Loci {
   }
 
   $rule pointwise(rightvM(X)<-facecenter,
-		  cr->(X,gradv(X),limiterv(X),cellcenter)),
-      constraint(cr->(X,geom_cells)), prelude {
+	  cr->(X, gradv(X), limiterv(X), cellcenter)),
+  constraint(cr->(X, geom_cells)),
+  prelude {
     $rightvM(X).setVecSize($X.vecSize()) ;
   } compute {
     const vect3d drl = $facecenter - $cr->$cellcenter ;
@@ -183,10 +188,12 @@ namespace Loci {
     for(int i=0;i<vs;++i) {
       const real Xi = $cr->$X[i] ;
       slopes[i] = $cr->$limiterv(X)[i]*dot($cr->$gradv(X)[i],drl) ;
-      if(Xi+slopes[i] < 0.0)
-	slopes[i] = -Xi ;
-      if(Xi-1.5*slopes[i] < 0.0)
-	slopes[i] = 0 ;
+      if(Xi+slopes[i] < 0.0) {
+	      slopes[i] = -Xi ;
+      }
+      if(Xi-1.5*slopes[i] < 0.0) {
+	      slopes[i] = 0 ;
+      }
     }
     slope_rescale(slopes,vs) ;
     for(int i=0;i<vs;++i) {

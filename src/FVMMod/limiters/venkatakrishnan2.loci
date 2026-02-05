@@ -65,9 +65,9 @@ namespace Loci {
   $type S store<real> ;
   $type S_f store<real> ;
   $rule pointwise(limiters(S)<-cellcenter, S, grads(S), firstOrderCells,
-	Kl, vol, grid_vol, upper->cr->(cellcenter, S), lower->cl->(cellcenter, S),
-	boundary_map->S_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2) {
+	  Kl, vol, grid_vol, upper->cr->(cellcenter, S), lower->cl->(cellcenter, S),
+	  boundary_map->S_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -128,9 +128,9 @@ namespace Loci {
   $type V_f store<vect3d> ;
 
   $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
-  Kl, vol, grid_vol, upper->cr->(V, cellcenter), lower->cl->(V, cellcenter),
-  boundary_map->V_f,boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2, standardv3dLimit) {
+    Kl, vol, grid_vol, upper->cr->(V, cellcenter), lower->cl->(V, cellcenter),
+    boundary_map->V_f,boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2, standardv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -205,9 +205,9 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
-  Kl, vol, grid_vol, upper->cr->(V, cellcenter), lower->cl->(V, cellcenter),
-  boundary_map->V_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2, minv3dLimit) {
+    Kl, vol, grid_vol, upper->cr->(V, cellcenter), lower->cl->(V, cellcenter),
+    boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2, minv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -284,9 +284,10 @@ namespace Loci {
   $type M storeVec<real> ;
   $type M_f storeVec<real> ;
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  Kl, vol, grid_vol, upper->cr->(M, cellcenter), lower->cl->(M, cellcenter),
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2, standardvecLimit), prelude {
+    Kl, vol, grid_vol, upper->cr->(M, cellcenter), lower->cl->(M, cellcenter),
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2, standardvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -342,9 +343,10 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  Kl, vol, grid_vol, upper->cr->(M, cellcenter), lower->cl->(M, cellcenter),
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2, minvecLimit), prelude {
+    Kl, vol, grid_vol, upper->cr->(M, cellcenter), lower->cl->(M, cellcenter),
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2, minvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -409,9 +411,9 @@ namespace Loci {
   $type cellStencil multiMap ;
 
   $rule pointwise(stencil::limiters(S)<-cellcenter, S, grads(S),
-  firstOrderCells, Kl, vol, grid_vol, cellStencil->(cellcenter, S),
-	boundary_map->S_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2) {
+    firstOrderCells, Kl, vol, grid_vol, cellStencil->(cellcenter, S),
+	  boundary_map->S_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -455,9 +457,9 @@ namespace Loci {
   }
 
   $rule pointwise(stencil::limiterv3d(V)<-cellcenter, V, gradv3d(V),
-  firstOrderCells, Kl, vol, grid_vol, cellStencil->(V, cellcenter),
-	boundary_map->V_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2) {
+    firstOrderCells, Kl, vol, grid_vol, cellStencil->(V, cellcenter),
+	  boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -510,9 +512,10 @@ namespace Loci {
   }
 
   $rule pointwise(stencil::limiterv(M)<-cellcenter, M, gradv(M),
-  firstOrderCells, Kl, vol, grid_vol, cellStencil->(M, cellcenter),
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2, standardvecLimit), prelude {
+    firstOrderCells, Kl, vol, grid_vol, cellStencil->(M, cellcenter),
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2, standardvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -556,9 +559,10 @@ namespace Loci {
   }
 
   $rule pointwise(stencil::limiterv(M)<-cellcenter, M, gradv(M),
-  firstOrderCells, Kl, vol, grid_vol, cellStencil->(M, cellcenter),
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_venkatakrishnan2, minvecLimit), prelude {
+    firstOrderCells, Kl, vol, grid_vol, cellStencil->(M, cellcenter),
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_venkatakrishnan2, minvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -598,7 +602,7 @@ namespace Loci {
         limi = min(limi,vlimit(Xcc,qmin,qmax,qdif,epsilon2,ref)) ;
       }
       // Check for the minimum limiter
-      limm = min(limm,limi);
+      limm = min(limm,limi) ;
     }
     // Set the limiter as the min over all j
     for (int j=0;j<vs;++j) {

@@ -39,7 +39,7 @@ namespace Loci {
 
   $rule default(limitVolumeRatio) { $limitVolumeRatio = 50.0 ; }
   $rule apply((cl,cr)->firstOrderCells<-(cl,cr)->vol,
-              limitVolumeRatio)[Loci::Maximum],
+    limitVolumeRatio)[Loci::Maximum],
   constraint((cl,cr)->geom_cells) {
     if(max($cl->$vol,$cr->$vol) > $limitVolumeRatio*min($cl->$vol,$cr->$vol)) {
       char tmp = 1 ;
@@ -49,7 +49,7 @@ namespace Loci {
   }
 
   $rule apply(ci->firstOrderCells<-ci->vol)[Loci::Maximum],
-  constraint(ref->firstOrder_BCoption,ci->vol) {
+  constraint(ref->firstOrder_BCoption, ci->vol) {
     char tmp = 1 ;
     join($ci->$firstOrderCells,tmp) ;
   }
@@ -66,7 +66,7 @@ namespace Loci {
   }
 
   $rule apply((cl,cr)->firstOrderCells<-(cl,cr)->cellcenter, facecenter,
-              cosLimitCellFaceAngle)[Loci::Maximum],
+    cosLimitCellFaceAngle)[Loci::Maximum],
   constraint((cl,cr)->geom_cells) {
     // maximum angle between line segment connecting cellcenters and line
     // segments that connect cell centers to face centers.
@@ -127,22 +127,20 @@ namespace Loci {
   }
 
   $rule constraint(standardvecLimit, minvecLimit<-vecminLimiter) {
-    $standardvecLimit = ~EMPTY;
-    $minvecLimit = EMPTY;
-    if ($vecminLimiter > 0)
-    {
-      $standardvecLimit = EMPTY;
-      $minvecLimit = ~EMPTY;
+    $standardvecLimit = ~EMPTY ;
+    $minvecLimit = EMPTY ;
+    if ($vecminLimiter > 0) {
+      $standardvecLimit = EMPTY ;
+      $minvecLimit = ~EMPTY ;
     }
   }
 
   $rule constraint(standardv3dLimit, minv3dLimit<-v3dminLimiter){
-    $standardv3dLimit = ~EMPTY;
-    $minv3dLimit = EMPTY;
-    if ($v3dminLimiter > 0)
-    {
-      $standardv3dLimit = EMPTY;
-      $minv3dLimit = ~EMPTY;
+    $standardv3dLimit = ~EMPTY ;
+    $minv3dLimit = EMPTY ;
+    if ($v3dminLimiter > 0) {
+      $standardv3dLimit = EMPTY ;
+      $minv3dLimit = ~EMPTY ;
     }
   }
 
@@ -160,7 +158,8 @@ namespace Loci {
 
   $type V store<vect3d> ;
   $rule pointwise(cr->limiterv3d(V)<-pmap->cl->limiterv3d(V),
-  pmap->ref->periodicTransform), constraint(periodicFaces, cl->V) {
+    pmap->ref->periodicTransform),
+  constraint(periodicFaces, cl->V) {
     const rigid_transform &frame = $pmap->$ref->$periodicTransform ;
     $cr->$limiterv3d(V) = frame.rotate_vec($pmap->$cl->$limiterv3d(V)) ;
   }
