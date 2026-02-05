@@ -77,10 +77,10 @@ namespace Loci {
   $type S store<real> ;
   $type S_f store<real> ;
   $rule pointwise(limiters(S)<-cellcenter, S, grads(S),firstOrderCells,
-  Kl, nisPow, vol, grid_vol, upper->cr->S, upper->facecenter,
-  lower->cl->S, lower->facecenter, boundary_map->S_f,
-  boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_nishikawaf) {
+    Kl, nisPow, vol, grid_vol, upper->cr->S, upper->facecenter,
+    lower->cl->S, lower->facecenter, boundary_map->S_f,
+    boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawaf) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -139,13 +139,11 @@ namespace Loci {
   $type V store<vect3d> ;
   $type V_f store<vect3d> ;
 
-  $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
-                                  Kl,nisPow,vol,grid_vol,
-                                  upper->cr->V,upper->facecenter,
-                                  lower->cl->V,lower->facecenter,
-                                  boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawaf,standardv3dLimit)
-  {
+  $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
+    Kl, nisPow, vol, grid_vol, upper->cr->V, upper->facecenter,
+    lower->cl->V, lower->facecenter, boundary_map->V_f,
+    boundary_map->facecenter),
+  constraint(geom_cells,limiter_select_nishikawaf,standardv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -221,10 +219,10 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
-  Kl, nisPow, vol, grid_vol, upper->cr->V, upper->facecenter,
-  lower->cl->V, lower->facecenter, boundary_map->V_f,
-  boundary_map->facecenter), constraint(geom_cells,limiter_select_nishikawaf,
-  minv3dLimit) {
+    Kl, nisPow, vol, grid_vol, upper->cr->V, upper->facecenter,
+    lower->cl->V, lower->facecenter, boundary_map->V_f,
+    boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawaf, minv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -302,8 +300,8 @@ namespace Loci {
   $type M storeVec<real> ;
   $type M_f storeVec<real> ;
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  Kl, nisPow, vol, grid_vol, upper->cr->M, upper->facecenter, lower->cl->M,
-  lower->facecenter, boundary_map->M_f, boundary_map->facecenter),
+    Kl, nisPow, vol, grid_vol, upper->cr->M, upper->facecenter, lower->cl->M,
+    lower->facecenter, boundary_map->M_f, boundary_map->facecenter),
   constraint(geom_cells, limiter_select_nishikawaf, standardvecLimit),
   prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
@@ -362,9 +360,10 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  Kl, nisPow, vol, grid_vol, upper->cr->M, upper->facecenter, lower->cl->M,
-  lower->facecenter, boundary_map->M_f, boundary_map->facecenter),
-  constraint(geom_cells, limiter_select_nishikawaf, minvecLimit), prelude {
+    Kl, nisPow, vol, grid_vol, upper->cr->M, upper->facecenter, lower->cl->M,
+    lower->facecenter, boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawaf, minvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;

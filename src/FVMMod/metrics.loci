@@ -52,6 +52,7 @@ namespace Loci {
 
   $rule pointwise(OUTPUT<-selector(centroid,exact)) {}
   $type centroid_select_exact Constraint ;
+
   $rule pointwise(OUTPUT<-selector(centroid,wireframe)) {}
   $type centroid_select_wireframe Constraint ;
 
@@ -82,6 +83,7 @@ namespace Loci {
   $rule unit(gridThickMax), constraint(UNIVERSE) {
     $gridThickMax = 0 ;
   }
+
   /// Apply rule to combine cell_thickness to global max value
   $rule apply(gridThickMax<-cell_thickness)[Loci::Maximum],
   constraint(geom_cells) {
@@ -93,6 +95,7 @@ namespace Loci {
   $rule unit(gridThickMin), constraint(UNIVERSE) {
     $gridThickMin = 1e100 ;
   }
+
   /// Apply rule to combine cell_thickness to global min value
   $rule apply(gridThickMin<-cell_thickness)[Loci::Minimum],
   constraint(geom_cells) {
@@ -200,7 +203,7 @@ namespace Loci {
   /// geometrically consistent volume for the cells forming a proper partition
   /// of space.
   $rule pointwise(vol<-minVolume, cellcenter,
-  (upper, lower, boundary_map)->(area, facecenter)),
+    (upper, lower, boundary_map)->(area, facecenter)),
   constraint(cartesianCoordinateModel, geom_cells) {
     real_t sum = 0.0 ;
     vector3d<real_t> dv ;
@@ -269,7 +272,7 @@ namespace Loci {
   /// This computes the volume of a cell for the axisymmetric cell by sweeping
   /// out the volume of the 2-D face swept around the x axis.
   $rule pointwise(vol<-(upper, lower, boundary_map)->area,
-  (upper, lower, boundary_map)->face2node->pos, gridThickness),
+    (upper, lower, boundary_map)->face2node->pos, gridThickness),
   constraint(geom_cells, axisymmetricCoordinateModel) {
 #ifdef EXACT
     // Compute volume using analytical solid revolution
@@ -356,7 +359,7 @@ namespace Loci {
     }
     $vol = (M_PI/3.)*vol_sum ;
 #else
-    if($boundary_map.size() == 0)  {
+    if($boundary_map.size() == 0) {
       cerr << "Grid not extruded one cell!  "
            << "Not a valid grid for axisymmetric computations" << endl ;
       Loci::Abort() ;
@@ -406,6 +409,7 @@ namespace Loci {
   $rule unit(grid_vol),constraint(vol) {
     $grid_vol = 0 ;
   }
+
   /// Apply rule to sum up all the cell volumes in the mesh
   $rule apply(grid_vol<-vol)[Loci::Summation], constraint(geom_cells) {
     join($grid_vol,$vol) ;
@@ -467,7 +471,7 @@ namespace Loci {
   /// This amounts to an centroid computation assuming that the mass is
   /// on the edges of the face.
   $rule pointwise(facecenter<-face2node->pos),
-  constraint(face2node->pos,centroid_select_wireframe) {
+  constraint(face2node->pos, centroid_select_wireframe) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t lensum = 0 ;
     warn($face2node.begin() == $face2node.end() ||
@@ -520,7 +524,7 @@ namespace Loci {
   /// computation four iterations to arrive at a close approximation to a face
   /// where the centroid also defines the triangulation of the face.
   $rule pointwise(facecenter<-face2node->pos),
-  constraint(centroid_select_exact,face2node->pos) {
+  constraint(centroid_select_exact, face2node->pos) {
 
     // Compute approximate centroid
     const int fsz = $face2node.size() ;
@@ -559,7 +563,7 @@ namespace Loci {
   /// an exact integration of the positions over the cell.
   $rule pointwise(cellcenter<-(upper,lower,boundary_map)->(facecenter,area),
   (upper,lower,boundary_map)->face2node->pos),
-  constraint(geom_cells,centroid_select_exact,cartesianCoordinateModel) {
+  constraint(geom_cells, centroid_select_exact, cartesianCoordinateModel) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t areasum = 0 ;
     for(const Entity *id=$upper.begin();id!=$upper.end();++id) {
@@ -665,16 +669,16 @@ namespace Loci {
 
   /// Compute the cell centroid for the axisymmetric mode grid metrics.
   $rule pointwise(cellcenter<-
-                  (upper,lower,boundary_map)->(facecenter,area),
-                  (upper,lower,boundary_map)->face2node->pos
-                  ),
+    (upper,lower,boundary_map)->(facecenter,area),
+    (upper,lower,boundary_map)->face2node->pos),
   constraint(geom_cells,axisymmetricCoordinateModel,centroid_select_wireframe) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
 
     // cellcenter is just average of two symmetry plane face centers
     for(const Entity *id=$boundary_map.begin();id!=$boundary_map.end();++id) {
-      if(fabs(id->$area.n.z) > 0.99)
+      if(fabs(id->$area.n.z) > 0.99) {
         nodesum += 0.5*id->$facecenter ;
+      }
     }
     $cellcenter = nodesum ;
   }

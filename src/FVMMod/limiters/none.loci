@@ -27,6 +27,7 @@ using std::endl ;
 
 namespace Loci {
   $rule pointwise(OUTPUT<-selector(limiter,none)) {}
+
   /// No limiter is selected (the limiter is always one, effectively disabling
   /// this limiter
   $type limiter_select_none Constraint ;
@@ -37,15 +38,15 @@ namespace Loci {
 
   $type S store<real> ;
 
-  $rule pointwise(limiters(S)<-S), constraint(geom_cells,
-  limiter_select_none) {
+  $rule pointwise(limiters(S)<-S),
+  constraint(geom_cells, limiter_select_none) {
     $limiters(S) = 1.0 ;
   }
 
   $type V store<vect3d> ;
 
-  $rule pointwise(limiterv3d(V)<-V), constraint(geom_cells,
-  limiter_select_none) {
+  $rule pointwise(limiterv3d(V)<-V),
+  constraint(geom_cells, limiter_select_none) {
     $limiterv3d(V) = vect3d(1.0,1.0,1.0) ;
   }
 

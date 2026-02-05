@@ -78,13 +78,11 @@ namespace Loci {
 
   $type S store<real> ;
   $type S_f store<real> ;
-  $rule pointwise(limiters(S)<-cellcenter,S,grads(S),firstOrderCells,
-                                Kl,nisPow,vol,grid_vol,
-                                upper->cr->(cellcenter,S),
-                                lower->cl->(cellcenter,S),
-                                boundary_map->S_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac)
-  {
+  $rule pointwise(limiters(S)<-cellcenter, S, grads(S), firstOrderCells,
+    Kl, nisPow, vol, grid_vol, upper->cr->(cellcenter, S),
+    lower->cl->(cellcenter, S), boundary_map->S_f,
+    boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -145,13 +143,10 @@ namespace Loci {
   $type V store<vect3d> ;
   $type V_f store<vect3d> ;
 
-  $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
-                                  Kl,nisPow,vol,grid_vol,
-                                  upper->cr->(V,cellcenter),
-                                  lower->cl->(V,cellcenter),
-                                  boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac,standardv3dLimit)
-  {
+  $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
+    Kl, nisPow, vol, grid_vol, upper->cr->(V, cellcenter),
+    lower->cl->(V, cellcenter), boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, standardv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -226,13 +221,10 @@ namespace Loci {
     $limiterv3d(V) = realToDouble(limi) ;
   }
 
-  $rule pointwise(limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
-                                  Kl,nisPow,vol,grid_vol,
-                                  upper->cr->(V,cellcenter),
-                                  lower->cl->(V,cellcenter),
-                                  boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac,minv3dLimit)
-  {
+  $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
+    Kl, nisPow, vol, grid_vol, upper->cr->(V, cellcenter),
+    lower->cl->(V, cellcenter), boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, minv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -309,13 +301,11 @@ namespace Loci {
 
   $type M storeVec<real> ;
   $type M_f storeVec<real> ;
-  $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
-                                Kl,nisPow,vol,grid_vol,
-                                upper->cr->(M,cellcenter),
-                                lower->cl->(M,cellcenter),
-                                boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac,standardvecLimit),prelude
-  {
+  $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
+    Kl, nisPow, vol, grid_vol, upper->cr->(M, cellcenter),
+    lower->cl->(M, cellcenter), boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, standardvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -370,13 +360,11 @@ namespace Loci {
     }
   }
 
-$rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
-                                Kl,nisPow,vol,grid_vol,
-                                upper->cr->(M,cellcenter),
-                                lower->cl->(M,cellcenter),
-                                boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac,minvecLimit),prelude
-  {
+$rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
+  Kl, nisPow, vol, grid_vol, upper->cr->(M, cellcenter),
+  lower->cl->(M, cellcenter), boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, minvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -385,10 +373,10 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
       ref += fabs($M[j]) ;
     ref = max(ref,real_t(1e-5)) ;
     const real pp1 = (real)$nisPow+1;
-    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
-    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
+    const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
-    real limm = 1.0;
+    real limm = 1.0 ;
     for(int j=0;j<vs;++j) {
       const real Xcc = $M[j] ;
       real qmax = Xcc ;
@@ -428,7 +416,7 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
         limi = min(limi,nis_limit(Xcc,qmin,qmax,qdif,epsilon2,$nisPow)) ;
       }
       // Check for the minimum limiter
-      limm = min(limm,limi);
+      limm = min(limm,limi) ;
     }
     // Set the limiter as the min over all j
     for (int j=0;j<vs;++j) {
@@ -440,12 +428,11 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
   // alternate stencil version
   $type cellStencil multiMap ;
 
-  $rule pointwise(stencil::limiters(S)<-cellcenter,S,grads(S),firstOrderCells,
-                                        Kl,nisPow,vol,grid_vol,
-                                        cellStencil->(cellcenter,S),
-                                        boundary_map->S_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac)
-  {
+  $rule pointwise(stencil::limiters(S)<-cellcenter, S, grads(S),
+    firstOrderCells, Kl, nisPow, vol, grid_vol,
+    cellStencil->(cellcenter, S), boundary_map->S_f,
+    boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac) {
     const real Xcc = $S ;
     const vect3d cctr = $cellcenter ;
 
@@ -474,9 +461,9 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1;
-    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
-    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+    const real pp1 = (real)$nisPow+1 ;
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
+    const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
     real limi = ($firstOrderCells != 0)?0.0:1.0 ;
 
@@ -489,12 +476,10 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
     $limiters(S) = realToDouble(limi) ;
   }
 
-  $rule pointwise(stencil::limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
-                                          Kl,nisPow,vol,grid_vol,
-                                          cellStencil->(V,cellcenter),
-                                          boundary_map->V_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac,standardv3dLimit)
-  {
+  $rule pointwise(stencil::limiterv3d(V)<-cellcenter, V, gradv3d(V),
+    firstOrderCells, Kl, nisPow, vol, grid_vol, cellStencil->(V, cellcenter),
+    boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, standardv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -528,9 +513,9 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1;
-    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
-    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+    const real pp1 = (real)$nisPow+1 ;
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
+    const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
     vect3d limi = ($firstOrderCells != 0)?vect3d(0.,0.,0.):vect3d(1.,1.,1.) ;
 
@@ -547,12 +532,10 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
     $limiterv3d(V) = realToDouble(limi) ;
   }
 
-  $rule pointwise(stencil::limiterv3d(V)<-cellcenter,V,gradv3d(V),firstOrderCells,
-                                        Kl,nisPow,vol,grid_vol,
-                                        cellStencil->(V,cellcenter),
-                                        boundary_map->V_f,boundary_map->facecenter),
-      constraint(geom_cells,limiter_select_nishikawac,minv3dLimit)
-  {
+  $rule pointwise(stencil::limiterv3d(V)<-cellcenter, V, gradv3d(V),
+    firstOrderCells, Kl, nisPow, vol, grid_vol, cellStencil->(V, cellcenter),
+    boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, minv3dLimit) {
     const vect3d Xcc = $V ;
     real refsq = dot(Xcc,Xcc) ;
     int numrefs = 1 ;
@@ -586,9 +569,9 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1;
-    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
-    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+    const real pp1 = (real)$nisPow+1 ;
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
+    const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
     vect3d limi = ($firstOrderCells != 0)?vect3d(0.,0.,0.):vect3d(1.,1.,1.) ;
 
@@ -601,26 +584,26 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
       real qdifz = -dot(Xgr.z,drl) ;
       limi.z = min(limi.z,nis_limit(Xcc.z,qmin.z,qmax.z,qdifz,epsilon2,$nisPow)) ;
     }
-    double limm = realToDouble(min(limi.x,min(limi.y,limi.z)));
+    double limm = realToDouble(min(limi.x,min(limi.y,limi.z))) ;
     $limiterv3d(V) = vect3d(limm,limm,limm) ;
   }
 
-  $rule pointwise(stencil::limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
-                                        Kl,nisPow,vol,grid_vol,
-                                        cellStencil->(M,cellcenter),
-                                        boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac,standardvecLimit),prelude
-  {
+  $rule pointwise(stencil::limiterv(M)<-cellcenter, M, gradv(M),
+    firstOrderCells, Kl, nisPow, vol, grid_vol, cellStencil->(M, cellcenter),
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, standardvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
     real ref = 0.0 ;
-    for(int j=0;j<vs;++j)
+    for(int j=0;j<vs;++j) {
       ref += fabs($M[j]) ;
+    }
     ref = max(ref,real_t(1e-5)) ;
     const real pp1 = (real)$nisPow+1;
-    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
-    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
+    const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
     for(int j=0;j<vs;++j) {
       const real Xcc = $M[j] ;
@@ -653,24 +636,24 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
     }
   }
 
-   $rule pointwise(stencil::limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
-                                        Kl,nisPow,vol,grid_vol,
-                                        cellStencil->(M,cellcenter),
-                                        boundary_map->M_f,boundary_map->facecenter),
-        constraint(geom_cells,limiter_select_nishikawac,minvecLimit),prelude
-  {
+   $rule pointwise(stencil::limiterv(M)<-cellcenter, M, gradv(M),
+    firstOrderCells, Kl, nisPow, vol, grid_vol, cellStencil->(M, cellcenter),
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_nishikawac, minvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
     real ref = 0.0 ;
-    for(int j=0;j<vs;++j)
+    for(int j=0;j<vs;++j) {
       ref += fabs($M[j]) ;
+    }
     ref = max(ref,real_t(1e-5)) ;
-    const real pp1 = (real)$nisPow+1;
-    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
-    const real epsilon2 = venkaFac*pow(ref,$nisPow);
+    const real pp1 = (real)$nisPow+1 ;
+    const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
+    const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
-    real limm = 1.0;
+    real limm = 1.0 ;
     for(int j=0;j<vs;++j) {
       const real Xcc = $M[j] ;
       real qmax = Xcc ;
@@ -698,7 +681,7 @@ $rule pointwise(limiterv(M)<-cellcenter,M,gradv(M),firstOrderCells,
         limi = min(limi,nis_limit(Xcc,qmin,qmax,qdif,epsilon2,$nisPow)) ;
       }
       // Check for the minimum limiter
-      limm = min(limm,limi);
+      limm = min(limm,limi) ;
     }
     // Set the limiter as the min over all j
     for (int j=0;j<vs;++j) {

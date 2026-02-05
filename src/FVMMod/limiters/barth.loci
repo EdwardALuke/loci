@@ -27,6 +27,7 @@ using std::endl ;
 
 namespace Loci {
   $rule pointwise(OUTPUT<-selector(limiter,barth,B)) {}
+
   /// Select barth's limiter
   $type limiter_select_barth Constraint ;
 
@@ -37,9 +38,9 @@ namespace Loci {
   $type S store<real> ;
   $type S_f store<real> ;
   $rule pointwise(limiters(S)<-cellcenter, S, grads(S), firstOrderCells,
-	upper->cr->S, upper->facecenter, lower->cl->S, lower->facecenter,
-	boundary_map->S_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_barth) {
+	  upper->cr->S, upper->facecenter, lower->cl->S, lower->facecenter,
+	  boundary_map->S_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_barth) {
     const real Xcc = $S ;
     real qmax = Xcc ;
     real qmin = qmax ;
@@ -97,9 +98,9 @@ namespace Loci {
   $type V_f store<vect3d> ;
 
   $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
-  upper->cr->V, upper->facecenter, lower->cl->V, lower->facecenter,
-  boundary_map->V_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_barth, standardv3dLimit) {
+    upper->cr->V, upper->facecenter, lower->cl->V, lower->facecenter,
+    boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_barth, standardv3dLimit) {
     const vect3d Xcc = $V ;
     vect3d qmax = Xcc ;
     vect3d qmin = qmax ;
@@ -200,9 +201,9 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv3d(V)<-cellcenter, V, gradv3d(V), firstOrderCells,
-  upper->cr->V, upper->facecenter, lower->cl->V, lower->facecenter,
-  boundary_map->V_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_barth, minv3dLimit) {
+    upper->cr->V, upper->facecenter, lower->cl->V, lower->facecenter,
+    boundary_map->V_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_barth, minv3dLimit) {
     const vect3d Xcc = $V ;
     vect3d qmax = Xcc ;
     vect3d qmin = qmax ;
@@ -305,9 +306,10 @@ namespace Loci {
   $type M storeVec<real> ;
   $type M_f storeVec<real> ;
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_barth, standardvecLimit), prelude {
+    upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_barth, standardvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
@@ -367,9 +369,10 @@ namespace Loci {
   }
 
   $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
-  upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
-  boundary_map->M_f, boundary_map->facecenter), constraint(geom_cells,
-  limiter_select_barth, minvecLimit), prelude {
+    upper->cr->M, upper->facecenter, lower->cl->M, lower->facecenter,
+    boundary_map->M_f, boundary_map->facecenter),
+  constraint(geom_cells, limiter_select_barth, minvecLimit),
+  prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     const int vs = $*M.vecSize() ;
