@@ -62,7 +62,6 @@ namespace Loci {
 
   /// Parametric rule to build the names of the components from the existing
   /// grid volume tags.
-  $type componentName_X blackbox<string> ;
   $rule blackbox(componentName_X<-volumeTag(X)),parametric(volumeTag(X)),
   prelude {
     *$componentName_X = *$volumeTag(X) ;
@@ -112,7 +111,6 @@ namespace Loci {
   }
 
 
-  $type componentID store<int> ;
   /// Assign component ID to each cell
   $rule pointwise(componentID<-cellcenter,componentID_X),
   constraint(volumeTag(X)), parametric(volumeTag(X)) {

@@ -70,8 +70,11 @@ $type crossComponentDistGrad_node store<Loci::vector3d<float> > ;
 $type crossComponentID_node store<int> ;
 $type distanceFieldGradient store<Loci::vector3d<float> > ;
 
-/// Stores the component ID of a component that a node belongs to
+/// The component ID of a component that a node belongs to
 $type componentID_node store<int> ;
+
+/// The component ID of a component that a cell belongs to.
+$type componentID store<int> ;
 
 /// For a component X, stores the the sequence of transform ancestry to
 /// associated with that component.
