@@ -30,6 +30,40 @@ fi
 
 echo INSTALL_PATH = $INSTALL_PATH
 
+# Copy files only if they differ or the destination does not exist. This is to
+# avoid unnecessarily updating timestamps of files that have not changed,
+# which can cause rebuilds of dependent files that have not changed.
+soft_copy() {
+    local src="$1"
+    local dst="$2"
+
+    mkdir -p "$(dirname "$dst")"
+    if [ -e "$dst" ] && cmp -s "$src" "$dst"; then
+        return 0
+    fi
+
+    cp -p "$src" "$dst"
+}
+
+# Copy a directory and its contents using soft_copy.
+soft_copy_dir() {
+    local src="$1"
+    local dst_dir="$2"
+
+    soft_copy "$src" "$dst_dir/$(basename "$src")"
+}
+
+# Copy files matching a glob pattern using soft_copy_dir.
+glob_soft_copy() {
+    local pattern="$1"
+    local dst_dir="$2"
+    local src
+
+    while IFS= read -r src; do
+        soft_copy_dir "$src" "$dst_dir"
+    done < <(compgen -G "$pattern" || true)
+}
+
 echo Making Directories
 mkdir -p $INSTALL_PATH
 mkdir -p $INSTALL_PATH/lib
@@ -42,77 +76,83 @@ ARCH=${LOCI_ARCH-`uname -s`}
 if [ $ARCH == "Darwin" ]; then
     LIB_POSTFIX="dylib"
 fi
-cp Tools/libTools.$LIB_POSTFIX $INSTALL_PATH/lib
-cp System/libLoci.$LIB_POSTFIX $INSTALL_PATH/lib
-cp FVMMod/fvm_m.so $INSTALL_PATH/lib
-cp FVMMod/fvmFAD_m.so $INSTALL_PATH/lib
-cp FVMMod/fvmVFAD_m.so $INSTALL_PATH/lib
-cp FVMAdapt/fvmadapt_m.so $INSTALL_PATH/lib
-cp FVMAdapt/libfvmadaptfunc.$LIB_POSTFIX $INSTALL_PATH/lib
-cp FVMOverset/fvmoverset_m.so $INSTALL_PATH/lib
-cp FVMOverset/fvmoversetFAD_m.so $INSTALL_PATH/lib
-cp FVMOverset/fvmoversetVFAD_m.so $INSTALL_PATH/lib
-cp sprng/libsprng.$LIB_POSTFIX $INSTALL_PATH/lib
+soft_copy_dir Tools/libTools.$LIB_POSTFIX $INSTALL_PATH/lib
+soft_copy_dir System/libLoci.$LIB_POSTFIX $INSTALL_PATH/lib
+soft_copy_dir FVMMod/fvm_m.so $INSTALL_PATH/lib
+soft_copy_dir FVMMod/fvmFAD_m.so $INSTALL_PATH/lib
+soft_copy_dir FVMMod/fvmVFAD_m.so $INSTALL_PATH/lib
+soft_copy_dir FVMAdapt/fvmadapt_m.so $INSTALL_PATH/lib
+soft_copy_dir FVMAdapt/libfvmadaptfunc.$LIB_POSTFIX $INSTALL_PATH/lib
+soft_copy_dir FVMOverset/fvmoverset_m.so $INSTALL_PATH/lib
+soft_copy_dir FVMOverset/fvmoversetFAD_m.so $INSTALL_PATH/lib
+soft_copy_dir FVMOverset/fvmoversetVFAD_m.so $INSTALL_PATH/lib
+soft_copy_dir sprng/libsprng.$LIB_POSTFIX $INSTALL_PATH/lib
 
 if [ ! ${INSTALL_METIS} == 0 ]; then
-    cp ParMetis-4.0/GKLib/libgk.$LIB_POSTFIX $INSTALL_PATH/lib
-    cp ParMetis-4.0/METISLib/libmetis.$LIB_POSTFIX $INSTALL_PATH/lib
-    cp ParMetis-4.0/ParMETISLib/libparmetis.$LIB_POSTFIX $INSTALL_PATH/lib
+    soft_copy_dir ParMetis-4.0/GKLib/libgk.$LIB_POSTFIX $INSTALL_PATH/lib
+    soft_copy_dir ParMetis-4.0/METISLib/libmetis.$LIB_POSTFIX $INSTALL_PATH/lib
+    soft_copy_dir ParMetis-4.0/ParMETISLib/libparmetis.$LIB_POSTFIX $INSTALL_PATH/lib
     mkdir -p $INSTALL_PATH/ParMetis-4.0
     mkdir -p $INSTALL_PATH/ParMetis-4.0/include
     mkdir -p $INSTALL_PATH/ParMetis-4.0/lib
-    cp ParMetis-4.0/*.h $INSTALL_PATH/ParMetis-4.0
-    cp ParMetis-4.0/*.h $INSTALL_PATH/ParMetis-4.0/include
-    cp ParMetis-4.0/GKLib/libgk.$LIB_POSTFIX $INSTALL_PATH/ParMetis-4.0/lib
-    cp ParMetis-4.0/METISLib/libmetis.$LIB_POSTFIX $INSTALL_PATH/ParMetis-4.0/lib
-    cp ParMetis-4.0/ParMETISLib/libparmetis.$LIB_POSTFIX $INSTALL_PATH/ParMetis-4.0/lib
+    glob_soft_copy "ParMetis-4.0/*.h" $INSTALL_PATH/ParMetis-4.0
+    glob_soft_copy "ParMetis-4.0/*.h" $INSTALL_PATH/ParMetis-4.0/include
+    soft_copy_dir ParMetis-4.0/GKLib/libgk.$LIB_POSTFIX $INSTALL_PATH/ParMetis-4.0/lib
+    soft_copy_dir ParMetis-4.0/METISLib/libmetis.$LIB_POSTFIX $INSTALL_PATH/ParMetis-4.0/lib
+    soft_copy_dir ParMetis-4.0/ParMETISLib/libparmetis.$LIB_POSTFIX $INSTALL_PATH/ParMetis-4.0/lib
 fi
 
 echo Installing Loci Tools
-cp lpp/lpp $INSTALL_PATH/bin
-cp FVMtools/cobalt2vog $INSTALL_PATH/bin
-cp FVMtools/extract $INSTALL_PATH/bin
-cp FVMtools/make_periodic $INSTALL_PATH/bin
-cp FVMtools/plot3d2vog $INSTALL_PATH/bin
-cp FVMtools/vog2surf $INSTALL_PATH/bin
-cp FVMtools/ugrid2vog $INSTALL_PATH/bin
-cp FVMtools/msh2vog $INSTALL_PATH/bin
-cp FVMtools/cfd++2vog $INSTALL_PATH/bin
-cp FVMtools/fluent2vog $INSTALL_PATH/bin
-cp FVMtools/ccm2vog $INSTALL_PATH/bin
-cp FVMtools/vogmerge $INSTALL_PATH/bin
-cp FVMtools/vogcheck $INSTALL_PATH/bin
-cp FVMtools/vogcut $INSTALL_PATH/bin
-cp FVMtools/extract_movie $INSTALL_PATH/bin
-cp FVMtools/extruder $INSTALL_PATH/bin
-cp FVMtools/refmesh $INSTALL_PATH/bin
-cp FVMtools/marker $INSTALL_PATH/bin
-cp FVMtools/refine $INSTALL_PATH/bin
-cp FVMtools/cgns2ensight $INSTALL_PATH/bin
-cp FVMtools/cgns2surf $INSTALL_PATH/bin
-cp FVMtools/ugrid2cgns $INSTALL_PATH/bin
-cp FVMtools/cgns2ugrid $INSTALL_PATH/bin
-cp FVMtools/cgns2vog $INSTALL_PATH/bin
+soft_copy_dir lpp/lpp $INSTALL_PATH/bin
+soft_copy_dir FVMtools/cobalt2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/extract $INSTALL_PATH/bin
+soft_copy_dir FVMtools/make_periodic $INSTALL_PATH/bin
+soft_copy_dir FVMtools/plot3d2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/vog2surf $INSTALL_PATH/bin
+soft_copy_dir FVMtools/ugrid2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/msh2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/cfd++2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/fluent2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/ccm2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/vogmerge $INSTALL_PATH/bin
+soft_copy_dir FVMtools/vogcheck $INSTALL_PATH/bin
+soft_copy_dir FVMtools/vogcut $INSTALL_PATH/bin
+soft_copy_dir FVMtools/extract_movie $INSTALL_PATH/bin
+soft_copy_dir FVMtools/extruder $INSTALL_PATH/bin
+soft_copy_dir FVMtools/refmesh $INSTALL_PATH/bin
+soft_copy_dir FVMtools/marker $INSTALL_PATH/bin
+soft_copy_dir FVMtools/refine $INSTALL_PATH/bin
+soft_copy_dir FVMtools/cgns2ensight $INSTALL_PATH/bin
+soft_copy_dir FVMtools/cgns2surf $INSTALL_PATH/bin
+soft_copy_dir FVMtools/ugrid2cgns $INSTALL_PATH/bin
+soft_copy_dir FVMtools/cgns2ugrid $INSTALL_PATH/bin
+soft_copy_dir FVMtools/cgns2vog $INSTALL_PATH/bin
 
 echo Copying config files: Loci.conf comp.conf sys.conf version.conf
-cp Loci.conf comp.conf sys.conf $INSTALL_PATH
+soft_copy_dir Loci.conf $INSTALL_PATH
+soft_copy_dir comp.conf $INSTALL_PATH
+soft_copy_dir sys.conf $INSTALL_PATH
+tmp_version_file=$(mktemp)
 sed -e "s:^GIT_INFO.*:GIT_INFO = ${GIT_INFO}:" \
     -e "s:^GIT_BRANCH.*:GIT_BRANCH = ${GIT_BRANCH}:" \
-	version.conf > $INSTALL_PATH/version.conf
+		version.conf > $tmp_version_file
+soft_copy $tmp_version_file $INSTALL_PATH/version.conf
+rm -f $tmp_version_file
 
 echo Installing \#include files
 mkdir -p $INSTALL_PATH/include
-cp include/*.h $INSTALL_PATH/include
-cp include/*.lh $INSTALL_PATH/include
-cp include/Loci $INSTALL_PATH/include
+glob_soft_copy "include/*.h" $INSTALL_PATH/include
+glob_soft_copy "include/*.lh" $INSTALL_PATH/include
+soft_copy_dir include/Loci $INSTALL_PATH/include
 
 for i in  Tools Config MPI_stubb FVMAdapt FVMOverset FVMMod; do
     mkdir -p $INSTALL_PATH/include/$i
-    cp include/$i/*.h $INSTALL_PATH/include/$i
+    glob_soft_copy "include/$i/*.h" $INSTALL_PATH/include/$i
 done
-cp include/FVMOverset/overset $INSTALL_PATH/include/FVMOverset
-cp include/FVMOverset/*.lh $INSTALL_PATH/include/FVMOverset
-cp include/FVMMod/*.lh $INSTALL_PATH/include/FVMMod
+soft_copy_dir include/FVMOverset/overset $INSTALL_PATH/include/FVMOverset
+glob_soft_copy "include/FVMOverset/*.lh" $INSTALL_PATH/include/FVMOverset
+glob_soft_copy "include/FVMMod/*.lh" $INSTALL_PATH/include/FVMMod
+glob_soft_copy "include/FVMAdapt/*.lh" $INSTALL_PATH/include/FVMAdapt
 
 mkdir -p $INSTALL_PATH/docs
 mkdir -p $INSTALL_PATH/docs/1D-Diffusion
@@ -120,21 +160,21 @@ mkdir -p $INSTALL_PATH/docs/heat
 mkdir -p $INSTALL_PATH/docs/Datatypes
 
 if [ -e Tutorial/docs/tutorial.pdf ] ; then
-    cp Tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
+    soft_copy_dir Tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
 fi
-cp Tutorial/1D-Diffusion/Makefile $INSTALL_PATH/docs/1D-Diffusion
-cp Tutorial/1D-Diffusion/*.loci $INSTALL_PATH/docs/1D-Diffusion
-cp Tutorial/1D-Diffusion/*.lh $INSTALL_PATH/docs/1D-Diffusion
-cp Tutorial/1D-Diffusion/*.cc $INSTALL_PATH/docs/1D-Diffusion
-cp Tutorial/1D-Diffusion/*.vars $INSTALL_PATH/docs/1D-Diffusion
+soft_copy_dir Tutorial/1D-Diffusion/Makefile $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "Tutorial/1D-Diffusion/*.loci" $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "Tutorial/1D-Diffusion/*.lh" $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "Tutorial/1D-Diffusion/*.cc" $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "Tutorial/1D-Diffusion/*.vars" $INSTALL_PATH/docs/1D-Diffusion
 
-cp Tutorial/heat/Makefile $INSTALL_PATH/docs/heat
-cp Tutorial/heat/*.loci $INSTALL_PATH/docs/heat
-cp Tutorial/heat/*.lh $INSTALL_PATH/docs/heat
-cp Tutorial/heat/*.vog $INSTALL_PATH/docs/heat
-cp Tutorial/heat/*.vars $INSTALL_PATH/docs/heat
+soft_copy_dir Tutorial/heat/Makefile $INSTALL_PATH/docs/heat
+glob_soft_copy "Tutorial/heat/*.loci" $INSTALL_PATH/docs/heat
+glob_soft_copy "Tutorial/heat/*.lh" $INSTALL_PATH/docs/heat
+glob_soft_copy "Tutorial/heat/*.vog" $INSTALL_PATH/docs/heat
+glob_soft_copy "Tutorial/heat/*.vars" $INSTALL_PATH/docs/heat
 
-cp Tutorial/Datatypes/Makefile $INSTALL_PATH/docs/Datatypes
-cp Tutorial/Datatypes/*.cc $INSTALL_PATH/docs/Datatypes
+soft_copy_dir Tutorial/Datatypes/Makefile $INSTALL_PATH/docs/Datatypes
+glob_soft_copy "Tutorial/Datatypes/*.cc" $INSTALL_PATH/docs/Datatypes
 
 chmod -R a+rX $INSTALL_PATH
