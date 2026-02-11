@@ -49,6 +49,24 @@ namespace Loci {
 namespace VOG {
   
   //#define MEMDIAG
+
+  bool hasSuffix(const std::string &value, const std::string &suffix) {
+    if(suffix.size() > value.size())
+      return false ;
+    return value.compare(value.size()-suffix.size(),suffix.size(),suffix) == 0 ;
+  }
+
+  std::string stripSuffix(const std::string &value, const std::string &suffix) {
+    if(hasSuffix(value,suffix))
+      return value.substr(0,value.size()-suffix.size()) ;
+    return value ;
+  }
+
+  std::string ensureSuffix(const std::string &value, const std::string &suffix) {
+    if(hasSuffix(value,suffix))
+      return value ;
+    return value + suffix ;
+  }
   
 #ifdef MEMDIAG
   void *memtop =0;

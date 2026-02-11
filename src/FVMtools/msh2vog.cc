@@ -216,11 +216,9 @@ int main(int ac, char *av[]) {
     cout << endl ;
   }
 
-  string filename = av[1] ;
-  filename += ".msh" ;
-
-  string outfile = av[1] ;
-  outfile += ".vog" ;
+  string input_name = av[1] ;
+  string filename = VOG::ensureSuffix(input_name,".msh") ;
+  string outfile = VOG::stripSuffix(input_name,".msh") + ".vog" ;
 
   ifstream gridfile(filename.c_str(),ios::in) ;
   if(gridfile.fail()) {

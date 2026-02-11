@@ -45,5 +45,15 @@ namespace VOG {
                           Map &cl, Map &cr, multiMap &face2node) ;
   extern std::vector<int> simplePartitionVec(int mn, int mx, int p) ;
 
-}
+  /// Return true if `value` ends with `suffix`.
+  extern bool hasSuffix(const std::string &value, const std::string &suffix) ;
+  /// Return `value` with trailing `suffix` removed, if present, otherwise
+  /// return `value` unchanged.
+  extern std::string stripSuffix(const std::string &value,
+                                 const std::string &suffix) ;
+  /// Return `value` with `suffix` appended, unless it already has it, in
+  /// which case return `value` unchanged.
+  extern std::string ensureSuffix(const std::string &value,
+                                  const std::string &suffix) ;
 
+}

@@ -213,11 +213,10 @@ int main(int ac, char *av[]) {
     cout << endl ;
   }
 
-  string filename = av[1] ;
-  filename += ".cog" ;
-
-  string outfile = av[1] ;
-  outfile += ".vog" ;
+  string input_name = av[1] ;
+  string case_name = VOG::stripSuffix(input_name,".cog") ;
+  string filename = case_name + ".cog" ;
+  string outfile = case_name + ".vog" ;
 
   store<vector3d<double> > pos;
   Map cl, cr;
@@ -256,7 +255,7 @@ int main(int ac, char *av[]) {
   vector<BC_descriptor> bcs ;
 
   if(MPI_rank == 0) {
-    string tagsfile = string(av[1]) + ".tags" ;
+    string tagsfile = case_name + ".tags" ;
     bcs = readTags(tagsfile) ;
     if(bcs.size() != 0) {
       cout << "boundary faces:"<< endl ;
