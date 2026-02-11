@@ -1598,8 +1598,9 @@ void AST_printTree::visit(AST_declaration &s) {
     if(*ii != 0)
       (*ii)->accept(*this) ;
   out << "]][[" ;
-  if(s.decls != 0)
-    s.decls->accept(*this) ;
+  for(auto ii=s.decls.begin();ii!=s.decls.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
   out << "]]" ;
   popindent() ;
 }

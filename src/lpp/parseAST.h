@@ -51,11 +51,63 @@ using std::cout ;
 class AST_visitor ;
 
 struct varinfo {
-  bool isType ;
-  bool isTemplate ;
-varinfo(): isType(true), isTemplate(false) {}
-varinfo(bool v, bool t) : isType(v),isTemplate(t) {}
+  /// Identifier is a type definition
+  bool statusType ;
+  /// Identifier is a local variable
+  bool statusLocal ;
+  /// Type is a templated type
+  bool statusTemplate ;
+  /// identifier is a function call
+  bool statusFunction ;
+  /// identifier is defined external to the rule
+  bool statusExternal ;
+  /// identifier is undefined, assumed to be external
+  bool statusUndef ;
+  varinfo(): statusType(true), statusLocal(false), statusTemplate(false),
+             statusFunction(false),statusExternal(true), statusUndef(true)  {}
+  varinfo(bool v, bool t) : statusType(v),statusLocal(false),statusTemplate(t),
+                            statusFunction(false),statusExternal(true),
+                            statusUndef(true) {}
+
+  bool isTypeName() { return statusType ; }
+  bool isLocalIdentifier() { return statusLocal ; }
 } ;
+
+/// create varinfo type for local variable 
+inline varinfo localIdentifier() {
+  varinfo v ;
+  v.statusType=false ;
+  v.statusLocal = true ;
+  v.statusTemplate = false ;
+  v.statusFunction = false ;
+  v.statusExternal = false ;
+  v.statusUndef = false ;
+  return v ;
+}
+/// create varinfo for identifier that is assumed to be a type name as
+/// a default
+inline varinfo defaultTypeName() {
+  varinfo v ;
+  v.statusType     = true ;
+  v.statusLocal    = false ;
+  v.statusTemplate = false ;
+  v.statusFunction = false ;
+  v.statusExternal = true ;
+  v.statusUndef    = true ;
+  return v ;
+}
+/// create varinfo for templated identifier that is assumed to be a type name
+/// as a default
+inline varinfo defaultTemplateTypeName() {
+  varinfo v ;
+  v.statusType     = true ;
+  v.statusLocal    = false ;
+  v.statusTemplate = true ;
+  v.statusFunction = false ;
+  v.statusExternal = true ;
+  v.statusUndef    = true ;
+  return v ;
+}
 
 typedef map<std::string,varinfo> varmap ;
 
@@ -179,6 +231,7 @@ public:
   int id ;
   elementType nodeType ;
   virtual void accept(AST_visitor &v) = 0 ;
+  virtual ASTP clone() const = 0 ;
   
 } ;
 
@@ -192,6 +245,7 @@ class AST_syntaxError: public AST_type {
   AST_syntaxError(string e,int l, string f) :error(e),lineno(l),fileName(f)
     {nodeType=AST_type::ND_SYNTAXERR;}
   void accept(AST_visitor &v) ;
+  ASTP clone() const ;
 } ;
 
 /// Token in AST structure typically will be a terminal symbol
@@ -203,6 +257,7 @@ public:
   int lineno ;
   /// visitor interface
   void accept(AST_visitor &v) ;
+  ASTP clone() const ;
   /// Default constructor is an error, will be overridden during parsing
   AST_Token() {nodeType = AST_type::OP_ERROR; ; lineno=-1; }
 } ;
@@ -218,13 +273,16 @@ public:
   ASTP Terminal ;
   /// visitor interface
   void accept(AST_visitor &v) ;
+  ASTP clone() const ;
 } ;
 
 /// A block of statements (enclosed by braces)
 class AST_Block : public AST_type {
 public:
   ASTList elements ;
+  varmap identifiers ;
   void accept(AST_visitor &v) ;
+  ASTP clone() const ;
   AST_Block() {nodeType = AST_type::ND_BLOCK; }
 } ;
 
@@ -232,8 +290,10 @@ public:
 class AST_declaration : public AST_type {
 public:
   ASTList type_decl ;
-  ASTP decls ;
+  ASTList decls ;
+  std::vector<std::string> decl_varnames ;
   void accept(AST_visitor &v) ;
+  ASTP clone() const ;
   AST_declaration() { nodeType = AST_type::ND_DECL; }
 } ;
 
@@ -242,6 +302,7 @@ class AST_exprOper : public AST_type {
 public:
   ASTList terms ;
   void accept(AST_visitor &v) ;
+  ASTP clone() const ;
   AST_exprOper() {nodeType = AST_type::OP_ERROR; }
 } ;
 
@@ -250,7 +311,9 @@ class AST_controlStatement: public AST_type {
  public:
   ASTP controlType ;
   ASTList parts ;
+  varmap identifiers ;
   void accept(AST_visitor &v) ;
+  ASTP clone() const ;
   AST_controlStatement() {nodeType = AST_type::OP_ERROR; }
   void constructIf(ASTP tok, ASTP C, ASTP IFBLOCK, ASTP ELSE, ASTP ELSEBLOCK) {
     nodeType = AST_type::ND_CTRL_IF ;
@@ -315,30 +378,83 @@ public:
 } ;
   
 
+/// Parse a general expression
 extern AST_type::ASTP parseExpression(std::istream &is, int &linecount,
 				      const string &fileName,
-				      const varmap &typemap) ;
+				      varmap &typemap) ;
+/// Parse terms excluding operator
 extern AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 					     const string &fileName,
-					     const varmap &typemap) ;
+					     varmap &typemap) ;
+/// Parse a statement after the first identifier is parsed
+extern AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
+                                              std::istream &is, int &linecount,
+                                              const string &fileName,
+                                              varmap &typemap,
+                                              AST_type::elementType
+                                              term=AST_type::TK_SENTINEL) ;
+/// Parse operator token, convert from TK_* node type to OP_* nodetype
+extern AST_type::ASTP parseOperator(std::istream &is, int &linecount) ;
+/// Apply postfix operator to previous expression passed in expr
+extern AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
+                                           std::istream &is, int &linecount,
+                                           string fileName,
+                                           varmap &typemap) ;
+/// Parse a named object using the scope operator
+extern AST_type::ASTP parseScopedObject(std::istream &is, int &linecount,
+                                        const string &fileName,
+                                        varmap &typemap) ;
+/// Parse template instantiation arguments
+extern AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
+                                             std::istream &is, int &linecount,
+                                             const string &fileName,
+                                             varmap &typemap) ;
+/// Parse function evocation arguments
+extern AST_type::ASTP parseFunctionArguments(AST_type::ASTP objname,
+                                             std::istream &is, int &linecount,
+                                             const string &fileName,
+                                             varmap &typemap) ;
+
+/// Parse a declaration statement
 extern AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
 				       const string &fileName,
-				       const varmap &typemap) ;
+				       varmap &typemap) ;
+
+/// Parse an inut statement, this could be a code block denoted by braces,
+/// type declaration, loop control statement, an if statement,
+/// a switch statement, a special control statement (e.g. break, control,
+/// or return, a simple statement (expression) followed by a semicolon,
+/// or an empty statement.
 extern AST_type::ASTP parseStatement(std::istream &is, int &linecount,
 				     const string &fileName,
-				     const varmap &typemap) ;
+				     varmap &typemap) ;
+/// Parse a looping control statement
 extern AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
 					 const string &fileName,
-					 const varmap &typemap) ;
+					 varmap &typemap) ;
+/// parse an if (else) control statement
 extern AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
 				       const string &fileName,
-				       const varmap &typemap) ;
+				       varmap &typemap) ;
+/// parse a switch control statement
 extern AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount,
 					   const string &fileName,
-					   const varmap &typemap)  ;
+					   varmap &typemap)  ;
+/// parse a case statement within a switch statement
+extern AST_type::ASTP parseCaseStatement(std::istream &is, int &linecount,
+                                         const string &fileName,
+                                         varmap &typemap) ;
+/// Parse return, continue, or break control statements
+extern AST_type::ASTP parseSpecialControlStatement(std::istream &is,
+                                                   int &linecount,
+                                                   const string &fileName,
+                                                   varmap &typemap) ;
+
+/// Parse a brace enclosed block of statements
 extern AST_type::ASTP parseBlock(std::istream &is, int &linecount,
 				 const string &fileName,
-				 const varmap &typemap) ;
+				 varmap &typemap) ;
+/// Parse a terminal symbol (name, number, or string
 extern AST_type::ASTP parseTerm(std::istream &is, int &linecount) ;
 
 /// Get a token from the lexical analyzer from input stream and update
@@ -638,6 +754,10 @@ inline string OPtoName(AST_type::elementType val) {
     return string("TK_SENTINEL") ;
   case AST_type::TK_BRACEBLOCK:
     return string("TK_BRACEBLOCK") ;
+  case AST_type::TK_SCOPE:
+    return string("TK_SCOPE") ;
+  case AST_type::TK_NAME:
+    return string("TK_NAME") ;
   default:
     {
       std::ostringstream oss ;
