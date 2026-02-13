@@ -50,6 +50,111 @@ using std::cout ;
 using std::vector ;
 using namespace Loci ;
 
+/// Convert operator code to corresponding string for printing
+string OPtoString(AST_type::elementType val) {
+  switch(val) {
+  case AST_type::OP_SCOPE:
+    return string("::") ;
+  case AST_type::OP_AT:
+    return string("@") ;
+  case AST_type::OP_ARROW:
+    return string("->") ;
+  case AST_type::OP_TIMES:
+    return string("*") ;
+  case AST_type::OP_DIVIDE:
+    return string("/") ;
+  case AST_type::OP_MODULUS:
+    return string("%") ;
+  case AST_type::OP_PLUS:
+    return string("+") ;
+  case AST_type::OP_MINUS:
+    return string("-") ;
+  case AST_type::OP_SHIFT_RIGHT:
+    return string(">>") ;
+  case AST_type::OP_SHIFT_LEFT:
+    return string("<<") ;
+  case AST_type::OP_LT:
+    return string("<") ;
+  case AST_type::OP_GT:
+    return string(">") ;
+  case AST_type::OP_GE:
+    return string(">=") ;
+  case AST_type::OP_LE:
+    return string("<=") ;
+  case AST_type::OP_EQUAL:
+    return string("==") ;
+  case AST_type::OP_NOT_EQUAL:
+    return string("!=") ;
+  case AST_type::OP_AND:
+    return string("&") ;
+  case AST_type::OP_EXOR:
+    return string("^") ;
+  case AST_type::OP_OR:
+    return string("|") ;
+  case AST_type::OP_LOGICAL_AND:
+    return string("&&") ;
+  case AST_type::OP_LOGICAL_OR:
+    return string("||") ;
+  case AST_type::OP_ASSIGN:
+    return string("=") ;
+  case AST_type::OP_TIMES_ASSIGN:
+    return string("*=") ;
+  case AST_type::OP_DIVIDE_ASSIGN:
+    return string("/=") ;
+  case AST_type::OP_MODULUS_ASSIGN:
+    return string("%=") ;
+  case AST_type::OP_PLUS_ASSIGN:
+    return string("+=") ;
+  case AST_type::OP_MINUS_ASSIGN:
+    return string("-=") ;
+  case AST_type::OP_SHIFT_LEFT_ASSIGN:
+    return string("<<=") ;
+  case AST_type::OP_SHIFT_RIGHT_ASSIGN:
+    return string(">>=") ;
+  case AST_type::OP_AND_ASSIGN:
+    return string("&=") ;
+  case AST_type::OP_OR_ASSIGN:
+    return string("|=") ;
+  case AST_type::OP_EXOR_ASSIGN:
+    return string("^=") ;
+  case AST_type::OP_COMMA:
+    return string(",") ;
+  case AST_type::OP_DOT:
+    return string(".") ;
+  case AST_type::OP_COLON:
+    return string(":") ;
+  case AST_type::OP_SEMICOLON:
+    return string(";") ;
+  case AST_type::OP_INCREMENT:
+    return string(" ++") ;
+  case AST_type::OP_DECREMENT:
+    return string(" --") ;
+  case AST_type::OP_POSTINCREMENT:
+    return string("++ ") ;
+  case AST_type::OP_POSTDECREMENT:
+    return string("-- ") ;
+  case AST_type::OP_UNARY_PLUS:
+    return string("+") ;
+  case AST_type::OP_UNARY_MINUS:
+    return string("-") ;
+  case AST_type::OP_NOT:
+    return string("!") ;
+  case AST_type::OP_TILDE:
+    return string("~") ;
+  case AST_type::OP_AMPERSAND:
+    return string("&") ;
+  case AST_type::OP_TERNARY:
+    return string("?") ;
+  case AST_type::OP_DOLLAR:
+    return string("$") ;
+  case AST_type::OP_STAR:
+    return string("*") ;
+  default:
+    return string("/*error*/") ;
+  }
+  return string("/*error*/") ;
+}
+
 /// Visitor that prints an AST using a simple substitution map
 class AST_identStr : public AST_visitor {
  public:
@@ -63,7 +168,7 @@ void AST_identStr::visit(AST_exprOper &s) {
   switch (s.nodeType) {
   case AST_type::OP_GROUP:
     out += '(' ;
-    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     }
@@ -98,7 +203,7 @@ void AST_identStr::visit(AST_exprOper &s) {
     {
       string op = OPtoString(s) ;
       out += op ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
     }
@@ -107,7 +212,7 @@ void AST_identStr::visit(AST_exprOper &s) {
   case AST_type::OP_POSTDECREMENT:
     {
       string op = OPtoString(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
       out += op ;
@@ -116,7 +221,7 @@ void AST_identStr::visit(AST_exprOper &s) {
   default:
     {
       string op = OPtoString(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();) {
+      for(auto ii=s.terms.begin();ii!=s.terms.end();) {
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
 	++ii ;
@@ -776,6 +881,9 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
     tmp->nodeType = AST_type::OP_NIL ;
     tmp->terms.push_back(expr) ;
     exprStack.push_back(tmp) ;
+#ifdef VERBOSE
+    cerr << "push op = " << OPtoName(exprStack.back()->nodeType)  << endl ;
+#endif
   }
   // After getting the first term we are in a loop of searching for operators
   do {
@@ -811,44 +919,85 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
       // the left branch
       exprStack.back()->nodeType = op->nodeType ;
       exprStack.back()->terms.push_back(expr) ;
+#ifdef VERBOSE
+      cerr << "replacing OP_NIL on exprStack with "
+           << OPtoName(exprStack.back()->nodeType)
+           << " line " << __LINE__
+           << endl ;
+#endif
     } else {
       // Now we reorder the tree based on operator precedence
       while(exprStack.size() > 1 &&
             getPrecedence(op) >= getPrecedence(exprStack.back())) {
 #ifdef VERBOSE
 	if(ASTEqual(op,AST_type::OP_TERNARY)) {
-	  cerr << "popping stack when OP_TERNARY" << endl ;
+	  cerr << "pop stack when OP_TERNARY" << endl ;
 	}
 #endif
+#ifdef VERBOSE
+    cerr << "pop off exprStack:" << OPtoName(exprStack.back()->nodeType)  << endl ;
+#endif
 	exprStack.pop_back() ;
+#ifdef VERBOSE
+    cerr << "after pop top of stack is:" << OPtoName(exprStack.back()->nodeType)
+         << ", size=" << exprStack.size() << endl ;
+#endif
+        
       }
+      
       if(ASTEqual(op,exprStack.back())) {
 	// If operator is the same, just chain the terms
 	exprStack.back()->terms.push_back(expr) ;
-      } else if(getPrecedence(op) < getPrecedence(exprStack.back())) {
-        // if operator is lower precedence
-	CPTR<AST_exprOper> np = new AST_exprOper ;
-	np->nodeType = op->nodeType ;
-	np->terms.push_back(exprStack.back()->terms.back()) ;
-	np->terms.push_back(expr) ;
-	exprStack.back()->terms.back() = AST_type::ASTP(np) ;
-	if(ASTEqual(op,AST_type::OP_TERNARY)) {
-	  CPTR<AST_Token> op2 = getToken(is,linecount) ;
 #ifdef VERBOSE
-	  cerr << " detected OP_TERNARY, op2 =" << op2->text << endl ;
+        cerr << "adding term to operator: "
+             << OPtoName(exprStack.back()->nodeType)
+             << " stack size=" << exprStack.size() 
+             << endl ;
 #endif
-	  if(ASTEqual(op2,AST_type::TK_COLON)) {
-	    expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
-	    np->terms.push_back(expr) ;
-	  } else {
-	    pushToken(op2) ;
-	    return AST_type::ASTP(new AST_syntaxError("expecting ':' in tertiary operator",op2->lineno,fileName)) ;
-	  }
-	}
-	exprStack.push_back(np) ;
+      } else if(getPrecedence(op) < getPrecedence(exprStack.back())) {
+        // if operator is lower precedence than top of stack, then we need
+        // to put this operator on the rightmost term
+        CPTR<AST_exprOper> np = new AST_exprOper ;
+        np->nodeType = op->nodeType ;
+#ifdef VERBOSE
+        cerr << "top of stack is" << OPtoName(exprStack.back()->nodeType)
+             << endl ;
+        cerr << "editing rightmost term: " << OPtoName(exprStack.back()->terms.back()->nodeType)
+             << endl ;
+#endif
+        np->terms.push_back(exprStack.back()->terms.back()) ;
+        np->terms.push_back(expr) ;
+        exprStack.back()->terms.back() = AST_type::ASTP(np) ;
+#ifdef VERBOSE
+        cerr << "pushing " << OPtoName(exprStack.back()->nodeType)
+             << "to stack,  line " << __LINE__
+             << endl ;
+#endif
+        if(ASTEqual(op,AST_type::OP_TERNARY)) {
+          CPTR<AST_Token> op2 = getToken(is,linecount) ;
+#ifdef VERBOSE
+          cerr << " detected OP_TERNARY, op2 =" << op2->text << endl ;
+#endif
+          if(ASTEqual(op2,AST_type::TK_COLON)) {
+            expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+            np->terms.push_back(expr) ;
+          } else {
+            pushToken(op2) ;
+            return AST_type::ASTP(new AST_syntaxError("expecting ':' in tertiary operator",op2->lineno,fileName)) ;
+          }
+        }
+        exprStack.push_back(np) ;
+#ifdef VERBOSE
+        cerr << "pushing on exprStack:" << OPtoName(exprStack.back()->nodeType)
+             << " stack size=" << exprStack.size() << endl ;
+#endif
       } else {
 	CPTR<AST_exprOper> np = new AST_exprOper ;
 	np->nodeType = op->nodeType ;
+#ifdef VERBOSE
+        cerr << "creating lower precidence op="
+             << OPtoName(np->nodeType)  << endl ;
+#endif        
 	np->terms.push_back(AST_type::ASTP(exprStack.back())) ;
 	np->terms.push_back(expr) ;
 	if(ASTEqual(op,AST_type::OP_TERNARY)) {
@@ -866,6 +1015,11 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 	  
 	} 
 	exprStack.back() = np ;
+#ifdef VERBOSE
+        cerr << "changing exprStack to" << OPtoName(exprStack.back()->nodeType)
+             << " line " << __LINE__
+             << endl ;
+#endif
       }
     }
   } while(true) ;
@@ -1067,8 +1221,7 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
       //
       // Note for the for loop the parts will be
       // TK_OPENPAREN
-      // initializer
-      // TK_SEMICOLON
+      // initializer (semicolon included)
       // conditional
       // TK_SEMICOLON
       // advance
@@ -1083,28 +1236,49 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
 	return AST_type::ASTP(new AST_syntaxError("for expecting '('",token->lineno,fileName)) ;
      } 
       ctrl->parts.push_back(AST_type::ASTP(token)) ;
-      
       token = getToken(is,linecount) ;
+#ifdef VERBOSE
+      cerr << "for loop parsed TK_OPEN_PAREN, next token = " << OPtoName(token->nodeType) << endl ;
+#endif
+      
       AST_type::ASTP initializer = 0 ;
-      if(isTypeDecl(token,ctrl->identifiers)) {
-	pushToken(token) ;
-	initializer =
-          parseDeclaration(is,linecount,fileName,ctrl->identifiers) ;
+      if(ASTEqual(token,AST_type::TK_SEMICOLON)) {
+        initializer = AST_type::ASTP(token) ;
       } else {
+        CPTR<AST_Token> token2 = getToken(is,linecount) ;
+
+        bool isDeclaration = true ;
+        if(ASTEqual(token,AST_type::TK_NAME) &&
+           !ASTEqual(token2,AST_type::TK_SCOPE)) {
+          auto ii = typemap.find(token->text) ;
+          if(ii != typemap.end() && ii->second.isLocalIdentifier())
+            isDeclaration = false ;
+        }
+
+        pushToken(token2) ;
 	pushToken(token) ;
-	initializer = parseExpression(is,linecount,fileName,ctrl->identifiers) ;
+
+        if(isDeclaration)
+          initializer =
+            parseDeclaration(is,linecount,fileName,ctrl->identifiers) ;
+        else
+          initializer =
+            parseSimpleStatement(is,linecount,fileName,ctrl->identifiers) ;
       }
+#ifdef VERBOSE
+      cerr << "initializer = " << OPtoName(initializer->nodeType) << endl ;
+#endif      
       ctrl->parts.push_back(initializer) ;
 	
-      token = getToken(is,linecount) ;
-      if(!ASTEqual(token,AST_type::TK_SEMICOLON)) {
-	pushToken(token) ;
-	return AST_type::ASTP(new AST_syntaxError("No ';' after initializer in for loop",token->lineno,fileName)) ;
-      }
-      ctrl->parts.push_back(AST_type::ASTP(token)) ;
-      
+#ifdef VERBOSE
+      cerr << "for: parsing conditional expression" << endl;
+#endif
       AST_type::ASTP conditional = parseExpression(is,linecount,fileName,
 						   ctrl->identifiers) ;
+      
+#ifdef VERBOSE
+      cerr << "conditional = " << OPtoName(conditional->nodeType) << endl ;
+#endif      
       ctrl->parts.push_back(conditional) ;
       token = getToken(is,linecount) ;
       if(!ASTEqual(token,AST_type::TK_SEMICOLON)) {
@@ -1407,6 +1581,29 @@ AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,
   return AST_type::ASTP(AST_data) ;
 }
 
+AST_type::ASTP parseSimpleStatement(std::istream &is, int &linecount,
+                                    const string &fileName,
+                                    varmap &typemap) {
+#ifdef VERBOSE
+  cerr << "in parseSimpleStatement" << endl ;
+#endif
+  AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
+  
+  CPTR<AST_Token> termToken = getToken(is,linecount) ;
+  AST_type::ASTP term = AST_type::ASTP(termToken) ;
+#ifdef VERBOSE
+  cerr << "terminal token for simpleStatement is " << OPtoName(term->nodeType)
+       << endl ;
+#endif
+  if(!ASTEqual(term,AST_type::TK_SEMICOLON)) {
+    pushToken(termToken) ;
+    return AST_type::ASTP(new AST_syntaxError("Expecting ';' ",
+                                              termToken->lineno,fileName)) ;
+  }
+  AST_type::ASTP stat = new AST_SimpleStatement(exp,term) ;
+  return stat ;
+}
+
 // Parse an inut statement, this could be a code block denoted by braces,
 // A type declaration
 // A loop statement
@@ -1467,7 +1664,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
       pushToken(tok1) ;
       if(isDeclaration)
 	return parseDeclaration(is,linecount,fileName,typemap) ;
-      
+      return parseSimpleStatement(is,linecount,fileName,typemap) ;
       AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
       
       CPTR<AST_Token> termToken = getToken(is,linecount) ;
@@ -1633,12 +1830,11 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
   case AST_type::OP_OR_ASSIGN:
   case AST_type::OP_EXOR_ASSIGN:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin();
+      auto ii=s.terms.begin();
       AST_collectAccessInfo first ;
       if(ii!=s.terms.end() && *ii != 0)
 	(*ii)->accept(first) ;
-      for(std::set<Loci::vmap_info>::iterator fi=first.accessed.begin();
-	  fi!= first.accessed.end();++fi)
+      for(auto fi=first.accessed.begin();fi!= first.accessed.end();++fi)
 	writes.insert(*fi) ;
       for(auto mi=first.id2var.begin();mi!=first.id2var.end();++mi)
 	id2var[mi->first] = mi->second ;
@@ -1693,7 +1889,7 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
     }
     break ;
   default:
-    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     break ;
@@ -1709,7 +1905,7 @@ void AST_simplePrint::visit(AST_exprOper &s) {
   switch (s.nodeType) {
   case AST_type::OP_GROUP:
     out << '(' ;
-    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     out << ')' ;
@@ -1798,7 +1994,7 @@ void AST_simplePrint::visit(AST_exprOper &s) {
     {
       string op = OPtoString(s) ;
       out << op ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
     }
@@ -1807,7 +2003,7 @@ void AST_simplePrint::visit(AST_exprOper &s) {
   case AST_type::OP_POSTDECREMENT:
     {
       string op = OPtoString(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
       out << op ;
@@ -1816,7 +2012,7 @@ void AST_simplePrint::visit(AST_exprOper &s) {
   default:
     {
       string op = OPtoString(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();) {
+      for(auto ii=s.terms.begin();ii!=s.terms.end();) {
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
 	++ii ;
@@ -1850,4 +2046,40 @@ void AST_simplePrint::visit(AST_Token &s) {
     } else 
       out <<s.text << ' ' ;
   }
+}
+
+bool condenseOp(AST_type::elementType et) {
+  switch(et) {
+  case AST_type::OP_ARROW:
+  case AST_type::OP_SCOPE:
+  case AST_type::OP_TIMES:
+  case AST_type::OP_PLUS:
+  case AST_type::OP_COMMA:
+    return true ;
+  default:
+    return false ;
+  }
+}
+    
+void AST_condenseLeftAssociative::visit(AST_exprOper &e) {
+  AST_type::elementType op = e.nodeType ;
+
+  if(condenseOp(op) && e.terms[0]->nodeType == op) {
+    // push in reverse order e.terms onto terms.
+    AST_type::ASTList terms = e.terms ;
+    std::reverse(terms.begin(),terms.end()) ;
+    // keep expanding last term until we no longer can
+    while(terms.back()->nodeType == op) {
+      CPTR<AST_exprOper> p = CPTR<AST_exprOper>(terms.back()) ;
+      terms.pop_back() ;
+      for(auto ii=p->terms.rbegin();ii!=p->terms.rend();++ii)
+        terms.push_back(*ii) ;
+    }
+    // reverse order back to normal
+    std::reverse(terms.begin(),terms.end()) ;
+    e.terms.swap(terms) ;
+  }
+  for(auto ii=e.terms.begin();ii!=e.terms.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
 }

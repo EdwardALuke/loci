@@ -1574,11 +1574,11 @@ void AST_printTree::visit(AST_exprOper &s) {
 void AST_printTree::visit(AST_Token &s) {
 
   if(ASTEqual(s,AST_type::TK_LOCI_DIRECTIVE)) {
-    out << "$[" << s.text << "]" ;
+    out << "$[" << s.text << "] " ;
   } else if(ASTEqual(s,AST_type::TK_LOCI_CONTAINER)) {
-    out << "$*" << s.text ;
+    out << "$*" << s.text << " " ;
   } else if(ASTEqual(s,AST_type::TK_LOCI_VARIABLE)) {
-    out << "$" << s.text ;
+    out << "$" << s.text  << " " ;
   } else 
     out <<s.text << ' ' ;
 }
@@ -1733,7 +1733,7 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
       op.terms = rootptr->terms ;
     }
   }
-  for(int i=0;i<sz;++i) {
+  for(size_t i=0;i<op.terms.size();++i) {
     if(op.terms[i]->nodeType == AST_type::TK_LOCI_VARIABLE) {
       op.terms[i] = addEntityIndex(convertLociVar(op.terms[i])) ;
     } else if(op.terms[i]->nodeType == AST_type::TK_LOCI_CONTAINER) {
@@ -1750,21 +1750,22 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
                                    const set<list<variable> > &validate_set,
                                    const parseSharedInfo &parseInfo) {
   varmap typemap ;
-  typemap["vect3d"] = varinfo(true,false) ;
       
   if(is.peek() != '{')
     throw parseError("syntax error, expecting '{'") ;
       
-  int startline = line_no ;
+  //  int startline = line_no ;
       
   CPTR<AST_type> ap = parseBlock(is,line_no,filename,typemap) ;
   //    outputFile << "Parsed TEST:" << endl ;
-
+  AST_condenseLeftAssociative condenseOps ;
+  ap->accept(condenseOps) ;
   if(parseInfo.diag_level > 0) {
     AST_printTree diagout(cerr) ;
     ap->accept(diagout) ;
   }
-  
+
+  cerr << "TEST" << endl ;
   AST_errorCheck syntaxChecker ;
   ap->accept(syntaxChecker) ;
   if(syntaxChecker.hasErrors()) {

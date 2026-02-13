@@ -352,7 +352,13 @@ class AST_errorCheck : public AST_visitor {
   virtual void visit(AST_syntaxError &) ;
 } ;
 
-
+/// Visit parse tree and condense left associative operator trees
+/// to a flat form
+/// e.g. change [[[[a->b]]->c]] to [[a->b->c]] (e.g. ->:a,b,c)
+class AST_condenseLeftAssociative : public AST_visitor {
+public:
+  virtual void visit(AST_exprOper &) ;
+} ;
 
 /// Visitor that prints an AST using a simple substitution map
 class AST_simplePrint : public AST_visitor {
@@ -420,6 +426,11 @@ extern AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
 				       const string &fileName,
 				       varmap &typemap) ;
 
+/// Parse simple statement (expression terminated by a semicolon)
+extern AST_type::ASTP parseSimpleStatement(std::istream &is, int &linecount,
+                                           const string &fileName,
+                                           varmap &typemap) ;
+
 /// Parse an inut statement, this could be a code block denoted by braces,
 /// type declaration, loop control statement, an if statement,
 /// a switch statement, a special control statement (e.g. break, control,
@@ -471,302 +482,13 @@ extern string get_name(istream &s) ;
 
 
 /// Convert operator code to corresponding string for printing
-inline string OPtoString(AST_type::elementType val) {
-  switch(val) {
-  case AST_type::OP_SCOPE:
-    return string("::") ;
-  case AST_type::OP_AT:
-    return string("@") ;
-  case AST_type::OP_ARROW:
-    return string("->") ;
-  case AST_type::OP_TIMES:
-    return string("*") ;
-  case AST_type::OP_DIVIDE:
-    return string("/") ;
-  case AST_type::OP_MODULUS:
-    return string("%") ;
-  case AST_type::OP_PLUS:
-    return string("+") ;
-  case AST_type::OP_MINUS:
-    return string("-") ;
-  case AST_type::OP_SHIFT_RIGHT:
-    return string(">>") ;
-  case AST_type::OP_SHIFT_LEFT:
-    return string("<<") ;
-  case AST_type::OP_LT:
-    return string("<") ;
-  case AST_type::OP_GT:
-    return string(">") ;
-  case AST_type::OP_GE:
-    return string(">=") ;
-  case AST_type::OP_LE:
-    return string("<=") ;
-  case AST_type::OP_EQUAL:
-    return string("==") ;
-  case AST_type::OP_NOT_EQUAL:
-    return string("!=") ;
-  case AST_type::OP_AND:
-    return string("&") ;
-  case AST_type::OP_EXOR:
-    return string("^") ;
-  case AST_type::OP_OR:
-    return string("|") ;
-  case AST_type::OP_LOGICAL_AND:
-    return string("&&") ;
-  case AST_type::OP_LOGICAL_OR:
-    return string("||") ;
-  case AST_type::OP_ASSIGN:
-    return string("=") ;
-  case AST_type::OP_TIMES_ASSIGN:
-    return string("*=") ;
-  case AST_type::OP_DIVIDE_ASSIGN:
-    return string("/=") ;
-  case AST_type::OP_MODULUS_ASSIGN:
-    return string("%=") ;
-  case AST_type::OP_PLUS_ASSIGN:
-    return string("+=") ;
-  case AST_type::OP_MINUS_ASSIGN:
-    return string("-=") ;
-  case AST_type::OP_SHIFT_LEFT_ASSIGN:
-    return string("<<=") ;
-  case AST_type::OP_SHIFT_RIGHT_ASSIGN:
-    return string(">>=") ;
-  case AST_type::OP_AND_ASSIGN:
-    return string("&=") ;
-  case AST_type::OP_OR_ASSIGN:
-    return string("|=") ;
-  case AST_type::OP_EXOR_ASSIGN:
-    return string("^=") ;
-  case AST_type::OP_COMMA:
-    return string(",") ;
-  case AST_type::OP_DOT:
-    return string(".") ;
-  case AST_type::OP_COLON:
-    return string(":") ;
-  case AST_type::OP_SEMICOLON:
-    return string(";") ;
-  case AST_type::OP_INCREMENT:
-    return string(" ++") ;
-  case AST_type::OP_DECREMENT:
-    return string(" --") ;
-  case AST_type::OP_POSTINCREMENT:
-    return string("++ ") ;
-  case AST_type::OP_POSTDECREMENT:
-    return string("-- ") ;
-  case AST_type::OP_UNARY_PLUS:
-    return string("+") ;
-  case AST_type::OP_UNARY_MINUS:
-    return string("-") ;
-  case AST_type::OP_NOT:
-    return string("!") ;
-  case AST_type::OP_TILDE:
-    return string("~") ;
-  case AST_type::OP_AMPERSAND:
-    return string("&") ;
-  case AST_type::OP_TERNARY:
-    return string("?") ;
-  case AST_type::OP_DOLLAR:
-    return string("$") ;
-  case AST_type::OP_STAR:
-    return string("*") ;
-  default:
-    return string("/*error*/") ;
-  }
-  return string("/*error*/") ;
-}
+extern string OPtoString(AST_type::elementType val) ;
 
 inline string OPtoString(const AST_type &val)
 { return OPtoString(val.nodeType) ; }
 
 /// Convert operator code to corresponding string for printing
-inline string OPtoName(AST_type::elementType val) {
-  switch(val) {
-  case AST_type::OP_SCOPE:
-    return string("OP_SCOPE") ;
-  case AST_type::OP_AT:
-    return string("OP_AT") ;
-  case AST_type::OP_DOT:
-    return string("OP_DOT") ;
-  case AST_type::OP_ARROW:
-    return string("OP_ARROW") ;
-  case AST_type::OP_TIMES:
-    return string("OP_TIMES") ;
-  case AST_type::OP_DIVIDE:
-    return string("OP_DIVIDE") ;
-  case AST_type::OP_MODULUS:
-    return string("OP_MODULUS") ;
-  case AST_type::OP_PLUS:
-    return string("OP_PLUS") ;
-  case AST_type::OP_MINUS:
-    return string("OP_MINUS") ;
-  case AST_type::OP_SHIFT_RIGHT:
-    return string("OP_SHIFT_RIGHT") ;
-  case AST_type::OP_SHIFT_LEFT:
-    return string("OP_SHIFT_RIGHT") ;
-  case AST_type::OP_LT:
-    return string("OP_LT") ;
-  case AST_type::OP_GT:
-    return string("OP_GT") ;
-  case AST_type::OP_GE:
-    return string("OP_GE") ;
-  case AST_type::OP_LE:
-    return string("OP_LE") ;
-  case AST_type::OP_EQUAL:
-    return string("OP_EQUAL") ;
-  case AST_type::OP_NOT_EQUAL:
-    return string("OP_NOT_EQUAL") ;
-  case AST_type::OP_AND:
-    return string("OP_AND") ;
-  case AST_type::OP_EXOR:
-    return string("OP_EXOR") ;
-  case AST_type::OP_OR:
-    return string("OP_OR") ;
-  case AST_type::OP_LOGICAL_AND:
-    return string("OP_LOGICAL_AND") ;
-  case AST_type::OP_LOGICAL_OR:
-    return string("OP_LOGICAL_OR") ;
-  case AST_type::OP_TERNARY:
-    return string("OP_TERNARY") ;
-  case AST_type::OP_ASSIGN:
-    return string("OP_ASSIGN") ;
-  case AST_type::OP_TIMES_ASSIGN:
-    return string("OP_TIMES_ASSIGN") ;
-  case AST_type::OP_DIVIDE_ASSIGN:
-    return string("OP_DIVIDE_ASSIGN") ;
-  case AST_type::OP_MODULUS_ASSIGN:
-    return string("OP_MODULUS_ASSIGN") ;
-  case AST_type::OP_PLUS_ASSIGN:
-    return string("OP_PLUS_ASSIGN") ;
-  case AST_type::OP_MINUS_ASSIGN:
-    return string("OP_MINUS_ASSIGN") ;
-  case AST_type::OP_SHIFT_LEFT_ASSIGN:
-    return string("OP_SHIFT_LEFT_ASSIGN") ;
-  case AST_type::OP_SHIFT_RIGHT_ASSIGN:
-    return string("OP_SHIFT_RIGHT_ASSIGN") ;
-  case AST_type::OP_AND_ASSIGN:
-    return string("OP_AND_ASSIGN") ;
-  case AST_type::OP_OR_ASSIGN:
-    return string("OP_OR_ASSIGN") ;
-  case AST_type::OP_EXOR_ASSIGN:
-    return string("OP_EXOR_ASSIGN") ;
-  case AST_type::OP_COMMA:
-    return string("OP_COMMA") ;
-  case AST_type::OP_COLON:
-    return string("OP_COLON") ;
-  case AST_type::OP_SEMICOLON:
-    return string("OP_SEMICOLON") ;
-  case AST_type::OP_NIL:
-    return string("OP_NIL") ;
-  case AST_type::OP_INCREMENT:
-    return string("OP_INCREMENT") ;
-  case AST_type::OP_DECREMENT:
-    return string("OP_DECREMENT") ;
-  case AST_type::OP_POSTINCREMENT:
-    return string("OP_POSTINCREMENT") ;
-  case AST_type::OP_POSTDECREMENT:
-    return string("OP_POSTDECREMENT") ;
-  case AST_type::OP_COMMENT:
-    return string("OP_COMMENT") ;
-  case AST_type::OP_BRACEBLOCK:
-    return string("OP_BRACEBLOCK") ;
-  case AST_type::OP_NAME:
-    return string("OP_NAME") ;
-  case AST_type::OP_FUNC:
-    return string("OP_FUNC") ;
-  case AST_type::OP_ARRAY:
-    return string("OP_ARRAY") ;
-  case AST_type::OP_NAME_BRACE:
-    return string("OP_NAME_BRACE") ;
-  case AST_type::OP_FUNC_BRACE:
-    return string("OP_FUNC_BRACE") ;
-  case AST_type::OP_TEMPLATE:
-    return string("OP_TEMPLATE") ;
-  case AST_type::OP_TEMPLATE_FUNC:
-    return string("OP_TEMPLATE_FUNC") ;
-  case AST_type::OP_STRING:
-    return string("OP_STRING") ;
-  case AST_type::OP_NUMBER:
-    return string("OP_NUMBER") ;
-  case AST_type::OP_ERROR:
-    return string("OP_ERROR") ;
-    
-  case AST_type::OP_UNARY_PLUS:
-    return string("OP_UNARY_PLUS") ;
-  case AST_type::OP_UNARY_MINUS:
-    return string("OP_UNARY_MINUD") ;
-  case AST_type::OP_NOT:
-    return string("OP_NOT") ;
-  case AST_type::OP_TILDE:
-    return string("OP_TILDE") ;
-  case AST_type::OP_AMPERSAND:
-    return string("OP_AMPERSAND") ;
-  case AST_type::OP_DOLLAR:
-    return string("OP_DOLLAR") ;
-  case AST_type::OP_STAR:
-    return string("OP_STAR") ;
-  case AST_type::OP_GROUP:
-    return string("OP_GROUP") ;
-  case AST_type::OP_GROUP_ERROR:
-    return string("OP_GROUP_ERROR") ;
-  case AST_type::OP_OPENPAREN:
-    return string("OP_OPENPAREN") ;
-  case AST_type::OP_CLOSEPAREN:
-    return string("OP_CLOSEPAREN") ;
-  case AST_type::OP_OPENBRACKET:
-    return string("OP_OPENBRACKET") ;
-  case AST_type::OP_CLOSEBRACKET:
-    return string("OP_CLOSEBRACKET") ;
-  case AST_type::OP_OPENBRACE:
-    return string("OP_OPENBRACE") ;
-  case AST_type::OP_CLOSEBRACE:
-    return string("OP_CLOSEBRACE") ;
-  case AST_type::OP_LOCI_DIRECTIVE:
-    return string("OP_LOCI_DIRECTIVE") ;
-  case AST_type::OP_LOCI_VARIABLE:
-    return string("OP_LOCI_VARIABLE") ;
-  case AST_type::OP_LOCI_CONTAINER:
-    return string("OP_LOCI_CONTAINER") ;
-  case AST_type::OP_TERM:
-    return string("OP_TERM") ;
-  case AST_type::OP_SPECIAL:
-    return string("OP_SPECIAL") ;
-  case AST_type::ND_BLOCK:
-    return string("ND_BLOCK") ;
-  case AST_type::ND_SYNTAXERR:
-    return string("ND_SYTNAXERR") ;
-  case AST_type::ND_CTRL_IF:
-    return string("ND_CTRL_IF") ;
-  case AST_type::ND_CTRL_FOR:
-    return string("ND_CTRL_FOR") ;
-  case AST_type::ND_CTRL_WHILE:
-    return string("ND_CTRL_WHILE") ;
-  case AST_type::ND_CTRL_DO:
-    return string("ND_CTRL_DO") ;
-  case AST_type::ND_CTRL_SWITCH:
-    return string("ND_CTRL_SWITCH") ;
-  case AST_type::ND_SIMPLE_STATEMENT:
-    return string("ND_SIMPLE_STATEMENT") ;
-  case AST_type::ND_DECL:
-    return string("ND_DECL") ;
-  case AST_type::ND_TERMINAL:
-    return string("ND_TERMINAL") ;
-  case AST_type::TK_SENTINEL:
-    return string("TK_SENTINEL") ;
-  case AST_type::TK_BRACEBLOCK:
-    return string("TK_BRACEBLOCK") ;
-  case AST_type::TK_SCOPE:
-    return string("TK_SCOPE") ;
-  case AST_type::TK_NAME:
-    return string("TK_NAME") ;
-  default:
-    {
-      std::ostringstream oss ;
-      oss << "ND_UNDEF(0x" << std::hex << int(val) << ")" ;
-      return oss.str() ;
-    }
-  }
-  return string("/*error*/") ;
-}
+extern string OPtoName(AST_type::elementType val) ;
 
 inline string OPtoName(const AST_type &val)
 { return OPtoName(val.nodeType) ; }

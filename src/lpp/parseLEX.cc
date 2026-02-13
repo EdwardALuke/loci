@@ -923,3 +923,502 @@ CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
 
 
 }
+/// Convert operator code to corresponding string for printing
+string OPtoName(AST_type::elementType val) {
+  switch(val) {
+  case AST_type::OP_SCOPE:
+    return string("OP_SCOPE") ;
+  case AST_type::OP_AT:
+    return string("OP_AT") ;
+  case AST_type::OP_DOT:
+    return string("OP_DOT") ;
+  case AST_type::OP_ARROW:
+    return string("OP_ARROW") ;
+  case AST_type::OP_TIMES:
+    return string("OP_TIMES") ;
+  case AST_type::OP_DIVIDE:
+    return string("OP_DIVIDE") ;
+  case AST_type::OP_MODULUS:
+    return string("OP_MODULUS") ;
+  case AST_type::OP_PLUS:
+    return string("OP_PLUS") ;
+  case AST_type::OP_MINUS:
+    return string("OP_MINUS") ;
+  case AST_type::OP_SHIFT_RIGHT:
+    return string("OP_SHIFT_RIGHT") ;
+  case AST_type::OP_SHIFT_LEFT:
+    return string("OP_SHIFT_RIGHT") ;
+  case AST_type::OP_LT:
+    return string("OP_LT") ;
+  case AST_type::OP_GT:
+    return string("OP_GT") ;
+  case AST_type::OP_GE:
+    return string("OP_GE") ;
+  case AST_type::OP_LE:
+    return string("OP_LE") ;
+  case AST_type::OP_EQUAL:
+    return string("OP_EQUAL") ;
+  case AST_type::OP_NOT_EQUAL:
+    return string("OP_NOT_EQUAL") ;
+  case AST_type::OP_AND:
+    return string("OP_AND") ;
+  case AST_type::OP_EXOR:
+    return string("OP_EXOR") ;
+  case AST_type::OP_OR:
+    return string("OP_OR") ;
+  case AST_type::OP_LOGICAL_AND:
+    return string("OP_LOGICAL_AND") ;
+  case AST_type::OP_LOGICAL_OR:
+    return string("OP_LOGICAL_OR") ;
+  case AST_type::OP_TERNARY:
+    return string("OP_TERNARY") ;
+  case AST_type::OP_ASSIGN:
+    return string("OP_ASSIGN") ;
+  case AST_type::OP_TIMES_ASSIGN:
+    return string("OP_TIMES_ASSIGN") ;
+  case AST_type::OP_DIVIDE_ASSIGN:
+    return string("OP_DIVIDE_ASSIGN") ;
+  case AST_type::OP_MODULUS_ASSIGN:
+    return string("OP_MODULUS_ASSIGN") ;
+  case AST_type::OP_PLUS_ASSIGN:
+    return string("OP_PLUS_ASSIGN") ;
+  case AST_type::OP_MINUS_ASSIGN:
+    return string("OP_MINUS_ASSIGN") ;
+  case AST_type::OP_SHIFT_LEFT_ASSIGN:
+    return string("OP_SHIFT_LEFT_ASSIGN") ;
+  case AST_type::OP_SHIFT_RIGHT_ASSIGN:
+    return string("OP_SHIFT_RIGHT_ASSIGN") ;
+  case AST_type::OP_AND_ASSIGN:
+    return string("OP_AND_ASSIGN") ;
+  case AST_type::OP_OR_ASSIGN:
+    return string("OP_OR_ASSIGN") ;
+  case AST_type::OP_EXOR_ASSIGN:
+    return string("OP_EXOR_ASSIGN") ;
+  case AST_type::OP_COMMA:
+    return string("OP_COMMA") ;
+  case AST_type::OP_COLON:
+    return string("OP_COLON") ;
+  case AST_type::OP_SEMICOLON:
+    return string("OP_SEMICOLON") ;
+  case AST_type::OP_NIL:
+    return string("OP_NIL") ;
+  case AST_type::OP_INCREMENT:
+    return string("OP_INCREMENT") ;
+  case AST_type::OP_DECREMENT:
+    return string("OP_DECREMENT") ;
+  case AST_type::OP_POSTINCREMENT:
+    return string("OP_POSTINCREMENT") ;
+  case AST_type::OP_POSTDECREMENT:
+    return string("OP_POSTDECREMENT") ;
+  case AST_type::OP_COMMENT:
+    return string("OP_COMMENT") ;
+  case AST_type::OP_BRACEBLOCK:
+    return string("OP_BRACEBLOCK") ;
+  case AST_type::OP_NAME:
+    return string("OP_NAME") ;
+  case AST_type::OP_FUNC:
+    return string("OP_FUNC") ;
+  case AST_type::OP_ARRAY:
+    return string("OP_ARRAY") ;
+  case AST_type::OP_NAME_BRACE:
+    return string("OP_NAME_BRACE") ;
+  case AST_type::OP_FUNC_BRACE:
+    return string("OP_FUNC_BRACE") ;
+  case AST_type::OP_TEMPLATE:
+    return string("OP_TEMPLATE") ;
+  case AST_type::OP_TEMPLATE_FUNC:
+    return string("OP_TEMPLATE_FUNC") ;
+  case AST_type::OP_STRING:
+    return string("OP_STRING") ;
+  case AST_type::OP_NUMBER:
+    return string("OP_NUMBER") ;
+  case AST_type::OP_ERROR:
+    return string("OP_ERROR") ;
+    
+  case AST_type::OP_UNARY_PLUS:
+    return string("OP_UNARY_PLUS") ;
+  case AST_type::OP_UNARY_MINUS:
+    return string("OP_UNARY_MINUS") ;
+  case AST_type::OP_NOT:
+    return string("OP_NOT") ;
+  case AST_type::OP_TILDE:
+    return string("OP_TILDE") ;
+  case AST_type::OP_AMPERSAND:
+    return string("OP_AMPERSAND") ;
+  case AST_type::OP_DOLLAR:
+    return string("OP_DOLLAR") ;
+  case AST_type::OP_STAR:
+    return string("OP_STAR") ;
+  case AST_type::OP_GROUP:
+    return string("OP_GROUP") ;
+  case AST_type::OP_GROUP_ERROR:
+    return string("OP_GROUP_ERROR") ;
+  case AST_type::OP_OPENPAREN:
+    return string("OP_OPENPAREN") ;
+  case AST_type::OP_CLOSEPAREN:
+    return string("OP_CLOSEPAREN") ;
+  case AST_type::OP_OPENBRACKET:
+    return string("OP_OPENBRACKET") ;
+  case AST_type::OP_CLOSEBRACKET:
+    return string("OP_CLOSEBRACKET") ;
+  case AST_type::OP_OPENBRACE:
+    return string("OP_OPENBRACE") ;
+  case AST_type::OP_CLOSEBRACE:
+    return string("OP_CLOSEBRACE") ;
+  case AST_type::OP_LOCI_DIRECTIVE:
+    return string("OP_LOCI_DIRECTIVE") ;
+  case AST_type::OP_LOCI_VARIABLE:
+    return string("OP_LOCI_VARIABLE") ;
+  case AST_type::OP_LOCI_CONTAINER:
+    return string("OP_LOCI_CONTAINER") ;
+  case AST_type::OP_TERM:
+    return string("OP_TERM") ;
+  case AST_type::OP_SPECIAL:
+    return string("OP_SPECIAL") ;
+  case AST_type::ND_BLOCK:
+    return string("ND_BLOCK") ;
+  case AST_type::ND_SYNTAXERR:
+    return string("ND_SYTNAXERR") ;
+  case AST_type::ND_CTRL_IF:
+    return string("ND_CTRL_IF") ;
+  case AST_type::ND_CTRL_FOR:
+    return string("ND_CTRL_FOR") ;
+  case AST_type::ND_CTRL_WHILE:
+    return string("ND_CTRL_WHILE") ;
+  case AST_type::ND_CTRL_DO:
+    return string("ND_CTRL_DO") ;
+  case AST_type::ND_CTRL_SWITCH:
+    return string("ND_CTRL_SWITCH") ;
+  case AST_type::ND_SIMPLE_STATEMENT:
+    return string("ND_SIMPLE_STATEMENT") ;
+  case AST_type::ND_DECL:
+    return string("ND_DECL") ;
+  case AST_type::ND_TERMINAL:
+    return string("ND_TERMINAL") ;
+  case AST_type::TK_SENTINEL:
+    return string("TK_SENTINEL") ;
+  case AST_type::TK_BRACEBLOCK:
+    return string("TK_BRACEBLOCK") ;
+  case AST_type::TK_SCOPE:
+    return string("TK_SCOPE") ;
+  case AST_type::TK_NAME:
+    return string("TK_NAME") ;
+  case AST_type::TK_AT:
+    return string("TK_AT") ;
+  case AST_type::TK_ARROW:
+    return string("TK_ARROW") ;
+  case AST_type::TK_TIMES:
+    return string("TK_TIMES") ;
+  case AST_type::TK_DIVIDE:
+    return string("TK_DIVIDE") ;
+  case AST_type::TK_MODULUS:
+    return string("TK_MODULUS") ;
+  case AST_type::TK_PLUS:
+    return string("TK_PLUS") ;
+  case AST_type::TK_MINUS:
+    return string("TK_MINUS") ;
+  case AST_type::TK_SHIFT_RIGHT:
+    return string("TK_SHIFT_RIGHT") ;
+  case AST_type::TK_SHIFT_LEFT:
+    return string("TK_SHIFT_LEFT") ;
+  case AST_type::TK_LT:
+    return string("TK_LT") ;
+  case AST_type::TK_GT:
+    return string("TK_GT") ;
+  case AST_type::TK_GE:
+    return string("TK_GE") ;
+  case AST_type::TK_LE:
+    return string("TK_LE") ;
+  case AST_type::TK_EQUAL:
+    return string("TK_EQUAL") ;
+  case AST_type::TK_NOT_EQUAL:
+    return string("TK_NOT_EQUAL") ;
+  case AST_type::TK_AND:
+    return string("TK_AND") ;
+  case AST_type::TK_EXOR:
+    return string("TK_EXOR") ;
+  case AST_type::TK_OR:
+    return string("TK_OR") ;
+  case AST_type::TK_LOGICAL_AND:
+    return string("TK_LOGICAL_AND") ;
+  case AST_type::TK_LOGICAL_OR:
+    return string("TK_LOGICAL_OR") ;
+  case AST_type::TK_ASSIGN:
+    return string("TK_ASSIGN") ;
+  case AST_type::TK_TIMES_ASSIGN:
+    return string("TK_TIMES_ASSIGN") ;
+  case AST_type::TK_DIVIDE_ASSIGN:
+    return string("TK_DIVIDE_ASSIGN") ;
+  case AST_type::TK_MODULUS_ASSIGN:
+    return string("TK_MODULUS_ASSIGN") ;
+  case AST_type::TK_PLUS_ASSIGN:
+    return string("TK_PLUS_ASSIGN") ;
+  case AST_type::TK_MINUS_ASSIGN:
+    return string("TK_MINUS_ASSIGN") ;
+  case AST_type::TK_SHIFT_LEFT_ASSIGN:
+    return string("TK_SHIFT_LEFT_ASSIGN") ;
+  case AST_type::TK_SHIFT_RIGHT_ASSIGN:
+    return string("TK_SHIFT_RIGHT_ASSIGN") ;
+  case AST_type::TK_AND_ASSIGN:
+    return string("TK_AND_ASSIGN") ;
+  case AST_type::TK_OR_ASSIGN:
+    return string("TK_OR_ASSIGN") ;
+  case AST_type::TK_EXOR_ASSIGN:
+    return string("TK_EXOR_ASSIGN") ;
+  case AST_type::TK_COMMA:
+    return string("TK_COMMA") ;
+  case AST_type::TK_DOT:
+    return string("TK_DOT") ;
+  case AST_type::TK_COLON:
+    return string("TK_COLON") ;
+  case AST_type::TK_SEMICOLON:
+    return string("TK_SEMICOLON") ;
+  case AST_type::TK_NIL:
+    return string("TK_NIL") ;
+  case AST_type::TK_INCREMENT:
+    return string("TK_INCREMENT") ;
+  case AST_type::TK_DECREMENT:
+    return string("TK_DECREMENT") ;
+  case AST_type::TK_COMMENT:
+    return string("TK_COMMENT") ;
+  case AST_type::TK_STRING:
+    return string("TK_STRING") ;
+  case AST_type::TK_NUMBER:
+    return string("TK_NUMBER") ;
+  case AST_type::TK_ERROR:
+    return string("TK_ERROR") ;
+  case AST_type::TK_UNARY_PLUS:
+    return string("TK_UNARY_PLUS") ;
+  case AST_type::TK_UNARY_MINUS:
+    return string("TK_UNARY_MINUS") ;
+  case AST_type::TK_NOT:
+    return string("TK_NOT") ;
+  case AST_type::TK_TILDE:
+    return string("TK_TILDE") ;
+  case AST_type::TK_QUESTION:
+    return string("TK_QUESTION") ;
+  case AST_type::TK_AMPERSAND:
+    return string("TK_AMPERSAND") ;
+  case AST_type::TK_STAR:
+    return string("TK_STAR") ;
+  case AST_type::TK_OPENPAREN:
+    return string("TK_OPENPAREN") ;
+  case AST_type::TK_CLOSEPAREN:
+    return string("TK_CLOSEPAREN") ;
+  case AST_type::TK_OPENBRACKET:
+    return string("TK_OPENBRACKET") ;
+  case AST_type::TK_CLOSEBRACKET:
+    return string("TK_CLOSEBRACKET") ;
+  case AST_type::TK_OPENBRACE:
+    return string("TK_CLOSEBRACE") ;
+  case AST_type::TK_OPENTEMPLATE:
+    return string("TK_CLOSETEMPLATE") ;
+  case AST_type::TK_LOCI_DIRECTIVE:
+    return string("TK_LOCI_DIRECTIVE") ;
+  case AST_type::TK_LOCI_VARIABLE:
+    return string("TK_LOCI_VARIABLE") ;
+  case AST_type::TK_LOCI_CONTAINER:
+    return string("TK_LOCI_CONTAINER") ;
+
+  case AST_type::TK_ALIGNAS:
+    return string("TK_ALIGNAS") ;
+
+  case AST_type::TK_ALIGNOF:
+    return string("TK_ALIGNOF") ;
+
+  case AST_type::TK_ASM: 
+    return string("TK_ASM") ; 
+
+  case AST_type::TK_BOOL:
+    return string("TK_BOOL") ;
+
+  case AST_type::TK_FALSE:
+    return string("TK_FALSE") ;
+
+  case AST_type::TK_TRUE:
+    return string("TK_TRUE") ;
+
+  case AST_type::TK_CHAR:
+    return string("TK_CHAR") ;
+
+  case AST_type::TK_INT:
+    return string("TK_INT") ;
+
+  case AST_type::TK_LONG:
+    return string("TK_LONG") ;
+      
+  case AST_type::TK_SHORT:
+    return string("TK_SHORT") ;
+
+  case AST_type::TK_SIGNED:
+    return string("TK_SIGNED") ;
+
+  case AST_type::TK_UNSIGNED:
+    return string("TK_UNSIGNED") ;
+
+  case AST_type::TK_DOUBLE:
+    return string("TK_DOUBLE") ;
+
+  case AST_type::TK_FLOAT:
+    return string("TK_FLOAT") ;
+
+  case AST_type::TK_ENUM:
+    return string("TK_ENUM") ;
+
+  case AST_type::TK_MUTABLE:
+    return string("TK_MUTABLE") ;
+
+  case AST_type::TK_CONST:
+    return string("TK_CONST") ;
+
+  case AST_type::TK_STATIC:
+    return string("TK_STATIC") ;
+
+  case AST_type::TK_VOLATILE:
+    return string("TK_VOLATILE") ;
+
+  case AST_type::TK_AUTO:
+    return string("TK_AUTO") ;
+
+  case AST_type::TK_REGISTER:
+    return string("TK_REGISTER") ;
+
+  case AST_type::TK_EXPORT:
+    return string("TK_EXPORT") ;
+
+  case AST_type::TK_EXTERN:
+    return string("TK_EXTERN") ;
+
+  case AST_type::TK_INLINE:
+    return string("TK_INLINE") ;
+
+  case AST_type::TK_NAMESPACE:
+    return string("TK_NAMESPACE") ;
+
+  case AST_type::TK_EXPLICIT:
+    return string("TK_EXPLICIT") ;
+
+  case AST_type::TK_DYNAMIC_CAST:
+    return string("TK_DYNAMIC_CAST") ;
+
+  case AST_type::TK_STATIC_CAST:
+    return string("TK_STATIC_CAST") ;
+
+  case AST_type::TK_REINTERPRET_CAST:
+    return string("TK_REINTERPRET_CAST") ;
+
+  case AST_type::TK_OPERATOR:
+    return string("TK_OPERATOR") ;
+
+  case AST_type::TK_PROTECTED:
+    return string("TK_PROTECTED") ;
+
+  case AST_type::TK_NOEXCEPT:
+    return string("TK_NOEXCEPT") ;
+
+  case AST_type::TK_NULLPTR:
+    return string("TK_NULLPTR") ;
+
+  case AST_type::TK_RETURN:
+    return string("TK_RETURN") ;
+
+  case AST_type::TK_SIZEOF:
+    return string("TK_SIZEOF") ;
+
+  case AST_type::TK_THIS:
+    return string("TK_THIS") ;
+
+  case AST_type::TK_TYPEID:
+    return string("TK_TYPEID") ;
+
+  case AST_type::TK_SWITCH:
+    return string("TK_SWITCH") ;
+
+  case AST_type::TK_CASE:
+    return string("TK_CASE") ;
+
+  case AST_type::TK_BREAK:
+    return string("TK_BREAK") ;
+
+  case AST_type::TK_DEFAULT:
+    return string("TK_DEFAULT") ;
+
+  case AST_type::TK_FOR:
+    return string("TK_FOR") ;
+
+  case AST_type::TK_DO:
+    return string("TK_DO") ;
+
+  case AST_type::TK_WHILE:
+    return string("TK_WHILE") ;
+
+  case AST_type::TK_CONTINUE:
+    return string("TK_CONTINUE") ;
+
+  case AST_type::TK_CLASS:
+    return string("TK_CLASS") ;
+
+  case AST_type::TK_STRUCT:
+    return string("TK_STRUCT") ;
+
+  case AST_type::TK_PUBLIC:
+    return string("TK_PUBLIC") ;
+
+  case AST_type::TK_PRIVATE:
+    return string("TK_PRIVATE") ;
+
+  case AST_type::TK_FRIEND:
+    return string("TK_FRIEND") ;
+
+  case AST_type::TK_UNION:
+    return string("TK_UNION") ;
+
+  case AST_type::TK_TYPENAME:
+    return string("TK_TYPENAME") ;
+
+  case AST_type::TK_TEMPLATE:
+    return string("TK_TEMPLATE") ;
+
+  case AST_type::TK_TYPEDEF:
+    return string("TK_TYPEDEF") ;
+
+  case AST_type::TK_VIRTUAL:
+    return string("TK_VIRTUAL") ;
+
+  case AST_type::TK_VOID:
+    return string("TK_VOID") ;
+
+  case AST_type::TK_TRY:
+    return string("TK_TRY") ;
+
+  case AST_type::TK_CATCH:
+    return string("TK_CATCH") ;
+
+  case AST_type::TK_THROW:
+    return string("TK_THROW") ;
+
+  case AST_type::TK_IF:
+    return string("TK_IF") ;
+
+  case AST_type::TK_ELSE:
+    return string("TK_ELSE") ;
+
+  case AST_type::TK_GOTO:
+    return string("TK_GOTO") ;
+
+  case AST_type::TK_NEW:
+    return string("TK_NEW") ;
+
+  case AST_type::TK_DELETE:
+    return string("TK_DELETE") ;
+    
+  default:
+    {
+      std::ostringstream oss ;
+      oss << "ND_UNDEF(0x" << std::hex << int(val) << ")" ;
+      return oss.str() ;
+    }
+  }
+  return string("/*error*/") ;
+}
+
