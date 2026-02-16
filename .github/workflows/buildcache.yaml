@@ -31,7 +31,7 @@ jobs:
         fetch-depth: 0
 
     - name: Setup Spack
-      uses: spack/setup-spack@v2
+      uses: spack/setup-spack@v3
       with:
         ref: develop      # Spack version (examples: develop, releases/v0.23)
         color: true       # Force color output (SPACK_COLOR=always)
