@@ -1422,6 +1422,7 @@ class AST_printTree : public AST_visitor {
   virtual void visit(AST_exprOper &)  ;
   virtual void visit(AST_Token &) ;
   virtual void visit(AST_Block &) ;
+  virtual void visit(AST_typeSpec &) ;
   virtual void visit(AST_declaration &) ;
   virtual void visit(AST_SimpleStatement &) ;
   virtual void visit(AST_controlStatement &) ;
@@ -1591,6 +1592,16 @@ void AST_printTree::visit(AST_Block &s) {
   popindent() ;
 }
 
+void AST_printTree::visit(AST_typeSpec &s) {
+  pushindent(s) ;
+  out << "[[" ;
+  for(auto ii=s.type_spec.begin();ii!=s.type_spec.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  out << "]]" ;
+  popindent() ;
+}
+
 void AST_printTree::visit(AST_declaration &s) {
   pushindent(s) ;
   out << "[[" ;
@@ -1622,6 +1633,35 @@ void AST_printTree::visit(AST_controlStatement &s) {
   }
   popindent() ;
 }
+
+class AST_editLociMapArrayAccess : public AST_visitor {
+public:
+  virtual void visit(AST_exprOper &) ;
+} ;  
+
+void AST_editLociMapArrayAccess::visit(AST_exprOper &op) {
+  const int sz = op.terms.size() ;
+  // Check to see if this is a Loci mapping operator that
+  // ends in an array. In this case, the arrow needs to bind
+  // most tightly, so rearrange expression tree
+  if(sz>0 &&
+     ASTEqual(op,AST_type::OP_ARROW) && 
+     ASTEqual(op.terms[sz-1],AST_type::OP_ARRAY)) {
+    cerr << "found arrow" << endl ;
+    CPTR<AST_exprOper> last = CPTR<AST_exprOper>(op.terms[sz-1]) ;
+    // rearrange tree so that array operator is moved to the top
+    // and the mapping operator applies to the last variable
+    std::swap(op.nodeType,last->nodeType) ;
+    std::swap(op.terms,last->terms) ;
+    std::swap(last->terms[sz-1],op.terms[0]) ;
+  }
+  // Now visit children
+  for(size_t i=0;i<op.terms.size();++i) {
+    if(op.terms[i] !=0)
+      op.terms[i]->accept(*this) ;
+  }
+}
+
 class AST_editLociVariableAccess : public AST_visitor {
 public:
   const std::map<variable,std::string> &vnames ;
@@ -1668,23 +1708,23 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   const int sz = op.terms.size() ;
   if(op.nodeType == AST_type::OP_ARROW) {
     // Check to see if this is a Loci mapping operator
-    if(op.terms[sz-1]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+    if(ASTEqual(op.terms[sz-1],AST_type::TK_LOCI_VARIABLE)) {
       // It is so we need to edit create a tree of array accessor operations
       // First create the root of the tree which starts at the beginning
       CPTR<AST_exprOper> rootptr = new AST_exprOper ;
-      if(op.terms[0]->nodeType == AST_type::TK_NAME) {
+      if(ASTEqual(op.terms[0], AST_type::TK_NAME)) {
         // This is the special case of a pointer type (sometimes used to
         // iterate over multiMaps (may need to be deprecated in the future
         // as this exposes the memory layout of the multiMap data structure
         // which may need to change on GPGPUs
         rootptr->nodeType = AST_type::OP_STAR ;
         rootptr->terms.push_back(op.terms[0]) ;
-      } else if(op.terms[0]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+      } else if(ASTEqual(op.terms[0],AST_type::TK_LOCI_VARIABLE)) {
         // base map just add entity index operator
         rootptr->nodeType = AST_type::OP_ARRAY ;
         rootptr->terms.push_back(convertLociVar(op.terms[0])) ;
         rootptr->terms.push_back(entityIndex) ;
-      } else if(op.terms[0]->nodeType == AST_type::OP_ARRAY) {
+      } else if(ASTEqual(op.terms[0],AST_type::OP_ARRAY)) {
         // base map is a multiMap, still need to insert the entity index
         // operator
         CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[0]) ;
@@ -1705,10 +1745,10 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
       // Now we have the root pointer start building the access tree
       for(int i=1;i<sz;++i) {
         CPTR<AST_exprOper> newroot = 0 ;
-        if(op.terms[i]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+        if(ASTEqual(op.terms[i],AST_type::TK_LOCI_VARIABLE)) {
           newroot = CPTR<AST_exprOper>(arrayAccess(convertLociVar(op.terms[i]),
                                                    AST_type::ASTP(rootptr))) ;
-        } else if(op.terms[i]->nodeType == AST_type::OP_ARRAY) {
+        } else if(ASTEqual(op.terms[i],AST_type::OP_ARRAY)) {
           // base map is a multiMap, still need to insert the entity index
           // operator
           CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[0]) ;
@@ -1734,9 +1774,9 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
     }
   }
   for(size_t i=0;i<op.terms.size();++i) {
-    if(op.terms[i]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+    if(ASTEqual(op.terms[i],AST_type::TK_LOCI_VARIABLE)) {
       op.terms[i] = addEntityIndex(convertLociVar(op.terms[i])) ;
-    } else if(op.terms[i]->nodeType == AST_type::TK_LOCI_CONTAINER) {
+    } else if(ASTEqual(op.terms[i],AST_type::TK_LOCI_CONTAINER)) {
       op.terms[i] = convertLociVar(op.terms[i]); 
     } else {
       op.terms[i]->accept(*this) ;
@@ -1754,18 +1794,22 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
   if(is.peek() != '{')
     throw parseError("syntax error, expecting '{'") ;
       
-  //  int startline = line_no ;
       
   CPTR<AST_type> ap = parseBlock(is,line_no,filename,typemap) ;
-  //    outputFile << "Parsed TEST:" << endl ;
+
   AST_condenseLeftAssociative condenseOps ;
   ap->accept(condenseOps) ;
+
+  // This is sort of a hack because the precedence of the mapping
+  // operator (->) is context senstive
+  AST_editLociMapArrayAccess mapEditOps ;
+  ap->accept(mapEditOps) ;
+  
   if(parseInfo.diag_level > 0) {
     AST_printTree diagout(cerr) ;
     ap->accept(diagout) ;
   }
 
-  cerr << "TEST" << endl ;
   AST_errorCheck syntaxChecker ;
   ap->accept(syntaxChecker) ;
   if(syntaxChecker.hasErrors()) {
@@ -1782,6 +1826,8 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
   //  }
   AST_editLociVariableAccess AST_editor(vnames) ;
   ap->accept(AST_editor) ;
+  
+  outputFile << "    void calculate(Loci::Entity _e_) " << endl ;
   AST_simplePrint printer(outputFile,-1,prettyOutput) ;
   ap->accept(printer) ;
   

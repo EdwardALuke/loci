@@ -124,6 +124,7 @@ public:
 		    // Traditional C operators
                     OP_DOT=0x100,
 		    OP_ARROW,
+                    OP_ARRAY,
 		    OP_TIMES = 0x300, OP_DIVIDE, OP_MODULUS,
 		    OP_PLUS  = 0x400, OP_MINUS, 
 		    OP_SHIFT_RIGHT = 0x500, OP_SHIFT_LEFT,
@@ -153,7 +154,7 @@ public:
 		    OP_POSTINCREMENT, OP_POSTDECREMENT,
 		    OP_COMMENT,
 		    OP_BRACEBLOCK,
-		    OP_NAME, OP_FUNC, OP_ARRAY, OP_NAME_BRACE, OP_FUNC_BRACE,
+		    OP_NAME, OP_FUNC, OP_NAME_BRACE, OP_FUNC_BRACE,
                     OP_TEMPLATE,OP_TEMPLATE_FUNC,
 		    // terminal for string, integer, or unspecified error condition
 		    OP_STRING, OP_NUMBER, OP_ERROR,
@@ -224,7 +225,7 @@ public:
 		    ND_SYNTAXERR,
 		    ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_WHILE, ND_CTRL_DO,
 		    ND_CTRL_SWITCH, ND_SIMPLE_STATEMENT,ND_BLOCK,
-		    ND_DECL,ND_TERMINAL,
+		    ND_DECL,ND_TYPE_SPEC,ND_TERMINAL,
 		    TK_SENTINEL 
 		    
   } ;
@@ -286,6 +287,15 @@ public:
   AST_Block() {nodeType = AST_type::ND_BLOCK; }
 } ;
 
+/// Type specifier
+class AST_typeSpec : public AST_type {
+public:
+  ASTList type_spec ;
+  void accept(AST_visitor &v) ;
+  ASTP clone() const ;
+  AST_typeSpec() { nodeType = AST_type::ND_TYPE_SPEC ; }
+} ;
+
 /// Variable declaration statement
 class AST_declaration : public AST_type {
 public:
@@ -294,7 +304,7 @@ public:
   std::vector<std::string> decl_varnames ;
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
-  AST_declaration() { nodeType = AST_type::ND_DECL; }
+  AST_declaration() { nodeType = AST_type::ND_DECL ; }
 } ;
 
 /// Operator in expression
@@ -334,6 +344,7 @@ class AST_visitor {
   virtual ~AST_visitor() {} ;
   virtual void visit(AST_SimpleStatement &)  ;
   virtual void visit(AST_Block &)  ;
+  virtual void visit(AST_typeSpec &) ;
   virtual void visit(AST_declaration &)  ;
   virtual void visit(AST_exprOper &)  ;
   virtual void visit(AST_controlStatement &) ;
@@ -384,6 +395,10 @@ public:
 } ;
   
 
+/// parse an identifier
+extern AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
+				      const string &fileName,
+				      varmap &typemap) ;
 /// Parse a general expression
 extern AST_type::ASTP parseExpression(std::istream &is, int &linecount,
 				      const string &fileName,

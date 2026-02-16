@@ -155,95 +155,116 @@ string OPtoString(AST_type::elementType val) {
   return string("/*error*/") ;
 }
 
-/// Visitor that prints an AST using a simple substitution map
-class AST_identStr : public AST_visitor {
- public:
-  string out ;
-  AST_identStr() {} 
-  virtual void visit(AST_exprOper &)  ;
-  virtual void visit(AST_Token &) ;
-} ;
-
-void AST_identStr::visit(AST_exprOper &s) {
-  switch (s.nodeType) {
-  case AST_type::OP_GROUP:
-    out += '(' ;
-    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
-      if(*ii != 0)
-	(*ii)->accept(*this) ;
-    }
-    out += ')' ;
-    
-    break ;
-  case AST_type::OP_TEMPLATE:
-    {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
-      FATAL(ii == s.terms.end()) ;
-      (*ii)->accept(*this) ;
-      ++ii ;
-      out += '<' ;
-      if(ii != s.terms.end()) {
-	(*ii)->accept(*this) ;
-        ++ii ;
-      }
-      out += '>' ;
-      if(ii!=s.terms.end()) {
-        (*ii)->accept(*this) ;
-      }
-    }
-    break ;
-      
-  case AST_type::OP_UNARY_PLUS:
-  case AST_type::OP_UNARY_MINUS:
-  case AST_type::OP_NOT:
-  case AST_type::OP_AMPERSAND:
-  case AST_type::OP_STAR:
-  case AST_type::OP_INCREMENT:
-  case AST_type::OP_DECREMENT:
-    {
-      string op = OPtoString(s) ;
-      out += op ;
-      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	if(*ii != 0)
-	  (*ii)->accept(*this) ;
-    }
-    break ;
-  case AST_type::OP_POSTINCREMENT:
-  case AST_type::OP_POSTDECREMENT:
-    {
-      string op = OPtoString(s) ;
-      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	if(*ii != 0)
-	  (*ii)->accept(*this) ;
-      out += op ;
-    }
-    break ;
+bool isTypeDecl(CPTR<AST_Token> p, varmap &typemap) {
+  switch(p->nodeType) {
+  case AST_type::TK_CHAR:
+  case AST_type::TK_FLOAT:
+  case AST_type::TK_DOUBLE:
+  case AST_type::TK_INT:
+  case AST_type::TK_BOOL:
+  case AST_type::TK_SHORT:
+  case AST_type::TK_LONG:
+  case AST_type::TK_SIGNED:
+  case AST_type::TK_UNSIGNED:
+  case AST_type::TK_CONST:
+  case AST_type::TK_AUTO:
+    return true ;
   default:
-    {
-      string op = OPtoString(s) ;
-      for(auto ii=s.terms.begin();ii!=s.terms.end();) {
-	if(*ii != 0)
-	  (*ii)->accept(*this) ;
-	++ii ;
-	if(ii != s.terms.end())
-	  out += op ;
-      }
-    }
-
-    break ;
+    return false ;
   }
 }
 
-void AST_identStr::visit(AST_Token &s) {
+AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
+                                  const string &fileName,
+                                  varmap &typemap) {
+  AST_type::ASTList type_spec ;
+  bool istype = true ;
+  bool builtin_type = false ;
+  bool defined_type = false ;
 
-  if(ASTEqual(s,AST_type::TK_LOCI_DIRECTIVE)) {
-    out += "$[" + s.text + "]" ;
-  } else if(ASTEqual(s,AST_type::TK_LOCI_CONTAINER)) {
-    out += "$*" + s.text ;
-  } else if(ASTEqual(s,AST_type::TK_LOCI_VARIABLE)) {
-    out += "$" + s.text ;
-  } else 
-    out +=s.text  ;
+  CPTR<AST_Token> token = getToken(is,linecount) ;
+  do {
+#ifdef VERBOSE
+    cerr << "in parseTypeSpecifier, token = " << token->text << endl ;
+#endif
+    switch(token->nodeType) {
+    case AST_type::TK_CONST:
+      type_spec.push_back(AST_type::ASTP(token)) ;
+#ifdef VERBOSE
+      cerr << "in parseTypeSpecifier const variable" << endl ;
+#endif
+      break ;
+    case AST_type::TK_EXTERN:
+      type_spec.push_back(AST_type::ASTP(token)) ;
+#ifdef VERBOSE
+      cerr << "in parseTypeSpecifier extern variable" << endl ;
+#endif
+      break ;
+    case AST_type::TK_CHAR:
+    case AST_type::TK_FLOAT:
+    case AST_type::TK_DOUBLE:
+    case AST_type::TK_INT:
+    case AST_type::TK_BOOL:
+    case AST_type::TK_SHORT:
+    case AST_type::TK_LONG:
+    case AST_type::TK_SIGNED:
+    case AST_type::TK_UNSIGNED:
+    case AST_type::TK_AUTO:
+#ifdef VERBOSE
+      cerr << "in parseTypeSpecifier, builtin type" << endl ;
+#endif
+      builtin_type = true ;
+      if(defined_type) { // This is a syntax error
+        AST_type::ASTP p =
+          AST_type::ASTP(new AST_syntaxError("Mixed concrete and defined types",
+                                             token->lineno,fileName)) ;
+        type_spec.push_back(p) ;
+        istype = false ;
+      }
+      type_spec.push_back(AST_type::ASTP(token)) ;
+      break ;
+    case AST_type::TK_SCOPE:
+    case AST_type::TK_NAME:
+#ifdef VERBOSE
+      cerr << "in parseTypeSpecifier, named type" << endl ;
+#endif
+      if(builtin_type || defined_type ) {
+        istype = false ;
+      } else {
+        pushToken(token) ;
+        
+        AST_type::ASTP typedec =
+          parseIdentifier(is,linecount,fileName,typemap) ;
+        if(typedec->nodeType == AST_type::OP_FUNC) {
+          // not a proper type name
+          AST_type::ASTP p =
+            AST_type::ASTP(new AST_syntaxError("Mixed concrete and defined types",
+                                               token->lineno,fileName)) ;
+          type_spec.push_back(p) ;
+        } else {
+
+          // right now only consider unscoped non-templated type names
+          defined_type = true ;
+          type_spec.push_back(typedec) ;
+        }
+      }
+      break ;
+    default:
+#ifdef VERBOSE
+      cerr << "in parseTypeSpecifier, finished type parsing" << endl ;
+#endif
+      istype = false ;
+      break ;
+    }
+    if(istype)
+      token = getToken(is,linecount) ;
+  } while(istype) ;
+
+  pushToken(token) ;
+  CPTR<AST_typeSpec> p = new AST_typeSpec ;
+  p->nodeType = AST_type::ND_TYPE_SPEC ;
+  p->type_spec = type_spec ;
+  return AST_type::ASTP(p) ;
 }
 
 static int parseIDctr = 0 ;
@@ -297,6 +318,17 @@ AST_type::ASTP AST_Block::clone() const {
   p->nodeType = nodeType ;
   cloneList(p->elements,elements) ;
   p->identifiers = identifiers ;
+  return ASTP(p) ;
+}
+
+/// Acceptor method AST node, passes node to visitor object
+void AST_typeSpec::accept(AST_visitor &v) {  v.visit(*this) ; }
+
+
+AST_type::ASTP AST_typeSpec::clone() const {
+  CPTR<AST_typeSpec> p = new AST_typeSpec ;
+  p->nodeType = nodeType ;
+  cloneList(p->type_spec,type_spec) ;
   return ASTP(p) ;
 }
 
@@ -485,9 +517,6 @@ AST_type::ASTP parseOperator(std::istream &is, int &linecount) {
     openToken->nodeType = AST_type::OP_COMMA ;
     return AST_type::ASTP(openToken) ;
   case AST_type::TK_QUESTION:
-#ifdef VERBOSE
-    cerr << "returning OP_TERNARY" << endl ;
-#endif
     openToken->nodeType = AST_type::OP_TERNARY ;
     return AST_type::ASTP(openToken) ;
   case AST_type::TK_DOT:
@@ -688,23 +717,68 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
 #ifdef VERBOSE
   cerr << "parseTemplateArguments: found term template open '<'" 
            << endl ;
-#endif    
-
-  AST_type::ASTP args = parseExpression(is,linecount,fileName,typemap) ;
-  CPTR<AST_Token> closeToken = getToken(is,linecount) ;
-  CPTR<AST_exprOper> func = new AST_exprOper ;
-  func->nodeType = AST_type::OP_TEMPLATE ;
-  func->terms.push_back(AST_type::ASTP(objname)) ;
-  if(args != 0)
-    func->terms.push_back(args) ;
-  if(!ASTEqual(closeToken,AST_type::TK_CLOSETEMPLATE)) {
-    CPTR<AST_Token> err = new AST_Token ;
-    *err = *closeToken ;
-    err->nodeType = AST_type::OP_ERROR ;
-    func->terms.push_back(AST_type::ASTP(err)) ;
-    pushToken(closeToken) ;
+#endif
+  CPTR<AST_Token> token = getToken(is,linecount) ;
+  AST_type::ASTP arg = AST_type::ASTP(token) ;
+  if(!ASTEqual(token,AST_type::TK_NUMBER)) {
+    pushToken(token) ;
+    AST_type::ASTP arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
   }
-  return AST_type::ASTP(func) ;
+  
+#ifdef VERBOSE
+  cerr << "parseTemplateArguments: parsed type specification " 
+       << endl ;
+#endif    
+  CPTR<AST_Token> closeToken = getToken(is,linecount) ;
+  if(ASTEqual(closeToken,AST_type::TK_CLOSETEMPLATE)) {
+#ifdef VERBOSE
+  cerr << "parseTemplateArguments: only single argument " 
+       << endl ;
+#endif    
+    // only a single type in template parameters
+    CPTR<AST_exprOper> func = new AST_exprOper ;
+    func->nodeType = AST_type::OP_TEMPLATE ;
+    func->terms.push_back(objname) ;
+    func->terms.push_back(arg) ;
+    return AST_type::ASTP(func) ;
+  }
+  if(ASTEqual(closeToken,AST_type::TK_COMMA)) {
+
+#ifdef VERBOSE
+  cerr << "parseTemplateArguments: parsing comma separated list of types " 
+       << endl ;
+#endif    
+    
+    CPTR<AST_exprOper> tlist = new AST_exprOper ;
+    tlist->nodeType = AST_type::OP_COMMA ;    tlist->terms.push_back(arg) ;
+    while(ASTEqual(closeToken,AST_type::TK_COMMA)) {
+#ifdef VERBOSE
+      cerr << "parseTemplateArgument, got " << closeToken->text<< endl ;
+#endif
+      CPTR<AST_Token> token = getToken(is,linecount) ;
+      AST_type::ASTP arg = AST_type::ASTP(token) ;
+      if(!ASTEqual(token,AST_type::TK_NUMBER)) {
+        pushToken(token) ;
+        AST_type::ASTP arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
+      }
+      
+      tlist->terms.push_back(arg) ;
+      closeToken = getToken(is,linecount) ;
+    }
+    if(!ASTEqual(closeToken,AST_type::TK_CLOSETEMPLATE)) {
+      tlist->terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting '>'",closeToken->lineno,fileName))) ;
+    }
+    CPTR<AST_exprOper> func = new AST_exprOper ;
+    func->nodeType = AST_type::OP_TEMPLATE ;
+    func->terms.push_back(objname) ;
+    func->terms.push_back(AST_type::ASTP(tlist)) ;
+    return AST_type::ASTP(func) ;
+  }
+  
+  AST_type::ASTP p =
+    AST_type::ASTP(new AST_syntaxError("Syntax error parsing template arguments",
+                                       closeToken->lineno,fileName)) ;
+  return p ;
 }
 
 AST_type::ASTP parseFunctionArguments(AST_type::ASTP objname,
@@ -735,11 +809,32 @@ AST_type::ASTP parseFunctionArguments(AST_type::ASTP objname,
 AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
 				      const string &fileName,
 				      varmap &typemap) {
+#ifdef VERBOSE
+  cerr << "in parseIdentifier" << endl ;
+#endif 
+
   AST_type::ASTP objname = parseScopedObject(is,linecount,fileName,typemap) ;
 
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
   if(ASTEqual(openToken,AST_type::TK_OPENTEMPLATE)) {
     objname = parseTemplateArguments(objname,is,linecount,fileName,typemap) ;
+    openToken = getToken(is,linecount) ;
+    if(ASTEqual(openToken,AST_type::TK_SCOPE)) {
+      CPTR<AST_exprOper> tmp = new AST_exprOper ;
+      tmp->nodeType = AST_type::OP_SCOPE ;
+      tmp->terms.push_back(objname) ;
+      openToken = getToken(is,linecount) ;
+      tmp->terms.push_back(AST_type::ASTP(openToken)) ;
+      if(ASTEqual(openToken,AST_type::TK_NAME)) {
+        return AST_type::ASTP(tmp) ;
+      } else {
+        AST_type::ASTP p =
+          AST_type::ASTP(new AST_syntaxError("error parsing scope after template type",openToken->lineno,fileName)) ;
+        tmp->terms.push_back(p) ;
+        return AST_type::ASTP(tmp) ;
+      }
+    } else
+      pushToken(openToken) ;
   } else
     pushToken(openToken) ;
     
@@ -904,10 +999,10 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 #ifdef VERBOSE
     cerr << "parseExpression operator op = " << OPtoString(op->nodeType) << endl ;
 #endif
-    // Special case for ?: operator
+    // Special case for ?: operator or array
     if(ASTEqual(op,AST_type::OP_TERNARY)) 
       expr = parseExpression(is,linecount,fileName,typemap) ;
-    else
+    else 
       expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
     
     if(expr == 0) {
@@ -1174,33 +1269,6 @@ AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
   return AST_type::ASTP(ctrl) ;
 }			 
 
-bool isTypeDecl(CPTR<AST_Token> p, varmap &typemap) {
-  switch(p->nodeType) {
-  case AST_type::TK_CHAR:
-  case AST_type::TK_FLOAT:
-  case AST_type::TK_DOUBLE:
-  case AST_type::TK_INT:
-  case AST_type::TK_BOOL:
-  case AST_type::TK_SHORT:
-  case AST_type::TK_LONG:
-  case AST_type::TK_SIGNED:
-  case AST_type::TK_UNSIGNED:
-  case AST_type::TK_CONST:
-  case AST_type::TK_AUTO:
-    return true ;
-  case AST_type::TK_NAME:
-    {
-      auto t = typemap.find(p->text) ;
-      if(t == typemap.end())
-	return false ;
-      return t->second.isTypeName() ;
-    }
-  default:
-    return false ;
-  }
-}
-
-
 AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
 				  const string &fileName,
 				  varmap &typemap) {
@@ -1376,20 +1444,104 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
   return AST_type::ASTP(getToken(is,linecount)) ;
 }
 
-string getIdentName(AST_type::ASTP ident) {
-  AST_identStr identname ;
-  ident->accept(identname) ;
-  return identname.out ;
+
+string getIdentifierName(std::istream &is,
+                         int &linecount,
+                         const string &fileName,
+                         bool &isFunc) {
+#ifdef VERBOSE
+  cerr << "in getIdentifierName" << endl ;
+#endif
+  vector<CPTR<AST_Token>>  token_stack ;
+  isFunc = false ;
+  string name ;
+  CPTR<AST_Token> token = getToken(is,linecount) ;
+  // parse the scoped name part
+  if(ASTEqual(token,AST_type::TK_SCOPE)) {
+    name += token->text ;
+    token_stack.push_back(token) ;
+    token = getToken(is,linecount) ;
+  }
+  while(ASTEqual(token,AST_type::TK_NAME)) {
+    name += token->text ;
+    token_stack.push_back(token) ;
+    token = getToken(is,linecount) ;
+    if(ASTEqual(token,AST_type::TK_SCOPE)) {
+      name += token->text ;
+      token_stack.push_back(token) ;
+      token = getToken(is,linecount) ;
+    } else
+      break ;
+  }
+#ifdef VERBOSE
+  cerr << "ident name = " << name << endl ;
+#endif
+  // if template, parse template arguments
+  if(ASTEqual(token,AST_type::TK_OPENTEMPLATE)) {
+#ifdef VERBOSE
+    cerr << "identifier is template" << endl ;
+#endif
+    int count = 1 ;
+    name += "<" ;
+    token_stack.push_back(token) ;
+    token = getToken(is,linecount) ;
+    while(count > 0) {
+      if(ASTEqual(token,AST_type::TK_OPENTEMPLATE)) {
+        count++ ;
+        name += "<" ;
+      } else if(ASTEqual(token,AST_type::TK_CLOSETEMPLATE)) {
+        count-- ;
+        name += ">" ;
+      } else {
+        name += token->text ;
+      }
+      token_stack.push_back(token) ;
+      token = getToken(is,linecount) ;
+    }
+  }
+  if(ASTEqual(token,AST_type::TK_OPENPAREN)) {
+    isFunc=true ;
+  }
+  token_stack.push_back(token) ;
+  // Push tokens so that they can be parsed
+  for(auto ii = token_stack.rbegin();ii!=token_stack.rend();++ii)
+    pushToken(*ii) ;
+#ifdef VERBOSE
+  cerr << "return ident name = " << name << endl ;
+#endif
+  return name ;
+}
+    
+      
+    
+/// Determine if statement is a declration or a simple statement by
+/// looking up potential typename in varmap.  We assume that the first
+/// token is either an TK_NAME or TK_SCOPE as a prerequisite
+AST_type::ASTP parseDeclarationOrSimpleStatement(std::istream &is,
+                                                 int &linecount,
+                                                 const string &fileName,
+                                                 varmap &typemap) {
+#ifdef VERBOSE
+  cerr << "in parseDeclarationOrSimpleStatement"<< endl;
+#endif
+  bool isFunc = false ;
+  string ident = getIdentifierName(is,linecount,fileName,isFunc) ;
+#ifdef VERBOASE
+  cerr << "ident = " << ident << "isFunc = " << isFunc << endl ;
+#endif
+  if(isFunc)
+    return parseSimpleStatement(is,linecount,fileName,typemap) ;
+  auto ii = typemap.find(ident) ;
+  if(ii != typemap.end() && ii->second.isLocalIdentifier())
+    return parseSimpleStatement(is,linecount,fileName,typemap) ;
+  return parseDeclaration(is,linecount,fileName,typemap) ;
 }
 
-// Parse type declaration (needs to be reworked as this is ambiguous
-// without knowing type declrations.  
+// Parse type declaration when we know we are expecting a type declaration
 AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
 				const string &fileName,
 				varmap &typemap) {
 
-  //  cout << "parsing declaration" << endl ;
-  
   CPTR<AST_declaration> AST_data = new AST_declaration ;
 
   CPTR<AST_Token> token = getToken(is,linecount) ;
@@ -1408,6 +1560,12 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
       AST_data->type_decl.push_back(AST_type::ASTP(token)) ;
 #ifdef VERBOSE
       cerr << "in parseDeclaration, const variable" << endl ;
+#endif
+      break ;
+    case AST_type::TK_EXTERN:
+      AST_data->type_decl.push_back(AST_type::ASTP(token)) ;
+#ifdef VERBOSE
+      cerr << "in parseDeclaration, extern variable" << endl ;
 #endif
       break ;
     case AST_type::TK_CHAR:
@@ -1442,6 +1600,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
         istype = false ;
       } else {
         pushToken(token) ;
+        
         AST_type::ASTP typedec =
           parseIdentifier(is,linecount,fileName,typemap) ;
         if(typedec->nodeType == AST_type::OP_FUNC) {
@@ -1451,9 +1610,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
                                                token->lineno,fileName)) ;
           AST_data->type_decl.push_back(p) ;
         } else {
-#ifdef VERBOSE
-          cerr << "IDENT = " <<getIdentName(typedec) << endl ;
-#endif
+
           // right now only consider unscoped non-templated type names
           defined_type = true ;
           AST_data->type_decl.push_back(typedec) ;
@@ -1471,11 +1628,6 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
       token = getToken(is,linecount) ;
   } while(istype) ;
 
-  //  while(isTypeDecl(token,typemap)) {
-  //    AST_data->type_decl.push_back(AST_type::ASTP(token)) ;
-  //    token = getToken(is,linecount) ;
-  //  }
-  
 #ifdef VERBOSE
   cerr << "in parseDeclaration, processing declarations: " << token->text
        << " " << OPtoName(token->nodeType) << endl;
@@ -1633,6 +1785,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case AST_type::TK_SIGNED:
   case AST_type::TK_UNSIGNED:
   case AST_type::TK_CONST:
+  case AST_type::TK_EXTERN:
   case AST_type::TK_AUTO:
     return parseDeclaration(is,linecount,fileName,typemap) ;
   case AST_type::TK_FOR:
@@ -1649,6 +1802,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
     return parseSpecialControlStatement(is,linecount,fileName,typemap) ;
   case AST_type::TK_NAME:
   case AST_type::TK_SCOPE:
+    return parseDeclarationOrSimpleStatement(is,linecount,fileName,typemap) ;
     {
       CPTR<AST_Token> tok1 = getToken(is,linecount) ;
       CPTR<AST_Token> tok2 = getToken(is,linecount) ;
@@ -1688,18 +1842,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case AST_type::TK_DECREMENT:
   case AST_type::TK_LOCI_VARIABLE:
     {
-      AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
-
-      CPTR<AST_Token> termToken = getToken(is,linecount) ;
-      AST_type::ASTP term = AST_type::ASTP(termToken) ;
-      
-      if(!ASTEqual(term,AST_type::TK_SEMICOLON)) {
-	pushToken(termToken) ;
-	return AST_type::ASTP(new AST_syntaxError("Expecting ';' ",
-						  termToken->lineno,fileName)) ;
-      }
-      AST_type::ASTP stat = new AST_SimpleStatement(exp,term) ;
-      return stat ;
+      return parseSimpleStatement(is,linecount,fileName,typemap) ;
     } 
     
   case AST_type::TK_SEMICOLON:
@@ -1713,8 +1856,6 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   return AST_type::ASTP(new AST_syntaxError("Expecting statement or ';' ",
 					    firstToken->lineno,
 					    fileName)) ;
-  //  cerr << "got to end with token " << firstToken->text << " on line " << firstToken->lineno << endl ;
-  //  return AST_type::ASTP(firstToken) ;
 }
 
 /// Parse a block of statements enclosed in braces
@@ -1762,6 +1903,12 @@ void AST_visitor::visit(AST_SimpleStatement &s) {
 void AST_visitor::visit(AST_Block &s) {
   for(auto ii=s.elements.begin();ii!=s.elements.end();++ii)
     if(*ii!=0)
+      (*ii)->accept(*this) ;
+}
+
+void AST_visitor::visit(AST_typeSpec &s) {
+  for(auto ii=s.type_spec.begin();ii!=s.type_spec.end();++ii)
+    if(*ii != 0)
       (*ii)->accept(*this) ;
 }
 

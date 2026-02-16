@@ -725,14 +725,17 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
     if(!is.fail() && !is.eof() &&
        ((is.peek() >='a' && is.peek() <='z') ||
 	(is.peek() >='A' && is.peek() <='Z') ||
-	is.peek() == '_' || is.peek() == '@')) {
+	is.peek() == '_' || is.peek() == '@' ||
+        is.peek() == '$')
+       ) {
       // extract variable name
       while(!is.fail() && !is.eof() &&
 	    ((is.peek() >='a' && is.peek() <='z') ||
 	     (is.peek() >='A' && is.peek() <='Z') ||
 	     (is.peek() >='0' && is.peek() <='9') ||
 	     is.peek() == '_' || is.peek() == '@' ||
-	     is.peek() == '(' || is.peek() == '{')) {
+	     is.peek() == '(' || is.peek() == '{' ||
+             is.peek() == '$')) {
 	if(is.peek() == '(') {
 	  AST_data->text +=is.get() ;
 	  int count = 1 ;
@@ -1093,6 +1096,8 @@ string OPtoName(AST_type::elementType val) {
     return string("ND_SIMPLE_STATEMENT") ;
   case AST_type::ND_DECL:
     return string("ND_DECL") ;
+  case AST_type::ND_TYPE_SPEC:
+    return string("ND_TYPE_SPEC") ;
   case AST_type::ND_TERMINAL:
     return string("ND_TERMINAL") ;
   case AST_type::TK_SENTINEL:
