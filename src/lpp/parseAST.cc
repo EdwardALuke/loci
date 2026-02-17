@@ -854,6 +854,25 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 #ifdef VERBOSE
   cerr << "in parseExpressionPartial, token = " << openToken->text << endl ;
 #endif
+
+  // Check for a type cast
+  if(ASTEqual(openToken,AST_type::TK_DOUBLE) ||
+     ASTEqual(openToken,AST_type::TK_FLOAT) ||
+     ASTEqual(openToken,AST_type::TK_INT) ||
+     ASTEqual(openToken,AST_type::TK_SHORT) ||
+     ASTEqual(openToken,AST_type::TK_CHAR) ||
+     ASTEqual(openToken,AST_type::TK_LONG)) {
+    CPTR<AST_Token> nextToken = getToken(is,linecount) ;
+    pushToken(nextToken) ;
+    if(ASTEqual(nextToken,AST_type::TK_OPENPAREN)) {
+      CPTR<AST_declaration> AST_data = new AST_declaration ;
+      AST_data->type_decl.push_back(AST_type::ASTP(openToken)) ;
+      AST_data->type_decl.push_back(parseExpressionPartial(is,linecount,
+                                                           fileName,
+                                                           typemap)) ;
+      return AST_type::ASTP(AST_data) ;
+    } 
+  }
   // Check for a parenthesized group, if found parse it.
   if(ASTEqual(openToken,AST_type::TK_OPENPAREN)) {
 #ifdef VERBOSE
@@ -1970,7 +1989,7 @@ void AST_errorCheck::visit(AST_syntaxError &s) {
 
 void AST_collectAccessInfo::visit(AST_Token &s) {
   if(ASTEqual(s,AST_type::TK_LOCI_VARIABLE)) {
-    Loci::variable v(s.text.substr(1,s.text.size()-1)) ;
+    Loci::variable v(s.text) ;
     vmap_info vmap ;
     vmap.var += v ;
     accessed.insert(vmap) ;
@@ -2035,7 +2054,7 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
 	    AST_type::ASTP vp = getArrayVar(*ii) ;
 	    CPTR<AST_Token> tok(vp) ;
 
-	    Loci::variable v(tok->text.substr(1,tok->text.size()-1)) ;
+	    Loci::variable v(tok->text) ;
 
 	    variableSet vset ;
 	    vset += v ;

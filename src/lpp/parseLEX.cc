@@ -721,8 +721,9 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
     AST_data->nodeType = AST_type::TK_LOCI_VARIABLE ;
     if(is.peek() == '*') {
       AST_data->nodeType = AST_type::TK_LOCI_CONTAINER ;
-      AST_data->text += is.peek() ;
+      AST_data->text += is.get() ;
     }
+    AST_data->text = "" ;
     if(!is.fail() && !is.eof() &&
        ((is.peek() >='a' && is.peek() <='z') ||
 	(is.peek() >='A' && is.peek() <='Z') ||

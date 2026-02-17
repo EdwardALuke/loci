@@ -1668,7 +1668,8 @@ public:
   AST_type::ASTP entityIndex ;
   AST_type::ASTP convertLociVar(AST_type::ASTP var) {
     CPTR<AST_Token> p = CPTR<AST_Token>(var) ;
-    variable v(p->text.substr(1)) ;
+    variable v(p->text) ;
+
     auto vmi = vnames.find(v) ;
     if(vmi == vnames.end()) {
       cerr << "variable " << v << " is unknown to this rule!" << endl ;

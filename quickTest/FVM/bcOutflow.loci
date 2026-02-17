@@ -210,8 +210,9 @@ namespace flowPsi {
       $temperature_f = Ti ;
       flag = true ;
     }
+    using flowPsi::BCErrorCode ;
     if(flag)
-      BCErrorCode |= OUTFLOW_BECAME_INFLOW ;
+      flowPsi::BCErrorCode |= OUTFLOW_BECAME_INFLOW ;
   } 
 
   $rule pointwise(iflux<-leftsP(gagePressure,minPg),leftsP(temperature,Zero),leftv3d(u),gagePressure_f,temperature_f,u_f,area,Pambient,Rtilde,gamma),constraint(outflow_BC),

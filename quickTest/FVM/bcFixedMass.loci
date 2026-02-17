@@ -90,7 +90,7 @@ namespace flowPsi {
 			 const real gamma,
 			 const real Rtilde,
 			 const Loci::Area &area) {
-
+    
     const vect3d n = area.n ;
 
     real T = Tin ; //first guess 
@@ -122,9 +122,10 @@ namespace flowPsi {
       T = T_1 ;
     }
     if(iter == MAX_ITER) {
+      using flowPsi::BCErrorCode ;
       Loci::debugout << "T = " << T <<" " ;
       Loci::debugout << "fixed mass bc failed to converge!" << endl ;
-      BCErrorCode |= flowPsi::FIXED_MASS_FAILED_CONVERGENCE ;
+      flowPsi::BCErrorCode |= flowPsi::FIXED_MASS_FAILED_CONVERGENCE ;
     }
     
     const real rhob = pin/(Rtilde*T) ;
