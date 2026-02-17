@@ -1404,6 +1404,264 @@ void parseFile::process_Calculate(std::ostream &outputFile,
   }
 }
 
+/// Visitor that prints an AST using a simple substitution map
+class AST_printTree : public AST_visitor {
+ public:
+  ostream &out ;
+  int indent_level ;
+  void indent() {
+    for(int i=0;i<indent_level;++i)
+      out << "  " ;
+  }
+  void pushindent(AST_type &s) { out << endl ;
+    indent() ;
+    out << "[[" << OPtoName(s) << " ";
+    indent_level++ ; }
+  void popindent() { indent_level-- ; out <<"]]"<< endl ; indent() ; }
+  AST_printTree(ostream &s): out(s),indent_level(0) {} 
+  virtual void visit(AST_exprOper &)  ;
+  virtual void visit(AST_Token &) ;
+  virtual void visit(AST_Block &) ;
+  virtual void visit(AST_typeSpec &) ;
+  virtual void visit(AST_declaration &) ;
+  virtual void visit(AST_SimpleStatement &) ;
+  virtual void visit(AST_controlStatement &) ;
+} ;
+
+void AST_printTree::visit(AST_exprOper &s) {
+  switch (s.nodeType) {
+  case AST_type::OP_GROUP:
+
+    pushindent(s) ;
+    out << '(' ;
+    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+    }
+    out << ')' ;
+    popindent() ;
+    
+    break ;
+  case AST_type::OP_FUNC:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      FATAL(ii == s.terms.end()) ;
+      out << "[[" ;
+      (*ii)->accept(*this) ;
+      out << "]]" ;
+      ++ii ;
+      out << '(' ;
+      out << "[[" ;
+      if(ii != s.terms.end()) {
+	(*ii)->accept(*this) ;
+        ++ii ;
+      }
+      out << "]]" ;
+      out << ')' ;
+      popindent() ;
+      
+      if(ii!=s.terms.end()) {
+	cerr << "internal error processing func" ;
+        (*ii)->accept(*this) ;
+      }
+    }
+    break ;
+  case AST_type::OP_TEMPLATE:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      FATAL(ii == s.terms.end()) ;
+      out << "[[" ;
+      (*ii)->accept(*this) ;
+      out << "]]" ;
+      ++ii ;
+      out << '<' ;
+      out << "[[" ;
+      if(ii != s.terms.end()) {
+	(*ii)->accept(*this) ;
+        ++ii ;
+      }
+      out << "]]" ;
+      out << '>' ;
+      popindent() ;
+      if(ii!=s.terms.end()) {
+	cerr << "internal error processing func" ;
+        (*ii)->accept(*this) ;
+      }
+    }
+    break ;
+  case AST_type::OP_ARRAY:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      ++ii ;
+      out << '[' ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      out << ']' ;
+      popindent() ;
+      ++ii ;
+      if(ii!=s.terms.end()) {
+	cerr << "internal error processing array" ;
+	if(*ii != 0)
+	  (*ii)->accept(*this);
+      }
+    }
+    break ;
+  case AST_type::OP_TERNARY:
+    {
+      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      pushindent(s) ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      ++ii ;
+      out << '?' ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      out << ':' ;
+      if(ii==s.terms.end()) {
+	cerr << "internal error on tertiary operator" << endl ;
+      } else
+	++ii ;
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+      popindent() ;
+    }
+    break ;
+      
+  case AST_type::OP_UNARY_PLUS:
+  case AST_type::OP_UNARY_MINUS:
+  case AST_type::OP_NOT:
+  case AST_type::OP_AMPERSAND:
+  case AST_type::OP_STAR:
+  case AST_type::OP_INCREMENT:
+  case AST_type::OP_DECREMENT:
+    {
+      pushindent(s) ;
+      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+	if(*ii != 0)
+	  (*ii)->accept(*this) ;
+      popindent() ;
+    }
+    break ;
+  case AST_type::OP_POSTINCREMENT:
+  case AST_type::OP_POSTDECREMENT:
+    {
+      pushindent(s) ; 
+      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+	if(*ii != 0)
+	  (*ii)->accept(*this) ;
+      popindent() ;
+    }
+    break ;
+  default:
+    {
+      pushindent(s) ;
+      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();) {
+	if(*ii != 0)
+	  (*ii)->accept(*this) ;
+	++ii ;
+      }
+      popindent() ;
+    }
+
+    break ;
+  }
+}
+
+void AST_printTree::visit(AST_Token &s) {
+
+  if(ASTEqual(s,AST_type::TK_LOCI_DIRECTIVE)) {
+    out << "$[" << s.text << "] " ;
+  } else if(ASTEqual(s,AST_type::TK_LOCI_CONTAINER)) {
+    out << "$*" << s.text << " " ;
+  } else if(ASTEqual(s,AST_type::TK_LOCI_VARIABLE)) {
+    out << "$" << s.text  << " " ;
+  } else 
+    out <<s.text << ' ' ;
+}
+
+void AST_printTree::visit(AST_Block &s) {
+  pushindent(s) ;
+  for(auto ii=s.elements.begin();ii!=s.elements.end();++ii)
+    if(*ii!=0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+}
+
+void AST_printTree::visit(AST_typeSpec &s) {
+  pushindent(s) ;
+  out << "[[" ;
+  for(auto ii=s.type_spec.begin();ii!=s.type_spec.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  out << "]]" ;
+  popindent() ;
+}
+
+void AST_printTree::visit(AST_declaration &s) {
+  pushindent(s) ;
+  out << "[[" ;
+  for(auto ii=s.type_decl.begin();ii!=s.type_decl.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  out << "]][[" ;
+  for(auto ii=s.decls.begin();ii!=s.decls.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  out << "]]" ;
+  popindent() ;
+}
+
+void AST_printTree::visit(AST_SimpleStatement &s) {
+  pushindent(s) ;
+  if(s.exp!=0)
+    s.exp->accept(*this) ;
+  if(s.Terminal!=0) 
+    s.Terminal->accept(*this) ;
+  popindent() ;
+}
+void AST_printTree::visit(AST_controlStatement &s) {
+  pushindent(s) ;
+  s.controlType->accept(*this) ;
+  for(auto ii=s.parts.begin();ii!=s.parts.end();++ii) {
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  }
+  popindent() ;
+}
+
+class AST_editLociMapArrayAccess : public AST_visitor {
+public:
+  virtual void visit(AST_exprOper &) ;
+} ;  
+
+void AST_editLociMapArrayAccess::visit(AST_exprOper &op) {
+  const int sz = op.terms.size() ;
+  // Check to see if this is a Loci mapping operator that
+  // ends in an array. In this case, the arrow needs to bind
+  // most tightly, so rearrange expression tree
+  if(sz>0 &&
+     ASTEqual(op,AST_type::OP_ARROW) && 
+     ASTEqual(op.terms[sz-1],AST_type::OP_ARRAY)) {
+    cerr << "found arrow" << endl ;
+    CPTR<AST_exprOper> last = CPTR<AST_exprOper>(op.terms[sz-1]) ;
+    // rearrange tree so that array operator is moved to the top
+    // and the mapping operator applies to the last variable
+    std::swap(op.nodeType,last->nodeType) ;
+    std::swap(op.terms,last->terms) ;
+    std::swap(last->terms[sz-1],op.terms[0]) ;
+  }
+  // Now visit children
+  for(size_t i=0;i<op.terms.size();++i) {
+    if(op.terms[i] !=0)
+      op.terms[i]->accept(*this) ;
+  }
+}
+
 class AST_editLociVariableAccess : public AST_visitor {
 public:
   const std::map<variable,std::string> &vnames ;
@@ -1411,6 +1669,7 @@ public:
   AST_type::ASTP convertLociVar(AST_type::ASTP var) {
     CPTR<AST_Token> p = CPTR<AST_Token>(var) ;
     variable v(p->text) ;
+
     auto vmi = vnames.find(v) ;
     if(vmi == vnames.end()) {
       cerr << "variable " << v << " is unknown to this rule!" << endl ;
@@ -1450,23 +1709,23 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   const int sz = op.terms.size() ;
   if(op.nodeType == AST_type::OP_ARROW) {
     // Check to see if this is a Loci mapping operator
-    if(op.terms[sz-1]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+    if(ASTEqual(op.terms[sz-1],AST_type::TK_LOCI_VARIABLE)) {
       // It is so we need to edit create a tree of array accessor operations
       // First create the root of the tree which starts at the beginning
       CPTR<AST_exprOper> rootptr = new AST_exprOper ;
-      if(op.terms[0]->nodeType == AST_type::TK_NAME) {
+      if(ASTEqual(op.terms[0], AST_type::TK_NAME)) {
         // This is the special case of a pointer type (sometimes used to
         // iterate over multiMaps (may need to be deprecated in the future
         // as this exposes the memory layout of the multiMap data structure
         // which may need to change on GPGPUs
         rootptr->nodeType = AST_type::OP_STAR ;
         rootptr->terms.push_back(op.terms[0]) ;
-      } else if(op.terms[0]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+      } else if(ASTEqual(op.terms[0],AST_type::TK_LOCI_VARIABLE)) {
         // base map just add entity index operator
         rootptr->nodeType = AST_type::OP_ARRAY ;
         rootptr->terms.push_back(convertLociVar(op.terms[0])) ;
         rootptr->terms.push_back(entityIndex) ;
-      } else if(op.terms[0]->nodeType == AST_type::OP_ARRAY) {
+      } else if(ASTEqual(op.terms[0],AST_type::OP_ARRAY)) {
         // base map is a multiMap, still need to insert the entity index
         // operator
         CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[0]) ;
@@ -1487,10 +1746,10 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
       // Now we have the root pointer start building the access tree
       for(int i=1;i<sz;++i) {
         CPTR<AST_exprOper> newroot = 0 ;
-        if(op.terms[i]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+        if(ASTEqual(op.terms[i],AST_type::TK_LOCI_VARIABLE)) {
           newroot = CPTR<AST_exprOper>(arrayAccess(convertLociVar(op.terms[i]),
                                                    AST_type::ASTP(rootptr))) ;
-        } else if(op.terms[i]->nodeType == AST_type::OP_ARRAY) {
+        } else if(ASTEqual(op.terms[i],AST_type::OP_ARRAY)) {
           // base map is a multiMap, still need to insert the entity index
           // operator
           CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[0]) ;
@@ -1515,10 +1774,10 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
       op.terms = rootptr->terms ;
     }
   }
-  for(int i=0;i<sz;++i) {
-    if(op.terms[i]->nodeType == AST_type::TK_LOCI_VARIABLE) {
+  for(size_t i=0;i<op.terms.size();++i) {
+    if(ASTEqual(op.terms[i],AST_type::TK_LOCI_VARIABLE)) {
       op.terms[i] = addEntityIndex(convertLociVar(op.terms[i])) ;
-    } else if(op.terms[i]->nodeType == AST_type::TK_LOCI_CONTAINER) {
+    } else if(ASTEqual(op.terms[i],AST_type::TK_LOCI_CONTAINER)) {
       op.terms[i] = convertLociVar(op.terms[i]); 
     } else {
       op.terms[i]->accept(*this) ;
@@ -1529,19 +1788,29 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
 
 void parseFile::process_Calculate2(std::ostream &outputFile,
                                    const map<variable,string> &vnames,
-                                   const set<list<variable> > &validate_set) {
-  
+                                   const set<list<variable> > &validate_set,
+                                   const parseSharedInfo &parseInfo) {
   varmap typemap ;
-  typemap["vect3d"] = varinfo(true,false) ;
       
   if(is.peek() != '{')
     throw parseError("syntax error, expecting '{'") ;
       
-  int startline = line_no ;
       
   CPTR<AST_type> ap = parseBlock(is,line_no,filename,typemap) ;
-  //    outputFile << "Parsed TEST:" << endl ;
-      
+
+  AST_condenseLeftAssociative condenseOps ;
+  ap->accept(condenseOps) ;
+
+  // This is sort of a hack because the precedence of the mapping
+  // operator (->) is context senstive
+  AST_editLociMapArrayAccess mapEditOps ;
+  ap->accept(mapEditOps) ;
+  
+  if(parseInfo.diag_level > 0) {
+    AST_printTree diagout(cerr) ;
+    ap->accept(diagout) ;
+  }
+
   AST_errorCheck syntaxChecker ;
   ap->accept(syntaxChecker) ;
   if(syntaxChecker.hasErrors()) {
@@ -1552,8 +1821,14 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
     throw parseError("syntax error") ;
   }
 
+  //  cerr << "vnames = " << endl ;
+  //  for(auto ii=vnames.begin();ii!=vnames.end();++ii) {
+  //    cerr << ii->first << " " << ii->second << endl ;
+  //  }
   AST_editLociVariableAccess AST_editor(vnames) ;
   ap->accept(AST_editor) ;
+  
+  outputFile << "    void calculate(Loci::Entity _e_) " << endl ;
   AST_simplePrint printer(outputFile,-1,prettyOutput) ;
   ap->accept(printer) ;
   
@@ -2408,7 +2683,8 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment) 
     throw parseError("need prelude to size output type!") ;
 }
 // rule_type
-void parseFile::setup_Rule(std::ostream &outputFile, const string &comment) {
+void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
+                           const parseSharedInfo &parseInfo) {
   killsp() ;
   string rule_type ;
   if(is_name(is)) {
@@ -3031,12 +3307,10 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment) {
     process_Compute(outputFile,vnames) ;
   } else {
     if(use_compute) {
-      //#define TESTNEWPARSER
-#ifndef TESTNEWPARSER
-      process_Calculate(outputFile,vnames,validate_set) ;
-#else
-      process_Calculate2(outputFile,vnames,validate_set) ;
-#endif 
+      if(parseInfo.test_parse) 
+        process_Calculate2(outputFile,vnames,validate_set,parseInfo) ;
+      else
+        process_Calculate(outputFile,vnames,validate_set) ;
     }
     outputFile <<   "    void compute(const Loci::sequence &seq) { " << endl ;
     syncFile(outputFile) ;
@@ -3187,13 +3461,13 @@ void parseFile::processFile(string file, ostream &outputFile,
             if(level != 0) {
               throw parseError("$rule is not allowed in include file!") ;
             }
-            setup_Rule(outputFile,comment) ;
+            setup_Rule(outputFile,comment,parseInfo) ;
 	  } else if(key == "cudarule") {
             if(level != 0) {
               throw parseError("$rule is not allowed in include file!") ;
             }
 	    if(parseInfo.no_cuda)
-	      setup_Rule(outputFile,comment) ;
+	      setup_Rule(outputFile,comment,parseInfo) ;
 	    else
 	      setup_cudaRule(outputFile,comment) ;
           } else if(key == "include") {
