@@ -237,6 +237,7 @@ keywords keywordDictionary[] = {
   {"typename", AST_type::TK_TYPENAME},
   {"union", AST_type::TK_UNION},
   {"unsigned", AST_type::TK_UNSIGNED},
+  {"using",AST_type::TK_USING},
   {"virtual", AST_type::TK_VIRTUAL},
   {"void", AST_type::TK_VOID},
   {"volatile", AST_type::TK_VOLATILE},

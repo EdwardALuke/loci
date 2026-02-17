@@ -1832,6 +1832,34 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
       return stat ;
     }
 
+  case AST_type::TK_USING:
+    {
+      firstToken = getToken(is,linecount) ;
+      CPTR<AST_declaration> AST_data = new AST_declaration ;
+      AST_data->type_decl.push_back(AST_type::ASTP(firstToken)) ;
+      
+      bool isFunc = false ;
+      string s = getIdentifierName(is,linecount,fileName,isFunc) ;
+      if(!isFunc) {
+        typemap[s] = localIdentifier() ;
+      }
+      AST_type::ASTP typedec =
+        parseIdentifier(is,linecount,fileName,typemap) ;
+      AST_data->type_decl.push_back(typedec) ;
+      firstToken = getToken(is,linecount) ;
+      if(!ASTEqual(firstToken,AST_type::TK_SEMICOLON)) {
+	pushToken(firstToken) ;
+        AST_type::ASTP err =
+          AST_type::ASTP(new AST_syntaxError("Expecting ';' ",
+                                             firstToken->lineno,fileName)) ;
+        AST_data->type_decl.push_back(err) ;
+      } else {
+        AST_data->type_decl.push_back(AST_type::ASTP(firstToken)) ;
+      }
+      return AST_type::ASTP(AST_data) ;
+    }
+    break ;
+    
   case AST_type::TK_OPENPAREN:
   case AST_type::TK_PLUS:
   case AST_type::TK_MINUS:
