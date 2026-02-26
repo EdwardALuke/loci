@@ -115,6 +115,7 @@ int main(int argc, char *argv[]) {
   string outfile ;
   bool test_parse = false ;
   int diag_level = 0 ;
+  int debug_info = 0 ;
   for(int i=1;i<argc;++i) {
     if(argv[i][0] == '-') {
       if(argv[i][1] == 'I') {
@@ -131,6 +132,11 @@ int main(int argc, char *argv[]) {
           diag_level = argv[i][2] - '0' ;
         if(argv[i][2] == '\0')
           diag_level = 10 ;
+      } else if(argv[i][1] == 'g') {
+        if(argv[i][2] >= '0' && argv[i][2] <= '9') 
+          debug_info = argv[i][2] - '0' ;
+        if(argv[i][2] == '\0')
+          debug_info = 10 ;
       } else if(argv[i][1] == 'o') {
         if(i+1>argc || out_given)
           Usage(argc,argv) ;
@@ -179,6 +185,7 @@ int main(int argc, char *argv[]) {
   parseInfo.no_cuda = no_cuda ;
   parseInfo.test_parse = test_parse ;
   parseInfo.diag_level = diag_level ;
+  parseInfo.debug_info = debug_info ;
   
   parseFile parser ;
   try {

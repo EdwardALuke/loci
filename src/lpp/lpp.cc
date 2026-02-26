@@ -1956,7 +1956,8 @@ std::vector<list<variable> > expand_mapping(std::vector<variableSet> vset) {
 }
 
 
-void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment) {
+void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
+                               const parseSharedInfo &parseInfo) {
   killsp() ;
   string rule_type ;
   if(is_name(is)) {
@@ -2643,6 +2644,33 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment) 
   syncFile(outputFile) ;
   outputFile << "    const int nblks = (stop-start+NTHREADS)/NTHREADS ;" << endl ;
   syncFile(outputFile) ;
+
+  if(parseInfo.debug_info > 0) {
+    ostringstream oss ;
+    for(auto i=targets.begin();i!=targets.end();) {
+      for(size_t j=0;j<i->mapping.size();++j)
+        oss << i->mapping[j] << "->" ;
+      // Output target variables, adding inplace notation if needed
+      if(i->var.size() > 1)
+        oss << '(' ;
+      for(auto vi=i->var.begin();vi!=i->var.end();++vi) {
+        if(vi != i->var.begin())
+          oss << ',' ;
+        oss << *vi ;
+      }
+      if(i->var.size() > 1)
+        oss << ')' ;
+      ++i;
+      if(i != targets.end())
+        oss << "," ;
+    }
+    oss << "<-" ;
+    oss << bodys ;
+    if(constraint!="")
+      oss << ",constraint(" << constraint<<")" ;
+    outputFile << "nvtxRangePush(\"" << oss.str() << "\");" << endl ;
+    syncFile(outputFile) ;
+  }
   outputFile <<"    " <<class_name << "_kernel<<<nblks,NTHREADS,0,Loci::getGPUStream()>>>(";
   for(auto i=writevars.begin();i!=writevars.end();) {
     outputFile << vnames[*i] << ".ptr()";
@@ -2658,7 +2686,12 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment) 
     if(i!=readvars.end())
       outputFile << "," ;
   }
-  outputFile << ",start, stop, NTHREADS) ;" << endl ;
+  outputFile << ",start, stop, NTHREADS) ;"  ;
+  if(parseInfo.debug_info > 0) {
+    outputFile << "nvtxRangePop();" ;
+  }
+  outputFile<<endl ;
+  syncFile(outputFile) ;
   syncFile(outputFile) ;
   outputFile << "}" << endl; // end of for loop
   syncFile(outputFile) ;
@@ -3469,7 +3502,7 @@ void parseFile::processFile(string file, ostream &outputFile,
 	    if(parseInfo.no_cuda)
 	      setup_Rule(outputFile,comment,parseInfo) ;
 	    else
-	      setup_cudaRule(outputFile,comment) ;
+	      setup_cudaRule(outputFile,comment,parseInfo) ;
           } else if(key == "include") {
             killsp() ;
             if(!is_string(is)) {

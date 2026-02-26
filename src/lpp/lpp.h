@@ -45,7 +45,9 @@ struct parseSharedInfo {
   bool no_cuda ;
   bool test_parse ;
   int diag_level ;
-  parseSharedInfo() { no_cuda = true ; test_parse= false;  diag_level = 0 ; }
+  int debug_info ;
+  parseSharedInfo() { no_cuda = true ; test_parse= false;  diag_level = 0 ;
+    debug_info = 0 ;}
   
 } ;
   
@@ -155,7 +157,8 @@ class parseFile {
   void setup_Untype(std::ostream &outputFile) ;
   void setup_Rule(std::ostream &outputFile,const std::string &comment,
                   const parseSharedInfo &parseInfo) ;
-  void setup_cudaRule(std::ostream &outputFile,const std::string &comment) ;
+  void setup_cudaRule(std::ostream &outputFile,const std::string &comment,
+                      const parseSharedInfo &parseInfo) ;
 
   void skip_lpp_conditional(std::ostream &outputFile) ;
   void setup_Test(std::ostream &outputFile) ;

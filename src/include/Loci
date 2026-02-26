@@ -66,6 +66,10 @@
 #include <LociGridReaders.h>
 #include <pnn.h>
 
+#ifdef USE_CUDA_RT
+#include <nvtx3/nvtx3.hpp>
+#endif
+
 #define HAS_MODULE_SEARCH_DIR
 namespace Loci {
   extern void AddModuleSearchDir(std::string dirname);
