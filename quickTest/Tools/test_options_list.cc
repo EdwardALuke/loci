@@ -245,8 +245,8 @@ TEST_CASE("option_values parser accepts broad valid grammar corpus") {
       {"-1.25e2", Loci::REAL},
       {"+.5", Loci::REAL},
       {"2 m/s", Loci::UNIT_VALUE},
-      {"5/s", Loci::UNIT_VALUE},
-      {"1 1/(Pa*s)", Loci::UNIT_VALUE},
+      {"5 one/s", Loci::UNIT_VALUE},
+      {"1 one/(Pa*s)", Loci::UNIT_VALUE},
       {"name_1", Loci::NAME},
       {"\"quoted text\"", Loci::STRING},
       {"$true", Loci::BOOLEAN},
@@ -272,7 +272,7 @@ TEST_CASE("option_values parser rejects malformed grammar corpus") {
       "1^[x] m",
       "1^[2,,3] m",
       "1 m/",
-      "1 1.2/s",
+      "1 one/",
       "1 (m/s",
       "foo(>",
       "name=",
@@ -432,7 +432,7 @@ TEST_CASE("options_list parser accepts broad valid format corpus") {
       {"<a,b=$false,c=name>", 3},
       {"<a=1,// comment\nb=2>", 2},
       {"<a=[1,2,3],f=foo(1,$true),s=\"x y\">", 3},
-      {"<u=5/s,v=1 1/(Pa*s)>", 2},
+      {"<u=5 one/s,v=1 one/(Pa*s)>", 2},
       {"<spaced = 1 , tabs = [ 1 , 2 ] >", 2},
   };
 
@@ -738,7 +738,7 @@ TEST_CASE("parse-print-parse idempotence holds for randomized printable options 
     case 6:
       return std::to_string((idx % 9) + 1) + " m/s";
     default:
-      return std::to_string((idx % 9) + 1) + "/s";
+      return std::to_string((idx % 9) + 1) + " one/s";
     }
   };
 

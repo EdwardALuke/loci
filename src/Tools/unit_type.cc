@@ -59,6 +59,7 @@ namespace Loci {
     {"deg","radians",0.01745329251994329576923690768488612713443},
     {"degrees","radians",0.01745329251994329576923690768488612713443},
     {"rotations","radians",2*M_PI},
+    {"one","meter/meter",1},
       
     //abbreviation of SI
     {"m","meter",1},
@@ -240,7 +241,7 @@ namespace Loci {
     {"cP","Pa*s",1e-3},
     {"poise","Pa*s",1e-1},
     {"P","Pa*s",1e-1},
-    {"rhe","1/(Pa*s)",1e1},
+    {"rhe","one/(Pa*s)",1e1},
     
     {"centistokes","m*m/s",1e-6},//viscosity,kinematic
     {"stokes","m*m/s",1e-4},
@@ -278,6 +279,7 @@ namespace Loci {
   };
 
   UNIT_type::composite_units UNIT_type::cgs_composite_unit_table[]={
+    {"one","centimeter/centimeter",1},
     //abbreviation of SI
     {"m","centimeter",0.01},
     {"kilogram","gram",1000},
@@ -484,15 +486,6 @@ namespace Loci {
 	else
 	  denominator.push_back(input);
 	break;
-      case OP_INT:
-        // Allow reciprocal shorthand such as 1/s.
-        if(input->int_val != 1) {
-          unit_error(4,"integer coefficients in unit expressions are unsupported");
-        }
-        break;
-      case OP_DOUBLE:
-        unit_error(4,"real coefficients in unit expressions are unsupported");
-        break;
       case OP_TIMES:
 	for(li= input->expr_list.begin();li!=input->expr_list.end();++li)
 	  build_lists(numerator,denominator,(*li),isnum);
@@ -891,27 +884,12 @@ namespace Loci {
       in.get() ;
 
     // parse unit information
-    if(parse::is_name(in) || parse::is_token(in,"(") || parse::is_token(in,"1") ||
-       parse::is_token(in,"/")) {
+    if(parse::is_name(in) || parse::is_token(in,"(")) {
       string parsed ;
       while(true) {
         parse::kill_white_space(in) ;
-        if(parse::is_token(in,"/") && parsed.empty()) {
-          // Allow shorthand such as "5/s" by normalizing to "5 1/s".
-          parse::get_token(in,"/") ;
-          parsed += "1/" ;
-          continue ;
-        } else if(parse::is_name(in)) {
+        if(parse::is_name(in)) {
           parsed += parse::get_name(in) ;
-        } else if(parse::is_token(in,"1")) {
-          parse::get_token(in,"1") ;
-          parsed += '1' ;
-          int ch = in.peek() ;
-          if(ch == '.' || ch == 'e' || ch == 'E' || isdigit(ch)) {
-            throw Loci::exprError("Syntax",
-                                  "Unit Type: only coefficient 1 is supported",
-                                  ERR_SYNTAX) ;
-          }
         } else if(parse::is_token(in,"(")) {
           parse::get_token(in,"(") ;
           parsed += '(' ;

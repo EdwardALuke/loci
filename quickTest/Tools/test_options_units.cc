@@ -34,11 +34,11 @@ TEST_CASE("options_list parses pressure units and converts to Pa") {
   CHECK(p_pa == doctest::Approx(101325.0));
 }
 
-TEST_CASE("options_list parses reciprocal rates with explicit 1/s") {
-  Loci::options_list opts = parse_options("<sigma=5 1/s>");
+TEST_CASE("options_list parses reciprocal rates with explicit one/s") {
+  Loci::options_list opts = parse_options("<sigma=5 one/s>");
 
   double sigma = 0.0;
-  opts.getOptionUnits("sigma", "1/s", sigma);
+  opts.getOptionUnits("sigma", "one/s", sigma);
   CHECK(sigma == doctest::Approx(5.0));
 
   double sigma_hz = 0.0;
@@ -46,24 +46,12 @@ TEST_CASE("options_list parses reciprocal rates with explicit 1/s") {
   CHECK(sigma_hz == doctest::Approx(5.0));
 }
 
-TEST_CASE("options_list parses reciprocal rates using 5/s shorthand") {
-  Loci::options_list opts = parse_options("<sigma=5/s>");
-
-  double sigma = 0.0;
-  opts.getOptionUnits("sigma", "1/s", sigma);
-  CHECK(sigma == doctest::Approx(5.0));
+TEST_CASE("options_list rejects reciprocal rates using 5/s shorthand") {
+  CHECK_THROWS(parse_options("<sigma=5/s>"));
 }
 
-TEST_CASE("options_list parses reciprocal rates using spaced 5 / s shorthand") {
-  Loci::options_list opts = parse_options("<sigma=5 / s>");
-
-  double sigma = 0.0;
-  opts.getOptionUnits("sigma", "1/s", sigma);
-  CHECK(sigma == doctest::Approx(5.0));
-
-  double sigma_hz = 0.0;
-  opts.getOptionUnits("sigma", "Hz", sigma_hz);
-  CHECK(sigma_hz == doctest::Approx(5.0));
+TEST_CASE("options_list rejects reciprocal rates using spaced 5 / s shorthand") {
+  CHECK_THROWS(parse_options("<sigma=5 / s>"));
 }
 
 TEST_CASE("options_list parses kWh, kW*h and perm reference aliases") {
@@ -83,10 +71,10 @@ TEST_CASE("options_list parses kWh, kW*h and perm reference aliases") {
 }
 
 TEST_CASE("options_list parses parenthesized reciprocal unit expressions") {
-  Loci::options_list opts = parse_options("<muinv=2 1/(Pa*s)>");
+  Loci::options_list opts = parse_options("<muinv=2 one/(Pa*s)>");
 
   double muinv = 0.0;
-  opts.getOptionUnits("muinv", "1/(Pa*s)", muinv);
+  opts.getOptionUnits("muinv", "one/(Pa*s)", muinv);
   CHECK(muinv == doctest::Approx(2.0));
 
   double muinv_rhe = 0.0;
@@ -130,7 +118,7 @@ TEST_CASE("options_list parses absolute Fahrenheit values") {
   CHECK(t_kelvin == doctest::Approx(273.15));
 }
 
-TEST_CASE("options_list rejects unit coefficient other than one") {
+TEST_CASE("options_list rejects numeric coefficients inside unit expressions") {
   Loci::options_list opts;
   std::istringstream in("<mu=1 1.5/(Pa*s)>");
   CHECK_THROWS(in >> opts);
@@ -150,7 +138,7 @@ TEST_CASE("options_list rejects unknown unit symbol") {
 
 TEST_CASE("options_list rejects unterminated parenthesized unit expression") {
   Loci::options_list opts;
-  std::istringstream in("<x=1 1/(Pa*s>");
+  std::istringstream in("<x=1 one/(Pa*s>");
   CHECK_THROWS(in >> opts);
 }
 
@@ -162,16 +150,16 @@ TEST_CASE("options_list rejects incompatible target units in getOptionUnits") {
 
 TEST_CASE("UNIT_type parser supports derivative blocks and parenthesized units") {
   Loci::UNIT_type unit;
-  std::istringstream in("1^[2 3] 1/(Pa*s)");
+  std::istringstream in("1^[2 3] one/(Pa*s)");
   in >> unit;
 
-  CHECK(unit.is_compatible("1/(Pa*s)"));
+  CHECK(unit.is_compatible("one/(Pa*s)"));
 
   double value = 0.0;
   double grad = 0.0;
   double grad2 = 0.0;
   std::vector<double> grad_list;
-  unit.get_values_in("1/(Pa*s)", value, grad, grad2, grad_list);
+  unit.get_values_in("one/(Pa*s)", value, grad, grad2, grad_list);
 
   CHECK(value == doctest::Approx(1.0));
   CHECK(grad == doctest::Approx(2.0));
@@ -180,16 +168,17 @@ TEST_CASE("UNIT_type parser supports derivative blocks and parenthesized units")
   CHECK(grad_list[0] == doctest::Approx(3.0));
 }
 
-TEST_CASE("UNIT_type parser accepts 5/s shorthand for reciprocal units") {
+TEST_CASE("UNIT_type parser accepts reciprocal units written as one/s") {
   Loci::UNIT_type unit;
-  std::istringstream in("5/s");
+  std::istringstream in("5 one/s");
   in >> unit;
 
-  CHECK(unit.is_compatible("1/s"));
-  CHECK(unit.get_value_in("1/s") == doctest::Approx(5.0));
+  CHECK(unit.is_compatible("one/s"));
+  CHECK(unit.get_value_in("one/s") == doctest::Approx(5.0));
+  CHECK(unit.get_value_in("Hz") == doctest::Approx(5.0));
 }
 
-TEST_CASE("UNIT_type parser rejects non-unity coefficients in unit expression") {
+TEST_CASE("UNIT_type parser rejects numeric coefficients in unit expression") {
   Loci::UNIT_type unit;
   std::istringstream in("1 1.5/s");
   CHECK_THROWS(in >> unit);
@@ -203,7 +192,7 @@ TEST_CASE("UNIT_type parser rejects unknown unit symbols") {
 
 TEST_CASE("UNIT_type parser rejects unterminated parenthesized units") {
   Loci::UNIT_type unit;
-  std::istringstream in("1 1/(Pa*s");
+  std::istringstream in("1 one/(Pa*s");
   CHECK_THROWS(in >> unit);
 }
 
