@@ -28,14 +28,23 @@
 
 include $(LOCI_BASE)/Loci.conf
 
-INCLUDES = -I./include
+SOURCE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+vpath %.cc $(SOURCE_DIR)
 
-TESTS = test_vtypes test_VFAD
+INCLUDES = -I./include -I$(SOURCE_DIR)/include
 
-.PHONY: test_vtypes test_VFAD
+TESTS = test_vtypes test_VFAD test_options_units test_options_list
+
+.PHONY: test_vtypes test_VFAD test_options_units test_options_list
 
 
 tests: $(TESTS)
+
+test_options_units.o: $(SOURCE_DIR)/test_options_units.cc
+	$(CXX) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o $@ -c $<
+
+test_options_list.o: $(SOURCE_DIR)/test_options_list.cc
+	$(CXX) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o $@ -c $<
 
 test_vtypes: test_vtypes.o  
 	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
@@ -43,7 +52,17 @@ test_vtypes: test_vtypes.o
 	rm $@.exe
 
 test_VFAD: test_VFAD.o 
-	$(LD) -o $@.exe $^ $(LOCA# L_LIBS) $(LIBS) $(LDFLAGS)
+	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
+	./$@.exe
+	rm $@.exe
+
+test_options_units: test_options_units.o
+	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
+	./$@.exe
+	rm $@.exe
+
+test_options_list: test_options_list.o
+	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
 	./$@.exe
 	rm $@.exe
 
@@ -70,4 +89,3 @@ DEPEND_FILES=$(subst .o,.d,$(OBJS))
 ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
 -include $(DEPEND_FILES)
 endif
-

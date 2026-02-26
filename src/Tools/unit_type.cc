@@ -161,6 +161,8 @@ namespace Loci {
     {"erg","joule",1.0e-7},
     {"kilocalorie","joule",4.184e3},
     {"kcal","joule",4.184e3},
+    {"kW","watt",1e3},
+    {"kWh","joule",3.6e6},
     {"kW*h","joule",3.6e6},
     {"quad","joule",1.055056e18},
     {"kiloton","joule",4.184e12},
@@ -212,7 +214,7 @@ namespace Loci {
     {"tex","kg/m",1e-6},
 
     {"darcy","m*m",9.869233e-13},//permeability
-    {"perm","kg/Pa/s/m/m))",5.72135e-11},//(0C)
+    {"perm","kg/Pa/s/m/m",5.72135e-11},//(0C)
 
     {"horsepower","W",7.354988e2},//power(metric)
     {"hp","W",7.354988e2},
@@ -650,13 +652,25 @@ namespace Loci {
 	      //cout<<"IS reference unit"<<endl;       
 	      int where=where_reference_unit((*mi).first);
 	      conv_factor=conv_factor*reference_unit_table[where].convert_factor;
-	      
-	      if(is_composite_unit(reference_unit_table[where].refer_unit)){
-		string comp=reference_unit_table[where].refer_unit;
-		int where=where_composite_unit(comp);
-		conv_factor=conv_factor*composite_unit_table[where].convert_factor;
-		exp2=expression::create(composite_unit_table[where].derived_unit);
-		seperate_unit(num_map,den_map,exp2);
+	      exp2 = expression::create(reference_unit_table[where].refer_unit) ;
+	      map<string,int> ref_num_map, ref_den_map ;
+	      seperate_unit(ref_num_map,ref_den_map,exp2) ;
+	      double ref_conversion = 1.0 ;
+	      get_conversion(ref_num_map,ref_den_map,ref_conversion) ;
+	      conv_factor *= ref_conversion ;
+	      for(map<string,int>::const_iterator ri=ref_num_map.begin();
+		  ri!=ref_num_map.end();++ri) {
+		if(num_map.find((*ri).first)!=num_map.end())
+		  num_map[(*ri).first] += (*ri).second ;
+		else
+		  num_map[(*ri).first] = (*ri).second ;
+	      }
+	      for(map<string,int>::const_iterator ri=ref_den_map.begin();
+		  ri!=ref_den_map.end();++ri) {
+		if(den_map.find((*ri).first)!=den_map.end())
+		  den_map[(*ri).first] += (*ri).second ;
+		else
+		  den_map[(*ri).first] = (*ri).second ;
 	      }
 	      
 	      //cout<<"conversion factor:"<<conv_factor<<endl;
@@ -696,13 +710,25 @@ namespace Loci {
 	      //cout<<"IS reference unit"<<endl;       
 	      int where=where_reference_unit((*mi).first);
 	      conv_factor=conv_factor*reference_unit_table[where].convert_factor;
-	      
-	      if(is_composite_unit(reference_unit_table[where].refer_unit)){
-		string comp=reference_unit_table[where].refer_unit;
-		int where=where_composite_unit(comp);
-		conv_factor=conv_factor*cgs_composite_unit_table[where].convert_factor;
-		exp2=expression::create(cgs_composite_unit_table[where].derived_unit);
-		seperate_unit(num_map,den_map,exp2);
+	      exp2 = expression::create(reference_unit_table[where].refer_unit) ;
+	      map<string,int> ref_num_map, ref_den_map ;
+	      seperate_unit(ref_num_map,ref_den_map,exp2) ;
+	      double ref_conversion = 1.0 ;
+	      get_conversion(ref_num_map,ref_den_map,ref_conversion) ;
+	      conv_factor *= ref_conversion ;
+	      for(map<string,int>::const_iterator ri=ref_num_map.begin();
+		  ri!=ref_num_map.end();++ri) {
+		if(num_map.find((*ri).first)!=num_map.end())
+		  num_map[(*ri).first] += (*ri).second ;
+		else
+		  num_map[(*ri).first] = (*ri).second ;
+	      }
+	      for(map<string,int>::const_iterator ri=ref_den_map.begin();
+		  ri!=ref_den_map.end();++ri) {
+		if(den_map.find((*ri).first)!=den_map.end())
+		  den_map[(*ri).first] += (*ri).second ;
+		else
+		  den_map[(*ri).first] = (*ri).second ;
 	      }
 	      
 	      //cout<<"conversion factor:"<<conv_factor<<endl;
@@ -865,11 +891,17 @@ namespace Loci {
       in.get() ;
 
     // parse unit information
-    if(parse::is_name(in) || parse::is_token(in,"(") || parse::is_token(in,"1")) {
+    if(parse::is_name(in) || parse::is_token(in,"(") || parse::is_token(in,"1") ||
+       parse::is_token(in,"/")) {
       string parsed ;
       while(true) {
         parse::kill_white_space(in) ;
-        if(parse::is_name(in)) {
+        if(parse::is_token(in,"/") && parsed.empty()) {
+          // Allow shorthand such as "5/s" by normalizing to "5 1/s".
+          parse::get_token(in,"/") ;
+          parsed += "1/" ;
+          continue ;
+        } else if(parse::is_name(in)) {
           parsed += parse::get_name(in) ;
         } else if(parse::is_token(in,"1")) {
           parse::get_token(in,"1") ;
