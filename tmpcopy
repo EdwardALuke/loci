@@ -22,6 +22,83 @@
 
 set -e
 set -u
+#profiling
+#set -x
+#PS4='+ $(date "+%s.%N ($LINENO) ")'
+# check if the file is a type that we will make a symlink copy of
+is_source_file() {
+    local filename=$(basename "$1")
+    # Check if the filename is exactly "Makefile"
+    # Check if the filename ends with one of the specified suffixes
+    case "$filename" in
+        *.cc|*.cpp|*.loci|*.c|*.sh)
+
+            return 0
+            ;;
+        *.h|*.hh|*.lh|*.hpp)
+            return 0
+            ;;
+        *.txt|*.dat|*.vog|*.vars)
+            return 0
+            ;;
+        *)
+            [ "$filename" == "Makefile" ] && return 0
+            [ "$filename" == "Loci" ] && return 0
+            [ "$filename" == "overset" ] && return 0
+            return 1
+            ;;
+    esac
+}
+
+# check if the file is a local configuration file that needs to be copied
+is_conf_file() {
+    filename=$(basename "$1")
+    case "$filename" in
+        *.conf)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Make a copy of an entire directory structure to target using symbolic links
+# for files
+copy_with_symlinks() {
+    local src=$1
+    local dst=$2
+
+    if [ ! -d "$src" ]; then
+        echo "Error: $src is not a directory."
+        return 1
+    fi
+
+    mkdir -p "$dst"
+    
+    while IFS= read -r -d '' file; do
+        rel_path="${file#$src/}"
+        target_path="$dst/$rel_path"
+
+        if [ -d "$file" ]; then
+            mkdir -p "$target_path"
+            echo mkdir -p "$target_path"
+        else
+            target_dir=$(dirname "$target_path")
+            mkdir -p "$target_dir"
+            if [ ! -f "$target_path" ]; then
+               if  is_source_file "$file" ; then
+                   ln -s "$file" "$target_path"
+#                   echo ln -s "$file" "$target_path"
+               fi
+               if is_conf_file "$file" ; then
+                   cp "$file" "$target_path"
+#                   echo cp "$file" "$target_path"
+               fi
+            fi
+        fi
+    done < <(find "$src" -print0)
+}
 
 source=`pwd`
 logname=${LOGNAME-user}
@@ -32,12 +109,6 @@ LIB_POSTFIX="so"
 ARCH=${LOCI_ARCH-`uname -s`}
 if [ $ARCH == "Darwin" ]; then
     LIB_POSTFIX="dylib"
-fi
-if [ $ARCH == "IRIX64" ]; then
-# If IRIX OS, default to sgi compiler, otherwise default to gcc
-  COMP=${LOCI_COMP-CC_sgi}
-else
-  COMP=${LOCI_COMP-gcc}
 fi
 
 while [ $# -ne 0 ]; do
@@ -79,17 +150,7 @@ if [ ${target:0:1} != "/" ]; then
    echo setting target to \'$target\'
 fi
 
-TARGET_DIRS="System Tools lpp FVMtools FVMtools/libadf FVMMod FVMMod/limiters FVMMod/cellgradient sprng sprng/include sprng/include/sprng FVMAdapt FVMAdapt/library FVMOverset include include/Tools include/Config include/MPI_stubb include/FVMAdapt include/FVMMod include/FVMOverset"
-#TOOLS_DIRS="lpp FVMtools FVMtools/libadf FVMMod sprng sprng/include sprng/include/sprng"
-TOOLS_DIRS=""
-
-DO_METIS_INSTALL=${INSTALL_METIS:-1}
-if [ ! ${DO_METIS_INSTALL} == 0 ]; then
-    TOOLS_DIRS=$TOOLS_DIRS" ParMetis-4.0 ParMetis-4.0/GKLib ParMetis-4.0/METISLib ParMetis-4.0/ParMETISLib"
-fi
-
-echo TOOLS_DIR=${TOOLS_DIRS}
-
+TARGET_DIRS="Tools System lpp FVMtools FVMMod FVMAdapt FVMOverset sprng include"
 echo -n "Making Directory Structure: "
 mkdir -p $target
 
@@ -107,11 +168,20 @@ if [ ! -h $fulltarget/Tutorial ]; then
     ln -s $source/Tutorial $fulltarget/Tutorial
 fi
 
-for i in $TARGET_DIRS ; do
-  echo -n $i " "
-  mkdir -p $fulltarget/$i
+for dir in $TARGET_DIRS; do
+    echo "Making symlink copy of directory $source/src/$dir"
+    copy_with_symlinks $source/src/$dir $fulltarget/$dir
 done
-echo
+
+TOOLS_DIRS=""
+
+DO_METIS_INSTALL=${INSTALL_METIS:-1}
+if [ ! ${DO_METIS_INSTALL} == 0 ]; then
+    TOOLS_DIRS=$TOOLS_DIRS" ParMetis-4.0 ParMetis-4.0/GKLib ParMetis-4.0/METISLib ParMetis-4.0/ParMETISLib"
+fi
+
+echo TOOLS_DIR=${TOOLS_DIRS}
+
 
 # remove Makefile link if it already exists in case external metis option
 # changed
@@ -162,12 +232,7 @@ if [ ! -e version.conf ]; then
 fi
 
 cd lib
-#if [ ! -h libTools.a ]; then
-#  ln -s ../Tools/libTools.a libTools.a
-#fi
-#if [ ! -h libLoci.a ]; then
-#  ln -s ../System/libLoci.a libLoci.a
-#fi
+
 if [ ! -h libTools.${LIB_POSTFIX} ]; then
   ln -s ../Tools/libTools.${LIB_POSTFIX} libTools.${LIB_POSTFIX}
 fi
@@ -291,19 +356,6 @@ if [ ! -h cgns2surf ] ; then
 fi
 
 
-for dir in $TARGET_DIRS; do
-  echo "Linking" $dir "directory files..."
-  cd $source/src/$dir
-  for i in *.cc *.h *.hh *.hpp *.c *.loci *.lh Makefile Loci overset ; do
-    if [ -e  $i ] ; then
-      if [ ! -h $fulltarget/$dir/$i ] ; then
-        echo ln -s $source/src/$dir/$i $fulltarget/$dir/$i
-        ln -s $source/src/$dir/$i $fulltarget/$dir/$i
-      fi
-    fi
-  done
-done
-
 for dir in $TOOLS_DIRS; do
   echo "Linking" $dir "directory files..."
   cd $source/$dir
@@ -319,144 +371,6 @@ done
 
 echo "Linking quickTest directory files"
 
-mkdir -p $fulltarget/quickTest
-echo mkdir -p $fulltarget/quickTest
-if [ ! -h $fulltarget/quickTest/Makefile ] ; then
-    echo ln -s $source/quickTest/Makefile $fulltarget/quickTest/Makefile
-    ln -s $source/quickTest/Makefile $fulltarget/quickTest/Makefile
-fi
-cp $source/quickTest/test.conf $fulltarget/quickTest/test.conf
-echo cp $source/quickTest/test.conf $fulltarget/quickTest/test.conf
-mkdir -p $fulltarget/quickTest/Containers
-echo mkdir -p $fulltarget/quickTest/Containers
-mkdir -p $fulltarget/quickTest/Containers/include
-echo mkdir -p $fulltarget/quickTest/Containers/include
-mkdir -p $fulltarget/quickTest/FVM
-echo mkdir -p $fulltarget/quickTest/FVMModUnitTests
-mkdir -p $fulltarget/quickTest/FVMModUnitTests
-echo mkdir -p $fulltarget/quickTest/FVMAdaptTest
-mkdir -p $fulltarget/quickTest/FVMAdaptTest
-echo mkdir -p $fulltarget/quickTest/FVMAdaptTest/dats
-mkdir -p $fulltarget/quickTest/FVMAdaptTest/dats
-echo mkdir -p $fulltarget/quickTest/FVM
-pushd $source/quickTest/Containers
-for i in *.cc *.loci Makefile ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/Containers/$i ] ; then
-	    echo ln -s $source/quickTest/Containers/$i $fulltarget/quickTest/Containers/$i
-	    ln -s $source/quickTest/Containers/$i $fulltarget/quickTest/Containers/$i
-	fi
-    fi
-done
-#copy contianer include directory
-pushd include
-for i in *.h *.lh  ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/Containers/include/$i ] ; then
-	    echo ln -s $source/quickTest/Containers/include/$i $fulltarget/quickTest/Containers/include/$i
-	    ln -s $source/quickTest/Containers/include/$i $fulltarget/quickTest/Containers/include/$i
-	fi
-    fi
-done
-#exit include directory
-popd
-#exit Containers directory
-popd
+copy_with_symlinks "$source/quickTest" "$fulltarget/quickTest"
 
-pushd $source/quickTest/FVMAdaptTest
-for i in *.vog *.cc *.loci Makefile ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVMAdaptTest/$i ] ; then
-	    echo ln -s $source/quickTest/FVMAdaptTest/$i $fulltarget/quickTest/FVMAdaptTest/$i
-	    ln -s $source/quickTest/FVMAdaptTest/$i $fulltarget/quickTest/FVMAdaptTest/$i
-	fi
-    fi
-done
-popd
-pushd $source/quickTest/FVMAdaptTest/dats
-for i in *.dat ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVMAdaptTest/dats/$i ] ; then
-	    echo ln -s $source/quickTest/FVMAdaptTest/dats/$i $fulltarget/quickTest/FVMAdaptTest/dats.$i
-	    ln -s $source/quickTest/FVMAdaptTest/dats/$i $fulltarget/quickTest/FVMAdaptTest/dats/$i
-	fi
-    fi
-done
-popd
-
-pushd $source/quickTest/FVM
-for i in *.cc *.loci Makefile ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVM/$i ] ; then
-	    echo ln -s $source/quickTest/FVM/$i $fulltarget/quickTest/FVM/$i
-	    ln -s $source/quickTest/FVM/$i $fulltarget/quickTest/FVM/$i
-	fi
-    fi
-done
-
-mkdir -p $fulltarget/quickTest/FVM/include
-pushd include
-for i in *.h *.lh ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVM/include/$i ] ; then
-	    echo ln -s $source/quickTest/FVM/include/$i $fulltarget/quickTest/FVM/include/$i
-	    ln -s $source/quickTest/FVM/include/$i $fulltarget/quickTest/FVM/include/$i
-	fi
-    fi
-done
-popd
-mkdir -p $fulltarget/quickTest/FVM/tests
-pushd tests
-for i in *.dat *.txt *.vars *.vog *.sh Makefile   ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVM/tests/$i ] ; then
-	    echo ln -s $source/quickTest/FVM/tests/$i $fulltarget/quickTest/FVM/tests/$i
-	    ln -s $source/quickTest/FVM/tests/$i $fulltarget/quickTest/FVM/tests/$i
-	fi
-    fi
-done
-popd
-popd
-
-
-pushd $source/quickTest/FVMModUnitTests
-for i in *.cc *.loci Makefile ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/$i ] ; then
-	    echo ln -s $source/quickTest/FVMModUnitTests/$i $fulltarget/quickTest/FVMModUnitTests/$i
-	    ln -s $source/quickTest/FVMModUnitTests/$i $fulltarget/quickTest/FVMModUnitTests/$i
-	fi
-    fi
-done
-
-mkdir -p $fulltarget/quickTest/FVMModUnitTests/include
-pushd include
-for i in *.h *.lh ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/include/$i ] ; then
-	    echo ln -s $source/quickTest/FVMModUnitTests/include/$i $fulltarget/quickTest/FVMModUnitTests/include/$i
-	    ln -s $source/quickTest/FVMModUnitTests/include/$i $fulltarget/quickTest/FVMModUnitTests/include/$i
-	fi
-    fi
-done
-popd
-mkdir -p $fulltarget/quickTest/FVMModUnitTests/tests
-pushd tests
-for i in *.dat *.txt *.vars *.vog *.sh Makefile   ; do
-    if [ -f $i ] ; then
-	if [ ! -h $fulltarget/quickTest/FVMModUnitTests/tests/$i ] ; then
-	    echo ln -s $source/quickTest/FVMModUnitTests/tests/$i $fulltarget/quickTest/FVMModUnitTests/tests/$i
-	    ln -s $source/quickTest/FVMModUnitTests/tests/$i $fulltarget/quickTest/FVMModUnitTests/tests/$i
-	fi
-    fi
-done
-popd
-popd
-
-#if [ ${DO_METIS_INSTALL} == 0 ]; then
-#make dummy metis directory
-#    mkdir -p $fulltarget/ParMetis-4.0
-#    cp $source/ParMetis-4.0/Makefile.dummy $fulltarget/ParMetis-4.0/Makefile
-#fi
-#echo "** Be sure to set LOCI_BASE=\"$target/Loci\" **"
 
