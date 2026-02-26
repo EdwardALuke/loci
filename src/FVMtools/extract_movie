@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #############################################################################
 #
-# Copyright 2008-2025, Mississippi State University
+# Copyright 2008-2026, Mississippi State University
 #
 # This file is part of the Loci Framework.
 #
@@ -20,209 +20,915 @@
 #
 #############################################################################
 
-set -e
-set -u
+set -euo pipefail
+IFS=$'\n\t'
 
-#####
-# Set up parallel extract
-#
+# Default behavior: run extract directly unless mpirun is explicitly requested.
 NUM_PAR_TASKS=1
-
+USE_MPIRUN=0
 START_TIME=0
 END_TIME=1000
 INC_TIME=50
 POSTFIX=""
-DIROUT=movie
+DIROUT="movie"
+DIROUT_SET=0
 
-CASENAME=case
-VARNAMES="m"
-PARTLIST=""
-EXTRACT_OPTIONS=""
+CASENAME=""
+OUTPUT_FORMAT="en"
+OUTPUT_SET=0
+TIMESTEPS_MODE="auto"
+GEOM_CHANGING=0
 
-#MPIRUN_LOCAL="mpirun -np 1 -mca btl self"
-MPIRUN_LOCAL="mpirun -np 1 "
-############################################################################
-# Parse Command Line Arguments
-############################################################################
-CHEM_FLAGS=
-while [ $# -ne 0 ]; do
-   case "$1" in
-    -start)
-       shift
-       START_TIME=$1
-       ;;
-    -end)
-       shift
-       END_TIME=$1
-       ;;
-    -stop)
-       shift
-       END_TIME=$1
-       ;;
-    -inc)
-       shift
-       INC_TIME=$1
-       ;;
-    -postfix)
-       shift
-       POSTFIX=$1
-       ;;
-    -np)
-       shift
-       NUM_PAR_TASKS=$1
-       ;;
-    -dir)
-       shift
-       DIROUT=$1
-       ;;
-    -part)
-       shift
-       PARTLIST="$PARTLIST -part $1"
-       ;;
-    -novolume)
-       EXTRACT_OPTIONS="$EXTRACT_OPTIONS -novolume"
-       ;;
-    -*)
-      echo Unknown argument \'$1\'
-      exit -1 
+START_SET=0
+END_SET=0
+INC_SET=0
+
+declare -a PARTLIST=()
+declare -a EXTRACT_OPTIONS=()
+declare -a TIMESTEP_TOKENS=()
+declare -a VARIABLES=()
+declare -a TIMESTEPS=()
+declare -a ENSIGHT_ACTIVE_VARIABLES=()
+declare -a MPIRUN_PREFIX=("mpirun" "-np" "1")
+# Track background jobs so failures are attributed to the timestep that failed.
+declare -a RUN_PIDS=()
+declare -a RUN_TIMESTEPS=()
+
+# usage
+# Print command synopsis and option reference.
+usage() {
+  cat <<'USAGE'
+Usage:
+  extract_movie [options] <casename> <variables...>
+
+Legacy range mode (default if --timesteps is not used):
+  extract_movie -start <start> -stop <stop> -inc <step> [-en|-vtk] <casename> <variables...>
+
+Explicit mode (modern):
+  extract_movie --casename <name> --output <en|vtk> \
+                --timesteps <values...> [--timesteps_mode auto|range|list] \
+                --variables <vars...>
+
+Autodiscovery mode:
+  If casename, timesteps, and variables are omitted, the script discovers them
+  from the current directory:
+    - exactly one *.vars file (or a unique case inferred from output/ files), and
+    - files matching output/<var>_sca.<ts>_<casename> or output/<var>_vec.<ts>_<casename>
+  Default output format in autodiscovery mode is vtk (unless -en is provided).
+
+Options:
+  -en | --en                  Use Ensight output (default explicit/legacy mode)
+  -vtk | --vtk                Use VTK output and write <casename>.pvd
+  --output <en|vtk>           Output format
+
+  -start <n>                  Start iteration (legacy range mode)
+  -stop <n> | -end <n>        End iteration (legacy range mode)
+  -inc <n>                    Iteration increment (legacy range mode)
+
+  --timesteps <values...>     Timesteps as start step stop or explicit list
+  --timesteps_mode <mode>     auto | range | list (default: auto)
+
+  --casename <name>           Case name
+  --variables <vars...>       Variables to extract
+  --geom_changing <yes|no>    Ensight geometry varies by timestep (default: no)
+
+  -np <n>                     Number of concurrent extract jobs (default: 1)
+  --mpirun                    Run each extract command through mpirun
+  --mpirun_cmd "<cmd>"        Command prefix for mpirun mode (default: "mpirun -np 1")
+  -dir <path>                 Destination directory (default: movie)
+  -part <name>                Forwarded to extract (repeatable)
+  -novolume                   Forwarded to extract
+  -postfix <txt>              Appended to iteration argument
+
+  --help                      Show this message
+USAGE
+}
+
+# is_int <value>
+# Return success if <value> is a signed or unsigned integer.
+is_int() {
+  [[ "$1" =~ ^[+-]?[0-9]+$ ]]
+}
+
+# normalize_geom_changing <value>
+# Normalize user geometry-changing input to canonical 0/1 values.
+normalize_geom_changing() {
+  local value="${1:-0}"
+  case "${value,,}" in
+    1|yes|y|true) echo 1 ;;
+    0|no|n|false|"") echo 0 ;;
+    *)
+      echo "Error: --geom_changing must be one of yes/no/true/false/1/0." >&2
+      exit 1
+      ;;
+  esac
+}
+
+# find_extract
+# Resolve the extract executable from LOCI_EXTRACT or PATH and validate it.
+find_extract() {
+  local candidate=""
+  if [[ -n "${LOCI_EXTRACT:-}" ]]; then
+    candidate="$LOCI_EXTRACT"
+  else
+    candidate="$(command -v extract 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$candidate" || ! -x "$candidate" ]]; then
+    echo "Error: Could not find an executable 'extract' binary." >&2
+    echo "Set LOCI_EXTRACT or add your Loci install's bin directory to PATH." >&2
+    exit 1
+  fi
+
+  echo "$candidate"
+}
+
+# append_unique <value> <array_name>
+# Append <value> to array <array_name> only if it is not already present.
+append_unique() {
+  local value="$1"
+  shift
+  local -n arr_ref="$1"
+  local x
+  for x in "${arr_ref[@]}"; do
+    [[ "$x" == "$value" ]] && return 0
+  done
+  arr_ref+=("$value")
+}
+
+# join_by_space <tokens...>
+# Print tokens as a single space-separated string for human-readable logging.
+join_by_space() {
+  local IFS=' '
+  echo "$*"
+}
+
+# generate_timesteps <start> <step> <stop>
+# Build an inclusive timestep sequence with sign/ordering validation.
+generate_timesteps() {
+  local start="$1"
+  local step="$2"
+  local stop="$3"
+
+  if ! is_int "$start" || ! is_int "$step" || ! is_int "$stop"; then
+    echo "Error: timestep range values must be integers." >&2
+    exit 1
+  fi
+  if (( step == 0 )); then
+    echo "Error: timestep step cannot be 0." >&2
+    exit 1
+  fi
+  if (( step > 0 && start > stop )); then
+    echo "Error: for positive step, start must be <= stop." >&2
+    exit 1
+  fi
+  if (( step < 0 && start < stop )); then
+    echo "Error: for negative step, start must be >= stop." >&2
+    exit 1
+  fi
+
+  TIMESTEPS=()
+  local cur="$start"
+  if (( step > 0 )); then
+    while (( cur <= stop )); do
+      TIMESTEPS+=("$cur")
+      ((cur += step))
+    done
+  else
+    while (( cur >= stop )); do
+      TIMESTEPS+=("$cur")
+      ((cur += step))
+    done
+  fi
+}
+
+# parse_timesteps
+# Convert CLI timestep tokens into a concrete timestep list using selected mode.
+parse_timesteps() {
+  if (( ${#TIMESTEP_TOKENS[@]} == 0 )); then
+    generate_timesteps "$START_TIME" "$INC_TIME" "$END_TIME"
+    return
+  fi
+
+  case "$TIMESTEPS_MODE" in
+    range)
+      if (( ${#TIMESTEP_TOKENS[@]} != 3 )); then
+        echo "Error: range mode requires exactly 3 values: start step stop." >&2
+        exit 1
+      fi
+      generate_timesteps "${TIMESTEP_TOKENS[0]}" "${TIMESTEP_TOKENS[1]}" "${TIMESTEP_TOKENS[2]}"
+      ;;
+    list)
+      TIMESTEPS=()
+      local t
+      for t in "${TIMESTEP_TOKENS[@]}"; do
+        if ! is_int "$t"; then
+          echo "Error: timestep '$t' is not an integer." >&2
+          exit 1
+        fi
+        append_unique "$t" TIMESTEPS
+      done
+      ;;
+    auto)
+      if (( ${#TIMESTEP_TOKENS[@]} == 3 )); then
+        local s="${TIMESTEP_TOKENS[0]}"
+        local st="${TIMESTEP_TOKENS[1]}"
+        local e="${TIMESTEP_TOKENS[2]}"
+        if is_int "$s" && is_int "$st" && is_int "$e" && (( st != 0 )) && (( (e - s) * st >= 0 )); then
+          local dist=$(( e - s ))
+          if (( dist < 0 )); then
+            dist=$(( -dist ))
+          fi
+          local ast=$(( st < 0 ? -st : st ))
+          if (( dist % ast == 0 )); then
+            generate_timesteps "$s" "$st" "$e"
+            return
+          fi
+        fi
+      fi
+      TIMESTEPS=()
+      local t
+      for t in "${TIMESTEP_TOKENS[@]}"; do
+        if ! is_int "$t"; then
+          echo "Error: timestep '$t' is not an integer." >&2
+          exit 1
+        fi
+        append_unique "$t" TIMESTEPS
+      done
       ;;
     *)
-        break
-        ;;
-    esac
-    shift
-done
+      echo "Error: --timesteps_mode must be one of auto|range|list." >&2
+      exit 1
+      ;;
+  esac
+}
 
-if [ $# -lt 2 ] ; then
-    echo USAGE:
-    echo "" 
-    echo "extract_movie -start <start iter> -stop <stop iter> -inc <iter increment> <casename> <variablelist>"
-    echo ""
-    echo ""
-    echo OTHER options:
-    echo ""
-    echo "     -np <number of processors>"
-    echo "        Extract several iterations in parallel"
-    echo ""
-    echo "     -postfix <inter postfix>"
-    echo "        Add postfix provided to iteration variables"
-    echo ""
-    echo "     -dir <extract directory>"
-    echo "        Specify directory to place extract files, default = movie"
-    echo ""
-    exit -1 ;
-fi
+# autodiscover_inputs
+# Infer casename/timesteps/variables from local output files when user omits them.
+# Variables are restricted to those available for every discovered timestep.
+autodiscover_inputs() {
+  local inferred_case=""
+  local matched_any_files=0
+  local -a vars_files=()
+  local -a outfiles=()
+  local -a discovered_vars=()
+  local -a complete_vars=()
+  local -a excluded_vars=()
+  local -a discovered_timesteps=()
 
-CASENAME=$1
+  declare -A variables_seen=()
+  declare -A timesteps_seen=()
+  declare -A cases_seen=()
+  # Keyed as "<var>|<timestep>" so we can keep only variables complete across
+  # all discovered timesteps.
+  declare -A var_timestep_seen=()
 
-shift
+  if [[ ! -d output ]]; then
+    echo "Error: auto-discovery expects an output/ directory in current working directory." >&2
+    exit 1
+  fi
 
-###########################################################################
-# extract variable names from argument list
-VARNAMES=""
-while [ $# -gt 0 ]; do 
-#    echo ARG= $1
-    VARNAMES=${VARNAMES}\ $1
-#    echo VAR=${VARNAMES}
-    shift
-done
-echo extracting variables \`${VARNAMES}\'
+  shopt -s nullglob
+  vars_files=(*.vars)
+  shopt -u nullglob
 
-#############################################################################
-COUNTER=$START_TIME
-CASENUM=1000
-if [ -d ${DIROUT} ] ; then
-    echo extracting to directory ${DIROUT}
-else
-    if [ -e ${DIROUT} ] ; then
-	echo FILE \'${DIROUT}\' needs to be a directory for extraction.
-	exit -1
+  if (( ${#vars_files[@]} == 1 )); then
+    inferred_case="${vars_files[0]%.vars}"
+  elif (( ${#vars_files[@]} > 1 )); then
+    echo "Error: multiple .vars files found; pass --casename explicitly." >&2
+    printf '  %s\n' "${vars_files[@]}" >&2
+    exit 1
+  fi
+
+  shopt -s nullglob
+  outfiles=(output/*_sca.* output/*_vec.*)
+  shopt -u nullglob
+
+  local file base
+  for file in "${outfiles[@]}"; do
+    [[ -f "$file" ]] || continue
+    base="${file##*/}"
+    if [[ "$base" =~ ^(.+)_(sca|vec)\.([0-9]+)_(.+)$ ]]; then
+      local var="${BASH_REMATCH[1]}"
+      local ts="${BASH_REMATCH[3]}"
+      local c="${BASH_REMATCH[4]}"
+      matched_any_files=1
+      cases_seen["$c"]=1
+      if [[ -n "$inferred_case" && "$c" == "$inferred_case" ]]; then
+        variables_seen["$var"]=1
+        timesteps_seen["$ts"]=1
+        var_timestep_seen["$var|$ts"]=1
+      fi
+    fi
+  done
+
+  if (( matched_any_files == 0 )); then
+    echo "Error: no output files matching *_sca.* or *_vec.* found in output/." >&2
+    exit 1
+  fi
+
+  if [[ -z "$inferred_case" ]]; then
+    if (( ${#cases_seen[@]} == 1 )); then
+      inferred_case="$(printf '%s\n' "${!cases_seen[@]}")"
+      variables_seen=()
+      timesteps_seen=()
+      var_timestep_seen=()
+      for file in "${outfiles[@]}"; do
+        [[ -f "$file" ]] || continue
+        base="${file##*/}"
+        if [[ "$base" =~ ^(.+)_(sca|vec)\.([0-9]+)_(.+)$ ]] && [[ "${BASH_REMATCH[4]}" == "$inferred_case" ]]; then
+          variables_seen["${BASH_REMATCH[1]}"]=1
+          timesteps_seen["${BASH_REMATCH[3]}"]=1
+          var_timestep_seen["${BASH_REMATCH[1]}|${BASH_REMATCH[3]}"]=1
+        fi
+      done
     else
-	mkdir ${DIROUT}
+      echo "Error: could not infer unique casename." >&2
+      printf 'Case candidates: %s\n' "${!cases_seen[*]}" >&2
+      exit 1
     fi
-fi
+  fi
 
-PROC_COUNTER=1
-echo extract -en $EXTRACT_OPTIONS $PARTLIST $CASENAME ${COUNTER}${POSTFIX} $VARNAMES
-($MPIRUN_LOCAL extract -en $EXTRACT_OPTIONS $PARTLIST $CASENAME ${COUNTER}${POSTFIX} $VARNAMES
-echo cp ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}.case ${DIROUT}/${CASENAME}.case.bak
-cp ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}.case ${DIROUT}/${CASENAME}.case.bak
-echo cp ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}.geo ${DIROUT}/${CASENAME}_${CASENUM}.geo
-cp ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}.geo ${DIROUT}/${CASENAME}_${CASENUM}.geo
-if [ -e ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}_particles.geo ] ; then
-   cp ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}_particles.geo ${DIROUT}/${CASENAME}_particles_${CASENUM}.geo
-   echo     cp ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}_particles.geo ${DIROUT}/${CASENAME}_particles_${CASENUM}.geo
-   touch ${DIROUT}/particles
-fi
-for i in $VARNAMES ; do
-  cp ${CASENAME}_ensight.${COUNTER}${POSTFIX}/$i ${DIROUT}/$i${CASENUM}
-done) &
-if [ $PROC_COUNTER -ge $NUM_PAR_TASKS ]; then
-    wait
-    PROC_COUNTER=0
-fi
-let COUNTER=COUNTER+INC_TIME
-let CASENUM=CASENUM+1
-NUMBER_STEPS=1
-echo COUNTER=$COUNTER CASENUM=$CASENUM END_TIME=$END_TIME
-while [ $COUNTER -le $END_TIME ]; do
-    if [ -e output/timestep_txt.${COUNTER}${POSTFIX}_${CASENAME} ] ; then
-	echo extract -en $EXTRACT_OPTIONS $PARTLIST $CASENAME ${COUNTER}${POSTFIX} $VARNAMES
-	($MPIRUN_LOCAL extract -en $EXTRACT_OPTIONS $PARTLIST $CASENAME ${COUNTER}${POSTFIX} $VARNAMES
-	mv ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}.geo ${DIROUT}/${CASENAME}_${CASENUM}.geo
-	if [ -e ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}_particles.geo ]; then
-	    mv ${CASENAME}_ensight.${COUNTER}${POSTFIX}/${CASENAME}_particles.geo ${DIROUT}/${CASENAME}_particles_${CASENUM}.geo
-	fi
-	for i in $VARNAMES ; do
-	    mv ${CASENAME}_ensight.${COUNTER}${POSTFIX}/$i ${DIROUT}/$i${CASENUM};
-	done 
-	rm -fr ${CASENAME}_ensight.${COUNTER}${POSTFIX}) &
+  if (( ${#variables_seen[@]} == 0 || ${#timesteps_seen[@]} == 0 )); then
+    echo "Error: no variables/timesteps found for casename '$inferred_case'." >&2
+    exit 1
+  fi
 
-	let PROC_COUNTER=PROC_COUNTER+1
+  mapfile -t discovered_vars < <(printf '%s\n' "${!variables_seen[@]}" | sort)
+  mapfile -t discovered_timesteps < <(printf '%s\n' "${!timesteps_seen[@]}" | sort -n)
 
-	if [ $PROC_COUNTER -ge $NUM_PAR_TASKS ]; then
-	    wait
-	    PROC_COUNTER=0
-	fi
-
-	let CASENUM=CASENUM+1
-	let NUMBER_STEPS=NUMBER_STEPS+1
+  # Keep only variables that exist for every discovered timestep. This avoids
+  # generating animation metadata that references missing files.
+  local var ts complete
+  for var in "${discovered_vars[@]}"; do
+    complete=1
+    for ts in "${discovered_timesteps[@]}"; do
+      if [[ -z "${var_timestep_seen["$var|$ts"]:-}" ]]; then
+        complete=0
+        break
+      fi
+    done
+    if (( complete == 1 )); then
+      complete_vars+=("$var")
+    else
+      excluded_vars+=("$var")
     fi
-    let COUNTER=COUNTER+INC_TIME
+  done
+  if (( ${#complete_vars[@]} == 0 )); then
+    echo "Error: no variables are available for every discovered timestep." >&2
+    exit 1
+  fi
+
+  CASENAME="$inferred_case"
+  VARIABLES=("${complete_vars[@]}")
+  TIMESTEPS=("${discovered_timesteps[@]}")
+
+  if [[ "$OUTPUT_FORMAT" != "en" && "$OUTPUT_FORMAT" != "vtk" ]]; then
+    OUTPUT_FORMAT="vtk"
+  fi
+
+  if (( DIROUT_SET == 0 )); then
+    if [[ "$OUTPUT_FORMAT" == "vtk" ]]; then
+      DIROUT="${CASENAME}_vtk"
+    else
+      DIROUT="${CASENAME}_ensight"
+    fi
+  fi
+
+  echo "Auto-discovered casename: $CASENAME"
+  echo "Auto-discovered output format: $OUTPUT_FORMAT"
+  echo "Auto-discovered timesteps: $(join_by_space "${TIMESTEPS[@]}")"
+  echo "Auto-discovered variables: $(join_by_space "${VARIABLES[@]}")"
+  if (( ${#excluded_vars[@]} > 0 )); then
+    echo "Auto-discovery: excluded variables not present for every timestep: $(join_by_space "${excluded_vars[@]}")"
+  fi
+}
+
+# prepare_output_dir
+# Recreate the destination directory, failing if a non-directory blocks it.
+prepare_output_dir() {
+  if [[ -d "$DIROUT" ]]; then
+    rm -rf "$DIROUT"
+  elif [[ -e "$DIROUT" ]]; then
+    echo "Error: '$DIROUT' exists and is not a directory." >&2
+    exit 1
+  fi
+  mkdir -p "$DIROUT"
+}
+
+# get_time_value <timestep>
+# Return physical time from output/timestep_txt.* when present; else return timestep.
+get_time_value() {
+  local ts="$1"
+  local tfile="output/timestep_txt.${ts}${POSTFIX}_${CASENAME}"
+  if [[ -f "$tfile" ]]; then
+    local v
+    v="$(sed -n '1s/^[0-9][0-9]*[[:space:]]\+//p' "$tfile")"
+    if [[ -n "$v" ]]; then
+      echo "$v"
+      return
+    fi
+  fi
+  echo "$ts"
+}
+
+# ensight_var_prefix <variable>
+# Read the variable declaration prefix from the seed Ensight case file.
+ensight_var_prefix() {
+  local var="$1"
+  local backup="$DIROUT/${CASENAME}.case.bak"
+  awk -v target="$var" '
+    BEGIN { invar=0 }
+    /^[[:space:]]*VARIABLE[[:space:]]*$/ { invar=1; next }
+    invar && /^[[:space:]]*$/ { invar=0 }
+    invar {
+      colon = index($0, ":")
+      if(colon <= 0) next
+      prefix = substr($0, 1, colon)
+      rhs = substr($0, colon + 1)
+      gsub(/^[ \t]+/, "", rhs)
+      n = split(rhs, a, /[ \t]+/)
+      for(i = 1; i <= n; ++i) {
+        if(a[i] == target) {
+          print prefix
+          exit
+        }
+      }
+    }
+  ' "$backup"
+}
+
+# run_extract_for_timestep <timestep>
+# Execute extract for a single timestep using direct mode or configured mpirun.
+run_extract_for_timestep() {
+  local ts="$1"
+  local iter="${ts}${POSTFIX}"
+  local -a cmd=()
+  cmd+=("$EXTRACT_BIN")
+  cmd+=("-$OUTPUT_FORMAT")
+  if (( ${#EXTRACT_OPTIONS[@]} > 0 )); then
+    cmd+=("${EXTRACT_OPTIONS[@]}")
+  fi
+  if (( ${#PARTLIST[@]} > 0 )); then
+    local p
+    for p in "${PARTLIST[@]}"; do
+      cmd+=("-part" "$p")
+    done
+  fi
+  cmd+=("$CASENAME" "$iter")
+  if (( ${#VARIABLES[@]} > 0 )); then
+    cmd+=("${VARIABLES[@]}")
+  fi
+
+  # mpirun is opt-in; by default we invoke extract directly.
+  if (( USE_MPIRUN == 1 )); then
+    "${MPIRUN_PREFIX[@]}" "${cmd[@]}"
+  else
+    "${cmd[@]}"
+  fi
+}
+
+# stage_ensight_timestep <index> <timestep>
+# Copy files from per-timestep extract output into consolidated Ensight series layout.
+stage_ensight_timestep() {
+  local idx="$1"
+  local ts="$2"
+  local iter="${ts}${POSTFIX}"
+  local src="${CASENAME}_ensight.${iter}"
+
+  if [[ ! -d "$src" ]]; then
+    echo "Error: expected Ensight output directory '$src' not found." >&2
+    exit 1
+  fi
+
+  local frame_id
+  printf -v frame_id "%0*d" "$PAD_WIDTH" "$idx"
+
+  if (( idx == 0 )); then
+    cp "$src/${CASENAME}.case" "$DIROUT/${CASENAME}.case.bak"
+  fi
+
+  if (( GEOM_CHANGING == 1 )); then
+    cp "$src/${CASENAME}.geo" "$DIROUT/${CASENAME}.geo_${frame_id}"
+  else
+    if (( idx == 0 )); then
+      cp "$src/${CASENAME}.geo" "$DIROUT/${CASENAME}.geo"
+    fi
+  fi
+
+  if [[ -f "$src/${CASENAME}_particles.geo" ]]; then
+    cp "$src/${CASENAME}_particles.geo" "$DIROUT/${CASENAME}_particles.geo_${frame_id}"
+    touch "$DIROUT/.particles"
+  fi
+
+  local var
+  for var in "${VARIABLES[@]}"; do
+    local stem="${var//_/}"
+    if [[ -f "$src/$var" ]]; then
+      cp "$src/$var" "$DIROUT/${stem}_${frame_id}"
+    else
+      echo "Warning: missing variable '$var' in '$src'." >&2
+    fi
+  done
+
+  rm -rf "$src"
+}
+
+# stage_vtk_timestep <index> <timestep>
+# Move the timestep Volume.vtu/Volume64.vtu into consolidated indexed output names.
+stage_vtk_timestep() {
+  local idx="$1"
+  local ts="$2"
+  local iter="${ts}${POSTFIX}"
+  local src="${CASENAME}_vtk.${iter}"
+
+  if [[ ! -d "$src" ]]; then
+    echo "Error: expected VTK output directory '$src' not found." >&2
+    exit 1
+  fi
+
+  local frame_id
+  printf -v frame_id "%0*d" "$PAD_WIDTH" "$idx"
+
+  if [[ -f "$src/Volume.vtu" ]]; then
+    mv "$src/Volume.vtu" "$DIROUT/Volume_${frame_id}.vtu"
+  elif [[ -f "$src/Volume64.vtu" ]]; then
+    mv "$src/Volume64.vtu" "$DIROUT/Volume_${frame_id}.vtu"
+  else
+    echo "Warning: expected '$src/Volume.vtu' not found." >&2
+  fi
+
+  rm -rf "$src"
+}
+
+# process_timestep <index> <timestep>
+# Run extract then stage outputs according to selected format.
+process_timestep() {
+  local idx="$1"
+  local ts="$2"
+
+  echo "Processing timestep $ts ($((idx + 1))/${#TIMESTEPS[@]})"
+  run_extract_for_timestep "$ts"
+
+  if [[ "$OUTPUT_FORMAT" == "en" ]]; then
+    stage_ensight_timestep "$idx" "$ts"
+  else
+    stage_vtk_timestep "$idx" "$ts"
+  fi
+}
+
+# wait_for_running_jobs
+# Wait for tracked background jobs and report timestep-specific failures.
+wait_for_running_jobs() {
+  local failed=0
+  local i
+  for i in "${!RUN_PIDS[@]}"; do
+    local pid="${RUN_PIDS[$i]}"
+    local ts="${RUN_TIMESTEPS[$i]}"
+    # Wait by PID so we can map non-zero exit to the specific timestep.
+    if ! wait "$pid"; then
+      echo "Error: extract job failed for timestep $ts." >&2
+      failed=1
+    fi
+  done
+  RUN_PIDS=()
+  RUN_TIMESTEPS=()
+  return "$failed"
+}
+
+# finalize_ensight
+# Build final Ensight case metadata, filtering out variables missing any frame.
+finalize_ensight() {
+  local backup="$DIROUT/${CASENAME}.case.bak"
+  if [[ ! -f "$backup" ]]; then
+    echo "Error: missing '$backup' required to build final case file." >&2
+    exit 1
+  fi
+
+  local wildcard
+  wildcard="$(printf '%*s' "$PAD_WIDTH" '' | tr ' ' '*')"
+
+  # Emit only variables that exist for all requested frames.
+  ENSIGHT_ACTIVE_VARIABLES=()
+  local var
+  local total_steps="${#TIMESTEPS[@]}"
+  for var in "${VARIABLES[@]}"; do
+    local stem="${var//_/}"
+    local have=0
+    local i frame_id
+    for i in "${!TIMESTEPS[@]}"; do
+      printf -v frame_id "%0*d" "$PAD_WIDTH" "$i"
+      if [[ -f "$DIROUT/${stem}_${frame_id}" ]]; then
+        ((have += 1))
+      fi
+    done
+    if (( have == total_steps )); then
+      ENSIGHT_ACTIVE_VARIABLES+=("$var")
+    else
+      echo "Warning: omitting variable '$var' from case file; present in $have/$total_steps timesteps." >&2
+    fi
+  done
+  if (( ${#ENSIGHT_ACTIVE_VARIABLES[@]} == 0 )); then
+    echo "Error: no Ensight variables are available for every selected timestep." >&2
+    exit 1
+  fi
+
+  {
+    echo "FORMAT"
+    echo "type: ensight gold"
+    echo "GEOMETRY"
+    if (( GEOM_CHANGING == 1 )); then
+      echo "model: ${CASENAME}.geo_${wildcard}"
+    else
+      echo "model: ${CASENAME}.geo"
+    fi
+
+    if [[ -f "$DIROUT/.particles" ]]; then
+      echo "measured: ${CASENAME}_particles.geo_${wildcard}"
+      rm -f "$DIROUT/.particles"
+    fi
+
+    echo "VARIABLE"
+    for var in "${ENSIGHT_ACTIVE_VARIABLES[@]}"; do
+      local stem="${var//_/}"
+      local prefix
+      prefix="$(ensight_var_prefix "$var")"
+      if [[ -z "$prefix" ]]; then
+        prefix="scalar per node:"
+      fi
+      printf '%s        1 %s    %s_%s\n' "$prefix" "$var" "$stem" "$wildcard"
+    done
+
+    echo "TIME"
+    echo "time set: 1"
+    echo "number of steps: ${#TIMESTEPS[@]}"
+    echo "filename start number: 0"
+    echo "filename increment: 1"
+    echo "time values:"
+
+    local ts
+    for ts in "${TIMESTEPS[@]}"; do
+      get_time_value "$ts"
+    done
+  } > "$DIROUT/${CASENAME}.case"
+}
+
+# finalize_vtk
+# Write .pvd collection file that maps frame files to physical/iteration time values.
+finalize_vtk() {
+  local pvd="$DIROUT/${CASENAME}.pvd"
+
+  {
+    echo '<?xml version="1.0"?>'
+    echo '<VTKFile type="Collection" version="0.1" byte_order="LittleEndian">'
+    echo '  <Collection>'
+
+    local i ts frame_id tval
+    for i in "${!TIMESTEPS[@]}"; do
+      ts="${TIMESTEPS[$i]}"
+      # Prefer physical simulation time if available; fallback is raw timestep.
+      tval="$(get_time_value "$ts")"
+      printf -v frame_id "%0*d" "$PAD_WIDTH" "$i"
+      printf '    <DataSet timestep="%s" group="" part="0" file="Volume_%s.vtu"/>\n' "$tval" "$frame_id"
+    done
+
+    echo '  </Collection>'
+    echo '</VTKFile>'
+  } > "$pvd"
+}
+
+# ------------------------- parse arguments -------------------------
+while (( $# > 0 )); do
+  case "$1" in
+    -start|--start)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      START_TIME="$2"
+      START_SET=1
+      shift 2
+      ;;
+    -stop|-end|--stop|--end)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      END_TIME="$2"
+      END_SET=1
+      shift 2
+      ;;
+    -inc|--inc)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      INC_TIME="$2"
+      INC_SET=1
+      shift 2
+      ;;
+    -postfix|--postfix)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      POSTFIX="$2"
+      shift 2
+      ;;
+    -np|--np)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      NUM_PAR_TASKS="$2"
+      shift 2
+      ;;
+    --mpirun)
+      USE_MPIRUN=1
+      shift
+      ;;
+    --mpirun_cmd)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      USE_MPIRUN=1
+      # Parse user-provided command prefix safely despite global newline/tab IFS.
+      old_ifs="$IFS"
+      IFS=' '
+      read -r -a MPIRUN_PREFIX <<< "$2"
+      IFS="$old_ifs"
+      if (( ${#MPIRUN_PREFIX[@]} == 0 )); then
+        echo "Error: --mpirun_cmd must not be empty." >&2
+        exit 1
+      fi
+      shift 2
+      ;;
+    -dir|--dir)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      DIROUT="$2"
+      DIROUT_SET=1
+      shift 2
+      ;;
+    -part|--part)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      PARTLIST+=("$2")
+      shift 2
+      ;;
+    -novolume|--novolume)
+      EXTRACT_OPTIONS+=("-novolume")
+      shift
+      ;;
+    -en|--en)
+      OUTPUT_FORMAT="en"
+      OUTPUT_SET=1
+      shift
+      ;;
+    -vtk|--vtk)
+      OUTPUT_FORMAT="vtk"
+      OUTPUT_SET=1
+      shift
+      ;;
+    --output)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      OUTPUT_FORMAT="$2"
+      OUTPUT_SET=1
+      shift 2
+      ;;
+    --casename)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      CASENAME="$2"
+      shift 2
+      ;;
+    --variables)
+      shift
+      (( $# > 0 )) || { echo "Error: --variables requires at least one value." >&2; usage; exit 1; }
+      while (( $# > 0 )) && [[ "$1" != -* ]]; do
+        VARIABLES+=("$1")
+        shift
+      done
+      ;;
+    --timesteps)
+      shift
+      (( $# > 0 )) || { echo "Error: --timesteps requires at least one value." >&2; usage; exit 1; }
+      while (( $# > 0 )) && [[ "$1" != -* ]]; do
+        TIMESTEP_TOKENS+=("$1")
+        shift
+      done
+      ;;
+    --timesteps_mode)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      TIMESTEPS_MODE="$2"
+      shift 2
+      ;;
+    --geom_changing)
+      (( $# >= 2 )) || { echo "Error: $1 requires a value." >&2; usage; exit 1; }
+      GEOM_CHANGING="$2"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      echo "Error: unknown option '$1'." >&2
+      usage
+      exit 1
+      ;;
+    *)
+      break
+      ;;
+  esac
 done
-wait
-echo FORMAT > ${DIROUT}/${CASENAME}.case
-echo type: ensight gold >> ${DIROUT}/${CASENAME}.case
-echo GEOMETRY >> ${DIROUT}/${CASENAME}.case
-echo model: ${CASENAME}_\*\*\*\*.geo >> ${DIROUT}/${CASENAME}.case
 
-# if particle case, add particle geometry to case file
-if [ -e ${DIROUT}/particles ] ; then
-    rm ${DIROUT}/particles
-    echo measured: ${CASENAME}_particles_\*\*\*\*.geo >> ${DIROUT}/${CASENAME}.case
+if (( $# > 0 )); then
+  if [[ -z "$CASENAME" ]]; then
+    CASENAME="$1"
+    shift
+  fi
+  while (( $# > 0 )); do
+    VARIABLES+=("$1")
+    shift
+  done
 fi
-echo VARIABLE >> ${DIROUT}/${CASENAME}.case
-for i in $VARNAMES ; do
-# get prefix for variable specification from backup case file
-    VARPREFIX=`grep " node:" ${DIROUT}/${CASENAME}.case.bak | grep " ${i}	" | sed s/:.\*\$/:/`
-    if [ -z "$VARPREFIX" ]; then
-	VARPREFIX=`grep " element:" ${DIROUT}/${CASENAME}.case.bak | grep " ${i}	" | sed s/:.\*\$/:/`
+
+GEOM_CHANGING="$(normalize_geom_changing "$GEOM_CHANGING")"
+
+if ! is_int "$NUM_PAR_TASKS" || (( NUM_PAR_TASKS < 1 )); then
+  echo "Error: -np/--np must be an integer >= 1." >&2
+  exit 1
+fi
+
+if [[ "$OUTPUT_FORMAT" != "en" && "$OUTPUT_FORMAT" != "vtk" ]]; then
+  echo "Error: output format must be 'en' or 'vtk'." >&2
+  exit 1
+fi
+
+auto_mode=0
+if [[ -z "$CASENAME" ]] && (( ${#VARIABLES[@]} == 0 )) && (( ${#TIMESTEP_TOKENS[@]} == 0 )) \
+   && (( START_SET == 0 )) && (( END_SET == 0 )) && (( INC_SET == 0 )); then
+  auto_mode=1
+fi
+
+if (( auto_mode == 1 )); then
+  echo "No explicit casename/timesteps/variables supplied. Running autodiscovery."
+  if (( OUTPUT_SET == 0 )); then
+    OUTPUT_FORMAT="vtk"
+  fi
+  autodiscover_inputs
+else
+  if [[ -z "$CASENAME" ]]; then
+    echo "Error: missing casename. Provide <casename> or --casename." >&2
+    usage
+    exit 1
+  fi
+  if (( ${#VARIABLES[@]} == 0 )); then
+    echo "Error: no variables provided." >&2
+    usage
+    exit 1
+  fi
+  parse_timesteps
+fi
+
+if (( ${#TIMESTEPS[@]} == 0 )); then
+  echo "Error: no timesteps to process." >&2
+  exit 1
+fi
+
+EXTRACT_BIN="$(find_extract)"
+if (( USE_MPIRUN == 1 )); then
+  # Validate executable name from command prefix before launching jobs.
+  if ! command -v "${MPIRUN_PREFIX[0]}" >/dev/null 2>&1; then
+    echo "Error: mpirun command '${MPIRUN_PREFIX[0]}' not found." >&2
+    exit 1
+  fi
+fi
+
+count="${#TIMESTEPS[@]}"
+PAD_WIDTH="${#count}"
+
+prepare_output_dir
+
+echo "extract_movie: case=$CASENAME format=$OUTPUT_FORMAT dir=$DIROUT"
+echo "timesteps (${#TIMESTEPS[@]}): $(join_by_space "${TIMESTEPS[@]}")"
+echo "variables (${#VARIABLES[@]}): $(join_by_space "${VARIABLES[@]}")"
+if (( USE_MPIRUN == 1 )); then
+  echo "mpirun mode: $(join_by_space "${MPIRUN_PREFIX[@]}")"
+fi
+
+proc_counter=0
+for idx in "${!TIMESTEPS[@]}"; do
+  ts="${TIMESTEPS[$idx]}"
+  (
+    process_timestep "$idx" "$ts"
+  ) &
+  RUN_PIDS+=("$!")
+  RUN_TIMESTEPS+=("$ts")
+  ((proc_counter+=1))
+  if (( proc_counter >= NUM_PAR_TASKS )); then
+    # Drain the current batch before submitting more work.
+    if ! wait_for_running_jobs; then
+      exit 1
     fi
-
-    echo ${VARPREFIX}        1 $i    $i\*\*\*\* >> ${DIROUT}/${CASENAME}.case
+    proc_counter=0
+  fi
 done
-echo TIME >> ${DIROUT}/${CASENAME}.case
-echo time set: 1 >> ${DIROUT}/${CASENAME}.case
-echo number of steps: ${NUMBER_STEPS} >> ${DIROUT}/${CASENAME}.case
-echo filename start number: 1000 >> ${DIROUT}/${CASENAME}.case
-echo filename increment: 1 >> ${DIROUT}/${CASENAME}.case
-echo time values: >> ${DIROUT}/${CASENAME}.case
-COUNTER=$START_TIME
-while [ $COUNTER -le $END_TIME ]; do
-    if [ -e output/timestep_txt.${COUNTER}${POSTFIX}_${CASENAME} ] ; then
-	cat output/timestep_txt.${COUNTER}${POSTFIX}_${CASENAME} | sed "s/^[0-9]* //" >> ${DIROUT}/${CASENAME}.case
-    fi
-    let COUNTER=COUNTER+INC_TIME
-done
+if (( proc_counter > 0 )); then
+  if ! wait_for_running_jobs; then
+    exit 1
+  fi
+fi
 
+if [[ "$OUTPUT_FORMAT" == "en" ]]; then
+  finalize_ensight
+else
+  finalize_vtk
+fi
 
+echo "extract_movie: finished. Outputs written to $DIROUT"
