@@ -482,6 +482,15 @@ namespace Loci {
 	else
 	  denominator.push_back(input);
 	break;
+      case OP_INT:
+        // Allow reciprocal shorthand such as 1/s.
+        if(input->int_val != 1) {
+          unit_error(4,"integer coefficients in unit expressions are unsupported");
+        }
+        break;
+      case OP_DOUBLE:
+        unit_error(4,"real coefficients in unit expressions are unsupported");
+        break;
       case OP_TIMES:
 	for(li= input->expr_list.begin();li!=input->expr_list.end();++li)
 	  build_lists(numerator,denominator,(*li),isnum);
@@ -855,47 +864,61 @@ namespace Loci {
     while(in.peek() == ' ' || in.peek() == '\t')
       in.get() ;
 
-    // parse unit information (this needs to be improved)
-    if(isalpha(in.peek())||parse::is_token(in,"(")) {
+    // parse unit information
+    if(parse::is_name(in) || parse::is_token(in,"(") || parse::is_token(in,"1")) {
       string parsed ;
-      if(parse::is_token(in,"(")) {
-        parse::get_token(in,"(") ;
-        parsed += '(' ;
-        int cnt = 1 ;
-        while(cnt > 0) {
-          if(in.peek() == '(')
-            cnt++ ;
-          if(in.peek() == ')')
-            cnt-- ;
-          parsed += in.get() ;
-        }
-      } else {
-        while(parse::is_name(in)) {
+      while(true) {
+        parse::kill_white_space(in) ;
+        if(parse::is_name(in)) {
           parsed += parse::get_name(in) ;
-          parse::kill_white_space(in) ;
-          parsed += ' ' ;
-          // Get operator if it exists
-          if(parse::is_token(in,"(")) {
-            parse::get_token(in,"(") ;
-            parsed += '(' ;
-            int cnt = 1 ;
-            while(cnt > 0) {
-              if(in.peek() == '(')
-                cnt++ ;
-              if(in.peek() == ')')
-                cnt-- ;
-              parsed += in.get() ;
+        } else if(parse::is_token(in,"1")) {
+          parse::get_token(in,"1") ;
+          parsed += '1' ;
+          int ch = in.peek() ;
+          if(ch == '.' || ch == 'e' || ch == 'E' || isdigit(ch)) {
+            throw Loci::exprError("Syntax",
+                                  "Unit Type: only coefficient 1 is supported",
+                                  ERR_SYNTAX) ;
+          }
+        } else if(parse::is_token(in,"(")) {
+          parse::get_token(in,"(") ;
+          parsed += '(' ;
+          int cnt = 1 ;
+          while(cnt > 0) {
+            int ch = in.get() ;
+            if(ch == EOF || in.eof()) {
+              throw Loci::exprError("Syntax",
+                                    "Unit Type: Error parsing unit expression",
+                                    ERR_SYNTAX) ;
             }
+            if(ch == '(')
+              cnt++ ;
+            if(ch == ')')
+              cnt-- ;
+            parsed += ch ;
           }
-          if(parse::is_token(in,"*")) {
-            parse::get_token(in,"*") ;
-            parsed += "*" ;
-          }
-          if(parse::is_token(in,"/")) {
-            parse::get_token(in,"/") ;
-            parsed += "/" ;
-          }
+        } else {
+          break ;
         }
+
+        parse::kill_white_space(in) ;
+        if(parse::is_token(in,"*")) {
+          parse::get_token(in,"*") ;
+          parsed += "*" ;
+          continue ;
+        }
+        if(parse::is_token(in,"/")) {
+          parse::get_token(in,"/") ;
+          parsed += "/" ;
+          continue ;
+        }
+        break ;
+      }
+
+      if(parsed.empty() || parsed[parsed.size()-1] == '*' || parsed[parsed.size()-1] == '/') {
+        throw Loci::exprError("Syntax",
+                              "Unit Type: Error parsing unit expression",
+                              ERR_SYNTAX) ;
       }
       input_unit = parsed ;
     }
@@ -1134,4 +1157,3 @@ namespace Loci {
   
 
 }
-

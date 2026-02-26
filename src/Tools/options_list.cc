@@ -941,30 +941,51 @@ namespace Loci {
       }
 
       parse::kill_white_space(s) ;
-      if(parse::is_name(s)) {
+      if(parse::is_name(s) || parse::is_token(s,"(") || parse::is_token(s,"1")) {
         string units ;
-        int ch = EOF ;
-        int opens = 0 ;
-        do {
-	  int rc = 0 ;
-          while(!s.eof() &&((ch=s.peek()) != EOF) &&
-                (isalnum(ch) || ch=='*' || ch == '/' )) {
-            units += s.get() ;
-	    rc++ ;
-	  }
-          if(ch == '(') {
-            units += s.get() ;
-	    rc++ ;
-            opens++ ;
+        while(true) {
+          parse::kill_white_space(s) ;
+          if(parse::is_name(s)) {
+            units += parse::get_name(s) ;
+          } else if(parse::is_token(s,"1")) {
+            parse::get_token(s,"1") ;
+            units += '1' ;
+            int ch = s.peek() ;
+            if(ch == '.' || ch == 'e' || ch == 'E' || isdigit(ch))
+              throw StringError("only coefficient 1 is supported in units") ;
+          } else if(parse::is_token(s,"(")) {
+            parse::get_token(s,"(") ;
+            units += '(' ;
+            int cnt = 1 ;
+            while(cnt > 0) {
+              int ch = s.get() ;
+              if(ch == EOF || s.eof())
+                throw StringError("having trouble reading units in input") ;
+              if(ch == '(')
+                cnt++ ;
+              if(ch == ')')
+                cnt-- ;
+              units += ch ;
+            }
+          } else {
+            break ;
           }
-          if(opens != 0 && ch == ')') {
-            units += s.get() ;
-	    rc++ ;
-            opens-- ;
+          parse::kill_white_space(s) ;
+          if(parse::is_token(s,"*")) {
+            parse::get_token(s,"*") ;
+            units += "*" ;
+            continue ;
           }
-	  if(rc == 0) 
-	    throw StringError("having trouble reading units in input") ;
-        } while(opens!=0) ;
+          if(parse::is_token(s,"/")) {
+            parse::get_token(s,"/") ;
+            units += "/" ;
+            continue ;
+          }
+          break ;
+        }
+
+        if(units.empty() || units[units.size()-1] == '*' || units[units.size()-1] == '/')
+          throw StringError("having trouble reading units in input") ;
 
         units_value = UNIT_type(UNIT_type::MKS,"general",units,
                                 real_value, real_grad, real_grad2,gradN) ;
