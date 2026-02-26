@@ -183,9 +183,9 @@ namespace Loci {
   }
 
   void options_list::getOptionUnits(const std::string &vname,
-				    const std::string &units,
-				    vector3d<double> &vec,
-				    double scale) const {
+                                    const std::string &units,
+                                    vector3d<double> &vec,
+                                    double scale) const {
     Loci::option_value_type ovt= getOptionValueType(vname) ;
     if(ovt == Loci::REAL) {
       double v ;
@@ -195,10 +195,10 @@ namespace Loci {
       Loci::UNIT_type vu ;
       getOption(vname,vu) ;
       if(!vu.is_compatible(units)) {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "wrong type of units for vector " << vname
-	          << ": " << vu << std::endl ;
-	      throw StringError(oss.str()) ;
+            << ": " << vu << std::endl ;
+        throw StringError(oss.str()) ;
       } else {
         double v ;
         v = vu.get_value_in(units) ;
@@ -208,19 +208,19 @@ namespace Loci {
       Loci::options_list::arg_list value_list ;
       getOption(vname,value_list) ;
       if(value_list.size() != 3) {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "error on reading '" << vname
-	          <<"': vector input must contain 3 terms"
-	          << std::endl ;
-	      throw StringError(oss.str()) ;
+            <<"': vector input must contain 3 terms"
+            << std::endl ;
+        throw StringError(oss.str()) ;
       }
       for(int i=0;i<3;++i)
         if(value_list[i].type_of() != Loci::REAL &&
            value_list[i].type_of() != Loci::UNIT_VALUE) {
-	        ostringstream oss ;
+          ostringstream oss ;
           oss << "improper vector specification for '"
-	            << vname << std::endl ;
-	        throw StringError(oss.str()) ;
+              << vname << std::endl ;
+          throw StringError(oss.str()) ;
         }
       double vecval[3] ;
       for(int i=0;i<3;++i) {
@@ -228,10 +228,10 @@ namespace Loci {
           Loci::UNIT_type vu ;
           value_list[i].get_value(vu) ;
           if(!vu.is_compatible(units)) {
-	          ostringstream oss ;
+            ostringstream oss ;
             oss << "wrong type of units for vector " << vname
-		            << ": " << vu << std::endl ;
-	          throw StringError(oss.str()) ;
+                << ": " << vu << std::endl ;
+            throw StringError(oss.str()) ;
           }
           vecval[i] = vu.get_value_in(units) ;
         } else {
@@ -247,25 +247,25 @@ namespace Loci {
       Loci::options_list::arg_list value_list ;
       getOption(vname,name,value_list) ;
       if(name != "polar") {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "don't know coordinate function '" << name
-	          <<"', defaulting to polar" << std::endl ;
-	      throw StringError(oss.str()) ;
+            <<"', defaulting to polar" << std::endl ;
+        throw StringError(oss.str()) ;
       }
       if(value_list.size() != 3) {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "error on reading '"
-	          << vname << "': vector input must contain 3 terms"
-	          << std::endl ;
-	      throw StringError(oss.str()) ;
+            << vname << "': vector input must contain 3 terms"
+            << std::endl ;
+        throw StringError(oss.str()) ;
       }
       for(int i=0;i<3;++i)
         if(value_list[i].type_of() != Loci::REAL &&
            value_list[i].type_of() != Loci::UNIT_VALUE) {
-	        ostringstream oss ;
+          ostringstream oss ;
           oss << "improper vector specification for '"
-	            << vname << std::endl ;
-	        throw StringError(oss.str()) ;
+              << vname << std::endl ;
+          throw StringError(oss.str()) ;
         }
       double r=1 ,theta=0 ,eta=0 ;
       double conv = M_PI/180.0 ;
@@ -273,10 +273,10 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[0].get_value(vu) ;
         if(!vu.is_compatible(units)) {
-	        ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
-	            << ": " << vu << std::endl ;
-	        throw StringError(oss.str()) ;
+              << ": " << vu << std::endl ;
+          throw StringError(oss.str()) ;
         }
         r = vu.get_value_in(units) ;
       } else {
@@ -287,7 +287,7 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[1].get_value(vu) ;
         if(!vu.is_compatible("radians")) {
-	        ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
               << ": " << vu << std::endl ;
           throw StringError(oss.str()) ;
@@ -322,10 +322,10 @@ namespace Loci {
     }
   }
 
-    void options_list::getOptionUnits(const std::string &vname,
-				    const std::string &units,
-				    vector3d<FAD2d> &vec,
-				    FAD2d scale) const {
+  void options_list::getOptionUnits(const std::string &vname, 
+                                    const std::string &units,
+                                    vector3d<FAD2d> &vec, 
+                                    FAD2d scale) const {
     Loci::option_value_type ovt= getOptionValueType(vname) ;
     if(ovt == Loci::REAL) {
       FAD2d v ;
@@ -335,10 +335,10 @@ namespace Loci {
       Loci::UNIT_type vu ;
       getOption(vname,vu) ;
       if(!vu.is_compatible(units)) {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "wrong type of units for vector " << vname
-	          << ": " << vu << std::endl ;
-	      throw StringError(oss.str()) ;
+            << ": " << vu << std::endl ;
+        throw StringError(oss.str()) ;
       } else {
         FAD2d v ;
         v = vu.get_value_inD(units) ;
@@ -348,10 +348,10 @@ namespace Loci {
       Loci::options_list::arg_list value_list ;
       getOption(vname,value_list) ;
       if(value_list.size() != 3) {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "error on reading '" << vname
-	          <<"': vector input must contain 3 terms"
-	          << std::endl ;
+            <<"': vector input must contain 3 terms"
+            << std::endl ;
         throw StringError(oss.str()) ;
       }
       for(int i=0;i<3;++i)
@@ -359,8 +359,8 @@ namespace Loci {
            value_list[i].type_of() != Loci::UNIT_VALUE) {
           ostringstream oss ;
           oss << "improper vector specification for '"
-	            << vname << std::endl ;
-	        throw StringError(oss.str()) ;
+              << vname << std::endl ;
+          throw StringError(oss.str()) ;
         }
       FAD2d vecval[3] ;
       for(int i=0;i<3;++i) {
@@ -368,10 +368,10 @@ namespace Loci {
           Loci::UNIT_type vu ;
           value_list[i].get_value(vu) ;
           if(!vu.is_compatible(units)) {
-	          ostringstream oss ;
+            ostringstream oss ;
             oss << "wrong type of units for vector " << vname
-		            << ": " << vu << std::endl ;
-	          throw StringError(oss.str()) ;
+                << ": " << vu << std::endl ;
+            throw StringError(oss.str()) ;
           }
           vecval[i] = vu.get_value_inD(units) ;
         } else {
@@ -387,25 +387,25 @@ namespace Loci {
       Loci::options_list::arg_list value_list ;
       getOption(vname,name,value_list) ;
       if(name != "polar") {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "don't know coordinate function '" << name
-	          <<"', defaulting to polar" << std::endl ;
-	      throw StringError(oss.str()) ;
+            <<"', defaulting to polar" << std::endl ;
+        throw StringError(oss.str()) ;
       }
       if(value_list.size() != 3) {
-	      ostringstream oss ;
+        ostringstream oss ;
         oss << "error on reading '"
-	          << vname << "': vector input must contain 3 terms"
-	          << std::endl ;
-	      throw StringError(oss.str()) ;
+            << vname << "': vector input must contain 3 terms"
+            << std::endl ;
+        throw StringError(oss.str()) ;
       }
       for(int i=0;i<3;++i)
         if(value_list[i].type_of() != Loci::REAL &&
            value_list[i].type_of() != Loci::UNIT_VALUE) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "improper vector specification for '"
-	      << vname << std::endl ;
-	  throw StringError(oss.str()) ;
+              << vname << std::endl ;
+          throw StringError(oss.str()) ;
         }
       FAD2d r=1 ,theta=0 ,eta=0 ;
       double conv = M_PI/180.0 ;
@@ -413,10 +413,10 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[0].get_value(vu) ;
         if(!vu.is_compatible(units)) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
-	      << ": " << vu << std::endl ;
-	  throw StringError(oss.str()) ;
+              << ": " << vu << std::endl ;
+          throw StringError(oss.str()) ;
         }
         r = vu.get_value_inD(units) ;
       } else {
@@ -427,10 +427,10 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[1].get_value(vu) ;
         if(!vu.is_compatible("radians")) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
-                    << ": " << vu << std::endl ;
-	  throw StringError(oss.str()) ;
+              << ": " << vu << std::endl ;
+          throw StringError(oss.str()) ;
         }
         theta = vu.get_value_inD("radians") ;
       } else {
@@ -441,10 +441,10 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[2].get_value(vu) ;
         if(!vu.is_compatible("radians")) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
-                    << ": " << vu << std::endl ;
-	  throw StringError(oss.str()) ;
+              << ": " << vu << std::endl ;
+          throw StringError(oss.str()) ;
         }
         eta = vu.get_value_inD("radians") ;
       } else {
@@ -463,9 +463,9 @@ namespace Loci {
   }
 
   void options_list::getOptionUnits(const std::string &vname,
-				    const std::string &units,
-				    vector3d<VFAD> &vec,
-				    VFAD scale,
+                                    const std::string &units,
+                                    vector3d<VFAD> &vec,
+                                    VFAD scale,
                                     int batch) const {
     Loci::option_value_type ovt= getOptionValueType(vname) ;
     if(ovt == Loci::REAL) {
@@ -476,10 +476,10 @@ namespace Loci {
       Loci::UNIT_type vu ;
       getOption(vname,vu) ;
       if(!vu.is_compatible(units)) {
-	ostringstream oss ;
+        ostringstream oss ;
         oss << "wrong type of units for vector " << vname
-	    << ": " << vu << std::endl ;
-	throw StringError(oss.str()) ;
+            << ": " << vu << std::endl ;
+        throw StringError(oss.str()) ;
       } else {
         VFAD v ;
         v = vu.get_value_inVF(units,batch) ;
@@ -489,19 +489,19 @@ namespace Loci {
       Loci::options_list::arg_list value_list ;
       getOption(vname,value_list) ;
       if(value_list.size() != 3) {
-	ostringstream oss ;
+        ostringstream oss ;
         oss << "error on reading '" << vname
-	    <<"': vector input must contain 3 terms"
-	    << std::endl ;
-	throw StringError(oss.str()) ;
+            <<"': vector input must contain 3 terms"
+            << std::endl ;
+        throw StringError(oss.str()) ;
       }
       for(int i=0;i<3;++i)
         if(value_list[i].type_of() != Loci::REAL &&
            value_list[i].type_of() != Loci::UNIT_VALUE) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "improper vector specification for '"
-	      << vname << std::endl ;
-	  throw StringError(oss.str()) ;
+              << vname << std::endl ;
+          throw StringError(oss.str()) ;
         }
       VFAD vecval[3] ;
       for(int i=0;i<3;++i) {
@@ -509,10 +509,10 @@ namespace Loci {
           Loci::UNIT_type vu ;
           value_list[i].get_value(vu) ;
           if(!vu.is_compatible(units)) {
-	    ostringstream oss ;
+            ostringstream oss ;
             oss << "wrong type of units for vector " << vname
-		<< ": " << vu << std::endl ;
-	    throw StringError(oss.str()) ;
+                << ": " << vu << std::endl ;
+            throw StringError(oss.str()) ;
           }
           vecval[i] = vu.get_value_inVF(units,batch) ;
         } else {
@@ -528,25 +528,25 @@ namespace Loci {
       Loci::options_list::arg_list value_list ;
       getOption(vname,name,value_list) ;
       if(name != "polar") {
-	ostringstream oss ;
+        ostringstream oss ;
         oss << "don't know coordinate function '" << name
-	    <<"', defaulting to polar" << std::endl ;
-	throw StringError(oss.str()) ;
+            <<"', defaulting to polar" << std::endl ;
+        throw StringError(oss.str()) ;
       }
       if(value_list.size() != 3) {
-	ostringstream oss ;
+        ostringstream oss ;
         oss << "error on reading '"
-	    << vname << "': vector input must contain 3 terms"
-	    << std::endl ;
-	throw StringError(oss.str()) ;
+            << vname << "': vector input must contain 3 terms"
+            << std::endl ;
+        throw StringError(oss.str()) ;
       }
       for(int i=0;i<3;++i)
         if(value_list[i].type_of() != Loci::REAL &&
            value_list[i].type_of() != Loci::UNIT_VALUE) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "improper vector specification for '"
-	      << vname << std::endl ;
-	  throw StringError(oss.str()) ;
+              << vname << std::endl ;
+          throw StringError(oss.str()) ;
         }
       VFAD r(1.0) ,theta(0.0) ,eta(0.0) ;
       double conv = M_PI/180.0 ;
@@ -554,10 +554,10 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[0].get_value(vu) ;
         if(!vu.is_compatible(units)) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
-	      << ": " << vu << std::endl ;
-	  throw StringError(oss.str()) ;
+              << ": " << vu << std::endl ;
+          throw StringError(oss.str()) ;
         }
         r = vu.get_value_inVF(units,batch) ;
       } else {
@@ -568,10 +568,10 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[1].get_value(vu) ;
         if(!vu.is_compatible("radians")) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
-                    << ": " << vu << std::endl ;
-	  throw StringError(oss.str()) ;
+              << ": " << vu << std::endl ;
+          throw StringError(oss.str()) ;
         }
         theta = vu.get_value_inVF("radians",batch) ;
       } else {
@@ -582,10 +582,10 @@ namespace Loci {
         Loci::UNIT_type vu ;
         value_list[2].get_value(vu) ;
         if(!vu.is_compatible("radians")) {
-	  ostringstream oss ;
+          ostringstream oss ;
           oss << "wrong type of units for vector " << vname
-                    << ": " << vu << std::endl ;
-	  throw StringError(oss.str()) ;
+              << ": " << vu << std::endl ;
+          throw StringError(oss.str()) ;
         }
         eta = vu.get_value_inVF("radians",batch) ;
       } else {
@@ -604,14 +604,14 @@ namespace Loci {
   }
 
   void options_list::getOptionUnits(const std::string &vname,
-				    const std::string &units,
-				    vector3d<FAD2d> &vec) const {
+                                    const std::string &units,
+                                    vector3d<FAD2d> &vec) const {
     return getOptionUnits(vname,units,vec,FAD2d(1.0,0.0,0.0)) ;
   }
 
   void options_list::getOptionUnits(const std::string &vname,
-				    const std::string &units,
-				    vector3d<VFAD> &vec, int batch) const {
+                                    const std::string &units,
+                                    vector3d<VFAD> &vec, int batch) const {
     return getOptionUnits(vname,units,vec,VFAD(1.0),batch) ;
   }
 
@@ -641,8 +641,8 @@ namespace Loci {
     warn((*tmp).second.value_type != REAL) ;
     if((*tmp).second.value_type == REAL)
       value = FAD2d((*tmp).second.real_value,
-		    (*tmp).second.real_grad,
-		    (*tmp).second.real_grad2) ;
+                    (*tmp).second.real_grad, 
+                    (*tmp).second.real_grad2) ;
   }
 
   void options_list::getOption(const string &option, VFAD &value,int batch) const {
@@ -907,7 +907,7 @@ namespace Loci {
       real_grad = 0 ;
       gradN = std::vector<double>() ;
       if(s.peek()=='^') {
-	s.get() ;
+        s.get() ;
         if(s.peek() == '[') { // multiple gradients
           s.get() ;
           size_t N = 0 ;
@@ -935,9 +935,9 @@ namespace Loci {
       }
       real_grad2 = 0 ;
       if(s.peek()=='^') {
-	while(s.peek()=='^')
-	  s.get() ;
-	real_grad2 = parse::get_real(s) ;
+        while(s.peek()=='^')
+          s.get() ;
+        real_grad2 = parse::get_real(s) ;
       }
 
       parse::kill_white_space(s) ;
