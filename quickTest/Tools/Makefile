@@ -26,20 +26,20 @@ vpath %.cc $(SOURCE_DIR)
 
 INCLUDES = -I./include -I$(SOURCE_DIR)/include -I$(SOURCE_DIR)/../Containers/include
 
-TESTS = test_options_units test_options_list
+TESTS = test_units test_options_list
 
-.PHONY: test_options_units test_options_list
+.PHONY: test_units test_options_list
 
 
 tests: $(TESTS)
 
-test_options_units.o: $(SOURCE_DIR)/test_options_units.cc
+test_units.o: $(SOURCE_DIR)/test_units.cc
 	$(CXX) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o $@ -c $<
 
 test_options_list.o: $(SOURCE_DIR)/test_options_list.cc
 	$(CXX) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o $@ -c $<
 
-test_options_units: test_options_units.o
+test_units: test_units.o
 	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
 	./$@.exe
 	rm $@.exe
@@ -57,7 +57,7 @@ clean:
 JUNK = $(wildcard *~) $(wildcard crash_dump.*) core debug output $(wildcard *.o)
 
 distclean: clean
-	rm -fr test_options_units test_options_list $(JUNK) $(DEPEND_FILES)
+	rm -fr test_units test_options_list $(JUNK) $(DEPEND_FILES)
 
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
