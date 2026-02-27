@@ -25,50 +25,14 @@ set -u
 #profiling
 #set -x
 #PS4='+ $(date "+%s.%N ($LINENO) ")'
-# check if the file is a type that we will make a symlink copy of
-is_source_file() {
-    local filename=$(basename "$1")
-    # Check if the filename is exactly "Makefile"
-    # Check if the filename ends with one of the specified suffixes
-    case "$filename" in
-        *.cc|*.cpp|*.loci|*.c|*.sh)
 
-            return 0
-            ;;
-        *.h|*.hh|*.lh|*.hpp)
-            return 0
-            ;;
-        *.txt|*.dat|*.vog|*.vars)
-            return 0
-            ;;
-        *)
-            [ "$filename" == "Makefile" ] && return 0
-            [ "$filename" == "Loci" ] && return 0
-            [ "$filename" == "overset" ] && return 0
-            return 1
-            ;;
-    esac
-}
-
-# check if the file is a local configuration file that needs to be copied
-is_conf_file() {
-    filename=$(basename "$1")
-    case "$filename" in
-        *.conf)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
 
 # Make a copy of an entire directory structure to target using symbolic links
 # for files
 copy_with_symlinks() {
     local src=$1
     local dst=$2
-
+    echo symlink_copy "${src#${PWD}}" > /dev/tty
     if [ ! -d "$src" ]; then
         echo "Error: $src is not a directory."
         return 1
@@ -77,27 +41,25 @@ copy_with_symlinks() {
     mkdir -p "$dst"
     
     while IFS= read -r -d '' file; do
-        rel_path="${file#$src/}"
-        target_path="$dst/$rel_path"
+        local rel_path="${file#$src/}"
+        local target_path="$dst/$rel_path"
 
-        if [ -d "$file" ]; then
-            mkdir -p "$target_path"
-            echo mkdir -p "$target_path"
-        else
-            target_dir=$(dirname "$target_path")
-            mkdir -p "$target_dir"
-            if [ ! -f "$target_path" ]; then
-               if  is_source_file "$file" ; then
-                   ln -s "$file" "$target_path"
-#                   echo ln -s "$file" "$target_path"
-               fi
-               if is_conf_file "$file" ; then
-                   cp "$file" "$target_path"
-#                   echo cp "$file" "$target_path"
-               fi
+        # if file does not exist 
+        if [ ! -f "$target_path" ]; then
+            local target_dir=$(dirname "$target_path")
+            # if directory doesn't exist, make it
+            if [ ! -d "$target_dir" ]; then
+                mkdir -p "$target_dir"
             fi
+            ln -s "$file" "$target_path"
         fi
-    done < <(find "$src" -print0)
+    done < <(find "$src" -type f \( -name '*.cc' -o -name '*.cpp' \
+                  -o -name '*.c' -o -name '*.loci' -o -name '*.sh' \
+                  -o -name '*.h' -o -name '*.hh' -o -name '*.lh' \
+                  -o -name '*.hpp'\
+                  -o -name '*.txt' -o -name '*.dat' -o -name '*.vog'\
+                  -o -name '*.vars' -o -name Makefile \
+                  -o -name Loci -o -name overset \) -print0)
 }
 
 source=`pwd`
@@ -197,7 +159,7 @@ if [ ! -h $fulltarget/src/FVMtools/extract_movie ]; then
     chmod a+rx $fulltarget/FVMtools/extract_movie
 fi
 
-cd $fulltarget
+pushd $fulltarget
 if [ ! -h Makefile ]; then
   echo ln -s $source/src/Makefile Makefile
   ln -s $source/src/Makefile Makefile
@@ -354,11 +316,10 @@ fi
 if [ ! -h cgns2surf ] ; then
   ln -s ../FVMtools/cgns2surf cgns2surf
 fi
-
-
+popd
 for dir in $TOOLS_DIRS; do
   echo "Linking" $dir "directory files..."
-  cd $source/$dir
+  pushd $source/$dir
   for i in *.cc *.h *.hh *.hpp *.c *.loci *.lh Makefile Loci overset ; do
     if [ -f  $i ] ; then
       if [ ! -h $fulltarget/$dir/$i ] ; then
@@ -367,10 +328,15 @@ for dir in $TOOLS_DIRS; do
       fi
     fi
   done
+  popd
 done
 
 echo "Linking quickTest directory files"
-
 copy_with_symlinks "$source/quickTest" "$fulltarget/quickTest"
 
+# copy configuration file
+if [ ! -f "$fulltarget/quickTest/test.conf" ] ; then
+    cp "$source/quickTest/test.conf" "$fulltarget/quickTest/test.conf"
+fi
+    
 
