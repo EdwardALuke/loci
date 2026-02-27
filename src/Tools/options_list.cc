@@ -970,8 +970,14 @@ namespace Loci {
                                 real_value, real_grad, real_grad2,gradN) ;
         
         value_type = UNIT_VALUE ;
-      } else
+      } else {
         value_type = REAL ;
+        int next = s.peek() ;
+        if(next != std::char_traits<char>::eof() &&
+           next != ',' && next != ')' && next != ']' && next != '>') {
+          throw StringError("unexpected token after real option value") ;
+        }
+      }
     } else if(parse::is_name(s)) {
       name = parse::get_name(s) ;
       parse::kill_white_space(s) ;
@@ -1037,10 +1043,15 @@ namespace Loci {
     } else if(s.peek() == '"') {
       s.get() ;
       value_type = STRING ;
-      char ch = s.get() ;
-      while(ch != '"') {
+      name.clear() ;
+      while(true) {
+        int ich = s.get() ;
+        if(ich == std::char_traits<char>::eof() || s.eof())
+          throw StringError("unterminated quoted string in option value") ;
+        char ch = static_cast<char>(ich) ;
+        if(ch == '"')
+          break ;
         name += ch ;
-        ch = s.get() ;
       }
     } else if(s.peek() == '$') {
       bool v = true ;

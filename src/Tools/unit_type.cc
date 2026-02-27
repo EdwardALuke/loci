@@ -59,6 +59,7 @@ namespace Loci {
     {"deg","radians",0.01745329251994329576923690768488612713443},
     {"degrees","radians",0.01745329251994329576923690768488612713443},
     {"rotations","radians",2*M_PI},
+    {"one","meter/meter",1},
       
     //abbreviation of SI
     {"m","meter",1},
@@ -161,6 +162,8 @@ namespace Loci {
     {"erg","joule",1.0e-7},
     {"kilocalorie","joule",4.184e3},
     {"kcal","joule",4.184e3},
+    {"kW","watt",1e3},
+    {"kWh","joule",3.6e6},
     {"kW*h","joule",3.6e6},
     {"quad","joule",1.055056e18},
     {"kiloton","joule",4.184e12},
@@ -212,7 +215,7 @@ namespace Loci {
     {"tex","kg/m",1e-6},
 
     {"darcy","m*m",9.869233e-13},//permeability
-    {"perm","kg/Pa/s/m/m))",5.72135e-11},//(0C)
+    {"perm","kg/Pa/s/m/m",5.72135e-11},//(0C)
 
     {"horsepower","W",7.354988e2},//power(metric)
     {"hp","W",7.354988e2},
@@ -238,7 +241,7 @@ namespace Loci {
     {"cP","Pa*s",1e-3},
     {"poise","Pa*s",1e-1},
     {"P","Pa*s",1e-1},
-    {"rhe","1/(Pa*s)",1e1},
+    {"rhe","one/(Pa*s)",1e1},
     
     {"centistokes","m*m/s",1e-6},//viscosity,kinematic
     {"stokes","m*m/s",1e-4},
@@ -276,6 +279,7 @@ namespace Loci {
   };
 
   UNIT_type::composite_units UNIT_type::cgs_composite_unit_table[]={
+    {"one","centimeter/centimeter",1},
     //abbreviation of SI
     {"m","centimeter",0.01},
     {"kilogram","gram",1000},
@@ -641,13 +645,25 @@ namespace Loci {
 	      //cout<<"IS reference unit"<<endl;       
 	      int where=where_reference_unit((*mi).first);
 	      conv_factor=conv_factor*reference_unit_table[where].convert_factor;
-	      
-	      if(is_composite_unit(reference_unit_table[where].refer_unit)){
-		string comp=reference_unit_table[where].refer_unit;
-		int where=where_composite_unit(comp);
-		conv_factor=conv_factor*composite_unit_table[where].convert_factor;
-		exp2=expression::create(composite_unit_table[where].derived_unit);
-		seperate_unit(num_map,den_map,exp2);
+	      exp2 = expression::create(reference_unit_table[where].refer_unit) ;
+	      map<string,int> ref_num_map, ref_den_map ;
+	      seperate_unit(ref_num_map,ref_den_map,exp2) ;
+	      double ref_conversion = 1.0 ;
+	      get_conversion(ref_num_map,ref_den_map,ref_conversion) ;
+	      conv_factor *= ref_conversion ;
+	      for(map<string,int>::const_iterator ri=ref_num_map.begin();
+		  ri!=ref_num_map.end();++ri) {
+		if(num_map.find((*ri).first)!=num_map.end())
+		  num_map[(*ri).first] += (*ri).second ;
+		else
+		  num_map[(*ri).first] = (*ri).second ;
+	      }
+	      for(map<string,int>::const_iterator ri=ref_den_map.begin();
+		  ri!=ref_den_map.end();++ri) {
+		if(den_map.find((*ri).first)!=den_map.end())
+		  den_map[(*ri).first] += (*ri).second ;
+		else
+		  den_map[(*ri).first] = (*ri).second ;
 	      }
 	      
 	      //cout<<"conversion factor:"<<conv_factor<<endl;
@@ -687,13 +703,25 @@ namespace Loci {
 	      //cout<<"IS reference unit"<<endl;       
 	      int where=where_reference_unit((*mi).first);
 	      conv_factor=conv_factor*reference_unit_table[where].convert_factor;
-	      
-	      if(is_composite_unit(reference_unit_table[where].refer_unit)){
-		string comp=reference_unit_table[where].refer_unit;
-		int where=where_composite_unit(comp);
-		conv_factor=conv_factor*cgs_composite_unit_table[where].convert_factor;
-		exp2=expression::create(cgs_composite_unit_table[where].derived_unit);
-		seperate_unit(num_map,den_map,exp2);
+	      exp2 = expression::create(reference_unit_table[where].refer_unit) ;
+	      map<string,int> ref_num_map, ref_den_map ;
+	      seperate_unit(ref_num_map,ref_den_map,exp2) ;
+	      double ref_conversion = 1.0 ;
+	      get_conversion(ref_num_map,ref_den_map,ref_conversion) ;
+	      conv_factor *= ref_conversion ;
+	      for(map<string,int>::const_iterator ri=ref_num_map.begin();
+		  ri!=ref_num_map.end();++ri) {
+		if(num_map.find((*ri).first)!=num_map.end())
+		  num_map[(*ri).first] += (*ri).second ;
+		else
+		  num_map[(*ri).first] = (*ri).second ;
+	      }
+	      for(map<string,int>::const_iterator ri=ref_den_map.begin();
+		  ri!=ref_den_map.end();++ri) {
+		if(den_map.find((*ri).first)!=den_map.end())
+		  den_map[(*ri).first] += (*ri).second ;
+		else
+		  den_map[(*ri).first] = (*ri).second ;
 	      }
 	      
 	      //cout<<"conversion factor:"<<conv_factor<<endl;
@@ -855,47 +883,52 @@ namespace Loci {
     while(in.peek() == ' ' || in.peek() == '\t')
       in.get() ;
 
-    // parse unit information (this needs to be improved)
-    if(isalpha(in.peek())||parse::is_token(in,"(")) {
+    // parse unit information
+    if(parse::is_name(in) || parse::is_token(in,"(")) {
       string parsed ;
-      if(parse::is_token(in,"(")) {
-        parse::get_token(in,"(") ;
-        parsed += '(' ;
-        int cnt = 1 ;
-        while(cnt > 0) {
-          if(in.peek() == '(')
-            cnt++ ;
-          if(in.peek() == ')')
-            cnt-- ;
-          parsed += in.get() ;
-        }
-      } else {
-        while(parse::is_name(in)) {
+      while(true) {
+        parse::kill_white_space(in) ;
+        if(parse::is_name(in)) {
           parsed += parse::get_name(in) ;
-          parse::kill_white_space(in) ;
-          parsed += ' ' ;
-          // Get operator if it exists
-          if(parse::is_token(in,"(")) {
-            parse::get_token(in,"(") ;
-            parsed += '(' ;
-            int cnt = 1 ;
-            while(cnt > 0) {
-              if(in.peek() == '(')
-                cnt++ ;
-              if(in.peek() == ')')
-                cnt-- ;
-              parsed += in.get() ;
+        } else if(parse::is_token(in,"(")) {
+          parse::get_token(in,"(") ;
+          parsed += '(' ;
+          int cnt = 1 ;
+          while(cnt > 0) {
+            int ch = in.get() ;
+            if(ch == EOF || in.eof()) {
+              throw Loci::exprError("Syntax",
+                                    "Unit Type: Error parsing unit expression",
+                                    ERR_SYNTAX) ;
             }
+            if(ch == '(')
+              cnt++ ;
+            if(ch == ')')
+              cnt-- ;
+            parsed += ch ;
           }
-          if(parse::is_token(in,"*")) {
-            parse::get_token(in,"*") ;
-            parsed += "*" ;
-          }
-          if(parse::is_token(in,"/")) {
-            parse::get_token(in,"/") ;
-            parsed += "/" ;
-          }
+        } else {
+          break ;
         }
+
+        parse::kill_white_space(in) ;
+        if(parse::is_token(in,"*")) {
+          parse::get_token(in,"*") ;
+          parsed += "*" ;
+          continue ;
+        }
+        if(parse::is_token(in,"/")) {
+          parse::get_token(in,"/") ;
+          parsed += "/" ;
+          continue ;
+        }
+        break ;
+      }
+
+      if(parsed.empty() || parsed[parsed.size()-1] == '*' || parsed[parsed.size()-1] == '/') {
+        throw Loci::exprError("Syntax",
+                              "Unit Type: Error parsing unit expression",
+                              ERR_SYNTAX) ;
       }
       input_unit = parsed ;
     }
@@ -1134,4 +1167,3 @@ namespace Loci {
   
 
 }
-
