@@ -3167,8 +3167,7 @@ int main(int ac, char* av[]) {
   bool optimize = true ;
   bool cellVertexTransform = false ;
   Loci::Init(&ac,&av) ;
-  const char *filename ;
-  std::string tmp_str ;
+  std::string case_name ;
   bool binary = 0;
   string Lref = "NOSCALE" ;
   bool swapbyte = false ;
@@ -3239,7 +3238,7 @@ int main(int ac, char* av[]) {
   }
 
   if(ac == 2) {
-    tmp_str.append(av[1]) ;
+    case_name = av[1] ;
   } else {
     cerr << "Usage: ugrid2vog <options> <file>" << endl
          << "Where options are listed below and <file> is the filename sans postfix" << endl
@@ -3280,27 +3279,26 @@ int main(int ac, char* av[]) {
 
   if(swapbyte)
     reverse_byteorder = !reverse_byteorder ;
-  int loc = 0;
-  loc = tmp_str.find('.') ;
-  std::string new_str = tmp_str.substr(0, loc) ;
-  filename = new_str.c_str() ;
-  char buf[512] ;
-  bzero(buf,512) ;
+  if(VOG::hasSuffix(case_name,".b8.ugrid"))
+    case_name = VOG::stripSuffix(case_name,".b8.ugrid") ;
+  else if(VOG::hasSuffix(case_name,".ugrid"))
+    case_name = VOG::stripSuffix(case_name,".ugrid") ;
+
   if(!binary) {
     struct stat fstat ;
-    snprintf(buf,511,"%s.ugrid",filename) ;
-    if(stat(buf,&fstat)<0) {
+    string ascii_file = case_name + ".ugrid" ;
+    if(stat(ascii_file.c_str(),&fstat)<0) {
       binary = true ;
     }
   }
 
+  string infile ;
   if(!binary)
-    snprintf(buf,511,"%s.ugrid",filename) ;
+    infile = case_name + ".ugrid" ;
   else
-    snprintf(buf,511,"%s.b8.ugrid",filename) ;
-  string infile = buf ;
+    infile = case_name + ".b8.ugrid" ;
 
-  string outfile = string(filename) + string(".vog") ;
+  string outfile = case_name + string(".vog") ;
 
 
   store<vector3d<double> > pos ;
@@ -3312,7 +3310,7 @@ int main(int ac, char* av[]) {
   vector<Array<int,8> > hexs ;
   readUGRID(infile, binary, pos,qfaces,tfaces,tets,pyramids,prisms,hexs) ;
 
-  string splitfile = string(filename) + string(".split") ;
+  string splitfile = case_name + string(".split") ;
   vector<quadSplit> splits;
   int num_hex = hexs.size();
   int P = Loci::MPI_processes;
@@ -3342,7 +3340,7 @@ int main(int ac, char* av[]) {
   vector<int> transsurf ;
 
   if(MPI_rank == 0) {
-    string tagsfile = string(filename) + ".tags" ;
+    string tagsfile = case_name + ".tags" ;
     bcs = readTags(tagsfile) ;
     if(bcs.size() == 0) {
       cerr << "unable to read '" << tagsfile << "'" << endl ;

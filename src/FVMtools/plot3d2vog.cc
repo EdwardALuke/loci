@@ -1200,36 +1200,56 @@ if(Lref == "")
   MPI_Bcast(&posScale,1,MPI_DOUBLE,0,MPI_COMM_WORLD) ;
   int read_type = 0 ;
   bool found_file = false ;
-  char* filename = av[1] ;
-  char buf[512] ;
-  bzero(buf,512) ;
-  snprintf(buf,511,"%s.grd",av[1]) ;
-  string file = string(buf) ;
+  string input_name = av[1] ;
+  bool explicit_ascii = VOG::hasSuffix(input_name,".grd") ;
+  bool explicit_binary = VOG::hasSuffix(input_name,".grd.b8") ;
+  string case_name = input_name ;
+  if(explicit_binary)
+    case_name = VOG::stripSuffix(input_name,".grd.b8") ;
+  else if(explicit_ascii)
+    case_name = VOG::stripSuffix(input_name,".grd") ;
+  string file = input_name ;
   if(Loci::MPI_rank == 0) {
-    bool found_ascii=false ;
-    bool found_binary = false ;
     struct stat finfo ;
-    if(stat(buf,&finfo)==0 && (S_ISREG(finfo.st_mode))) {
-      found_ascii = true ;
-      found_file = true ;
-    }
-    snprintf(buf,511,"%s.grd.b8",av[1]) ;
-    if(stat(buf,&finfo)==0 && (S_ISREG(finfo.st_mode))) {
-      found_binary = true ;
-      found_file = true ;
-    }
-    if(found_binary && found_ascii) {
-      cerr << "both ascii file, '" << file << "' and binary file, '" << buf
-	   << "', found.  Remove one file to disambiguate." << endl ;
-      Loci::Abort() ;
-    }
-    if(found_binary) {
-      file = string(buf) ;
-      read_type = 1 ;
-    }
-    if(!found_file) {
-      cerr << "unable to find file '"<< file << "' or '" << buf << "'" << endl ;
-      Loci::Abort() ;
+    if(explicit_ascii || explicit_binary) {
+      if(stat(file.c_str(),&finfo)==0 && (S_ISREG(finfo.st_mode)))
+        found_file = true ;
+      if(explicit_binary)
+        read_type = 1 ;
+      if(!found_file) {
+        cerr << "unable to find file '"<< file << "'" << endl ;
+        Loci::Abort() ;
+      }
+    } else {
+      bool found_ascii=false ;
+      bool found_binary = false ;
+      string ascii_file = input_name + ".grd" ;
+      string binary_file = input_name + ".grd.b8" ;
+      if(stat(ascii_file.c_str(),&finfo)==0 && (S_ISREG(finfo.st_mode))) {
+        found_ascii = true ;
+        found_file = true ;
+      }
+      if(stat(binary_file.c_str(),&finfo)==0 && (S_ISREG(finfo.st_mode))) {
+        found_binary = true ;
+        found_file = true ;
+      }
+      if(found_binary && found_ascii) {
+        cerr << "both ascii file, '" << ascii_file << "' and binary file, '"
+             << binary_file << "', found.  Remove one file to disambiguate."
+             << endl ;
+        Loci::Abort() ;
+      }
+      if(found_binary) {
+        file = binary_file ;
+        read_type = 1 ;
+      } else {
+        file = ascii_file ;
+      }
+      if(!found_file) {
+        cerr << "unable to find file '"<< ascii_file << "' or '" << binary_file
+             << "'" << endl ;
+        Loci::Abort() ;
+      }
     }
   }
 
@@ -2017,7 +2037,7 @@ if(Lref == "")
     VOG::optimizeMesh(pos,cl,cr,face2node) ;
   }
 
-  string outfile = string(filename) + ".vog" ;
+  string outfile = case_name + ".vog" ;
   if(MPI_rank == 0)
     cout << "writing VOG file" << endl ;
 

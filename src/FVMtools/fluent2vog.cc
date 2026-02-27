@@ -1019,25 +1019,32 @@ int main(int ac, char *av[]) {
     cout << endl ;
   }
 
-  string filename = av[1] ;
-  // Try ".cas file first as modern fluent outputs this file extension
-  filename += ".cas" ;
-  int validfile = 1 ;
-  // Only run stat on processor rank 0
-  if(Loci::MPI_rank == 0) {
-    struct stat statbuf ;
-    if(stat(filename.c_str(),&statbuf))
-      validfile = 0 ;
-  }
-  // broadcast results of stat call to other processors
-  MPI_Bcast(&validfile,1,MPI_INT,0,MPI_COMM_WORLD) ;
-  // If .cas file is not valid, then switch to older .msh extension
-  if(!validfile)
-    filename = string(av[1])+".msh" ;
-  
+  string input_name = av[1] ;
+  string case_name = input_name ;
+  string filename = input_name ;
 
-  string outfile = av[1] ;
-  outfile += ".vog" ;
+  if(VOG::hasSuffix(input_name,".cas")) {
+    case_name = VOG::stripSuffix(input_name,".cas") ;
+  } else if(VOG::hasSuffix(input_name,".msh")) {
+    case_name = VOG::stripSuffix(input_name,".msh") ;
+  } else {
+    // Try ".cas" first as modern fluent outputs this file extension.
+    filename = case_name + ".cas" ;
+    int validfile = 1 ;
+    // Only run stat on processor rank 0.
+    if(Loci::MPI_rank == 0) {
+      struct stat statbuf ;
+      if(stat(filename.c_str(),&statbuf))
+        validfile = 0 ;
+    }
+    // Broadcast results of stat call to other processors.
+    MPI_Bcast(&validfile,1,MPI_INT,0,MPI_COMM_WORLD) ;
+    // If ".cas" file is not valid, then switch to older ".msh" extension.
+    if(!validfile)
+      filename = case_name + ".msh" ;
+  }
+
+  string outfile = case_name + ".vog" ;
 
   store<vector3d<double> > pos;
   Map cl, cr;
@@ -1082,4 +1089,3 @@ int main(int ac, char *av[]) {
   Loci::Finalize() ;
   return 0 ;
 }
-
