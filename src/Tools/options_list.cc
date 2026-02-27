@@ -970,8 +970,14 @@ namespace Loci {
                                 real_value, real_grad, real_grad2,gradN) ;
         
         value_type = UNIT_VALUE ;
-      } else
+      } else {
         value_type = REAL ;
+        int next = s.peek() ;
+        if(next != std::char_traits<char>::eof() &&
+           next != ',' && next != ')' && next != ']' && next != '>') {
+          throw StringError("unexpected token after real option value") ;
+        }
+      }
     } else if(parse::is_name(s)) {
       name = parse::get_name(s) ;
       parse::kill_white_space(s) ;
