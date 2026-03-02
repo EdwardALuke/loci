@@ -3468,6 +3468,10 @@ void parseFile::processFile(string file, ostream &outputFile,
   char c ;
   
   if(level==0) {
+    if(!parseInfo.no_cuda && parseInfo.debug_info>0) {
+      outputFile << "#include <nvtx3/nvtx3.hpp>" << endl ;
+      syncFile(outputFile) ;
+    }
     outputFile << "extern const char *" << docvarname << "[] ;" << endl ;
   }
   syncFile(outputFile) ;
