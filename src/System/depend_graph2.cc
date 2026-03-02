@@ -1252,7 +1252,7 @@ namespace Loci {
       s << ri->ident() << ": " << '"' ;
       if(ri->type() != rule::INTERNAL) {
         rule_implP rp = ri->get_rule_implP() ;
-        s<< '[' << rp->get_name() << ']';
+	s<< '[' << rp->rule_identifier() << ']';
       }
       s << *ri <<'"' << endl ;
     }

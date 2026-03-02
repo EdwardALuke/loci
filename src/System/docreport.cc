@@ -426,8 +426,7 @@ namespace Loci {
       }
       map<string,rule> sortrules ;
       for(auto ri=rs.begin();ri!=rs.end();++ri) {
-        rule_implP rp = ri->get_rule_implP() ;
-        sortrules[rp->get_name()] = *ri ;
+	sortrules[ri->rule_identifier()] = *ri ;
       }
       for(auto ri=sortrules.begin();ri!=sortrules.end();++ri) {
         prettyPrintRuleDoc(ri->second,o) ;

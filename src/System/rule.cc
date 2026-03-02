@@ -84,7 +84,7 @@ namespace Loci {
       vmap_info res ;
       for(vector<variableSet>::const_iterator i=in.mapping.begin();
           i!=in.mapping.end();++i)
-        res.mapping.push_back(prepend_set(in.var,tl)) ;
+        res.mapping.push_back(prepend_set(*i,tl)) ;
 
       res.var = prepend_set(in.var,tl) ;
 
@@ -190,7 +190,6 @@ namespace Loci {
   }
 
   rule_impl::rule_impl() {
-    name = "UNNAMED" ;
     rule_impl_class = UNKNOWN ;
     rule_threading = true ;
     gpgpu_kernel = false ;
@@ -210,16 +209,6 @@ namespace Loci {
     // reorganized to support "true" keyspace partition
     space_tag = "main" ;
     space_dist = false ;
-  }
-
-  void rule_impl::rule_name(const string &fname) {
-    name = fname ;
-  }
-
-  string rule_impl::get_name() const {
-    if(name == "UNNAMED")
-      name = typeid(*this).name() ;
-    return name ;
   }
 
   rule_implP rule_impl::add_namespace(const string& n) const {
@@ -432,20 +421,23 @@ namespace Loci {
         if(i->second->access() != store_instance::READ_WRITE) {
           cerr << "WARNING! read-only var '" << i->first
                << "' in target list for rule "
-               << get_name() << endl ;
+	       << rule_info.rule_identifier()
+	       << endl ;
           retval = false ;
         }
       } else if(read_set.inSet(i->first)) {
         if(i->second->access() != store_instance::READ_ONLY) {
           cerr << "WARNING! read-write var '" << i->first
                << "' only in source list for rule "
-               << get_name() << endl ;
+	       << rule_info.rule_identifier()
+	       << endl ;
           retval = false ;
         }
       } else {
         cerr << "WARNING! var '" << i->first
              << "' not in source or target lists for rule "
-             << get_name() << endl ;
+	     << rule_info.rule_identifier()
+	     << endl ;
         retval = false ;
       }
     }
@@ -454,7 +446,9 @@ namespace Loci {
     for(si=read_set.begin();si!=read_set.end();++si) {
       if(var_table.find(*si) == var_table.end()) {
         cerr << "WARNING! var '" << *si << "' has not been named in"
-             << " rule " << get_name() << endl ;
+             << " rule "
+	     << rule_info.rule_identifier()
+	     << endl ;
         retval = false ;
       }
     }
@@ -470,7 +464,8 @@ namespace Loci {
             cerr << "Pointwise rule should have targets of store type."<<endl;
             cerr << "perhaps this rule should be a singleton_rule, or"<<endl;
             cerr << "apply_rule."<< endl ;
-            cerr << "error occured for rule " << get_name()
+            cerr << "error occured for rule "
+		 << rule_info.rule_identifier()
                  << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
             retval = false ;
@@ -483,7 +478,8 @@ namespace Loci {
             cerr << "Default and optional rule should have targets" << endl;
             cerr << " of param. Perhaps this rule should be a" << endl;
 	    cerr << "pointwise_rule, or apply_rule."<< endl ;
-            cerr << "Error occured for rule " << get_name()
+            cerr << "Error occured for rule "
+		 << rule_info.rule_identifier()
 		 << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
             retval = false ;
@@ -493,7 +489,9 @@ namespace Loci {
 	  if(!isPARAMETER(mi->second->Rep())) {
             cerr << "-------------------------------------------------"<<endl ;
             cerr << "Deletion rule should have only one target of " << endl ;
-            cerr << "parameter. Error occured for rule "<<get_name()<<endl ;
+            cerr << "parameter. Error occured for rule "
+		 << rule_info.rule_identifier()
+		 << endl ;
             cerr << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
             retval = false ;
@@ -505,7 +503,8 @@ namespace Loci {
             cerr << "Constraint rule should have targets" << endl;
             cerr << " of constraint. Perhaps this rule should be a" << endl;
 	    cerr << "pointwise_rule, or apply_rule."<< endl ;
-            cerr << "Error occured for rule " << get_name()
+            cerr << "Error occured for rule "
+		 << rule_info.rule_identifier()
 		 << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
             retval = false ;
@@ -517,7 +516,8 @@ namespace Loci {
             cerr << "Map rule should have targets" << endl;
             cerr << " of map. Perhaps this rule should be a" << endl;
 	    cerr << "pointwise_rule, or apply_rule."<< endl ;
-            cerr << "Error occured for rule " << get_name()
+            cerr << "Error occured for rule "
+		 << rule_info.rule_identifier()
 		 << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
             retval = false ;
@@ -529,7 +529,8 @@ namespace Loci {
             cerr << "Blackbox rule should have targets" << endl;
             cerr << " of blackbox. Perhaps this rule should be a" << endl;
 	    cerr << "pointwise_rule, or apply_rule."<< endl ;
-            cerr << "Error occured for rule " << get_name()
+            cerr << "Error occured for rule "
+		 << rule_info.rule_identifier()
 		 << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
             retval = false ;
@@ -542,7 +543,8 @@ namespace Loci {
             cerr << "Singleton rule should have targets of param or" << endl;
             cerr << "blackbox type.  Perhaps this rule should be a" << endl;
 	    cerr << "pointwise_rule, or apply_rule."<< endl ;
-            cerr << "Error occured for rule " << get_name()
+            cerr << "Error occured for rule "
+		 << rule_info.rule_identifier()
 		 << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
             retval = false ;
@@ -556,7 +558,8 @@ namespace Loci {
 	      cerr << "Singleton rule should have sources of param or" << endl;
 	      cerr << "blackbox type.  Perhaps this rule should be a" << endl;
 	      cerr << "pointwise_rule, or apply_rule."<< endl ;
-	      cerr << "Error occured for rule " << get_name()
+	      cerr << "Error occured for rule "
+		   << rule_info.rule_identifier()
 		   << " and variable " << *sri << endl ;
 	      cerr << "-------------------------------------------------"<<endl;
 	      retval = false ;
@@ -565,10 +568,11 @@ namespace Loci {
           if(si->get_info().priority.size() != 0) {
             cerr << "-------------------------------------------------"<<endl;
             cerr << "Singleton rule cannot use priority override" << endl;
-            cerr << "Error occured for rule " << get_name()
+            cerr << "Error occured for rule "
+		 << rule_info.rule_identifier()
                  << " and variable " << *si << endl ;
             cerr << "-------------------------------------------------"<<endl;
-
+	    retval = false ;
           }
           break;
         default:
@@ -576,7 +580,9 @@ namespace Loci {
         }
       } else {
         cerr << "WARNING! var '" << *si << "' has not been named in"
-             << " rule " << get_name() << endl ;
+             << " rule "
+	     << rule_info.rule_identifier()
+	     << endl ;
         retval = false ;
       }
     }
@@ -811,7 +817,6 @@ namespace Loci {
       tmp2.insert(std::pair<const variable, store_instance*>(v,j->second)) ;
     }
     var_table.swap(tmp2) ;
-    name = rule_info.rule_identifier() ;
   }
 
   void rule_impl::copy_store_from(rule_impl &f) {
@@ -823,7 +828,9 @@ namespace Loci {
 
   void rule_impl::Print(ostream &s) const {
     s << "------------------------------------------------" << endl;
-    s << "--- rule " << get_name() << ", class = " ;
+    s << "--- rule "
+      << rule_identifier() 
+      << ", class = " ;
     switch(rule_impl_class) {
     case POINTWISE:
       s << "POINTWISE" ;
@@ -980,14 +987,14 @@ namespace Loci {
         cerr << " error occured in rule " ;
         rule_impl->Print(cerr) ;
       } else if(isPARAMETER(rule_impl->get_store(*i))) {
-        if(i!=tvars.begin() && !output_is_parameter) {
+        if(i!=tvar_types.begin() && !output_is_parameter) {
           cerr << "can't mix parameters and stores in target" << endl
                << "error occured in rule ";
           rule_impl->Print(cerr) ;
         }
         output_is_parameter = true ;
       } else {
-        if(i!=tvars.begin() && output_is_parameter) {
+        if(i!=tvar_types.begin() && output_is_parameter) {
           cerr << "can't mix parameters and stores in target" << endl
                << "error occured in rule ";
           rule_impl->Print(cerr) ;
@@ -1016,11 +1023,13 @@ namespace Loci {
     if(1 == target_offset)
       time_advance = true ;
     if(time_advance && rule_class == BUILD)
-      cerr << "can not advance time in build rule " << rule_impl->get_name()
+      cerr << "can not advance time in build rule "
+	   << rule_impl->rule_identifier()
            << endl;
     if(target_offset > 2)
       cerr << "invalid target offset in rule "
-           << rule_impl->get_name() << endl;
+	   << rule_impl->rule_identifier()
+	   << endl;
   }
 
   rule::info::info(const info &fi, time_ident tl) {
@@ -1445,25 +1454,6 @@ namespace Loci {
     return fp ;
   }
 
-  void
-  rule::rename(const std::string& s) {
-    // get the rule info.
-    rule::info info = rdb->fiv[-(id+1)] ;
-    // save the old name
-    std::string old_name = info.name() ;
-    // replace the "rule_ident" inside ;
-    info.rule_ident = s ;
-    // Get new id
-    id = rdb->get_id(info) ;
-  }
-
-  rule rule::get_rule_by_name(std::string &name) {
-    int myId = rdb->query_name(name);
-    rule myRule(myId);
-    return myRule;
-
-  }
-
   namespace {
     // utility function
     inline variableSet get_rule_var_list(const rule& r) {
@@ -1620,7 +1610,8 @@ namespace Loci {
 
     if(target_offset > 2)
       cerr << "invalid target offset in rule "
-           << rule_impl->get_name() << endl;
+	   << rule_impl->rule_identifier()
+	   << endl;
 
   }
 
@@ -1708,12 +1699,6 @@ namespace Loci {
   }
 
   void rule_db::add_rule(rule f) {
-    string fname = f.get_info().rule_impl->get_name() ;
-    rule_map_type::const_iterator fmti = name2rule.find(fname) ;
-    if(fmti != name2rule.end()) {
-      fname = f.get_info().name() ;
-    }
-    name2rule[fname] = f ;
     // default and optional rules need to be in a different ruleSet
     if(f.get_info().rule_impl->get_rule_class() == rule_impl::DEFAULT) {
       if(default_rules.inSet(f)) {
@@ -1774,12 +1759,6 @@ namespace Loci {
   }
 
   void rule_db::remove_rule(rule f) {
-    string fname = f.get_info().rule_impl->get_name() ;
-    rule_map_type::const_iterator fmti = name2rule.find(fname) ;
-    if(fmti != name2rule.end()) {
-      fname = f.get_info().name() ;
-    }
-    name2rule.erase(fname) ;
     // remove rules in the appropriate categories
     if(f.get_info().rule_impl->get_rule_class() == rule_impl::DEFAULT) {
       default_rules -= f ;
@@ -1798,7 +1777,7 @@ namespace Loci {
     for(variableSet::const_iterator i=tvars.begin();i!=tvars.end();++i) {
       variable v = *i ;
       while(v.get_info().priority.size() != 0) {
-        trgt2rule[v] += f ;
+        trgt2rule[v] -= f ;
         v = v.drop_priority() ;
       }
       trgt2rule[v] -= f ;

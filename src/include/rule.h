@@ -85,14 +85,13 @@ namespace Loci {
     bool specialized_parametric ;
     bool use_parametric_variable ;
     variable ParametricVariable ;
-    mutable std::string name ;
+
     info rule_info ;
     typedef std::multimap<variable, store_instance *> storeIMap ;
     storeIMap var_table ;
     std::map<variable,variable> rvmap ;
     std::map<variable,int> varInfoId ;
     const char **vardoc ;
-
     void source(const std::string &invar) ;
     void target(const std::string &outvar) ;
     std::string rule_comments ; // the comments for a rule_impl
@@ -125,7 +124,6 @@ namespace Loci {
     // these should be called if the pre- and postlude methods are present
     void enable_prelude() { use_prelude = true; }
     void enable_postlude() { use_postlude = true; }
-    void rule_name(const std::string &name) ;
     void name_store(const std::string &name,store_instance &si) ;
     void input(const std::string &invar) { source(invar) ; }
     void output(const std::string &outvar) { target(outvar) ; }
@@ -143,6 +141,7 @@ namespace Loci {
     // set the space_dist bit
     void keyspace_dist_hint() {space_dist = true ;}
   public:
+    std::string rule_identifier() const { return rule_info.rule_identifier() ;}
     const char *getvardoc(variable v) const {
       if(vardoc) {
         auto mi = varInfoId.find(v) ;
@@ -178,7 +177,6 @@ namespace Loci {
     std::string
     get_keyspace_tag() const {return space_tag ;}
     
-    std::string get_name() const ;
     rule_impl_type get_rule_class() const { return rule_impl_class ; }
     const info &get_info() const { return rule_info ; }
     void set_store(variable v, const storeRepP &p) ;
@@ -324,8 +322,8 @@ namespace Loci {
     { rule_impl::output(outvar) ; }
     // do we allow constraint in a constraint rule???
     // I don't think so currently --- so we disable it for now.
-//     void constraint(const std::string &constrain)
-//     { rule_impl::constraint(constrain) ; }
+    //     void constraint(const std::string &constrain)
+    //     { rule_impl::constraint(constrain) ; }
     void conditional(const std::string &cond)
       { rule_impl::conditional(cond) ; }
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
@@ -867,6 +865,7 @@ namespace Loci {
       std::string internal_qualifier ;
       std::string impl_name ;
       const std::string &name() const { return rule_ident ; }
+      const std::string &rule_identifier() const { return rule_ident ;}
       info() { rule_ident = "NO_RULE" ;}
       info(const rule_implP &fp) ;
       info(const info &fi, time_ident tl) ;
@@ -975,11 +974,6 @@ namespace Loci {
       s << std::string( (pos==name.end()?name.begin():pos+1),name.end()) ;
       return s ;
     }
-    // this function is used to rename a rule
-    // i.e., modify the corresponding string inside
-    void rename(const std::string&) ;
-
-    static rule get_rule_by_name(std::string &name);
         
     bool operator<(const rule &f) const { return id < f.id ; }
     bool operator==(const rule &f) const { return id == f.id ; }
@@ -988,6 +982,7 @@ namespace Loci {
     int ident() const { return id ; }
     const rule::info &get_info() const { return rdb->get_info(id) ; }
 
+    const std::string rule_identifier() const { return get_info().name() ; }
     const variableSet &sources() const { return rdb->get_info(id).sources(); }
     const variableSet &targets() const { return rdb->get_info(id).targets(); }
 
@@ -1154,7 +1149,6 @@ namespace Loci {
   class rule_db {
     typedef std::map<variable,ruleSet> varmap ;
     typedef varmap::const_iterator vc_iterator ;
-    typedef std::map<std::string,rule> rule_map_type ;
       
     static const ruleSet EMPTY_RULE ;
     ruleSet known_rules ;
@@ -1163,7 +1157,6 @@ namespace Loci {
     ruleSet optional_rules ;
 
     varmap srcs2rule,trgt2rule ;
-    rule_map_type name2rule ;
     // partition rules according their keyspace
     std::map<std::string,ruleSet> keyspace2rule ;
 
@@ -1174,9 +1167,6 @@ namespace Loci {
     void add_rules(register_rule_impl_list &gfl) ;
     void remove_rule(rule f) ;
     void remove_rules(const ruleSet& rs) ;
-    rule_implP get_rule(const std::string &name) {
-      return name2rule[name].get_info().rule_impl->new_rule_impl() ;
-    }
     
     const ruleSet &all_rules() const { return known_rules ; }
     // return all the rules in "keyspace_tag"
