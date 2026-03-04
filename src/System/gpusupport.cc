@@ -531,7 +531,7 @@ namespace Loci {
     variableSet gpuMaps ;
     variableSet inputs  ;
     variableSet outputs = facts.get_typed_variables();
-    ruleSet gpurules ;
+    ruleSet gpurules, mixedrules ;
     ruleSet rset = rdb.all_rules() ;
 
     map<variable,ruleSet> vargenerators ;
@@ -577,13 +577,24 @@ namespace Loci {
       }
       if(hasGPUVar) {
 	if(hasCPUVar) {
-	  cerr << "WARNING: rule " << *rsi << " contains both cpu and gpu containers! ---------" << endl ;
+	  mixedrules += rule(rp) ;
+	} else {
+	  gpurules += rule(rp) ;
 	}
 	gpurules += rule(rp) ;
       } else {
 	gpu_rdb.add_rule(*rsi) ;
       }
       
+    }
+
+    if(mixedrules != EMPTY) {
+      for(ruleSet::const_iterator iter = mixedrules.begin();
+	  iter != mixedrules.end(); ++iter) {
+	cerr << "ERROR: rule " << *iter
+	     << " contains both CPU and GPU containers!" << endl ;
+      }
+      Loci::Abort() ;
     }
 
     if(gpurules != EMPTY) {
@@ -651,7 +662,7 @@ namespace Loci {
 	  storeRepP sp = rp->get_store(*vsi) ;
 	  if(sp!=0) {
 	    vm[*vsi] = makeGPUVAR(*vsi) ;
-	  } else if(sp != 0) {
+	  } else {
 	    vm[*vsi] = *vsi ;
 	  }
 	}
@@ -683,7 +694,7 @@ namespace Loci {
 	storeRepP sp = rp->get_store(*vsi) ;
 	if(sp!=0) {
 	  vm[*vsi] = makeGPUVAR(*vsi) ;
-	} else if(sp != 0) {
+	} else {
 	  vm[*vsi] = *vsi ;
 	}
       }
