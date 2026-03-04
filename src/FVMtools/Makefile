@@ -20,6 +20,7 @@
 ###############################################################################
 include $(LOCI_BASE)/Loci.conf
 
+INCLUDES = -I./libadf
 COPT = $(COPTLESS)
 #COPT = -g -O0 #-DDEBUG -DBOUNDS_CHECK
 
@@ -149,7 +150,9 @@ distclean: clean
 	rm -fr $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)
 	$(MAKE) -C libadf distclean
 
-DEPEND_FILES=$(subst .o,.d,$(OBJS))
+ALL_SOURCES=$(call loci_compile_files,)
+ALL_OBJS=$(call loci_file2objs,$(ALL_SOURCES))
+DEPEND_FILES=$(subst .o,.d,$(ALL_OBJS))
 
 
 #include automatically generated dependencies
