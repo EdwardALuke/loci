@@ -181,6 +181,334 @@ namespace Loci {
     float lsn = max(norm(sn),1e-30f) ;
     $distanceFieldGradient = (ldv< 1e-10)?((1./lsn)*sn):((1./ldv)*dv) ;
   }
+  
+  $type crossComponentDist_saveState store<float> ;
+  $rule pointwise(crossComponentDist_saveState{n=0}<-pos,holeCuttingDelayCycle) {
+    $crossComponentDist_saveState{n=0} = 0 ;
+  }
+
+  $rule pointwise(crossComponentDist_saveState{n+1}<-crossComponentDist_node{n,it},holeCuttingDelayCycle),conditional(newton_finished{n,it}) {
+    $crossComponentDist_saveState{n+1} = $crossComponentDist_node{n,it} ;
+  }
+  
+  $type crossComponentDistGrad_saveState store<vector3d<float> > ;
+  $rule pointwise(crossComponentDistGrad_saveState{n=0}<-pos,holeCuttingDelayCycle) {
+    $crossComponentDistGrad_saveState{n=0} = vector3d<float>(0.,0.,0.) ;
+  }
+
+  $rule pointwise(crossComponentDistGrad_saveState{n+1}<-crossComponentDistGrad_node{n,it},holeCuttingDelayCycle),conditional(newton_finished{n,it}) {
+    $crossComponentDistGrad_saveState{n+1} = $crossComponentDistGrad_node{n,it} ;
+  }
+  
+  $type crossComponentID_saveState store<int> ;
+  $rule pointwise(crossComponentID_saveState{n=0}<-pos,holeCuttingDelayCycle) {
+    $crossComponentID_saveState{n=0} = 0 ;
+  }
+
+  $rule pointwise(crossComponentID_saveState{n+1}<-crossComponentID_node{n,it},holeCuttingDelayCycle),conditional(newton_finished{n,it}) {
+    $crossComponentID_saveState{n+1} = $crossComponentID_node{n,it} ;
+  }
+  
+  $rule pointwise(saveState::crossComponentDist_node,saveState::crossComponentDistGrad_node,
+  saveState::crossComponentID_node<-pos,distanceFieldGradient,node2surf->pos,
+  componentID_node,componentPriorityList,holeCuttingTolerance,
+  componentNameList,componentGeometryList,stencilSize2,
+  crossComponentDist_saveState,
+  crossComponentDistGrad_saveState,
+  crossComponentID_saveState,
+  $n,holeCuttingDelayCycle),
+  option(disable_threading), prelude {
+    entitySet dom = entitySet(seq) ;
+    if(((*$$n)%(*$holeCuttingDelayCycle)) != 0) {
+      FORALL(dom,ii) {
+        $crossComponentDist_node[ii] = $crossComponentDist_saveState[ii] ;
+        $crossComponentDistGrad_node[ii] = $crossComponentDistGrad_saveState[ii] ;
+        $crossComponentID_node[ii] = $crossComponentID_saveState[ii] ;
+      } ENDFORALL ;
+      return ;
+    }
+    int nc = (*$componentNameList).size() ;
+    float delta = realToFloat(sqrt(*$stencilSize2)) ;
+    //    Loci::debugout << "delta = " << delta << endl ;
+    vector<Array<float,6> > bbox_set(nc) ;
+    for(int i=0;i<nc;++i) {
+      bbox_set[i][0] = 1e33 ;
+      bbox_set[i][1] =-1e33 ;
+      bbox_set[i][2] = 1e33 ;
+      bbox_set[i][3] =-1e33 ;
+      bbox_set[i][4] = 1e33 ;
+      bbox_set[i][5] =-1e33 ;
+    }
+    // Find bounding box for each component
+    FORALL(dom,nd) {
+      int id = $componentID_node[nd] ;
+      $crossComponentID_node[nd] = -1 ; // No component by default
+      $crossComponentDist_node[nd] = 1e30 ;
+      $crossComponentDistGrad_node[nd] = vector3d<float>(0,0,0) ;
+      bbox_set[id][0] = min(bbox_set[id][0],realToFloat($pos[nd].x-delta)) ;
+      bbox_set[id][1] = max(bbox_set[id][1],realToFloat($pos[nd].x+delta)) ;
+      bbox_set[id][2] = min(bbox_set[id][2],realToFloat($pos[nd].y-delta)) ;
+      bbox_set[id][3] = max(bbox_set[id][3],realToFloat($pos[nd].y+delta)) ;
+      bbox_set[id][4] = min(bbox_set[id][4],realToFloat($pos[nd].z-delta)) ;
+      bbox_set[id][5] = max(bbox_set[id][5],realToFloat($pos[nd].z+delta)) ;
+    } ENDFORALL ;
+    int p = Loci::MPI_processes ;
+
+    vector<Array<float,6> > bbox_all(nc*p) ;
+#ifdef VERBOSE
+    Loci::debugout << "local bbox set for components:" << endl ;
+    for(int i=0;i<nc;++i) {
+      Loci::debugout << "c=" << i
+		     << "- [" << bbox_set[i][0] << ","<< bbox_set[i][1] << "] ["
+		     << bbox_set[i][2] << ","<< bbox_set[i][3] << "] ["
+		     << bbox_set[i][4] << ","<< bbox_set[i][5] << "] " << endl ;
+    }
+#endif
+    // Exchange request bounding boxes
+    MPI_Allgather(&bbox_set[0],sizeof(Array<float,6>)*nc,MPI_BYTE,
+                  &bbox_all[0],sizeof(Array<float,6>)*nc,MPI_BYTE,
+                  MPI_COMM_WORLD) ;
+
+    vector<vector<int> > send_sets ;
+    vector<int> component_search ;
+
+    vector<pair<int,int> > send_list ;
+    for(int j=0;j<nc;++j) { // loop over components
+      if(bbox_set[j][0] < bbox_set[j][1]) { // valid bbox
+        // does it intersect any other processors
+        for(int i=0;i<p;++i) {
+          int ic = i*nc ;
+          for(int k=0;k<nc;++k)
+            if(k!=j && bbox_all[ic+k][0] < bbox_all[ic+k][1]) {
+              // does the bounding box intersect
+              if(bbox_set[j][1] >= bbox_all[ic+k][0] &&
+                 bbox_set[j][0] <= bbox_all[ic+k][1] &&
+                 bbox_set[j][3] >= bbox_all[ic+k][2] &&
+                 bbox_set[j][2] <= bbox_all[ic+k][3] &&
+                 bbox_set[j][5] >= bbox_all[ic+k][4] &&
+                 bbox_set[j][4] <= bbox_all[ic+k][5]) {
+                send_list.push_back(pair<int,int>(i,k)) ;
+              }
+            }
+        }
+      }
+    }
+#ifdef VERBOSE
+    Loci::debugout << "send_list =" ;
+    for(size_t i=0;i<send_list.size();++i)
+      Loci::debugout << " (" << send_list[i].first << ' ' << send_list[i].second
+                     << ")" ;
+    Loci::debugout << endl ;
+#endif
+
+    vector<vector<int> > send_set(p) ;
+    for(size_t i=0;i<send_list.size();++i) {
+      int proc = send_list[i].first ; // processor
+      int comp = send_list[i].second ; // component
+      Array<float,6> bbox = bbox_all[proc*nc+comp] ;
+      FORALL(dom,nd) {
+        int id = $componentID_node[nd] ;
+        if(id != comp &&
+           $pos[nd].x > bbox[0] && $pos[nd].x < bbox[1] &&
+	   $pos[nd].y > bbox[2] && $pos[nd].y < bbox[3] &&
+	   $pos[nd].z > bbox[4] && $pos[nd].z < bbox[5]) {
+          send_set[proc].push_back(nd) ;
+        }
+      } ENDFORALL ;
+    }
+
+    // remove duplicates
+    for(int i=0;i<p;++i) {
+      if(send_set[i].size() > 1) {
+	std::sort(send_set[i].begin(),send_set[i].end()) ;
+	vector<int>::const_iterator se =
+	  std::unique(send_set[i].begin(),send_set[i].end()) ;
+	vector<int> tmp(se-send_set[i].begin()) ;
+	for(size_t j=0;j<tmp.size();++j)
+	  tmp[j] = send_set[i][j] ;
+	tmp.swap(send_set[i]) ;
+      }
+    }
+
+#ifdef VERBOSE
+    Loci::debugout << "send_sizes =" ;
+    for(int i=0;i<p;++i)
+      Loci::debugout << ' ' << send_set[i].size() ;
+    Loci::debugout << endl;
+#endif
+
+    vector<int> send_sz(p) ;
+    for(int i=0;i<p;++i)
+      send_sz[i] = send_set[i].size() ;
+    vector<int> recv_sz(p) ;
+    MPI_Alltoall(&send_sz[0],1,MPI_INT,&recv_sz[0],1,MPI_INT,
+		 MPI_COMM_WORLD) ;
+
+    vector<int> recv_off(p+1) ;
+    recv_off[0] = 0 ;
+    for(int i=0;i<p;++i)
+      recv_off[i+1] = recv_off[i]+recv_sz[i] ;
+    vector<Array<float,7> > recv_pnts(recv_off[p]) ;
+    vector<int> recv_ids(recv_off[p]) ;
+
+    // Post Irecv's
+    vector<MPI_Request> req_queue ;
+    for(int i=0;i<p;i++) {
+      if(recv_sz[i] > 0) {
+	if(i != Loci::MPI_rank) {
+	  MPI_Request tmp ;
+	  MPI_Irecv(&recv_pnts[recv_off[i]],7*recv_sz[i],MPI_FLOAT,i,10,
+		    MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	  MPI_Irecv(&recv_ids[recv_off[i]],recv_sz[i],MPI_INT,i,11,
+		    MPI_COMM_WORLD,&tmp) ;
+	  req_queue.push_back(tmp) ;
+	}
+      }
+    }
+
+    bool self_send = false ;
+    // Post sends
+    for(int i=0;i<p;i++) {
+      if(send_sz[i] > 0) {
+	if(i == Loci::MPI_rank) {
+	  int sz = send_sz[i] ;
+	  if(sz > 0)
+	    self_send = true ;
+
+	  for(int j=0;j<sz;++j) {
+	    int nd = send_set[i][j] ;
+	    recv_pnts[recv_off[i]+j][0] = realToFloat($pos[nd].x) ;
+	    recv_pnts[recv_off[i]+j][1] = realToFloat($pos[nd].y) ;
+	    recv_pnts[recv_off[i]+j][2] = realToFloat($pos[nd].z) ;
+	    float dist = realToFloat(norm($pos[nd]-$pos[$node2surf[nd]])) ;
+	    recv_pnts[recv_off[i]+j][3] = dist ;
+	    vector3d<float> ncorrect = $distanceFieldGradient[nd] ;
+	    recv_pnts[recv_off[i]+j][4] = ncorrect.x ;
+	    recv_pnts[recv_off[i]+j][5] = ncorrect.y ;
+	    recv_pnts[recv_off[i]+j][6] = ncorrect.z ;
+	    recv_ids[recv_off[i]+j] = $componentID_node[nd] ;
+	  }
+	} else {
+	  int sz = send_sz[i] ;
+	  vector<Array<float,7> > send_buf(send_sz[i]) ;
+	  vector<int> send_id(send_sz[i]) ;
+
+	  for(int j=0;j<sz;++j) {
+	    int nd = send_set[i][j] ;
+	    send_buf[j][0] = realToFloat($pos[nd].x) ;
+	    send_buf[j][1] = realToFloat($pos[nd].y) ;
+	    send_buf[j][2] = realToFloat($pos[nd].z) ;
+	    float dist = realToFloat(norm($pos[nd]-$pos[$node2surf[nd]])) ;
+	    send_buf[j][3] = dist ;
+	    vector3d<float> ncorrect = $distanceFieldGradient[nd] ;
+	    send_buf[j][4] = ncorrect.x ;
+	    send_buf[j][5] = ncorrect.y ;
+	    send_buf[j][6] = ncorrect.z ;
+	    send_id[j] = $componentID_node[nd] ;
+	    if(send_id[j] > nc || send_id[j]<0) {
+	      cerr << "Something wrong with componentID" << endl ;
+	    }
+	  }
+	  MPI_Send(&send_buf[0],7*sz,MPI_FLOAT,i,10,MPI_COMM_WORLD) ;
+	  MPI_Send(&send_id[0],sz,MPI_INT,i,11,MPI_COMM_WORLD) ;
+	}
+      }
+    }
+
+    if(req_queue.size() > 0) {
+      vector<MPI_Status> stat_queue(req_queue.size()) ;
+      MPI_Waitall(req_queue.size(),&req_queue[0],&stat_queue[0]) ;
+    }
+
+#ifdef VERBOSE
+    Loci::debugout << "req_queue.size() ==" << req_queue.size() << endl ;
+    Loci::debugout << "recv_sizes =" ;
+    for(int i=0;i<p;++i)
+      Loci::debugout << ' ' << recv_sz[i] ;
+    Loci::debugout << endl;
+#endif
+
+    if(req_queue.size() > 0 || self_send) {
+      // Now create kd tree and search for closest pt
+      int rsz = recv_pnts.size() ;
+      // break out data by component
+      vector<vector<Loci::kdTree::coord3d> > pnts(nc) ;
+      vector<vector<int> > pnt_id(nc) ;
+      for(int i=0;i<rsz;++i) {
+	Loci::kdTree::coord3d c3d ;
+
+	c3d[0] = recv_pnts[i][0] ;
+	c3d[1] = recv_pnts[i][1] ;
+	c3d[2] = recv_pnts[i][2] ;
+	int id = recv_ids[i] ;
+	if(id > nc || id<0) {
+	  cerr << "received_id invalid" << endl ;
+	} else {
+	  pnts[id].push_back(c3d) ;
+	  pnt_id[id].push_back(i) ;
+	}
+      }
+      vector<Loci::kdTree::kd_tree *> kdlist(nc) ;
+      for(int i=0;i<nc;++i)
+	if(pnts[i].size() == 0)
+	  kdlist[i] = 0 ;
+	else {
+	  kdlist[i] = new Loci::kdTree::kd_tree(pnts[i],pnt_id[i]) ;
+	}
+
+      real_t rmin2 = delta*delta ;
+      FORALL(dom,nd) {
+	int id = $componentID_node[nd] ;
+	Loci::kdTree::coord3d p(realToFloat($pos[nd].x),
+				realToFloat($pos[nd].y),
+				realToFloat($pos[nd].z)) ;
+	float nearest_dist = 1e30 ;
+	for(int i=0;i<nc;++i) {
+	  if(id != i) {
+	    double rmin = realToDouble(rmin2) ;
+	    int pi = -1 ;
+	    // If no geometry is defined, then by default the geometry
+	    // is everything.  Otherwise check to see if it is in geometry
+	    bool inGeom =
+	      ($componentGeometryList[nd][i] == 0 ||
+	       $componentGeometryList[nd][i]->inGeometry($pos[nd])) ;
+	    if(kdlist[i] != 0 && inGeom) {
+	      pi = kdlist[i]->find_closest(p,rmin) ;
+	    }
+	    if(pi >= 0) {
+	      vector3d<real_t> loc(recv_pnts[pi][0],recv_pnts[pi][1],recv_pnts[pi][2]) ;
+	      real_t distloc = recv_pnts[pi][3] ;
+	      vector3d<real_t> n(recv_pnts[pi][4],recv_pnts[pi][5],recv_pnts[pi][6]) ;
+	      vector3d<real_t> dv = $pos[nd] -loc ;
+	      real_t dn = distloc + dot(dv,n) ;
+	      real_t epsdist = *$holeCuttingTolerance ;
+	      real_t d = (dn > -epsdist && dn < epsdist)?epsdist:dn ;
+	      real_t priority = (*$componentPriorityList)[i] ;
+	      real_t dp = d*priority ;
+	      if($crossComponentID_node[nd] < 0 || nearest_dist > realToFloat(dp)) {
+		nearest_dist = realToFloat(dp) ;
+		$crossComponentID_node[nd] = i ;
+		$crossComponentDist_node[nd] = realToFloat(d) ;
+		$crossComponentDistGrad_node[nd] = realToFloat(n) ;
+	      }
+	    } else {
+	      if(inGeom) {
+		nearest_dist = -1e30 ;
+		$crossComponentDist_node[nd] = -1e30 ;
+		$crossComponentID_node[nd] = i ;
+		$crossComponentDistGrad_node[nd] = vector3d<float>(0,0,0) ;
+	      }
+	    }
+	  }
+	}
+      } ENDFORALL ;
+      for(int i=0;i<nc;++i)
+	if(kdlist[i] != 0)
+	  delete kdlist[i] ;
+    }
+
+  } ;
 
   $rule pointwise(crossComponentDist_node,crossComponentDistGrad_node,
   crossComponentID_node<-pos,distanceFieldGradient,node2surf->pos,
