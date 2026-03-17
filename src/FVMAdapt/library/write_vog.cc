@@ -887,7 +887,7 @@ namespace Loci {
       
     blackbox<vector<pair<string, entitySet> > > origVolTags ;
     origVolTags.Rep()->allocate(~EMPTY) ;
-    if(MPI_rank==0){
+    if(MPI_rank==0 || Loci::use_parallel_io){   
       hid_t file_id = Loci::hdf5OpenFile(meshFile.c_str(),
 					 H5F_ACC_RDONLY,H5P_DEFAULT) ;
     
@@ -1058,7 +1058,8 @@ namespace Loci {
     Loci::parallelClassifyCell(refine_facts);
     blackbox<vector<pair<string, entitySet> > > origVolTags ;
     origVolTags.Rep()->allocate(~EMPTY) ;
-    if(MPI_rank==0){
+    //if(MPI_rank==0){
+    if(MPI_rank==0 || Loci::use_parallel_io){   
       hid_t file_id = Loci::hdf5OpenFile(meshFile.c_str(),
 					 H5F_ACC_RDONLY,H5P_DEFAULT) ;
 	    
