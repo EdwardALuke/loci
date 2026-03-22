@@ -230,7 +230,8 @@ public:
           //vog file node index start with 0
           // face2node[*fid][j] = fine_faces_cell[*ei][i][j+2]-1;
           // if(fine_faces_cell[*ei][i][j+2] < 0) cerr <<"WARNING: negative node index" << endl;
-          face2node[*fid][j] = fine_faces_cell[*ei][i][j+2]; 
+          face2node[*fid][j] = fine_faces_cell[*ei][i][j+2];
+          FATAL(face2node[*fid][j] < 0) ;
         }
         fid++;
       }
@@ -242,6 +243,7 @@ public:
           // face2node[*fid][j] = fine_faces[*ei][i][j+2]-1;
           // if(fine_faces[*ei][i][j+2] < 0) cerr <<"WARNING: negative node index" << endl;
           face2node[*fid][j] = fine_faces[*ei][i][j+2]; 
+          FATAL(face2node[*fid][j] < 0) ;
         }
         fid++;
       }

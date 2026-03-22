@@ -217,6 +217,9 @@ void add_to_datamap(entitySet dom, vector<pair<int,int> > &datamap, int offset,
     Map l2f ;
     l2f = dist->l2f.Rep() ;
     FORALL(dom,nd) {
+      Loci::debugout << "nd=" << nd <<", l2f[nd]=" << l2f[nd]
+                     << ", offset=" << offset
+                     << endl ;
       pair<int,int> item(l2f[nd]-offset,nd) ;
       datamap.push_back(item) ;
     } ENDFORALL ;
@@ -351,6 +354,20 @@ public:
 
 register_rule<input_TagsData> register_input_TagsData ;
   
+int getFileNumberOffset(const entitySet& locdom,Map &l2f, MPI_Comm &comm){
+  entitySet dom = locdom ;
+  int imn = std::numeric_limits<int>::max() ;
+    // Compute map from local numbering to file numbering
+  entitySet filedom = EMPTY;
+  FORALL(dom,i) {
+    imn = min(imn,l2f[i]) ;
+  } ENDFORALL ;
+
+  int local_min = imn;
+  MPI_Allreduce(&local_min, &imn, 1, MPI_INT, MPI_MIN,comm);  
+  return imn;
+}
+
 class get_postag : public pointwise_rule{
   const_blackbox<vector<char> > inputTagsData ;
   store<char> posTag;
@@ -372,9 +389,12 @@ public:
     // Now determine what data we need to collect from filedata
     fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
     entitySet dom = entitySet(seq);
+    if(dist!=0)dom = dom & dist->my_entities;
 
     vector<pair<int,int> > datamap ;
-    add_to_datamap(dom,datamap,0,dist) ;
+    int offset= getFileNumberOffset(dom,dist->l2f,comm);
+    cerr << "inputTags file offset=" << offset << endl ;
+    add_to_datamap(dom,datamap,offset,dist) ;
     
    
     vector<pair<int,char> > returndata ;
@@ -392,30 +412,6 @@ register_rule<get_postag> register_get_postag;
 
 
   
-int getFileNumberOffset(const entitySet& locdom,MPI_Comm &comm){
-  // Now determine what data we need to collect from filedata
-  fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
-  int imn = 0 ;
-  if(dist == 0) {
-    return locdom.Min();
-  } else {
-    entitySet dom = ~EMPTY;
-    dom = locdom&(dist->my_entities) ;
-    Map l2f ;
-    l2f = dist->l2f.Rep() ;
-    // Compute map from local numbering to file numbering
-    entitySet filedom = EMPTY;
-    FORALL(dom,i) {
-      filedom += l2f[i] ;
-    } ENDFORALL ;
-
-    imn = filedom.Min();
-    int local_min = imn;
-    MPI_Allreduce(&local_min, &imn, 1, MPI_INT, MPI_MIN,comm);  
-    return imn;
-  }
-  return imn;
-}
 
   
 
@@ -840,7 +836,7 @@ public:
     entitySet dom = entitySet(seq);
     if(dist!=0)dom = dom & dist->my_entities;
     
-    int offset= getFileNumberOffset(dom,comm);
+    int offset= getFileNumberOffset(dom,dist->l2f,comm);
    
     vector<pair<int,int> > datamap ;
     add_to_datamap(dom,datamap,offset,dist) ;

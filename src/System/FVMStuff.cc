@@ -3407,59 +3407,6 @@ namespace Loci{
   }
 
   namespace {
-    // a utility that returns the global sum
-    int
-    global_sum(int l) {
-      int g ;
-      MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD) ;
-      return g ;
-    }
-    // a utility function that takes an entitySet from a processor
-    // and returns a vector of entitySet gathered from all processors
-    vector<entitySet>
-    gather_all_entitySet(const entitySet& eset) {
-      int local_size = eset.size() ;
-      int global_size = global_sum(local_size) ;
-      // compute receive counts from all processors
-      int* recv_counts = new int[MPI_processes] ;
-      MPI_Allgather(&local_size, 1, MPI_INT,
-                    recv_counts, 1, MPI_INT, MPI_COMM_WORLD) ;
-      // then compute receive displacement
-      int* recv_displs = new int[MPI_processes] ;
-      recv_displs[0] = 0 ;
-      for(int i=1;i<MPI_processes;++i)
-        recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
-      // pack the local eset into an array
-      int* local_eset = new int[local_size] ;
-      int count = 0 ;
-      for(entitySet::const_iterator ei=eset.begin();
-          ei!=eset.end();++ei,++count)
-        local_eset[count] = *ei ;
-      // allocate the entire array for all data from all processors
-      int* global_eset = new int[global_size] ;
-      // communicate to obtain all esets from every processors
-      MPI_Allgatherv(local_eset, local_size, MPI_INT,
-                     global_eset, recv_counts, recv_displs,
-                     MPI_INT, MPI_COMM_WORLD) ;
-      delete[] local_eset ;
-      delete[] recv_counts ;
-      // unpack the raw buffer into a vector<entitySet>
-      vector<entitySet> ret(MPI_processes) ;
-      int k = 0 ;
-      for(int i=0;i<MPI_processes;++i) {
-        int limit ;
-        if(i == MPI_processes-1)
-          limit = global_size ;
-        else
-          limit = recv_displs[i+1] ;
-        for(;k<limit;++k)
-          ret[i] += global_eset[k] ;
-      }
-      delete[] recv_displs ;
-      delete[] global_eset ;
-
-      return ret ;
-    }
     void
     par_sort2(vector<pair<pair<int,int>, int> >& data, MPI_Comm comm){
       // first get the processor id and total number of processors
@@ -3825,7 +3772,7 @@ namespace Loci{
     // instead it is the el Map image distribution
     entitySet el_image = el.image(el.domain()) ;
     vector<entitySet> el_image_partitions =
-      gather_all_entitySet(el_image) ;
+      all_collect_vectors(el_image) ;
     distributed_inverseMap(n2e, el, el_image, edges, el_image_partitions) ;
 
     // Now create face2edge map with same size as face2node
@@ -3893,14 +3840,14 @@ namespace Loci{
         edges_accessed += e ;
       }
     }
-    vector<entitySet> edge_partitions = gather_all_entitySet(edge.domain()) ;
-    entitySet edges_out_domain = edges_accessed - edge.domain() ;
+    entitySet edge_dom = edge.domain() ;
+    vector<entitySet> edge_partitions = all_collect_vectors(edge_dom) ;
+    entitySet edges_out_domain = edges_accessed - edge_dom ;
     // but since there is no expand method implemented for
     // MapVec at this time, we will just do a hack to convert
     // the MapVec to a multiMap to reuse the expand code.
     multiMap edge2 ;
     store<int> edge2_count ;
-    entitySet edge_dom = edge.domain() ;
     edge2_count.allocate(edge_dom) ;
     for(entitySet::const_iterator ei=edge_dom.begin();
         ei!=edge_dom.end();++ei)
@@ -3987,7 +3934,7 @@ namespace Loci{
       }ENDFORALL;
        
       entitySet out_of_dom = nodes - localNodes;
-      // vector<entitySet> tmp_ptn = gather_all_entitySet(localNodes);
+
       node_l2f.setRep(MapRepP(node_l2f.Rep())->expand(out_of_dom, init_ptn)) ;
      
       

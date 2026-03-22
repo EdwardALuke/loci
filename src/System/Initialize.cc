@@ -876,6 +876,9 @@ namespace Loci {
 	  factdb_allocated_base = std::numeric_limits<int>::min() + 2048 ;
 	  useDomainKeySpaces = true ;
 	  i++ ;
+        } else if(!(strcmp((*argv)[i],"--lilbig"))) {
+	  factdb_allocated_base = std::numeric_limits<int>::min() + 2048 ;
+	  i++ ;
         } else if(!strcmp((*argv)[i],"--threads")) {
           // determine the number of threads to use.
           // ideally we would like to detect the available

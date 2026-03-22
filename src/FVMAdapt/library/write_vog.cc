@@ -132,15 +132,17 @@ namespace Loci {
       DataXFER_DB.insertItem("c2pglobal",c2pg.Rep()) ;
       return c2pg.Rep() ;
     }
-    // Now get the maps needed to translate from global to file
-    dMap g2f ;
-    g2f = dist->g2f.Rep() ;
-    Map l2g ;
-    l2g = dist->l2g.Rep() ;
     constraint geom_cells ;
     geom_cells = facts.get_fact("geom_cells") ;
     dom = geom_cells.Rep()->domain() ;
     dom = dom & dist->my_entities ;
+
+    int ks = geom_cells.Rep()->getDomainKeySpace() ;
+    // Now get the maps needed to translate from global to file
+    dMap g2f ;
+    g2f = dist->g2fv[ks].Rep() ;
+    Map l2g ;
+    l2g = dist->l2g.Rep() ;
 
     // Create protomap from cell file number to global number
     protoMap f2g(dom.size()) ;
@@ -1814,6 +1816,7 @@ namespace Loci{
 
     entitySet domcr = tmp_cr.domain() ;
     FORALL(domcr,fc) {
+      FATAL(tmp_cr[fc] < 1000000) ;
       if(tmp_cr[fc] < 0)
 	tmp_cr[fc] = boundary_remap[tmp_cr[fc]] ;
     } ENDFORALL ;
@@ -1944,6 +1947,19 @@ namespace Loci{
       break ;
     }
 
+#ifdef VERBOSE
+    for(int i=0;i<MPI_processes;++i)
+      debugout << "node_ptn[" << i << "]=" << node_ptn[i] << endl ;
+    for(int i=0;i<MPI_processes;++i)
+      debugout << "cell_ptn[" << i << "]=" << cell_ptn[i] << endl ;
+    for(int i=0;i<MPI_processes;++i)
+      debugout << "face_ptn[" << i << "]=" << face_ptn[i] << endl ;
+    debugout << "local_nodes=" << local_nodes
+             << "local_faces=" << local_faces
+             << "local_faces=" << local_cells
+             << endl ;
+#endif
+    
     vector<entitySet> bcsurf_ptn(MPI_processes) ;
     entitySet refset = tmp_boundary_tags.domain() ;
       
@@ -2010,13 +2026,15 @@ namespace Loci{
 
     entitySet cells = facts.get_distributed_alloc(cell_alloc,0).first ;//Fix This
 
+#ifdef VERBOSE
     Loci::debugout << "nodes = " << nodes << ", size= "
                    << nodes.size() << endl;
     Loci::debugout << "faces = " << faces << ", size = "
                    << faces.size() << endl ;
     Loci::debugout << "cells = " << cells << ", size = "
                    << cells.size() << endl ;
-
+#endif
+    
     vector<int> bcsurf_alloc(bcsurf_ptn[MPI_rank].size()) ;
     i=0 ;
     FORALL(bcsurf_ptn[MPI_rank],ii) {
@@ -2584,6 +2602,7 @@ namespace Loci {
           // face2node[*fid][j] = fine_faces_cell[*ei][i][j+2]-1;
           // if(fine_faces_cell[*ei][i][j+2] < 0) cerr <<"WARNING: negative node index" << endl;
           face2node[*fid][j] = fine_faces_cell[*ei][i][j+2];
+          FATAL(face2node[*fid][j] < 0) ;
         }
         fid++;
       }
@@ -2595,6 +2614,7 @@ namespace Loci {
           // face2node[*fid][j] = fine_faces[*ei][i][j+2]-1;
           // if(fine_faces[*ei][i][j+2] < 0) cerr <<"WARNING: negative node index" << endl;
           face2node[*fid][j] = fine_faces[*ei][i][j+2];
+          FATAL(face2node[*fid][j] < 0) ;
         }
         fid++;
       }
@@ -2899,10 +2919,13 @@ void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
     int nfc = f_ord[i].second ;
     tmp_cl[fc] = cl[nfc]-mc ;
     tmp_cr[fc] = cr[nfc] ;
+    FATAL(tmp_cr[fc] < -100000) ;
     if(tmp_cr[fc] >= 0)
       tmp_cr[fc] -= mc ;
-    for(int j=0;j<count[fc];++j)
+    for(int j=0;j<count[fc];++j) {
       tmp_face2node[fc][j] = face2node[nfc][j] ;
+      FATAL(tmp_face2node[*fid][j] < 0) ;
+    }
     i++ ;
   } ENDFORALL ;
 

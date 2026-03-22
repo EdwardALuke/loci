@@ -43,10 +43,37 @@ using std::cerr;
 using std::ofstream;
 using Loci::MPI_processes;
 
+$type minNode param<int> ;
+$rule unit(minNode),constraint(UNIVERSE) {
+  $minNode = 0 ;  
+}
+$rule apply(minNode)[Loci::Minimum],constraint(pos),
+option(disable_threading),prelude {
+  if(Loci::MPI_processes > 1) {
+   fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
+    Map l2g ;
+    l2g = df->l2g.Rep() ;
+    store<unsigned char> key_domain ;
+    key_domain = df->key_domain.Rep() ;
+    //    dMap g2f ;
+    //    g2f = df->g2f.Rep() ;
+
+    for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
+      int kd = key_domain[*si] ;
+      int val= df->g2fv[kd][l2g[*si]] ;
+      *$minNode = min(*$minNode,val) ;
+    }
+    
+  }
+  
+} ;
 class fileNumRule: public pointwise_rule {
   store<int> fileNumX ;
+  param<int> minNode ;
 public:
   fileNumRule() {
+    name_store("minNode",minNode) ;
+    input("minNode") ;
     name_store("fileNumber(X)",fileNumX) ;
     output("fileNumber(X)") ;
     constraint("X") ;
@@ -57,6 +84,7 @@ public:
     
      for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
        fileNumX[*si] = *si ;
+      FATAL(fileNumX[*si]<0) ;
        // if(*si < 0) cout << "negative file Number " << *si << endl; 
      }
      return;
@@ -71,7 +99,8 @@ public:
 
     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
       int kd = key_domain[*si] ;
-      fileNumX[*si] = df->g2fv[kd][l2g[*si]] ;
+      fileNumX[*si] = df->g2fv[kd][l2g[*si]]-*minNode ;
+      FATAL(fileNumX[*si]<0) ;
       //if(fileNumX[*si] < 0) cout << "negative file Number " << fileNumX[*si] << endl; 
     }
   }
