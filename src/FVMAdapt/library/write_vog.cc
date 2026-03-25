@@ -1816,7 +1816,8 @@ namespace Loci{
 
     entitySet domcr = tmp_cr.domain() ;
     FORALL(domcr,fc) {
-      FATAL(tmp_cr[fc] < 1000000) ;
+      WARN(tmp_cr[fc] < 0 &&
+           boundary_remap.find(tmp_cr[fc]) == boundary_remap.end());
       if(tmp_cr[fc] < 0)
 	tmp_cr[fc] = boundary_remap[tmp_cr[fc]] ;
     } ENDFORALL ;
@@ -2924,7 +2925,7 @@ void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
       tmp_cr[fc] -= mc ;
     for(int j=0;j<count[fc];++j) {
       tmp_face2node[fc][j] = face2node[nfc][j] ;
-      FATAL(tmp_face2node[*fid][j] < 0) ;
+      FATAL(tmp_face2node[fc][j] < 0) ;
     }
     i++ ;
   } ENDFORALL ;
