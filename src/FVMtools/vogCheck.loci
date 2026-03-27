@@ -875,7 +875,7 @@ $rule default(LDS_nonSymmetricFactor) {
   $LDS_nonSymmetricFactor = 1 ;
 }
 
-$rule pointwise(alpha_geom_f<-area,facecenter,(cl,cr)->(cellcenter,vol),
+$rule pointwise(alpha_geom_f<-area,facecenter,(cl,cr)->(cellcenter,volume),
 		LDS_nonSymmetricCoeff,LDS_nonSymmetricFactor) {
   const vector3d<real_t> df = $cr->$cellcenter-$cl->$cellcenter ;
   const vector3d<real_t>  dv = $facecenter -0.5*($cl->$cellcenter+$cr->$cellcenter) ;
