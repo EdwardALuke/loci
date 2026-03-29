@@ -883,11 +883,11 @@ int main(int ac, char *av[]) {
       if(tria_equals[eq] == 1) {
 	cerr << "isolated boundary face!" << endl
 	     << "mesh doesn't seem to be tagging boundaries properly for tag " << -c1 << endl ;
-	Loci::Abort() ;
+        //	Loci::Abort() ;
       }
       cerr << "two boundary faces glued together, probably a transparent surface is causing the problem!"<< endl ;
       cout << "c1=" << c1 << "c2=" << c2 << " out of " << tria_equals[eq] << endl ;
-      Loci::Abort() ;
+      //      Loci::Abort() ;
     }
 
     if(tria_equals[eq] == 1) {

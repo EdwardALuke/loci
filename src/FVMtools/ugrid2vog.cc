@@ -1304,6 +1304,11 @@ void extract_trifaces(vector<Array<int,5> > &triangles,
     int c2 = tria[i*2+1].cell ;
     if(c1 < 0 && c2 < 0) {
       cerr << "two boundary faces glued together, probably a transparent surface is causing the problem!"<< endl ;
+      cerr << "c1=" << c1 << "c2=" << c2 << endl ;
+      cerr << "nodes=" ;
+      for(int i=0;i<3;++i)
+        cerr << " " << tria[i*2].nodes[i] ;
+      cerr << endl ;
       Loci::Abort() ;
     }
     if(c1 < 0) {
@@ -2405,6 +2410,11 @@ void convert2face(store<vector3d<double> > &pos,
     int c2 = tria[i*2+1].cell ;
     if(c1 < 0 && c2 < 0) {
       cerr << "two boundary faces glued together, probably a transparent surface is causing the problem!"<< endl ;
+      cerr << "c1=" << c1 << "c2=" << c2 << endl ;
+      cerr << "nodes=" ;
+      for(int i=0;i<3;++i)
+        cerr << " " << tria[i*2].nodes[i] ;
+      cerr << endl ;
       Loci::Abort() ;
     }
     if(c1 < 0) {
