@@ -79,15 +79,15 @@ void ug_io_reverse_byte_order
       Reverse_Byte_Index = Number_of_Bytes;
 
       for (Byte_Index = 0; Byte_Index < Number_of_Bytes/2; ++Byte_Index)
-	{
-	  --Reverse_Byte_Index;
+        {
+          --Reverse_Byte_Index;
 
-	  Temp_Data_Byte = Data_Byte_Ptr[Byte_Index];
+          Temp_Data_Byte = Data_Byte_Ptr[Byte_Index];
 
-	  Data_Byte_Ptr[Byte_Index] = Data_Byte_Ptr[Reverse_Byte_Index];
+          Data_Byte_Ptr[Byte_Index] = Data_Byte_Ptr[Reverse_Byte_Index];
 
-	  Data_Byte_Ptr[Reverse_Byte_Index] = Temp_Data_Byte;
-	}
+          Data_Byte_Ptr[Reverse_Byte_Index] = Temp_Data_Byte;
+        }
 
       Data_Byte_Ptr += Number_of_Bytes;
     }
@@ -108,7 +108,7 @@ void cfread(void *ptr, size_t size, size_t nmemb, FILE *stream) {
 struct quadFace {
   Array<int,4> nodes ;
   int cell ;
-  bool left ;
+  int left ;
 } ;
 
 
@@ -116,7 +116,7 @@ struct quadFace {
 struct triaFace {
   Array<int,3> nodes ;
   int cell ;
-  bool left ;
+  int left ;
 } ;
 
 struct edge {
@@ -175,13 +175,13 @@ inline bool edgeEqual(const edge &e1, const edge &e2) {
 inline bool edgeCompare(const edge &e1, const edge &e2) {
   return ((e1.nodes.first < e2.nodes.first) ||
           (e1.nodes.first == e2.nodes.first &&
-	   e1.nodes.second < e2.nodes.second)) ;
+           e1.nodes.second < e2.nodes.second)) ;
 }
 
 inline bool pairCompare(const pair<int,int> &p1, const pair<int,int> &p2) {
   return ((p1.first < p2.first) ||
           (p1.first == p2.first &&
-	   p1.second < p2.second)) ;
+           p1.second < p2.second)) ;
 }
 inline bool pairEqual(const pair<int,int> &p1, const pair<int,int> &p2) {
   return ((p1.first == p2.first) &&
@@ -217,13 +217,13 @@ inline bool edgeSplitEqual(const edgeSplit &e1, const edgeSplit &e2) {
 inline bool edgeSplitCompare(const edgeSplit &e1, const edgeSplit &e2) {
   return ((e1.n1 < e2.n1) ||
           (e1.n1 == e2.n1 &&
-	   e1.n2 < e2.n2)) ;
+           e1.n2 < e2.n2)) ;
 }
 
 inline bool quadSplitCompare(const pair<int, int>& e1, const pair<int, int> &e2) {
   return ((e1.first < e2.first) ||
           (e1.first == e2.first &&
-	   e1.second < e2.second)) ;
+           e1.second < e2.second)) ;
 }
 
 
@@ -607,9 +607,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
 
     if(!binary) {
       if(fscanf(IFP, "%d%d%d", &num_nodes, & num_sf_trias, & num_sf_quads)!=3)
-	input_error() ;
+        input_error() ;
       if(fscanf(IFP, "%d%d%d%d", &num_vol_tets, &num_vol_pents5, &num_vol_pents6, &num_vol_hexs)!=4)
-	input_error() ;
+        input_error() ;
     } else {
       cfread(&num_nodes, sizeof(int), 1, IFP) ;
       if(reverse_byteorder)
@@ -671,7 +671,7 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
       if(!binary) {
         for(int i = 0; i < 3; ++i) {
           if(fscanf(IFP, "%lf", &ptmp[i])!=1)
-	    input_error() ;
+            input_error() ;
         }
       } else {
         cfread(ptmp,sizeof(double),3,IFP) ;
@@ -692,7 +692,7 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
         if(!binary) {
           for(int i = 0; i < 3; ++i) {
             if(fscanf(IFP, "%lf", &ptmp[i])!=1)
-	      input_error() ;
+              input_error() ;
           }
         } else {
           cfread(ptmp,sizeof(double),3,IFP) ;
@@ -735,8 +735,8 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
         tfaces[i][3] = 0 ;
         if(!binary) {
           if(fscanf(IFP, "%d%d%d",
-		    &tfaces[i][0], &tfaces[i][1], &tfaces[i][2])!=3)
-	    input_error() ;
+                    &tfaces[i][0], &tfaces[i][1], &tfaces[i][2])!=3)
+            input_error() ;
         } else {
           cfread(&tfaces[i][0], sizeof(int), 3, IFP) ;
           if(reverse_byteorder)
@@ -752,8 +752,8 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
           ttmp[i][3] = 0 ;
           if(!binary) {
             if(fscanf(IFP, "%d%d%d", &ttmp[i][0], &ttmp[i][1], &ttmp[i][2])!= 3)
-	      input_error() ;
-	  } else {
+              input_error() ;
+          } else {
             cfread(&ttmp[i][0], sizeof(int), 3, IFP) ;
             if(reverse_byteorder)
               ug_io_reverse_byte_order(&ttmp[i][0],sizeof(int),3) ;
@@ -769,9 +769,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
         qfaces[i][4] = 0 ;
         if(!binary) {
           if(fscanf(IFP, "%d%d%d%d",
-		    &qfaces[i][0], &qfaces[i][1], &qfaces[i][2],
-		    &qfaces[i][3])!= 4)
-	    input_error() ;
+                    &qfaces[i][0], &qfaces[i][1], &qfaces[i][2],
+                    &qfaces[i][3])!= 4)
+            input_error() ;
         } else {
           cfread(&qfaces[i][0], sizeof(int), 4, IFP) ;
           if(reverse_byteorder)
@@ -787,8 +787,8 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
           qtmp[i][4] = 0 ;
           if(!binary) {
             if(fscanf(IFP, "%d%d%d%d",
-		      &qtmp[i][0], &qtmp[i][1], &qtmp[i][2], &qtmp[i][3])!=4)
-	      input_error() ;
+                      &qtmp[i][0], &qtmp[i][1], &qtmp[i][2], &qtmp[i][3])!=4)
+              input_error() ;
           } else {
             cfread(&qtmp[i][0], sizeof(int), 4, IFP) ;
             if(reverse_byteorder)
@@ -806,7 +806,7 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
       for(int i=triadist[R];i<triadist[R+1];++i) {
         if(!binary) {
           if(fscanf(IFP, "%d", &tfaces[i][3])!=1)
-	    input_error() ;
+            input_error() ;
         } else {
           cfread(&tfaces[i][3], sizeof(int), 1, IFP) ;
           if(reverse_byteorder)
@@ -822,7 +822,7 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
         for(int i=0;i<ltsz;++i) {
           if(!binary) {
             if(fscanf(IFP, "%d", &ttmp[i])!=1)
-	      input_error() ;
+              input_error() ;
           } else {
             cfread(&ttmp[i], sizeof(int), 1, IFP) ;
             if(reverse_byteorder)
@@ -838,7 +838,7 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
       for(int i=quaddist[R];i<quaddist[R+1];++i) {
         if(!binary) {
           if(fscanf(IFP, "%d", &qfaces[i][4])!= 1)
-	    input_error() ;
+            input_error() ;
         } else {
           cfread(&qfaces[i][4], sizeof(int), 1, IFP) ;
           if(reverse_byteorder)
@@ -854,7 +854,7 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
         for(int i=0;i<lqsz;++i) {
           if(!binary) {
             if(fscanf(IFP, "%d", &qtmp[i])!=1)
-	      input_error() ;
+              input_error() ;
           } else {
             cfread(&qtmp[i], sizeof(int), 1, IFP) ;
             if(reverse_byteorder)
@@ -898,9 +898,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
     for(int i=tetsdist[R];i<tetsdist[R+1];++i) {
       if(!binary) {
         if(fscanf(IFP, "%d%d%d%d",
-		  &tets[i][0], &tets[i][1],
-		  &tets[i][2], &tets[i][3])!=4)
-	  input_error() ;
+                  &tets[i][0], &tets[i][1],
+                  &tets[i][2], &tets[i][3])!=4)
+          input_error() ;
       } else {
         cfread(&tets[i][0], sizeof(int), 4, IFP) ;
         if(reverse_byteorder)
@@ -915,9 +915,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
       for(int i=0;i<ltsz;++i) {
         if(!binary) {
           if(fscanf(IFP, "%d%d%d%d",
-		    &ttmp[i][0], &ttmp[i][1],
-		    &ttmp[i][2], &ttmp[i][3])!=4)
-	    input_error() ;
+                    &ttmp[i][0], &ttmp[i][1],
+                    &ttmp[i][2], &ttmp[i][3])!=4)
+            input_error() ;
         } else {
           cfread(&ttmp[i][0], sizeof(int), 4, IFP) ;
           if(reverse_byteorder)
@@ -942,9 +942,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
     for(int i=pyrmdist[R];i<pyrmdist[R+1];++i) {
       if(!binary) {
         if(fscanf(IFP, "%d%d%d%d%d",
-		  &pyramids[i][0], &pyramids[i][1],
-		  &pyramids[i][2], &pyramids[i][3], &pyramids[i][4])!=5)
-	  input_error() ;
+                  &pyramids[i][0], &pyramids[i][1],
+                  &pyramids[i][2], &pyramids[i][3], &pyramids[i][4])!=5)
+          input_error() ;
       } else {
         cfread(&pyramids[i][0], sizeof(int), 5, IFP) ;
         if(reverse_byteorder)
@@ -959,9 +959,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
       for(int i=0;i<ltsz;++i) {
         if(!binary) {
           if(fscanf(IFP, "%d%d%d%d%d",
-		    &ttmp[i][0], &ttmp[i][1],
-		    &ttmp[i][2], &ttmp[i][3], &ttmp[i][4])!=5)
-	    input_error() ;
+                    &ttmp[i][0], &ttmp[i][1],
+                    &ttmp[i][2], &ttmp[i][3], &ttmp[i][4])!=5)
+            input_error() ;
         } else {
           cfread(&ttmp[i][0], sizeof(int), 5, IFP) ;
           if(reverse_byteorder)
@@ -986,9 +986,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
     for(int i=prsmdist[R];i<prsmdist[R+1];++i) {
       if(!binary) {
         if(fscanf(IFP, "%d%d%d%d%d%d",
-		  &prisms[i][0], &prisms[i][1], &prisms[i][2],
-		  &prisms[i][3], &prisms[i][4], &prisms[i][5]) != 6)
-	  input_error() ;
+                  &prisms[i][0], &prisms[i][1], &prisms[i][2],
+                  &prisms[i][3], &prisms[i][4], &prisms[i][5]) != 6)
+          input_error() ;
       } else {
         cfread(&prisms[i][0], sizeof(int), 6, IFP) ;
         if(reverse_byteorder)
@@ -1003,10 +1003,10 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
       for(int i=0;i<ltsz;++i) {
         if(!binary) {
           if(fscanf(IFP, "%d%d%d%d%d%d",
-		    &ttmp[i][0], &ttmp[i][1], &ttmp[i][2],
-		    &ttmp[i][3], &ttmp[i][4], &ttmp[i][5])!=6)
-	    input_error() ;
-	} else {
+                    &ttmp[i][0], &ttmp[i][1], &ttmp[i][2],
+                    &ttmp[i][3], &ttmp[i][4], &ttmp[i][5])!=6)
+            input_error() ;
+        } else {
           cfread(&ttmp[i][0], sizeof(int), 6, IFP) ;
           if(reverse_byteorder)
             ug_io_reverse_byte_order(&ttmp[i][0],sizeof(int),6) ;
@@ -1030,9 +1030,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
     for(int i=hexsdist[R];i<hexsdist[R+1];++i) {
       if(!binary) {
         if(fscanf(IFP, "%d%d%d%d%d%d%d%d",
-		  &hexs[i][0], &hexs[i][1], &hexs[i][2], &hexs[i][3],
-		  &hexs[i][4], &hexs[i][5], &hexs[i][6], &hexs[i][7])!=8)
-	  input_error() ;
+                  &hexs[i][0], &hexs[i][1], &hexs[i][2], &hexs[i][3],
+                  &hexs[i][4], &hexs[i][5], &hexs[i][6], &hexs[i][7])!=8)
+          input_error() ;
       } else {
         cfread(&hexs[i][0], sizeof(int), 8, IFP) ;
         if(reverse_byteorder)
@@ -1047,9 +1047,9 @@ void readUGRID(string filename,bool binary, store<vector3d<double> > &pos,
       for(int i=0;i<ltsz;++i) {
         if(!binary) {
           if(fscanf(IFP, "%d%d%d%d%d%d%d%d",
-		    &ttmp[i][0], &ttmp[i][1], &ttmp[i][2], &ttmp[i][3],
-		    &ttmp[i][4], &ttmp[i][5], &ttmp[i][6], &ttmp[i][7])!=8)
-	    input_error() ;
+                    &ttmp[i][0], &ttmp[i][1], &ttmp[i][2], &ttmp[i][3],
+                    &ttmp[i][4], &ttmp[i][5], &ttmp[i][6], &ttmp[i][7])!=8)
+            input_error() ;
         } else {
           cfread(&ttmp[i][0], sizeof(int), 8, IFP) ;
           if(reverse_byteorder)
@@ -1158,12 +1158,12 @@ void split_quad(const vector<quadFace>& quad, vector<triaFace>& tria){
 }
 
 void extract_trifaces(vector<Array<int,5> > &triangles,
-		      vector<Array<int,5> > &unbound,
-		      int cellid,
-		      const vector<Array<int,4> > &tfaces,
-		      const vector<Array<int,4> > &tets,
-		      const vector<Array<int,5> > &pyramids,
-		      const vector<Array<int,6> > &prisms) {
+                      vector<Array<int,5> > &unbound,
+                      int cellid,
+                      const vector<Array<int,4> > &tfaces,
+                      const vector<Array<int,4> > &tets,
+                      const vector<Array<int,5> > &pyramids,
+                      const vector<Array<int,6> > &prisms) {
   int num_tria_faces =
     tfaces.size() + tets.size()*4 + pyramids.size()*4 + prisms.size()*2 ;
 
@@ -1747,13 +1747,11 @@ bool split(const quadSplit& s,
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
 
-
       tria[tf].nodes[0] = s.corners[2] ;
       tria[tf].nodes[1] = s.corners[3] ;
       tria[tf].nodes[2] = s.nodes[3] ;
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
-
 
       tria[tf].nodes[0] = s.corners[0] ;
       tria[tf].nodes[1] = s.corners[1] ;
@@ -1770,13 +1768,11 @@ bool split(const quadSplit& s,
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
 
-
       tria[tf].nodes[0] = s.corners[3] ;
       tria[tf].nodes[1] = s.corners[0] ;
       tria[tf].nodes[2] = s.nodes[0] ;
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
-
 
       tria[tf].nodes[0] = s.corners[1] ;
       tria[tf].nodes[1] = s.corners[2] ;
@@ -1793,13 +1789,11 @@ bool split(const quadSplit& s,
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
 
-
       tria[tf].nodes[0] = s.corners[0] ;
       tria[tf].nodes[1] = s.corners[1] ;
       tria[tf].nodes[2] = s.nodes[1] ;
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
-
 
       tria[tf].nodes[0] = s.corners[2] ;
       tria[tf].nodes[1] = s.corners[3] ;
@@ -1816,13 +1810,11 @@ bool split(const quadSplit& s,
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
 
-
       tria[tf].nodes[0] = s.corners[1] ;
       tria[tf].nodes[1] = s.corners[2] ;
       tria[tf].nodes[2] = s.nodes[2] ;
       tria[tf].left = false ;
       tria[tf++].cell = cellid ;
-
 
       tria[tf].nodes[0] = s.corners[3] ;
       tria[tf].nodes[1] = s.corners[0] ;
@@ -1968,8 +1960,6 @@ void convert2face(store<vector3d<double> > &pos,
   int num_splits =  splits.size();
   for(int i = 0 ; i < num_splits; i++)count_split(splits[i],num_quads_from_splits, num_tria_from_splits);
 
-
-
   int num_quad_faces =
     qfaces.size() + pyramids.size()+ prisms.size()*3 + hexs.size()*6 - num_splits + num_quads_from_splits;
   int num_tria_faces =
@@ -1979,7 +1969,7 @@ void convert2face(store<vector3d<double> > &pos,
 
   vector<triaFace> tria(num_tria_faces) ;
   vector<quadFace> quad(num_quad_faces) ;
-
+    
   if(MPI_rank==0)cerr<<" collecting faces" << endl;
 
   int tf = 0 ;
@@ -2112,22 +2102,22 @@ void convert2face(store<vector3d<double> > &pos,
     for(size_t i=0;i<hexs.size();++i) {
       int hex_id = hex_min[Loci::MPI_rank] + i;
       for(int face_id = 1; face_id <=6; face_id++){
-	//find face
-	int ind = find_quad_split(splits, hex_id, face_id, start_ind);
-	if(ind < 0){
-	  Array<int, 4> corners;
-	  get_corners(face_id, hexs[i], corners);
-	  quad[qf].nodes[0] = corners[0] ;
-	  quad[qf].nodes[1] = corners[1] ;
-	  quad[qf].nodes[2] = corners[2] ;
-	  quad[qf].nodes[3] = corners[3] ;
-	  quad[qf].left = true ;
-	  quad[qf++].cell = cellid ;
-	}else{
-	  split_found++;
-	  start_ind = ind;
-	  split(splits[ind], quad, qf, tria, tf, cellid);
-	}
+        //find face
+        int ind = find_quad_split(splits, hex_id, face_id, start_ind);
+        if(ind < 0){
+          Array<int, 4> corners;
+          get_corners(face_id, hexs[i], corners);
+          quad[qf].nodes[0] = corners[0] ;
+          quad[qf].nodes[1] = corners[1] ;
+          quad[qf].nodes[2] = corners[2] ;
+          quad[qf].nodes[3] = corners[3] ;
+          quad[qf].left = true ;
+          quad[qf++].cell = cellid ;
+        }else{
+          split_found++;
+          start_ind = ind;
+          split(splits[ind], quad, qf, tria, tf, cellid);
+        }
       }
       cellid++ ;
     }
@@ -2347,11 +2337,11 @@ void convert2face(store<vector3d<double> > &pos,
     facebase += facesizes[i] ;
 
   if(Loci::MPI_rank == 0) {
-    for(int i=0;i<MPI_processes;++i) 
+    for(int i=0;i<MPI_processes;++i)
       if(facesizes[i] == 0) {
-	cerr << "Run ugrid2vog with fewer than " << i << " processors for this mesh!" << endl ;
-	Loci::Abort() ;
-	break ;
+        cerr << "Run ugrid2vog with fewer than " << i << " processors for this mesh!" << endl ;
+        Loci::Abort() ;
+        break ;
       }
   }
   entitySet faces = interval(facebase,facebase+nfaces-1) ;
@@ -2370,8 +2360,8 @@ void convert2face(store<vector3d<double> > &pos,
     for(int i=0;i<ntria;i++){
       int nedge = 3;
       for(int j =0; j < 3; j++){
-	int mp = find_edge_split(edge_splits, tria[i*2].nodes[j],tria[i*2].nodes[(j+1)%3]);
-	if(mp >= 0)nedge++;
+        int mp = find_edge_split(edge_splits, tria[i*2].nodes[j],tria[i*2].nodes[(j+1)%3]);
+        if(mp >= 0)nedge++;
       }
       count[fc++] = nedge ;
     }
@@ -2379,8 +2369,8 @@ void convert2face(store<vector3d<double> > &pos,
     for(int i=0;i<nquad;i++){
       int nedge = 4;
       for(int j =0; j < 4; j++){
-	int mp = find_edge_split(edge_splits, quad[i*2].nodes[j],quad[i*2].nodes[(j+1)%4]);
-	if(mp >= 0) nedge++;
+        int mp = find_edge_split(edge_splits, quad[i*2].nodes[j],quad[i*2].nodes[(j+1)%4]);
+        if(mp >= 0) nedge++;
       }
       count[fc++] = nedge ;
     }
