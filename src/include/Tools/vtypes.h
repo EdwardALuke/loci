@@ -45,6 +45,7 @@
 #include <cstdint>
 #include <cmath>
 #include <type_traits>
+#include <algorithm>
 #include <initializer_list>
 
 
