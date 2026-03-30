@@ -724,6 +724,9 @@ namespace Loci {
 
         herr_t ret = H5Sselect_hyperslab(dataspace, H5S_SELECT_SET,
                                          &start,&stride,&count, NULL) ;
+        if(ret<0) {
+          std::cerr << "warning H5Sselect_hyperslab failed." << std::endl;
+        }
         WARN(ret<0) ;
         hid_t memspace = H5Screate_simple(rank, &count, NULL);
         WARN(memspace<0) ;
