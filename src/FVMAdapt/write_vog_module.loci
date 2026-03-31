@@ -188,7 +188,7 @@ public:
 //    for(int i =0; i < MPI_processes; i++) numFaces += face_sizes[i];
 
     long long cell_min = 1 ; //numNodes + numFaces +1;
-    long long face_min = std::numeric_limits<int>::min()+1024 ; //numNodes+1;
+    long long face_min = std::numeric_limits<int>::min()+2048 ; //numNodes+1;
     for(int i =0; i < MPI_rank; i++) face_min += face_sizes[i];
     long long face_max = face_min + face_sizes[MPI_rank] -1;
 
