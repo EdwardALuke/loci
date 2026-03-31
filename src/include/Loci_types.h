@@ -236,8 +236,7 @@ namespace Loci {
     public:
       typedef IDENTITY_CONVERTER Schema_Converter;
       static DatatypeP get_type() {
-        vector2d<T> t ;
-        CompoundDatatypeP ct = CompoundFactory(t) ;
+        CompoundDatatypeP ct = CompoundFactory(vector2d<T>()) ;
         LOCI_INSERT_TYPE(ct,vector2d<T>,x) ;
         LOCI_INSERT_TYPE(ct,vector2d<T>,y) ;
         return DatatypeP(ct) ;
