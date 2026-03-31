@@ -1,0 +1,630 @@
+\documentclass{article}
+
+
+
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{Darkgreen}{rgb}{0,0.4,0}
+\definecolor{listinggray}{gray}{0.9}
+\definecolor{lbcolor}{rgb}{0.9,0.9,0.9}
+\lstset{
+backgroundcolor=\color{lbcolor},
+    tabsize=4,    
+%   rulecolor=,
+    language=[GNU]C++,
+        basicstyle=\scriptsize,
+%        upquote=true,
+        aboveskip={1.5\baselineskip},
+        columns=fixed,
+        showstringspaces=false,
+        extendedchars=false,
+        breaklines=true,
+        prebreak = \raisebox{0ex}[0ex][0ex]{\ensuremath{\hookleftarrow}},
+        frame=single,
+        numbers=left,
+        showtabs=false,
+        showspaces=false,
+        showstringspaces=false,
+        identifierstyle=\ttfamily,
+        keywordstyle=\color[rgb]{0,0,1},
+        commentstyle=\color[rgb]{0.026,0.112,0.095},
+        stringstyle=\color[rgb]{0.627,0.126,0.941},
+        numberstyle=\color[rgb]{0.205, 0.142, 0.73},
+%        \lstdefinestyle{C++}{language=C++,style=numbers}’.
+}
+
+\lstset{
+    backgroundcolor=\color{lbcolor},
+    tabsize=4,
+  language=C++,
+  captionpos=b,
+  tabsize=3,
+  frame=lines,
+  numbers=left,
+  numberstyle=\tiny,
+  numbersep=5pt,
+  breaklines=true,
+  showstringspaces=false,
+  basicstyle=\footnotesize,
+%  identifierstyle=\color{magenta},
+  keywordstyle=\color[rgb]{0,0,1},
+  commentstyle=\color{Darkgreen},
+  stringstyle=\color{red}
+  }
+\pagestyle{myheadings}
+
+\begin{document}
+
+
+\title{
+{\bf Paralle IO in Loci}
+}
+\maketitle
+\section{Overview}
+To improve I/O performance, the Loci framework was updated to take
+advantage of the parallel I/O provided by the file system.
+Originally hdf5 file format was used, serial I/O was performed. i.e.,
+only process 0 will perform read/write.   After update, hdf5 file
+format is still used, but each process will perform read/write to a
+shared file if necessary. The update is made transparant to the users
+as much as possible. However, the developer/user should read this
+documentation to avoid errors.
+
+To improve I/O performance, Loci also added MPI parallel file  I/O functions. Intead of
+reading/writing to a self-described, structured, and portable hdf5
+file, these MPI I/O
+functions read/write  from multiple processes to a commom file which
+is not portable.     
+
+   
+\section{Functions that are used to create, open and close a file for
+serial/parallel io:}
+
+Loci provided a set of functions to  create, open and close a file. Use
+Loci-provided API listed in this section to make sure your code can
+run with both serial and parallel I/O.
+
+\begin{lstlisting}
+  hid_t hdf5CreateFile(const char *name, unsigned flags,
+                      hid_t create_id,
+                      hid_t access_id, MPI_Comm comm,
+                      size_t file_size_estimate=0);
+ 
+ 
+  hid_t hdf5CreateFile(const char *name, unsigned flags,
+                      hid_t create_id,
+                      hid_t access_id,
+                      size_t file_size_estimate = 0) ;
+ 
+
+  hid_t hdf5OpenFile(const char *name, unsigned flags,
+                     hid_t access_id,
+		     MPI_Comm comm) ;
+
+
+  hid_t hdf5OpenFile(const char *name, unsigned flags,
+                     hid_t access_id) ;
+
+ 
+  herr_t hdf5CloseFile(hid_t file_id) ;
+  
+  herr_t hdf5CloseFile(hid_t file_id, MPI_Comm comm);
+
+ 
+  hid_t writeVOGOpen(std::string filename) ;
+  
+  hid_t readVOGOpen(std::string filename) ;
+  
+  void writeVOGClose(hid_t file_id) ;
+ 
+  hid_t createUnorderedFile(const char * filename,
+                            entitySet set,
+                            fact_db &facts) ;
+  
+  
+  hid_t createUnorderedFile(const char * filename,
+                            entitySet set);
+  
+ 
+  void closeUnorderedFile(hid_t file_id) ;
+  
+
+\end{lstlisting}
+
+\section{Functions that are used to manage parallel io:}
+
+\begin{lstlisting}
+ void set_parallel_io(bool io_type);
+
+\end{lstlisting}
+ If the user need setup the parallel I/O or serail I/O for the whole application, then --pio, --nopio options in the command line will be enough.   
+ For example:
+ \begin{lstlisting}
+
+ mpirun -np 40 chem --pio case1.vog
+
+\end{lstlisting}
+
+ This function is used when the user need to switch between parallel I/O and serial I/O.  It should be called collectively, i.e. each process should call it, and the order of calls should be the same.  And this function should be called right before open/create a file or after close a file. it should never be called between open/create a file and close a file.
+
+ \begin{lstlisting}
+ set_parallel_io(true);
+
+ file_id = Loci::hdf5OpenFile(testfile.c_str(),
+                                 H5F_ACC_RDONLY, H5P_DEFAULT);
+
+ Loci::readMultiStore(file_id, "test_array",test_array3,dom,*Loci::exec_current_fact_db) ;
+
+ Loci::hdf5CloseFile(file_id) ;
+
+ set_parallel_io(false);
+
+ \end{lstlisting}
+
+\section{Functions that are used to perform serial/parallel I/O:}
+The following functions will perform I/O in serial or in parallel, depend on the settting in Loci.
+  
+\begin{lstlisting}
+void read_store(hid_t group_id, storeRepP qrep,
+                int &offset, MPI_Comm comm);
+
+void write_store(hid_t group_id, storeRepP qrep, 
+                 entitySet dom, int offset,
+                 MPI_Comm comm);
+
+void writeContainer(hid_t file_id,std::string vname,
+                   Loci::storeRepP var, fact_db &facts);
+
+void readContainer(hid_t file_id, std::string vname,
+                   Loci::storeRepP var,
+                   entitySet readSet, fact_db &facts);
+
+void writeContainer(hid_t file_id,std::string vname,
+                    Loci::storeRepP var);
+
+void readContainer(hid_t file_id, std::string vname, 
+                   Loci::storeRepP var,
+                   entitySet readSet);
+
+template<class T>
+void writeUnorderedVector(hid_t group_id,
+                          const char *element_name,
+                          std::vector<T> &v,
+                          MPI_Comm prime_comm);
+
+
+void writeContainerRAW(hid_t file_id, std::string vname,
+                         storeRepP var, MPI_Comm comm) ;
+
+  
+void readContainerRAW(hid_t file_id, std::string vname,
+                        storeRepP var, MPI_Comm comm ) ;
+
+
+template<class T> void readVectorSerial(hid_t group_id,
+                                        const char *element_name,
+                                        std::vector<T> &v ) ;
+
+template< class T >
+inline void writeMultiStore(hid_t file_id, std::string vname,
+                            multiStore<T> &var, entitySet write_set,
+                            fact_db &facts);
+
+
+template< class T >
+inline void writeMultiStore(hid_t file_id, std::string vname,
+                            const const_multiStore<T> &var,
+                            entitySet write_set, fact_db &facts);
+
+template< class T >  
+inline void readMultiStore(hid_t file_id,
+                           std::string vname,
+                           multiStore<T> &var,
+                           entitySet read_set,
+                           fact_db &facts); 
+
+\end{lstlisting}
+
+\section{Namespace pio:}
+namespace pio is used to keep functions that has separate version for serial I/O and
+parallel I/O, these functions are for Loci developers, not for Loci users.
+
+
+
+For backward campatibilty, the following functions are supposed to be in namespace pio but are left outside. Users should use functions in the previous section. 
+
+\begin{lstlisting}
+ template< class T >
+  inline void writeMultiStoreP(hid_t file_id, std::string vname,
+                               multiStore<T> &var, entitySet write_set,
+                               fact_db &facts) ;
+template< class T >
+   void writeMultiStoreP(hid_t file_id, std::string vname,
+                         const const_multiStore<T> &var,
+                         entitySet write_set, fact_db &facts); 
+
+template< class T >
+ void readMultiStoreP(hid_t file_id,
+                      std::string vname,
+                      multiStore<T> &var,
+                      entitySet read_set,
+                      fact_db &facts); 
+
+\end{lstlisting}
+
+
+ 
+\section{Functions that are obselete:}
+The following functions can be replaced by functions in section 2. Should not be used in the future. 
+
+\begin{lstlisting}
+hid_t hdf5PCreateFile(const char *name, unsigned flags,
+                      hid_t create_id, hid_t access_id, 
+                      size_t file_size_estimate,MPI_Comm comm) ;
+
+hid_t hdf5PCreateFile(const char *name, unsigned flags,
+                      hid_t create_id, hid_t access_id, 
+                      size_t file_size_estimate)
+  
+hid_t hdf5POpenFile(const char *name, unsigned flags,
+                     hid_t access_id); 
+
+hid_t hdf5POpenFile(const char *name,
+ unsigned flags, 
+ hid_t access_id,
+ MPI_Comm comm) ;
+
+herr_t hdf5PCloseFile(hid_t file_id);      
+ 
+herr_t hdf5PCloseFile(hid_t file_id, MPI_Comm comm) ;
+\end{lstlisting}
+
+
+\section {Raw  MPI parallel file I/O }
+Loci provided the following functions to perform raw MPI parallel file
+I/O.
+ \begin{lstlisting}
+ template< class T >
+ void pmpi_writeStoreP(std::string& filename,                              
+                        store<T> &var,
+                        const entitySet& write_set,
+                        fact_db &facts,
+                        int xfer_type,
+                        bool ordered) ;
+ template< class T >
+ void pmpi_writeStoreVecP(std::string& filename,
+                         storeVec<T> &var,
+                         const entitySet& write_set,
+                         fact_db &facts,
+                         int xfer_type,
+                         bool ordered);
+
+ template< class T >
+ void pmpi_writeStoreP(std::string& filename,                              
+                        const_store<T> &var,
+                        const entitySet& write_set,
+                        fact_db &facts,
+                        int xfer_type,
+                        bool ordered) ;
+ template< class T >
+ void pmpi_writeStoreVecP(std::string& filename,
+                         const_storeVec<T> &var,
+                         const entitySet& write_set,
+                         fact_db &facts,
+                         int xfer_type,
+                         bool ordered);
+
+ template< class T >
+ void pmpi_readStoreP(std::string& filename,
+                      store<T> &var,
+                      entitySet read_set,
+                      fact_db &facts, int xfer_type);
+
+ template< class T >
+ void pmpi_readStoreVecP(std::string& filename,
+                         storeVec<T> &var,
+                         entitySet read_set,
+                         fact_db &facts, int xfer_type);
+
+template< class T >
+void pmpi_writeMultiStoreP(std::string filename,                              
+                          multiStore<T> &var,
+                          entitySet write_set,
+                          fact_db &facts, int xfer_type);
+template< class T >
+void pmpi_writeMultiStoreP(std::string filename,
+                          const const_multiStore<T> &var,
+                          entitySet write_set,
+                          fact_db &facts, int xfer_type);  
+template< class T >
+void pmpi_readMultiStoreP(std::string& filename,
+                          multiStore<T> &var,
+                          entitySet read_set,
+                          fact_db &facts, int xfer_type);
+
+\end{lstlisting}
+
+
+
+
+ Compared with parallel hdf file I/O version,  MPI I/O might has
+better performance, depending on the data size. But is has limitations: 
+
+\begin{itemize} 
+\item each variable is read/written to a separate file.
+\item the file is not portable.
+\item the file has a fixed structure.
+\item Loci MPI I/O interface can only be used for store, storeVec, and multiStore. Each
+  type has its own function interface. Not like hdf file I/O function
+  interface, writeConatiner() and readContainer() can be used for
+  parameters, stores, and storeVecs.    
+\item Loci MPI I/O interface only has parallel I/O version. 
+\end{itemize}
+
+The structure of MPI I/O file is a file header, a domain/fileID section
+followed by a data section.
+ 
+the file header is defined as:
+
+ \begin{lstlisting}
+ typedef struct {
+   int ordered;  //specify if the container is reordered in file
+                 //numbering before it is written out.
+                 //It has two values 1 or 0
+   int vec_size; //specify the vecSize of storeVecs;
+                 //For stores, vec_size = 1.  
+   int dom_size; //if ordered, specify how many intergers is used
+                 //to define the domain. Not entitySet.size(), 
+                 //but enritySet.num_intervals()*2.  
+                 //if unordered, dom_size should be 0
+ } store_header;
+\end{lstlisting}  
+
+ If the container is reordered in file
+numbering before being written out, then the header is followed by the whole domain
+in file numbering. Otherwise, the header is followed by the unordered
+fileID from process 0, process 1, ...
+
+The last part of the file is the actual data in the container.    
+\section {Examples }
+\subsection {Write containers(store, storeVec, not multiStore) in hdf5 format }
+
+\begin{lstlisting}
+
+ //setup a container to write out 
+ //the container can be store, storeVec.
+ //if multiStore, use writeMultiStoreP(), not writeContainer() 
+ storeVec<real_t> test_storeVec ;
+
+
+ //fill data in test_storeVec here
+ ...
+
+ //set parallel io here,
+ //to use serial io, set to false; 
+ //if the whole program use the same io type, 
+ //command line option '--pio' '--nopio' will work,
+ //this line is not necessary  
+ Loci::set_parallel_io(true);
+ 
+ string testfile = "./storeVec.hdf5" ;
+
+ //the following code is the same for store, storeVec,
+ //not for multiStore
+
+ //open a file for writeonly. 
+ //used for both serial and parallel io
+ //can also use   hdf5PCreateFile() 
+ file_id = Loci::writeVOGOpen(testfile);
+
+ //for both serial and parallel io, 
+ //for both store and storeVec, but no multiStore
+ Loci::writeContainer(file_id, "test_storeVec",test_storeVec.Rep()) ;
+
+ //close file, for both serial and parallel io
+ Loci::writeVOGClose(file_id);
+ ...
+
+\end{lstlisting}
+
+\subsection {Read containers(store, storeVec, not multiStore) in hdf5 format }
+
+\begin{lstlisting}
+
+ //setup a container to read in 
+ //the container can be store, storeVec.
+ //if multiStore, use readMultiStoreP(), not readContainer() 
+ storeVec<real_t> test_storeVec2 ;
+
+ //must allocate in advance, entitySet dom is from
+ //the context of the code
+ test_storeVec2.allocate(dom);
+ 
+     
+   
+
+
+ //set parallel io here,
+ //to use serial io, set to false; 
+ //if the whole program use the same io type, 
+ //command line option '--pio' '--nopio' will work,
+ //this line is not necessary  
+ Loci::set_parallel_io(true);
+ 
+ string testfile = "./storeVec.hdf5" ;
+
+ //the following code is the same for store, storeVec,
+ //not for multiStore
+
+ //open a file for readonly. 
+ //used for both serial and parallel io
+ //can also use:  file_id = Loci::hdf5OpenFile(testfile.c_str(),
+ //                                H5F_ACC_RDONLY, H5P_DEFAULT);  
+ file_id = Loci::readVOGOpen(testfile);
+
+ //for both serial and parallel io, 
+ //for both store and storeVec, but no multiStore
+ Loci::readContainer(file_id, "test_storeVec",test_storeVec2.Rep(),
+ dom, *Loci::exec_current_fact_db) ;
+
+
+ //close file, for both serial and parallel io
+ //can also use:  Loci::writeVOGClose(file_id);
+ Loci::hdf5CloseFile(file_id); 
+ 
+ ...
+
+\end{lstlisting}
+
+
+\subsection {Write multiStore in hdf5 format }
+
+\begin{lstlisting}
+
+ //setup a multiStore to write out 
+ multiStore<real_t> test_multiStore ;
+
+
+ //fill data in test_multiStore here
+ ...
+
+ //set parallel io here,
+ //to use serial io, set to false; 
+ //if the whole program use the same io type, 
+ //command line option '--pio' '--nopio' will work,
+ //this line is not necessary  
+ Loci::set_parallel_io(true);
+ 
+ string testfile = "./multiStore.hdf5" ;
+
+ //open a file for writeonly. 
+ //used for both serial and parallel io
+ //can also use   hdf5PCreateFile() 
+ file_id = Loci::writeVOGOpen(testfile);
+
+ //for both serial and parallel io, 
+  Loci::writeMultiStoreP(file_id, "test_multiStore",test_multiStore,
+                         dom,  *Loci::exec_current_fact_db) ;
+
+ //close file, for both serial and parallel io
+ Loci::writeVOGClose(file_id);
+ ...
+
+\end{lstlisting}
+
+\subsection {Read  multiStore  in hdf5 format }
+
+\begin{lstlisting}
+
+ //setup a multiStore to read in 
+ multiStore<real_t> test_multiStore2 ;
+
+
+ //set parallel io here,
+ //to use serial io, set to false; 
+ //if the whole program use the same io type, 
+ //command line option '--pio' '--nopio' will work,
+ //this line is not necessary  
+ Loci::set_parallel_io(true);
+ 
+ string testfile = "./multiStore.hdf5" ;
+
+ //open a file for readonly. 
+ //used for both serial and parallel io
+ //can also use:  file_id = Loci::readVOGOpen(testfile);
+ file_id = Loci::hdf5OpenFile(testfile.c_str(),
+                             H5F_ACC_RDONLY, H5P_DEFAULT);  
+
+ Loci::readMultiStoreP(file_id, "test_multiStore",test_multiStore2,dom, *Loci::exec_current_fact_db) ;
+
+ //close file, for both serial and parallel io
+ //can also use:  Loci::writeVOGClose(file_id);
+ Loci::hdf5CloseFile(file_id); 
+ 
+ ...
+
+\end{lstlisting}
+
+
+
+\subsection {Write storeVec with raw MPI I/O}
+\begin{lstlisting}
+ 
+ //setup a container to write out 
+ //different type of container has different MPI I/O function 
+ storeVec<real_t> test_storeVec ;
+ 
+ //fill data in test_storeVec here
+ ...
+ 
+
+ //Notice: all Loci MPI I/O functions use parallel I/O only 
+ //set parallel io here,
+ //if the whole program use parallel I/O type, 
+ //command line option '--pio'  will work,
+ //this line is not necessary 
+ Loci::set_parallel_io(true); 
+
+ string mpi_testfile = "./storeVec.dat" ;
+ 
+ //data transfer type: can be DXFER_COLLECTIVE_IO or DXFER_INDEPENDENT_IO
+ int DXFER_TYPE = DXFER_COLLECTIVE_IO;
+ 
+ //specify if the container will be reordered 
+ //according to file number before writing
+ bool ordered = true; 
+
+ //different functions for different type of containers, 
+ //store: pmpi_writeStoreP(...),
+ //storeVec: pmpi_writeStoreVecP(...), 
+ //multiStore: pmpi_writeMultiStoreP(...) 
+ //this function will open a file for writeonly, 
+ //write out container, and then close the file
+ Loci::pmpi_writeStoreVecP(mpi_testfile,
+                           test_storeVec, dom,  
+                           *Loci::exec_current_fact_db, DXFER_TYPE, ordered); 
+ ...
+\end{lstlisting}
+
+\subsection {Read storeVec with raw MPI I/O}
+\begin{lstlisting}
+ 
+ //setup a container to read 
+ //different type of container has different MPI I/O function 
+ storeVec<real_t> test_storeVec2 ;
+ 
+ //must allocate in advance, entitySet dom is from
+ //the context of the code
+ test_storeVec2.allocate(dom);
+
+ ...
+ 
+
+ //Notice: all Loci MPI I/O functions use parallel I/O only 
+ //set parallel io here,
+ //if the whole program use parallel I/O type, 
+ //command line option '--pio'  will work,
+ //this line is not necessary 
+ Loci::set_parallel_io(true); 
+
+ string mpi_testfile = "./storeVec.dat" ;
+ 
+ //data transfer type: can be DXFER_COLLECTIVE_IO or DXFER_INDEPENDENT_IO
+ int DXFER_TYPE = DXFER_COLLECTIVE_IO;
+ 
+
+ //different functions for different type of containers, 
+ //store: pmpi_readStoreP(...),
+ //storeVec: pmpi_readStoreVecP(...), 
+ //multiStore: pmpi_readMultiStoreP(...) 
+ //this function will open a file for readonly, 
+ //read in container, and then close the file
+ Loci::pmpi_readStoreVecP(mpi_testfile, test_storeVec2, dom, *Loci::exec_current_fact_db, DXFER_TYPE); 
+ 
+ ...
+\end{lstlisting}
+
+
+
+
+\end{document}
