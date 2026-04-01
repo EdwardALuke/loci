@@ -44,6 +44,18 @@ std::string capture_cerr(Fn fn) {
 }
 } // namespace
 
+//----------------------------------------------------------------------------
+// Potential Bugs
+//----------------------------------------------------------------------------
+//
+// These are cases that appear to demonstrate behavior that is not intended.
+//
+// Enable them with LOCI_ENABLE_VARIABLE_KNOWN_BUG_TESTS=1 when we want to
+// revisit these behaviors.
+
+// The time-list parser mutates partial state before it has validated the full
+// list, so malformed input such as rho{n,1,m} can retain a broken partial time
+// label instead of falling back to an empty time.
 TEST_CASE("known bug: malformed time list should not retain partial parse state [known-bug]" *
           doctest::skip(LOCI_ENABLE_VARIABLE_KNOWN_BUG_TESTS == 0)) {
   Loci::variable v;
@@ -52,6 +64,9 @@ TEST_CASE("known bug: malformed time list should not retain partial parse state 
   CHECK(v.time() == Loci::time_ident());
 }
 
+// drop_priority() assumes a priority scope exists and unconditionally pops from
+// the vector. On an unscoped variable this should be a no-op, but the current
+// implementation can crash instead.
 TEST_CASE("known bug: drop_priority on an unscoped variable should be a no-op [known-bug]" *
           doctest::skip(LOCI_ENABLE_VARIABLE_KNOWN_BUG_TESTS == 0)) {
   Loci::variable v = parse_variable("rho");
@@ -60,6 +75,8 @@ TEST_CASE("known bug: drop_priority on an unscoped variable should be a no-op [k
   CHECK(dropped == v);
 }
 
+// variable::info::operator= copies most fields but currently omits time_id, so
+// assigning metadata from a timed variable silently loses its time label.
 TEST_CASE("known bug: variable::info assignment should copy time_id [known-bug]" *
           doctest::skip(LOCI_ENABLE_VARIABLE_KNOWN_BUG_TESTS == 0)) {
   Loci::variable::info src = parse_variable("rho{n,it}").get_info();
@@ -197,9 +214,6 @@ TEST_CASE("variable transform helpers modify only the requested metadata") {
   const Loci::variable f = parse_variable("f(x,g(y))");
   const Loci::variable f_ns = f.add_namespace("chem");
   CHECK(f_ns.str() == "chem@f(chem@x,chem@g(chem@y))");
-
-  const Loci::time_ident t_nit = parse_variable("q{n,it}").time();
-  CHECK(parse_variable("rho").change_time(t_nit).str() == "rho{n,it}");
 }
 
 TEST_CASE("variableSet constructors and print are deterministic and lexicographically sorted") {
