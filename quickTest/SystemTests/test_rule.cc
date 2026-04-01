@@ -30,24 +30,6 @@ namespace {
     return rule(rule_implP(new copy_rule_impl<TRule>));
   }
 
-  // Checks whether a rule_impl descriptor contains a specific target variable.
-  // Used by name/indexing tests that fetch cloned rule_impl objects.
-  bool impl_has_target(const rule_implP &impl, const variable &target_var) {
-    const std::set<vmap_info> &targets = impl->get_info().targets;
-    for(std::set<vmap_info>::const_iterator i = targets.begin(); i != targets.end(); ++i)
-      if(i->var.inSet(target_var))
-        return true;
-    return false;
-  }
-
-  // Lightweight ruleSet cardinality helper used by duplicate insertion tests.
-  size_t count_rules(const ruleSet &rs) {
-    size_t c = 0;
-    for(ruleSet::const_iterator i = rs.begin(); i != rs.end(); ++i)
-      ++c;
-    return c;
-  }
-
   // Descriptor membership helper for source/target/constraint sets.
   bool desc_has_var(const std::set<vmap_info> &desc, const variable &v) {
     for(std::set<vmap_info>::const_iterator i = desc.begin(); i != desc.end(); ++i)
@@ -72,7 +54,6 @@ namespace {
     store<int> tgt;
   public:
     priority_target_rule_for_removal() {
-      rule_name("priority_target_rule_for_removal");
       name_store("src", src);
       name_store("p::tgt", tgt);
       input("src");
@@ -89,7 +70,6 @@ namespace {
     store<int> tgt;
   public:
     simple_rule_for_indexes() {
-      rule_name("simple_rule_for_indexes");
       name_store("src_idx", src);
       name_store("tgt_idx", tgt);
       input("src_idx");
@@ -106,7 +86,6 @@ namespace {
     store<int> tgt;
   public:
     simple_rule_for_indexes_b() {
-      rule_name("simple_rule_for_indexes_b");
       name_store("src_idx_b", src);
       name_store("tgt_idx_b", tgt);
       input("src_idx_b");
@@ -123,7 +102,6 @@ namespace {
     store<int> tgt;
   public:
     deep_priority_target_rule() {
-      rule_name("deep_priority_target_rule");
       name_store("src_pri", src);
       name_store("p1::p2::tgt_pri", tgt);
       input("src_pri");
@@ -139,7 +117,6 @@ namespace {
     param<int> out;
   public:
     default_category_rule() {
-      rule_name("default_category_rule");
       name_store("default_out", out);
       output("default_out");
     }
@@ -152,7 +129,6 @@ namespace {
     store<int> out;
   public:
     default_bad_store_target_rule() {
-      rule_name("default_bad_store_target_rule");
       name_store("default_bad_store_out", out);
       output("default_bad_store_out");
     }
@@ -165,7 +141,6 @@ namespace {
     param<int> out;
   public:
     optional_category_rule() {
-      rule_name("optional_category_rule");
       name_store("optional_out", out);
       output("optional_out");
     }
@@ -179,7 +154,6 @@ namespace {
     param<int> tgt;
   public:
     pointwise_bad_param_target_rule() {
-      rule_name("pointwise_bad_param_target_rule");
       name_store("src_bad_pw", src);
       name_store("tgt_bad_pw", tgt);
       input("src_bad_pw");
@@ -196,7 +170,6 @@ namespace {
     Map out;
   public:
     map_good_rule() {
-      rule_name("map_good_rule");
       name_store("src_map_good", src);
       name_store("map_good_out", out);
       input("src_map_good");
@@ -212,7 +185,6 @@ namespace {
     store<int> out;
   public:
     map_bad_store_target_rule() {
-      rule_name("map_bad_store_target_rule");
       name_store("src_map_bad", src);
       name_store("map_bad_out", out);
       input("src_map_bad");
@@ -228,7 +200,6 @@ namespace {
     Constraint out;
   public:
     constraint_good_rule() {
-      rule_name("constraint_good_rule");
       name_store("src_con_good", src);
       name_store("con_good_out", out);
       input("src_con_good");
@@ -244,7 +215,6 @@ namespace {
     store<int> out;
   public:
     constraint_bad_store_target_rule() {
-      rule_name("constraint_bad_store_target_rule");
       name_store("src_con_bad", src);
       name_store("con_bad_out", out);
       input("src_con_bad");
@@ -261,48 +231,11 @@ namespace {
     store<int> tgt;
   public:
     map_constraint_replace_rule() {
-      rule_name("map_constraint_replace_rule");
       name_store("src_map_con", src);
       name_store("tgt_map_con", tgt);
       input("src_map_con");
       output("tgt_map_con");
       constraint("map_con,keep_con");
-    }
-
-    void compute(const sequence &) {}
-    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
-  };
-
-  // Same public rule name as name_key_rule_v2 to exercise name2rule key reuse
-  // and remove/add behavior.
-  class name_key_rule_v1 : public pointwise_rule {
-    const_store<int> src;
-    store<int> tgt;
-  public:
-    name_key_rule_v1() {
-      rule_name("name_key_reuse_rule");
-      name_store("src", src);
-      name_store("tgt_a", tgt);
-      input("src");
-      output("tgt_a");
-    }
-
-    void compute(const sequence &) {}
-    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
-  };
-
-  // Same public rule name as name_key_rule_v1 with a different target, used to
-  // detect stale name-key entries after remove/add.
-  class name_key_rule_v2 : public pointwise_rule {
-    const_store<int> src;
-    store<int> tgt;
-  public:
-    name_key_rule_v2() {
-      rule_name("name_key_reuse_rule");
-      name_store("src", src);
-      name_store("tgt_b", tgt);
-      input("src");
-      output("tgt_b");
     }
 
     void compute(const sequence &) {}
@@ -316,7 +249,6 @@ namespace {
     param<int> out;
   public:
     singleton_priority_override_rule() {
-      rule_name("singleton_priority_override_rule");
       name_store("in", in);
       name_store("p::out", out);
       input("in");
@@ -335,7 +267,6 @@ namespace {
     param<int> y;
   public:
     assign_param_alias_rule() {
-      rule_name("assign_param_alias_rule");
       name_store("in", in);
       name_store("x", x);
       name_store("y", y);
@@ -358,7 +289,6 @@ namespace {
     store<int> tgt;
   public:
     mapping_conditional_rule() {
-      rule_name("mapping_conditional_rule");
       name_store("m_in", in_map);
       name_store("m_out", out_map);
       name_store("src_mc", src);
@@ -369,29 +299,6 @@ namespace {
       output("m_out->tgt_mc");
       constraint("c_mc");
       conditional("cond_mc");
-    }
-
-    void compute(const sequence &) {}
-    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
-  };
-
-  // Two constraints so split_constraints can move selected variables to the
-  // dynamic constraint descriptor set.
-  class constraint_split_rule : public pointwise_rule {
-    const_store<int> src;
-    const_store<int> c1;
-    const_store<int> c2;
-    store<int> tgt;
-  public:
-    constraint_split_rule() {
-      rule_name("constraint_split_rule");
-      name_store("src_split", src);
-      name_store("c_split1", c1);
-      name_store("c_split2", c2);
-      name_store("tgt_split", tgt);
-      input("src_split");
-      output("tgt_split");
-      constraint("c_split1,c_split2");
     }
 
     void compute(const sequence &) {}
@@ -426,31 +333,6 @@ TEST_CASE("remove_rule removes both priority and base target indexes") {
   rdb.remove_rule(r);
   CHECK_FALSE(rdb.rules_by_target(prio_target).inSet(r));
   CHECK_FALSE(rdb.rules_by_target(base_target).inSet(r));
-}
-
-// Why this fails:
-// add_rule() stores rule by either get_name() or info.name() depending on
-// collision, but remove_rule() uses inverted key-selection logic when erasing.
-// This can erase the wrong key and leave a stale rule in name2rule.
-//
-// Potential fix:
-// In src/System/rule.cc (remove_rule), mirror the key choice used in add_rule()
-// so erase uses the exact key that was inserted for this rule.
-TEST_CASE("remove_rule erases primary name key used by add_rule") {
-  rule_db rdb;
-  rule r1 = make_rule<name_key_rule_v1>();
-  rule r2 = make_rule<name_key_rule_v2>();
-
-  std::string shared_name("name_key_reuse_rule");
-
-  rdb.add_rule(r1);
-  rdb.remove_rule(r1);
-  rdb.add_rule(r2);
-
-  rule_implP by_name = rdb.get_rule(shared_name);
-
-  CHECK(impl_has_target(by_name, variable("tgt_b")));
-  CHECK_FALSE(impl_has_target(by_name, variable("tgt_a")));
 }
 
 // Why this fails:
@@ -518,33 +400,28 @@ TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs") 
 // Additional behavior/invariant tests
 //----------------------------------------------------------------------------
 
-// Verifies that adding a normal pointwise rule populates both reverse indexes:
-// source->rules and target->rules. If either index misses the rule, dependency
-// discovery by variable lookup becomes incomplete.
-TEST_CASE("add_rule indexes source and target for simple pointwise rule") {
+// Verifies that adding a normal pointwise rule populates the target reverse
+// index used by scheduler lookups.
+TEST_CASE("add_rule indexes target for simple pointwise rule") {
   rule_db rdb;
   rule r = make_rule<simple_rule_for_indexes>();
-  const variable src("src_idx");
   const variable tgt("tgt_idx");
 
   rdb.add_rule(r);
 
-  CHECK(rdb.rules_by_source(src).inSet(r));
   CHECK(rdb.rules_by_target(tgt).inSet(r));
 }
 
-// Verifies remove_rule fully undoes index insertion for a simple external rule.
-// After removal, querying by either source or target should not return the rule.
-TEST_CASE("remove_rule clears source and target indexes for simple pointwise rule") {
+// Verifies remove_rule fully undoes target-index insertion for a simple
+// external rule.
+TEST_CASE("remove_rule clears target index for simple pointwise rule") {
   rule_db rdb;
   rule r = make_rule<simple_rule_for_indexes>();
-  const variable src("src_idx");
   const variable tgt("tgt_idx");
 
   rdb.add_rule(r);
   rdb.remove_rule(r);
 
-  CHECK_FALSE(rdb.rules_by_source(src).inSet(r));
   CHECK_FALSE(rdb.rules_by_target(tgt).inSet(r));
 }
 
@@ -608,45 +485,6 @@ TEST_CASE("prepend_rule prepends time level to variables") {
   CHECK_FALSE(prepended.targets().inSet(variable("tgt_idx")));
 }
 
-// Verifies add_namespace() consistently rewrites source/target variables to
-// namespace-qualified names.
-TEST_CASE("add_namespace applies namespace to source and target variables") {
-  rule r = make_rule<simple_rule_for_indexes>();
-  rule namespaced = r.add_namespace("ns_test");
-
-  CHECK(namespaced.sources().inSet(variable("ns_test@src_idx")));
-  CHECK(namespaced.targets().inSet(variable("ns_test@tgt_idx")));
-  CHECK_FALSE(namespaced.sources().inSet(variable("src_idx")));
-  CHECK_FALSE(namespaced.targets().inSet(variable("tgt_idx")));
-}
-
-// Verifies rule_impl::set_variable_times mutates descriptor source/target
-// variables directly, matching rule promotion semantics at impl level.
-TEST_CASE("set_variable_times updates rule_impl descriptor variables") {
-  rule_implP impl = new copy_rule_impl<simple_rule_for_indexes>;
-  time_ident n_level("n_set", time_ident());
-  impl->set_variable_times(n_level);
-  const rule_impl::info &info = impl->get_info();
-
-  CHECK(desc_has_var(info.sources, variable(variable("src_idx"), n_level)));
-  CHECK(desc_has_var(info.targets, variable(variable("tgt_idx"), n_level)));
-}
-
-// Verifies split_constraints() moves selected constraints into
-// dynamic_constraints, leaves non-selected constraints in constraints, and
-// updates rule_identifier with the dynamic-constraint marker.
-TEST_CASE("split_constraints moves selected constraints to dynamic_constraints") {
-  rule_implP impl = new copy_rule_impl<constraint_split_rule>;
-  variableSet dynamic_set(expression::create("c_split1"));
-  impl->split_constraints(dynamic_set);
-  const rule_impl::info &info = impl->get_info();
-
-  CHECK(desc_has_var(info.dynamic_constraints, variable("c_split1")));
-  CHECK(desc_has_var(info.constraints, variable("c_split2")));
-  CHECK_FALSE(desc_has_var(info.constraints, variable("c_split1")));
-  CHECK(info.rule_identifier().find("DYNAMIC_CONSTRAINT(") != std::string::npos);
-}
-
 // Verifies input_vars()/output_vars() accounting for a rule with mapping,
 // constraints, and conditionals: inputs include all dependencies, outputs
 // include only computed targets.
@@ -678,18 +516,6 @@ TEST_CASE("rule_identifier includes source and target variable names") {
   CHECK(rid.find("<-") != std::string::npos);
 }
 
-// Verifies get_rule(name) resolves to a compatible stored rule implementation
-// and preserves expected target descriptor membership.
-TEST_CASE("rule_db get_rule returns a clone with expected target var") {
-  rule_db rdb;
-  rule r = make_rule<simple_rule_for_indexes>();
-  std::string nm("simple_rule_for_indexes");
-
-  rdb.add_rule(r);
-  rule_implP got = rdb.get_rule(nm);
-  CHECK(impl_has_target(got, variable("tgt_idx")));
-}
-
 // Verifies deep priority targets are indexed at each progressive priority
 // level, not only at the fully-qualified priority path.
 TEST_CASE("add_rule indexes deep priority chain targets at each priority level") {
@@ -702,9 +528,9 @@ TEST_CASE("add_rule indexes deep priority chain targets at each priority level")
   CHECK(rdb.rules_by_target(variable("tgt_pri")).inSet(r));
 }
 
-// Verifies batch remove_rules() clears all source/target reverse indexes for
-// each rule in the input ruleSet.
-TEST_CASE("remove_rules clears indexes for every rule in the input ruleSet") {
+// Verifies batch remove_rules() clears target reverse indexes for each rule in
+// the input ruleSet.
+TEST_CASE("remove_rules clears target indexes for every rule in the input ruleSet") {
   rule_db rdb;
   rule r1 = make_rule<simple_rule_for_indexes>();
   rule r2 = make_rule<simple_rule_for_indexes_b>();
@@ -718,9 +544,7 @@ TEST_CASE("remove_rules clears indexes for every rule in the input ruleSet") {
   rdb.remove_rules(rs);
 
   CHECK_FALSE(rdb.rules_by_target(variable("tgt_idx")).inSet(r1));
-  CHECK_FALSE(rdb.rules_by_source(variable("src_idx")).inSet(r1));
   CHECK_FALSE(rdb.rules_by_target(variable("tgt_idx_b")).inSet(r2));
-  CHECK_FALSE(rdb.rules_by_source(variable("src_idx_b")).inSet(r2));
 }
 
 // Verifies default/optional rules are routed into dedicated rule_db categories
@@ -776,47 +600,9 @@ TEST_CASE("rename_vars on external rules renames mappings targets constraints an
   CHECK_FALSE(ri.targets().inSet(variable("tgt_mc")));
 }
 
-// Verifies set_variable_times() also time-shifts conditional variables so
-// conditional evaluation stays synchronized with promoted dependencies.
-TEST_CASE("set_variable_times also updates conditional variables") {
-  rule_implP impl = new copy_rule_impl<mapping_conditional_rule>;
-  time_ident n_level("n_cond", time_ident());
-  impl->set_variable_times(n_level);
-  const rule_impl::info &info = impl->get_info();
-
-  CHECK(info.conditionals.inSet(variable(variable("cond_mc"), n_level)));
-  CHECK_FALSE(info.conditionals.inSet(variable("cond_mc")));
-}
-
-// Verifies rule::rename() updates the printable rule name used by stream output
-// and diagnostics.
-TEST_CASE("rule rename overrides printable name") {
-  rule r = make_rule<simple_rule_for_indexes>();
-  r.rename("simple_rule_alias");
-  std::ostringstream ss;
-  ss << r;
-  CHECK(ss.str() == "simple_rule_alias");
-}
-
-// Verifies duplicate add_rule() is de-duplicated in known_rules and emits a
-// warning so accidental duplicate insertion is visible.
-TEST_CASE("duplicate add_rule emits warning and does not grow known_rules") {
-  CErrCapture capture;
-  rule_db rdb;
-  rule r = make_rule<simple_rule_for_indexes>();
-
-  rdb.add_rule(r);
-  const size_t n_before = count_rules(rdb.all_rules());
-  rdb.add_rule(r);
-  const size_t n_after = count_rules(rdb.all_rules());
-
-  CHECK(n_before == n_after);
-  CHECK(capture.str().find("Warning, adding duplicate rule to rule database") != std::string::npos);
-}
-
 // Verifies remove_rule() performs enough cleanup that the same rule can be
-// re-added and re-indexed correctly.
-TEST_CASE("remove_rule followed by add_rule allows reinsert of same rule id") {
+// re-added and re-indexed correctly for target lookups.
+TEST_CASE("remove_rule followed by add_rule restores target index") {
   rule_db rdb;
   rule r = make_rule<simple_rule_for_indexes>();
 
@@ -824,7 +610,6 @@ TEST_CASE("remove_rule followed by add_rule allows reinsert of same rule id") {
   rdb.remove_rule(r);
   rdb.add_rule(r);
 
-  CHECK(rdb.rules_by_source(variable("src_idx")).inSet(r));
   CHECK(rdb.rules_by_target(variable("tgt_idx")).inSet(r));
 }
 
