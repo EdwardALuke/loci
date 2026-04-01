@@ -298,7 +298,7 @@ $type volTagInput  blackbox<vector<pair<string, entitySet> > > ;
 
 $rule blackbox(volTagInput<-meshfile_par),prelude {
   string meshfile = *$meshfile_par ;
-  if(MPI_rank==0){
+  if(MPI_rank==0 || Loci::use_parallel_io){   
     hid_t file_id = Loci::hdf5OpenFile(meshfile.c_str(),
                                        H5F_ACC_RDONLY,H5P_DEFAULT) ;
     
