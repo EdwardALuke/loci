@@ -275,6 +275,10 @@ namespace Loci {
     return num_faces ;
   }
 
+  /// Read in a compressed integer from the byte stream.  The
+  /// most significant bit (bit 7) tells that more bytes will 
+  /// follow while the sign bit is stored in bit 6 of the first
+  /// byte.  Each subsequent bytes provide 7 additional bits.
   unsigned char *readSignedVal(unsigned char *p, long &val) {
     unsigned char byte = *p++ ;
 
@@ -293,6 +297,10 @@ namespace Loci {
     return p ;
   }
 
+  /// Read in a compressed unsigned integer from the byte stream
+  /// The most significant bit (bit 7) is used to determine if there
+  /// are additional bytes.  Each byte contributes 7 bits of information
+  /// to the integer.
   unsigned char *readUnsignedVal(unsigned char *p, long &val) {
     unsigned char byte = *p++ ;
     int shift = 7 ;
@@ -307,9 +315,13 @@ namespace Loci {
     return p ;
   }
 
-  /// Decodes the packed byte stream `p` and puts the data into `table`.
-  /// First byte of `p` is size (0 => 256), then a signed base value
-  /// followed by unsigned delta-encoded offsets.
+  /// Decodes dynamically sized lookup table that is used to compactly 
+  /// store arbitrary bit depth integers up to 64 bits.  The first byte
+  /// byte is an unsigned char giving the number of entries in the table
+  /// where zero is reserved for representing a table size of 265.
+  /// The table is stored in sorted order using a variable bit compressed
+  /// storage format.  The first entry in the table is a signed integer
+  /// and the following ones are offsets to the next table item.
   /// @param[in,out] p Pointer to a packed byte stream.
   /// @param[out] table 1D array IDs parsed from the byte stream.
   /// @return The updated pointer after the table bytes.
@@ -340,7 +352,9 @@ namespace Loci {
   /// faces have `npnts` nodes). For each face there are npnts node
   /// indices plus two cell indices (left/right). `face_base` is used as the
   /// starting index to use in the `face2node`, `cl`, and `cr` maps.
-  ///
+  /// Data is stored in byte sized indexes which have a mapping table that
+  /// is stored at the end of the cluster.  See the src/Docs/vogfile
+  /// for more information.
   /// @param[in] cluster Pointer to byte stream of face cluster data.
   /// @param[in] face_base Starting face index for this cluster.
   /// @param[out] face2node Map from face to nodes.
