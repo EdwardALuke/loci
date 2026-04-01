@@ -1580,6 +1580,8 @@ void AST_printTree::visit(AST_Token &s) {
     out << "$*" << s.text << " " ;
   } else if(ASTEqual(s,AST_type::TK_LOCI_VARIABLE)) {
     out << "$" << s.text  << " " ;
+  } else if(ASTEqual(s,AST_type::TK_MACRO)) {
+    out << "#" << s.text << endl ;
   } else 
     out <<s.text << ' ' ;
 }
@@ -1752,7 +1754,8 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
         } else if(ASTEqual(op.terms[i],AST_type::OP_ARRAY)) {
           // base map is a multiMap, still need to insert the entity index
           // operator
-          CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[0]) ;
+          CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[i]) ;
+            
           if(mapaccess->terms.size() != 2 ||
              mapaccess->terms[0]->nodeType != AST_type::TK_LOCI_VARIABLE) {
             cerr << "invalid map at base of Loci mapping operator" << endl;
@@ -1791,6 +1794,12 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
                                    const set<list<variable> > &validate_set,
                                    const parseSharedInfo &parseInfo) {
   varmap typemap ;
+  typemap["cerr"] = localIdentifier() ;
+  typemap["std::cerr"] = localIdentifier() ;
+  typemap["cout"] = localIdentifier() ;
+  typemap["std::cout"] = localIdentifier() ;
+  typemap["debugout"] = localIdentifier() ;
+  typemap["Loci::debugout"] = localIdentifier() ;
       
   if(is.peek() != '{')
     throw parseError("syntax error, expecting '{'") ;
@@ -2488,7 +2497,6 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
 
   //  process_Calculate(outputFile,vnames,validate_set) ;
   varmap typemap ;
-  typemap["vect3d"] = varinfo(true,false) ;
 
   if(is.peek() != '{')
     throw parseError("syntax error, expecting '{'") ;

@@ -722,7 +722,7 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
   AST_type::ASTP arg = AST_type::ASTP(token) ;
   if(!ASTEqual(token,AST_type::TK_NUMBER)) {
     pushToken(token) ;
-    AST_type::ASTP arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
+    arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
   }
   
 #ifdef VERBOSE
@@ -759,7 +759,7 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
       AST_type::ASTP arg = AST_type::ASTP(token) ;
       if(!ASTEqual(token,AST_type::TK_NUMBER)) {
         pushToken(token) ;
-        AST_type::ASTP arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
+        arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
       }
       
       tlist->terms.push_back(arg) ;
@@ -1551,8 +1551,9 @@ AST_type::ASTP parseDeclarationOrSimpleStatement(std::istream &is,
   if(isFunc)
     return parseSimpleStatement(is,linecount,fileName,typemap) ;
   auto ii = typemap.find(ident) ;
-  if(ii != typemap.end() && ii->second.isLocalIdentifier())
+  if(ii != typemap.end() && ii->second.isLocalIdentifier()) {
     return parseSimpleStatement(is,linecount,fileName,typemap) ;
+  }
   return parseDeclaration(is,linecount,fileName,typemap) ;
 }
 
@@ -1822,34 +1823,6 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case AST_type::TK_NAME:
   case AST_type::TK_SCOPE:
     return parseDeclarationOrSimpleStatement(is,linecount,fileName,typemap) ;
-    {
-      CPTR<AST_Token> tok1 = getToken(is,linecount) ;
-      CPTR<AST_Token> tok2 = getToken(is,linecount) ;
-      bool isDeclaration = true ;
-      if(ASTEqual(tok1,AST_type::TK_NAME) &&
-         !ASTEqual(tok2,AST_type::TK_SCOPE)) {
-        auto ii = typemap.find(tok1->text) ;
-        if(ii != typemap.end() && ii->second.isLocalIdentifier())
-          isDeclaration = false ;
-      }
-      
-      pushToken(tok2) ;
-      pushToken(tok1) ;
-      if(isDeclaration)
-	return parseDeclaration(is,linecount,fileName,typemap) ;
-      return parseSimpleStatement(is,linecount,fileName,typemap) ;
-      AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
-      
-      CPTR<AST_Token> termToken = getToken(is,linecount) ;
-      AST_type::ASTP term = AST_type::ASTP(termToken) ;
-      if(!ASTEqual(term,AST_type::TK_SEMICOLON)) {
-	pushToken(termToken) ;
-	return AST_type::ASTP(new AST_syntaxError("Expecting ';' ",
-						  termToken->lineno,fileName)) ;
-      }
-      AST_type::ASTP stat = new AST_SimpleStatement(exp,term) ;
-      return stat ;
-    }
 
   case AST_type::TK_USING:
     {
@@ -1892,6 +1865,9 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
       return parseSimpleStatement(is,linecount,fileName,typemap) ;
     } 
     
+  case AST_type::TK_MACRO:
+    firstToken = getToken(is,linecount) ;
+    return AST_type::ASTP(firstToken) ;
   case AST_type::TK_SEMICOLON:
     firstToken = getToken(is,linecount) ;
     return AST_type::ASTP(firstToken) ;
@@ -2237,6 +2213,8 @@ void AST_simplePrint::visit(AST_Token &s) {
       out << "$*" << s.text ;
     } else if(ASTEqual(s,AST_type::TK_LOCI_VARIABLE)) {
       out << "$" << s.text ;
+    } else if(ASTEqual(s,AST_type::TK_MACRO)) {
+      out << endl << '#' << s.text << endl ;
     } else 
       out <<s.text << ' ' ;
   }

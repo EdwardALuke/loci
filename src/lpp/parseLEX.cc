@@ -693,6 +693,26 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
     cerr << "get token OP("<< AST_data->text<< ")" << endl ;
 #endif
     return AST_data ;
+  case '#':
+    {
+      AST_data->text = "" ;
+      while(!is.fail() && !is.eof() && is.peek() != '\n') {
+        char ch = is.get() ;
+        if(ch == '\\' && is.peek() == '\n') {
+          AST_data->text += ch ;
+          ch = is.get() ;
+          AST_data->text += ch ;
+          linecount++ ;
+          continue ;
+        }
+        AST_data->text += ch ;
+      }
+      AST_data->nodeType = AST_type::TK_MACRO ;
+#ifdef VERBOSE
+      cerr << "get token MACRO("<< AST_data->text<< ")" << endl ;
+#endif
+      return AST_data ;
+    }
   case '$':
     // Now we have a Loci variable or a Loci command
     if(is.peek() == '[') { // This is a Loci command
@@ -815,6 +835,7 @@ CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
       case AST_type::TK_OPENBRACE:
       case AST_type::TK_CLOSEBRACKET:
       case AST_type::TK_CLOSEBRACE:
+      case AST_type::TK_MACRO:
       case AST_type::TK_ERROR:
 #ifdef VERBOSE
         cerr << "search did not find matching '>', found '" << tok->text << "' instead." << endl ;
@@ -1188,6 +1209,8 @@ string OPtoName(AST_type::elementType val) {
     return string("TK_DECREMENT") ;
   case AST_type::TK_COMMENT:
     return string("TK_COMMENT") ;
+  case AST_type::TK_MACRO:
+    return string("TK_MACRO") ;
   case AST_type::TK_STRING:
     return string("TK_STRING") ;
   case AST_type::TK_NUMBER:

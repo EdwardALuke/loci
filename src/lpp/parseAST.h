@@ -195,7 +195,7 @@ public:
 		    // terminal for empty statement
 		    TK_NIL,
 		    // terminals for variable name, function, array or name{args}
-		    TK_INCREMENT,TK_DECREMENT,TK_COMMENT,
+		    TK_INCREMENT,TK_DECREMENT,TK_COMMENT,TK_MACRO,
 		    TK_NAME, 
 		    // terminal for string, integer, or unspecified error condition
 		    TK_STRING, TK_NUMBER, TK_ERROR,
