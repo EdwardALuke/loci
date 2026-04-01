@@ -29,8 +29,7 @@ namespace Loci {
                   (lower,upper,boundary_map)->(facecenter),
                   cellcenter,cellStencil->cellcenter,
                   boundary_map->facecenter),
-            option(disable_threading),
-            constraint(cellcenter,gradStencilBias_select_off),
+  option(disable_threading), constraint(cellcenter,gradStencilBias_select_off),
   prelude {
     $LSWeights.setSizes($cellStencil) ;
     $LSBWeights.setSizes($boundary_map) ;
@@ -74,8 +73,7 @@ namespace Loci {
                   cellcenter,cellStencil->(cellcenter,stencil_bias),
                   boundary_map->facecenter,
                   lower->cl,upper->cr,stencil_bias),
-            option(disable_threading),
-      constraint(cellcenter,gradStencilBias_select_on),
+  option(disable_threading), constraint(cellcenter,gradStencilBias_select_on),
   prelude {
     $LSWeights.setSizes($cellStencil) ;
     $LSBWeights.setSizes($boundary_map) ;

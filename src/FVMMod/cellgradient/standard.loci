@@ -25,7 +25,6 @@ $include "FVMMod/cellgradient.lh"
 
 namespace Loci {
 
-
   $rule pointwise(lower->Wf_r,upper->Wf_l,boundary_map->Wf_l<-cellcenter,
                   lower->cl->cellcenter,upper->cr->cellcenter,
                   boundary_map->facecenter,(lower,upper,boundary_map)->area),
@@ -127,6 +126,8 @@ namespace Loci {
   $type X store<real_t> ;
   $type X_f store<real_t> ;
 
+  /// Gradient of a scalar variable X using standard least-squares weights
+  /// method.
   $rule pointwise(grads(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
   constraint(geom_cells,gradStencil_select_standard,gradType_select_standard) {
@@ -156,6 +157,9 @@ namespace Loci {
   $untype X_f ;
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
+
+  /// Gradient of a vect3d variable X using standard least-squares weights
+  /// method.
   $rule pointwise(gradv3d(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
   constraint(geom_cells,gradStencil_select_standard,gradType_select_standard) {
@@ -198,6 +202,8 @@ namespace Loci {
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
 
+  /// Gradient of an arbitrary length vector variable X using standard
+  /// least-squares weights method.
   $rule pointwise(gradv(X)<-lower->Wf_r,upper->Wf_l,boundary_map->Wf_l,
                   lower->cl->X,upper->cr->X,boundary_map->X_f,X),
   constraint(geom_cells,gradStencil_select_standard,gradType_select_standard),prelude {

@@ -27,8 +27,6 @@ $type plot_output param<flowPsi::list_input> ;
 $type plot_output_exclusive param<flowPsi::list_input> ;
 
 $type modelName param<std::string> ;
-// Transform for periodic bc's (should this be in FVM.lh?)
-$type periodicTransform store<Loci::rigid_transform> ;
 
 
 // EoS settings

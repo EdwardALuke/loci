@@ -23,11 +23,21 @@ $include "FVM.lh"
 $include "FVMMod/cellgradient.lh"
 
 namespace Loci {
+
+  // The Green-Gauss (divergence) theorem estimates of the gradient of
+  // different types of quantities at cell centers.
+  // grad(phi) = 1/Vol * sum_{f} * phi_f * A_f * n_f
+
+
   $type X storeVec<real_t> ;
   $type X_f storeVec<real_t> ;
 
-  $rule pointwise(gradv(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-  constraint(geom_cells,gradStencil_select_green,gradType_select_standard), prelude {
+  /// Parametric rule to compute the gradient of a vector quantity at a cell
+  /// center using the Green-Gauss theorem. This is for vectors of arbitrary
+  /// size.
+  $rule pointwise(gradv(X)<-(lower,upper)->(cl,cr)->(X,vol),
+  (lower,upper)->area,boundary_map->(X_f,area),vol), constraint(geom_cells,
+  gradStencil_select_green,gradType_select_standard), prelude {
     $gradv(X).setVecSize($X.vecSize()) ;
   } compute {
     const real_t rvol = 1./$vol ;
@@ -60,8 +70,11 @@ namespace Loci {
   $type X store<real_t> ;
   $type X_f store<real_t> ;
 
-  $rule pointwise(grads(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-  constraint(geom_cells,gradStencil_select_green,gradType_select_standard) {
+  /// Parametric rule to compute the gradient of a scalar quantity at a cell
+  /// center using the Green-Gauss theorem.
+  $rule pointwise(grads(X)<-(lower,upper)->(cl,cr)->(X,vol),
+  (lower,upper)->area,boundary_map->(X_f,area),vol), constraint(geom_cells,
+  gradStencil_select_green,gradType_select_standard) {
     const real_t rvol = 1./$vol ;
     vector3d<real_t> gradsum = vector3d<real_t>(0.0,0.0,0.0);
     for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
@@ -90,12 +103,15 @@ namespace Loci {
   $type X store<vector3d<real_t> > ;
   $type X_f store<vector3d<real_t> > ;
 
-  $rule pointwise(gradv3d(X)<-(lower,upper)->(cl,cr)->(X,vol),(lower,upper)->area,boundary_map->(X_f,area),vol),
-  constraint(geom_cells,gradStencil_select_green,gradType_select_standard) {
+  /// Parametric rule to compute the gradient of a vect3d quantity at a cell
+  /// center using the Green-Gauss theorem.
+  $rule pointwise(gradv3d(X)<-(lower,upper)->(cl,cr)->(X,vol),
+  (lower,upper)->area,boundary_map->(X_f,area),vol), constraint(geom_cells,
+  gradStencil_select_green,gradType_select_standard) {
     tensor3d<real_t>  gradsum = tensor3d<real_t> (vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0),vector3d<real_t>(0,0,0)) ;
     const real_t rvol = 1./$vol ;
 
- for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
+    for(const Entity *li = $lower.begin();li!=$lower.end();++li) {
       const real_t vl = li->$cl->$vol ;
       const real_t vr = li->$cr->$vol ;
       const vector3d<real_t> xf = (li->$cl->$X*vr+li->$cr->$X*vl)/(vl+vr) ;

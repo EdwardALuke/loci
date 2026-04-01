@@ -21,38 +21,53 @@
 
 /** Marker for locally first-order cells to disable limiters */
 $type firstOrderCells store<char> ;
-/** This parameter is a smoothness parameter for the venkatakrishnan limiter.  
- * A value of zero will not allow overshoots, while a larger value may allow 
- * some overshoots to ensure accuracy in locally smooth regions.  
+
+/** This parameter is a smoothness parameter for the venkatakrishnan limiter.
+ * A value of zero will not allow overshoots, while a larger value may allow
+ * some overshoots to ensure accuracy in locally smooth regions.
  * The typical values for this parameter range from .1 to 100 */
 $type Kl param<real> ;
-/** Limiter used in face extrapolations.  This function can take the values of 
- * 'venkatakrishnan', 'barth', 'none' for second order solutions, and 'zero' 
+
+/** Limiter used in face extrapolations.  This function can take the values of
+ * 'venkatakrishnan', 'barth', 'none' for second order solutions, and 'zero'
  * for first order solutions" */
 $type limiter param<std::string> ;
+
 /** Scalar cell to node max */
 $type NGTNodalMax(S) store<real_t> ;
+
 /** Scalar cell to node min */
 $type NGTNodalMin(S) store<real_t> ;
+
 /** Vect3d cell to node max */
 $type NGTNodalv3dMax(V) store<vector3d<real_t> > ;
+
 /** Vect3d cell to node min */
 $type NGTNodalv3dMin(V) store<vector3d<real_t> > ;
+
 /** Vector cell to node max */
 $type NGTNodalvMax(M) storeVec<real_t> ;
+
 /** Vector cell to node min */
 $type NGTNodalvMin(M) storeVec<real_t> ;
+
 /** Parameter to activate minimum directional limiter for vector */
 $type vecminLimiter param<int>;
+
 /** Standard vector limiter */
 $type standardvecLimit constraint;
+
 /** Minimum direction vector limiter */
 $type minvecLimit constraint;
+
 /** Parameter to activate minimum directional limiter for vect3d */
 $type v3dminLimiter param<int>;
+
 /** Standard vect3d limiter */
 $type standardv3dLimit constraint;
+
 /** Minimum direction vect3d limiter */
 $type minv3dLimit constraint;
+
 /** Order of Nishikawa limiter */
 $type nisPow   param<int>;

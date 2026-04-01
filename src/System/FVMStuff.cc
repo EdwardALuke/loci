@@ -46,18 +46,19 @@ using std::cout ;
 #define vect3d vector3d<double>
 
 namespace Loci{
-  extern int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm) ;
+  extern int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist,
+                          MPI_Comm comm) ;
   extern  bool useDomainKeySpaces  ;
-  
-  //map from local numbering to input file numbering
-  //assume the union of nodes on all processors will be either all the nodes,
-  //all the faces, or all the cells. i.e., one interval in file numbering
-  storeRepP get_node_remap(fact_db &facts,entitySet nodes,
-                           int keyspace) {
+
+  /// Map from local numbering to input file numbering.
+  /// Assumes the union of nodes on all processors will be either all the
+  /// nodes, all the faces, or all the cells. i.e., one interval in file
+  /// numbering.
+  storeRepP get_node_remap(fact_db &facts, entitySet nodes, int keyspace) {
     REPORTMEM() ;
     if(MPI_processes == 1) {
       int minNode = nodes.Min() ;
-      
+
       Map nm ;
       nm.allocate(nodes) ;
       FORALL(nodes,nd) {
@@ -66,7 +67,7 @@ namespace Loci{
       REPORTMEM() ;
       return nm.Rep() ;
     }
-    
+
     vector<entitySet> init_ptn = facts.get_init_ptn(keyspace) ;
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
     Map l2g ;
@@ -95,16 +96,17 @@ namespace Loci{
     return newnum.Rep() ;
   }
 
-  //return a map from local numbering to output file numbering
-  //the file number starts with 1
-  //input: nodes : the local store domain need to be output,
-  //assume nodes will be written out in the global ordering.  
-
-  storeRepP get_output_node_remap(fact_db &facts,entitySet nodes) {
+  /// Return a map from local numbering to output file numbering.
+  /// The file number is assumed to start with 1 and the nodes will be
+  /// written out in the global ordering.
+  ///
+  /// @param[in] facts Fact database.
+  /// @param[in] nodes The local store domain that needs to be output.
+  storeRepP get_output_node_remap(fact_db &facts, entitySet nodes) {
     int p = MPI_processes ;
     if(p == 1) {
       int index = 1;
-      
+
       Map nm ;
       nm.allocate(nodes) ;
       FORALL(nodes,nd) {
@@ -123,14 +125,15 @@ namespace Loci{
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
     Map l2g ;
     l2g = df->l2g.Rep() ;
-    
+
     // gnodes is the global numbering for entities that this processor
     // references (because it is the result of an image, there will
     // be duplicates).  We map to the global numbering since this will
     // match the ordering of the vector write routines
     entitySet gnodes = l2g.image(nodes&l2g.domain()) ;
     if(nodes.size() != gnodes.size()){
-      debugout<<"ERROR: l2g.domain is smaller than  dom in get_output_node_remap " << endl;
+      debugout << "ERROR: l2g.domain is smaller than dom "
+               << "in get_output_node_remap " << endl ;
     }
     // extract a sorted list of global entities accessed by this processor
 #ifdef VERBOSE
@@ -186,9 +189,10 @@ namespace Loci{
     vector<int> recvsz(p,0) ;
     MPI_Alltoall(&sendsz[0],1,MPI_INT,&recvsz[0],1,MPI_INT,groupcomm) ;
     // setup recv buffers to communicate data
-    int recvbufsz = 0; 
-    for(int i=0;i<p;++i)
+    int recvbufsz = 0;
+    for(int i=0;i<p;++i) {
       recvbufsz+= recvsz[i] ;
+    }
     vector<int> rdispls(p),sdispls(p) ;
     rdispls[0] = 0 ;
     sdispls[0] = 0 ;
@@ -198,19 +202,19 @@ namespace Loci{
     }
     vector<int> recvdata(recvbufsz) ;
     MPI_Alltoallv(&gnodelistg[0],&sendsz[0],&sdispls[0],MPI_INT,
-		  &recvdata[0],&recvsz[0],&rdispls[0],MPI_INT,
-		  groupcomm) ;
+		              &recvdata[0],&recvsz[0],&rdispls[0],MPI_INT,
+		              groupcomm) ;
 #ifdef VERBOSE
     debugout << "distributed data local size = " << recvdata.size() << endl;
     debugout << "time to distribute set data = " << s.stop() << endl ;
     s.stop() ;
 #endif
-    // Now sort a copy of the recieved data so the local data is in order
+    // Now sort a copy of the received data so the local data is in order
     // and duplicates are removed
     vector<int> recvdatac = recvdata ;
     sort(recvdatac.begin(),recvdatac.end()) ;
     vector<int>::iterator last = std::unique(recvdatac.begin(),
-					     recvdatac.end()) ;
+		      recvdatac.end()) ;
     recvdatac.erase(last,recvdatac.end()) ;
     // now calculate the starting index for each processor
     int ssz = recvdatac.size() ;
@@ -225,17 +229,19 @@ namespace Loci{
     // Now compute a map from our global numbering to the file numbering
     // which is contiguously numbered from 1
     std::map<int,int> filemap ;
-    for(int i=0;i<ssz;++i)
+    for(int i=0;i<ssz;++i) {
       filemap[recvdatac[i]] = i+roff ;
+    }
     // Now send back the file numbering
     vector<int> filenosend(recvbufsz,-1) ;
-    for(int i=0;i<recvbufsz;++i) 
+    for(int i=0;i<recvbufsz;++i) {
       filenosend[i] = filemap[recvdata[i]] ;
+    }
     vector<int> gnodefnum(gnodelistg.size(),-1) ;
     // note now recvsz is sending and sendsz is recving
     MPI_Alltoallv(&filenosend[0],&recvsz[0],&rdispls[0],MPI_INT,
-		  &gnodefnum[0],&sendsz[0],&sdispls[0],MPI_INT,
-		  groupcomm) ;
+		              &gnodefnum[0],&sendsz[0],&sdispls[0],MPI_INT,
+		              groupcomm) ;
 #ifdef VERBOSE
     debugout << "time to return index = " << s.stop() << endl ;
     s.start() ;
@@ -247,7 +253,7 @@ namespace Loci{
     for(size_t i=0;i<gnodelistg.size();++i)  {
       g2f[gnodelistg[i]] = gnodefnum[i] ;
     }
-    
+
     // join the two maps to get local 2 file mapping
     Map newnum ;
     newnum.allocate(nodes) ;
@@ -260,8 +266,20 @@ namespace Loci{
 #endif
     return newnum.Rep() ;
   }
-  
-  int classify_cell(Entity *faces,int nfaces,const_multiMap &face2node) {
+
+  /// Returns the classification of a cell based on face topology.
+  ///
+  /// Classification is:
+  ///  0 for 4 triangles only i.e. tetrahedron.
+  ///  1 if hex_test i.e. hexahedron.
+  ///  2 if prism_test i.e. triangular prism.
+  ///  3 for 4 triangles + 1 quad i.e. pyramid.
+  ///  4 for anything else i.e. general/other polyhedron.
+  ///
+  /// @param[in] faces faces that make up the cell.
+  /// @param[in] nfaces number of faces.
+  /// @param[in] face2node mapping from face to nodes.
+  int classify_cell(Entity *faces, int nfaces, const_multiMap &face2node) {
     int num_triangles = 0 ;
     int num_quads = 0 ;
     int num_others = 0 ;
@@ -276,19 +294,23 @@ namespace Loci{
           triangle_nodes[2][num_triangles] = face2node[fc][2] ;
         }
         num_triangles++ ;
-      } else if(count == 4)
+      } else if(count == 4) {
         num_quads++ ;
-      else
+      } else {
         num_others++ ;
+      }
     }
     bool prism_test = false ;
 
     if((num_triangles == 2) && (num_quads == 3) && (num_others == 0)) {
       prism_test = true ;
-      for(int i=0;i<3;++i)
-        for(int j=0;j<3;++j)
-          if(triangle_nodes[i][0] == triangle_nodes[j][1])
+      for(int i=0;i<3;++i) {
+        for(int j=0;j<3;++j) {
+          if(triangle_nodes[i][0] == triangle_nodes[j][1]) {
             prism_test = false ;
+          }
+        }
+      }
     }
 
     bool hex_test = false ;
@@ -298,17 +320,21 @@ namespace Loci{
       for(int fj = 1;fj<nfaces;++fj) {
         Entity ej = faces[fj] ;
         bool find = false ;
-        for(int i=0;i<4;++i)
-          for(int j=0;j<4;++j)
-            if(face2node[ef][i] == face2node[ej][j])
+        for(int i=0;i<4;++i) {
+          for(int j=0;j<4;++j) {
+            if(face2node[ef][i] == face2node[ej][j]) {
               find = true ;
-        if(find)
+            }
+          }
+        }
+        if(find) {
           count++ ;
+        }
       }
-      if(count == 4)
+      if(count == 4) {
         hex_test = true ;
+      }
     }
-
 
     // new classification code
     if( (num_triangles == 4) && (num_quads == 0) && (num_others == 0)) {
@@ -321,35 +347,44 @@ namespace Loci{
       return 3 ;
     }
     return 4 ;
-    
   }
 
+  /// Fills in the tet element connectivity from face connectivity.
+  /// @param[out] tet The tet element connectivity to fill in.
+  /// @param[in] tri_faces The triangular faces that make up the tet.
   void fillTet(Array<int,4> &tet, Array<int,3> *tri_faces) {
     tet[0] = tri_faces[0][2] ;
     tet[1] = tri_faces[0][1] ;
     tet[2] = tri_faces[0][0] ;
     for(int i=0;i<3;++i) {
       tet[3] = tri_faces[1][i] ;
-      if(tet[3] != tet[0] && tet[3] != tet[1] && tet[3] != tet[2])
+      if(tet[3] != tet[0] && tet[3] != tet[1] && tet[3] != tet[2]) {
         return ;
+      }
     }
     cerr << "unable to form valid tet!" << endl ;
   }
 
+  /// Fills in the hex element connectivity from face connectivity.
+  /// @param[out] hex The hex element connectivity to fill in.
+  /// @param[in] quad_faces The quadrilateral faces that make up the hex.
   void fillHex(Array<int,8> &hex, Array<int,4> *quad_faces) {
     int quad_id[6] ;
-    for(int i=0;i<6;++i) 
+    for(int i=0;i<6;++i) {
       quad_id[i] = i ;
+    }
     bool degenerate = quad_faces[quad_id[0]][0] == quad_faces[quad_id[0]][3];
-    for(int j=0;j<3;++j) 
+    for(int j=0;j<3;++j)
       if(quad_faces[quad_id[0]][j] == quad_faces[quad_id[0]][j+1])
         degenerate = true ;
     if(degenerate) {
       for(int i=1;i<6;++i) {
         degenerate = quad_faces[quad_id[i]][0] == quad_faces[quad_id[i]][3];
-        for(int j=0;j<3;++j) 
-          if(quad_faces[quad_id[i]][j] == quad_faces[quad_id[i]][j+1])
+        for(int j=0;j<3;++j) {
+          if(quad_faces[quad_id[i]][j] == quad_faces[quad_id[i]][j+1]) {
             degenerate = true ;
+          }
+        }
         if(!degenerate) {
           std::swap(quad_id[i],quad_id[0]) ;
           break ;
@@ -367,7 +402,7 @@ namespace Loci{
     for(int i = 0; i < 4; i+=2) {
       int n1 = hex[i] ;
       int n2 = hex[i+1] ;
-        
+
       int cnt = 0 ;
       for(int j=1; j<6; ++j) {
         for(int k=0;k<4;++k) {
@@ -385,6 +420,11 @@ namespace Loci{
       }
     }
   }
+
+  /// Fills in the prism element connectivity from face connectivity.
+  /// @param[out] prism The prism element connectivity to fill in.
+  /// @param[in] tri_faces The triangular faces that make up the prism.
+  /// @param[in] quad_faces The quadrilateral faces that make up the prism.
   void fillPrism(Array<int,6> &prism, Array<int,3> *tri_faces,
                  Array<int,4> *quad_faces) {
     prism[0] = tri_faces[0][2] ;
@@ -393,7 +433,7 @@ namespace Loci{
     prism[3] = prism[0] ;
     prism[4] = prism[1] ;
     prism[5] = prism[2] ;
-    
+
     int n1 = prism[0] ;
     int n2 = prism[1] ;
     int n3 = prism[2] ;
@@ -406,7 +446,7 @@ namespace Loci{
           prism[3] = quad_faces[j][(k+3)%4] ;
           cnt++ ;
         }
-          
+
         if((f1 == n2 && f2 == n3)) {
           prism[4] = quad_faces[j][(k+3)%4] ;
           prism[5] = quad_faces[j][(k+2)%4] ;
@@ -418,6 +458,11 @@ namespace Loci{
       cerr << "prism ordering screwed up" << endl ;
     }
   }
+
+  /// Fills in the pyramid element connectivity from face connectivity.
+  /// @param[out] pyramid The pyramid element connectivity to fill in.
+  /// @param[in] tri_faces The triangular faces that make up the pyramid.
+  /// @param[in] quad_faces The quadrilateral faces that make up the pyramid.
   void fillPyramid(Array<int,5> &pyramid, Array<int,3> *tri_faces,
                    Array<int,4> *quad_faces) {
     pyramid[0] = quad_faces[0][3] ;
@@ -436,7 +481,10 @@ namespace Loci{
     cerr << "pyramid ordering screwed up!" << endl ;
   }
 
-
+  /// Concatenates strings from all processors in the communicator.
+  /// @param[in] input The input string on each processor.
+  /// @param[in] comm The MPI communicator.
+  /// @return The concatenated string.
   string MPIConcatStrings(string input, MPI_Comm comm) {
     int sz = input.size()+1 ;
     int p = 1 ;
@@ -444,46 +492,55 @@ namespace Loci{
     int *sizes = new int[p] ;
     MPI_Allgather(&sz,1,MPI_INT,sizes,1,MPI_INT,comm) ;
     int tot = 0 ;
-    for(int i=0;i<p;++i)
+    for(int i=0;i<p;++i) {
       tot += sizes[i] ;
+    }
     char *buf = new char[tot] ;
     int *displ = new int[p] ;
     displ[0] = 0 ;
-    for(int i=1;i<p;++i)
+    for(int i=1;i<p;++i) {
       displ[i] = displ[i-1]+sizes[i-1] ;
+    }
     char *ibuf = new char[sz] ;
     strcpy(ibuf,input.c_str()) ;
-    MPI_Allgatherv(ibuf,sz,MPI_CHAR,
-                   buf, sizes, displ,MPI_CHAR,comm) ;
+    MPI_Allgatherv(ibuf, sz, MPI_CHAR, buf, sizes, displ, MPI_CHAR, comm) ;
     string retval ;
-    for(int i=0;i<p;++i)
+    for(int i=0;i<p;++i) {
       retval += string(&(buf[displ[i]])) ;
+    }
 
     delete[] sizes ;
     delete[] buf ;
     delete[] ibuf ;
     delete[] displ ;
-    
+
     return retval ;
   }
-  //node_id range is 1~numNodes
-  //face_id range is numNodes~numNodes+numFaces
-  //cell_id range is 1~numCells
-  //Reason: in FVMstuff.cc, parallelWriteGridTopo(),
-  //get_node_remap is used to get the file number of nodes and cells, which set the start index to 1
-  //however, g2f(l2g(ff)) is used to get the file number of faces.
-  //Since boundary variables also use the face_id, to avoid changing too many places, we keep the face_id this way.
-  void parallelWriteGridTopology(const char *filename,
-                                 storeRepP upperRep,
-                                 storeRepP lowerRep,
-                                 storeRepP boundary_mapRep,
-                                 storeRepP face2nodeRep,
-                                 storeRepP refRep,
-                                 storeRepP bnamesRep,
-                                 storeRepP posRep,
-                                 entitySet localCells,
-                                 fact_db &facts) {
-    const_multiMap upper(upperRep),lower(lowerRep),
+
+  /// Writes out the grid topology in parallel to a file.
+  ///
+  /// The node_id range is [1,numNodes]. The face_id range is
+  /// [numNodes,numNodes+numFaces]. The cell_id range is [1,numCells]. This is
+  /// because `get_node_remap()` is used to get the file number of nodes and
+  /// cells, which set the start index to 1, however, g2f(l2g(ff)) is used to
+  /// get the file number of faces. Since boundary variables also use the
+  /// face_id, to avoid changing too many places, we keep the face_id this way.
+  ///
+  /// @param[in] filename The name of the output file.
+  /// @param[in] upperRep The upper faces.
+  /// @param[in] lowerRep The lower faces.
+  /// @param[in] boundary_mapRep The boundary faces.
+  /// @param[in] face2nodeRep The face to node map.
+  /// @param[in] refRep The ref map.
+  /// @param[in] bnamesRep The boundary names.
+  /// @param[in] posRep The node positions.
+  /// @param[in] localCells The local cells to write out.
+  /// @param[in,out] facts The fact database.
+  void parallelWriteGridTopology(const char *filename, storeRepP upperRep,
+        storeRepP lowerRep, storeRepP boundary_mapRep, storeRepP face2nodeRep,
+        storeRepP refRep, storeRepP bnamesRep, storeRepP posRep,
+        entitySet localCells, fact_db &facts) {
+    const_multiMap upper(upperRep), lower(lowerRep),
       boundary_map(boundary_mapRep),face2node(face2nodeRep) ;
     const_Map ref(refRep) ;
 
@@ -495,7 +552,7 @@ namespace Loci{
     int nprsm = 0 ;
     int npyrm = 0 ;
     //    int ngnrl = 0 ;
-    
+
     // Classify Cells
     FORALL(localCells,cc) {
       int nfaces = upper[cc].size()+lower[cc].size()+boundary_map[cc].size() ;
@@ -510,7 +567,7 @@ namespace Loci{
       for(int i=0;i<boundary_map[cc].size();++i) {
         faces[cnt++] = boundary_map[cc][i] ;
       }
-      
+
       elem_type[cc] = classify_cell(faces,nfaces,face2node) ;
       switch(elem_type[cc]) {
       case 0:
@@ -555,7 +612,7 @@ namespace Loci{
     vector<int> generalCellNfaces ;
     vector<int> generalCellNsides ;
     vector<int> generalCellNodes ;
-    
+
     // Generate Cells
     FORALL(localCells,cc) {
       int nfaces = upper[cc].size()+lower[cc].size()+boundary_map[cc].size() ;
@@ -563,7 +620,7 @@ namespace Loci{
       tmp_array<int> swapface(nfaces) ;
       tmp_array<Array<int,3> > tri_faces(nfaces) ;
       tmp_array<Array<int,4> > quad_faces(nfaces) ;
-      
+
       int tcnt = 0 ;
       int qcnt = 0 ;
       int nf = 0 ;
@@ -650,17 +707,19 @@ namespace Loci{
       default:
         generalCellNfaces.push_back(nfaces) ;
         generalCell_ids.push_back(cell_remap[cc]);
-        
+
         for(int i =0;i<nfaces;++i) {
           int fc = faces[i] ;
           int fsz = face2node[fc].size() ;
           generalCellNsides.push_back(fsz) ;
           if(swapface[i] == 1) {
-            for(int j=0;j<fsz;++j)
+            for(int j=0;j<fsz;++j) {
               generalCellNodes.push_back(node_remap[face2node[fc][fsz-j-1]]) ;
-          } else { 
-            for(int j=0;j<fsz;++j)
+            }
+          } else {
+            for(int j=0;j<fsz;++j) {
               generalCellNodes.push_back(node_remap[face2node[fc][j]]) ;
+            }
           }
         }
       }
@@ -671,34 +730,33 @@ namespace Loci{
     hid_t file_id = 0, group_id = 0 ;
     file_id=writeVOGOpen(filename) ;
     if(use_parallel_io ||MPI_rank == 0 ) {
-      group_id = H5Gcreate(file_id,"elements",
-			   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
-
+      group_id = H5Gcreate(file_id, "elements", H5P_DEFAULT, H5P_DEFAULT,
+                           H5P_DEFAULT) ;
     }
 
-   
+
     writeUnorderedVector(group_id, "tetrahedra",tets) ;
     writeUnorderedVector(group_id, "tetrahedra_ids",tets_ids) ;
-    
+
     writeUnorderedVector(group_id, "hexahedra",hexs) ;
     writeUnorderedVector(group_id, "hexahedra_ids",hexs_ids) ;
-    
+
     writeUnorderedVector(group_id, "prism",prsm) ;
     writeUnorderedVector(group_id, "prism_ids",prsm_ids) ;
-      
+
     writeUnorderedVector(group_id, "pyramid",pyrm) ;
     writeUnorderedVector(group_id, "pyramid_ids",pyrm_ids) ;
-      
+
     writeUnorderedVector(group_id, "GeneralCellNfaces",generalCellNfaces) ;
     writeUnorderedVector(group_id, "GeneralCellNsides",generalCellNsides) ;
     writeUnorderedVector(group_id, "GeneralCellNodes", generalCellNodes) ;
     writeUnorderedVector(group_id, "GeneralCell_ids", generalCell_ids) ;
-     
-    
+
+
     if(use_parallel_io || MPI_rank == 0) {
       H5Gclose(group_id) ;
-      group_id = H5Gcreate(file_id,"boundaries",
-			   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
+      group_id = H5Gcreate(file_id, "boundaries", H5P_DEFAULT, H5P_DEFAULT,
+                           H5P_DEFAULT) ;
     }
 
     const_store<string> boundary_names(bnamesRep) ;
@@ -707,13 +765,14 @@ namespace Loci{
     if(MPI_processes > 1) {
       entitySet local_boundaries ;
       int bkeyspace = bnamesRep->getDomainKeySpace() ;
-      std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ; 
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ;
       Map l2g ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
       FORALL(boundaries,bb) {
-        if(init_ptn[MPI_rank].inSet(l2g[bb]))
+        if(init_ptn[MPI_rank].inSet(l2g[bb])) {
           local_boundaries += bb ;
+        }
       } ENDFORALL ;
       boundaries = local_boundaries ;
     }
@@ -733,33 +792,34 @@ namespace Loci{
       }
       ++i ;
       string tmp ;
-      while(i < bnames.size() && bnames[i] != '"')
+      while(i < bnames.size() && bnames[i] != '"') {
         tmp += bnames[i++] ;
+      }
       bnamelist.push_back(tmp) ;
     }
 
 
     // Identify Boundary faces to be written by this processor
-    entitySet  fset = (MapRepP(boundary_mapRep)->image(localCells)+
-                       MapRepP(upperRep)->image(localCells)) & ref.domain() ;
+    entitySet fset = (MapRepP(boundary_mapRep)->image(localCells)+
+                      MapRepP(upperRep)->image(localCells)) & ref.domain() ;
 
     Map l2f ;
     if(MPI_processes > 1) {
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       int kd =  getKeyDomain(fset, df, MPI_COMM_WORLD) ;
-      
+
       if(kd < 0) {
-	cerr << "gridTopology, boundary faces not in single keyspace!"
-	     << endl ;
-	kd = 0 ;
+        cerr << "gridTopology, boundary faces not in single keyspace!"
+             << endl ;
+        kd = 0 ;
       }
-      //      debugout << "in write gridTopology, face key domain is " << kd
-      //	       << endl ;
+      //debugout << "in write gridTopology, face key domain is " << kd
+      //         << endl ;
       l2f = df->l2f.Rep() ;
     } else {
       l2f.allocate(fset) ;
       FORALL(fset,fc) {
-	l2f[fc] = fc ;
+	      l2f[fc] = fc ;
       } ENDFORALL ;
     }
 
@@ -767,8 +827,8 @@ namespace Loci{
       hid_t bc_id = 0 ;
       string current_bc = bnamelist[i] ;
       if(use_parallel_io || MPI_rank==0) {
-        bc_id = H5Gcreate(group_id,current_bc.c_str(),
-			  H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
+        bc_id = H5Gcreate(group_id, current_bc.c_str(), H5P_DEFAULT,
+                          H5P_DEFAULT,H5P_DEFAULT) ;
       }
 
       bool found_ref = false ;
@@ -782,19 +842,21 @@ namespace Loci{
       entitySet bfaces ;
       if(found_ref) {
         FORALL(fset,fc) {
-          if(ref[fc] == id)
+          if(ref[fc] == id) {
             bfaces+= fc ;
+          }
         }ENDFORALL ;
       }
-      
+
       int ntria=0, nquad=0, nsided =0;
       FORALL(bfaces,fc) {
-        if(face2node[fc].size() == 3)
+        if(face2node[fc].size() == 3) {
           ntria++ ;
-        else if(face2node[fc].size() == 4)
+        } else if(face2node[fc].size() == 4) {
           nquad++ ;
-        else
+        } else {
           nsided++ ;
+        }
       } ENDFORALL ;
       vector<Array<int,3> > Trias(ntria) ;
       vector<Array<int,4> > Quads(nquad) ;
@@ -824,57 +886,60 @@ namespace Loci{
           nq++ ;
         } else {
           nsizes[ng] = face2node[fc].size() ;
-          for(int i=0;i<nsizes[ng];++i)
+          for(int i=0;i<nsizes[ng];++i) {
             nsidenodes.push_back(node_remap[face2node[fc][i]]) ;
+          }
           genc_ids[ng] = l2f[fc] ;
           ng++ ;
         }
       } ENDFORALL ;
 
-     
+
       writeUnorderedVector(bc_id,"triangles",Trias) ;
       writeUnorderedVector(bc_id,"triangles_id",tria_ids) ;
-	
+
       writeUnorderedVector(bc_id,"quads",Quads) ;
       writeUnorderedVector(bc_id,"quads_id",quad_ids) ;
-	
+
       writeUnorderedVector(bc_id,"nside_sizes",nsizes) ;
       writeUnorderedVector(bc_id,"nside_nodes",nsidenodes) ;
       writeUnorderedVector(bc_id,"nside_id",genc_ids) ;
-       
+
       if(use_parallel_io || MPI_rank == 0) {
         H5Gclose(bc_id) ;
       }
-      
     }
-      
+
     if(use_parallel_io || MPI_rank == 0) {
       H5Gclose(group_id) ;
       H5Fclose(file_id) ;
-    } 
+    }
 
   }
-  
-  //collect all boundary names
+
+  /// Returns all boundary names.
+  /// @param[in] bnamesRep The boundary name store.
+  /// @param[in,out] facts The fact database.
+  /// @return A string vector of all boundary names.
   std::vector<string> get_boundary_names(storeRepP bnamesRep, fact_db &facts){
 
-   
     const_store<string> boundary_names(bnamesRep) ;
     entitySet boundaries = boundary_names.domain() ;
     if(MPI_processes > 1) {
       entitySet local_boundaries ;
       int bkeyspace = bnamesRep->getDomainKeySpace() ;
-      std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ; 
+      std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ;
       Map l2g ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
       FORALL(boundaries,bb) {
-        if(init_ptn[MPI_rank].inSet(l2g[bb]))
+        if(init_ptn[MPI_rank].inSet(l2g[bb])) {
           local_boundaries += bb ;
+        }
       } ENDFORALL ;
       boundaries = local_boundaries ;
     }
-    
+
     string bnames ;
     FORALL(boundaries,bb) {
       bnames += '"' + boundary_names[bb] + '"' ;
@@ -891,17 +956,19 @@ namespace Loci{
       }
       ++i ;
       string tmp ;
-      while(i < bnames.size() && bnames[i] != '"')
+      while(i < bnames.size() && bnames[i] != '"') {
         tmp += bnames[i++] ;
+      }
       bnamelist.push_back(tmp) ;
     }
-    std::sort(bnamelist.begin(), bnamelist.end()); 
+    std::sort(bnamelist.begin(), bnamelist.end());
     return bnamelist;
   }
-  
-  //mkdir /output/$bc_name
+
+  /// Creates an directory with the name scheme: `/output/$bc_name`.
+  /// @param[in] bc_name The name of the boundary.
   void get_bc_directory(string bc_name){
-    string directory_name = "output/"+bc_name;
+    string directory_name = "output/" + bc_name;
     struct stat statbuf ;
     int fid = open(directory_name.c_str(), O_RDONLY) ;
     if(fid < 0) {
@@ -909,40 +976,43 @@ namespace Loci{
     } else {
       fstat(fid,&statbuf) ;
       if(!S_ISDIR(statbuf.st_mode)) {
-        cerr << "file " << directory_name <<" should be a directory!, rename it and start again."
-             << endl ;
+        cerr << "file " << directory_name <<" should be a directory!, rename "
+             << "it and start again." << endl ;
         Loci::Abort() ;
       }
       close(fid) ;
     }
   }
-  //open /output/$bc_name/$file_name
-  hid_t open_boundary_file(string bc_name,
-                           string file_name
-                           ){
+
+  /// Opens an HDF5 file from the location: `/output/$bc_name/$file_name`.
+  /// @param[in] bc_name The name of the boundary.
+  /// @param[in] file_name The name of the file to open.
+  /// @return An HDF5 file ID (hid_t) to the file.
+  hid_t open_boundary_file(string bc_name, string file_name) {
     // open the file
     hid_t file_id = 0;
     if(MPI_rank == 0) {
       get_bc_directory(bc_name);
     }
-    string dirname = "output/"+bc_name+"/";
+    string dirname = "output/" + bc_name + "/";
     string filename = dirname+file_name;
     file_id=writeVOGOpen(filename.c_str()) ;
     return file_id;
   }
-  
- 
-  
-  //get boundary faces that belong to a boundary surface current_bc
-  entitySet get_boundary_faces(string current_bc,//boundary name
-                               storeRepP refRep, // ref map
-                               storeRepP bnamesRep,//bounadry name store
-                               entitySet fset //all boundary faces 
-                               ){
-    
+
+  /// Get boundary faces that belong to a boundary surface `current_bc`.
+  /// @param[in] current_bc Boundary name.
+  /// @param[in] refRep The `ref` map.
+  /// @param[in] bnamesRep The boundary name store.
+  /// @param[in] fset All boundary faces.
+  /// @return An entitySet of all boundary faces that belong to the boundary
+  ///         surface `current_bc` provided to this function.
+  entitySet get_boundary_faces(string current_bc, storeRepP refRep,
+                               storeRepP bnamesRep, entitySet fset) {
+
     const_store<string> boundary_names(bnamesRep) ;
     const_Map ref(refRep) ;
-    
+
     //find its ref id
     bool found_ref = false ;
     Entity id = 0 ;
@@ -955,39 +1025,48 @@ namespace Loci{
     entitySet bfaces ;
     if(found_ref) {
       FORALL(fset,fc) {
-        if(ref[fc] == id)
+        if(ref[fc] == id) {
           bfaces+= fc ;
+        }
       }ENDFORALL ;
     }
     return bfaces;
   }
 
-  //get boundary nodes that belong to a boundary surface current_bc
-  entitySet get_boundary_nodes(string current_bc,//boundary name
-                               storeRepP face2nodeRep,
-                               storeRepP refRep, // ref map
-                               storeRepP bnamesRep,//bounadry name store
-                               entitySet fset, //all boundary faces 
-                               fact_db &facts ){
+  /// Get boundary nodes that belong to a boundary surface `current_bc`.
+  /// @param[in] current_bc Boundary name.
+  /// @param[in] face2nodeRep The face to node map.
+  /// @param[in] refRep The `ref` map.
+  /// @param[in] bnamesRep The boundary name store.
+  /// @param[in] fset All boundary faces.
+  /// @param[in,out] facts The fact database.
+  /// @return The entitySet of all boundary nodes that belong to the boundary
+  ///         surface `current_bc` provided to this function.
+  entitySet get_boundary_nodes(string current_bc, storeRepP face2nodeRep,
+        storeRepP refRep, storeRepP bnamesRep, entitySet fset,
+        fact_db &facts ){
     entitySet bfaces = get_boundary_faces(current_bc, refRep, bnamesRep, fset);
     //get containers
     const_multiMap face2node(face2nodeRep) ;
-    //get all the local nodes on the boundary 
-    entitySet nodes_local = MapRepP(face2node)->image(bfaces);
+    //get all the local nodes on the boundary
+    entitySet nodes_local = MapRepP(face2node)->image(bfaces) ;
     // get the nodes that belong to this processor
     if(MPI_processes > 1) {
-      entitySet dom = nodes_local;
+      entitySet dom = nodes_local ;
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
       entitySet  my_entities = dist->my_entities ;
       nodes_local = my_entities & nodes_local ;
     }
-    return nodes_local;
+    return nodes_local ;
   }
-       
-  void writeBoundaryTopo(hid_t file_id, //file_id of this boudnary surface
-                         storeRepP face2nodeRep,
-                         entitySet bfaces,//boundary faces define this surface 
-                         fact_db &facts ){ 
+
+  /// Write out the boundary surface topology to an HDF5 file.
+  /// @param[in] file_id The HDF5 file ID of this boundary surface.
+  /// @param[in] face2nodeRep The face to node map.
+  /// @param[in] bfaces The boundary faces that define this surface.
+  /// @param[in,out] facts The fact database.
+  void writeBoundaryTopo(hid_t file_id, storeRepP face2nodeRep,
+                         entitySet bfaces, fact_db &facts ) {
 #ifdef VERBOSE
     debugout << "writing out boundary surface topology" << endl ;
     stopWatch s ;
@@ -997,8 +1076,8 @@ namespace Loci{
     const_multiMap face2node(face2nodeRep) ;
 
     //collect the local boundary nodes belong to this boundary
-    entitySet nodes_local = (MapRepP(face2node)->image(bfaces));
-          
+    entitySet nodes_local = (MapRepP(face2node)->image(bfaces)) ;
+
     //map each node to its file number in output file
     Map node_remap ;
     node_remap = get_output_node_remap(facts, nodes_local) ;
@@ -1010,7 +1089,7 @@ namespace Loci{
     // Compute face reordering for topo sorting
     store<int> faceorder ;
     faceorder.allocate(bfaces) ;
-    int sz = bfaces.size();
+    int sz = bfaces.size() ;
     int off = 0 ;
     MPI_Scan(&sz,&off,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
     off -= sz ;
@@ -1018,15 +1097,17 @@ namespace Loci{
       faceorder[fc] = off ;
       off++ ;
     } ENDFORALL ;
+
     //get output vectors
-    int ntria=0, nquad=0, nsided =0;
+    int ntria=0, nquad=0, nsided =0 ;
     FORALL(bfaces,fc) {
-      if(face2node[fc].size() == 3)
+      if(face2node[fc].size() == 3) {
         ntria++ ;
-      else if(face2node[fc].size() == 4)
+      } else if(face2node[fc].size() == 4) {
         nquad++ ;
-      else
+      } else {
         nsided++ ;
+      }
     } ENDFORALL ;
     vector<Array<int,3> > Trias(ntria) ;
     vector<Array<int,4> > Quads(nquad) ;
@@ -1036,11 +1117,10 @@ namespace Loci{
     int nt = 0 ;
     int nq = 0 ;
     int ng = 0 ;
-    
+
     vector<int> nsizes(nsided) ;
     vector<int> nsidenodes ;
-   
-    
+
     FORALL(bfaces,fc) {
       if(face2node[fc].size() == 3) {
         Trias[nt][0] = node_remap[face2node[fc][0]] ;
@@ -1053,361 +1133,387 @@ namespace Loci{
         Quads[nq][1] = node_remap[face2node[fc][1]] ;
         Quads[nq][2] = node_remap[face2node[fc][2]] ;
         Quads[nq][3] = node_remap[face2node[fc][3]] ;
-          
-        quad_ids[nq] = faceorder[fc] ; 
+
+        quad_ids[nq] = faceorder[fc] ;
         nq++ ;
       } else {
         nsizes[ng] = face2node[fc].size() ;
-        for(int i=0;i<nsizes[ng];++i)
+        for(int i=0;i<nsizes[ng];++i) {
           nsidenodes.push_back(node_remap[face2node[fc][i]]) ;
-        
-        genc_ids[ng] = faceorder[fc] ; 
+        }
+
+        genc_ids[ng] = faceorder[fc] ;
         ng++ ;
       }
     } ENDFORALL ;
-    
+
 #ifdef VERBOSE
     debugout << "time to generate topology datasets = " << s.stop() << endl ;
     s.start() ;
 #endif
 
-    
     //write out vectors
     writeUnorderedVector(file_id,"triangles",Trias) ;
     writeUnorderedVector(file_id,"triangles_ord",tria_ids) ;
     writeUnorderedVector(file_id,"quads",Quads) ;
     writeUnorderedVector(file_id,"quads_ord",quad_ids) ;
-      
+
     writeUnorderedVector(file_id,"nside_sizes",nsizes) ;
     writeUnorderedVector(file_id,"nside_nodes",nsidenodes) ;
     writeUnorderedVector(file_id,"nside_ord",genc_ids) ;
- 
+
 #ifdef VERBOSE
     debugout << "time to write unordered vectors = " << s.stop() << endl ;
     debugout << "finished writing boundary topology" << endl ;
 #endif
   }
-      
-  //this function find the index of an inner edge.
-  //an inner edge is the edge from facecenter to one of its nodes during face triangulation
-  //if the edge already exists, the index is returned
-  //otherwise, the edge is created and registered in inner_edges and edgeIndex
-  //the return value is the index of the edge in inner_edges, starts with 1
-  int create_inner_edge(int face, //face id
-                        int node, //node id
-                        std::map<pair<int, int>, int>& edgeIndex, //map of inner edges to its index in inner_edges, the index starts with 1 
-                        vector<pair<int, int> >& inner_edges) //the edges from facecenter and one of its node
-  {
-    pair<int, int> inner_edge = make_pair(face, node);
+
+  /// Finds the index of an inner edge for a given `face`, and creates one
+  /// if it does not exist.
+  ///
+  /// An inner edge is the edge from facecenter to one of its nodes during
+  /// face triangulation. If the edge already exists, the index is returned,
+  /// otherwise the edge is created and registered in `inner_edges` and
+  /// `edgeIndex`.
+  /// @param[in] face The face ID.
+  /// @param[in] node The node ID.
+  /// @param[in,out] edgeIndex A map of inner edges to its index in
+  ///                          `inner_edges`. The index starts with 1.
+  /// @param[in,out] inner_edges The edges from facecenter and one of its
+  ///                            nodes.
+  /// @return The index of the edge in `inner_edges`, starts with 1.
+  int create_inner_edge(int face, int node,
+                       std::map<pair<int, int>, int>& edgeIndex,
+                       vector<pair<int, int> >& inner_edges) {
+    pair<int, int> inner_edge = make_pair(face, node) ;
     //make sure no duplicate in inner_edges
     if(edgeIndex.find(inner_edge) == edgeIndex.end()){
-      inner_edges.push_back(inner_edge);
-      edgeIndex[inner_edge] = inner_edges.size();
+      inner_edges.push_back(inner_edge) ;
+      edgeIndex[inner_edge] = inner_edges.size() ;
     }
-    return edgeIndex[inner_edge];
+    return edgeIndex[inner_edge] ;
   }
-  
-  //If a face has more than 2 edges cut, to disambiguate the connection between the cut points,
-  //the face will be triangulated and each tri face will be registered
-  void disambiguateFace(Entity f, 
-                        const_multiMap& face2node,
-                        const_multiMap& face2edge,
-                        const_MapVec<2>& edge2node,
-                        const_store<double>& val,
-                        entitySet& edgesCut, //the edges(node 2 node) cut
-                        std::map<pair<int, int>, int >& edgeIndex,//map of inner edges(face 2 node) to its index in inner_edges, the index starts with 1 
-                        vector<pair<int, int> >& intersects, //pair of edges, if the second number is negative, it is index to inner_edges
-                        vector<pair<int, int> >& inner_edges //the edges from facecenter and one of its node 
-                        ){
-    
-    int nNodes = face2node.num_elems(f);
-    
+
+  /// If a face has more than 2 edges cut, to disambiguate the connection
+  /// between the cut points, the face will be triangulated and each tri face
+  /// will be registered.
+  ///
+  /// @param f The face entity.
+  /// @param face2node The face to node map.
+  /// @param face2edge The face to edge map.
+  /// @param edge2node The edge to node map.
+  /// @param val .
+  /// @param edgesCut The edges (node to node) that are cut.
+  /// @param edgeIndex A map of inner edges (face to node) to its index in
+  ///                  `inner_edges`, the index starts with 1.
+  /// @param intersects The pair of edges, if the second number is negative,
+  ///                   it is the index to `inner_edges`.
+  /// @param inner_edges The edges from facecenter and one of its nodes.
+  void disambiguateFace(Entity f, const_multiMap& face2node,
+        const_multiMap& face2edge, const_MapVec<2>& edge2node,
+        const_store<double>& val, entitySet& edgesCut,
+        std::map<pair<int, int>, int >& edgeIndex,
+        vector<pair<int, int> >& intersects,
+        vector<pair<int, int> >& inner_edges ) {
+
+    int nNodes = face2node.num_elems(f) ;
+
     //get the value of face center
     double  newNode = 0.0 ;
     for (int i = 0; i < nNodes; ++i) {
-      newNode += val[face2node[f][i]];
+      newNode += val[face2node[f][i]] ;
     }
-    newNode /= double(nNodes);
-    
+    newNode /= double(nNodes) ;
+
     //triangulate the face
     //and register each tri face.
-    int faceCut[2];
+    int faceCut[2] ;
     for (int i = 0;i < face2edge.num_elems(f); ++i) {
-      int cutsFound = 0;
+      int cutsFound = 0 ;
       //check this edge
       Entity edge = face2edge[f][i];
       if (signbit(val[edge2node[edge][0]] * val[edge2node[edge][1]])) {
-        edgesCut += edge;
-        faceCut[cutsFound] = edge;
-        cutsFound++; 
+        edgesCut += edge ;
+        faceCut[cutsFound] = edge ;
+        cutsFound++ ;
       }
       //check face center to first node
       if (signbit(newNode * val[edge2node[edge][0]])) {
-        int node = edge2node[edge][0];
-        int edgeId = create_inner_edge(f, node, edgeIndex,inner_edges);
-        faceCut[cutsFound]  = -edgeId;
-        cutsFound++;                     
+        int node = edge2node[edge][0] ;
+        int edgeId = create_inner_edge(f, node, edgeIndex, inner_edges) ;
+        faceCut[cutsFound]  = -edgeId ;
+        cutsFound++ ;
       }
-  
+
       //check face center to second node
       if (signbit(newNode * val[edge2node[edge][1]])) {
-        if(cutsFound >1){
-          cerr<<"ERROR: tri face has more than two cuts" << endl;
-          exit(-1);
+        if(cutsFound > 1) {
+          cerr<<"ERROR: tri face has more than two cuts" << endl ;
+          exit(-1) ;
         }
-        int node = edge2node[edge][1];
-        int edgeId = create_inner_edge(f, node, edgeIndex,inner_edges);
-        faceCut[cutsFound]  = -edgeId;
-        cutsFound++;                     
+        int node = edge2node[edge][1] ;
+        int edgeId = create_inner_edge(f, node, edgeIndex, inner_edges) ;
+        faceCut[cutsFound]  = -edgeId ;
+        cutsFound++ ;
       }
-      if (cutsFound == 2) intersects.push_back(make_pair(faceCut[0], faceCut[1]));
+      if (cutsFound == 2) { intersects.push_back(make_pair(faceCut[0], faceCut[1])) ; }
       //else ????holes happen?
     }
   }
 
-  // Find edges cut in the face and register them into intersects
-  bool registerFace(Entity f,
-                    const_multiMap& face2node,
-                    const_multiMap& face2edge,
-                    const_MapVec<2>& edge2node,
-                    const_store<double>& val,
-                    entitySet& edgesCut,//the edges(node 2 node) cut
-                    std::map<pair<int, int>, int >& edgeIndex,//map of inner edges(face center 2 node) to its index in inner_edges, the index starts with 1
-                    vector<pair<int, int> >& intersects, //pair of edges, if the value is negative, it is index to inner_edges
-                    vector<pair<int, int> >& inner_edges//pair<face, node>, the edges from facecenter and one of the face node 
-                    ){
-    
-    int faceCut[2];
-    int cutsFound = 0;
+  /// Find edges cut in the face and register them into `intersects`.
+  /// @param f The face entity.
+  /// @param face2node The face to node map.
+  /// @param face2edge The face to edge map.
+  /// @param edge2node The edge to node map.
+  /// @param val .
+  /// @param edgesCut The edges (node 2 node) that are cut.
+  /// @param edgeIndex A map of inner edges (face center 2 node) to its index
+  ///                  in `inner_edges`, the index starts with 1.
+  /// @param intersects The pair of edges, if the second number is negative,
+  ///                   it is the index to `inner_edges`.
+  /// @param inner_edges A pair<face, node>, the edges from facecenter and one
+  ///                    of the face nodes.
+  bool registerFace(Entity f, const_multiMap& face2node,
+        const_multiMap& face2edge, const_MapVec<2>& edge2node,
+        const_store<double>& val, entitySet& edgesCut,
+        std::map<pair<int, int>, int >& edgeIndex,
+        vector<pair<int, int> >& intersects,
+        vector<pair<int, int> >& inner_edges) {
+
+    int faceCut[2] ;
+    int cutsFound = 0 ;
     //check each edge
     for(int i = 0; i < face2edge.num_elems(f); ++i) {
-      Entity edge = face2edge[f][i];
+      Entity edge = face2edge[f][i] ;
       //if it is cut
       if (signbit(val[edge2node[edge][0]] * val[edge2node[edge][1]])) {
         if (cutsFound < 2) {
           //store it in faceCut
-          faceCut[cutsFound] = edge;
-          edgesCut += edge;
+          faceCut[cutsFound] = edge ;
+          edgesCut += edge ;
         }
-        cutsFound++; 
+        cutsFound++ ;
       }
     }
-    //no ambiguation, register faceCut in inertsection
-    //otherwise, disambiguate the face
-    if (cutsFound == 2)
-      intersects.push_back(make_pair(faceCut[0], faceCut[1]));
-    else if (cutsFound > 2)
-      disambiguateFace( f,
-                        face2node,
-                        face2edge,
-                        edge2node,
-                        val,
-                        edgesCut,
-                        edgeIndex,
-                        intersects,
-                        inner_edges
-                        );
-    return (cutsFound > 0);
+    // no ambiguation, register faceCut in inertsection otherwise, disambiguate
+    // the face.
+    if (cutsFound == 2) {
+      intersects.push_back(make_pair(faceCut[0], faceCut[1])) ;
+    } else if (cutsFound > 2) {
+      disambiguateFace(f, face2node, face2edge, edge2node, val, edgesCut,
+                       edgeIndex, intersects, inner_edges) ;
+    }
+    return (cutsFound > 0) ;
   }
-    
-  //after all the faces of a cell is registered,
-  //check the intersects to form the faces in cutting plane
-  void checkLoop( const vector<pair<int, int> >& intersects,//pair of edges, if the value number is negative, it is index to inner_edges
-                  vector<vector<int > >& faceLoops,//the loops(faces in cutting plane) formed 
-                  int start,//the start index to intersects 
-                  int end) { //the end index to intersects
-    bool loopIsGood = true;
-    vector<int > loop;
-  
-    list<int> edges;
-    for (int i = start+1; i < end; i++)
-      edges.push_back(i);
 
-    int firstNode, nextNode;
-    firstNode = intersects[start].first;
-    nextNode = intersects[start].second;
-    loop.push_back(firstNode);
-    loop.push_back(nextNode);
+  /// After all the faces of a cell are registered, check the intersects to
+  /// form the faces in cutting plane.
+  /// @param intersects The pair of edges, if the value number is negative, it
+  ///                   is index to inner_edges.
+  /// @param faceLoops The loops(faces in cutting plane) formed.
+  /// @param[in] start The start index to intersects.
+  /// @param[in] end The end index to intersects.
+  void checkLoop(const vector<pair<int, int> >& intersects,
+                 vector<vector<int > >& faceLoops, int start, int end) {
+    bool loopIsGood = true ;
+    vector<int > loop ;
 
-    list<int>::iterator iter;
+    list<int> edges ;
+    for (int i = start+1; i < end; i++) {
+      edges.push_back(i) ;
+    }
+
+    int firstNode, nextNode ;
+    firstNode = intersects[start].first ;
+    nextNode = intersects[start].second ;
+    loop.push_back(firstNode) ;
+    loop.push_back(nextNode) ;
+
+    list<int>::iterator iter ;
     while (!edges.empty() && loopIsGood) {
       for (iter = edges.begin(); iter != edges.end(); iter++) {
         if (intersects[*iter].first == nextNode) {
-          nextNode = intersects[*iter].second;
-          if(firstNode != nextNode)loop.push_back(nextNode);
-          edges.erase(iter);
-          break;
+          nextNode = intersects[*iter].second ;
+          if(firstNode != nextNode) { loop.push_back(nextNode) ; }
+          edges.erase(iter) ;
+          break ;
         } else if (intersects[*iter].second == nextNode) {
-          nextNode = intersects[*iter].first;
-          if(firstNode != nextNode) loop.push_back(nextNode);
-          edges.erase(iter);
-          break;
+          nextNode = intersects[*iter].first ;
+          if(firstNode != nextNode) {loop.push_back(nextNode) ; }
+          edges.erase(iter) ;
+          break ;
         }
       }
       //can not find the next edge
-      if (iter == edges.end())
-        loopIsGood = false;
+      if (iter == edges.end()) {
+        loopIsGood = false ;
+      }
 
       //a loop is formed
-      if (firstNode == nextNode){
+      if (firstNode == nextNode) {
         if(!edges.empty()) {
-          faceLoops.push_back(loop);
-          loop.clear();
-        
-          firstNode = intersects[edges.front()].first;
-          nextNode = intersects[edges.front()].second;
-          loop.push_back(firstNode);
-          loop.push_back(nextNode);
-          edges.erase(edges.begin());
-        }else{
-          faceLoops.push_back(loop);
+          faceLoops.push_back(loop) ;
+          loop.clear() ;
+
+          firstNode = intersects[edges.front()].first ;
+          nextNode = intersects[edges.front()].second ;
+          loop.push_back(firstNode) ;
+          loop.push_back(nextNode) ;
+          edges.erase(edges.begin()) ;
+        } else {
+          faceLoops.push_back(loop) ;
         }
       }
     }
-      
-    if (firstNode != nextNode){
-      debugout << "ERROR: ** Problem cell:  ** (failed loop test)" << endl;
-    }
-  }
-  //after the loops are formed, this function will remove all negative value in loops.
-  vector<vector<int > > remove_inner_edges(const vector<vector<int > >& faceLoops)//the loops(faces in cutting plane) formed 
-  {
-    vector<vector<int > >  new_faceLoops;
-    for(unsigned int i = 0; i < faceLoops.size(); i++){
-      vector<int> loop;
-      for(unsigned int j = 0; j < faceLoops[i].size(); j++){
-        if(faceLoops[i][j] >=0) loop.push_back(faceLoops[i][j]);
-      }
-      if(loop.size() >0)new_faceLoops.push_back(loop);
-    }
-    return new_faceLoops;
-  }
-    
-  //return the cutting position of an edge 
-  double get_edge_weight(Entity e,
-                         const_MapVec<2>& edge2node,
-                         const_store<double>& val){
-    
-    double a = val[edge2node[e][0]];
-    double b = val[edge2node[e][1]];
-    return ((b)/(b - a));
-  }
- 
 
-  //generate Cutplane
-  CutPlane getCutPlane(storeRepP upperRep,
-                       storeRepP lowerRep,
-                       storeRepP boundary_mapRep,
-                       storeRepP face2nodeRep,
-                       storeRepP face2edgeRep,
-                       storeRepP edge2nodeRep,
-                       storeRepP valRep,
-                       entitySet localCells,//all geom_cells
+    if (firstNode != nextNode) {
+      debugout << "ERROR: ** Problem cell:  ** (failed loop test)" << endl ;
+    }
+  }
+
+  /// Removes all negative values in loops after the loops are formed.
+  /// `faceLoops` is the loops(faces in cutting plane) formed.
+  /// @param[in] faceLoops Loops (faces in cutting plane) formed.
+  /// @return Updated set of `faceLoops` with all negative values in loops
+  ///         removed.
+  vector<vector<int > > remove_inner_edges(
+        const vector<vector<int > >& faceLoops) {
+    vector<vector<int > > new_faceLoops ;
+    for(unsigned int i=0; i<faceLoops.size(); i++){
+      vector<int> loop ;
+      for(unsigned int j=0; j<faceLoops[i].size(); j++){
+        if(faceLoops[i][j] >=0) { loop.push_back(faceLoops[i][j]) ; }
+      }
+      if(loop.size() >0) { new_faceLoops.push_back(loop) ; }
+    }
+    return new_faceLoops ;
+  }
+
+  /// Returns the cutting position of an edge.
+  double get_edge_weight(Entity e, const_MapVec<2>& edge2node,
+                         const_store<double>& val) {
+
+    double a = val[edge2node[e][0]] ;
+    double b = val[edge2node[e][1]] ;
+    return ((b)/(b - a)) ;
+  }
+
+
+  /// Generates Cutplane.
+  CutPlane getCutPlane(storeRepP upperRep, storeRepP lowerRep,
+                       storeRepP boundary_mapRep, storeRepP face2nodeRep,
+                       storeRepP face2edgeRep, storeRepP edge2nodeRep,
+                       storeRepP valRep, entitySet localCells,//all geom_cells
                        fact_db &facts) {
-    
-    const_multiMap upper(upperRep),lower(lowerRep),
-      boundary_map(boundary_mapRep),face2node(face2nodeRep), face2edge(face2edgeRep) ;
-    
+
+    const_multiMap upper(upperRep), lower(lowerRep),
+      boundary_map(boundary_mapRep), face2node(face2nodeRep),
+      face2edge(face2edgeRep) ;
+
     const_MapVec<2> edge2node(edge2nodeRep);
-    const_store<double> val(valRep);
+    const_store<double> val(valRep) ;
 
     // data structure:
-    entitySet edgesCut;
-    store<double> edgesWeight; //the weight for interpoplation for each edgesCut, allocated on edgesCut
-    vector<pair<int, int> > inner_edges; //the inner edges(facecenter to one of its nodes) cut, the values stored are pair<local_faceid, noderank>  
-    vector<vector<int > > faceLoops;  //loops formed, the values stored are edge ids, which is either local edge entity or index to inner_edges
-   
-   
+    entitySet edgesCut ;
+
+    // the weight for interpoplation for each edgesCut, allocated on edgesCut
+    store<double> edgesWeight ;
+
+    // the inner edges(facecenter to one of its nodes) cut, the values stored
+    // are pair<local_faceid, noderank>
+    vector<pair<int, int> > inner_edges ;
+
+    // loops formed, the values stored are edge ids, which is either local edge
+    // entity or index to inner_edges
+    vector<vector<int > > faceLoops ;
+
+
     //extra data structure
-    vector<pair<int, int> > intersects; //the pairs of edges  or inner edges cut
-    std::map<pair<int, int>, int > edgeIndex; //map of inner edges to their indexes in inner_edges
+    //the pairs of edges  or inner edges cut
+    vector<pair<int, int> > intersects ;
+
+    //map of inner edges to their indexes in inner_edges
+    std::map<pair<int, int>, int > edgeIndex ;
     // for each cell
     FORALL(localCells,cc) {
-      bool  isCut = false;
-      int  intersectStart = intersects.size();
-      
+      bool isCut = false ;
+      int  intersectStart = intersects.size() ;
+
       //collect all its faces
       entitySet faces;
-      for(int i=0;i<upper[cc].size();++i)faces += upper[cc][i];
-      for(int i=0;i<lower[cc].size();++i)faces += lower[cc][i];
-      for(int i=0;i<boundary_map[cc].size();++i)faces += boundary_map[cc][i];
-      
+      for(int i=0;i<upper[cc].size();++i) {faces += upper[cc][i] ; }
+      for(int i=0;i<lower[cc].size();++i) {faces += lower[cc][i] ; }
+      for(int i=0;i<boundary_map[cc].size();++i) {
+        faces += boundary_map[cc][i] ;
+      }
+
       //for each face, find the edges that is cut and register it
-      for(entitySet::const_iterator ei = faces.begin(); ei != faces.end(); ei++){
-        if (registerFace(*ei,
-                         face2node,
-                         face2edge,
-                         edge2node,
-                         val,
-                         edgesCut,
-                         edgeIndex,
-                         intersects, 
-                         inner_edges 
-                         )) isCut = true;
+      for(entitySet::const_iterator ei = faces.begin(); ei != faces.end(); ei++) {
+        if (registerFace(*ei, face2node, face2edge, edge2node, val, edgesCut,
+                         edgeIndex, intersects, inner_edges)) {
+          isCut = true ;
+        }
       }
 
       //check the loops formed by this cell and register the loop
-      if(isCut){
-        checkLoop(intersects, faceLoops, intersectStart, intersects.size());
-        intersectStart = intersects.size();
+      if(isCut) {
+        checkLoop(intersects, faceLoops, intersectStart, intersects.size()) ;
+        intersectStart = intersects.size() ;
       }
     }ENDFORALL;
     //remove the inner edges cut from loops
-    vector<vector<int > > new_faceLoops = remove_inner_edges(faceLoops);
-    
-    //compute the cutting postions of edges 
-    edgesWeight.allocate(edgesCut);
+    vector<vector<int > > new_faceLoops = remove_inner_edges(faceLoops) ;
+
+    //compute the cutting postions of edges
+    edgesWeight.allocate(edgesCut) ;
     FORALL(edgesCut, e){
-      double t = get_edge_weight(e, edge2node, val);
-      edgesWeight[e] = t;
-    }ENDFORALL;
-    
-   
-    return CutPlane(edgesWeight.Rep(),
-                    new_faceLoops);
-                     
-   
+      double t = get_edge_weight(e, edge2node, val) ;
+      edgesWeight[e] = t ;
+    }ENDFORALL ;
+
+    return CutPlane(edgesWeight.Rep(), new_faceLoops) ;
   }
 
-  
-  void writeCutPlaneTopo(hid_t bc_id,
-                         const CutPlane& cp,
-                         fact_db &facts){ 
+  /// Write out the cut plane topology to an HDF5 file.
+  /// @param[in] bc_id The HDF5 file ID of this cut plane.
+  /// @param[in] cp The cut plane data structure.
+  /// @param[in] facts The fact database.
+  void writeCutPlaneTopo(hid_t bc_id, const CutPlane& cp, fact_db &facts) {
 #ifdef VERBOSE
     debugout << "write cutPlaneTopology" << endl ;
     stopWatch s ;
     s.start() ;
 #endif
-    Map node_remap;//map from local numbering to output file numbering for edge entities
-    entitySet edgesCut = (cp.edgesWeight)->domain();
-    node_remap = get_output_node_remap(facts, edgesCut);
+    //map from local numbering to output file numbering for edge entities
+    Map node_remap ;
+    entitySet edgesCut = (cp.edgesWeight)->domain() ;
+    node_remap = get_output_node_remap(facts, edgesCut) ;
 #ifdef VERBOSE
     debugout << "time to get remap = " << s.stop() << endl ;
     s.start() ;
 #endif
-   
-    //write out the sizes of faceLoops  
-    int num_faces = cp.faceLoops.size();
-    vector<int> nsizes(num_faces);
-    for(int i = 0; i < num_faces; i++){
-      nsizes[i] = cp.faceLoops[i].size();
+
+    //write out the sizes of faceLoops
+    int num_faces = cp.faceLoops.size() ;
+    vector<int> nsizes(num_faces) ;
+    for(int i = 0; i < num_faces; i++) {
+      nsizes[i] = cp.faceLoops[i].size() ;
     }
-    
-    
+
     writeUnorderedVector(bc_id,"nside_sizes",nsizes) ;
-    
+
     //write out face nodes
     vector<int> nsidenodes ;
-    for(int i = 0; i < num_faces; i++){
-      for(int j = 0; j < nsizes[i]; j++){
-        int node = cp.faceLoops[i][j];
-        if(node >=0){
-          nsidenodes.push_back(node_remap[node]); //edge nodes
+    for(int i = 0; i < num_faces; i++) {
+      for(int j = 0; j < nsizes[i]; j++) {
+        int node = cp.faceLoops[i][j] ;
+        if(node >=0) {
+          nsidenodes.push_back(node_remap[node]) ; //edge nodes
         }
       }
     }
-    
-   
+
     writeUnorderedVector(bc_id,"nside_nodes",nsidenodes) ;
 
 #ifdef VERBOSE
@@ -1416,21 +1522,36 @@ namespace Loci{
   }
 
   namespace {
-    
+
+    /// Struct to hold boundary condition information. Used to access options
+    /// that are given as suboptions to boundary conditions. For something like
+    /// BC5=exampleBC(option1=value1,option2=value2), this struct holds the
+    /// metadata about a BC and the options that have been provided to it.
     struct BCinfo {
-      std::string name ;
-      int key ;
-      entitySet apply_set ;
-      options_list bc_options ;
+      std::string name ; // Boundary condition type name
+      int key ; // Boundary ID
+      entitySet apply_set ; // Set of entities to which this BC applies
+      options_list bc_options ; // Options for this boundary condition
       BCinfo() {}
-      BCinfo(const std::string &n, int k,
-             const entitySet &a, const options_list &o) :
-        name(n),key(k),apply_set(a),bc_options(o) {}
-      
-    } ; 
+      BCinfo(const std::string &n, int k, const entitySet &a,
+             const options_list &o) :
+            name(n),key(k),apply_set(a),bc_options(o) {}
+
+    } ;
   }
 
-
+  /// Builds facts related to the periodic boundary mappings as well as the
+  /// `pmap` and `periodicTransform` facts.
+  ///
+  /// For each periodic pair, compute face centers, apply the rigid transform
+  /// to the master side, match faces by nearest neighbor, verify one-to-one
+  /// correspondence, then store:
+  /// - `pmap`: face -> periodic partner face
+  /// - `periodicTransform`: bc_id -> rigid_transform
+  ///
+  /// @param[in] periodic_list List of (master, slave) periodic_info pairs with
+  ///                          bc_num, bset, and transform parameters.
+  /// @param[in,out] facts Fact database.
   void setup_periodic_bc(list<pair<periodic_info,periodic_info> >
                          &periodic_list,fact_db &facts) {
 
@@ -1459,8 +1580,9 @@ namespace Loci{
     if(facts.is_distributed_start()) {
       int pk = pos.Rep()->getDomainKeySpace() ;
       init_ptn = facts.get_init_ptn(pk) ;
-      if(GLOBAL_OR(tmp_out)) 
+      if(GLOBAL_OR(tmp_out)) {
         fill_clone(sp, out_of_dom, init_ptn) ;
+      }
     }
 
     list<pair<periodic_info,periodic_info> >::const_iterator ii ;
@@ -1480,7 +1602,7 @@ namespace Loci{
 			     realToDouble(ii->first.translate.y),
 			     realToDouble(ii->first.translate.z)) ;
 
-      
+
       periodic_transform[bc1] = rigid_transform(center,v,angle,trans) ;
       periodic_transform[bc2] = rigid_transform(center,v,-angle,-1.*trans) ;
 
@@ -1495,8 +1617,8 @@ namespace Loci{
           tot += tmp_pos[face2node[*ei][i]] ;
         }
         tot *= double(1)/double(sz) ;
-	vector3d<double> totr(tot.x,tot.y,tot.z) ;
-	totr = tran.transform(totr) ;
+        vector3d<double> totr(tot.x,tot.y,tot.z) ;
+        totr = tran.transform(totr) ;
         p1center[*ei] = realToDouble(totr) ;
       }
 
@@ -1541,31 +1663,37 @@ namespace Loci{
 
       vector<int> p2closest(p2.size()) ;
       parallelNearestNeighbors(p1,p1id,p2,p2closest,MPI_COMM_WORLD) ;
-      
-      for(size_t i=0;i<p1.size();++i)
+
+      for(size_t i=0;i<p1.size();++i) {
         pmap[p1id[i]] = p1closest[i] ;
-      for(size_t i=0;i<p2.size();++i)
+      }
+      for(size_t i=0;i<p2.size();++i) {
         pmap[p2id[i]] = p2closest[i] ;
+      }
 
       // Check to make sure connection is one-to-one
       dstore<int> check ;
-      for(size_t i=0;i<p2.size();++i)
+      for(size_t i=0;i<p2.size();++i) {
         check[p2id[i]] = p2closest[i] ;
+      }
 
       entitySet p1map = create_entitySet(p1closest.begin(),p1closest.end()) ;
       storeRepP sp = check.Rep() ;
       std::vector<entitySet> init_ptn ;
       if(facts.is_distributed_start()) {
-        init_ptn = facts.get_init_ptn(fk) ; 
+        init_ptn = facts.get_init_ptn(fk) ;
         fill_clone(sp, p1map, init_ptn) ;
       }
       bool periodic_problem = false ;
-      for(size_t i=0;i<p1id.size();++i) 
-        if(check[pmap[p1id[i]]] != p1id[i])
+      for(size_t i=0;i<p1id.size();++i) {
+        if(check[pmap[p1id[i]]] != p1id[i]) {
           periodic_problem = true ;
+        }
+      }
       if(GLOBAL_OR(periodic_problem)) {
         if(MPI_rank == 0) {
-          cerr << "Periodic boundary did not connect properly, is boundary point matched?" << endl ;
+          cerr << "Periodic boundary did not connect properly, is boundary "
+               << "point matched?" << endl ;
           Loci::Abort() ;
         }
       }
@@ -1580,9 +1708,10 @@ namespace Loci{
     constraint pfaces ;
     Map cl ;
     pfaces = facts.get_variable("periodicFaces") ;
+  }
 
-  } 
-
+  /// Creates the `ci` map for boundary faces that are not periodic.
+  /// @param[in,out] facts The fact database.
   void create_ci_map(fact_db &facts) {
     constraint boundary_faces ;
     boundary_faces = facts.get_variable("boundary_faces") ;
@@ -1600,7 +1729,7 @@ namespace Loci{
 
     cl = facts.get_variable("cl") ;
     ci.allocate(ci_faces) ;
-    
+
     FORALL(ci_faces,fc) {
       ci[fc] = cl[fc] ;
     } ENDFORALL ;
@@ -1610,10 +1739,16 @@ namespace Loci{
     debugout << "ci_faces = " << ci_faces << endl ;
   }
 
+  /// Create facts for various types of boundary conditions.
+  ///
+  /// Creates the `periodicFaces` fact. Creates the `<BCName>_BC` fact for
+  /// each boundary, where <BCName> is the name of each boundary condition.
+  /// Also creates `notPeriodicCells`, `no_symmetry_BC`, and `BC_options` facts.
+  /// @param[in,out] facts The fact database.
   void setupBoundaryConditions(fact_db &facts) {
     list<BCinfo> BCinfo_list ;
     std::map<std::string,entitySet> BCsets ;
-    
+
     /*Boundary Conditions*/
     entitySet periodic ;
     constraint periodic_faces;
@@ -1622,33 +1757,35 @@ namespace Loci{
     entitySet symmetry ;
 
     storeRepP tmp = facts.get_variable("boundary_names") ;
-    if(tmp == 0) 
+    if(tmp == 0) {
       throw(StringError("boundary_names not found in setupBoundaryConditions! Grid file read?")) ;
-      
+    }
     store<string> boundary_names ;
     store<string> boundary_tags ;
     boundary_names = tmp ;
     boundary_tags = facts.get_variable("boundary_tags") ;
-    
+
     Map ref ;
     ref = facts.get_variable("ref") ;
     entitySet dom = boundary_names.domain() ;
     dom = all_collect_entitySet(dom) ;// gather the boundary surface ids
 
     int fk = ref.Rep()->getDomainKeySpace() ;
-    
+
     param<options_list> bc_info ;
     tmp = facts.get_variable("boundary_conditions") ;
-    if(tmp == 0)
+    if(tmp == 0) {
       throw(StringError("boundary_conditions not found in setupBoundaryConditions! Is vars file read?")) ;
+    }
     bc_info = tmp ;
-    
+
     param<double> Lref ;
     *Lref = 1.0 ;
     storeRepP p = facts.get_variable("Lref") ;
-    if(p != 0)
+    if(p != 0) {
       Lref = p ;
-    
+    }
+
     vector<periodic_info> periodic_data ;
 
     bool fail = false ;
@@ -1677,9 +1814,8 @@ namespace Loci{
       boundarySet.set_entitySet(bfaces) ;
       boundarySet.Rep()->setDomainKeySpace(fk) ;
       facts.create_fact(factname,boundarySet) ;
-      
-      option_value_type vt =
-        bc_info->getOptionValueType(bname);
+
+      option_value_type vt = bc_info->getOptionValueType(bname) ;
       option_values ov = bc_info->getOption(bname) ;
       options_list::arg_list value_list ;
       string name ;
@@ -1705,7 +1841,9 @@ namespace Loci{
         }
         break ;
       default:
-        cerr << "Boundary tag '" << bname << "' exists in VOG file without boundary_condition entry!  Please add boundary condition specification for this boundary face!" << endl ;
+        cerr << "Boundary tag '" << bname << "' exists in VOG file without "
+             << "boundary_condition entry!  Please add boundary condition "
+             << "specification for this boundary face!" << endl ;
         fail = true ;
       }
       if(name == "symmetry") {
@@ -1726,24 +1864,24 @@ namespace Loci{
           ol.getOption("name",pi.name) ;
         }
         if(ol.optionExists("center")) {
-	  //          get_vect3dOption(ol,"center","m",pi.center,*Lref) ;
-	  double Lr = realToDouble(*Lref) ;
-	  ol.getOptionUnits("center","m",pi.center,Lr) ;
+          //get_vect3dOption(ol,"center","m",pi.center,*Lref) ;
+          double Lr = realToDouble(*Lref) ;
+          ol.getOptionUnits("center","m",pi.center,Lr) ;
         }
         if(ol.optionExists("vector")) {
-	  //          get_vect3d(ol,"vector",pi.v) ;
-	  ol.getOptionUnits("vector","",pi.v) ;
+          //get_vect3d(ol,"vector",pi.v) ;
+          ol.getOptionUnits("vector","",pi.v) ;
           pi.v /=  norm(pi.v) ;
         }
         if(ol.optionExists("translate")) {
-          // get_vect3dOption(ol,"translate","m",pi.translate,*Lref) ;
-	  double Lr = realToDouble(*Lref) ;
-	  ol.getOptionUnits("translate","m",pi.translate,Lr) ;
+          //get_vect3dOption(ol,"translate","m",pi.translate,*Lref) ;
+          double Lr = realToDouble(*Lref) ;
+          ol.getOptionUnits("translate","m",pi.translate,Lr) ;
         }
         if(ol.optionExists("rotate")) {
           ol.getOptionUnits("rotate","radians",pi.angle) ;
         }
-        
+
         periodic_data.push_back(pi) ;
       }
     }
@@ -1751,25 +1889,27 @@ namespace Loci{
       Loci::Abort() ;
     }
 
-    
+
     {
+      // Create constraints for each
       std::map<std::string, entitySet>::const_iterator mi ;
       for(mi=BCsets.begin();mi!=BCsets.end();++mi) {
         if(GLOBAL_OR(mi->second.size())) {
           constraint bc_constraint ;
           bc_constraint = mi->second ;
           std::string constraint_name = mi->first + std::string("_BC") ;
-	  bc_constraint.Rep()->setDomainKeySpace(fk) ;
+	        bc_constraint.Rep()->setDomainKeySpace(fk) ;
           facts.create_fact(constraint_name,bc_constraint) ;
-          if(MPI_processes == 1)
+          if(MPI_processes == 1) {
             std::cout << constraint_name << ' ' << mi->second << endl ;
-          else if(MPI_rank == 0)
-            std::cout << "setting boundary condition " << constraint_name << endl ;
+          } else if(MPI_rank == 0) {
+            std::cout << "setting boundary condition " << constraint_name
+                      << endl ;
+          }
         }
       }
     }
 
- 
     constraint cells ;
     cells = facts.get_variable("cells") ;
     store<options_list> BC_options ;
@@ -1797,7 +1937,7 @@ namespace Loci{
         facts.create_fact(constraint_name,bc_constraint) ;
       }
     }
-    
+
     if(periodic_data.size() != 0) {
       periodic_faces = periodic ;
       periodic_faces.Rep()->setDomainKeySpace(fk) ;
@@ -1810,7 +1950,7 @@ namespace Loci{
           periodic_info p1 = periodic_data[i] ;
           periodic_info p2 ;
           p2.name = "," ;
-          for(size_t j=i+1;j<periodic_data.size();++j)
+          for(size_t j=i+1;j<periodic_data.size();++j) {
             if(periodic_data[i].name == periodic_data[j].name) {
               if(p2.name != ",") {
                 cerr << "periodic name appears more than two times!" ;
@@ -1819,6 +1959,7 @@ namespace Loci{
               p2 = periodic_data[j] ;
               periodic_data[j].processed = true ;
             }
+          }
           if(p1.name != p2.name) {
             cerr << "Could not find matching periodic boundary named "
                  << p1.name << endl ;
@@ -1844,11 +1985,11 @@ namespace Loci{
                  << p1.name << endl ;
             Abort() ;
           }
-          if(p1.master)
+          if(p1.master) {
             periodic_list.push_back(std::make_pair(p1,p2)) ;
-          else
+          } else {
             periodic_list.push_back(std::make_pair(p2,p1)) ;
-        
+          }
         }
       }
 
@@ -1857,8 +1998,8 @@ namespace Loci{
       constraint notPeriodicCells ;
       *notPeriodicCells = ~EMPTY ;
       facts.create_fact("notPeriodicCells",notPeriodicCells) ;
-    }      
-    
+    }
+
 
     entitySet no_symmetry ;
     constraint allfaces ;
@@ -1871,23 +2012,25 @@ namespace Loci{
     facts.create_fact("BC_options",BC_options) ;
 
     create_ci_map(facts) ;
-    
   }
 
-  // Create Cell Stencil Plan:
+  //--------------------------------------------------------------------------
+  //-- Create Cell Stencil Plan
+  //--
+  //-- Get relations from face2cell and face2node
+  //-- Join to get node2cell
+  //-- Join node2cell & node2cell to get cell2cell (through shared nodes)
+  //-- Remove self2self references
+  //-- Convert resulting structure to multiMap
+  //--------------------------------------------------------------------------
 
-  // Get relations from face2cell and face2node
-  // Join to get node2cell
-  // join node2cell & node2cell to get cell2cell (through shared nodes)
-  // remove self2self references
-  // Convert resulting structure to multiMap
-
-
-
-  void getFaceCenter(fact_db &facts,
-                     store<vector3d<double> > &fcenter,
-                     store<double> &area,
-                     store<vector3d<double> > &normal) {
+  /// Computes face centers, areas, and normals for all faces.
+  /// @param[in] facts The fact database.
+  /// @param[out] fcenter Face centers.
+  /// @param[out] area Face areas.
+  /// @param[out] normal Face normals.
+  void getFaceCenter(fact_db &facts, store<vector3d<double> > &fcenter,
+                     store<double> &area, store<vector3d<double> > &normal) {
     // Compute face centers
     store<vector3d<double> > pos ;
     pos = facts.get_variable("pos") ;
@@ -1895,12 +2038,14 @@ namespace Loci{
     multiMap face2node ;
     face2node = facts.get_variable("face2node") ;
     entitySet fdom = face2node.domain() ;
+
     // Find nodes that face2node accesses
     entitySet node_access = Loci::MapRepP(face2node.Rep())->image(fdom) ;
 
     std::vector<vector3d<double> > posdata ;
     int nkeyspace = pos.getDomainKeySpace() ;
     std::vector<entitySet> node_ptn = facts.get_init_ptn(nkeyspace) ;
+
     // gather nodal data needed for the computation.
     std::map<int,int> g2l ;
     getLocalContextMap(g2l,node_access) ;
@@ -1908,81 +2053,89 @@ namespace Loci{
     fcenter.allocate(fdom) ;
     area.allocate(fdom) ;
     normal.allocate(fdom) ;
+
+    // check centroid type
     param<std::string> centroid ;
     centroid = facts.get_variable("centroid") ;
     bool exact = false ;
-    if(*centroid == "exact") 
+    if(*centroid == "exact") {
       exact = true ;
+    }
     FORALL(fdom,fc) {
       int fsz = face2node[fc].size() ;
-      vector3d<double>  center = vector3d<double>(0,0,0) ;
+      vector3d<double> center = vector3d<double>(0,0,0) ;
       double wsum = 0 ;
-	
+
+      // loop over face edges to compute a wireframe centroid
       for(int i=1;i<fsz;++i) {
         FATAL(g2l[face2node[fc][i-1]] > int(posdata.size())) ;
         FATAL(g2l[face2node[fc][i-1]] < 0) ;
         FATAL(g2l[face2node[fc][i]] > int(posdata.size())) ;
         FATAL(g2l[face2node[fc][i]] < 0) ;
-	double len = norm(posdata[g2l[face2node[fc][i-1]]]-
-                          posdata[g2l[face2node[fc][i  ]]]) ;
-	vector3d<double>  eloc = 0.5*(posdata[g2l[face2node[fc][i-1]]]+
-                                      posdata[g2l[face2node[fc][i  ]]]) ;
-	center += len*eloc ;
-	wsum += len ;
+        double len = norm(posdata[g2l[face2node[fc][i-1]]]-
+                          posdata[g2l[face2node[fc][i]]]) ;
+        vector3d<double> eloc = 0.5*(posdata[g2l[face2node[fc][i-1]]]+
+                                     posdata[g2l[face2node[fc][i]]]) ;
+        center += len*eloc ;
+        wsum += len ;
       }
-      double lenr = norm(posdata[g2l[face2node[fc][0    ]]]-
-                         posdata[g2l[face2node[fc][fsz-1]]]) ;
-      vector3d<double>  elocr = 0.5*(posdata[g2l[face2node[fc][0    ]]]+
-                                     posdata[g2l[face2node[fc][fsz-1]]]) ;
-      center += lenr*elocr ;
-      wsum += lenr ;
+      // final edge from last to first node
+      double len = norm(posdata[g2l[face2node[fc][0]]]-
+                        posdata[g2l[face2node[fc][fsz-1]]]) ;
+      vector3d<double> eloc = 0.5*(posdata[g2l[face2node[fc][0]]]+
+                                   posdata[g2l[face2node[fc][fsz-1]]]) ;
+      center += len*eloc ;
+      wsum += len ;
       center *= 1./wsum ;
       fcenter[fc] = center ;
-      if(exact) {	
-	// Iterate to find exact centroid that is on the face
-	vector3d<double>  tmpcenter = center ;
-	const int NITER=4 ;
-	for(int iter=0;iter<NITER;++iter) {
-    
-	  // compute centroid using triangles formed by wireframe centroid
-	  vector3d<double>  centroidsum(0.0,0.0,0.0) ;
-	  double facearea = 0 ;
-	  for(int i=0;i<fsz;++i) {
-	    int n1 = i ;
-	    int n2 = (i+1==fsz)?0:i+1 ;
-	    vector3d<double>  p1 = posdata[g2l[face2node[fc][n1]]] ;
-	    vector3d<double>  p2 = posdata[g2l[face2node[fc][n2]]] ;
-	    
-	    const vector3d<double>  t_centroid = (p1 + p2 + tmpcenter)/3.0 ;
-	    const double t_area = 0.5*norm(cross(p1-tmpcenter,p2-tmpcenter)) ;
-	    centroidsum += t_area*t_centroid ;
-	    facearea += t_area ;
-	  }
-	  tmpcenter = centroidsum/facearea ;
-	}
-	fcenter[fc] = tmpcenter ;
+      if(exact) {
+        // Iterate to find exact centroid that is on the face for an
+        // area-weighted centroid.
+        vector3d<double>  tmpcenter = center ;
+        const int NITER=4 ;
+        for(int iter=0;iter<NITER;++iter) {
+          // compute centroid using triangles formed by wireframe centroid
+          vector3d<double> centroidsum(0.0,0.0,0.0) ;
+          double facearea = 0 ;
+          for(int i=0;i<fsz;++i) {
+            int n1 = i ;
+            int n2 = (i+1==fsz)?0:i+1 ;
+            vector3d<double>  p1 = posdata[g2l[face2node[fc][n1]]] ;
+            vector3d<double>  p2 = posdata[g2l[face2node[fc][n2]]] ;
+
+            const vector3d<double> t_centroid = (p1 + p2 + tmpcenter)/3.0 ;
+            const double t_area = 0.5*norm(cross(p1-tmpcenter,p2-tmpcenter)) ;
+            centroidsum += t_area*t_centroid ;
+            facearea += t_area ;
+          }
+          tmpcenter = centroidsum/facearea ;
+        }
+        fcenter[fc] = tmpcenter ;
       }
       vector3d<double> facearea = vector3d<double>(0,0,0) ;
-      vector3d<double>  tmpcenter = fcenter[fc] ;
+      vector3d<double> tmpcenter = fcenter[fc] ;
       for(int i=0;i<fsz;++i) {
-	int n1 = i ;
-	int n2 = (i+1==fsz)?0:i+1 ;
-	vector3d<double>  p1 = posdata[g2l[face2node[fc][n1]]] ;
-	vector3d<double>  p2 = posdata[g2l[face2node[fc][n2]]] ;
-	
-	facearea += cross(p1-tmpcenter,p2-tmpcenter) ;
+        int n1 = i ;
+        int n2 = (i+1==fsz)?0:i+1 ;
+        vector3d<double>  p1 = posdata[g2l[face2node[fc][n1]]] ;
+        vector3d<double>  p2 = posdata[g2l[face2node[fc][n2]]] ;
+
+        facearea += cross(p1-tmpcenter,p2-tmpcenter) ;
       }
       double nfacearea = norm(facearea) ;
       area[fc] = 0.5*nfacearea ;
       normal[fc] = (1./nfacearea)*facearea ;
     } ENDFORALL ;
   }
-  
-  void getCellCenter(fact_db &facts,
-                      store<vector3d<double> > &ccenter,
-                      store<vector3d<double> > &fcenter,
-                      store<double> &area) {
-    
+
+  /// Computes cell centers
+  /// @param[in] facts The fact database.
+  /// @param[out] ccenter Cell centers.
+  /// @param[in] fcenter Face centers.
+  /// @param[in] area Face areas.
+  void getCellCenter(fact_db &facts, store<vector3d<double> > &ccenter,
+                     store<vector3d<double> > &fcenter, store<double> &area) {
+
     multiMap upper,lower,boundary_map ;
     upper = facts.get_variable("upper") ;
     lower = facts.get_variable("lower") ;
@@ -2008,34 +2161,36 @@ namespace Loci{
       double wsum = 0 ;
       int lsz = lower[cc].size() ;
       for(int i=0;i<lsz;++i) {
-	int f = g2l[lower[cc][i]] ;
-	double w = areadata[f] ;
-	vector3d<double>  v = fcenterdata[f] ;
-	csum += w*v ;
-	wsum += w ;
+        int f = g2l[lower[cc][i]] ;
+        double w = areadata[f] ;
+        vector3d<double>  v = fcenterdata[f] ;
+        csum += w*v ;
+        wsum += w ;
       }
       int usz = upper[cc].size() ;
       for(int i=0;i<usz;++i) {
-	int f = g2l[upper[cc][i]] ;
-	double w = areadata[f] ;
-	vector3d<double>  v = fcenterdata[f] ;
-	csum += w*v ;
-	wsum += w ;
+        int f = g2l[upper[cc][i]] ;
+        double w = areadata[f] ;
+        vector3d<double>  v = fcenterdata[f] ;
+        csum += w*v ;
+        wsum += w ;
       }
       int bsz = boundary_map[cc].size() ;
       for(int i=0;i<bsz;++i) {
-	int f = g2l[boundary_map[cc][i]] ;
-	double w = areadata[f] ;
-	vector3d<double>  v = fcenterdata[f] ;
-	csum += w*v ;
-	wsum += w ;
+        int f = g2l[boundary_map[cc][i]] ;
+        double w = areadata[f] ;
+        vector3d<double>  v = fcenterdata[f] ;
+        csum += w*v ;
+        wsum += w ;
       }
       csum *= 1./wsum ;
       ccenter[cc] = csum ;
     } ENDFORALL ;
     param<std::string> centroid ;
     centroid = facts.get_variable("centroid") ;
-    if(*centroid == "exact")  {
+    if(*centroid == "exact") {
+      std::cerr << "Warning: exact cell centroids not implemented yet."
+                << std::endl ;
       // Here we add code to compute exact centroid.
       // face2node needs to be expanded to do this..., not trivial
     }
@@ -2051,7 +2206,7 @@ namespace Loci{
     face2node = facts.get_variable("face2node") ;
     entitySet faces = face2node.domain() ;
     entitySet cellmask = cl.image(faces)+cr.image(faces) ;
-    
+
     constraint geom_cells_c ;
     geom_cells_c = facts.get_variable("geom_cells") ;
     entitySet geom_cells = *geom_cells_c ;
@@ -2099,7 +2254,6 @@ namespace Loci{
     // Remove self references
     Loci::removeIdentity(c2c) ;
 
-    //
     // Create cell stencil map from protoMap
     distributed_inverseMap(cellStencil,c2c,geom_cells,geom_cells,ptn) ;
 
@@ -2124,7 +2278,7 @@ namespace Loci{
         debugout << "fc=" << fc << ",cl="<<cl[fc] << ",cr=" << cr[fc] << endl ;
         cerr << "fc=" << fc << ",cl="<<cl[fc] << ",cr=" << cr[fc] << endl ;
       }
-    } ENDFORALL ;    
+    } ENDFORALL ;
 #endif
   }
 
@@ -2136,10 +2290,8 @@ namespace Loci{
     facts.create_fact("cellStencil",cellStencil) ;
   }
 
-  inline void getMaxMinDirections(int &maxid,
-                                  int &minid,
-                                  const vector3d<double> &dir,
-                                  std::vector<vector3d<double> > &cdirs) {
+  inline void getMaxMinDirections(int &maxid, int &minid,
+        const vector3d<double> &dir, std::vector<vector3d<double> > &cdirs) {
     minid = 0 ;
     maxid = 0 ;
     double minval = dot(dir,cdirs[0]) ;
@@ -2157,9 +2309,8 @@ namespace Loci{
       }
     }
   }
-  
+
   void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
-    using std::vector ;
 
     // get full stencil
     multiMap cellStencil ;
@@ -2182,21 +2333,21 @@ namespace Loci{
     getFaceCenter(facts,fcenter,area,normal) ;
     store<vector3d<double> > ccenter ;
     getCellCenter(facts,ccenter,fcenter,area) ;
-    
+
     // gather face data needed for the computation.
     std::map<int,int> fg2l ;
     getLocalContextMap(fg2l,faceimage) ;
-    vector<vector3d<double> > fcenterdata ;
-    vector<vector3d<double> > fnormaldata ;
+    std::vector<vector3d<double> > fcenterdata ;
+    std::vector<vector3d<double> > fnormaldata ;
     gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
     gatherData(fnormaldata,normal,faceimage,face_ptn) ;
-    
+
     int ckeyspace = upper.getDomainKeySpace() ;
     std::vector<entitySet> cell_ptn = facts.get_init_ptn(ckeyspace) ;
 
     entitySet cellImage = Loci::MapRepP(cellStencil.Rep())->image(cells) ;
 
-    vector<vector3d<double> > ccenterdata ;
+    std::vector<vector3d<double> > ccenterdata ;
     std::map<int,int> cg2l ;
     getLocalContextMap(cg2l,cellImage) ;
     gatherData(ccenterdata,ccenter,cellImage,cell_ptn) ;
@@ -2207,73 +2358,75 @@ namespace Loci{
       int csz = cellStencil[cc].size() ;
       int bsz = boundary_map[cc].size() ; ;
       vector3d<double>  ccent = ccenter[cc] ;
-      vector<vector3d<double> > cdirs(csz+bsz) ;
+      std::vector<vector3d<double> > cdirs(csz+bsz) ;
       for(int i=0;i<csz;++i) {
-	cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent ;
-	cdirs[i] *= 1./norm(cdirs[i]) ;
+        cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent ;
+        cdirs[i] *= 1./norm(cdirs[i]) ;
       }
       for(int i=0;i<bsz;++i) {
-	cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent ;
-	cdirs[csz+i] *= 1./norm(cdirs[csz+i]) ;
+        cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent ;
+        cdirs[csz+i] *= 1./norm(cdirs[csz+i]) ;
       }
-	
-      vector<int> flags(csz+bsz,0) ;
+
+      std::vector<int> flags(csz+bsz,0) ;
       int lsz = lower[cc].size() ;
       for(int i=0;i<lsz;++i) {
-	vector3d<double>  dir = fcenterdata[fg2l[lower[cc][i]]] -ccent;
-	dir *= 1./norm(dir) ;
-	int minid = 0, maxid = 0 ;
+        vector3d<double>  dir = fcenterdata[fg2l[lower[cc][i]]] -ccent;
+        dir *= 1./norm(dir) ;
+        int minid = 0, maxid = 0 ;
         getMaxMinDirections(maxid,minid,dir,cdirs) ;
-	flags[minid] = 1 ;
-	flags[maxid] = 1 ;
-	dir = fnormaldata[fg2l[lower[cc][i]]] ;
+        flags[minid] = 1 ;
+        flags[maxid] = 1 ;
+        dir = fnormaldata[fg2l[lower[cc][i]]] ;
         getMaxMinDirections(maxid,minid,dir,cdirs) ;
-	flags[minid] = 1 ;
-	flags[maxid] = 1 ;
+        flags[minid] = 1 ;
+        flags[maxid] = 1 ;
       }
       int usz = upper[cc].size() ;
       for(int i=0;i<usz;++i) {
-	vector3d<double>  dir = fcenterdata[fg2l[upper[cc][i]]] -ccent;
-	dir *= 1./norm(dir) ;
-	int minid = 0, maxid = 0 ;
+        vector3d<double>  dir = fcenterdata[fg2l[upper[cc][i]]] -ccent;
+        dir *= 1./norm(dir) ;
+        int minid = 0, maxid = 0 ;
         getMaxMinDirections(maxid,minid,dir,cdirs) ;
-	flags[minid] = 1 ;
-	flags[maxid] = 1 ;
+        flags[minid] = 1 ;
+        flags[maxid] = 1 ;
 
-	dir = fnormaldata[fg2l[upper[cc][i]]] ;
+        dir = fnormaldata[fg2l[upper[cc][i]]] ;
         getMaxMinDirections(maxid,minid,dir,cdirs) ;
-	flags[minid] = 1 ;
-	flags[maxid] = 1 ;
+        flags[minid] = 1 ;
+        flags[maxid] = 1 ;
       }
 
       for(int i=0;i<bsz;++i) {
-	vector3d<double>  dir = fcenterdata[fg2l[boundary_map[cc][i]]] -ccent;
-	dir *= 1./norm(dir) ;
-	int minid = 0, maxid = 0 ;
+        vector3d<double> dir = fcenterdata[fg2l[boundary_map[cc][i]]] -ccent ;
+        dir *= 1./norm(dir) ;
+        int minid = 0, maxid = 0 ;
         getMaxMinDirections(maxid,minid,dir,cdirs) ;
-	flags[minid] = 1 ;
-	flags[maxid] = 1 ;
-	minid = 0 ;
-	maxid = 0 ;
-	dir = fnormaldata[fg2l[boundary_map[cc][i]]] ;
+        flags[minid] = 1 ;
+        flags[maxid] = 1 ;
+        minid = 0 ;
+        maxid = 0 ;
+        dir = fnormaldata[fg2l[boundary_map[cc][i]]] ;
         getMaxMinDirections(maxid,minid,dir,cdirs) ;
-	flags[minid] = 1 ;
-	flags[maxid] = 1 ;
+        flags[minid] = 1 ;
+        flags[maxid] = 1 ;
       }
 
       int cnt = 0 ;
-      for(int i=0;i<csz;++i)
-	if(flags[i] > 0) {
-          cellStencil[cc][cnt] = cellStencil[cc][i] ;
-	  cnt++ ;
-	}
+      for(int i=0;i<csz;++i) {
+        if(flags[i] > 0) {
+                cellStencil[cc][cnt] = cellStencil[cc][i] ;
+          cnt++ ;
+        }
+      }
       sizes[cc] = cnt ;
     } ENDFORALL ;
 
     cellStencilFiltered.allocate(sizes) ;
     FORALL(cells,cc) {
-      for(int i=0;i<cellStencilFiltered[cc].size();++i)
-	cellStencilFiltered[cc][i] = cellStencil[cc][i] ; 
+      for(int i=0;i<cellStencilFiltered[cc].size();++i) {
+	      cellStencilFiltered[cc][i] = cellStencil[cc][i] ;
+      }
     } ENDFORALL ;
   }
 
@@ -2317,26 +2470,30 @@ namespace Loci{
     Loci::addToProtoMap(cl,f2cell) ;
     FORALL(faces,fc) {
       WARN(cl[fc] == cr[fc]) ;
-      if(geom_cell_expand.inSet(cr[fc]))
+      if(geom_cell_expand.inSet(cr[fc])) {
         f2cell.push_back(pair<int,int>(fc,cr[fc])) ;
+      }
     } ENDFORALL ;
 
     // join f2cell to get f
-    Loci::protoMap f2celll = f2cell;
-    Loci::protoMap f2f;
-    Loci::equiJoinFF(f2cell,f2celll,f2f);
-    Loci::removeIdentity(f2f);
-    Loci::balanceDistribution(f2f,MPI_COMM_WORLD);
+    Loci::protoMap f2celll = f2cell ;
+    Loci::protoMap f2f ;
+    Loci::equiJoinFF(f2cell,f2celll,f2f) ;
+    Loci::removeIdentity(f2f) ;
+    Loci::balanceDistribution(f2f,MPI_COMM_WORLD) ;
 
-    //
     // Create cell stencil map from protoMap
     distributed_inverseMap(cellStencil,f2f,geom_cells,geom_cells,ptn) ;
 
   }
 
+  /// Builds a symmetric neighbor stencil for each cell.
+  /// @param[out] cellStencilSymm
+  /// @param[in] facts
   void get_symm_cellStencil(multiMap &cellStencilSymm, fact_db & facts) {
-    if(Loci::MPI_rank==0)
-      cout <<"Generating symm stencil" << endl;
+    if(Loci::MPI_rank==0) {
+      cout <<"Generating symm stencil" << endl ;
+    }
     using std::vector ;
     // get full stencil
     multiMap cellStencil;
@@ -2361,10 +2518,9 @@ namespace Loci{
     getCellCenter(facts,ccenter,fcenter,area) ;
 
     // gather face data needed for the computation.
-    std::map<int,int> fg2l ;
+    std::map<int,int> fg2l ; // face global to local
     getLocalContextMap(fg2l,faceimage) ;
-    vector<vector3d<double> > fcenterdata ;
-    vector<vector3d<double> > fnormaldata ;
+    vector<vector3d<double> > fcenterdata, fnormaldata ;
     gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
     gatherData(fnormaldata,normal,faceimage,face_ptn) ;
 
@@ -2386,94 +2542,90 @@ namespace Loci{
     getLocalContextMap(ncg2l,neighCellImage) ;
     gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn) ;
 
-    store<int> sizes;
-    sizes.allocate(cells);
-    vector<int> cellmap;
-    double theta = 3.*M_PI/4.0;
+    store<int> sizes ;
+    sizes.allocate(cells) ;
+    vector<int> cellmap ;
+    double theta = 3.0*M_PI/4.0 ; // 135 degrees
     FORALL(cells,cc) {
-      int csz = cellStencil[cc].size();
-      int nsz = neighStencil[cc].size();
-      int bsz = boundary_map[cc].size();;
+      int csz = cellStencil[cc].size() ;
+      int nsz = neighStencil[cc].size() ;
+      int bsz = boundary_map[cc].size() ;
 
-      vector3d<double>  ccent = ccenter[cc];
-      vector<vector3d<double> > cdirs(csz+bsz);
-      for(int i=0;i<csz;++i)
-        {
-          cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent;
-          cdirs[i] *= 1./norm(cdirs[i]);
-        }
-      for(int i=0;i<bsz;++i)
-        {
-          cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent;
-          cdirs[csz+i] *= 1./norm(cdirs[csz+i]);
-        }
+      vector3d<double>  ccent = ccenter[cc] ;
+      vector<vector3d<double> > cdirs(csz+bsz) ;
+      for(int i=0;i<csz;++i) {
+        cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent ;
+        cdirs[i] *= 1./norm(cdirs[i]) ;
+      }
+      for(int i=0;i<bsz;++i) {
+        cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent ;
+        cdirs[csz+i] *= 1./norm(cdirs[csz+i]) ;
+      }
 
-      vector<int> flags(csz+bsz,0);
-      for(int i=0;i<nsz;++i)
-        {
-          vector3d<double> target = ncenterdata[ncg2l[neighStencil[cc][i]]];
-          vector3d<double>  ejk = target-ccent;
-          ejk *= 1./norm(ejk);
+      vector<int> flags(csz+bsz,0) ;
+      for(int i=0;i<nsz;++i) {
+        vector3d<double> target = ncenterdata[ncg2l[neighStencil[cc][i]]] ;
+        vector3d<double>  ejk = target-ccent ;
+        ejk *= 1./norm(ejk) ;
 
-          int minid = 0;
-          double dvmin = 1e13;
-          int nid = -1;
-          for(int j=0;j<csz;++j) {
-            // exclude itself from the search with theta ...
-            double dv = dot(cdirs[j],ejk);
-            if(dv<cos(theta) && dv<dvmin)
-              {
-                minid = j;
-                dvmin = dv;
-              }
-            // find neighbor id
-            if(cellStencil[cc][j]==neighStencil[cc][i])
-              nid = j;
+        int minid = 0 ;
+        double dvmin = 1e13 ;
+        int nid = -1 ;
+        for(int j=0;j<csz;++j) {
+          // exclude itself from the search with theta ...
+          double dv = dot(cdirs[j],ejk) ;
+          if(dv<cos(theta) && dv<dvmin) {
+            minid = j ;
+            dvmin = dv ;
           }
-          if(nid==-1)
-            {
-              cerr <<"symm stencil error: could not find neighbor in cellStencil list\n\n" << endl;
-              Loci::Abort();
-            }
-          flags[nid]   = 1;
-          flags[minid] = 1;
-        }
-
-      for(int i=0;i<bsz;++i)
-        {
-          vector3d<double> target = fcenterdata[fg2l[boundary_map[cc][i]]];
-          vector3d<double>  ejk = target-ccent;
-          ejk *= 1./norm(ejk);
-
-          int minid = 0;
-          double dvmin = 1e13;
-          for(int j=0;j<csz;++j) {
-            // exclude itself from the search with theta ...
-            double dv = dot(cdirs[j],ejk);
-            if(dv<cos(theta) && dv<dvmin)
-              {
-                minid = j;
-                dvmin = dv;
-              }
+          // find neighbor id
+          if(cellStencil[cc][j]==neighStencil[cc][i]) {
+            nid = j ;
           }
-          flags[minid] = 1;
+        }
+        if(nid==-1) {
+            cerr <<"symm stencil error: could not find neighbor in "
+                 << "cellStencil list\n\n" << endl ;
+            Loci::Abort() ;
+        }
+        flags[nid] = 1 ;
+        flags[minid] = 1 ;
         }
 
-      int cnt = 0;
-      for(int i=0;i<csz;++i)
+      for(int i=0;i<bsz;++i) {
+        vector3d<double> target = fcenterdata[fg2l[boundary_map[cc][i]]] ;
+        vector3d<double>  ejk = target-ccent ;
+        ejk *= 1./norm(ejk) ;
+
+        int minid = 0 ;
+        double dvmin = 1e13 ;
+        for(int j=0;j<csz;++j) {
+          // exclude itself from the search with theta ...
+          double dv = dot(cdirs[j],ejk) ;
+          if(dv<cos(theta) && dv<dvmin) {
+            minid = j ;
+            dvmin = dv ;
+          }
+        }
+        flags[minid] = 1 ;
+      }
+
+      int cnt = 0 ;
+      for(int i=0;i<csz;++i) {
         if(flags[i] > 0) {
-          cellmap.push_back(cellStencil[cc][i]);
-          cnt++;
+          cellmap.push_back(cellStencil[cc][i]) ;
+          cnt++ ;
         }
-      sizes[cc] = cnt;
+      }
+      sizes[cc] = cnt ;
     } ENDFORALL;
 
-    cellStencilSymm.allocate(sizes);
-    int cnt = 0;
+    cellStencilSymm.allocate(sizes) ;
+    int cnt = 0 ;
     FORALL(cells,cc) {
       for(int i=0;i<cellStencilSymm[cc].size();++i) {
-        cellStencilSymm[cc][i] = cellmap[cnt];
-        cnt++;
+        cellStencilSymm[cc][i] = cellmap[cnt] ;
+        cnt++ ;
       }
     } ENDFORALL;
   }
@@ -2486,97 +2638,88 @@ namespace Loci{
     facts.create_fact("cellStencil",cellStencil) ;
   }
 
-
   double Faug(const int nft, const vector3d<double> x1,
-              const tmp_array<vector3d<double>> &xneigh)
-  {
-    const int nvar = 4;
-    tmp_array<double> Ac(nvar*nvar);
-    for (int i=0; i<nvar*nvar; i++)
-      {
-        Ac[i] = 0.;
-      }
+              const tmp_array<vector3d<double>> &xneigh) {
+    const int nvar = 4 ;
+    tmp_array<double> Ac(nvar*nvar) ;
+    for(int i=0; i<nvar*nvar; i++) {
+      Ac[i] = 0. ;
+    }
 
-    tmp_array<double> wi(nft);
-    tmp_array<vector3d<double>> dr(nft);
+    tmp_array<double> wi(nft) ;
+    tmp_array<vector3d<double>> dr(nft) ;
     // wi
-    int nf = 0;
-    for(int i=0;i<nft;i++)
-      {
-        const vector3d<double> x0 = xneigh[i];
-        const vector3d<double> ds = (x1-x0);
-        dr[nf] = ds;
-        wi[nf++] = 1./norm(ds);
-      }
+    int nf = 0 ;
+    for(int i=0;i<nft;i++) {
+      const vector3d<double> x0 = xneigh[i] ;
+      const vector3d<double> ds = (x1-x0) ;
+      dr[nf] = ds ;
+      wi[nf++] = 1./norm(ds) ;
+    }
 
     // A matrix
     int row = 0;
-    for (int f=0; f<nft; f++)
-      {
-        row=0;
-        Ac[row*nvar+0] += wi[f];
-        Ac[row*nvar+1] += wi[f]*dr[f].x;
-        Ac[row*nvar+2] += wi[f]*dr[f].y;
-        Ac[row*nvar+3] += wi[f]*dr[f].z;
+    for(int f=0; f<nft; f++) {
+      row=0;
+      Ac[row*nvar+0] += wi[f];
+      Ac[row*nvar+1] += wi[f]*dr[f].x;
+      Ac[row*nvar+2] += wi[f]*dr[f].y;
+      Ac[row*nvar+3] += wi[f]*dr[f].z;
 
-        row=1;
-        Ac[row*nvar+0] += wi[f]*dr[f].x;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].x;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].x;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].x;
+      row=1;
+      Ac[row*nvar+0] += wi[f]*dr[f].x;
+      Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].x;
+      Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].x;
+      Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].x;
 
-        row=2;
-        Ac[row*nvar+0] += wi[f]*dr[f].y;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].y;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].y;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].y;
+      row=2;
+      Ac[row*nvar+0] += wi[f]*dr[f].y;
+      Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].y;
+      Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].y;
+      Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].y;
 
-        row=3;
-        Ac[row*nvar+0] += wi[f]*dr[f].z;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].z;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].z;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].z;
-      }
+      row=3;
+      Ac[row*nvar+0] += wi[f]*dr[f].z;
+      Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].z;
+      Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].z;
+      Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].z;
+    }
 
     // A^T A, Frobenius Norm of A^T*A
-    double FBNorm = 0.0;
-    for (int i=0; i<nvar; i++)
-      {
-        for (int col=0; col<nvar; col++)
-          {
-            double sum = 0.;
-            for(int k=0; k<nvar; k++)
-              {
-                // AT[i*nvar+k] = Ac[k*nvar+i]
-                const double AT = Ac[k*nvar+i];
-                const double A  = Ac[k*nvar+col];
-                sum += AT*A;
-              }
-            FBNorm += sum*sum;
-          }
+    double FBNorm = 0.0 ;
+    for(int i=0; i<nvar; i++) {
+      for(int col=0; col<nvar; col++) {
+        double sum = 0.;
+        for(int k=0; k<nvar; k++) {
+          // AT[i*nvar+k] = Ac[k*nvar+i]
+          const double AT = Ac[k*nvar+i] ;
+          const double A  = Ac[k*nvar+col] ;
+          sum += AT*A ;
+        }
+        FBNorm += sum*sum ;
       }
-    FBNorm = sqrt(FBNorm);
+    }
+    FBNorm = sqrt(FBNorm) ;
 
     double s = 0.0;
-    for (int f=0; f<nft; f++)
-      {
-        const double dm = norm(dr[f]);
-        s += wi[f]*wi[f]*dm;
-      }
+    for (int f=0; f<nft; f++) {
+      const double dm = norm(dr[f]) ;
+      s += wi[f]*wi[f]*dm ;
+    }
 
-    double F = s/FBNorm;
-    return F;
+    double F = s/FBNorm ;
+    return F ;
 
   }
 
-  void get_symmF_cellStencil(multiMap &cellStencilSymmF, fact_db & facts)
-  {
-    if(Loci::MPI_rank==0)
-      cout <<"Generating symmF stencil" << endl;
-    using std::vector;
+  void get_symmF_cellStencil(multiMap &cellStencilSymmF, fact_db & facts) {
+    if(Loci::MPI_rank==0) {
+      cout << "Generating symmF stencil" << endl ;
+    }
+    using std::vector ;
     // get full stencil
-    multiMap cellStencil;
-    get_full_cellStencil(cellStencil,facts);
+    multiMap cellStencil ;
+    get_full_cellStencil(cellStencil,facts) ;
 
     entitySet cells = cellStencil.domain();
     multiMap upper,lower,boundary_map ;
@@ -2622,143 +2765,134 @@ namespace Loci{
     getLocalContextMap(ncg2l,neighCellImage) ;
     gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn) ;
 
-    store<int> sizes;
-    sizes.allocate(cells);
-    vector<int> cellmap;
-    double theta = 3.*M_PI/4.0;
+    store<int> sizes ;
+    sizes.allocate(cells) ;
+    vector<int> cellmap ;
+    double theta = 3.*M_PI/4.0 ;
     FORALL(cells,cc) {
-      int csz = cellStencil[cc].size();
-      int nsz = neighStencil[cc].size();
-      int bsz = boundary_map[cc].size();;
+      int csz = cellStencil[cc].size() ;
+      int nsz = neighStencil[cc].size() ;
+      int bsz = boundary_map[cc].size() ;
 
-      vector3d<double>  ccent = ccenter[cc];
-      vector<vector3d<double> > cdirs(csz+bsz);
-      for(int i=0;i<csz;++i)
-        {
-          cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent;
-          cdirs[i] *= 1./norm(cdirs[i]);
-        }
-      for(int i=0;i<bsz;++i)
-        {
-          cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent;
-          cdirs[csz+i] *= 1./norm(cdirs[csz+i]);
-        }
+      vector3d<double> ccent = ccenter[cc] ;
+      vector<vector3d<double> > cdirs(csz+bsz) ;
+      for(int i=0;i<csz;++i) {
+        cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent ;
+        cdirs[i] *= 1./norm(cdirs[i]) ;
+      }
+      for(int i=0;i<bsz;++i) {
+        cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent ;
+        cdirs[csz+i] *= 1./norm(cdirs[csz+i]) ;
+      }
 
-      vector<int> flags(csz+bsz,0);
-      for(int i=0;i<nsz;++i)
-        {
-          vector3d<double> target = ncenterdata[ncg2l[neighStencil[cc][i]]];
-          vector3d<double>  ejk = target-ccent;
-          ejk *= 1./norm(ejk);
+      vector<int> flags(csz+bsz,0) ;
+      for(int i=0;i<nsz;++i) {
+        vector3d<double> target = ncenterdata[ncg2l[neighStencil[cc][i]]] ;
+        vector3d<double> ejk = target-ccent ;
+        ejk *= 1./norm(ejk) ;
 
-          int minid = 0;
-          double dvmin = 1e13;
-          int nid = -1;
-          for(int j=0;j<csz;++j) {
-            // exclude itself from the search with theta ...
-            double dv = dot(cdirs[j],ejk);
-            if(dv<cos(theta) && dv<dvmin)
-              {
-                minid = j;
-                dvmin = dv;
-              }
-            // find neighbor id
-            if(cellStencil[cc][j]==neighStencil[cc][i])
-              nid = j;
+        int minid = 0 ;
+        double dvmin = 1e13 ;
+        int nid = -1 ;
+        for(int j=0;j<csz;++j) {
+          // exclude itself from the search with theta ...
+          double dv = dot(cdirs[j],ejk) ;
+          if(dv<cos(theta) && dv<dvmin) {
+            minid = j ;
+            dvmin = dv ;
           }
-          if(nid==-1)
-            {
-              cerr <<"symmF stencil error: could not find neighbor in cellStencil list\n\n" << endl;
-              Loci::Abort();
-            }
-          flags[nid]   = 1;
-          flags[minid] = 1;
-        }
-
-      for(int i=0;i<bsz;++i)
-        {
-          vector3d<double> target = fcenterdata[fg2l[boundary_map[cc][i]]];
-          vector3d<double>  ejk = target-ccent;
-          ejk *= 1./norm(ejk);
-
-          int minid = 0;
-          double dvmin = 1e13;
-          for(int j=0;j<csz;++j) {
-            // exclude itself from the search with theta ...
-            double dv = dot(cdirs[j],ejk);
-            if(dv<cos(theta) && dv<dvmin)
-              {
-                minid = j;
-                dvmin = dv;
-              }
+          // find neighbor id
+          if(cellStencil[cc][j]==neighStencil[cc][i]) {
+            nid = j ;
           }
-          flags[minid] = 1;
         }
+        if(nid==-1) {
+          cerr <<"symmF stencil error: could not find neighbor in cellStencil list\n\n" << endl ;
+          Loci::Abort() ;
+        }
+        flags[nid] = 1 ;
+        flags[minid] = 1 ;
+      }
+
+      for(int i=0;i<bsz;++i) {
+        vector3d<double> target = fcenterdata[fg2l[boundary_map[cc][i]]] ;
+        vector3d<double>  ejk = target-ccent ;
+        ejk *= 1./norm(ejk) ;
+
+        int minid = 0 ;
+        double dvmin = 1e13 ;
+        for(int j=0;j<csz;++j) {
+          // exclude itself from the search with theta ...
+          double dv = dot(cdirs[j],ejk) ;
+          if(dv<cos(theta) && dv<dvmin) {
+            minid = j ;
+            dvmin = dv ;
+          }
+        }
+        flags[minid] = 1 ;
+      }
 
       // now do the augmentation
-      tmp_array<vector3d<double> > tmpcc(csz+bsz);
-      int ne = 0;
-      int check_sten = 0;
-      for(int i=0;i<csz;++i)
-        {
-          if(flags[i])
-            tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][i]]];
-          check_sten += (!flags[i]?1:0);
+      tmp_array<vector3d<double> > tmpcc(csz+bsz) ;
+      int ne = 0 ;
+      int check_sten = 0 ;
+      for(int i=0;i<csz;++i) {
+        if(flags[i]) {
+          tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][i]]] ;
         }
+        check_sten += (!flags[i]?1:0) ;
+      }
 
-      for(int i=0;i<bsz;++i)
-        {
-          tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][i]]];
-        }
+      for(int i=0;i<bsz;++i) {
+        tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][i]]] ;
+      }
 
-      double F0 = Faug(ne,ccent,tmpcc);
+      double F0 = Faug(ne,ccent,tmpcc) ;
 
-      for(int k=0; k<check_sten;k++)
-        {
-          for(int i=0;i<csz;++i)
-            {
-              if(flags[i])
-                continue;
+      for(int k=0; k<check_sten;k++) {
+        for(int i=0;i<csz;++i) {
+          if(flags[i]) {
+            continue ;
+          }
 
-              // build stencil and add this cell to the stencil
-              int ne = 0;
-              for(int j=0;j<csz;++j)
-                {
-                  if(flags[j] || (i==j))
-                    tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][j]]];
-                }
-
-              for(int j=0;j<bsz;++j)
-                {
-                  tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][j]]];
-                }
-
-              double F = Faug(ne,ccent,tmpcc);
-              if(F<0.85*F0)
-                {
-                  flags[i] = 1;
-                  F0 = F;
-                }
+          // build stencil and add this cell to the stencil
+          int ne = 0 ;
+          for(int j=0;j<csz;++j) {
+            if(flags[j] || (i==j)) {
+              tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][j]]] ;
             }
-        }
+          }
 
-      int cnt = 0;
-      for(int i=0;i<csz;++i)
+          for(int j=0;j<bsz;++j) {
+            tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][j]]] ;
+          }
+
+          double F = Faug(ne,ccent,tmpcc);
+          if(F<0.85*F0) {
+            flags[i] = 1 ;
+            F0 = F ;
+          }
+        }
+      }
+
+      int cnt = 0 ;
+      for(int i=0;i<csz;++i) {
         if(flags[i] > 0) {
-          cellmap.push_back(cellStencil[cc][i]);
-          cnt++;
+          cellmap.push_back(cellStencil[cc][i]) ;
+          cnt++ ;
         }
-      sizes[cc] = cnt;
-    } ENDFORALL;
+      }
+      sizes[cc] = cnt ;
+    } ENDFORALL ;
 
-    cellStencilSymmF.allocate(sizes);
-    int cnt = 0;
+    cellStencilSymmF.allocate(sizes) ;
+    int cnt = 0 ;
     FORALL(cells,cc) {
       for(int i=0;i<cellStencilSymmF[cc].size();++i) {
-        cellStencilSymmF[cc][i] = cellmap[cnt];
-        cnt++;
+        cellStencilSymmF[cc][i] = cellmap[cnt] ;
+        cnt++ ;
       }
-    } ENDFORALL;
+    } ENDFORALL ;
   }
 
   void create_cell_stencil_symmF(fact_db & facts) {
@@ -2769,161 +2903,153 @@ namespace Loci{
     facts.create_fact("cellStencil",cellStencil) ;
   }
 
-  template<class T, class T2> void lu_4x4( T2 *A, T *x, T *b)
-  {
-    T lvar_0 = 1.0/A[0];
-    T lvar_1 = A[12]*lvar_0;
-    T lvar_2 = A[4]*lvar_0;
-    T lvar_3 = -b[0]*lvar_2 + b[1];
-    T lvar_3p5 = -A[1]*lvar_2 + A[5];
-    T sign   = T(lvar_3p5<0.?-1.:1.);
-    T lvar_4 = sign/max<T>(abs(lvar_3p5),T(1e-32));
-    T lvar_5 = lvar_4*(A[13] - A[1]*lvar_1);
-    T lvar_6 = A[8]*lvar_0;
-    T lvar_7 = lvar_4*(-A[1]*lvar_6 + A[9]);
-    T lvar_8 = -b[0]*lvar_6 + b[2] - lvar_3*lvar_7;
-    T lvar_9 = -A[2]*lvar_2 + A[6];
-    T lvar_9p5 = A[10] - A[2]*lvar_6 - lvar_7*lvar_9;
-    sign    = T(lvar_9p5<0.?-1.:1.);
-    T lvar_10 = sign/max<T>(abs(lvar_9p5),T(1e-32));
-    T lvar_11 = lvar_10*(A[14] - A[2]*lvar_1 - lvar_5*lvar_9);
-    T lvar_12 = -A[3]*lvar_2 + A[7];
-    T lvar_13 = A[11] - A[3]*lvar_6 - lvar_12*lvar_7;
-    T lvar_13p5 = (A[15] - A[3]*lvar_1 - lvar_11*lvar_13 - lvar_12*lvar_5);
-    sign    = T(lvar_13p5<0.?-1.:1.);
-    T lvar_14 = (-b[0]*lvar_1 + b[3] - lvar_11*lvar_8 - lvar_3*lvar_5)*sign/max<T>(abs(lvar_13p5),T(1e-32));
-    T lvar_15 = lvar_10*(-lvar_13*lvar_14 + lvar_8);
-    T lvar_16 = lvar_4*(-lvar_12*lvar_14 - lvar_15*lvar_9 + lvar_3);
-    x[0] = lvar_0*(-A[1]*lvar_16 - A[2]*lvar_15 - A[3]*lvar_14 + b[0]);
-    x[1] = lvar_16;
-    x[2] = lvar_15;
-    x[3] = lvar_14;
+  template<class T, class T2> void lu_4x4( T2 *A, T *x, T *b) {
+    T lvar_0 = 1.0/A[0] ;
+    T lvar_1 = A[12]*lvar_0 ;
+    T lvar_2 = A[4]*lvar_0 ;
+    T lvar_3 = -b[0]*lvar_2 + b[1] ;
+    T lvar_3p5 = -A[1]*lvar_2 + A[5] ;
+    T sign   = T(lvar_3p5<0.?-1.:1.) ;
+    T lvar_4 = sign/max<T>(abs(lvar_3p5),T(1e-32)) ;
+    T lvar_5 = lvar_4*(A[13] - A[1]*lvar_1) ;
+    T lvar_6 = A[8]*lvar_0 ;
+    T lvar_7 = lvar_4*(-A[1]*lvar_6 + A[9]) ;
+    T lvar_8 = -b[0]*lvar_6 + b[2] - lvar_3*lvar_7 ;
+    T lvar_9 = -A[2]*lvar_2 + A[6] ;
+    T lvar_9p5 = A[10] - A[2]*lvar_6 - lvar_7*lvar_9 ;
+    sign    = T(lvar_9p5<0.?-1.:1.) ;
+    T lvar_10 = sign/max<T>(abs(lvar_9p5),T(1e-32)) ;
+    T lvar_11 = lvar_10*(A[14] - A[2]*lvar_1 - lvar_5*lvar_9) ;
+    T lvar_12 = -A[3]*lvar_2 + A[7] ;
+    T lvar_13 = A[11] - A[3]*lvar_6 - lvar_12*lvar_7 ;
+    T lvar_13p5 = (A[15] - A[3]*lvar_1 - lvar_11*lvar_13 - lvar_12*lvar_5) ;
+    sign    = T(lvar_13p5<0.?-1.:1.) ;
+    T lvar_14 = (-b[0]*lvar_1 + b[3] - lvar_11*lvar_8 - lvar_3*lvar_5)*sign/max<T>(abs(lvar_13p5),T(1e-32)) ;
+    T lvar_15 = lvar_10*(-lvar_13*lvar_14 + lvar_8) ;
+    T lvar_16 = lvar_4*(-lvar_12*lvar_14 - lvar_15*lvar_9 + lvar_3) ;
+    x[0] = lvar_0*(-A[1]*lvar_16 - A[2]*lvar_15 - A[3]*lvar_14 + b[0]) ;
+    x[1] = lvar_16 ;
+    x[2] = lvar_15 ;
+    x[3] = lvar_14 ;
   }
 
-  template<class T> void inv_from_lu(T *A, T *Ainv)
-  {
+  template<class T> void inv_from_lu(T *A, T *Ainv) {
     int size = 4;
     T x[4];
     T b[4];
-    for(int row=0; row<size; row++)
-      {
-        for(int i=0; i<size; i++)
-          b[i] = 0;
-        b[row] = 1.;
-        lu_4x4(A,&x[0],&b[0]);
-        for(int i=0; i<size; i++)
-          Ainv[i*size+row] = x[i];
+    for(int row=0; row<size; row++) {
+      for(int i=0; i<size; i++) {
+        b[i] = 0 ;
       }
+      b[row] = 1. ;
+      lu_4x4(A,&x[0],&b[0]) ;
+      for(int i=0; i<size; i++) {
+        Ainv[i*size+row] = x[i] ;
+      }
+    }
   }
 
   void symmC_optimize(const int nft, const vector3d<double> x1,
                       const tmp_array<vector3d<double>> &xneigh,
-                      double &p1, double &p2, double &pinf)
-  {
-    const int nvar = 4;
-    tmp_array<double> Ac(nvar*nvar);
-    tmp_array<double> Ainv(nvar*nvar);
-    tmp_array<double> wi(nft);
+                      double &p1, double &p2, double &pinf) {
+    const int nvar = 4 ;
+    tmp_array<double> Ac(nvar*nvar) ;
+    tmp_array<double> Ainv(nvar*nvar) ;
+    tmp_array<double> wi(nft) ;
 
-    for (int i=0; i<nvar*nvar; i++)
-      {
-        Ac[i] = 0.;
-        Ainv[i] = 0.;
-      }
-    vector<vector3d<double>> dr(nft);
+    for (int i=0; i<nvar*nvar; i++) {
+      Ac[i] = 0. ;
+      Ainv[i] = 0. ;
+    }
+    vector<vector3d<double>> dr(nft) ;
     // wi
-    int nf = 0;
-    for(int i=0;i<nft;i++)
-      {
-        const vector3d<double> x0 = xneigh[i];
-        vector3d<double> ds = (x1-x0);
-        dr[nf] = ds;
-        wi[nf++] = 1./norm(ds);
-      }
+    int nf = 0 ;
+    for(int i=0;i<nft;i++) {
+      const vector3d<double> x0 = xneigh[i] ;
+      vector3d<double> ds = (x1-x0) ;
+      dr[nf] = ds ;
+      wi[nf++] = 1./norm(ds) ;
+    }
 
     // A matrix
-    int row = 0;
-    for (int f=0; f<nft; f++)
-      {
-        row=0;
-        Ac[row*nvar+0] += wi[f];
-        Ac[row*nvar+1] += wi[f]*dr[f].x;
-        Ac[row*nvar+2] += wi[f]*dr[f].y;
-        Ac[row*nvar+3] += wi[f]*dr[f].z;
+    int row = 0 ;
+    for (int f=0; f<nft; f++) {
+      row=0 ;
+      Ac[row*nvar+0] += wi[f] ;
+      Ac[row*nvar+1] += wi[f]*dr[f].x ;
+      Ac[row*nvar+2] += wi[f]*dr[f].y ;
+      Ac[row*nvar+3] += wi[f]*dr[f].z ;
 
-        row=1;
-        Ac[row*nvar+0] += wi[f]*dr[f].x;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].x;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].x;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].x;
+      row=1 ;
+      Ac[row*nvar+0] += wi[f]*dr[f].x;
+      Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].x ;
+      Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].x ;
+      Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].x ;
 
-        row=2;
-        Ac[row*nvar+0] += wi[f]*dr[f].y;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].y;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].y;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].y;
+      row=2 ;
+      Ac[row*nvar+0] += wi[f]*dr[f].y ;
+      Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].y ;
+      Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].y ;
+      Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].y ;
 
-        row=3;
-        Ac[row*nvar+0] += wi[f]*dr[f].z;
-        Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].z;
-        Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].z;
-        Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].z;
-      }
+      row=3 ;
+      Ac[row*nvar+0] += wi[f]*dr[f].z ;
+      Ac[row*nvar+1] += wi[f]*dr[f].x*dr[f].z ;
+      Ac[row*nvar+2] += wi[f]*dr[f].y*dr[f].z ;
+      Ac[row*nvar+3] += wi[f]*dr[f].z*dr[f].z ;
+    }
 
     // A^-1
-    inv_from_lu<double>(&Ac[0], &Ainv[0]);
+    inv_from_lu<double>(&Ac[0], &Ainv[0]) ;
 
     // norms of Ac
-    double normA_p1   = 0.;
-    double normA_pinf = 0.;
-    double normA_p2   = 0.;
-    for (int i=0; i<nvar; i++)
-      {
-        double tmp_p1   = 0.;
-        double tmp_pinf = 0.;
-        for (int j=0; j<nvar; j++)
-          {
-            tmp_p1   += abs(Ac[j*nvar+i]);
-            tmp_pinf += abs(Ac[i*nvar+j]);
-            normA_p2 += Ac[i*nvar+j]*Ac[i*nvar+j];
-          }
-        normA_p1   = max<double>(normA_p1  ,tmp_p1);
-        normA_pinf = max<double>(normA_pinf,tmp_pinf);
+    double normA_p1   = 0. ;
+    double normA_pinf = 0. ;
+    double normA_p2   = 0. ;
+    for (int i=0; i<nvar; i++) {
+      double tmp_p1   = 0. ;
+      double tmp_pinf = 0. ;
+      for (int j=0; j<nvar; j++) {
+        tmp_p1   += abs(Ac[j*nvar+i]) ;
+        tmp_pinf += abs(Ac[i*nvar+j]) ;
+        normA_p2 += Ac[i*nvar+j]*Ac[i*nvar+j] ;
       }
-    normA_p2 = sqrt(normA_p2);
+      normA_p1 = max<double>(normA_p1, tmp_p1) ;
+      normA_pinf = max<double>(normA_pinf, tmp_pinf) ;
+    }
+    normA_p2 = sqrt(normA_p2) ;
 
     // norms of Ainv
-    double normAi_p1   = 0.;
-    double normAi_pinf = 0.;
-    double normAi_p2   = 0.;
-    for (int i=0; i<nvar; i++)
-      {
-        double tmp_p1   = 0.;
-        double tmp_pinf = 0.;
-        for (int j=0; j<nvar; j++)
-          {
-            tmp_p1    += abs(Ainv[j*nvar+i]);
-            tmp_pinf  += abs(Ainv[i*nvar+j]);
-            normAi_p2 += Ainv[i*nvar+j]*Ainv[i*nvar+j];
-          }
-        normAi_p1   = max<double>(normAi_p1  ,tmp_p1);
-        normAi_pinf = max<double>(normAi_pinf,tmp_pinf);
+    double normAi_p1   = 0. ;
+    double normAi_pinf = 0. ;
+    double normAi_p2   = 0. ;
+    for (int i=0; i<nvar; i++) {
+      double tmp_p1   = 0. ;
+      double tmp_pinf = 0. ;
+      for (int j=0; j<nvar; j++) {
+        tmp_p1 += abs(Ainv[j*nvar+i]) ;
+        tmp_pinf += abs(Ainv[i*nvar+j]) ;
+        normAi_p2 += Ainv[i*nvar+j]*Ainv[i*nvar+j] ;
       }
+      normAi_p1 = max<double>(normAi_p1, tmp_p1) ;
+      normAi_pinf = max<double>(normAi_pinf, tmp_pinf) ;
+    }
     normAi_p2 = sqrt(normAi_p2);
 
     // condition number
-    p1   = normA_p1*normAi_p1;
-    p2   = normA_p2*normAi_p2;
-    pinf = normA_pinf*normAi_pinf;
+    p1 = normA_p1*normAi_p1 ;
+    p2 = normA_p2*normAi_p2 ;
+    pinf = normA_pinf*normAi_pinf ;
   }
 
   void get_symmC_cellStencil(multiMap &cellStencilSymmC, fact_db & facts) {
-    if(Loci::MPI_rank==0)
-      cout <<"Generating symmC stencil" << endl;
-    using std::vector;
+    if(Loci::MPI_rank==0) {
+      cout <<"Generating symmC stencil" << endl ;
+    }
+    using std::vector ;
     // get full stencil
-    multiMap cellStencil;
-    get_full_cellStencil(cellStencil,facts) ;
+    multiMap cellStencil ;
+    get_full_cellStencil(cellStencil, facts) ;
 
     entitySet cells = cellStencil.domain() ;
     multiMap upper,lower,boundary_map ;
@@ -2931,7 +3057,7 @@ namespace Loci{
     lower = facts.get_variable("lower") ;
     boundary_map = facts.get_variable("boundary_map") ;
 
-    entitySet faceimage  ;
+    entitySet faceimage ;
     faceimage += Loci::MapRepP(upper.Rep())->image(cells) ;
     faceimage += Loci::MapRepP(lower.Rep())->image(cells) ;
     faceimage += Loci::MapRepP(boundary_map.Rep())->image(cells) ;
@@ -2969,151 +3095,140 @@ namespace Loci{
     getLocalContextMap(ncg2l,neighCellImage) ;
     gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn) ;
 
-    store<int> sizes;
-    sizes.allocate(cells);
-    vector<int> cellmap;
-    double theta = 3.*M_PI/4.0;
+    store<int> sizes ;
+    sizes.allocate(cells) ;
+    vector<int> cellmap ;
+    double theta = 3.*M_PI/4.0 ;
     FORALL(cells,cc) {
-      int csz = cellStencil[cc].size();
-      int nsz = neighStencil[cc].size();
-      int bsz = boundary_map[cc].size();;
+      int csz = cellStencil[cc].size() ;
+      int nsz = neighStencil[cc].size() ;
+      int bsz = boundary_map[cc].size() ;
 
-      vector3d<double>  ccent = ccenter[cc];
-      vector<vector3d<double> > cdirs(csz+bsz);
-      for(int i=0;i<csz;++i)
-        {
-          cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent;
-          cdirs[i] *= 1./norm(cdirs[i]);
+      vector3d<double> ccent = ccenter[cc] ;
+      vector<vector3d<double> > cdirs(csz+bsz) ;
+      for(int i=0;i<csz;++i) {
+        cdirs[i] = ccenterdata[cg2l[cellStencil[cc][i]]]-ccent ;
+        cdirs[i] *= 1./norm(cdirs[i]) ;
+      }
+      for(int i=0;i<bsz;++i) {
+        cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent ;
+        cdirs[csz+i] *= 1./norm(cdirs[csz+i]) ;
+      }
+
+      vector<int> flags(csz+bsz,0) ;
+      for(int i=0;i<nsz;++i) {
+        vector3d<double> target = ncenterdata[ncg2l[neighStencil[cc][i]]] ;
+        vector3d<double>  ejk = target-ccent ;
+        double nejk = norm(ejk) ;
+        ejk *= 1./nejk ;
+
+        int minid = 0 ;
+        double dvmin = 1e13 ;
+        int nid = -1 ;
+        for(int j=0;j<csz;++j) {
+          // exclude itself from the search with theta ...
+          double dv = dot(cdirs[j],ejk) ;
+          if(dv<cos(theta) && dv<dvmin) {
+            minid = j ;
+            dvmin = dv ;
+          }
+          // find neighbor id
+          if(cellStencil[cc][j]==neighStencil[cc][i]) {
+            nid = j ;
+          }
         }
-      for(int i=0;i<bsz;++i)
-        {
-          cdirs[csz+i] = fcenterdata[fg2l[boundary_map[cc][i]]]-ccent;
-          cdirs[csz+i] *= 1./norm(cdirs[csz+i]);
+        flags[nid] = 1 ;
+        flags[minid] = 1 ;
+      }
+
+      for(int i=0;i<bsz;++i) {
+        vector3d<double> target = fcenterdata[fg2l[boundary_map[cc][i]]] ;
+        vector3d<double>  ejk = target-ccent ;
+        double nejk = norm(ejk) ;
+        ejk *= 1./nejk ;
+
+        int minid = 0 ;
+        double dvmin = 1e13 ;
+        for(int j=0;j<csz;++j) {
+          // exclude itself from the search with theta ...
+          double dv = dot(cdirs[j],ejk) ;
+          if(dv<cos(theta) && dv<dvmin) {
+            minid = j ;
+            dvmin = dv ;
+          }
         }
-
-      vector<int> flags(csz+bsz,0);
-      for(int i=0;i<nsz;++i)
-        {
-          vector3d<double> target = ncenterdata[ncg2l[neighStencil[cc][i]]];
-          vector3d<double>  ejk = target-ccent;
-          double nejk = norm(ejk);
-          ejk *= 1./nejk;
-
-          int minid = 0;
-          double dvmin = 1e13;
-          int nid = -1;
-          for(int j=0;j<csz;++j)
-            {
-              // exclude itself from the search with theta ...
-              double dv = dot(cdirs[j],ejk);
-              if(dv<cos(theta) && dv<dvmin)
-                {
-                  minid = j;
-                  dvmin = dv;
-                }
-              // find neighbor id
-              if(cellStencil[cc][j]==neighStencil[cc][i])
-                nid = j;
-            }
-          flags[nid]   = 1;
-          flags[minid] = 1;
-        }
-
-      for(int i=0;i<bsz;++i)
-        {
-          vector3d<double> target = fcenterdata[fg2l[boundary_map[cc][i]]];
-          vector3d<double>  ejk = target-ccent;
-          double nejk = norm(ejk);
-          ejk *= 1./nejk;
-
-          int minid = 0;
-          double dvmin = 1e13;
-          for(int j=0;j<csz;++j)
-            {
-              // exclude itself from the search with theta ...
-              double dv = dot(cdirs[j],ejk);
-              if(dv<cos(theta) && dv<dvmin)
-                {
-                  minid = j;
-                  dvmin = dv;
-                }
-            }
-          flags[minid] = 1;
-        }
+        flags[minid] = 1 ;
+      }
 
       // now do the augmentation
-      tmp_array<vector3d<double> > tmpcc(csz+bsz);
-      int ne = 0;
-      int check_sten = 0;
-      for(int i=0;i<csz;++i)
-        {
-          if(flags[i])
-            tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][i]]];
-          check_sten += (!flags[i]?1:0);
+      tmp_array<vector3d<double> > tmpcc(csz+bsz) ;
+      int ne = 0 ;
+      int check_sten = 0 ;
+      for(int i=0;i<csz;++i) {
+        if(flags[i]) {
+          tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][i]]] ;
         }
+        check_sten += (!flags[i]?1:0) ;
+      }
 
-      for(int i=0;i<bsz;++i)
-        {
-          tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][i]]];
-        }
+      for(int i=0;i<bsz;++i) {
+        tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][i]]] ;
+      }
 
-      double cn_p1   = 0.;
-      double cn_p2   = 0.;
-      double cn_pinf = 0.;
-      symmC_optimize(ne,ccent,tmpcc,cn_p1,cn_p2,cn_pinf);
+      double cn_p1 = 0. ;
+      double cn_p2 = 0. ;
+      double cn_pinf = 0. ;
+      symmC_optimize(ne, ccent, tmpcc, cn_p1, cn_p2, cn_pinf) ;
 
-      for(int k=0; k<check_sten;k++)
-        {
-          double cn_opt_p1   = 0.;
-          double cn_opt_p2   = 0.;
-          double cn_opt_pinf = 0.;
-          for(int i=0;i<csz;++i)
-            {
-              if(flags[i])
-                continue;
+      for(int k=0; k<check_sten;k++) {
+        double cn_opt_p1 = 0. ;
+        double cn_opt_p2 = 0. ;
+        double cn_opt_pinf = 0. ;
+        for(int i=0;i<csz;++i) {
+          if(flags[i]) {
+            continue ;
+          }
 
-              int ne = 0;
-              for(int j=0;j<csz;++j)
-                {
-                  if(flags[j] || (i==j))
-                    tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][j]]];
-                }
-
-              for(int j=0;j<bsz;++j)
-                {
-                  tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][j]]];
-                }
-
-              symmC_optimize(ne,ccent,tmpcc,cn_opt_p1,cn_opt_p2,cn_opt_pinf);
-              if(cn_opt_p1<0.95*cn_p1 &&
-                 cn_opt_p2<0.95*cn_p2 &&
-                 cn_opt_pinf<0.95*cn_pinf)
-                {
-                  flags[i] = 1;
-                  cn_p1 = cn_opt_p1;
-                  cn_p2 = cn_opt_p2;
-                  cn_pinf = cn_opt_pinf;
-                }
+          int ne = 0 ;
+          for(int j=0;j<csz;++j) {
+            if(flags[j] || (i==j)) {
+              tmpcc[ne++] = ccenterdata[cg2l[cellStencil[cc][j]]] ;
             }
-        }
+          }
 
-      int cnt = 0;
-      for(int i=0;i<csz;++i)
+          for(int j=0;j<bsz;++j) {
+            tmpcc[ne++] = fcenterdata[fg2l[boundary_map[cc][j]]] ;
+          }
+
+          symmC_optimize(ne, ccent, tmpcc, cn_opt_p1, cn_opt_p2, cn_opt_pinf) ;
+          if(cn_opt_p1<0.95*cn_p1 && cn_opt_p2<0.95*cn_p2 &&
+             cn_opt_pinf<0.95*cn_pinf) {
+            flags[i] = 1 ;
+            cn_p1 = cn_opt_p1 ;
+            cn_p2 = cn_opt_p2 ;
+            cn_pinf = cn_opt_pinf ;
+          }
+        }
+      }
+
+      int cnt = 0 ;
+      for(int i=0;i<csz;++i) {
         if(flags[i] > 0) {
-          cellmap.push_back(cellStencil[cc][i]);
-          cnt++;
+          cellmap.push_back(cellStencil[cc][i]) ;
+          cnt++ ;
         }
-      sizes[cc] = cnt;
-    } ENDFORALL;
+      }
+      sizes[cc] = cnt ;
+    } ENDFORALL ;
 
-    cellStencilSymmC.allocate(sizes);
-    int cnt = 0;
+    cellStencilSymmC.allocate(sizes) ;
+    int cnt = 0 ;
     FORALL(cells,cc) {
       for(int i=0;i<cellStencilSymmC[cc].size();++i) {
-        cellStencilSymmC[cc][i] = cellmap[cnt];
-        cnt++;
+        cellStencilSymmC[cc][i] = cellmap[cnt] ;
+        cnt++ ;
       }
-    } ENDFORALL;
+    } ENDFORALL ;
   }
 
   void create_cell_stencil_symmC(fact_db & facts) {
@@ -3124,7 +3239,7 @@ namespace Loci{
     facts.create_fact("cellStencil",cellStencil) ;
   }
 
-  
+
   void createLowerUpper(fact_db &facts) {
     constraint geom_cells,interior_faces,boundary_faces;
     constraint faces = facts.get_variable("faces") ;
@@ -3144,7 +3259,7 @@ namespace Loci{
     }
 
     int fkeyspace = faces.getDomainKeySpace() ;
-    
+
     std::vector<entitySet> fptn = facts.get_init_ptn(fkeyspace) ;
     entitySet
       global_interior_faces = (distribute_entitySet(ifaces,fptn) & (*faces)) ;
@@ -3161,8 +3276,8 @@ namespace Loci{
     entitySet global_geom_cells = all_collect_entitySet(*geom_cells) ;
     multiMap lower,upper,boundary_map ;
     distributed_inverseMap(upper, cl, global_geom_cells, global_interior_faces,
-                           facts,ckeyspace) ; 
-    
+                           facts,ckeyspace) ;
+
     distributed_inverseMap(lower, cr, global_geom_cells, global_interior_faces,
                            facts,ckeyspace) ;
     distributed_inverseMap(boundary_map, cl, global_geom_cells,
@@ -3185,9 +3300,9 @@ namespace Loci{
     if(var != 0) {
       gradStencil = var ;
       if(*gradStencil == "stable")
-	create_cell_stencil(facts) ;
+	      create_cell_stencil(facts) ;
       if(*gradStencil == "full")
-	create_cell_stencil_full(facts) ;
+	      create_cell_stencil_full(facts) ;
       if(*gradStencil == "symm")
         create_cell_stencil_symm(facts) ;
       if(*gradStencil == "symmF")
@@ -3197,14 +3312,12 @@ namespace Loci{
     }
   }
 
-  // this is a general routine that balances the pair vector
-  // on each process, it redistributes the pair vector
-  // among the processes such that each process holds
-  // roughly the same number of elements, it maintains the
-  // original global elements ordering in the redistribution
-  void
-  parallel_balance_pair_vector(vector<pair<int,int> >& vp,
-                               MPI_Comm comm) {
+  /// This is a general routine that balances the pair vector on each process,
+  /// it redistributes the pair vector among the processes such that each
+  /// process holds roughly the same number of elements, it maintains the
+  /// original global elements ordering in the redistribution
+  void parallel_balance_pair_vector(vector<pair<int,int> >& vp,
+                                    MPI_Comm comm) {
     int num_procs = 0 ;
     MPI_Comm_size(comm,&num_procs) ;
 
@@ -3228,34 +3341,39 @@ namespace Loci{
     vector<int> splitters(num_procs) ;
     // splitters are just global index number
     splitters[0] = space ;
-    for(int i=1;i<num_procs-1;++i)
+    for(int i=1;i<num_procs-1;++i) {
       splitters[i] = splitters[i-1] + space ;
+    }
     splitters[num_procs-1] = global_vp_size ;
 
     // split and communicate the vector of particles
     vector<int> send_counts(num_procs, 0) ;
     int part_start = global_start ;
     for(int idx=0;idx<num_procs;++idx) {
-      if(part_start == global_end)
+      if(part_start == global_end) {
         break ;
+      }
       if(splitters[idx] > part_start) {
         int part_end ;
-        if(splitters[idx] < global_end)
+        if(splitters[idx] < global_end) {
           part_end = splitters[idx] ;
-        else
+        } else {
           part_end = global_end ;
+        }
         send_counts[idx] = part_end - part_start ;
         part_start = part_end ;
       }
     }
-      
-    for(size_t i=0;i<send_counts.size();++i)
+
+    for(size_t i=0;i<send_counts.size();++i) {
       send_counts[i] *= 2 ;
+    }
 
     vector<int> send_displs(num_procs) ;
     send_displs[0] = 0 ;
-    for(int i=1;i<num_procs;++i)
+    for(int i=1;i<num_procs;++i) {
       send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
+    }
 
     vector<int> recv_counts(num_procs) ;
     MPI_Alltoall(&send_counts[0], 1, MPI_INT,
@@ -3263,11 +3381,11 @@ namespace Loci{
 
     vector<int> recv_displs(num_procs) ;
     recv_displs[0] = 0 ;
-    for(int i=1;i<num_procs;++i)
+    for(int i=1;i<num_procs;++i) {
       recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
+    }
 
-    int total_recv_size = recv_displs[num_procs-1] +
-      recv_counts[num_procs-1] ;
+    int total_recv_size = recv_displs[num_procs-1] + recv_counts[num_procs-1] ;
 
     // prepare send and recv buffer
     vector<int> send_buf(vp_size*2) ;
@@ -3290,24 +3408,23 @@ namespace Loci{
     vector<int>().swap(send_buf) ;
     vp.resize(total_recv_size/2) ;
     count = 0 ;
-    for(int i=0;i<total_recv_size;i+=2,count++)
+    for(int i=0;i<total_recv_size;i+=2,count++) {
       vp[count] = pair<int,int>(recv_buf[i], recv_buf[i+1]) ;
+    }
   }
-  
-  // a parallel sample sort for vector<pair<int, int> >
-  // the passed in vector is the local SORTED data. NOTE:
-  // the precondition to this routine is that the passed
-  // in vector is sorted!!!
-  // after sorting, this function puts the new sorted pairs
-  // that are local to a processor in the data argument.
-  void
-  par_sort(vector<pair<int,int> >& data, MPI_Comm comm) {
+
+  /// A parallel sample sort for vector<pair<int, int> >. The passed in vector
+  /// is the local SORTED data. NOTE: the precondition to this routine is that
+  /// the passed in vector is sorted!!! After sorting, this function puts the
+  /// new sorted pairs that are local to a processor in the data argument.
+  void par_sort(vector<pair<int,int> >& data, MPI_Comm comm) {
     // first get the processor id and total number of processors
     int my_id, num_procs ;
     MPI_Comm_size(comm, &num_procs) ;
     MPI_Comm_rank(comm, &my_id) ;
-    if(num_procs <= 1)
-      return ;                  // single process, no need to proceed
+    if(num_procs <= 1) {
+      return ;  // single process, no need to proceed
+    }
     // get the number of local elements
     int local_size = data.size() ;
     // then select num_procs-1 equally spaced elements as splitters
@@ -3315,8 +3432,9 @@ namespace Loci{
     int even_space = local_size / (num_procs-1) ;
     int start_idx = even_space / 2 ;
     int space_idx = start_idx ;
-    for(int i=0;i<num_procs-1;++i,space_idx+=even_space)
+    for(int i=0;i<num_procs-1;++i,space_idx+=even_space) {
       splitters[i] = data[space_idx].first ;
+    }
     // gather the splitters to all processors as samples
     int sample_size = num_procs * (num_procs-1) ;
     int* samples = new int[sample_size] ;
@@ -3328,8 +3446,9 @@ namespace Loci{
     even_space = sample_size / (num_procs-1) ;
     start_idx = even_space / 2 ;
     space_idx = start_idx ;
-    for(int i=0;i<num_procs-1;++i,space_idx+=even_space)
+    for(int i=0;i<num_procs-1;++i,space_idx+=even_space) {
       splitters[i] = samples[space_idx] ;
+    }
     // the last one set as maximum possible integer
     splitters[num_procs-1] = std::numeric_limits<int>::max() ;
 
@@ -3337,14 +3456,16 @@ namespace Loci{
     // according to the new splitters. first we will compute
     // the size of each bucket and communicate them first
     int* scounts = new int[num_procs] ;
-    for(int i=0;i<num_procs;++i)
+    for(int i=0;i<num_procs;++i) {
       scounts[i] = 0 ;
+    }
+
     { // using a block just to make the definition of "i" and "j" local
       int i, j ;
       for(j=i=0;i<local_size;++i) {
-        if(data[i].first < splitters[j])
+        if(data[i].first < splitters[j]) {
           scounts[j]++ ;
-        else {
+        } else {
           ++j ;
           while(data[i].first >= splitters[j]) {
             scounts[j] = 0 ;
@@ -3356,13 +3477,15 @@ namespace Loci{
     }
     // but since one local element contains two integers (a pair of int),
     // we will need to double the size
-    for(int i=0;i<num_procs;++i)
+    for(int i=0;i<num_procs;++i) {
       scounts[i] *= 2 ;
+    }
     // now we compute the sending displacement for each bucket
     int* sdispls = new int[num_procs] ;
     sdispls[0] = 0 ;
-    for(int i=1;i<num_procs;++i)
+    for(int i=1;i<num_procs;++i) {
       sdispls[i] = sdispls[i-1] + scounts[i-1] ;
+    }
     // communicate this information to all processors so that each will
     // know how many elements are expected from every other processor
     int* rcounts = new int[num_procs] ;
@@ -3371,8 +3494,9 @@ namespace Loci{
     // receive displacement
     int* rdispls = new int[num_procs] ;
     rdispls[0] = 0 ;
-    for(int i=1;i<num_procs;++i)
+    for(int i=1;i<num_procs;++i) {
       rdispls[i] = rdispls[i-1] + rcounts[i-1] ;
+    }
     // then we will need to pack the elements in local into
     // a buffer and communicate them
     int* local_pairs = new int[local_size*2] ;
@@ -3398,8 +3522,9 @@ namespace Loci{
     // finally we unpack the buffer into a vector of pairs
     data.resize(new_local_size/2) ;
     int data_idx = 0 ;
-    for(int i=0;i<new_local_size;i+=2,data_idx++)
+    for(int i=0;i<new_local_size;i+=2,data_idx++) {
       data[data_idx] = pair<int,int>(sorted_pairs[i],sorted_pairs[i+1]) ;
+    }
     // release the final buffer
     delete[] sorted_pairs ;
     // finally we sort the new local vector
@@ -3407,17 +3532,17 @@ namespace Loci{
   }
 
   namespace {
-    // a utility that returns the global sum
-    int
-    global_sum(int l) {
+
+    /// A utility that returns the global sum.
+    int global_sum(int l) {
       int g ;
       MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD) ;
       return g ;
     }
-    // a utility function that takes an entitySet from a processor
-    // and returns a vector of entitySet gathered from all processors
-    vector<entitySet>
-    gather_all_entitySet(const entitySet& eset) {
+
+    /// A utility function that takes an entitySet from a processor and
+    /// returns a vector of entitySet gathered from all processors.
+    vector<entitySet> gather_all_entitySet(const entitySet& eset) {
       int local_size = eset.size() ;
       int global_size = global_sum(local_size) ;
       // compute receive counts from all processors
@@ -3427,14 +3552,16 @@ namespace Loci{
       // then compute receive displacement
       int* recv_displs = new int[MPI_processes] ;
       recv_displs[0] = 0 ;
-      for(int i=1;i<MPI_processes;++i)
+      for(int i=1;i<MPI_processes;++i) {
         recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
+      }
       // pack the local eset into an array
       int* local_eset = new int[local_size] ;
       int count = 0 ;
       for(entitySet::const_iterator ei=eset.begin();
-          ei!=eset.end();++ei,++count)
+          ei!=eset.end();++ei,++count) {
         local_eset[count] = *ei ;
+      }
       // allocate the entire array for all data from all processors
       int* global_eset = new int[global_size] ;
       // communicate to obtain all esets from every processors
@@ -3448,26 +3575,29 @@ namespace Loci{
       int k = 0 ;
       for(int i=0;i<MPI_processes;++i) {
         int limit ;
-        if(i == MPI_processes-1)
+        if(i == MPI_processes-1) {
           limit = global_size ;
-        else
+        } else {
           limit = recv_displs[i+1] ;
-        for(;k<limit;++k)
+        }
+        for(;k<limit;++k) {
           ret[i] += global_eset[k] ;
+        }
       }
       delete[] recv_displs ;
       delete[] global_eset ;
 
       return ret ;
     }
-    void
-    par_sort2(vector<pair<pair<int,int>, int> >& data, MPI_Comm comm){
+
+    void par_sort2(vector<pair<pair<int,int>, int> >& data, MPI_Comm comm){
       // first get the processor id and total number of processors
       int my_id, num_procs ;
       MPI_Comm_size(comm, &num_procs) ;
       MPI_Comm_rank(comm, &my_id) ;
-      if(num_procs <= 1)
+      if(num_procs <= 1) {
         return ;                  // single process, no need to proceed
+      }
       // get the number of local elements
       int local_size = data.size() ;
       // then select num_procs-1 equally spaced elements as splitters
@@ -3475,8 +3605,9 @@ namespace Loci{
       int even_space = local_size / (num_procs-1) ;
       int start_idx = even_space / 2 ;
       int space_idx = start_idx ;
-      for(int i=0;i<num_procs-1;++i,space_idx+=even_space)
+      for(int i=0;i<num_procs-1;++i,space_idx+=even_space) {
         splitters[i] = data[space_idx].first ;
+      }
       // gather the splitters to all processors as samples
       int sample_size = num_procs * (num_procs-1) ;
       pair<int, int>* samples = new pair<int, int>[sample_size] ;
@@ -3488,25 +3619,27 @@ namespace Loci{
       even_space = sample_size / (num_procs-1) ;
       start_idx = even_space / 2 ;
       space_idx = start_idx ;
-      for(int i=0;i<num_procs-1;++i,space_idx+=even_space)
+      for(int i=0;i<num_procs-1;++i,space_idx+=even_space) {
         splitters[i] = samples[space_idx] ;
+      }
       // the last one set as maximum possible integer
       int maxnumber = std::numeric_limits<int>::max();
       splitters[num_procs-1] =pair<int, int>(maxnumber, maxnumber);
-                               
-  
+
+
       // now we can assign local elements to buckets (processors)
       // according to the new splitters. first we will compute
       // the size of each bucket and communicate them first
       int *scounts = new int[num_procs] ;
-      for(int i=0;i<num_procs;++i)
+      for(int i=0;i<num_procs;++i) {
         scounts[i] = 0;
+      }
       { // using a block just to make the definition of "i" and "j" local
         int i, j ;
         for(j=i=0;i<local_size;++i) {
-          if(data[i].first < splitters[j])
+          if(data[i].first < splitters[j]) {
             scounts[j]++ ;
-          else {
+          } else {
             ++j ;
             while(data[i].first >= splitters[j]) {
               scounts[j] = 0 ;
@@ -3518,13 +3651,15 @@ namespace Loci{
       }
       // but since one local element contains two integers (a pair of int),
       // we will need to double the size
-      for(int i=0;i<num_procs;++i)
+      for(int i=0;i<num_procs;++i) {
         scounts[i] *= 3 ;
+      }
       // now we compute the sending displacement for each bucket
       int* sdispls = new int[num_procs] ;
       sdispls[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         sdispls[i] = sdispls[i-1] + scounts[i-1] ;
+      }
       // communicate this information to all processors so that each will
       // know how many elements are expected from every other processor
       int* rcounts = new int[num_procs] ;
@@ -3533,8 +3668,9 @@ namespace Loci{
       // receive displacement
       int* rdispls = new int[num_procs] ;
       rdispls[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         rdispls[i] = rdispls[i-1] + rcounts[i-1] ;
+      }
       // then we will need to pack the elements in local into
       // a buffer and communicate them
       int* local_pairs = new int[local_size*3] ;
@@ -3561,8 +3697,9 @@ namespace Loci{
       // finally we unpack the buffer into a vector of pairs
       data.resize(new_local_size/3) ;
       int data_idx = 0 ;
-      for(int i=0;i<new_local_size;i+=3,data_idx++)
+      for(int i=0;i<new_local_size;i+=3,data_idx++) {
         data[data_idx] = pair<pair<int,int>, int>(pair<int, int>(sorted_pairs[i],sorted_pairs[i+1]), sorted_pairs[i+2]) ;
+      }
       // release the final buffer
       delete[] sorted_pairs ;
       // finally we sort the new local vector
@@ -3570,73 +3707,76 @@ namespace Loci{
     }
 
 
-    void
-    parallel_balance_pair2_vector(vector<pair<pair<int,int>, int> >& vp,
-                                  MPI_Comm comm) {
+    void parallel_balance_pair2_vector(vector<pair<pair<int,int>, int> >& vp,
+                                       MPI_Comm comm) {
       int num_procs = 0 ;
       MPI_Comm_size(comm,&num_procs) ;
-  
-      // we still use an all-to-all personalized communication
-      // algorithm to balance the element numbers on processes.
-      // we pick (p-1) equally spaced element as the splitters
-      // and then re-split the global vector sequence to balance
-      // the number of elements on processes.
-  
+
+      // we still use an all-to-all personalized communication algorithm to
+      // balance the element numbers on processes. We pick (p-1) equally
+      // spaced element as the splitters and then re-split the global vector
+      // sequence to balance the number of elements on processes.
+
       int vp_size = vp.size() ;
       int global_vp_size = 0 ;
-      MPI_Allreduce(&vp_size, &global_vp_size,
-                    1, MPI_INT, MPI_SUM, comm) ;
-  
+      MPI_Allreduce(&vp_size, &global_vp_size, 1, MPI_INT, MPI_SUM, comm) ;
+
       int space = global_vp_size / num_procs ;
       // compute a global range for the elements on each process
       int global_end = 0 ;
       MPI_Scan(&vp_size, &global_end, 1, MPI_INT, MPI_SUM, comm) ;
       int global_start = global_end - vp_size ;
-  
+
       vector<int> splitters(num_procs) ;
       // splitters are just global index number
       splitters[0] = space ;
-      for(int i=1;i<num_procs-1;++i)
+      for(int i=1;i<num_procs-1;++i) {
         splitters[i] = splitters[i-1] + space ;
+      }
       splitters[num_procs-1] = global_vp_size ;
-  
+
       // split and communicate the vector of particles
       vector<int> send_counts(num_procs, 0) ;
       int part_start = global_start ;
       for(int idx=0;idx<num_procs;++idx) {
-        if(part_start == global_end)
+        if(part_start == global_end) {
           break ;
+        }
         if(splitters[idx] > part_start) {
           int part_end ;
-          if(splitters[idx] < global_end)
+          if(splitters[idx] < global_end) {
             part_end = splitters[idx] ;
-          else
+          } else {
             part_end = global_end ;
+          }
           send_counts[idx] = part_end - part_start ;
           part_start = part_end ;
         }
       }
-  
-      for(size_t i=0;i<send_counts.size();++i)
+
+      for(size_t i=0;i<send_counts.size();++i) {
         send_counts[i] *= 3 ;
-  
+      }
+
       vector<int> send_displs(num_procs) ;
       send_displs[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
-  
+      }
+
       vector<int> recv_counts(num_procs) ;
       MPI_Alltoall(&send_counts[0], 1, MPI_INT,
                    &recv_counts[0], 1, MPI_INT, comm) ;
-  
+
       vector<int> recv_displs(num_procs) ;
       recv_displs[0] = 0 ;
-      for(int i=1;i<num_procs;++i)
+      for(int i=1;i<num_procs;++i) {
         recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
-  
+      }
+
       int total_recv_size = recv_displs[num_procs-1] +
         recv_counts[num_procs-1] ;
-  
+
       // prepare send and recv buffer
       vector<int> send_buf(vp_size*3) ;
       int count = 0 ;
@@ -3649,7 +3789,7 @@ namespace Loci{
       vector<pair<pair<int,int>, int>  >().swap(vp) ;
       // prepare recv buffer
       vector<int> recv_buf(total_recv_size) ;
-  
+
       MPI_Alltoallv(&send_buf[0], &send_counts[0],
                     &send_displs[0], MPI_INT,
                     &recv_buf[0], &recv_counts[0],
@@ -3659,20 +3799,17 @@ namespace Loci{
       vector<int>().swap(send_buf) ;
       vp.resize(total_recv_size/3) ;
       count = 0 ;
-      for(int i=0;i<total_recv_size;i+=3,count++)
+      for(int i=0;i<total_recv_size;i+=3,count++) {
         vp[count] = pair<pair<int,int>, int>(pair<int, int>(recv_buf[i], recv_buf[i+1]), recv_buf[i+2]) ;
+      }
     }
-
- 
   }
-  
- 
-  void
-  createEdgesPar(fact_db &facts) {
+
+  void createEdgesPar(fact_db &facts) {
     multiMap face2node ;
     face2node = facts.get_variable("face2node") ;
     entitySet faces = face2node.domain() ;
-    
+
     // Loop over faces and create list of edges (with duplicates)
     vector<pair<Entity,Entity> > emap ;
     for(entitySet::const_iterator ei=faces.begin();
@@ -3727,7 +3864,7 @@ namespace Loci{
       // processor (my_id - 1) and each processor compares its last
       // element with the received element. if they are the same,
       // then the processor will remove its last element
-      
+
       // HOWEVER if the parallel sort was done using the sample sort
       // algorithm, then this step is not necessary. Because in the
       // sample sort, elements are partitioned to processors according
@@ -3772,16 +3909,16 @@ namespace Loci{
       }
     } // end if(MPI_Processes > 1)
 #endif
-    
+
     // Allocate entities for new edges
     int num_edges = emap.size() ;
     int ek = facts.getKeyDomain("Edges") ;
-    if(!useDomainKeySpaces)
+    if(!useDomainKeySpaces) {
       ek = 0 ;
+    }
     int fk = face2node.Rep()->getDomainKeySpace() ;
-    
+
     entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
- 
 
 
     //create constraint edges
@@ -3789,7 +3926,7 @@ namespace Loci{
     *edges_tag = edges;
     edges_tag.Rep()->setDomainKeySpace(ek) ;
     facts.create_fact("edges", edges_tag);
-    
+
     // Copy edge nodes into a MapVec
     MapVec<2> edge ;
     edge.Rep()->setDomainKeySpace(ek) ;
@@ -3813,14 +3950,14 @@ namespace Loci{
         ei!=edges.end();++ei,++pi) {
       el[*ei] = edge[*ei][0] ;
     }
-    
+
     // Now invert this map to get nodes-> edges that have this as a first entry
     multiMap n2e ;
     // Get nodes
     // Get mapping from nodes to edges from lower numbered node
-    
+
     // note inorder to use the distributed_inverseMap, we need
-    // to provide a vector of entitySet partitions. for this 
+    // to provide a vector of entitySet partitions. for this
     // case, it is NOT the node (pos.domain()) distribution,
     // instead it is the el Map image distribution
     entitySet el_image = el.image(el.domain()) ;
@@ -3833,7 +3970,7 @@ namespace Loci{
     store<int> count ;
     count.allocate(faces) ;
     for(entitySet::const_iterator ei = faces.begin();
-        ei!=faces.end();++ei) 
+        ei!=faces.end();++ei)
       count[*ei] = face2node[*ei].size() ;
     face2edge.allocate(count) ;
 
@@ -3866,7 +4003,7 @@ namespace Loci{
       nodes_accessed += e1 ;
     }
     // we then expand the n2e map
-    entitySet nodes_out_domain = nodes_accessed - n2e.domain() ;    
+    entitySet nodes_out_domain = nodes_accessed - n2e.domain() ;
     n2e.setRep(MapRepP(n2e.Rep())->expand(nodes_out_domain,
                                           el_image_partitions)) ;
     // okay, then we are going to expand the edge map
@@ -3903,8 +4040,9 @@ namespace Loci{
     entitySet edge_dom = edge.domain() ;
     edge2_count.allocate(edge_dom) ;
     for(entitySet::const_iterator ei=edge_dom.begin();
-        ei!=edge_dom.end();++ei)
+        ei!=edge_dom.end();++ei) {
       edge2_count[*ei] = 2 ;
+    }
     edge2.allocate(edge2_count) ;
     for(entitySet::const_iterator ei=edge_dom.begin();
         ei!=edge_dom.end();++ei) {
@@ -3935,8 +4073,9 @@ namespace Loci{
             break ;
           }
         }
-        if(face2edge[*ei][i] == -1)
+        if(face2edge[*ei][i] == -1) {
           cerr << "ERROR: not able to find edge for face " << *ei << endl ;
+        }
       }
       // Work on closing edge
       Entity t1 = face2node[*ei][0] ;
@@ -3951,9 +4090,10 @@ namespace Loci{
           break ;
         }
       }
-      if(face2edge[*ei][sz-1] == -1)
+      if(face2edge[*ei][sz-1] == -1) {
         cerr << "ERROR: not able to find edge for face " << *ei << endl ;
-      
+      }
+
     }
     // Add face2edge to the fact database
     face2edge.Rep()->setDomainKeySpace(fk) ;
@@ -3962,58 +4102,53 @@ namespace Loci{
 
 
     //sort edge2node according to fileNumbering
-    if(MPI_processes > 1){    
+    if(MPI_processes > 1){
       //create Map node_l2f
-      entitySet nodes;
-      Map node_l2f;  
+      entitySet nodes ;
+      Map node_l2f ;
       FORALL(edges, e){
-        nodes += edge[e][0];
-        nodes += edge[e][1];
-      }ENDFORALL;
-    
-      
-      storeRepP pos = facts.get_variable("pos");
+        nodes += edge[e][0] ;
+        nodes += edge[e][1] ;
+      }ENDFORALL ;
+
+
+      storeRepP pos = facts.get_variable("pos") ;
       int nkeyspace = pos->getDomainKeySpace() ;
       std::vector<entitySet> init_ptn = facts.get_init_ptn(nkeyspace) ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       dMap g2f ;
-      g2f = df->g2fv[nkeyspace].Rep() ; 
+      g2f = df->g2fv[nkeyspace].Rep() ;
       //don't use nodes & init_ptn to define local nodes,
       //because nodes may not cover all nodes in init_ptn
       entitySet localNodes = pos->domain()&init_ptn[MPI_rank] ;
       node_l2f.allocate(localNodes);
       FORALL(localNodes, d){
-        node_l2f[d] = g2f[d];
-      }ENDFORALL;
-       
-      entitySet out_of_dom = nodes - localNodes;
-      // vector<entitySet> tmp_ptn = gather_all_entitySet(localNodes);
+        node_l2f[d] = g2f[d] ;
+      }ENDFORALL ;
+
+      entitySet out_of_dom = nodes - localNodes ;
+      // vector<entitySet> tmp_ptn = gather_all_entitySet(localNodes) ;
       node_l2f.setRep(MapRepP(node_l2f.Rep())->expand(out_of_dom, init_ptn)) ;
-     
-      
+
+
       //end of create Map
-       
+
       FORALL(edge.domain(), e){
         if(node_l2f[edge[e][0] ]> node_l2f[edge[e][1]]){
-          std:: swap(edge[e][0], edge[e][1]);
+          std:: swap(edge[e][0], edge[e][1]) ;
         }
-               
       }ENDFORALL;
-    
-      
-  
-  
-    
-           
-  
+
+
+
 
       //then update fact_db so that the file number of edges is consistent with the file number of nodes
 
       //give each edge a file number
       vector<pair<pair<Entity, Entity> , Entity> > edge2global(num_edges);
-      int eindex = 0;
+      int eindex = 0 ;
       FORALL(edges, ei){
-        edge2global[eindex++] = pair<pair<Entity, Entity>, Entity>(pair<Entity, Entity>(node_l2f[edge[ei][0]], node_l2f[edge[ei][1]]), ei); 
+        edge2global[eindex++] = pair<pair<Entity, Entity>, Entity>(pair<Entity, Entity>(node_l2f[edge[ei][0]], node_l2f[edge[ei][1]]), ei);
       }ENDFORALL;
 
 
@@ -4035,8 +4170,9 @@ namespace Loci{
         MPI_Comm sub_comm ;
         int color = edge2global.empty() ;
         MPI_Comm_split(MPI_COMM_WORLD, color, MPI_rank, &sub_comm) ;
-        if(!edge2global.empty())
+        if(!edge2global.empty()) {
           par_sort2(edge2global, sub_comm) ;
+        }
         MPI_Comm_free(&sub_comm) ;
       } else {
         par_sort2(edge2global, MPI_COMM_WORLD) ;
@@ -4089,7 +4225,7 @@ namespace Loci{
                        MPI_COMM_WORLD, &status) ;
         }
         // then compare the results with last element in local emap
-        if( (MPI_rank != MPI_processes-1) && (!edge2global.empty())){
+        if( (MPI_rank != MPI_processes-1) && (!edge2global.empty())) {
           const pair<pair<Entity,Entity>, Entity>& last = edge2global.back() ;
           if( (recvbuf[0] == last.first.first) &&
               (recvbuf[1] == last.first.second)&&
@@ -4100,32 +4236,32 @@ namespace Loci{
       } // end if(MPI_Processes > 1)
 #endif
 
-    
-      int local_num_edge = edge2global.size();
-      vector<int> edge_sizes(MPI_processes);
+
+      int local_num_edge = edge2global.size() ;
+      vector<int> edge_sizes(MPI_processes) ;
       MPI_Allgather(&local_num_edge,1,MPI_INT,&edge_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
-    
-      int file_num_offset = 0;
-      for(int i = 0; i < MPI_rank; i++){
-        file_num_offset += edge_sizes[i];
+
+      int file_num_offset = 0 ;
+      for(int i = 0; i < MPI_rank; i++) {
+        file_num_offset += edge_sizes[i] ;
       }
-    
-      vector<pair<Entity, Entity> > file2global(edge2global.size());
-      int index = file_num_offset;
-    
-      entitySet input_image = edges;
-      entitySet input_preimage;
+
+      vector<pair<Entity, Entity> > file2global(edge2global.size()) ;
+      int index = file_num_offset ;
+
+      entitySet input_image = edges ;
+      entitySet input_preimage ;
       for(int i = 0; i < local_num_edge; i++){
-        input_preimage += index;
-        file2global[i] = pair<Entity, Entity>(index, edge2global[i].second);
-        index++;
+        input_preimage += index ;
+        file2global[i] = pair<Entity, Entity>(index, edge2global[i].second) ;
+        index++ ;
       }
-      
-      multiMap global2file;
-    
-      //the input_image is not really the image, it should be the global2file's domain
-      //if it doesn't include all corresponding entities in init_ptn, error will occur
-      //also input_preimage is never used
+
+      multiMap global2file ;
+
+      //the input_image is not really the image, it should be the
+      // global2file's domain if it doesn't include all corresponding entities
+      // in init_ptn, error will occur also input_preimage is never used.
       std::vector<entitySet> init_ptne = facts.get_init_ptn(ek) ;
 
       Loci::distributed_inverseMap(global2file,
@@ -4133,46 +4269,46 @@ namespace Loci{
                                    input_image,
                                    input_preimage,
                                    init_ptne);
-    
-    
+
+
       if(global2file.domain() != edges){
-        cerr<<"the inversed map doesn't match edges" << endl;
-        cerr <<"domain: " << global2file.domain() << " edge:   " << edges << endl;
-        Loci::Abort();
+        cerr<<"the inversed map doesn't match edges" << endl ;
+        cerr <<"domain: " << global2file.domain() << " edge:   " << edges << endl ;
+        Loci::Abort() ;
       }
-    
+
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
 
       FORALL(global2file.domain(), ei){
         dist->g2fv[0][ei] = global2file[ei][0] ;
       }ENDFORALL;
-    
+
     }
     //before put edge2node to fact_db, make sure each edge point from lower
     //file number node to higher file number node
     MapVec<2> edge3 ;
     edge3.allocate(edges) ;
     FORALL(edges, ei) {
-      edge3[ei][0] = edge[ei][0];
-      edge3[ei][1] = edge[ei][1];
+      edge3[ei][0] = edge[ei][0] ;
+      edge3[ei][1] = edge[ei][1] ;
     }ENDFORALL;
-    
+
     // Add edge3node data structure to fact databse
     edge3.Rep()->setDomainKeySpace(ek) ;
-    facts.create_fact("edge2node",edge3) ;  
-    
+    facts.create_fact("edge2node",edge3) ;
+
   } // end of createEdgesPar
 
 
   void setupOverset(fact_db &facts) {
-    using namespace Loci ;
-    using std::map ;
     storeRepP sp = facts.get_variable("componentGeometry") ;
-    if(sp == 0)
+    if(sp == 0) {
       return ;
+    }
     sp = facts.get_variable("ci") ;
-    if(sp == 0)
+    if(sp == 0) {
       return ;
+    }
     entitySet bfaces = sp->domain() ;
     sp = facts.get_variable("interface_BC") ;
     if(sp != 0) {
@@ -4187,7 +4323,7 @@ namespace Loci{
       bfaces -= *tmp ;
     }
     sp = facts.get_variable("face2node") ;
-    
+
     MapRepP mp = MapRepP(sp->getRep()) ;
     entitySet nodeSet = mp->image(bfaces) ;
 
@@ -4197,17 +4333,17 @@ namespace Loci{
     entitySet dom = pos.domain() ;
     vector<entitySet> posptn = all_collect_vectors(dom,MPI_COMM_WORLD) ;
     entitySet surfNodes = dist_collect_entitySet(nodeSet,posptn) ;
-    
+
     // Now get volume tags
     variableSet vars = facts.get_extensional_facts() ;
-    map<string,entitySet> volMap ;
+    std::map<string,entitySet> volMap ;
 
     for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
       if(variable(*vi).get_arg_list().size() > 0 &&
          variable(*vi).get_info().name == "volumeTag") {
         param<string> vname(facts.get_variable(*vi)) ;
 
-	std::ostringstream vn ;
+	      std::ostringstream vn ;
         vn << *vi ;
         string name = vn.str() ;
         volMap[name] = vname.domain() ;
@@ -4224,7 +4360,7 @@ namespace Loci{
       volMap[string("Main")] = ~EMPTY ;
     }
     vector<entitySet> volSets ;
-    map<string,entitySet>::const_iterator mi ;
+    std::map<string,entitySet>::const_iterator mi ;
     for(mi=volMap.begin();mi!=volMap.end();++mi) {
       int ckeyspace = cl.getRangeKeySpace() ;
       std::vector<entitySet> cptn = facts.get_init_ptn(ckeyspace) ;
@@ -4253,13 +4389,13 @@ namespace Loci{
       nodes = distribute_entitySet(nodes,nptn) ;
       nodesets.push_back(nodes) ;
     }
-    
+
 
     Map min_node2surf_loc ;
     min_node2surf_loc.allocate(pos.domain()) ;
 
     entitySet excludeSet ;
-    
+
     for(int i=0;i<sz;++i) {
       entitySet nodeSet = nodesets[i] & pos.domain() ;
       entitySet nodeSetsurf = nodesets[i] & surfNodes ;
@@ -4279,9 +4415,6 @@ namespace Loci{
         cnt++ ;
       } ENDFORALL ;
 
-
-      
-      
       vector<Loci::kdTree::coord3d> node_pts(nodeSet.size()) ;
       vector<int> closest(nodeSet.size(),-1) ;
       cnt = 0 ;
@@ -4289,7 +4422,7 @@ namespace Loci{
         node_pts[cnt] = pos[nd] ;
         cnt++ ;
       } ENDFORALL ;
-      
+
       Loci::parallelNearestNeighbors(bcnodes_pts,bcnodes_ids,node_pts,closest,
                                      MPI_COMM_WORLD) ;
 
@@ -4313,6 +4446,6 @@ namespace Loci{
     }
 
     facts.create_fact("node2surf",min_node2surf) ;
-  }    
+  }
 
 }

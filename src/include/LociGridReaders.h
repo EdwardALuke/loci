@@ -26,20 +26,21 @@
 
 namespace Loci {
 
-  //Define struct Area which data members of normal vector and area of the area
+  /// Area struct which data members of normal vector and area of the area.
   template <class REAL> struct Area_t {
     vector3d<REAL> n ;  //normal vector of the face
     REAL sada ; //area of the face
   } ;
 
-  //Overload ostream and istream (Input/Output) operators for struct Area
-  template<class REAL> 
+  /// Overload ostream (output) operator for struct Area
+  template<class REAL>
   inline std::ostream & operator<<(std::ostream &s, const Area_t<REAL> &v)
   {
     s << v.n << ' ' << v.sada << ' ' ;
     return s ;
   }
 
+  /// Overload istream (input) operator for struct Area
   template <class REAL>
   inline std::istream &operator>>(std::istream &s, Area_t<REAL> &v)
   {
@@ -58,11 +59,14 @@ namespace Loci {
       return DatatypeP(ct) ;
     }
   } ;
-  
-  
+
+
+  /// Defines a rigid body transformation consisting of a rotation about an
+  /// axis and a translation: v' = R * (v + t1) + t2
   struct rigid_transform {
     vector3d<double> t1,t2 ;
     tensor3d<double> R,Rinv ;
+
     rigid_transform() {
       t1 = vector3d<double>(0,0,0) ;
       t2 = t1 ;
@@ -71,15 +75,18 @@ namespace Loci {
       R.z = vector3d<double>(0,0,1) ;
       Rinv = R ;
     }
-    rigid_transform(vector3d<double> center, vector3d<double> v, double angle, vector3d<double> translate) {
+
+    rigid_transform(vector3d<double> center, vector3d<double> v, double angle,
+                    vector3d<double> translate) {
       t1 = -1.*center ;
       t2 = center + translate ;
       R.x = vector3d<double>(1,0,0) ;
       R.y = vector3d<double>(0,1,0) ;
       R.z = vector3d<double>(0,0,1) ;
       Rinv = R ;
-      if(angle == 0)
+      if(angle == 0) {
         return ;
+      }
       double s = sin(angle) ;
       double c = cos(angle) ;
       double C = 1.-c ;
@@ -94,22 +101,24 @@ namespace Loci {
       Rinv.y += vector3d<double>(C*x*y+z*s,C*(y*y-1.),C*y*z-x*s) ;
       Rinv.z += vector3d<double>(C*x*z-y*s,C*y*z+x*s,C*(z*z-1.)) ;
     }
+
     template<class realT> vector3d<realT> rotate_vec(vector3d<realT> v) const {
       return vector3d<realT>(R.x.x*v.x+R.x.y*v.y+R.x.z*v.z,
 			     R.y.x*v.x+R.y.y*v.y+R.y.z*v.z,
 			     R.z.x*v.x+R.z.y*v.y+R.z.z*v.z) ;
       // return dot(R,v) ;
     }
+
     template<class realT> tensor3d<realT> rotate_tensor(const tensor3d<realT> &t) const {
       tensor3d<realT> tRinv ;
       tRinv.x.x = t.x.x*Rinv.x.x+t.x.y*Rinv.y.x+t.x.z*Rinv.z.x ;
       tRinv.y.x = t.y.x*Rinv.x.x+t.y.y*Rinv.y.x+t.y.z*Rinv.z.x ;
       tRinv.z.x = t.z.x*Rinv.x.x+t.z.y*Rinv.y.x+t.z.z*Rinv.z.x ;
-      
+
       tRinv.x.y = t.x.x*Rinv.x.y+t.x.y*Rinv.y.y+t.x.z*Rinv.z.y ;
       tRinv.y.y = t.y.x*Rinv.x.y+t.y.y*Rinv.y.y+t.y.z*Rinv.z.y ;
       tRinv.z.y = t.z.x*Rinv.x.y+t.z.y*Rinv.y.y+t.z.z*Rinv.z.y ;
-      
+
       tRinv.x.z = t.x.x*Rinv.x.z+t.x.y*Rinv.y.z+t.x.z*Rinv.z.z ;
       tRinv.y.z = t.y.x*Rinv.x.z+t.y.y*Rinv.y.z+t.y.z*Rinv.z.z ;
       tRinv.z.z = t.z.x*Rinv.x.z+t.z.y*Rinv.y.z+t.z.z*Rinv.z.z ;
@@ -118,17 +127,18 @@ namespace Loci {
       RtRinv.x.x = R.x.x*tRinv.x.x+R.x.y*tRinv.y.x+R.x.z*tRinv.z.x ;
       RtRinv.y.x = R.y.x*tRinv.x.x+R.y.y*tRinv.y.x+R.y.z*tRinv.z.x ;
       RtRinv.z.x = R.z.x*tRinv.x.x+R.z.y*tRinv.y.x+R.z.z*tRinv.z.x ;
-      
+
       RtRinv.x.y = R.x.x*tRinv.x.y+R.x.y*tRinv.y.y+R.x.z*tRinv.z.y ;
       RtRinv.y.y = R.y.x*tRinv.x.y+R.y.y*tRinv.y.y+R.y.z*tRinv.z.y ;
       RtRinv.z.y = R.z.x*tRinv.x.y+R.z.y*tRinv.y.y+R.z.z*tRinv.z.y ;
-      
+
       RtRinv.x.z = R.x.x*tRinv.x.z+R.x.y*tRinv.y.z+R.x.z*tRinv.z.z ;
       RtRinv.y.z = R.y.x*tRinv.x.z+R.y.y*tRinv.y.z+R.y.z*tRinv.z.z ;
       RtRinv.z.z = R.z.x*tRinv.x.z+R.z.y*tRinv.y.z+R.z.z*tRinv.z.z ;
       return RtRinv ;
       //      return product(R,product(t,Rinv)) ;
     }
+
     template<class realT> vector3d<realT> transform(vector3d<realT> v) const {
       const vector3d<realT> vpt1(v.x+t1.x,v.y+t1.y,v.z+t1.z) ;
       const vector3d<realT> rvpt1=rotate_vec(vpt1) ;
@@ -136,10 +146,23 @@ namespace Loci {
       //      return vector3d<realT>(rotate_vec(vpt1)+t2 ;
     }
   } ;
-  
+
+  template<> struct data_schema_traits<Loci::rigid_transform> {
+    typedef IDENTITY_CONVERTER Schema_Converter ;
+    static DatatypeP get_type() {
+      CompoundDatatypeP ct = CompoundFactory(Loci::rigid_transform()) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t1) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t2) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,R) ;
+      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,Rinv) ;
+      return DatatypeP(ct) ;
+
+    }
+  } ;
+
   struct periodic_info {
     std::string name ;
-    bool master,processed ;
+    bool master, processed ;
     vector3d<double> center, v, translate ;
     double angle ;
     entitySet bset ;
@@ -157,29 +180,60 @@ namespace Loci {
     }
   } ;
 
-  template<> struct data_schema_traits<Loci::rigid_transform> {
-    typedef IDENTITY_CONVERTER Schema_Converter ;
-    static DatatypeP get_type() {
-      CompoundDatatypeP ct = CompoundFactory(Loci::rigid_transform()) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t1) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,t2) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,R) ;
-      LOCI_INSERT_TYPE(ct,Loci::rigid_transform,Rinv) ;
-      return DatatypeP(ct) ;
-      
-    }
-  } ;
 
-  bool readFVMGrid(fact_db &facts, std::string filename,storeRepP cellwts=0) ;
-  
+  /// Reads an FVM grid and generates facts from the grid information.
+  ///
+  /// Creates facts for the `cl`, `cr`, `pos`, `face2node`, `boundary_names`,
+  /// and `boundary_tags`. The `volumeTag(<tagName>)` fact is created for all
+  /// volume tags found in the grid.
+  /// @param[in,out] facts Fact database to add grid-related facts into.
+  /// @param[in] filename Input grid filename.
+  /// @param[in] cellwts Optional cell weights for partitioning.
+  /// @return true if success
+  bool readFVMGrid(fact_db &facts, std::string filename, storeRepP cellwts=0) ;
+
+  /// Sets up FVM grid in the fact database.
+  /// @param[in,out] facts Fact database.
+  /// @param[in] filename Input grid filename.
+  /// @param[in] cellwts Optional cell weights for partitioning.
+  /// @return true if success
   bool setupFVMGrid(fact_db &facts, std::string filename,storeRepP cellwts=0) ;
-  bool setupFVMGridWithWeightInStore(fact_db &facts, std::string filename, storeRepP cellwt );
-  bool setupFVMGridWithWeightInFile(fact_db &facts, std::string filename, std::string weightfile);
 
+  /// Sets up FVM grid in the fact database for the case where cell weights are
+  /// stored in a storeRep.
+  /// @param[in,out] facts Fact database to set up grid into.
+  /// @param[in] filename Input grid filename.
+  /// @param[in] cellwts  cell weights for partitioning.
+  /// @return true if success
+  bool setupFVMGridWithWeightInStore(fact_db &facts, std::string filename,
+                                     storeRepP cellwt );
+
+  /// Sets up FVM grid in the fact database for the case where cell weights are
+  /// stored in a file.
+  /// @param[in,out] facts Fact database to set up grid into.
+  /// @param[in] filename Input grid filename.
+  /// @param[in] weightfile  filename for file containing cell weights.
+  /// @return true if success
+  bool setupFVMGridWithWeightInFile(fact_db &facts, std::string filename,
+                                    std::string weightfile);
+
+  /// Gets the BC information from a VOG grid.
+  /// @param[in] filename Name of the VOG grid file.
+  /// @param[out] boundary_ids Vector of pairs of BC ID and name.
+  /// @return true if success
   bool readBCfromVOG(std::string filename,
                      std::vector<std::pair<int,std::string> > &boundary_ids) ;
+
+  /// Sets up facts related to grid boundary conditions.
+  /// @param[in,out] facts Fact database to set up grid into.
   void setupBoundaryConditions(fact_db &facts) ;
+
+  /// Creates the `lower`, `upper`, and `boundary_map` facts.
+  /// @param[in,out] facts Fact database to set up grid into.
   void createLowerUpper(fact_db &facts) ;
+
+  /// Creates `edges`, `edge2node` and `node2edge` facts.
+  /// @param[in,out] facts Fact database to set up grid into.
   void createEdgesPar(fact_db& facts) ;
 
 
@@ -190,16 +244,32 @@ namespace Loci {
                        Map &cl, Map &cr, multiMap &face2node,
                        std::vector<std::pair<int,std::string> >& surfaceids,
                        std::vector<std::pair<std::string,entitySet> >& volTags) ;
+
+  /// Reads grid structures from grid file in the .vog format.
+  /// @param[out] local_nodes Partition of nodes
+  /// @param[out] local_faces Partition of faces
+  /// @param[out] local_cells Partition of cells
+  /// @param[out] pos Position of nodes
+  /// @param[out] cl Mapping from face to cell on the left side
+  /// @param[out] cr Mapping from face to cell on the right side
+  /// @param[out] face2node MultiMapping from a face to nodes
+  /// @param[out] boundary_names Names of the boundary conditions
+  /// @param[out] boundary_tags Tags of the boundary conditions
+  /// @param[out] volTags Volume tags in the grid
+  /// @param[in] max_alloc (starting of entity assignment - node base)
+  /// @param[in] filename name of grid file
   bool readGridVOG(std::vector<entitySet> &local_nodes,
                    std::vector<entitySet> &local_faces,
                    std::vector<entitySet> &local_cells,
                    store<vector3d<double> > &pos, Map &cl, Map &cr,
-                   multiMap &face2node, 
+                   multiMap &face2node,
                    store<std::string> &boundary_names,
                    store<std::string> &boundary_tags,
                    std::vector<std::pair<std::string,entitySet> > &volTags,
                    int max_alloc, std::string filename) ;
 
+  /// Creates the `node2surf` fact related to overset grids.
+  /// @param[in,out] facts The fact database
   void setupOverset(fact_db &facts) ;
 
   template < class T> inline void setupPosAutoDiff(fact_db &facts, T val) {
@@ -208,7 +278,7 @@ namespace Loci {
     {
       store<vector3d<double> > pin ;
       pin.setRep(facts.get_fact("pos")) ;
-    
+
       entitySet dom = pin.domain() ;
       pout.allocate(dom) ;
       FORALL(dom,ii) {
@@ -222,8 +292,7 @@ namespace Loci {
   }
 
   template<class T> inline void setupPosAutoDiff(fact_db &facts,
-						 std::string filename,
-						 T val) {
+	      std::string filename, T val) {
 #if defined(USE_AUTODIFF) || defined(MULTIFAD)
     setupPosAutoDiff(facts,val) ;
 #endif
@@ -232,8 +301,6 @@ namespace Loci {
   typedef enum {SIMPLE=0,SFC=1,ORB=2,GRAPH=3,RANDOM=4} partitionerSelector ;
   extern partitionerSelector partitionerMethod ;
 
-} 
-
-
+}
 
 #endif
