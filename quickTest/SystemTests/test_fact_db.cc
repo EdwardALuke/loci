@@ -65,6 +65,21 @@ TEST_CASE("fact_db constructor seeds EMPTY and UNIVERSE constraint facts") {
   CHECK(facts.get_extensional_facts().inSet(variable("UNIVERSE")));
 }
 
+TEST_CASE("remove_variable clears extensional fact bookkeeping") {
+  fact_db facts;
+  param<int> value;
+  value = 11;
+
+  facts.create_fact("doomed", value);
+  REQUIRE(facts.get_extensional_facts().inSet(variable("doomed")));
+
+  facts.remove_variable(variable("doomed"));
+
+  CHECK_FALSE(has_rep(facts.get_variable("doomed")));
+  CHECK_FALSE(facts.get_typed_variables().inSet(variable("doomed")));
+  CHECK_FALSE(facts.get_extensional_facts().inSet(variable("doomed")));
+}
+
 TEST_CASE("create_fact installs store facts and updates max allocation") {
   fact_db facts;
   store<int> cells;
@@ -107,7 +122,7 @@ TEST_CASE("set_variable_type returns fresh empty containers") {
   CHECK(second_field.domain() == EMPTY);
 }
 
-TEST_CASE("namespace stack scopes fact creation and lookup") {
+TEST_CASE("remove_namespace restores unscoped lookup behavior") {
   fact_db facts;
   param<int> rho;
   rho = 17;
@@ -120,7 +135,7 @@ TEST_CASE("namespace stack scopes fact creation and lookup") {
   param<int> via_namespace(scoped_rep);
   CHECK(*via_namespace == 17);
 
-  facts.unset_namespace();
+  facts.remove_namespace();
   CHECK_FALSE(has_rep(facts.get_variable("rho")));
 
   const storeRepP explicit_rep = facts.get_variable("fluid@rho");
@@ -129,7 +144,7 @@ TEST_CASE("namespace stack scopes fact creation and lookup") {
   CHECK(*explicit_lookup == 17);
 }
 
-TEST_CASE("fact_db tracks extensional and intensional facts separately") {
+TEST_CASE("erase_intensional_facts removes only intensional facts") {
   fact_db facts;
   param<int> extensional;
   param<int> intensional;
@@ -144,15 +159,13 @@ TEST_CASE("fact_db tracks extensional and intensional facts separately") {
       facts.get_extensional_facts().inSet(variable("intensional_value")));
   CHECK(facts.get_intensional_facts().inSet(variable("intensional_value")));
 
-  facts.make_extensional_fact("intensional_value");
-  CHECK(facts.get_extensional_facts().inSet(variable("intensional_value")));
+  facts.erase_intensional_facts();
 
-  facts.make_intensional_fact("extensional_value");
-  CHECK(facts.get_intensional_facts().inSet(variable("extensional_value")));
-
-  facts.make_all_extensional();
-  CHECK_FALSE(facts.get_intensional_facts().inSet(variable("extensional_value")));
-  CHECK_FALSE(facts.get_intensional_facts().inSet(variable("intensional_value")));
+  CHECK(has_rep(facts.get_variable("extensional_value")));
+  CHECK_FALSE(has_rep(facts.get_variable("intensional_value")));
+  CHECK(facts.get_typed_variables().inSet(variable("extensional_value")));
+  CHECK_FALSE(facts.get_typed_variables().inSet(variable("intensional_value")));
+  CHECK(facts.get_extensional_facts().inSet(variable("extensional_value")));
 }
 
 TEST_CASE("synonyms share the same backing fact and are removed with the base") {
@@ -177,6 +190,106 @@ TEST_CASE("synonyms share the same backing fact and are removed with the base") 
   CHECK_FALSE(has_rep(facts.get_variable("base")));
   CHECK_FALSE(has_rep(facts.get_variable("alias")));
   CHECK_FALSE(facts.get_typed_variables().inSet(variable("alias")));
+}
+
+TEST_CASE("synonym chains resolve to a single canonical fact") {
+  fact_db facts;
+  param<int> base_value;
+  base_value = 31;
+
+  facts.create_fact("base", base_value);
+  facts.synonym_variable(variable("base"), variable("alias"));
+  facts.synonym_variable(variable("alias"), variable("alias2"));
+
+  param<int> alias_two(facts.get_variable("alias2"));
+  alias_two = 47;
+
+  param<int> fetched_base(facts.get_variable("base"));
+  param<int> fetched_alias(facts.get_variable("alias"));
+  CHECK(*fetched_base == 47);
+  CHECK(*fetched_alias == 47);
+  CHECK(facts.get_typed_variables().inSet(variable("alias2")));
+}
+
+TEST_CASE("update_fact and replace_fact refresh values without losing fact identity") {
+  fact_db facts;
+  store<int> original;
+  store<int> updated;
+  store<int> replacement;
+  assign_store_values(original, make_range(5, 7), {10, 20, 30});
+  assign_store_values(updated, make_range(5, 6), {1, 2});
+  assign_store_values(replacement, make_range(10, 12), {7, 8, 9});
+
+  facts.create_fact("cells", original);
+  facts.update_fact("cells", updated);
+
+  store<int> updated_cells(facts.get_variable("cells"));
+  CHECK(updated_cells.domain() == make_range(5, 6));
+  CHECK(updated_cells[5] == 1);
+  CHECK(updated_cells[6] == 2);
+  CHECK(facts.get_max_alloc(0) == 8);
+
+  facts.replace_fact("cells", replacement);
+
+  store<int> replaced_cells(facts.get_variable("cells"));
+  CHECK(replaced_cells.domain() == make_range(10, 12));
+  CHECK(replaced_cells[10] == 7);
+  CHECK(replaced_cells[11] == 8);
+  CHECK(replaced_cells[12] == 9);
+  CHECK(facts.get_typed_variables().inSet(variable("cells")));
+  CHECK(facts.get_extensional_facts().inSet(variable("cells")));
+  CHECK(facts.get_max_alloc(0) == 13);
+}
+
+TEST_CASE("copying fact_db allows replace_fact without mutating the source database") {
+  fact_db facts;
+  param<int> count;
+  count = 1;
+  facts.create_fact("count", count);
+
+  fact_db copied(facts);
+  param<int> copied_count;
+  copied_count = 9;
+  copied.replace_fact("count", copied_count);
+
+  param<int> original_after_copy(facts.get_variable("count"));
+  param<int> copy_after_replace(copied.get_variable("count"));
+  CHECK(*original_after_copy == 1);
+  CHECK(*copy_after_replace == 9);
+
+  fact_db assigned;
+  assigned = facts;
+  param<int> assigned_count;
+  assigned_count = 27;
+  assigned.replace_fact("count", assigned_count);
+
+  param<int> original_after_assignment(facts.get_variable("count"));
+  param<int> assigned_after_replace(assigned.get_variable("count"));
+  CHECK(*original_after_assignment == 1);
+  CHECK(*assigned_after_replace == 27);
+}
+
+TEST_CASE("getKeyDomain and serial distributed allocation track per-domain intervals") {
+  fact_db facts;
+
+  CHECK(facts.getKeyDomain("Main") == 0);
+  CHECK(facts.getKeyDomain("Main") == 0);
+
+  const int faces_kd = facts.getKeyDomain("Faces");
+  CHECK(faces_kd == 1);
+  CHECK(facts.getNumKeyDomains() == 2);
+
+  const std::pair<entitySet, entitySet> first =
+      facts.get_distributed_alloc(3, faces_kd);
+  CHECK(first.first == make_range(0, 2));
+  CHECK(first.second == make_range(0, 2));
+  CHECK(facts.get_init_ptn(faces_kd)[0] == make_range(0, 2));
+
+  const std::pair<entitySet, entitySet> second =
+      facts.get_distributed_alloc(2, faces_kd);
+  CHECK(second.first == make_range(3, 4));
+  CHECK(second.second == make_range(3, 4));
+  CHECK(facts.get_init_ptn(faces_kd)[0] == make_range(0, 4));
 }
 
 TEST_CASE("rotate_vars cycles fact storage across variables") {
