@@ -1075,6 +1075,8 @@ string OPtoName(AST_type::elementType val) {
     return string("OP_DOLLAR") ;
   case AST_type::OP_STAR:
     return string("OP_STAR") ;
+  case AST_type::OP_CAST:
+    return string("OP_CAST") ;
   case AST_type::OP_GROUP:
     return string("OP_GROUP") ;
   case AST_type::OP_GROUP_ERROR:

@@ -149,6 +149,8 @@ string OPtoString(AST_type::elementType val) {
     return string("$") ;
   case AST_type::OP_STAR:
     return string("*") ;
+  case AST_type::OP_CAST:
+    return string("/*cast op*/") ;
   default:
     return string("/*error*/") ;
   }
@@ -168,6 +170,7 @@ bool isTypeDecl(CPTR<AST_Token> p, varmap &typemap) {
   case AST_type::TK_UNSIGNED:
   case AST_type::TK_CONST:
   case AST_type::TK_AUTO:
+  case AST_type::TK_VOID:
     return true ;
   default:
     return false ;
@@ -846,6 +849,79 @@ AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
   return objname ;
 }
 
+// Scan forward in tokens to determine if an openparen forms a C style
+// type cast operator.  This will scan forward skipping over names,
+// builtin types, or pointer/reference identifiers until a close paren
+// is found, then scan after that to determine if the format is consistent
+// with this being a type operator (e.g. a name or similar following).  This
+// will indicate that this is a C style casting operator.
+bool scanForCStyleCast(std::istream &is, int &linecount) {
+  CPTR<AST_Token> openToken = getToken(is,linecount) ;
+  if(!ASTEqual(openToken,AST_type::TK_OPENPAREN)) {
+    pushToken(openToken) ;
+    return false ;
+  }
+  vector<CPTR<AST_Token>> tokenStack ;
+  // Now scan forward looking for the close paren
+  do {
+    tokenStack.push_back(openToken) ;
+    openToken = getToken(is,linecount) ;
+    // If we find a close paren, then break out of loop
+    // to check for 
+    if(ASTEqual(openToken,AST_type::TK_CLOSEPAREN) &&
+       tokenStack.size() > 1)
+      break ;
+    switch(openToken->nodeType) { 
+    case AST_type::TK_CHAR:
+    case AST_type::TK_FLOAT:
+    case AST_type::TK_DOUBLE:
+    case AST_type::TK_INT:
+    case AST_type::TK_BOOL:
+    case AST_type::TK_SHORT:
+    case AST_type::TK_LONG:
+    case AST_type::TK_SIGNED:
+    case AST_type::TK_UNSIGNED:
+    case AST_type::TK_VOID:
+    case AST_type::TK_CONST:
+    case AST_type::TK_SCOPE:
+    case AST_type::TK_AMPERSAND:
+    case AST_type::TK_TIMES:
+    case AST_type::TK_OPENTEMPLATE:
+    case AST_type::TK_CLOSETEMPLATE:
+    case AST_type::TK_NAME:
+      continue ;
+    default:
+      pushToken(openToken) ;
+      while(tokenStack.size() > 0) {
+        pushToken(tokenStack.back()) ;
+        tokenStack.pop_back() ;
+      }
+      return false ;
+    }        
+  } while(true) ;
+  // found closing paren, search what follows to determine if this is a
+  // C style cast.
+  tokenStack.push_back(openToken) ;
+  openToken = getToken(is,linecount) ;
+  bool castop=false ;
+  switch(openToken->nodeType) {
+  case AST_type::TK_OPENPAREN:
+  case AST_type::TK_NAME:
+  case AST_type::TK_LOCI_VARIABLE:
+  case AST_type::TK_LOCI_CONTAINER:
+    castop = true ;
+  default:
+    break ;
+  }
+      
+  pushToken(openToken) ;
+  while(tokenStack.size() > 0) {
+    pushToken(tokenStack.back()) ;
+    tokenStack.pop_back() ;
+  }
+  return castop ;
+}
+
 /// Parse the part of an expression that is not a binary or ternary operator
 AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 				      const string &fileName,
@@ -875,6 +951,11 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
   }
   // Check for a parenthesized group, if found parse it.
   if(ASTEqual(openToken,AST_type::TK_OPENPAREN)) {
+    pushToken(openToken) ;
+    if(scanForCStyleCast(is, linecount)) {
+      cerr << "detected c style cast" << endl ;
+    }
+    openToken = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "parseExpressionPartial: Found '(' parsing new expression" << endl ;
 #endif    
@@ -2080,6 +2161,14 @@ void AST_simplePrint::visit(AST_exprOper &s) {
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     out << ')' ;
+    break ;
+  case AST_type::OP_CAST:
+    out << '(' ;
+    if(s.terms.size() >= 1 && s.terms[0] != 0)
+      s.terms[0]->accept(*this) ;
+    out << ')' ;
+    if(s.terms.size() >= 2 && s.terms[1] != 0)
+      s.terms[1]->accept(*this) ;
     break ;
   case AST_type::OP_FUNC:
     {

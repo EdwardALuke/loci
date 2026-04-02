@@ -1442,6 +1442,20 @@ void AST_printTree::visit(AST_exprOper &s) {
     popindent() ;
     
     break ;
+  case AST_type::OP_CAST:
+    {
+      pushindent(s) ;
+      out << '(' ;
+      AST_type::ASTList::iterator ii = s.terms.begin() ;
+      if(ii != s.terms.end() && *ii != 0)
+        (*ii)->accept(*this) ;
+      out << ')' ;
+      ++ii ;
+      if(ii != s.terms.end() && *ii != 0)
+        (*ii)->accept(*this) ;
+      popindent() ;
+    }
+    break ;
   case AST_type::OP_FUNC:
     {
       AST_type::ASTList::iterator ii=s.terms.begin() ;
@@ -1649,7 +1663,7 @@ void AST_editLociMapArrayAccess::visit(AST_exprOper &op) {
   if(sz>0 &&
      ASTEqual(op,AST_type::OP_ARROW) && 
      ASTEqual(op.terms[sz-1],AST_type::OP_ARRAY)) {
-    cerr << "found arrow" << endl ;
+
     CPTR<AST_exprOper> last = CPTR<AST_exprOper>(op.terms[sz-1]) ;
     // rearrange tree so that array operator is moved to the top
     // and the mapping operator applies to the last variable
