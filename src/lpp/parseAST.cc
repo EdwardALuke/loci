@@ -816,27 +816,27 @@ AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
   AST_type::ASTP objname = parseScopedObject(is,linecount,fileName,typemap) ;
 
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
-  if(ASTEqual(openToken,AST_type::TK_OPENTEMPLATE)) {
+  while(ASTEqual(openToken,AST_type::TK_OPENTEMPLATE)) {
     objname = parseTemplateArguments(objname,is,linecount,fileName,typemap) ;
     openToken = getToken(is,linecount) ;
-    if(ASTEqual(openToken,AST_type::TK_SCOPE)) {
-      CPTR<AST_exprOper> tmp = new AST_exprOper ;
-      tmp->nodeType = AST_type::OP_SCOPE ;
-      tmp->terms.push_back(objname) ;
-      openToken = getToken(is,linecount) ;
+    if(!ASTEqual(openToken,AST_type::TK_SCOPE))
+      break ;
+    CPTR<AST_exprOper> tmp = new AST_exprOper ;
+    tmp->nodeType = AST_type::OP_SCOPE ;
+    tmp->terms.push_back(objname) ;
+    openToken = getToken(is,linecount) ;
+    if(!ASTEqual(openToken,AST_type::TK_NAME)) {
+      AST_type::ASTP p =
+        AST_type::ASTP(new AST_syntaxError("error parsing scope after template type",openToken->lineno,fileName)) ;
       tmp->terms.push_back(AST_type::ASTP(openToken)) ;
-      if(ASTEqual(openToken,AST_type::TK_NAME)) {
-        return AST_type::ASTP(tmp) ;
-      } else {
-        AST_type::ASTP p =
-          AST_type::ASTP(new AST_syntaxError("error parsing scope after template type",openToken->lineno,fileName)) ;
-        tmp->terms.push_back(p) ;
-        return AST_type::ASTP(tmp) ;
-      }
-    } else
-      pushToken(openToken) ;
-  } else
-    pushToken(openToken) ;
+      tmp->terms.push_back(p) ;
+      return AST_type::ASTP(tmp) ;
+    }
+    tmp->terms.push_back(AST_type::ASTP(openToken)) ;
+    objname = AST_type::ASTP(tmp) ;
+    openToken = getToken(is,linecount) ;
+  }
+  pushToken(openToken) ;
     
   openToken = getToken(is,linecount) ;
   if(ASTEqual(openToken,AST_type::TK_OPENPAREN)) {
@@ -1861,6 +1861,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case AST_type::TK_INCREMENT:
   case AST_type::TK_DECREMENT:
   case AST_type::TK_LOCI_VARIABLE:
+  case AST_type::TK_LOCI_CONTAINER:
     {
       return parseSimpleStatement(is,linecount,fileName,typemap) ;
     } 
