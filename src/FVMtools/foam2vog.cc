@@ -29,6 +29,7 @@
 #include <ctype.h>
 #include <string.h>
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -46,12 +47,18 @@ using std::pair ;
 using std::string ;
 using std::vector ;
 
+// -----------------------------------------------------------------------
+/// @brief Stores the OpenFOAM boundary metadata needed to build VOG
+/// surface ids.
 struct FoamPatchInfo {
   string name ;
   string type ;
   int nFaces ;
   int startFace ;
   int id ;
+  // -----------------------------------------------------------------------
+  /// @brief Initializes a patch record with unset indices and the default
+  /// OpenFOAM patch type.
   FoamPatchInfo() {
     type = "patch" ;
     nFaces = -1 ;
@@ -60,14 +67,30 @@ struct FoamPatchInfo {
   }
 } ;
 
+// -----------------------------------------------------------------------
+/// @brief Stores one OpenFOAM cell zone and the cells assigned to it.
+struct FoamCellZoneInfo {
+  string name ;
+  vector<int> cellLabels ;
+} ;
+
+// -----------------------------------------------------------------------
+/// @brief Collects the mesh arrays read from an OpenFOAM polyMesh
+/// directory.
 struct FoamMeshData {
   vector<vector3d<double> > points ;
   vector<vector<int> > faces ;
   vector<int> owner ;
   vector<int> neighbour ;
   vector<FoamPatchInfo> patches ;
+  vector<FoamCellZoneInfo> cellZones ;
 } ;
 
+// -----------------------------------------------------------------------
+/// @brief Returns true when @p path exists and is a directory.
+///
+/// @param [path] Filesystem path to test.
+/// @return True when @p path is a directory.
 bool isDirectory(const string &path) {
   struct stat st ;
   if(stat(path.c_str(),&st) != 0)
@@ -75,17 +98,32 @@ bool isDirectory(const string &path) {
   return S_ISDIR(st.st_mode) ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Returns true when @p path exists.
+///
+/// @param [path] Filesystem path to test.
+/// @return True when @p path exists.
 bool fileExists(const string &path) {
   struct stat st ;
   return stat(path.c_str(),&st) == 0 ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Removes trailing slashes while preserving the root directory.
+///
+/// @param [path] Input path that may include trailing '/' characters.
+/// @return A normalized path without redundant trailing slashes.
 string trimTrailingSlashes(string path) {
   while(path.size() > 1 && path[path.size()-1] == '/')
     path.erase(path.size()-1) ;
   return path ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Returns the final path component of @p path.
+///
+/// @param [path] Input filesystem path.
+/// @return Basename of @p path after trimming trailing slashes.
 string baseName(string path) {
   path = trimTrailingSlashes(path) ;
   string::size_type pos = path.find_last_of('/') ;
@@ -94,6 +132,12 @@ string baseName(string path) {
   return path.substr(pos+1) ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Returns the parent directory of @p path.
+///
+/// @param [path] Input filesystem path.
+/// @return Parent directory, "." for relative single-component paths, and
+/// "/" for root-owned children.
 string parentPath(string path) {
   path = trimTrailingSlashes(path) ;
   string::size_type pos = path.find_last_of('/') ;
@@ -104,6 +148,12 @@ string parentPath(string path) {
   return path.substr(0,pos) ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Concatenates two path components with one separating slash.
+///
+/// @param [lhs] Left-hand path component.
+/// @param [rhs] Right-hand path component.
+/// @return Joined filesystem path.
 string joinPath(const string &lhs, const string &rhs) {
   if(lhs == "")
     return rhs ;
@@ -112,6 +162,13 @@ string joinPath(const string &lhs, const string &rhs) {
   return lhs + "/" + rhs ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Checks whether a directory contains the minimum polyMesh files
+/// required by the converter.
+///
+/// @param [mesh_dir] Candidate polyMesh directory.
+/// @return True when the required points, faces, owner, neighbour, and
+/// boundary files exist.
 bool hasPolyMeshFiles(const string &mesh_dir) {
   return fileExists(joinPath(mesh_dir,"points")) &&
          fileExists(joinPath(mesh_dir,"faces")) &&
@@ -120,6 +177,15 @@ bool hasPolyMeshFiles(const string &mesh_dir) {
          fileExists(joinPath(mesh_dir,"boundary")) ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Resolves a user-supplied path into a concrete polyMesh
+/// directory and output case name.
+///
+/// @param [input_name] Case directory, constant directory, or polyMesh
+/// directory supplied on the command line.
+/// @param [mesh_dir] Resolved polyMesh directory on success.
+/// @param [case_name] Basename used to form the output `.vog` filename.
+/// @return True when a valid polyMesh location is found.
 bool resolveMeshDirectory(const string &input_name,
                           string &mesh_dir,
                           string &case_name) {
@@ -146,18 +212,35 @@ bool resolveMeshDirectory(const string &input_name,
 
   if(isDirectory(child_poly) && hasPolyMeshFiles(child_poly)) {
     mesh_dir = child_poly ;
-    case_name = baseName(parentPath(input)) ;
+    string input_base = baseName(input) ;
+    if(input_base == "constant")
+      case_name = baseName(parentPath(input)) ;
+    else
+      case_name = input_base ;
     return true ;
   }
 
   return false ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Identifies punctuation tokens used by OpenFOAM dictionaries and
+/// lists.
+///
+/// @param [c] Character being classified.
+/// @return True when @p c should be emitted as a standalone token.
 bool isDelimiter(char c) {
   return c == '{' || c == '}' || c == '(' || c == ')' ||
          c == ';' || c == '[' || c == ']' ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Tokenizes an ASCII OpenFOAM file, skipping comments and keeping
+/// structural delimiters as separate tokens.
+///
+/// @param [filename] OpenFOAM dictionary or list file to read.
+/// @param [tokens] Parsed tokens appended by the tokenizer.
+/// @return True when the file is read and tokenized successfully.
 bool tokenizeFoamFile(const string &filename, vector<string> &tokens) {
   ifstream file(filename.c_str(),ios::in) ;
   if(file.fail()) {
@@ -243,6 +326,12 @@ bool tokenizeFoamFile(const string &filename, vector<string> &tokens) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Converts an ASCII token to a signed integer.
+///
+/// @param [tok] Token text to convert.
+/// @param [val] Parsed integer value on success.
+/// @return True when the token is a valid base-10 integer.
 bool tokenToInt(const string &tok, int &val) {
   char *endptr = 0 ;
   long tmp = strtol(tok.c_str(),&endptr,10) ;
@@ -252,6 +341,12 @@ bool tokenToInt(const string &tok, int &val) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Converts an ASCII token to a floating-point value.
+///
+/// @param [tok] Token text to convert.
+/// @param [val] Parsed floating-point value on success.
+/// @return True when the token is a valid scalar.
 bool tokenToDouble(const string &tok, double &val) {
   char *endptr = 0 ;
   val = strtod(tok.c_str(),&endptr) ;
@@ -260,6 +355,12 @@ bool tokenToDouble(const string &tok, double &val) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Reads an entire file into a byte buffer.
+///
+/// @param [filename] File to load.
+/// @param [data] Raw file contents on success.
+/// @return True when the file is read completely.
 bool readFileBytes(const string &filename, vector<char> &data) {
   ifstream file(filename.c_str(),ios::in | ios::binary) ;
   if(file.fail()) {
@@ -285,6 +386,14 @@ bool readFileBytes(const string &filename, vector<char> &data) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Verifies that the next ASCII token matches an expected string.
+///
+/// @param [tokens] Token stream being parsed.
+/// @param [idx] Current token index, advanced on success.
+/// @param [expected] Required token text.
+/// @param [filename] Source filename used in diagnostics.
+/// @return True when the expected token is present.
 bool expectToken(const vector<string> &tokens,
                  size_t &idx,
                  const string &expected,
@@ -303,6 +412,14 @@ bool expectToken(const vector<string> &tokens,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Verifies that the next raw byte matches an expected character.
+///
+/// @param [data] Raw file contents being parsed.
+/// @param [idx] Current byte index, advanced on success.
+/// @param [expected] Required byte value.
+/// @param [filename] Source filename used in diagnostics.
+/// @return True when the expected character is present.
 bool expectChar(const vector<char> &data,
                 size_t &idx,
                 char expected,
@@ -321,6 +438,12 @@ bool expectChar(const vector<char> &data,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Skips one ASCII OpenFOAM entry value, including nested list,
+/// dictionary, and bracketed expressions.
+///
+/// @param [tokens] Token stream being parsed.
+/// @param [idx] Current token index, advanced to the terminating ';'.
 void skipEntryValue(const vector<string> &tokens, size_t &idx) {
   int nparen = 0 ;
   int nbrace = 0 ;
@@ -346,6 +469,16 @@ void skipEntryValue(const vector<string> &tokens, size_t &idx) {
   }
 }
 
+// -----------------------------------------------------------------------
+/// @brief Parses the ASCII `FoamFile` header and validates the file
+/// format.
+///
+/// @param [tokens] Tokenized file contents.
+/// @param [idx] Current token index, advanced past the header.
+/// @param [filename] Source filename used in diagnostics.
+/// @param [allow_binary] True when a binary format header is acceptable.
+/// @return True when the header is valid or absent and the format is
+/// supported.
 bool parseFoamHeader(const vector<string> &tokens,
                      size_t &idx,
                      const string &filename,
@@ -384,6 +517,13 @@ bool parseFoamHeader(const vector<string> &tokens,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Extracts the next token from a raw OpenFOAM byte buffer.
+///
+/// @param [data] Raw file contents.
+/// @param [idx] Current byte index, advanced to the end of the token.
+/// @param [tok] Parsed token text on success.
+/// @return True when a token is found before end of file.
 bool nextFoamToken(const vector<char> &data, size_t &idx, string &tok) {
   while(idx < data.size()) {
     unsigned char c = unsigned(data[idx]) ;
@@ -438,6 +578,11 @@ bool nextFoamToken(const vector<char> &data, size_t &idx, string &tok) {
   return tok != "" ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Skips one entry value in a raw OpenFOAM byte buffer.
+///
+/// @param [data] Raw file contents being parsed.
+/// @param [idx] Current byte index, advanced past the entry terminator.
 void skipEntryValue(const vector<char> &data, size_t &idx) {
   int nparen = 0 ;
   int nbrace = 0 ;
@@ -463,6 +608,15 @@ void skipEntryValue(const vector<char> &data, size_t &idx) {
   }
 }
 
+// -----------------------------------------------------------------------
+/// @brief Parses the binary-friendly `FoamFile` header from raw bytes.
+///
+/// @param [data] Raw file contents.
+/// @param [idx] Byte index reset and advanced past the header.
+/// @param [filename] Source filename used in diagnostics.
+/// @param [format] Declared OpenFOAM file format.
+/// @param [class_name] Declared OpenFOAM class name when present.
+/// @return True when the header is parsed successfully.
 bool parseFoamHeader(const vector<char> &data,
                      size_t &idx,
                      const string &filename,
@@ -518,6 +672,15 @@ bool parseFoamHeader(const vector<char> &data,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Reads the leading count and opening parenthesis of a binary
+/// OpenFOAM list.
+///
+/// @param [data] Raw file contents.
+/// @param [idx] Current byte index, advanced past the list prefix.
+/// @param [filename] Source filename used in diagnostics.
+/// @param [count] Parsed number of list entries.
+/// @return True when the list prefix is valid.
 bool parseBinaryListPrefix(const vector<char> &data,
                            size_t &idx,
                            const string &filename,
@@ -542,6 +705,14 @@ bool parseBinaryListPrefix(const vector<char> &data,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Decodes a binary OpenFOAM label stored in 4-byte or 8-byte
+/// form.
+///
+/// @param [ptr] Pointer to the encoded label bytes.
+/// @param [width] Number of bytes in the encoded label.
+/// @param [val] Decoded integer value on success.
+/// @return True when the label width is supported and fits in `int`.
 bool parseBinaryLabel(const char *ptr, int width, int &val) {
   if(width == 4) {
     int32_t tmp = 0 ;
@@ -561,6 +732,13 @@ bool parseBinaryLabel(const char *ptr, int width, int &val) {
   return false ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Decodes a binary OpenFOAM scalar stored in 4-byte or 8-byte
+/// form.
+///
+/// @param [ptr] Pointer to the encoded scalar bytes.
+/// @param [width] Number of bytes in the encoded scalar.
+/// @return Scalar value converted to `double`.
 double parseBinaryScalar(const char *ptr, int width) {
   if(width == 4) {
     float tmp = 0.f ;
@@ -572,6 +750,13 @@ double parseBinaryScalar(const char *ptr, int width) {
   return tmp ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Locates the closing parenthesis that terminates a binary list
+/// payload.
+///
+/// @param [data] Raw file contents.
+/// @param [filename] Source filename used in diagnostics.
+/// @return Byte offset of the closing ')' or `data.size()` on failure.
 size_t findBinaryFooter(const vector<char> &data, const string &filename) {
   for(size_t i=data.size();i>4;--i) {
     size_t p = i-1 ;
@@ -585,6 +770,12 @@ size_t findBinaryFooter(const vector<char> &data, const string &filename) {
   return data.size() ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Reads a binary OpenFOAM points file into Cartesian coordinates.
+///
+/// @param [filename] Binary `points` file.
+/// @param [points] Parsed point coordinates on success.
+/// @return True when the binary point list is supported and parsed.
 bool readBinaryPointsFile(const string &filename,
                           vector<vector3d<double> > &points) {
   vector<char> data ;
@@ -637,6 +828,13 @@ bool readBinaryPointsFile(const string &filename,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Reads a binary OpenFOAM label list such as `owner` or
+/// `neighbour`.
+///
+/// @param [filename] Binary label-list file.
+/// @param [vals] Parsed labels on success.
+/// @return True when the binary label list is supported and parsed.
 bool readBinaryLabelFile(const string &filename, vector<int> &vals) {
   vector<char> data ;
   if(!readFileBytes(filename,data))
@@ -690,6 +888,13 @@ bool readBinaryLabelFile(const string &filename, vector<int> &vals) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Reads a binary OpenFOAM `faceCompactList` into per-face node
+/// connectivity.
+///
+/// @param [filename] Binary faces file.
+/// @param [faces] Parsed face-to-node connectivity on success.
+/// @return True when the binary face list is supported and parsed.
 bool readBinaryFacesFile(const string &filename, vector<vector<int> > &faces) {
   vector<char> data ;
   if(!readFileBytes(filename,data))
@@ -794,6 +999,14 @@ bool readBinaryFacesFile(const string &filename, vector<vector<int> > &faces) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Parses the size prefix of an ASCII OpenFOAM list.
+///
+/// @param [tokens] Token stream being parsed.
+/// @param [idx] Current token index, advanced past the count.
+/// @param [filename] Source filename used in diagnostics.
+/// @param [count] Parsed list size.
+/// @return True when the list size token is present and non-negative.
 bool parseListSize(const vector<string> &tokens,
                    size_t &idx,
                    const string &filename,
@@ -815,6 +1028,11 @@ bool parseListSize(const vector<string> &tokens,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Rewrites names into VOG-safe alphanumeric identifiers.
+///
+/// @param [input_name] Raw patch or zone name from OpenFOAM.
+/// @return Sanitized identifier suitable for VOG tags and boundary names.
 string sanitizeName(const string &input_name) {
   string name = input_name ;
   if(name == "")
@@ -835,12 +1053,24 @@ string sanitizeName(const string &input_name) {
   return name ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Converts a string to lowercase using byte-wise ASCII rules.
+///
+/// @param [s] Input string.
+/// @return Lowercase copy of @p s.
 string lowerCase(string s) {
   for(size_t i=0;i<s.size();++i)
     s[i] = tolower(unsigned(s[i])) ;
   return s ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Identifies OpenFOAM patch types that are periodic-like and are
+/// imported as ordinary boundaries.
+///
+/// @param [patch_type] Raw OpenFOAM patch type.
+/// @return True when the patch type is `cyclic`, `cyclicAMI`, or
+/// `cyclicACMI`.
 bool periodicPatchType(const string &patch_type) {
   string t = lowerCase(patch_type) ;
   if(t == "cyclic" || t == "cyclicami" || t == "cyclicacmi")
@@ -848,17 +1078,40 @@ bool periodicPatchType(const string &patch_type) {
   return false ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Identifies OpenFOAM mapped/interface patch types that are
+/// preserved only as boundary names.
+///
+/// @param [patch_type] Raw OpenFOAM patch type.
+/// @return True when the patch is a mapped-style interface.
+bool mappedPatchType(const string &patch_type) {
+  string t = lowerCase(patch_type) ;
+  if(t == "mapped" || t == "mappedwall" || t == "mappedpatch")
+    return true ;
+  return false ;
+}
+
+// -----------------------------------------------------------------------
+/// @brief Identifies OpenFOAM patch types that the converter refuses to
+/// import.
+///
+/// @param [patch_type] Raw OpenFOAM patch type.
+/// @return True when the patch requires unsupported coupled/parallel
+/// behavior.
 bool rejectPatchType(const string &patch_type) {
   string t = lowerCase(patch_type) ;
   if(t == "processor" || t == "processorcyclic")
-    return true ;
-  if(t == "mapped" || t == "mappedwall" || t == "mappedpatch")
     return true ;
   if(t == "regioncoupled")
     return true ;
   return false ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Verifies that sanitized patch names remain unique.
+///
+/// @param [patches] Boundary patch records to validate.
+/// @return True when no two sanitized names collide.
 bool uniquePatchNames(const vector<FoamPatchInfo> &patches) {
   for(size_t i=0;i<patches.size();++i) {
     for(size_t j=i+1;j<patches.size();++j) {
@@ -872,6 +1125,28 @@ bool uniquePatchNames(const vector<FoamPatchInfo> &patches) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Verifies that sanitized cell-zone names remain unique.
+///
+/// @param [cellZones] Cell-zone records to validate.
+/// @return True when no two sanitized names collide.
+bool uniqueCellZoneNames(const vector<FoamCellZoneInfo> &cellZones) {
+  for(size_t i=0;i<cellZones.size();++i) {
+    for(size_t j=i+1;j<cellZones.size();++j) {
+      if(cellZones[i].name == cellZones[j].name) {
+        cerr << "cell zone name collision after sanitizing zone names: '"
+             << cellZones[i].name << "'" << endl ;
+        return false ;
+      }
+    }
+  }
+  return true ;
+}
+
+// -----------------------------------------------------------------------
+/// @brief Prints a readable summary of imported boundary patches.
+///
+/// @param [patches] Boundary patches to summarize.
 void printPatchSummary(const vector<FoamPatchInfo> &patches) {
   cout << "boundary patches:" << endl ;
   for(size_t i=0;i<patches.size();++i) {
@@ -883,6 +1158,46 @@ void printPatchSummary(const vector<FoamPatchInfo> &patches) {
   }
 }
 
+// -----------------------------------------------------------------------
+/// @brief Prints a readable summary of imported cell zones.
+///
+/// @param [cellZones] Cell zones to summarize.
+void printCellZoneSummary(const vector<FoamCellZoneInfo> &cellZones) {
+  cout << "cell zones:" << endl ;
+  if(cellZones.empty()) {
+    cout << "  none" << endl ;
+    return ;
+  }
+  for(size_t i=0;i<cellZones.size();++i) {
+    const FoamCellZoneInfo &zone = cellZones[i] ;
+    cout << "  " << zone.name
+         << " nCells=" << zone.cellLabels.size() << endl ;
+  }
+}
+
+// -----------------------------------------------------------------------
+/// @brief Prints a readable summary of VOG volume tags prepared for
+/// output.
+///
+/// @param [volTags] Volume tags to summarize.
+void printVolumeTagSummary(const vector<pair<string,entitySet> > &volTags) {
+  cout << "volume tags:" << endl ;
+  if(volTags.empty()) {
+    cout << "  none" << endl ;
+    return ;
+  }
+  for(size_t i=0;i<volTags.size();++i) {
+    cout << "  " << volTags[i].first
+         << " intervals=" << volTags[i].second.num_intervals() << endl ;
+  }
+}
+
+// -----------------------------------------------------------------------
+/// @brief Parses an ASCII OpenFOAM points file.
+///
+/// @param [filename] ASCII `points` file.
+/// @param [points] Parsed point coordinates on success.
+/// @return True when the file is parsed successfully.
 bool parsePointsFile(const string &filename,
                      vector<vector3d<double> > &points) {
   vector<string> tokens ;
@@ -924,6 +1239,12 @@ bool parsePointsFile(const string &filename,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Parses an ASCII OpenFOAM faces file.
+///
+/// @param [filename] ASCII `faces` file.
+/// @param [faces] Parsed face-to-node connectivity on success.
+/// @return True when the file is parsed successfully.
 bool parseFacesFile(const string &filename, vector<vector<int> > &faces) {
   vector<string> tokens ;
   if(!tokenizeFoamFile(filename,tokens))
@@ -972,6 +1293,12 @@ bool parseFacesFile(const string &filename, vector<vector<int> > &faces) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Parses an ASCII OpenFOAM label list.
+///
+/// @param [filename] ASCII label-list file.
+/// @param [vals] Parsed labels on success.
+/// @return True when the file is parsed successfully.
 bool parseLabelFile(const string &filename, vector<int> &vals) {
   vector<string> tokens ;
   if(!tokenizeFoamFile(filename,tokens))
@@ -1002,6 +1329,71 @@ bool parseLabelFile(const string &filename, vector<int> &vals) {
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Parses a named `List<label>` entry embedded inside an ASCII
+/// dictionary.
+///
+/// @param [tokens] Token stream being parsed.
+/// @param [idx] Current token index, advanced past the list entry.
+/// @param [filename] Source filename used in diagnostics.
+/// @param [entry_name] Human-readable entry name for diagnostics.
+/// @param [vals] Parsed label values on success.
+/// @return True when the entry is parsed successfully.
+bool parseLabelListValue(const vector<string> &tokens,
+                         size_t &idx,
+                         const string &filename,
+                         const string &entry_name,
+                         vector<int> &vals) {
+  int nvals = -1 ;
+  while(idx < tokens.size()) {
+    if(tokenToInt(tokens[idx],nvals))
+      break ;
+    if(tokens[idx] == ";" || tokens[idx] == "(" || tokens[idx] == ")" ||
+       tokens[idx] == "{" || tokens[idx] == "}") {
+      cerr << "unable to determine list size for " << entry_name
+           << " in '" << filename << "'" << endl ;
+      return false ;
+    }
+    ++idx ;
+  }
+  if(idx >= tokens.size()) {
+    cerr << "missing list size for " << entry_name
+         << " in '" << filename << "'" << endl ;
+    return false ;
+  }
+  ++idx ;
+  if(nvals < 0) {
+    cerr << "negative list size for " << entry_name
+         << " in '" << filename << "'" << endl ;
+    return false ;
+  }
+  if(!expectToken(tokens,idx,"(",filename))
+    return false ;
+
+  vals.resize(nvals) ;
+  for(int i=0;i<nvals;++i) {
+    if(idx >= tokens.size() || !tokenToInt(tokens[idx],vals[i])) {
+      cerr << "unable to read label " << i << " for " << entry_name
+           << " in '" << filename << "'" << endl ;
+      return false ;
+    }
+    ++idx ;
+  }
+
+  if(!expectToken(tokens,idx,")",filename))
+    return false ;
+  if(!expectToken(tokens,idx,";",filename))
+    return false ;
+  return true ;
+}
+
+// -----------------------------------------------------------------------
+/// @brief Parses an ASCII OpenFOAM boundary file and applies converter
+/// policy for supported patch types.
+///
+/// @param [filename] `boundary` file to parse.
+/// @param [patches] Parsed boundary patch records on success.
+/// @return True when the file is parsed and all patch types are accepted.
 bool parseBoundaryFile(const string &filename,
                        vector<FoamPatchInfo> &patches) {
   vector<string> tokens ;
@@ -1083,6 +1475,11 @@ bool parseBoundaryFile(const string &filename,
            << patches[i].type << "' and will be imported as a "
            << "boundary patch only; periodic pairing is expected to be "
            << "set by the solver boundary condition." << endl ;
+    } else if(mappedPatchType(patches[i].type)) {
+      cerr << "WARNING: patch " << patches[i].name << " has type '"
+           << patches[i].type << "' and will be imported as a "
+           << "boundary patch only; mapped/interface behavior is expected "
+           << "to be set by the solver boundary condition." << endl ;
     }
     patches[i].id = i+1 ;
   }
@@ -1094,6 +1491,151 @@ bool parseBoundaryFile(const string &filename,
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Parses an ASCII OpenFOAM `cellZones` file.
+///
+/// @param [filename] `cellZones` file to parse.
+/// @param [cellZones] Parsed cell-zone records on success.
+/// @return True when the file is parsed successfully.
+bool parseCellZonesFile(const string &filename,
+                        vector<FoamCellZoneInfo> &cellZones) {
+  vector<string> tokens ;
+  if(!tokenizeFoamFile(filename,tokens))
+    return false ;
+
+  size_t idx = 0 ;
+  if(!parseFoamHeader(tokens,idx,filename))
+    return false ;
+
+  int nzones = 0 ;
+  if(!parseListSize(tokens,idx,filename,nzones))
+    return false ;
+  if(!expectToken(tokens,idx,"(",filename))
+    return false ;
+
+  cellZones.resize(nzones) ;
+  for(int i=0;i<nzones;++i) {
+    if(idx >= tokens.size()) {
+      cerr << "missing cell zone name in '" << filename << "'" << endl ;
+      return false ;
+    }
+    cellZones[i].name = sanitizeName(tokens[idx++]) ;
+    if(!expectToken(tokens,idx,"{",filename))
+      return false ;
+
+    bool haveCellLabels = false ;
+    while(idx < tokens.size() && tokens[idx] != "}") {
+      string key = tokens[idx++] ;
+      if(key == "cellLabels") {
+        if(haveCellLabels) {
+          cerr << "cell zone " << cellZones[i].name
+               << " defines cellLabels more than once in '" << filename
+               << "'" << endl ;
+          return false ;
+        }
+        if(!parseLabelListValue(tokens,idx,filename,
+                                string("cell zone '") + cellZones[i].name +
+                                "' cellLabels",
+                                cellZones[i].cellLabels))
+          return false ;
+        haveCellLabels = true ;
+      } else {
+        skipEntryValue(tokens,idx) ;
+      }
+    }
+
+    if(!expectToken(tokens,idx,"}",filename))
+      return false ;
+    if(!haveCellLabels) {
+      cerr << "cell zone " << cellZones[i].name
+           << " is missing cellLabels in '" << filename << "'" << endl ;
+      return false ;
+    }
+  }
+
+  if(!expectToken(tokens,idx,")",filename))
+    return false ;
+  if(!uniqueCellZoneNames(cellZones))
+    return false ;
+  return true ;
+}
+
+// -----------------------------------------------------------------------
+/// @brief Reads optional OpenFOAM cell-zone metadata when present.
+///
+/// @param [mesh_dir] polyMesh directory that may contain `cellZones`.
+/// @param [cellZones] Parsed cell zones on success; cleared when absent.
+/// @return True when the optional file is absent or successfully handled.
+bool readOptionalCellZones(const string &mesh_dir,
+                           vector<FoamCellZoneInfo> &cellZones) {
+  string filename = joinPath(mesh_dir,"cellZones") ;
+  cellZones.clear() ;
+  if(!fileExists(filename))
+    return true ;
+
+  vector<char> data ;
+  if(!readFileBytes(filename,data))
+    return false ;
+
+  size_t idx = 0 ;
+  string format, class_name ;
+  if(!parseFoamHeader(data,idx,filename,format,class_name))
+    return false ;
+  if(class_name != "" && class_name != "cellZoneList") {
+    cerr << "unsupported cellZones class '" << class_name
+         << "' in '" << filename << "'" << endl ;
+    return false ;
+  }
+  if(format == "binary") {
+    cerr << "WARNING: binary cellZones file '" << filename
+         << "' is not yet supported; volume tags will be omitted." << endl ;
+    return true ;
+  }
+
+  return parseCellZonesFile(filename,cellZones) ;
+}
+
+// -----------------------------------------------------------------------
+/// @brief Derives the number of cells implied by the owner and neighbour
+/// arrays.
+///
+/// @param [mesh] OpenFOAM mesh arrays.
+/// @param [ncells] Number of cells inferred from connectivity.
+/// @return True when the cell count can be determined and indices are
+/// valid.
+bool determineCellCount(const FoamMeshData &mesh, int &ncells) {
+  ncells = 0 ;
+  for(size_t i=0;i<mesh.owner.size();++i) {
+    if(mesh.owner[i] < 0) {
+      cerr << "owner list contains a negative cell index" << endl ;
+      return false ;
+    }
+    if(mesh.owner[i] >= ncells)
+      ncells = mesh.owner[i] + 1 ;
+  }
+  for(size_t i=0;i<mesh.neighbour.size();++i) {
+    if(mesh.neighbour[i] < 0) {
+      cerr << "neighbour list contains a negative cell index" << endl ;
+      return false ;
+    }
+    if(mesh.neighbour[i] >= ncells)
+      ncells = mesh.neighbour[i] + 1 ;
+  }
+  if(ncells == 0) {
+    cerr << "unable to determine number of cells from owner/neighbour"
+         << endl ;
+    return false ;
+  }
+  return true ;
+}
+
+// -----------------------------------------------------------------------
+/// @brief Reads the OpenFOAM mesh arrays needed by the converter from a
+/// resolved polyMesh directory.
+///
+/// @param [mesh_dir] Resolved polyMesh directory.
+/// @param [mesh] Aggregate mesh data structure filled on success.
+/// @return True when all required mesh files are parsed successfully.
 bool readFoamMesh(const string &mesh_dir, FoamMeshData &mesh) {
   string points_file = joinPath(mesh_dir,"points") ;
   string faces_file = joinPath(mesh_dir,"faces") ;
@@ -1157,9 +1699,23 @@ bool readFoamMesh(const string &mesh_dir, FoamMeshData &mesh) {
 
   if(!parseBoundaryFile(joinPath(mesh_dir,"boundary"),mesh.patches))
     return false ;
+  if(!readOptionalCellZones(mesh_dir,mesh.cellZones))
+    return false ;
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Converts OpenFOAM connectivity into the VOG node, face, and
+/// surface structures.
+///
+/// @param [mesh] Parsed OpenFOAM mesh data.
+/// @param [posScale] Unit conversion factor applied to point coordinates.
+/// @param [pos] Output VOG node coordinates.
+/// @param [cl] Output left-cell map for each face.
+/// @param [cr] Output right-cell or boundary-id map for each face.
+/// @param [face2node] Output face-to-node connectivity.
+/// @param [surf_ids] Output VOG surface-id to name mapping.
+/// @return True when the mesh connectivity is valid and converted.
 bool buildVOGMesh(const FoamMeshData &mesh,
                   double posScale,
                   store<vector3d<double> > &pos,
@@ -1180,22 +1736,8 @@ bool buildVOGMesh(const FoamMeshData &mesh,
   }
 
   int ncells = 0 ;
-  for(size_t i=0;i<mesh.owner.size();++i) {
-    if(mesh.owner[i] < 0) {
-      cerr << "owner list contains a negative cell index" << endl ;
-      return false ;
-    }
-    if(mesh.owner[i] >= ncells)
-      ncells = mesh.owner[i] + 1 ;
-  }
-  for(size_t i=0;i<mesh.neighbour.size();++i) {
-    if(mesh.neighbour[i] < 0) {
-      cerr << "neighbour list contains a negative cell index" << endl ;
-      return false ;
-    }
-    if(mesh.neighbour[i] >= ncells)
-      ncells = mesh.neighbour[i] + 1 ;
-  }
+  if(!determineCellCount(mesh,ncells))
+    return false ;
 
   vector<int> facePatch(nfaces,0) ;
   surf_ids.clear() ;
@@ -1272,15 +1814,70 @@ bool buildVOGMesh(const FoamMeshData &mesh,
       cr[i] = -facePatch[i] ;
   }
 
-  if(ncells == 0) {
-    cerr << "unable to determine number of cells from owner/neighbour"
-         << endl ;
+  return true ;
+}
+
+// -----------------------------------------------------------------------
+/// @brief Converts OpenFOAM cell zones into VOG volume tags.
+///
+/// @param [mesh] Parsed OpenFOAM mesh data.
+/// @param [volTags] Output VOG volume tags built from non-empty cell zones.
+/// @return True when the cell-zone data is valid and converted.
+bool buildVolumeTags(const FoamMeshData &mesh,
+                     vector<pair<string,entitySet> > &volTags) {
+  volTags.clear() ;
+  if(mesh.cellZones.empty())
+    return true ;
+
+  int ncells = 0 ;
+  if(!determineCellCount(mesh,ncells))
     return false ;
+
+  for(size_t i=0;i<mesh.cellZones.size();++i) {
+    const FoamCellZoneInfo &zone = mesh.cellZones[i] ;
+    if(zone.cellLabels.empty())
+      continue ;
+
+    vector<int> sortedCells = zone.cellLabels ;
+    std::sort(sortedCells.begin(),sortedCells.end()) ;
+
+    entitySet tagSet ;
+    int start = -1 ;
+    int prev = -1 ;
+    for(size_t j=0;j<sortedCells.size();++j) {
+      const int cell = sortedCells[j] ;
+      if(cell < 0 || cell >= ncells) {
+        cerr << "cell zone " << zone.name
+             << " references invalid cell " << cell << endl ;
+        return false ;
+      }
+      if(j == 0) {
+        start = cell ;
+        prev = cell ;
+        continue ;
+      }
+      if(cell == prev)
+        continue ;
+      if(cell == prev + 1) {
+        prev = cell ;
+        continue ;
+      }
+      tagSet += interval(start,prev) ;
+      start = cell ;
+      prev = cell ;
+    }
+    tagSet += interval(start,prev) ;
+    volTags.push_back(pair<string,entitySet>(zone.name,tagSet)) ;
   }
 
   return true ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Writes the command-line help text for the converter.
+///
+/// @param [s] Output stream that receives the help text.
+/// @return The same stream to support chained output.
 std::ostream &showUsage(std::ostream &s) {
   s << "foam2vog converts an OpenFOAM polyMesh into VOG format."
     << endl ;
@@ -1293,10 +1890,17 @@ std::ostream &showUsage(std::ostream &s) {
   s << "  ASCII and binary points, faces, owner, neighbour, and "
     << "boundary files"
     << endl ;
+  s << "  ASCII cellZones files imported as volume tags when present"
+    << endl ;
   s << "  Serial execution only" << endl ;
   s << "  OpenFOAM cyclic patches imported as boundary patches; periodic"
     << endl ;
   s << "  pairing is expected to be specified by solver boundary"
+    << endl ;
+  s << "  conditions" << endl ;
+  s << "  OpenFOAM mapped patches imported as boundary patches; interface"
+    << endl ;
+  s << "  behavior is expected to be specified by solver boundary"
     << endl ;
   s << "  conditions" << endl ;
   s << endl ;
@@ -1317,10 +1921,18 @@ std::ostream &showUsage(std::ostream &s) {
   return s ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Prints command-line usage information to standard error.
 void Usage() {
   showUsage(cerr) ;
 }
 
+// -----------------------------------------------------------------------
+/// @brief Entry point for the OpenFOAM-to-VOG converter.
+///
+/// @param [ac] Command-line argument count.
+/// @param [av] Command-line argument vector.
+/// @return Zero on success and nonzero on failure.
 int main(int ac, char *av[]) {
   using namespace Loci ;
 
@@ -1445,8 +2057,10 @@ int main(int ac, char *av[]) {
        << "owner entries = " << mesh.owner.size() << endl
        << "neighbour entries = " << mesh.neighbour.size() << endl
        << "patches = " << mesh.patches.size() << endl
+       << "cell zones = " << mesh.cellZones.size() << endl
        << "output vog file = " << outfile << endl ;
   printPatchSummary(mesh.patches) ;
+  printCellZoneSummary(mesh.cellZones) ;
 
   store<vector3d<double> > pos ;
   Map cl, cr ;
@@ -1456,6 +2070,13 @@ int main(int ac, char *av[]) {
     Loci::Finalize() ;
     return -1 ;
   }
+
+  vector<pair<string,entitySet> > volTags ;
+  if(!buildVolumeTags(mesh,volTags)) {
+    Loci::Finalize() ;
+    return -1 ;
+  }
+  printVolumeTagSummary(volTags) ;
 
   if(MPI_rank == 0)
     cerr << "orienting faces" << endl ;
@@ -1473,7 +2094,10 @@ int main(int ac, char *av[]) {
 
   if(MPI_rank == 0)
     cerr << "writing VOG file" << endl ;
-  Loci::writeVOG(outfile,pos,cl,cr,face2node,surf_ids) ;
+  if(volTags.empty())
+    Loci::writeVOG(outfile,pos,cl,cr,face2node,surf_ids) ;
+  else
+    Loci::writeVOG(outfile,pos,cl,cr,face2node,surf_ids,volTags) ;
 
   Loci::Finalize() ;
   return 0 ;
