@@ -654,63 +654,47 @@ AST_type::ASTP parseScopedObject(std::istream &is, int &linecount,
     cerr << endl ;
 #endif
   AST_type::ASTList terms ;
+  // Special case for global scope (eg ::name)
   if(ASTEqual(openToken,AST_type::TK_SCOPE)) {
     CPTR<AST_Token> tmp = new AST_Token ;
     tmp->text = "" ;
     tmp->lineno = openToken->lineno ;
     tmp->nodeType = AST_type::TK_NIL ;
     terms.push_back(AST_type::ASTP(tmp)) ;
-  } else {
-    terms.push_back(AST_type::ASTP(openToken)) ;
     openToken = getToken(is,linecount) ;
-#ifdef VERBOSE
-    cerr << "searching token = " << openToken->text << endl ;
-#endif
-    if(!ASTEqual(openToken,AST_type::TK_SCOPE)) {
-#ifdef VERBOSE
-      cerr << "parseScopeObject, did not find scope operator, pushing token" << endl ;
-#endif
-        pushToken(openToken) ;
-      }
   }
-  AST_type::ASTP objname = 0 ;
+  // Now openToken should be a name, so push it onto the terms list
+  if(!ASTEqual(openToken,AST_type::TK_NAME)) {
+    terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting name following '::'",openToken->lineno,fileName))) ;
+  } else 
+    terms.push_back(AST_type::ASTP(openToken)) ;
 
-  // If no scope operator then just process the name
-  if(ASTEqual(openToken,AST_type::TK_SCOPE)) {
-    // Process scope operators to get real name
+  // Now get more terms as long as we have a scope operator
+  openToken = getToken(is,linecount) ;
+
 #ifdef VERBOSE
-    cerr << "parseScopedObject, found scope operator" << endl ;
+  cerr << "searching token = " << openToken->text << endl ;
 #endif
+  while(ASTEqual(openToken,AST_type::TK_SCOPE)) {
     openToken = getToken(is,linecount) ;
-    while(ASTEqual(openToken,AST_type::TK_NAME)) {
-#ifdef VERBOSE
-      cerr << "parseScopedObject, found token = " << openToken->text
-           << endl ;
-#endif
+    if(!ASTEqual(openToken,AST_type::TK_NAME)) {
+      terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting name following '::'",openToken->lineno,fileName))) ;
+    } else {
       terms.push_back(AST_type::ASTP(openToken)) ;
-      openToken = getToken(is,linecount) ;
-      if(ASTEqual(openToken,AST_type::TK_SCOPE)) {
-        openToken = getToken(is,linecount) ;
-#ifdef VERBOSE
-        cerr << "found scope operator, token after = " << openToken->text
-             << endl ;
-#endif
-        if(!ASTEqual(openToken,AST_type::TK_NAME)) {
-          CPTR<AST_exprOper> tmp = new AST_exprOper ;
-          tmp->nodeType = AST_type::OP_ERROR ;
-          terms.push_back(AST_type::ASTP(tmp)) ;
-        }
-      }
     }
-    pushToken(openToken) ;
+    // Get next token, continue chain if is a scope token
+    openToken = getToken(is,linecount) ;
+  }
+  // We are done parsing, so return this to the token input
+  pushToken(openToken) ;
+      
+  if(terms.size() > 1) {
     CPTR<AST_exprOper> tmp = new AST_exprOper ;
     tmp->nodeType = AST_type::OP_SCOPE ;
     tmp->terms = terms ;
-    objname = AST_type::ASTP(tmp) ;
-  } else {
-    objname = AST_type::ASTP(terms.back()) ;
-  }
-  return objname ;
+    return AST_type::ASTP(tmp) ;
+  } 
+  return AST_type::ASTP(terms.back()) ;
 }
 
 AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
@@ -1671,7 +1655,13 @@ AST_type::ASTP parseDeclarationOrSimpleStatement(std::istream &is,
 #endif
   if(isFunc)
     return parseSimpleStatement(is,linecount,fileName,typemap) ;
+
   auto ii = typemap.find(ident) ;
+#ifdef VERBOSE
+  if( ii != typemap.end()) {
+    cerr << "typemap defines " << ident << endl ;
+  }
+#endif
   if(ii != typemap.end() && ii->second.isLocalIdentifier()) {
     return parseSimpleStatement(is,linecount,fileName,typemap) ;
   }
@@ -1713,6 +1703,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
     case AST_type::TK_FLOAT:
     case AST_type::TK_DOUBLE:
     case AST_type::TK_INT:
+    case AST_type::TK_VOID:
     case AST_type::TK_BOOL:
     case AST_type::TK_SHORT:
     case AST_type::TK_LONG:
@@ -1761,6 +1752,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
     default:
 #ifdef VERBOSE
       cerr << "in parseDeclaration, finished type parsing" << endl ;
+      cerr << "parsed token " << OPtoName(token->nodeType) << endl ;
 #endif
       istype = false ;
       break ;
@@ -1921,7 +1913,9 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case AST_type::TK_FLOAT:
   case AST_type::TK_DOUBLE:
   case AST_type::TK_INT:
+  case AST_type::TK_VOID:
   case AST_type::TK_BOOL:
+  case AST_type::TK_SHORT:
   case AST_type::TK_LONG:
   case AST_type::TK_SIGNED:
   case AST_type::TK_UNSIGNED:
