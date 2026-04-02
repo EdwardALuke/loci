@@ -26,7 +26,10 @@ COPT = $(COPTLESS)
 
 # List the name of your compiled program here
 
-APPS = extract plot3d2vog make_periodic ugrid2vog msh2vog cfd++2vog fluent2vog cobalt2vog vogmerge vogcut vogcheck extruder vog2surf ccm2vog refmesh marker refine cgns2vog ugrid2cgns  cgns2ugrid cgns2ensight cgns2surf 
+APPS = extract plot3d2vog make_periodic ugrid2vog msh2vog foam2vog \
+       cfd++2vog fluent2vog cobalt2vog vogmerge vogcut vogcheck \
+       extruder vog2surf ccm2vog refmesh marker refine cgns2vog \
+       ugrid2cgns cgns2ugrid cgns2ensight cgns2surf
 
 # List your object files here
 OBJS =  extract.o extract_ensight.o extract_2dgv.o extract_ascii.o extract_tecplot.o extract_vtk.o extract_fv.o extract_cut.o extract_surf.o extract_mean.o extract_cgns.o
@@ -73,6 +76,9 @@ ugrid2vog: ugrid2vog.o vogtools.o $(DEPS)
 
 msh2vog: msh2vog.o vogtools.o $(DEPS)
 	$(LD) -o msh2vog msh2vog.o vogtools.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
+
+foam2vog: foam2vog.o vogtools.o $(DEPS)
+	$(LD) -o foam2vog foam2vog.o vogtools.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
 
 cfd++2vog: cfd++2vog.o vogtools.o $(DEPS)
 	$(LD) -o cfd++2vog cfd++2vog.o vogtools.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
