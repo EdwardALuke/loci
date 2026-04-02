@@ -150,7 +150,7 @@ string OPtoString(AST_type::elementType val) {
   case AST_type::OP_STAR:
     return string("*") ;
   case AST_type::OP_CAST:
-    return string("/*cast op*/") ;
+    return string(" ") ;
   default:
     return string("/*error*/") ;
   }
@@ -207,6 +207,7 @@ AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
     case AST_type::TK_FLOAT:
     case AST_type::TK_DOUBLE:
     case AST_type::TK_INT:
+    case AST_type::TK_VOID:
     case AST_type::TK_BOOL:
     case AST_type::TK_SHORT:
     case AST_type::TK_LONG:
@@ -909,6 +910,17 @@ bool scanForCStyleCast(std::istream &is, int &linecount) {
   case AST_type::TK_NAME:
   case AST_type::TK_LOCI_VARIABLE:
   case AST_type::TK_LOCI_CONTAINER:
+  case AST_type::TK_NUMBER:
+  case AST_type::TK_STRING:
+  case AST_type::TK_TRUE:
+  case AST_type::TK_FALSE:
+  case AST_type::TK_PLUS:
+  case AST_type::TK_MINUS:
+  case AST_type::TK_NOT:
+  case AST_type::TK_TILDE:
+  case AST_type::TK_STAR:
+  case AST_type::TK_INCREMENT:
+  case AST_type::TK_DECREMENT:
     castop = true ;
   default:
     break ;
@@ -949,13 +961,41 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       return AST_type::ASTP(AST_data) ;
     } 
   }
-  // Check for a parenthesized group, if found parse it.
+  // Check for a parenthesized group or C-style cast ( type ) expr
   if(ASTEqual(openToken,AST_type::TK_OPENPAREN)) {
     pushToken(openToken) ;
     if(scanForCStyleCast(is, linecount)) {
-      cerr << "detected c style cast" << endl ;
+      // Cast has unary-level precedence: parse operand with parseExpressionPartial.
+      (void)getToken(is, linecount) ; // '('
+      AST_type::ASTP maybeType =
+          parseTypeSpecifier(is, linecount, fileName, typemap) ;
+      CPTR<AST_Token> closeTok = getToken(is, linecount) ;
+      if(closeTok->nodeType != AST_type::TK_CLOSEPAREN) {
+        pushToken(closeTok) ;
+        return AST_type::ASTP(new AST_syntaxError(
+            "expecting ')' in cast", closeTok->lineno, fileName)) ;
+      }
+      AST_typeSpec *tsp =
+          dynamic_cast<AST_typeSpec *>(maybeType.operator->()) ;
+      if(maybeType == 0 || maybeType->nodeType != AST_type::ND_TYPE_SPEC ||
+         tsp == 0 || tsp->type_spec.empty()) {
+        return AST_type::ASTP(new AST_syntaxError(
+            "invalid type in cast", closeTok->lineno, fileName)) ;
+      }
+      AST_type::ASTP operand =
+          parseExpressionPartial(is, linecount, fileName, typemap) ;
+      if(operand == 0) {
+        return AST_type::ASTP(new AST_syntaxError(
+            "expecting expression after cast", closeTok->lineno, fileName)) ;
+      }
+      CPTR<AST_exprOper> castNode = new AST_exprOper ;
+      castNode->nodeType = AST_type::OP_CAST ;
+      castNode->terms.push_back(maybeType) ;
+      castNode->terms.push_back(operand) ;
+      return applyPostFixOperator(AST_type::ASTP(castNode), is, linecount,
+                                  fileName, typemap) ;
     }
-    openToken = getToken(is,linecount) ;
+    openToken = getToken(is, linecount) ;
 #ifdef VERBOSE
   cerr << "parseExpressionPartial: Found '(' parsing new expression" << endl ;
 #endif    
