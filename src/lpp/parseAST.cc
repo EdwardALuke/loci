@@ -842,7 +842,7 @@ AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
 // is found, then scan after that to determine if the format is consistent
 // with this being a type operator (e.g. a name or similar following).  This
 // will indicate that this is a C style casting operator.
-bool scanForCStyleCast(std::istream &is, int &linecount) {
+bool scanForCStyleCast(std::istream &is, int &linecount,varmap &typemap) {
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
   if(!ASTEqual(openToken,AST_type::TK_OPENPAREN)) {
     pushToken(openToken) ;
@@ -858,6 +858,8 @@ bool scanForCStyleCast(std::istream &is, int &linecount) {
     if(ASTEqual(openToken,AST_type::TK_CLOSEPAREN) &&
        tokenStack.size() > 1)
       break ;
+    bool builtintype = false ;
+    bool usertype = false ;
     switch(openToken->nodeType) { 
     case AST_type::TK_CHAR:
     case AST_type::TK_FLOAT:
@@ -869,14 +871,48 @@ bool scanForCStyleCast(std::istream &is, int &linecount) {
     case AST_type::TK_SIGNED:
     case AST_type::TK_UNSIGNED:
     case AST_type::TK_VOID:
+      builtintype = true ;
+      if(usertype) { // If user type is already defined, then this
+        // is not a well formed type definition, so this is not a C style
+        // cast.
+        pushToken(openToken) ;
+        while(tokenStack.size() > 0) {
+          pushToken(tokenStack.back()) ;
+          tokenStack.pop_back() ;
+        }
+        return false ;
+      }
+      continue ;
     case AST_type::TK_CONST:
+      break ;
     case AST_type::TK_SCOPE:
-    case AST_type::TK_AMPERSAND:
-    case AST_type::TK_TIMES:
     case AST_type::TK_OPENTEMPLATE:
     case AST_type::TK_CLOSETEMPLATE:
     case AST_type::TK_NAME:
+      usertype = true ;
+      if(builtintype) { // Can't mix builtin types and named types
+        return false ;
+      }
+      // Probably should build identifier here, and check if it is a
+      // local variable.  Future work.
       continue ;
+    case AST_type::TK_AMPERSAND:
+    case AST_type::TK_TIMES:
+      // These need to be at the very end e.g. (real *) or (real * const)
+      tokenStack.push_back(openToken) ;
+      openToken = getToken(is,linecount) ;
+      if(ASTEqual(openToken,AST_type::TK_CONST)) {
+        tokenStack.push_back(openToken) ;
+        openToken = getToken(is,linecount) ;
+      }
+      // We have enough information to return
+      pushToken(openToken) ;
+      while(tokenStack.size() > 0) {
+        pushToken(tokenStack.back()) ;
+        tokenStack.pop_back() ;
+      }
+      return ASTEqual(openToken,AST_type::TK_CLOSEPAREN) ;
+        
     default:
       pushToken(openToken) ;
       while(tokenStack.size() > 0) {
@@ -950,7 +986,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
   // Check for a parenthesized group or C-style cast ( type ) expr
   if(ASTEqual(openToken,AST_type::TK_OPENPAREN)) {
     pushToken(openToken) ;
-    if(scanForCStyleCast(is, linecount)) {
+    if(scanForCStyleCast(is, linecount,typemap)) {
       // Cast has unary-level precedence: parse operand with parseExpressionPartial.
       (void)getToken(is, linecount) ; // '('
       AST_type::ASTP maybeType =
