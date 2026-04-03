@@ -748,14 +748,15 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
        ((is.peek() >='a' && is.peek() <='z') ||
 	(is.peek() >='A' && is.peek() <='Z') ||
 	is.peek() == '_' || is.peek() == '@' ||
-        is.peek() == '$')
+        is.peek() == '$' )
        ) {
       // extract variable name
       while(!is.fail() && !is.eof() &&
 	    ((is.peek() >='a' && is.peek() <='z') ||
-	     (is.peek() >='A' && is.peek() <='Z') ||
+	     (is.peek() >='A' && is.peek() <='Z') || 
 	     (is.peek() >='0' && is.peek() <='9') ||
 	     is.peek() == '_' || is.peek() == '@' ||
+             is.peek() == ':' ||
 	     is.peek() == '(' || is.peek() == '{' ||
              is.peek() == '$')) {
 	if(is.peek() == '(') {

@@ -1697,7 +1697,9 @@ public:
   AST_type::ASTP convertLociVar(AST_type::ASTP var) {
     CPTR<AST_Token> p = CPTR<AST_Token>(var) ;
     variable v(p->text) ;
-
+    while(v.get_info().priority.size() != 0)
+      v = v.drop_priority() ;
+    
     auto vmi = vnames.find(v) ;
     if(vmi == vnames.end()) {
       cerr << "variable " << v << " is unknown to this rule!" << endl ;
