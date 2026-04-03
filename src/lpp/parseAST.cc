@@ -1171,6 +1171,25 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
            << " line " << __LINE__
            << endl ;
 #endif
+      // ?: must read ':' and the false branch here as well; the lower
+      // branches only handle colon when exprStack.back() is not OP_NIL.
+      if(ASTEqual(op,AST_type::OP_TERNARY)) {
+        CPTR<AST_Token> op2 = getToken(is,linecount) ;
+        if(ASTEqual(op2,AST_type::TK_COLON)) {
+          AST_type::ASTP expr3 =
+              parseExpressionPartial(is,linecount,fileName,typemap) ;
+          if(expr3 == 0) {
+            return AST_type::ASTP(new AST_syntaxError(
+                "Expecting expression after ':' in ?: operator", linecount,
+                fileName)) ;
+          }
+          exprStack.back()->terms.push_back(expr3) ;
+        } else {
+          pushToken(op2) ;
+          return AST_type::ASTP(new AST_syntaxError(
+              "expecting ':' in tertiary operator", op2->lineno, fileName)) ;
+        }
+      }
     } else {
       // Now we reorder the tree based on operator precedence
       while(exprStack.size() > 1 &&
