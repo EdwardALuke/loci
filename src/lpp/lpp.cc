@@ -1456,6 +1456,18 @@ void AST_printTree::visit(AST_exprOper &s) {
       popindent() ;
     }
     break ;
+  case AST_type::OP_BRACEBLOCK:
+    {
+      pushindent(s) ;
+      out << '{' ;
+      for(AST_type::ASTList::iterator ii = s.terms.begin();
+          ii != s.terms.end(); ++ii)
+        if(*ii != 0)
+          (*ii)->accept(*this) ;
+      out << '}' ;
+      popindent() ;
+    }
+    break ;
   case AST_type::OP_FUNC:
     {
       AST_type::ASTList::iterator ii=s.terms.begin() ;

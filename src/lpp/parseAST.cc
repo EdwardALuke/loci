@@ -151,6 +151,8 @@ string OPtoString(AST_type::elementType val) {
     return string("*") ;
   case AST_type::OP_CAST:
     return string(" ") ;
+  case AST_type::OP_BRACEBLOCK:
+    return string(" ") ;
   default:
     return string("/*error*/") ;
   }
@@ -994,6 +996,31 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       
     }
     return applyPostFixOperator(AST_type::ASTP(group),is,linecount,fileName,
+				typemap) ;
+  }
+  // Brace-enclosed initializer list: { expr, ... }  (commas inside do not end
+  // the outer declaration; parseExpression stops before '}').
+  if(ASTEqual(openToken,AST_type::TK_OPENBRACE)) {
+    CPTR<AST_Token> afterBrace = getToken(is,linecount) ;
+    if(ASTEqual(afterBrace,AST_type::TK_CLOSEBRACE)) {
+      CPTR<AST_exprOper> br = new AST_exprOper ;
+      br->nodeType = AST_type::OP_BRACEBLOCK ;
+      return applyPostFixOperator(AST_type::ASTP(br),is,linecount,fileName,
+				  typemap) ;
+    }
+    pushToken(afterBrace) ;
+    AST_type::ASTP inner =
+        parseExpression(is,linecount,fileName,typemap) ;
+    CPTR<AST_Token> closeTok = getToken(is,linecount) ;
+    if(closeTok->nodeType != AST_type::TK_CLOSEBRACE) {
+      pushToken(closeTok) ;
+      return AST_type::ASTP(new AST_syntaxError(
+          "expecting '}' in brace initializer", closeTok->lineno,fileName)) ;
+    }
+    CPTR<AST_exprOper> br = new AST_exprOper ;
+    br->nodeType = AST_type::OP_BRACEBLOCK ;
+    br->terms.push_back(inner) ;
+    return applyPostFixOperator(AST_type::ASTP(br),is,linecount,fileName,
 				typemap) ;
   }
   // Check for unary operators
@@ -2203,6 +2230,12 @@ void AST_simplePrint::visit(AST_exprOper &s) {
     out << ')' ;
     if(s.terms.size() >= 2 && s.terms[1] != 0)
       s.terms[1]->accept(*this) ;
+    break ;
+  case AST_type::OP_BRACEBLOCK:
+    out << '{' ;
+    if(s.terms.size() >= 1 && s.terms[0] != 0)
+      s.terms[0]->accept(*this) ;
+    out << '}' ;
     break ;
   case AST_type::OP_FUNC:
     {
