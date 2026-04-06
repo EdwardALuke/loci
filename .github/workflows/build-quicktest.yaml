@@ -33,7 +33,7 @@ jobs:
         fetch-depth: 0
 
     - name: Setup Spack
-      uses: spack/setup-spack@v2
+      uses: spack/setup-spack@v3
       with:
         ref: develop      # Spack version (examples: develop, releases/v0.23)
         color: true       # Force color output (SPACK_COLOR=always)
@@ -95,7 +95,7 @@ jobs:
 
     - name: Upload build stage output files
       if: ${{ failure() }}
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: buildlog-${{ inputs.partitioner }}-${{ inputs.compiler }}-${{ inputs.mpi }}-${{ inputs.runs-on }}
         path: |
