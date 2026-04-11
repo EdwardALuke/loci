@@ -31,18 +31,46 @@ namespace Loci {
   namespace parse {
 
     using namespace std ;
-    // -----------------------------------------------------------------------
-    /// @brief kill_white_space() advances an input stream past leading white
-    /// space and line comments beginning with //
-    ///
-    /// @param [s] input stream to be positioned at the next non-whitespace,
-    /// non-comment character
+    namespace {
+      // ctype predicates are only defined for EOF and unsigned-char values.
+      // This wrapper keeps the stream-facing call sites safe and compact.
+      bool is_digit(int ch) {
+        return ch != EOF && isdigit(static_cast<unsigned char>(ch)) ;
+      }
+
+      // parse identifiers with the same leading-character rule used by
+      // is_name(): alphabetic characters and underscores are allowed.
+      bool is_name_start(int ch) {
+        return ch != EOF &&
+          (isalpha(static_cast<unsigned char>(ch)) || ch == '_') ;
+      }
+
+      // is_int() accepts signed literals only when the sign is followed by a
+      // digit.  Peek ahead without consuming the stream.
+      bool signed_int_starts_here(istream &s) {
+        const int sign = s.get() ;
+        const bool ok = is_digit(s.peek()) ;
+        s.putback(static_cast<char>(sign)) ;
+        return ok ;
+      }
+
+      // is_real() accepts signed literals when the sign is followed by either
+      // a digit or a decimal point.  Leave the stream unchanged after probing.
+      bool signed_real_starts_here(istream &s) {
+        const int sign = s.get() ;
+        const int next = s.peek() ;
+        s.putback(static_cast<char>(sign)) ;
+        return is_digit(next) || next == '.' ;
+      }
+    }
+
     void kill_white_space(istream &s) {
 
       bool flushed_comment ;
       do {
         flushed_comment = false ;
-        while(!s.eof() && isspace(s.peek()))
+        while(!s.eof() &&
+              isspace(static_cast<unsigned char>(s.peek())))
           s.get() ;
         if(s.peek() == '/') { // check for comment
           s.get() ;
@@ -61,53 +89,33 @@ namespace Loci {
       return ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief is_name() checks whether the next token in the stream begins
-    /// with a valid identifier lead character
-    ///
-    /// @param [s] input stream to inspect
-    /// @return true if the next non-whitespace character is alphabetic or
-    /// underscore
     bool is_name(istream &s) {
       kill_white_space(s) ;
       int ch = s.peek() ;
-      return isalpha(ch) || ch == '_' ;
+      return is_name_start(ch) ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief get_name() extracts an identifier token from the input stream
-    ///
-    /// @param [s] input stream to consume from
-    /// @return identifier made of alphanumeric and underscore characters, or
-    /// an empty string if the next token is not a valid name
     string get_name(istream &s) {
       if(!is_name(s)) { return "" ; }
       string str ;
       while(!s.eof() && (s.peek() != EOF) &&
-            (isalnum(s.peek()) || (s.peek() == '_')) ) {
+            (isalnum(static_cast<unsigned char>(s.peek())) ||
+             (s.peek() == '_')) ) {
         str += s.get() ;
       }
 
       return str ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief is_int() checks whether the next token in the stream can begin
-    /// an integer literal
-    ///
-    /// @param [s] input stream to inspect
-    /// @return true if the next non-whitespace character is a digit or sign
     bool is_int(istream &s) {
       kill_white_space(s) ;
-      return isdigit(s.peek()) || s.peek()=='-' || s.peek()=='+' ;
+      const int ch = s.peek() ;
+      if(is_digit(ch)) {
+        return true ;
+      }
+      return (ch == '-' || ch == '+') && signed_int_starts_here(s) ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief get_int() extracts an integer value from the input stream
-    ///
-    /// @param [s] input stream to consume from
-    /// @return parsed integer value, or zero if the next token does not begin
-    /// an integer literal
     long get_int(istream &s) {
       if(!is_int(s)) { return 0 ; }
       long l = 0 ;
@@ -115,38 +123,28 @@ namespace Loci {
       return l ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief is_real() checks whether the next token in the stream can begin
-    /// a floating-point literal
-    ///
-    /// @param [s] input stream to inspect
-    /// @return true if the next non-whitespace character can start a real
-    /// number
     bool is_real(istream &s) {
       kill_white_space(s) ;
-      const char ch = s.peek() ;
-      return isdigit(ch) || ch=='-' || ch=='+' || ch =='.' ;
+      const int ch = s.peek() ;
+      if(is_digit(ch) || ch == '.') {
+        return true ;
+      }
+      return (ch == '-' || ch == '+') && signed_real_starts_here(s) ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief get_real() extracts a floating-point value from the input stream
-    ///
-    /// @param [s] input stream to consume from
-    /// @return parsed floating-point value, or zero if the next token does not
-    /// begin a real literal
     double get_real(istream &s) {
       if(!is_real(s)) { return 0.0 ; }
 
       // First grab real into string rval
       string rval ;
       char ch = s.get() ;
-      rval += ch ; // since aready passing is_real we know first character
+      rval += ch ; // since we already passed is_real, the first character
       // is in rval
 
-      bool leading_digit = isdigit(ch) ;
+      bool leading_digit = is_digit(ch) ;
 
       // any leading digits will go in rval
-      while(isdigit(s.peek())) {
+      while(is_digit(s.peek())) {
         ch = s.get() ;
         leading_digit = true ;
         rval += ch ;
@@ -157,7 +155,7 @@ namespace Loci {
         ch = s.get() ;
         rval += ch ;
         bool trailing_digit = false ;
-        while(isdigit(s.peek())) {
+        while(is_digit(s.peek())) {
           trailing_digit = true ;
           ch = s.get() ;
           rval += ch ;
@@ -167,44 +165,44 @@ namespace Loci {
         }
       }
       // If there is an exponent, check to make sure it is followed by a digit
-      // if it is then grab the exponent, else put back the character with
-      // unget
+      // after an optional sign.  Otherwise leave the exponent marker untouched
+      // so the caller can see the malformed suffix.
       if(s.peek() == 'e' || s.peek() == 'E') {
-        ch = s.get() ;
-        ch = s.peek() ;
-        if(isdigit(ch) || ch=='-' || ch=='+') { // valid exponent
+        const char exp = s.get() ;
+        if(is_digit(s.peek())) {
           rval += 'e' ;
           ch = s.get() ;
           rval += ch ;
-          while(isdigit(s.peek())) {
+          while(is_digit(s.peek())) {
             ch = s.get() ;
             rval += ch ;
           }
-        } else { // invalid exponent, ignore 'e' or 'E'
-          s.unget() ;
+        } else if(s.peek() == '-' || s.peek() == '+') {
+          const char sign = s.get() ;
+          if(is_digit(s.peek())) {
+            rval += 'e' ;
+            rval += sign ;
+            while(is_digit(s.peek())) {
+              ch = s.get() ;
+              rval += ch ;
+            }
+          } else {
+            s.putback(sign) ;
+            s.putback(exp) ;
+          }
+        } else {
+          s.putback(exp) ;
         }
       }
 
       return atof(rval.c_str()) ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief is_string() checks whether the next token in the stream is a
-    /// quoted string literal
-    ///
-    /// @param [s] input stream to inspect
-    /// @return true if the next non-whitespace character is a double quote
     bool is_string(istream &s) {
       kill_white_space(s) ;
       return s.peek() == '\"' ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief get_string() extracts the contents of a quoted string literal
-    ///
-    /// @param [s] input stream to consume from
-    /// @return characters between the opening and closing double quotes, or an
-    /// empty string if the next token is not a string literal
     string get_string(istream &s) {
       if(!is_string(s)) { return "" ; }
       string str ;
@@ -227,13 +225,6 @@ namespace Loci {
       return str ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief is_token() checks whether the next token in the stream matches a
-    /// specific literal without consuming it
-    ///
-    /// @param [s] input stream to inspect
-    /// @param [token] literal token to compare against the input
-    /// @return true if the next characters match token exactly
     bool  is_token(istream &s, const string &token) {
       kill_white_space(s) ;
       const int sz = token.size() ;
@@ -252,13 +243,6 @@ namespace Loci {
       return true ;
     }
 
-    // -----------------------------------------------------------------------
-    /// @brief get_token() consumes a specific literal token from the input
-    /// stream if it matches exactly
-    ///
-    /// @param [s] input stream to consume from
-    /// @param [token] literal token expected at the current position
-    /// @return true if token was matched and consumed, false otherwise
     bool get_token(istream &s, const string &token) {
       kill_white_space(s) ;
       const int sz = token.size() ;
