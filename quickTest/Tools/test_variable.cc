@@ -1,5 +1,3 @@
-#include <algorithm>
-#include <functional>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -50,7 +48,7 @@ std::string capture_cerr(Fn fn) {
 //
 // These are cases that appear to demonstrate behavior that is not intended.
 //
-// Enable them with LOCI_ENABLE_VARIABLE_KNOWN_BUG_TESTS=1 when we want to
+// Enable them with LOCI_ENABLE_VARIABLE_KNOWN_BUG_TESTS=1 to
 // revisit these behaviors.
 
 // The time-list parser mutates partial state before it has validated the full
