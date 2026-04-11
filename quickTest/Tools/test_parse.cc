@@ -8,10 +8,6 @@
 
 #include <Tools/parse.h>
 
-#ifndef LOCI_ENABLE_PARSE_KNOWN_BUG_TESTS
-#define LOCI_ENABLE_PARSE_KNOWN_BUG_TESTS 0
-#endif
-
 namespace {
 std::string read_remaining(std::istream &in) {
   return std::string(std::istreambuf_iterator<char>(in),
@@ -19,20 +15,7 @@ std::string read_remaining(std::istream &in) {
 }
 } // namespace
 
-//----------------------------------------------------------------------------
-// Potential Bugs
-//----------------------------------------------------------------------------
-//
-// These are cases that appear to demonstrate behavior that is not intended.
-//
-// Enable them with LOCI_ENABLE_PARSE_KNOWN_BUG_TESTS=1 when we want to
-// revisit these behaviors.
-
-// The parser already treats "12ex" as the valid prefix "12" with "ex" left in
-// the stream. Malformed exponent tails such as "e+" and "e-" should behave the
-// same way instead of being silently consumed.
-TEST_CASE("known bug: get_real should not consume incomplete exponent suffixes [known-bug]" *
-          doctest::skip(LOCI_ENABLE_PARSE_KNOWN_BUG_TESTS == 0)) {
+TEST_CASE("get_real leaves incomplete exponent suffixes unread") {
   struct RealCase {
     const char *text;
     const char *rest;
@@ -53,11 +36,7 @@ TEST_CASE("known bug: get_real should not consume incomplete exponent suffixes [
   }
 }
 
-// is_int() and is_real() currently treat a leading + or - as sufficient to
-// begin a number, even when no digits follow. That leaks upward into callers
-// like options_list and UNIT_type, which can accept "+" or "-" as zero.
-TEST_CASE("known bug: bare signs should not be classified as numeric literals [known-bug]" *
-          doctest::skip(LOCI_ENABLE_PARSE_KNOWN_BUG_TESTS == 0)) {
+TEST_CASE("numeric probes reject bare signs without digits") {
   const std::vector<std::string> cases = {
       "+",
       "-",
