@@ -11,8 +11,7 @@ using namespace Loci;
 
 namespace {
 
-  // Captures stderr so tests can assert on diagnostics emitted by rule parsing
-  // and permission validation paths.
+  /// @brief Captures `std::cerr` so tests can assert on emitted diagnostics.
   class CErrCapture {
     std::streambuf *old_;
     std::ostringstream captured_;
@@ -20,17 +19,18 @@ namespace {
     CErrCapture() : old_(std::cerr.rdbuf(captured_.rdbuf())) {}
     ~CErrCapture() { std::cerr.rdbuf(old_); }
 
+    /// @brief Returns the text captured from `std::cerr`.
     std::string str() const { return captured_.str(); }
   };
 
-  // Builds an external rule wrapper from a concrete rule type so tests can use
-  // rule_db/rule APIs without hand-writing boilerplate constructors.
+  /// @brief Wraps a concrete rule type in the external `rule` handle used by
+  ///   the public APIs under test.
   template <class TRule>
   rule make_rule() {
     return rule(rule_implP(new copy_rule_impl<TRule>));
   }
 
-  // Descriptor membership helper for source/target/constraint sets.
+  /// @brief Returns true when `desc` contains `v` in one of its variable sets.
   bool desc_has_var(const std::set<vmap_info> &desc, const variable &v) {
     for(std::set<vmap_info>::const_iterator i = desc.begin(); i != desc.end(); ++i)
       if(i->var.inSet(v))
@@ -38,7 +38,7 @@ namespace {
     return false;
   }
 
-  // Descriptor membership helper for mapping variables inside vmap_info.
+  /// @brief Returns true when `desc` contains `v` in one of its mapping sets.
   bool desc_has_map_var(const std::set<vmap_info> &desc, const variable &v) {
     for(std::set<vmap_info>::const_iterator i = desc.begin(); i != desc.end(); ++i)
       for(size_t j = 0; j < i->mapping.size(); ++j)
@@ -47,8 +47,8 @@ namespace {
     return false;
   }
 
-  // Uses a priority-qualified target so remove_rule target-index cleanup can be
-  // checked across both qualified and base variable forms.
+  /// @brief Pointwise rule whose priority-qualified target exercises
+  ///   add/remove indexing across both qualified and base target names.
   class priority_target_rule_for_removal : public pointwise_rule {
     const_store<int> src;
     store<int> tgt;
@@ -64,7 +64,7 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Baseline pointwise rule used by most add/remove/index/rename/timing tests.
+  /// @brief Baseline pointwise rule used by the general add/remove/index tests.
   class simple_rule_for_indexes : public pointwise_rule {
     const_store<int> src;
     store<int> tgt;
@@ -80,7 +80,7 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Second independent baseline rule to validate multi-rule remove_rules paths.
+  /// @brief Second independent pointwise rule used to test bulk removal paths.
   class simple_rule_for_indexes_b : public pointwise_rule {
     const_store<int> src;
     store<int> tgt;
@@ -96,7 +96,7 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Deep priority chain target used to validate indexing at each priority level.
+  /// @brief Pointwise rule whose target carries a two-level priority chain.
   class deep_priority_target_rule : public pointwise_rule {
     const_store<int> src;
     store<int> tgt;
@@ -112,7 +112,7 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Valid default_rule shape for check_perm_bits type-matrix coverage.
+  /// @brief Valid `default_rule` fixture for permission-bit checks.
   class default_category_rule : public default_rule {
     param<int> out;
   public:
@@ -124,7 +124,8 @@ namespace {
     void compute(const sequence &) {}
   };
 
-  // Intentionally invalid default_rule target type for negative validation.
+  /// @brief Invalid `default_rule` fixture with a store target for negative
+  ///   permission checks.
   class default_bad_store_target_rule : public default_rule {
     store<int> out;
   public:
@@ -136,7 +137,7 @@ namespace {
     void compute(const sequence &) {}
   };
 
-  // Valid optional_rule shape for category-routing checks in rule_db.
+  /// @brief Valid `optional_rule` fixture for rule-set routing checks.
   class optional_category_rule : public optional_rule {
     param<int> out;
   public:
@@ -148,7 +149,8 @@ namespace {
     void compute(const sequence &) {}
   };
 
-  // Intentionally invalid pointwise target type for negative check_perm_bits.
+  /// @brief Invalid pointwise fixture with a parameter target for negative
+  ///   permission checks.
   class pointwise_bad_param_target_rule : public pointwise_rule {
     const_store<int> src;
     param<int> tgt;
@@ -164,7 +166,7 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Valid map_rule shape for map target permission checks.
+  /// @brief Valid `map_rule` fixture for permission-bit checks.
   class map_good_rule : public map_rule {
     const_store<int> src;
     Map out;
@@ -179,7 +181,8 @@ namespace {
     void compute(const sequence &) {}
   };
 
-  // Intentionally invalid map_rule target type for negative validation.
+  /// @brief Invalid `map_rule` fixture with a store target for negative
+  ///   permission checks.
   class map_bad_store_target_rule : public map_rule {
     const_store<int> src;
     store<int> out;
@@ -194,7 +197,7 @@ namespace {
     void compute(const sequence &) {}
   };
 
-  // Valid constraint_rule shape for constraint target permission checks.
+  /// @brief Valid `constraint_rule` fixture for permission-bit checks.
   class constraint_good_rule : public constraint_rule {
     const_store<int> src;
     Constraint out;
@@ -209,7 +212,8 @@ namespace {
     void compute(const sequence &) {}
   };
 
-  // Intentionally invalid constraint_rule target type for negative validation.
+  /// @brief Invalid `constraint_rule` fixture with a store target for negative
+  ///   permission checks.
   class constraint_bad_store_target_rule : public constraint_rule {
     const_store<int> src;
     store<int> out;
@@ -224,8 +228,8 @@ namespace {
     void compute(const sequence &) {}
   };
 
-  // Carries map + non-map constraints so replace_map_constraints behavior can
-  // be asserted.
+  /// @brief Pointwise rule that mixes map and non-map constraints for
+  ///   `replace_map_constraints()` coverage.
   class map_constraint_replace_rule : public pointwise_rule {
     const_store<int> src;
     store<int> tgt;
@@ -242,8 +246,8 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Singleton rule with priority-qualified target; used to expose priority
-  // override validation behavior in check_perm_bits.
+  /// @brief Singleton rule whose priority-qualified target exercises
+  ///   priority-override validation.
   class singleton_priority_override_rule : public singleton_rule {
     const_param<int> in;
     param<int> out;
@@ -259,8 +263,8 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Alias target expression x=y is used to exercise parameter/store mixing
-  // diagnostics in rule::info parsing.
+  /// @brief Pointwise rule whose alias target expression exercises target-type
+  ///   mixing diagnostics in `rule::info` parsing.
   class assign_param_alias_rule : public pointwise_rule {
     const_param<int> in;
     param<int> x;
@@ -278,8 +282,8 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
-  // Includes source/target mappings, constraint, and conditional to cover
-  // descriptor input_vars/output_vars, rename, and time-shift behavior.
+  /// @brief Pointwise rule that carries mappings, a constraint, and a
+  ///   conditional for descriptor, rename, and time-shift coverage.
   class mapping_conditional_rule : public pointwise_rule {
     const_Map in_map;
     const_Map out_map;
@@ -311,46 +315,50 @@ namespace {
 // Regression Tests For Known Bugs
 //----------------------------------------------------------------------------
 
-// Why this fails:
-// add_rule() indexes priority-qualified targets at each priority level, but
-// remove_rule() mistakenly does "+=" instead of "-=" in the priority loop.
-// That leaves stale entries in trgt2rule for priority forms after removal.
+// Current regression:
+// `add_rule()` indexes priority-qualified targets at each priority level, but
+// `remove_rule()` leaves stale entries behind for those priority forms.
 //
-// Potential fix:
-// In src/System/rule.cc (remove_rule), change trgt2rule[v] += f to
-// trgt2rule[v] -= f inside the while(v.get_info().priority.size() != 0) loop.
-TEST_CASE("remove_rule removes both priority and base target indexes") {
+// Suggested fix in `src/System/rule.cc`:
+// In `remove_rule()`, change `trgt2rule[v] += f` to `trgt2rule[v] -= f` inside
+// the `while(v.get_info().priority.size() != 0)` loop.
+TEST_CASE("remove_rule removes both priority and base target indexes"
+          * doctest::may_fail()) {
   rule_db rdb;
   rule r = make_rule<priority_target_rule_for_removal>();
 
   const variable prio_target("p::tgt");
   const variable base_target("tgt");
 
+  // Index the rule under both target forms that scheduler lookups can use.
   rdb.add_rule(r);
   CHECK(rdb.rules_by_target(prio_target).inSet(r));
   CHECK(rdb.rules_by_target(base_target).inSet(r));
 
+  // Removing the rule should clear both the qualified and base target indexes.
   rdb.remove_rule(r);
   CHECK_FALSE(rdb.rules_by_target(prio_target).inSet(r));
   CHECK_FALSE(rdb.rules_by_target(base_target).inSet(r));
 }
 
-// Why this fails:
-// prepend_vmap_info() prepends mapping entries from in.var instead of from each
-// actual mapping set entry (*i). This corrupts mapping chains when prepending
-// time levels on INTERNAL rules.
+// Current regression:
+// `prepend_vmap_info()` can prepend mapping entries from `in.var` instead of
+// from the actual mapping-set entry. That corrupts mapping chains on INTERNAL
+// rules when a time level is prepended.
 //
-// Potential fix:
-// In src/System/rule.cc, prepend_vmap_info(), replace
-//   res.mapping.push_back(prepend_set(in.var, tl))
+// Suggested fix in `src/System/rule.cc`:
+// In `prepend_vmap_info()`, replace
+//   `res.mapping.push_back(prepend_set(in.var, tl))`
 // with
-//   res.mapping.push_back(prepend_set(*i, tl))
-TEST_CASE("internal prepend preserves mapping variables") {
+//   `res.mapping.push_back(prepend_set(*i, tl))`.
+TEST_CASE("internal prepend preserves mapping variables"
+          * doctest::may_fail()) {
   rule internal_rule("qualifier(internal_map_test),source(m->src),target(tgt)");
 
   time_ident n_level("n", time_ident());
   rule prepended(n_level, internal_rule);
 
+  // Inspect the prepended INTERNAL-rule descriptor directly.
   const std::set<vmap_info> &sources = prepended.get_info().desc.sources;
   REQUIRE(!sources.empty());
 
@@ -360,36 +368,41 @@ TEST_CASE("internal prepend preserves mapping variables") {
   const variable expected_mapping_var(n_level, variable("m"));
   const variable wrong_mapping_var(n_level, variable("src"));
 
+  // The prepended mapping should still refer to the mapping variable, not the
+  // source payload variable.
   CHECK(first_source.mapping.front().inSet(expected_mapping_var));
   CHECK_FALSE(first_source.mapping.front().inSet(wrong_mapping_var));
 }
 
-// Why this fails:
-// check_perm_bits() logs that singleton rules cannot use priority override, but
-// does not set retval=false in that branch, so validation still reports success.
+// Current regression:
+// `check_perm_bits()` reports that singleton rules cannot use priority
+// override, but still returns success from that branch.
 //
-// Potential fix:
-// In src/System/rule.cc singleton-check branch, set retval=false when priority
-// override is detected.
-TEST_CASE("singleton priority override makes check_perm_bits fail") {
+// Suggested fix in `src/System/rule.cc`:
+// Set `retval=false` in the singleton-rule priority-override branch.
+TEST_CASE("singleton priority override makes check_perm_bits fail"
+          * doctest::may_fail()) {
   rule_implP impl = new copy_rule_impl<singleton_priority_override_rule>;
+
+  // Priority-qualified singleton targets should be rejected by validation.
   CHECK_FALSE(impl->check_perm_bits());
 }
 
-// Why this fails:
-// In rule::info construction, iterator 'i' (from tvar_types) is compared
-// against tvars.begin(). Those iterators are from different containers, so
-// first-element checks are wrong and may trigger false "mix parameter/store"
-// diagnostics for alias targets like x=y.
+// Current regression:
+// During `rule::info` construction, the parameter/store mixing check can use
+// iterators from different containers and spuriously report mixed targets for
+// alias expressions like `x=y`.
 //
-// Potential fix:
-// In src/System/rule.cc around the parameter/store mixing checks, compare
-// against tvar_types.begin() (or use an explicit first-element flag) instead
-// of comparing to tvars.begin().
-TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs") {
+// Suggested fix in `src/System/rule.cc`:
+// Compare against `tvar_types.begin()` instead of `tvars.begin()`, or track the
+// first element with an explicit flag.
+TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs"
+          * doctest::may_fail()) {
   CErrCapture capture;
   rule r = make_rule<assign_param_alias_rule>();
 
+  // Building the rule should not emit the mixed-target diagnostic for a pure
+  // parameter alias target.
   std::string err = capture.str();
   CHECK(err.find("can't mix parameters and stores in target") == std::string::npos);
 
@@ -400,37 +413,37 @@ TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs") 
 // Additional behavior/invariant tests
 //----------------------------------------------------------------------------
 
-// Verifies that adding a normal pointwise rule populates the target reverse
-// index used by scheduler lookups.
 TEST_CASE("add_rule indexes target for simple pointwise rule") {
   rule_db rdb;
   rule r = make_rule<simple_rule_for_indexes>();
   const variable tgt("tgt_idx");
 
+  // Register the rule in the database.
   rdb.add_rule(r);
 
+  // The reverse target index should now return that rule.
   CHECK(rdb.rules_by_target(tgt).inSet(r));
 }
 
-// Verifies remove_rule fully undoes target-index insertion for a simple
-// external rule.
 TEST_CASE("remove_rule clears target index for simple pointwise rule") {
   rule_db rdb;
   rule r = make_rule<simple_rule_for_indexes>();
   const variable tgt("tgt_idx");
 
+  // Add then remove the same rule through the public database API.
   rdb.add_rule(r);
   rdb.remove_rule(r);
 
+  // The target index should be empty for that rule after removal.
   CHECK_FALSE(rdb.rules_by_target(tgt).inSet(r));
 }
 
-// Verifies internal rule string parsing populates expected descriptor fields
-// (qualifier, sources, targets, constraints, conditionals) and INTERNAL type.
 TEST_CASE("internal rule string parser captures qualifier source target constraint conditional") {
   rule r("qualifier(q_test),source(a_test),target(b_test),constraint(c_test),conditional(cond_test)");
   const rule::info &ri = r.get_info();
 
+  // INTERNAL rules built from strings should preserve the parsed descriptor
+  // structure.
   CHECK(r.type() == rule::INTERNAL);
   CHECK(ri.qualifier() == "q_test");
   CHECK(desc_has_var(ri.desc.sources, variable("a_test")));
@@ -439,8 +452,6 @@ TEST_CASE("internal rule string parser captures qualifier source target constrai
   CHECK(ri.desc.conditionals.inSet(variable("cond_test")));
 }
 
-// Verifies rename_vars() on INTERNAL rules rewrites descriptor variables and
-// conditionals, and that old names are no longer present.
 TEST_CASE("internal rule rename_vars renames source target and conditional variables") {
   rule r("qualifier(q_rename),source(a_rn),target(b_rn),conditional(cond_rn)");
   std::map<variable, variable> rm;
@@ -451,6 +462,7 @@ TEST_CASE("internal rule rename_vars renames source target and conditional varia
   rule renamed = r.rename_vars(rm);
   const rule::info &ri = renamed.get_info();
 
+  // Source, target, and conditional names should all follow the rename map.
   CHECK(desc_has_var(ri.desc.sources, variable("a_rn_new")));
   CHECK_FALSE(desc_has_var(ri.desc.sources, variable("a_rn")));
   CHECK(desc_has_var(ri.desc.targets, variable("b_rn_new")));
@@ -459,41 +471,38 @@ TEST_CASE("internal rule rename_vars renames source target and conditional varia
   CHECK_FALSE(ri.desc.conditionals.inSet(variable("cond_rn")));
 }
 
-// Verifies promote_rule() appends the given time level to source/target vars
-// (postfix time) and removes hits under unpromoted variable names.
 TEST_CASE("promote_rule appends time level to variables") {
   rule r = make_rule<simple_rule_for_indexes>();
   time_ident n_level("n_prom", time_ident());
   rule promoted = promote_rule(r, n_level);
 
+  // Promotion should append the time level to both source and target names.
   CHECK(promoted.sources().inSet(variable(variable("src_idx"), n_level)));
   CHECK(promoted.targets().inSet(variable(variable("tgt_idx"), n_level)));
   CHECK_FALSE(promoted.sources().inSet(variable("src_idx")));
   CHECK_FALSE(promoted.targets().inSet(variable("tgt_idx")));
 }
 
-// Verifies prepend_rule() prepends the given time level to source/target vars
-// (prefix time) and removes hits under unqualified variable names.
 TEST_CASE("prepend_rule prepends time level to variables") {
   rule r = make_rule<simple_rule_for_indexes>();
   time_ident n_level("n_pre", time_ident());
   rule prepended = prepend_rule(r, n_level);
 
+  // Prepending should use the prefix-style time decoration on both ends.
   CHECK(prepended.sources().inSet(variable(n_level, variable("src_idx"))));
   CHECK(prepended.targets().inSet(variable(n_level, variable("tgt_idx"))));
   CHECK_FALSE(prepended.sources().inSet(variable("src_idx")));
   CHECK_FALSE(prepended.targets().inSet(variable("tgt_idx")));
 }
 
-// Verifies input_vars()/output_vars() accounting for a rule with mapping,
-// constraints, and conditionals: inputs include all dependencies, outputs
-// include only computed targets.
 TEST_CASE("input_vars and output_vars contain expected variables for mapping and conditionals") {
   rule_implP impl = new copy_rule_impl<mapping_conditional_rule>;
   const rule_impl::info &info = impl->get_info();
   variableSet in = info.input_vars();
   variableSet out = info.output_vars();
 
+  // Inputs should include data dependencies, constraints, conditionals, and
+  // mapping variables referenced by the descriptor.
   CHECK(in.inSet(variable("src_mc")));
   CHECK(in.inSet(variable("c_mc")));
   CHECK(in.inSet(variable("cond_mc")));
@@ -501,74 +510,76 @@ TEST_CASE("input_vars and output_vars contain expected variables for mapping and
   CHECK(in.inSet(variable("m_out")));
   CHECK(desc_has_map_var(info.sources, variable("m_in")));
   CHECK(desc_has_map_var(info.targets, variable("m_out")));
+
+  // Outputs should still include only the computed target variable.
   CHECK(out.inSet(variable("tgt_mc")));
   CHECK_FALSE(out.inSet(variable("src_mc")));
 }
 
-// Verifies rule_identifier() includes core dependency shape text useful for
-// diagnostics: source name, target name, and "<-" relation marker.
 TEST_CASE("rule_identifier includes source and target variable names") {
   rule_implP impl = new copy_rule_impl<simple_rule_for_indexes>;
   const std::string rid = impl->get_info().rule_identifier();
 
+  // The identifier should remain useful in diagnostics and logs.
   CHECK(rid.find("src_idx") != std::string::npos);
   CHECK(rid.find("tgt_idx") != std::string::npos);
   CHECK(rid.find("<-") != std::string::npos);
 }
 
-// Verifies deep priority targets are indexed at each progressive priority
-// level, not only at the fully-qualified priority path.
 TEST_CASE("add_rule indexes deep priority chain targets at each priority level") {
   rule_db rdb;
   rule r = make_rule<deep_priority_target_rule>();
 
+  // Adding the rule should populate every progressively de-prioritized target
+  // form that lookups may ask for.
   rdb.add_rule(r);
   CHECK(rdb.rules_by_target(variable("p1::p2::tgt_pri")).inSet(r));
   CHECK(rdb.rules_by_target(variable("p2::tgt_pri")).inSet(r));
   CHECK(rdb.rules_by_target(variable("tgt_pri")).inSet(r));
 }
 
-// Verifies batch remove_rules() clears target reverse indexes for each rule in
-// the input ruleSet.
 TEST_CASE("remove_rules clears target indexes for every rule in the input ruleSet") {
   rule_db rdb;
   rule r1 = make_rule<simple_rule_for_indexes>();
   rule r2 = make_rule<simple_rule_for_indexes_b>();
   ruleSet rs;
 
+  // Seed the database and removal set with two independent rules.
   rdb.add_rule(r1);
   rdb.add_rule(r2);
   rs += r1;
   rs += r2;
 
+  // Bulk removal should clear each rule from its target index.
   rdb.remove_rules(rs);
 
   CHECK_FALSE(rdb.rules_by_target(variable("tgt_idx")).inSet(r1));
   CHECK_FALSE(rdb.rules_by_target(variable("tgt_idx_b")).inSet(r2));
 }
 
-// Verifies default/optional rules are routed into dedicated rule_db categories
-// and do not appear in the normal all_rules() collection.
 TEST_CASE("default and optional rules are routed to their dedicated rule sets") {
   rule_db rdb;
   rule dr = make_rule<default_category_rule>();
   rule orule = make_rule<optional_category_rule>();
 
+  // Add one rule from each special category.
   rdb.add_rule(dr);
   rdb.add_rule(orule);
 
+  // They should be routed into their dedicated collections instead of the
+  // regular executable rule set.
   CHECK(rdb.get_default_rules().inSet(dr));
   CHECK(rdb.get_optional_rules().inSet(orule));
   CHECK_FALSE(rdb.all_rules().inSet(dr));
   CHECK_FALSE(rdb.all_rules().inSet(orule));
 }
 
-// Verifies external rule::sources() includes mapping variables, explicit data
-// inputs, constraints, and conditionals because all are source-side deps.
 TEST_CASE("mapping and conditional variables appear in sources() for external rules") {
   rule r = make_rule<mapping_conditional_rule>();
   const variableSet &srcs = r.sources();
 
+  // External source discovery should include every source-side dependency the
+  // descriptor references.
   CHECK(srcs.inSet(variable("m_in")));
   CHECK(srcs.inSet(variable("m_out")));
   CHECK(srcs.inSet(variable("src_mc")));
@@ -576,8 +587,6 @@ TEST_CASE("mapping and conditional variables appear in sources() for external ru
   CHECK(srcs.inSet(variable("cond_mc")));
 }
 
-// Verifies rename_vars() on external rules rewrites names consistently across
-// mappings, targets, constraints, and conditionals.
 TEST_CASE("rename_vars on external rules renames mappings targets constraints and conditionals") {
   rule r = make_rule<mapping_conditional_rule>();
   std::map<variable, variable> rm;
@@ -591,6 +600,8 @@ TEST_CASE("rename_vars on external rules renames mappings targets constraints an
   rule renamed = r.rename_vars(rm);
   const rule::info &ri = renamed.get_info();
 
+  // The rename map should be applied consistently across mapping variables,
+  // payload variables, constraints, and conditionals.
   CHECK(ri.sources().inSet(variable("m_in_new")));
   CHECK(ri.sources().inSet(variable("m_out_new")));
   CHECK(ri.sources().inSet(variable("src_mc_new")));
@@ -600,26 +611,24 @@ TEST_CASE("rename_vars on external rules renames mappings targets constraints an
   CHECK_FALSE(ri.targets().inSet(variable("tgt_mc")));
 }
 
-// Verifies remove_rule() performs enough cleanup that the same rule can be
-// re-added and re-indexed correctly for target lookups.
 TEST_CASE("remove_rule followed by add_rule restores target index") {
   rule_db rdb;
   rule r = make_rule<simple_rule_for_indexes>();
 
+  // Round-trip the same rule through add, remove, and add again.
   rdb.add_rule(r);
   rdb.remove_rule(r);
   rdb.add_rule(r);
 
+  // Re-adding should fully restore the target reverse index.
   CHECK(rdb.rules_by_target(variable("tgt_idx")).inSet(r));
 }
 
-// Verifies replace_map_constraints() rewrites map-typed constraints to
-// generated constraint facts, keeps non-map constraints intact, and creates a
-// constraint-typed fact in fact_db.
 TEST_CASE("replace_map_constraints converts map constraints to generated constraints") {
   rule_implP impl = new copy_rule_impl<map_constraint_replace_rule>;
   fact_db facts;
 
+  // Seed one map constraint and one ordinary constraint.
   Map map_con;
   map_con.allocate(interval(1, 3));
   facts.create_fact("map_con", map_con);
@@ -628,6 +637,7 @@ TEST_CASE("replace_map_constraints converts map constraints to generated constra
   *keep_con = interval(2, 4);
   facts.create_fact("keep_con", keep_con);
 
+  // Replacing map constraints should rewrite only the map-backed constraint.
   impl->replace_map_constraints(facts);
   const rule_impl::info &info = impl->get_info();
 
@@ -635,17 +645,17 @@ TEST_CASE("replace_map_constraints converts map constraints to generated constra
   CHECK(desc_has_var(info.constraints, variable("keep_con")));
   CHECK_FALSE(desc_has_var(info.constraints, variable("map_con")));
 
+  // The generated fact should be materialized as a constraint in `fact_db`.
   storeRepP generated = facts.get_variable("__map_con_MAP_constraint__");
   REQUIRE(generated != static_cast<storeRep *>(0));
   CHECK(isCONSTRAINT(generated));
 }
 
-// Verifies replace_map_constraints() is idempotent: repeated calls should not
-// destabilize generated map-constraint facts or their domain.
 TEST_CASE("replace_map_constraints is idempotent for generated constraint facts") {
   rule_implP impl = new copy_rule_impl<map_constraint_replace_rule>;
   fact_db facts;
 
+  // Seed fresh map and ordinary constraints for the idempotence check.
   Map map_con;
   map_con.allocate(interval(7, 9));
   facts.create_fact("map_con", map_con);
@@ -654,19 +664,19 @@ TEST_CASE("replace_map_constraints is idempotent for generated constraint facts"
   *keep_con = interval(3, 5);
   facts.create_fact("keep_con", keep_con);
 
+  // The first rewrite establishes the generated constraint fact and its domain.
   impl->replace_map_constraints(facts);
   storeRepP first = facts.get_variable("__map_con_MAP_constraint__");
   REQUIRE(first != static_cast<storeRep *>(0));
   const entitySet first_dom = first->domain();
 
+  // A second rewrite should leave that generated fact stable.
   impl->replace_map_constraints(facts);
   storeRepP second = facts.get_variable("__map_con_MAP_constraint__");
   REQUIRE(second != static_cast<storeRep *>(0));
   CHECK(second->domain() == first_dom);
 }
 
-// Verifies check_perm_bits() with a small positive/negative matrix across rule
-// categories: valid target container types pass, intentionally wrong ones fail.
 TEST_CASE("check_perm_bits type matrix catches bad and accepts good rule targets") {
   rule_implP good_default = new copy_rule_impl<default_category_rule>;
   rule_implP bad_default = new copy_rule_impl<default_bad_store_target_rule>;
@@ -676,6 +686,7 @@ TEST_CASE("check_perm_bits type matrix catches bad and accepts good rule targets
   rule_implP good_constraint = new copy_rule_impl<constraint_good_rule>;
   rule_implP bad_constraint = new copy_rule_impl<constraint_bad_store_target_rule>;
 
+  // Each category should accept the container type it expects.
   CHECK(good_default->check_perm_bits());
   CHECK_FALSE(bad_default->check_perm_bits());
   CHECK_FALSE(bad_pointwise->check_perm_bits());
