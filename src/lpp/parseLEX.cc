@@ -778,7 +778,16 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
 	      count-- ;
 	    AST_data->text += is.get() ;
 	  }
-	} else
+	} else if(is.peek() == ':') {
+          is.get() ;
+          if(is.peek() == ':') {
+            AST_data->text += ':' ;
+            AST_data->text += is.get() ;
+          } else {
+            is.putback(':') ;
+            break ;
+          }
+        } else
 	  AST_data->text += is.get() ;
       }
 
