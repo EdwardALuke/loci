@@ -411,128 +411,100 @@ AST_type::ASTP parseTerm(std::istream &is, int &linecount) {
 }
 
 
-
-
+AST_type::elementType tokenToOperator(AST_type::elementType nodeType) {
+  switch(nodeType) {
+  case TK_SCOPE:
+    return OP_SCOPE ;
+    //-----------------------------------
+    // For using @ to separate namespaces
+  case TK_AT:
+    return OP_AT ;
+    //-----------------------------------
+    // Traditional C operators
+  case TK_ARROW:
+    return OP_ARROW ;
+  case TK_TIMES:
+    return OP_TIMES ;
+  case TK_DIVIDE:
+    return OP_DIVIDE ;
+  case TK_MODULUS:
+    return OP_MODULUS ;
+  case TK_PLUS:
+    return OP_PLUS ;
+  case TK_MINUS:
+    return OP_MINUS ;
+  case TK_SHIFT_RIGHT:
+    return OP_SHIFT_RIGHT ;
+  case TK_SHIFT_LEFT:
+    return OP_SHIFT_LEFT ;
+  case TK_LT:
+    return OP_LT ;
+  case TK_GT:
+    return OP_GT ;
+  case TK_GE:
+    return OP_GE ;
+  case TK_LE:
+    return OP_LE ;
+  case TK_EQUAL:
+    return OP_EQUAL ;
+  case TK_NOT_EQUAL:
+    return OP_NOT_EQUAL ;
+  case TK_AND:
+    return OP_AND ;
+  case TK_EXOR:
+    return OP_EXOR ;
+  case TK_OR:
+    return OP_OR ;
+  case TK_LOGICAL_AND:
+    return OP_LOGICAL_AND;
+  case TK_LOGICAL_OR:
+    return OP_LOGICAL_OR ;
+  case TK_ASSIGN:
+    return OP_ASSIGN ;
+  case TK_TIMES_ASSIGN:
+    return OP_TIMES_ASSIGN ;
+  case TK_DIVIDE_ASSIGN:
+    return OP_DIVIDE_ASSIGN ;
+  case TK_MODULUS_ASSIGN:
+    return OP_MODULUS_ASSIGN ;
+  case TK_PLUS_ASSIGN:
+    return OP_PLUS_ASSIGN ;
+  case TK_MINUS_ASSIGN:
+    return OP_MINUS_ASSIGN ;
+  case TK_SHIFT_LEFT_ASSIGN:
+    return OP_SHIFT_LEFT_ASSIGN ;
+  case TK_SHIFT_RIGHT_ASSIGN:
+    return OP_SHIFT_RIGHT_ASSIGN ;
+  case TK_AND_ASSIGN:
+    return OP_AND_ASSIGN ;
+  case TK_OR_ASSIGN:
+    return OP_OR_ASSIGN ;
+  case TK_EXOR_ASSIGN:
+    return OP_EXOR_ASSIGN ;
+  case TK_COMMA:
+    return OP_COMMA ;
+  case TK_QUESTION:
+    return OP_TERNARY ;
+  case TK_DOT:
+    return OP_DOT ;
+  default:
+    return OP_ERROR ;
+  }
+  return OP_ERROR ;
+}
 /// Parse operator token, convert from TK_* node type to OP_* nodetype
 AST_type::ASTP parseOperator(std::istream &is, int &linecount) {
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseOperator, token = " << openToken->text << endl ;
 #endif
-  switch(openToken->nodeType) {
-  case TK_SCOPE:
-    openToken->nodeType = OP_SCOPE ;
-    return AST_type::ASTP(openToken) ;
-    //-----------------------------------
-    // For using @ to separate namespaces
-  case TK_AT:
-    openToken->nodeType = OP_AT ;
-    return AST_type::ASTP(openToken) ;
-    //-----------------------------------
-    // Traditional C operators
-  case TK_ARROW:
-    openToken->nodeType = OP_ARROW ;
-    return AST_type::ASTP(openToken) ;
-  case TK_TIMES:
-    openToken->nodeType = OP_TIMES ;
-    return AST_type::ASTP(openToken) ;
-  case TK_DIVIDE:
-    openToken->nodeType = OP_DIVIDE ;
-    return AST_type::ASTP(openToken) ;
-  case TK_MODULUS:
-    openToken->nodeType = OP_MODULUS ;
-    return AST_type::ASTP(openToken) ;
-  case TK_PLUS:
-    openToken->nodeType = OP_PLUS ;
-    return AST_type::ASTP(openToken) ;
-  case TK_MINUS:
-    openToken->nodeType = OP_MINUS ;
-    return AST_type::ASTP(openToken) ;
-  case TK_SHIFT_RIGHT:
-    openToken->nodeType = OP_SHIFT_RIGHT ;
-    return AST_type::ASTP(openToken) ;
-  case TK_SHIFT_LEFT:
-    openToken->nodeType = OP_SHIFT_LEFT ;
-    return AST_type::ASTP(openToken) ;
-  case TK_LT:
-    openToken->nodeType = OP_LT ;
-    return AST_type::ASTP(openToken) ;
-  case TK_GT:
-    openToken->nodeType = OP_GT ;
-    return AST_type::ASTP(openToken) ;
-  case TK_GE:
-    openToken->nodeType = OP_GE ;
-    return AST_type::ASTP(openToken) ;
-  case TK_LE:
-    openToken->nodeType = OP_LE ;
-    return AST_type::ASTP(openToken) ;
-  case TK_EQUAL:
-    openToken->nodeType = OP_EQUAL ;
-    return AST_type::ASTP(openToken) ;
-  case TK_NOT_EQUAL:
-    openToken->nodeType = OP_NOT_EQUAL ;
-    return AST_type::ASTP(openToken) ;
-  case TK_AND:
-    openToken->nodeType = OP_AND ;
-    return AST_type::ASTP(openToken) ;
-  case TK_EXOR:
-    openToken->nodeType = OP_EXOR ;
-    return AST_type::ASTP(openToken) ;
-  case TK_OR:
-    openToken->nodeType = OP_OR ;
-    return AST_type::ASTP(openToken) ;
-  case TK_LOGICAL_AND:
-    openToken->nodeType = OP_LOGICAL_AND;
-    return AST_type::ASTP(openToken) ;
-  case TK_LOGICAL_OR:
-    openToken->nodeType = OP_LOGICAL_OR ;
-    return AST_type::ASTP(openToken) ;
-  case TK_ASSIGN:
-    openToken->nodeType = OP_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_TIMES_ASSIGN:
-    openToken->nodeType = OP_TIMES_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_DIVIDE_ASSIGN:
-    openToken->nodeType = OP_DIVIDE_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_MODULUS_ASSIGN:
-    openToken->nodeType = OP_MODULUS_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_PLUS_ASSIGN:
-    openToken->nodeType = OP_PLUS_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_MINUS_ASSIGN:
-    openToken->nodeType = OP_MINUS_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_SHIFT_LEFT_ASSIGN:
-    openToken->nodeType = OP_SHIFT_LEFT_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_SHIFT_RIGHT_ASSIGN:
-    openToken->nodeType = OP_SHIFT_RIGHT_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_AND_ASSIGN:
-    openToken->nodeType = OP_AND_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_OR_ASSIGN:
-    openToken->nodeType = OP_OR_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_EXOR_ASSIGN:
-    openToken->nodeType = OP_EXOR_ASSIGN ;
-    return AST_type::ASTP(openToken) ;
-  case TK_COMMA:
-    openToken->nodeType = OP_COMMA ;
-    return AST_type::ASTP(openToken) ;
-  case TK_QUESTION:
-    openToken->nodeType = OP_TERNARY ;
-    return AST_type::ASTP(openToken) ;
-  case TK_DOT:
-    openToken->nodeType = OP_DOT ;
-    return AST_type::ASTP(openToken) ;
-  default:
+  AST_type::elementType op = tokenToOperator(openToken->nodeType) ;
+  if(op == OP_ERROR) {
     pushToken(openToken) ;
     return AST_type::ASTP(0) ;
   }
+  openToken->nodeType = op ;
+  return AST_type::ASTP(openToken) ;
 }
 
 /// Check for input token that is a unary operator
@@ -960,7 +932,8 @@ bool scanForCStyleCast(std::istream &is, int &linecount,varmap &typemap) {
 /// Parse the part of an expression that is not a binary or ternary operator
 AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 				      const string &fileName,
-				      varmap &typemap) {
+				      varmap &typemap,
+                                      AST_type::operatorPrecedence prec) {
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseExpressionPartial, token = " << openToken->text << endl ;
@@ -980,7 +953,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       AST_data->type_decl.push_back(AST_type::ASTP(openToken)) ;
       AST_data->type_decl.push_back(parseExpressionPartial(is,linecount,
                                                            fileName,
-                                                           typemap)) ;
+                                                           typemap,prec)) ;
       return AST_type::ASTP(AST_data) ;
     } 
   }
@@ -1006,7 +979,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
             "invalid type in cast", closeTok->lineno, fileName)) ;
       }
       AST_type::ASTP operand =
-          parseExpressionPartial(is, linecount, fileName, typemap) ;
+        parseExpressionPartial(is, linecount, fileName, typemap,prec) ;
       if(operand == 0) {
         return AST_type::ASTP(new AST_syntaxError(
             "expecting expression after cast", closeTok->lineno, fileName)) ;
@@ -1020,9 +993,9 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     }
     openToken = getToken(is, linecount) ;
 #ifdef VERBOSE
-  cerr << "parseExpressionPartial: Found '(' parsing new expression" << endl ;
+    cerr << "parseExpressionPartial: Found '(' parsing new expression" << endl ;
 #endif    
-    AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
+    AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap,prec) ;
     CPTR<AST_Token> closeToken = getToken(is,linecount) ;
     CPTR<AST_exprOper> group = new AST_exprOper ;
     group->nodeType = OP_GROUP ;
@@ -1047,7 +1020,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     }
     pushToken(afterBrace) ;
     AST_type::ASTP inner =
-        parseExpression(is,linecount,fileName,typemap) ;
+      parseExpression(is,linecount,fileName,typemap,prec) ;
     CPTR<AST_Token> closeTok = getToken(is,linecount) ;
     if(closeTok->nodeType != TK_CLOSEBRACE) {
       pushToken(closeTok) ;
@@ -1069,7 +1042,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 #endif    
     //check for unary operators
     AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,
-						 typemap) ;
+						 typemap,prec) ;
     if(expr!= 0) {
       CPTR<AST_exprOper> unary = new AST_exprOper ;
       unary->nodeType = unaryOperator(openToken->nodeType) ;
@@ -1128,9 +1101,8 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 
 /// get precedence of operator code (larger = tighter binding).
 inline AST_type::operatorPrecedence getPrecedence(AST_type::elementType op) {
+  // Note going from highest precedence to lowest
   switch(op) {
-  case OP_NIL:
-    return AST_type::operatorPrecedence::PREC_ERROR ;
   case OP_SCOPE:
   case OP_AT:
     return AST_type::operatorPrecedence::PREC_SCOPE ;
@@ -1150,6 +1122,7 @@ inline AST_type::operatorPrecedence getPrecedence(AST_type::elementType op) {
   case OP_AMPERSAND:
   case OP_DOLLAR:
     return AST_type::operatorPrecedence::PREC_UNARY_PREFIX ;
+    // Not implementing member access right now
     //        return AST_type::operatorPrecedence::PREC_MEMBER_ACCESS ;
   case OP_TIMES:
   case OP_DIVIDE:
@@ -1194,6 +1167,8 @@ inline AST_type::operatorPrecedence getPrecedence(AST_type::elementType op) {
     return AST_type::operatorPrecedence::PREC_ASSIGNMENT ;
   case OP_COMMA:
     return AST_type::operatorPrecedence::PREC_COMMA ;
+  case OP_NIL:
+    return AST_type::operatorPrecedence::PREC_ERROR ;
   default:
     return AST_type::operatorPrecedence::PREC_ERROR ;
   }
@@ -1212,20 +1187,28 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
                                        std::istream &is, int &linecount,
                                        const string &fileName,
                                        varmap &typemap,
-                                       AST_type::elementType
-                                       term) {
+                                       AST_type::operatorPrecedence
+                                       prec) {
   // exprStack holds already processed binary operators
   // create stack and push sentinel on the stack
 
   // Note that if we have repeated operators that have default left
   // associativity (e.g. a+b+c+d = (a+(b+(c+d))) then this will be structured
   // as a single plus node in the tree, e.g. (+:a b c d)
-  
+
+#ifdef VERBOSE
+  cerr << "in parseExpressionOperator" ;
+  if(expr == 0)
+    cerr << " with nil expr" ;
+  cerr << endl ;
+#endif
   vector<CPTR<AST_exprOper> > exprStack ;
   {
     CPTR<AST_exprOper> tmp = new AST_exprOper ;
     tmp->nodeType = OP_NIL ;
-    tmp->terms.push_back(expr) ;
+    if(expr!=0)
+      tmp->terms.push_back(expr) ;
+
     exprStack.push_back(tmp) ;
 #ifdef VERBOSE
     cerr << "push op = " << OPtoName(exprStack.back()->nodeType)  << endl ;
@@ -1235,7 +1218,9 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
   do {
     // Check if we detect a terminating token
     CPTR<AST_Token> openToken = getToken(is,linecount) ;
-    if(openToken->nodeType == term) {
+    AST_type::elementType opcode = tokenToOperator(openToken->nodeType) ;
+    AST_type::operatorPrecedence opprec = getPrecedence(opcode) ;
+    if(opprec <= prec) {
       // We found it, restore token and break out of loop
       pushToken(openToken) ;
       break ;
@@ -1401,14 +1386,17 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 /// parseExpressionPartial
 AST_type::ASTP parseExpression(std::istream &is, int &linecount,
 			       const string &fileName,
-			       varmap &typemap) {
+			       varmap &typemap,
+                               AST_type::operatorPrecedence prec) {
 #ifdef VERBOSE
   cerr << "in parseExpression"<< endl ;
 #endif
-  AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+
+  AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,typemap,prec) ;
   if(expr == 0) // If no valid expression then return null
     return expr ;
-  return parseExpressionOperator(expr,is,linecount,fileName,typemap) ;
+  
+  return parseExpressionOperator(expr,is,linecount,fileName,typemap,prec) ;
   
 }
 
@@ -1794,6 +1782,16 @@ AST_type::ASTP parseDeclarationOrSimpleStatement(std::istream &is,
 #ifdef VERBOSE
   cerr << "in parseDeclarationOrSimpleStatement"<< endl;
 #endif
+  // If starts with a unary operator or '(' then it is a simple statement
+  CPTR<AST_Token> openToken = getToken(is,linecount) ;
+  pushToken(openToken) ;
+  if(checkUnaryToken(openToken) || ASTEqual(openToken,TK_OPENPAREN)) {
+#ifdef VERBOSE
+    cerr << "Starts with operator or grouping so call parseSimpleStatement"
+         << endl ;
+#endif
+    return parseSimpleStatement(is,linecount,fileName,typemap) ;
+  }
   bool isFunc = false ;
   string ident = getIdentifierName(is,linecount,fileName,isFunc) ;
 #ifdef VERBOASE
@@ -1945,7 +1943,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
 #endif
       if(expr != 0) { // If no valid expression then return null
         expr = parseExpressionOperator(expr,is,linecount,fileName,typemap,
-                                       TK_COMMA) ;
+                                       AST_type::operatorPrecedence::PREC_COMMA) ;
       } else {
 #ifdef VERBOSE
   cerr << "in parseDeclaration, parseExpressionPartial returned nil " <<  endl ;
@@ -1960,6 +1958,9 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
       token = getToken(is,linecount) ;
     }
     if(ASTEqual(token,TK_COMMA)) {
+#ifdef VERBOSE
+      cerr << "pushing TK_COMMA onto decls"<< endl ;
+#endif
       AST_data->decls.push_back(AST_type::ASTP(token)) ;
       token = getToken(is,linecount) ;
     }
