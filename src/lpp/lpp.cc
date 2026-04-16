@@ -1472,6 +1472,7 @@ void AST_printTree::visit(AST_exprOper &s) {
 	(*ii)->accept(*this) ;
     }
     popindent() ;
+    break ;
   case OP_BRACEBLOCK:
     {
       pushindent(s) ;
