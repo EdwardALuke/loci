@@ -152,6 +152,8 @@ string OPtoString(AST_type::elementType val) {
     return string("*") ;
   case OP_CAST:
     return string(" ") ;
+  case OP_TEMPLATE_CAST:
+    return string(" ") ;
   case OP_BRACEBLOCK:
     return string(" ") ;
   default:
@@ -1043,6 +1045,69 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     }
     return applyPostFixOperator(AST_type::ASTP(group),is,linecount,fileName,
 				typemap) ;
+  }
+  if(ASTEqual(openToken,TK_CONST_CAST) ||
+     ASTEqual(openToken,TK_DYNAMIC_CAST) ||
+     ASTEqual(openToken,TK_REINTERPRET_CAST) ||
+     ASTEqual(openToken,TK_STATIC_CAST)) {
+#ifdef VERBOSE
+    cerr << "in template cast, token = " << openToken->text
+       << ", file: " << __FILE__ << ":" << __LINE__
+       << endl ;
+#endif
+    // parse templated cast
+    CPTR<AST_exprOper> cast = new AST_exprOper ;
+    cast->nodeType = OP_TEMPLATE_CAST ;
+    cast->terms.push_back(AST_type::ASTP(openToken)) ;
+    // how scan for template brace
+    openToken=getToken(is,linecount) ;
+#ifdef VERBOSE
+    cerr << "in template cast parser, token = " << openToken->text
+       << ", file: " << __FILE__ << ":" << __LINE__
+       << endl ;
+#endif
+    if(!ASTEqual(openToken,TK_OPENTEMPLATE)) {
+      cerr << "expecting '<'" << endl ;
+      cast->terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting '<'",openToken->lineno,fileName))) ;
+      return AST_type::ASTP(cast) ;
+    }
+    cast->terms.push_back(AST_type::ASTP(openToken)) ;
+    AST_type::ASTP objname =
+      parseTypeSpecifier(is,linecount,fileName,typemap) ;
+#ifdef VERBOSE
+    cerr << "in template cast parser, got template arguments"
+         << ", file: " << __FILE__ << ":" << __LINE__
+       << endl ;
+#endif
+    cast->terms.push_back(objname) ;
+    openToken=getToken(is,linecount) ;
+    if(ASTEqual(openToken,TK_TIMES) ||
+       ASTEqual(openToken,TK_AMPERSAND)) {
+      cast->terms.push_back(AST_type::ASTP(openToken)) ;
+      openToken = getToken(is,linecount) ;
+    }
+    if(!ASTEqual(openToken,TK_CLOSETEMPLATE)) {
+      cerr << "expecting '>'" << endl ;
+      cast->terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting '>'",openToken->lineno,fileName))) ;
+      return AST_type::ASTP(cast) ;
+    }
+    cast->terms.push_back(AST_type::ASTP(openToken)) ;
+    openToken=getToken(is,linecount) ;
+    if(!ASTEqual(openToken,TK_OPENPAREN)) {
+      cerr << "expecting ')'" << endl ;
+      cast->terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting '>'",openToken->lineno,fileName))) ;
+      return AST_type::ASTP(cast) ;
+    }
+    cast->terms.push_back(AST_type::ASTP(openToken)) ;
+    cast->terms.push_back(AST_type::ASTP(parseExpression(is,linecount,fileName,typemap))) ;
+    openToken=getToken(is,linecount) ;
+    if(!ASTEqual(openToken,TK_CLOSEPAREN)) {
+      cerr << "expecting ')'" << endl ;
+      cast->terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting ')'",openToken->lineno,fileName))) ;
+      return AST_type::ASTP(cast) ;
+    }
+    cast->terms.push_back(AST_type::ASTP(openToken)) ;
+    return AST_type::ASTP(cast) ;
   }
   // Brace-enclosed initializer list: { expr, ... }  (commas inside do not end
   // the outer declaration; parseExpression stops before '}').
@@ -2216,7 +2281,13 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
       firstToken = getToken(is,linecount) ;
       CPTR<AST_declaration> AST_data = new AST_declaration ;
       AST_data->type_decl.push_back(AST_type::ASTP(firstToken)) ;
-      
+
+      firstToken = getToken(is,linecount) ;
+      if(ASTEqual(firstToken,TK_NAMESPACE)) {
+        AST_data->type_decl.push_back(AST_type::ASTP(firstToken)) ;
+      } else {
+        pushToken(firstToken) ;
+      }
       bool isFunc = false ;
       string s = getIdentifierName(is,linecount,fileName,isFunc) ;
       if(!isFunc) {
@@ -2477,6 +2548,11 @@ void AST_simplePrint::visit(AST_exprOper &s) {
     out << ')' ;
     if(s.terms.size() >= 2 && s.terms[1] != 0)
       s.terms[1]->accept(*this) ;
+    break ;
+  case OP_TEMPLATE_CAST:
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
     break ;
   case OP_BRACEBLOCK:
     out << '{' ;

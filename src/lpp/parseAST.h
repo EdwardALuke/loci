@@ -188,7 +188,7 @@ public:
     // Unary operations
     OP_UNARY_PLUS, OP_UNARY_MINUS, OP_NOT, OP_TILDE,
     OP_AMPERSAND, OP_DOLLAR, OP_STAR,
-    OP_CAST,
+    OP_CAST,OP_TEMPLATE_CAST,
     OP_GROUP,OP_GROUP_ERROR,
     OP_OPENPAREN,OP_CLOSEPAREN,OP_OPENBRACKET,OP_CLOSEBRACKET,
     OP_OPENBRACE,OP_CLOSEBRACE,
@@ -241,7 +241,7 @@ public:
     TK_MUTABLE,TK_CONST,TK_STATIC,TK_VOLATILE,TK_AUTO,
     TK_REGISTER,TK_EXPORT,TK_EXTERN,TK_INLINE,TK_NAMESPACE,
     TK_USING,TK_EXPLICIT,TK_DYNAMIC_CAST,TK_STATIC_CAST,
-    TK_REINTERPRET_CAST,
+    TK_REINTERPRET_CAST,TK_CONST_CAST,
     TK_OPERATOR,TK_PROTECTED,TK_NOEXCEPT,TK_NULLPTR,
     TK_RETURN,TK_SIZEOF,TK_THIS,TK_TYPEID,
     TK_SWITCH,TK_CASE,TK_BREAK,TK_DEFAULT,
@@ -390,6 +390,8 @@ namespace nodeTypes {
     AST_type::elementType::OP_STAR;
   constexpr AST_type::elementType OP_CAST =
     AST_type::elementType::OP_CAST;
+  constexpr AST_type::elementType OP_TEMPLATE_CAST =
+    AST_type::elementType::OP_TEMPLATE_CAST;
   constexpr AST_type::elementType OP_GROUP =
     AST_type::elementType::OP_GROUP;
   constexpr AST_type::elementType OP_GROUP_ERROR =
@@ -599,6 +601,8 @@ namespace nodeTypes {
     AST_type::elementType::TK_USING;
   constexpr AST_type::elementType TK_EXPLICIT =
     AST_type::elementType::TK_EXPLICIT;
+  constexpr AST_type::elementType TK_CONST_CAST =
+    AST_type::elementType::TK_CONST_CAST;
   constexpr AST_type::elementType TK_DYNAMIC_CAST =
     AST_type::elementType::TK_DYNAMIC_CAST;
   constexpr AST_type::elementType TK_STATIC_CAST =
