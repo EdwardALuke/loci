@@ -1288,6 +1288,19 @@ inline AST_type::operatorPrecedence getPrecedence(CPTR<AST_exprOper> op) {
   return getPrecedence(op->nodeType) ;
 }
 
+inline bool precedenceCompare(AST_type::ASTP &op,
+                              CPTR<AST_exprOper> &opStack) {
+
+  AST_type::operatorPrecedence prec_op = getPrecedence(op);
+  AST_type::operatorPrecedence prec_opStack = getPrecedence(opStack) ;
+  //  if(prec_op == prec_opStack && op->nodeType == OP_TERNARY)
+  //    return false ;
+  if(prec_op == prec_opStack &&
+     (prec_op == AST_type::operatorPrecedence::PREC_ASSIGNMENT ||
+      prec_op == AST_type::operatorPrecedence::PREC_UNARY_PREFIX))
+    return true ;
+  return prec_op > prec_opStack ;
+}
 AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
                                        std::istream &is, int &linecount,
                                        const string &fileName,
@@ -1389,7 +1402,7 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
     } else {
       // Now we reorder the tree based on operator precedence
       while(exprStack.size() > 1 &&
-            getPrecedence(op) <= getPrecedence(exprStack.back())) {
+            !precedenceCompare(op,exprStack.back())) {
 #ifdef VERBOSE
 	if(ASTEqual(op,OP_TERNARY)) {
 	  cerr << "pop stack when OP_TERNARY"
@@ -1422,7 +1435,7 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << ", file: " << __FILE__ << ":" << __LINE__
              << endl ;
 #endif
-      } else if(getPrecedence(op) > getPrecedence(exprStack.back())) {
+      } else if(precedenceCompare(op,exprStack.back())) {
         // if operator is lower precedence than top of stack, then we need
         // to put this operator on the rightmost term
         CPTR<AST_exprOper> np = new AST_exprOper ;
@@ -1949,6 +1962,9 @@ AST_type::ASTP parseDeclarationOrSimpleStatement(std::istream &is,
 #endif
     return parseSimpleStatement(is,linecount,fileName,typemap) ;
   }
+  if(ASTEqual(openToken,TK_STRUCT) || ASTEqual(openToken,TK_CLASS))
+    return parseDeclaration(is,linecount,fileName,typemap) ;
+  
   bool isFunc = false ;
   string ident = getIdentifierName(is,linecount,fileName,isFunc) ;
 #ifdef VERBOASE
@@ -2019,6 +2035,8 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
     case TK_SIGNED:
     case TK_UNSIGNED:
     case TK_AUTO:
+    case TK_STRUCT:
+    case TK_CLASS:
 #ifdef VERBOSE
       cerr << "in parseDeclaration, builtin type"
            << ", file: " << __FILE__ << ":" << __LINE__
@@ -2259,6 +2277,8 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case TK_CONST:
   case TK_EXTERN:
   case TK_AUTO:
+  case TK_STRUCT:
+  case TK_CLASS:
     return parseDeclaration(is,linecount,fileName,typemap) ;
   case TK_FOR:
   case TK_WHILE:
