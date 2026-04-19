@@ -920,10 +920,10 @@ CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
 #endif
           toklist[LT_LIST.back()]->nodeType =
             TK_OPENTEMPLATE ;
-          toklist[LT_LIST.back()]->text = "<<<" ; ;
+          toklist[LT_LIST.back()]->text = "<" ; ;
           toklist.back()->nodeType =
             TK_CLOSETEMPLATE ;
-          toklist.back()->text = ">>>" ;
+          toklist.back()->text = ">" ;
           LT_LIST.pop_back() ;
           LT_DEPTH.pop_back() ;
           if(LT_LIST.size() == 0) {
