@@ -501,6 +501,8 @@ AST_type::elementType tokenToOperator(AST_type::elementType nodeType) {
     return OP_COMMA ;
   case TK_QUESTION:
     return OP_TERNARY ;
+  case TK_COLON:
+    return OP_COLON ; // works with OP_TERNARY
   case TK_DOT:
     return OP_DOT ;
   default:
@@ -973,6 +975,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
        << endl ;
 #endif
 
+#ifdef C_STYLE_CAST
   // Check for a type cast
   if(ASTEqual(openToken,TK_DOUBLE) ||
      ASTEqual(openToken,TK_FLOAT) ||
@@ -989,12 +992,13 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
                                                            fileName,
                                                            typemap,prec)) ;
       return AST_type::ASTP(AST_data) ;
-    } 
+    }
   }
+#endif
   // Check for a parenthesized group or C-style cast ( type ) expr
   if(ASTEqual(openToken,TK_OPENPAREN)) {
     pushToken(openToken) ;
-    if(scanForCStyleCast(is, linecount,typemap)) {
+    if(false && scanForCStyleCast(is, linecount,typemap)) {
       // Cast has unary-level precedence: parse operand with parseExpressionPartial.
       (void)getToken(is, linecount) ; // '('
       AST_type::ASTP maybeType =
@@ -1033,6 +1037,16 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 #endif
     // parse expression contained within parenthesized group
     AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
+#ifdef VERBOSE
+    cerr << "parseExpressionPartial: creating group"
+         << ", file: " << __FILE__ << ":" << __LINE__
+         << endl ;
+    {
+      AST_simplePrint printer(cerr,-2) ;
+      exp->accept(printer) ;
+      cerr << endl ;
+    }
+#endif
     
     CPTR<AST_Token> closeToken = getToken(is,linecount) ;
     CPTR<AST_exprOper> group = new AST_exprOper ;
@@ -1094,8 +1108,8 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     cast->terms.push_back(AST_type::ASTP(openToken)) ;
     openToken=getToken(is,linecount) ;
     if(!ASTEqual(openToken,TK_OPENPAREN)) {
-      cerr << "expecting ')'" << endl ;
-      cast->terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting '>'",openToken->lineno,fileName))) ;
+      cerr << "expecting '('" << endl ;
+      cast->terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting '('",openToken->lineno,fileName))) ;
       return AST_type::ASTP(cast) ;
     }
     cast->terms.push_back(AST_type::ASTP(openToken)) ;
@@ -1288,6 +1302,11 @@ inline AST_type::operatorPrecedence getPrecedence(CPTR<AST_exprOper> op) {
   return getPrecedence(op->nodeType) ;
 }
 
+inline bool rightToLeftAssociativePrecedence(AST_type::operatorPrecedence op) {
+  return (op == AST_type::operatorPrecedence::PREC_ASSIGNMENT ||
+          op == AST_type::operatorPrecedence::PREC_UNARY_PREFIX) ;
+}
+
 inline bool precedenceCompare(AST_type::ASTP &op,
                               CPTR<AST_exprOper> &opStack) {
 
@@ -1295,12 +1314,22 @@ inline bool precedenceCompare(AST_type::ASTP &op,
   AST_type::operatorPrecedence prec_opStack = getPrecedence(opStack) ;
   //  if(prec_op == prec_opStack && op->nodeType == OP_TERNARY)
   //    return false ;
-  if(prec_op == prec_opStack &&
-     (prec_op == AST_type::operatorPrecedence::PREC_ASSIGNMENT ||
-      prec_op == AST_type::operatorPrecedence::PREC_UNARY_PREFIX))
-    return true ;
-  return prec_op > prec_opStack ;
+  return ((prec_op == prec_opStack &&
+           rightToLeftAssociativePrecedence(prec_op)) ||
+          prec_op > prec_opStack) ;
 }
+
+void printStack(vector<CPTR<AST_exprOper> > &exprStack,
+                ostream &out) {
+  out << "Stack:" << endl ;
+  for(size_t i=0;i<exprStack.size();++i) {
+    out << i << " - " ;
+    AST_simplePrint printer(out,-2) ;
+    exprStack[i]->accept(printer) ;
+    out << endl ;
+  }
+}
+
 AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
                                        std::istream &is, int &linecount,
                                        const string &fileName,
@@ -1311,7 +1340,7 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
   // create stack and push sentinel on the stack
 
   // Note that if we have repeated operators that have default left
-  // associativity (e.g. a+b+c+d = (a+(b+(c+d))) then this will be structured
+  // associativity (e.g. a+b+c+d = (((a+b)+c)+d) then this will be structured
   // as a single plus node in the tree, e.g. (+:a b c d)
 
 #ifdef VERBOSE
@@ -1337,6 +1366,11 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
   }
   // After getting the first term we are in a loop of searching for operators
   do {
+#ifdef VERBOSE
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
+#endif
     // Check if we detect a terminating token
     CPTR<AST_Token> openToken = getToken(is,linecount) ;
     AST_type::elementType opcode = tokenToOperator(openToken->nodeType) ;
@@ -1344,12 +1378,22 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
     if(opprec <= prec) {
       // We found it, restore token and break out of loop
       pushToken(openToken) ;
+#ifdef VERBOSE
+      cerr << "exiting expression parsing due to precedence for token"
+           << OPtoName(openToken->nodeType) << endl ;
+#endif
       break ;
     }
     // restore token for parseOperator
     pushToken(openToken) ;
     // binary operator check
     AST_type::ASTP op = parseOperator(is, linecount) ;
+#ifdef VERBOSE
+    if(op == 0) {
+      cerr << "exiting expression parsing due to token"
+           << OPtoName(openToken->nodeType) << endl ;
+    }
+#endif
     if(op == 0)
       break ;
 
@@ -1379,6 +1423,9 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
            << OPtoName(exprStack.back()->nodeType)
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
 #endif
       // ?: must read ':' and the false branch here as well; the lower
       // branches only handle colon when exprStack.back() is not OP_NIL.
@@ -1386,13 +1433,20 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
         CPTR<AST_Token> op2 = getToken(is,linecount) ;
         if(ASTEqual(op2,TK_COLON)) {
           AST_type::ASTP expr3 =
-              parseExpressionPartial(is,linecount,fileName,typemap) ;
+            parseExpression(is,linecount,fileName,typemap,
+                            AST_type::operatorPrecedence::PREC_ASSIGNMENT) ;
+            //              parseExpressionPartial(is,linecount,fileName,typemap) ;
           if(expr3 == 0) {
             return AST_type::ASTP(new AST_syntaxError(
                 "Expecting expression after ':' in ?: operator", linecount,
                 fileName)) ;
           }
           exprStack.back()->terms.push_back(expr3) ;
+#ifdef VERBOSE
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
+#endif
         } else {
           pushToken(op2) ;
           return AST_type::ASTP(new AST_syntaxError(
@@ -1422,6 +1476,11 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
          << ", file: " << __FILE__ << ":" << __LINE__
          << endl ;
 #endif
+#ifdef VERBOSE
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
+#endif
         
       }
       
@@ -1434,6 +1493,11 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << " stack size=" << exprStack.size() 
              << ", file: " << __FILE__ << ":" << __LINE__
              << endl ;
+#endif
+#ifdef VERBOSE
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
 #endif
       } else if(precedenceCompare(op,exprStack.back())) {
         // if operator is lower precedence than top of stack, then we need
@@ -1456,6 +1520,11 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << ", file: " << __FILE__ << ":" << __LINE__
              << endl ;
 #endif
+#ifdef VERBOSE
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
+#endif
         if(ASTEqual(op,OP_TERNARY)) {
           CPTR<AST_Token> op2 = getToken(is,linecount) ;
 #ifdef VERBOSE
@@ -1464,7 +1533,15 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
                << endl ;
 #endif
           if(ASTEqual(op2,TK_COLON)) {
-            expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+            //            expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+            expr = parseExpression(is,linecount,fileName,typemap,
+                                   AST_type::operatorPrecedence::PREC_COMMA) ;
+#ifdef VERBOSE
+            cerr << "after colon parsed expression:" << endl ;
+            AST_simplePrint printer(cerr,-2) ;
+            expr->accept(printer) ;
+#endif
+              
             np->terms.push_back(expr) ;
           } else {
             pushToken(op2) ;
@@ -1477,6 +1554,11 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << " stack size=" << exprStack.size()
              << ", file: " << __FILE__ << ":" << __LINE__
              << endl ;
+#endif
+#ifdef VERBOSE
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
 #endif
       } else {
 	CPTR<AST_exprOper> np = new AST_exprOper ;
@@ -1511,9 +1593,22 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << ", file: " << __FILE__ << ":" << __LINE__
              << endl ;
 #endif
+#ifdef VERBOSE
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
+#endif
       }
     }
   } while(true) ;
+
+
+#ifdef VERBOSE
+  cerr << "parseExpressionOperator exit loop stack" << endl ;
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
+#endif
 
   AST_type::ASTP e = CPTR<AST_type>(exprStack.front()) ;
   if(ASTEqual(exprStack.front(),OP_NIL)) 
@@ -2695,7 +2790,7 @@ void AST_simplePrint::visit(AST_exprOper &s) {
 }
 
 void AST_simplePrint::visit(AST_Token &s) {
-  if(s.lineno >0 && lineno != s.lineno) {
+  if(lineno != -2 && s.lineno >0 && lineno != s.lineno) {
     out << endl ;
     if(!prettyPrint)
       if(lineno < 0 || lineno+1 != s.lineno)
