@@ -18,8 +18,11 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-#include <Loci.h>
-#include <gpuparameter.h>
-#include <gpustore.h>
-#include <gpuMap.h>
-#include <gpuMapVec.h>
+
+#ifndef LOCI_GPUMAPVEC_H_
+#define LOCI_GPUMAPVEC_H_
+
+#include <gpuMapVec_def.h>
+#include <gpuMapVec_impl.h>
+
+#endif
