@@ -1564,13 +1564,6 @@ void AST_printTree::visit(AST_exprOper &s) {
       out << '?' ;
       if(*ii != 0)
 	(*ii)->accept(*this) ;
-      out << ':' ;
-      if(ii==s.terms.end()) {
-	cerr << "internal error on tertiary operator" << endl ;
-      } else
-	++ii ;
-      if(*ii != 0)
-	(*ii)->accept(*this) ;
       popindent() ;
     }
     break ;

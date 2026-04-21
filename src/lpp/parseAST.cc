@@ -279,7 +279,7 @@ AST_type::AST_type() {
   id = parseIDctr++ ;
 }
 
-/// Acceptor method AST node, passes node to visitor object for AST_tolen
+/// Acceptor method AST node, passes node to visitor object for AST_token
 void AST_Token::accept(AST_visitor &v) {  v.visit(*this) ; }
 
 /// Code to clone an AST_Token
@@ -994,36 +994,6 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
   // Check for a parenthesized group or C-style cast ( type ) expr
   if(ASTEqual(openToken,TK_OPENPAREN)) {
     pushToken(openToken) ;
-    if(false && scanForCStyleCast(is, linecount,typemap)) {
-      // Cast has unary-level precedence: parse operand with parseExpressionPartial.
-      (void)getToken(is, linecount) ; // '('
-      AST_type::ASTP maybeType =
-        parseTypeSpecifier(is, linecount, fileName, typemap) ;
-      CPTR<AST_Token> closeTok = getToken(is, linecount) ;
-      if(closeTok->nodeType != TK_CLOSEPAREN) {
-        pushToken(closeTok) ;
-        return AST_type::ASTP(new AST_syntaxError(
-                                                  "expecting ')' in cast", closeTok->lineno, fileName)) ;
-      }
-      CPTR<AST_typeSpec> ts = CPTR<AST_typeSpec>(maybeType) ;
-      if(maybeType == 0 || maybeType->nodeType != ND_TYPE_SPEC ||
-         ts == 0 || ts->type_spec.empty()) {
-        return AST_type::ASTP(new AST_syntaxError(
-                                                  "invalid type in cast", closeTok->lineno, fileName)) ;
-      }
-      AST_type::ASTP operand =
-        parseExpressionPartial(is, linecount, fileName, typemap) ;
-      if(operand == 0) {
-        return AST_type::ASTP(new AST_syntaxError(
-                                                  "expecting expression after cast", closeTok->lineno, fileName)) ;
-      }
-      CPTR<AST_exprOper> castNode = new AST_exprOper ;
-      castNode->nodeType = OP_CAST ;
-      castNode->terms.push_back(maybeType) ;
-      castNode->terms.push_back(operand) ;
-      return applyPostFixOperator(AST_type::ASTP(castNode), is, linecount,
-                                  fileName, typemap) ;
-    }
     // Grab '('
     openToken = getToken(is, linecount) ;
 #ifdef VERBOSE
@@ -1268,6 +1238,7 @@ inline AST_type::operatorPrecedence getPrecedence(AST_type::elementType op) {
   case OP_LOGICAL_OR:
     return AST_type::operatorPrecedence::PREC_LOGICAL_OR ;
   case OP_TERNARY:
+  case OP_COLON:
   case OP_ASSIGN:
   case OP_TIMES_ASSIGN:
   case OP_DIVIDE_ASSIGN:
@@ -1400,21 +1371,8 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
          << ", file: " << __FILE__ << ":" << __LINE__
          << endl ;
 #endif
-    // Special case for ?: operator or array
-    if(ASTEqual(op,OP_TERNARY)) {
-#ifdef VERBOSE
-      cerr << "parsing expression for first term of TERNARY operator" << endl ;
-#endif
-      expr = parseExpression(is,linecount,fileName,typemap,
-                             AST_type::operatorPrecedence::PREC_ASSIGNMENT) ;
-#ifdef VERBOSE
-      cerr << "expr parsed = " << endl ;
-      AST_simplePrint printer(cerr,-2) ;
-      expr->accept(printer) ;
-#endif
-    } else {
-      expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
-    }
+    expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+
     if(expr == 0) {
       return AST_type::ASTP(new AST_syntaxError("Expecting expression after binary operator",linecount,fileName)) ;
     }
@@ -1433,50 +1391,11 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
         printStack(exprStack,cerr) ;
       }
 #endif
-      // ?: must read ':' and the false branch here as well; the lower
-      // branches only handle colon when exprStack.back() is not OP_NIL.
-      if(ASTEqual(op,OP_TERNARY)) {
-        CPTR<AST_Token> op2 = getToken(is,linecount) ;
-#ifdef VERBOSE
-        cerr << "op2 = " << OPtoName(op2->nodeType) << endl ;
-#endif
-        if(ASTEqual(op2,TK_COLON)) {
-#ifdef VERBOSE
-          cerr << "Found ':' of '?' operator" << endl ;
-#endif
-          
-          AST_type::ASTP expr3 =
-            parseExpression(is,linecount,fileName,typemap,
-                            AST_type::operatorPrecedence::PREC_COMMA) ;
-          //              parseExpressionPartial(is,linecount,fileName,typemap) ;
-          if(expr3 == 0) {
-            return AST_type::ASTP(new AST_syntaxError(
-                                                      "Expecting expression after ':' in ?: operator", linecount,
-                                                      fileName)) ;
-          }
-          exprStack.back()->terms.push_back(expr3) ;
-#ifdef VERBOSE
-          if(exprStack.size() > 0) {
-            printStack(exprStack,cerr) ;
-          }
-#endif
-        } else {
-          pushToken(op2) ;
-          return AST_type::ASTP(new AST_syntaxError(
-                                                    "expecting ':' in tertiary operator", op2->lineno, fileName)) ;
-        }
-      }
+
     } else {
       // Now we reorder the tree based on operator precedence
       while(exprStack.size() > 1 &&
             !precedenceCompare(op,exprStack.back())) {
-#ifdef VERBOSE
-	if(ASTEqual(op,OP_TERNARY)) {
-	  cerr << "pop stack when OP_TERNARY"
-               << ", file: " << __FILE__ << ":" << __LINE__
-               << endl ;
-	}
-#endif
 #ifdef VERBOSE
         cerr << "pop off exprStack:" << OPtoName(exprStack.back()->nodeType)
              << ", file: " << __FILE__ << ":" << __LINE__
@@ -1497,7 +1416,19 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 
       }
 
-      if(ASTEqual(op,exprStack.back())) {
+      if(ASTEqual(op,OP_COLON)) {
+        //        cerr << "FOUND COLON" << endl ;
+        printStack(exprStack,cerr) ;
+        if(exprStack.back()->nodeType != OP_TERNARY) {
+          cerr << "expected to be working with TERNARY operator" << endl ;
+          CPTR<AST_Token> optoken = CPTR<AST_Token>(op) ;
+          AST_type::ASTP err =
+            AST_type::ASTP(new AST_syntaxError("expecting ':' to be paired with '?'",
+                                               optoken->lineno,fileName)) ;
+          exprStack.back()->terms.push_back(err) ;
+        }
+      }
+      if(!ASTEqual(op,OP_TERNARY) && ASTEqual(op,exprStack.back())) {
 	// If operator is the same, just chain the terms
 	exprStack.back()->terms.push_back(expr) ;
 #ifdef VERBOSE
@@ -1538,32 +1469,6 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
           printStack(exprStack,cerr) ;
         }
 #endif
-        if(ASTEqual(op,OP_TERNARY)) {
-          CPTR<AST_Token> op2 = getToken(is,linecount) ;
-#ifdef VERBOSE
-          cerr << " detected OP_TERNARY, op2 =" << op2->text
-               << ", file: " << __FILE__ << ":" << __LINE__
-               << endl ;
-#endif
-          if(ASTEqual(op2,TK_COLON)) {
-#ifdef VERBOSE
-            cerr << "detected TK_COLON, parsing expression" << endl ;
-#endif
-            //            expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
-            expr = parseExpression(is,linecount,fileName,typemap,
-                                   AST_type::operatorPrecedence::PREC_COMMA) ;
-#ifdef VERBOSE
-            cerr << "after colon parsed expression:" << endl ;
-            AST_simplePrint printer(cerr,-2) ;
-            expr->accept(printer) ;
-#endif
-
-            np->terms.push_back(expr) ;
-          } else {
-            pushToken(op2) ;
-            return AST_type::ASTP(new AST_syntaxError("expecting ':' in tertiary operator",op2->lineno,fileName)) ;
-          }
-        }
         exprStack.push_back(np) ;
 #ifdef VERBOSE
         cerr << "pushing on exprStack:" << OPtoName(exprStack.back()->nodeType)
@@ -1587,22 +1492,6 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 #endif
 	np->terms.push_back(AST_type::ASTP(exprStack.back())) ;
 	np->terms.push_back(expr) ;
-	if(ASTEqual(op,OP_TERNARY)) {
-	  CPTR<AST_Token> op2 = getToken(is,linecount) ;
-	  if(!ASTEqual(op2,TK_COLON)) {
-	    pushToken(op2) ;
-	    expr = AST_type::ASTP(new AST_syntaxError("unexpected ':' in tertiary operator",linecount,fileName)) ;
-	  } else {
-            expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
-	  }
-	  np->terms.push_back(expr) ;
-#ifdef VERBOSE
-	  cerr << " processed OP_TERNARY"
-               << ", file: " << __FILE__ << ":" << __LINE__
-               << endl ;
-#endif
-
-	}
 	exprStack.back() = np ;
 #ifdef VERBOSE
         cerr << "changing exprStack to" << OPtoName(exprStack.back()->nodeType)
@@ -1675,7 +1564,8 @@ AST_type::ASTP parseCaseStatement(std::istream &is, int &linecount,
   AST_data->elements.push_back(AST_type::ASTP(token)) ;
   if(ASTEqual(token,TK_CASE)) {
     AST_type::ASTP expr =
-      parseExpression(is,linecount,fileName,AST_data->identifiers) ;
+      parseExpression(is,linecount,fileName,AST_data->identifiers,
+                      AST_type::operatorPrecedence::PREC_ASSIGNMENT) ;
     AST_data->elements.push_back(expr) ;
   }
 
@@ -2755,13 +2645,6 @@ void AST_simplePrint::visit(AST_exprOper &s) {
       if(ii!=s.terms.end()) 
         ++ii ;
       out << '?' ;
-      if(ii!=s.terms.end() && *ii != 0)
-	(*ii)->accept(*this) ;
-      out << ':' ;
-      if(ii==s.terms.end()) {
-	cerr << "internal error on tertiary operator" << endl ;
-      } else
-	++ii ;
       if(ii!=s.terms.end() && *ii != 0)
 	(*ii)->accept(*this) ;
     }
