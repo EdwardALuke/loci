@@ -884,7 +884,7 @@ namespace Loci {
   $type nblankf store<float> ;
   /// This is available for plotting functions
   $rule pointwise(nblankf<-nblank) {
-    $nblankf = float($nblank) ;
+    $nblankf = static_cast<float>($nblank) ;
     if($nblank == 0)
       $nblankf = 0.0 ;
   }

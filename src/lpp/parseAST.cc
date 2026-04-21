@@ -51,6 +51,7 @@ using std::vector ;
 using Loci::vmap_info ;
 using Loci::variableSet ;
 using namespace nodeTypes ;
+
 /// Convert operator code to corresponding string for printing
 string OPtoString(AST_type::elementType val) {
   switch(val) {
@@ -162,26 +163,8 @@ string OPtoString(AST_type::elementType val) {
   return string("/*error*/") ;
 }
 
-bool isTypeDecl(CPTR<AST_Token> p, varmap &typemap) {
-  switch(p->nodeType) {
-  case TK_CHAR:
-  case TK_FLOAT:
-  case TK_DOUBLE:
-  case TK_INT:
-  case TK_BOOL:
-  case TK_SHORT:
-  case TK_LONG:
-  case TK_SIGNED:
-  case TK_UNSIGNED:
-  case TK_CONST:
-  case TK_AUTO:
-  case TK_VOID:
-    return true ;
-  default:
-    return false ;
-  }
-}
-
+// Parse a type specification used in either a type declaration statement
+// or a template argument.
 AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
                                   const string &fileName,
                                   varmap &typemap) {
@@ -193,7 +176,7 @@ AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
   CPTR<AST_Token> token = getToken(is,linecount) ;
   do {
 #ifdef VERBOSE
-    cerr << "in parseTypeSpecifier, token = " << token->text 
+    cerr << "in parseTypeSpecifier, token = " << token->text
          << ", file: " << __FILE__ << ":" << __LINE__
          << endl ;
 #endif
@@ -251,7 +234,7 @@ AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
         istype = false ;
       } else {
         pushToken(token) ;
-        
+
         AST_type::ASTP typedec =
           parseIdentifier(is,linecount,fileName,typemap) ;
         if(typedec->nodeType == OP_FUNC) {
@@ -288,15 +271,18 @@ AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
   return AST_type::ASTP(p) ;
 }
 
+// AST_type constructor enumerates all AST_type objects to give them a unique
+// identifier (id)
 static int parseIDctr = 0 ;
 AST_type::AST_type() {
   nodeType = OP_ERROR ;
   id = parseIDctr++ ;
 }
 
-/// Acceptor method AST node, passes node to visitor object
+/// Acceptor method AST node, passes node to visitor object for AST_tolen
 void AST_Token::accept(AST_visitor &v) {  v.visit(*this) ; }
 
+/// Code to clone an AST_Token
 AST_type::ASTP AST_Token::clone() const {
   CPTR<AST_Token> tok = new AST_Token ;
   tok->nodeType = nodeType ;
@@ -305,18 +291,22 @@ AST_type::ASTP AST_Token::clone() const {
   return ASTP(tok) ;
 }
 
-/// Acceptor method AST node, passes node to visitor object
+/// Acceptor method AST node, passes node to visitor object of
+/// AST_syntaxError.
 void AST_syntaxError::accept(AST_visitor &v) {  v.visit(*this) ; }
 
+/// Code to clone an AST_syntaxError
 AST_type::ASTP AST_syntaxError::clone() const {
   CPTR<AST_syntaxError> p = new AST_syntaxError(error,lineno,fileName) ;
   p->nodeType = nodeType ;
   return ASTP(p) ;
 }
 
-/// Acceptor method AST node, passes node to visitor object
+/// Acceptor method AST node, passes node to visitor object for
+/// AST_simpleStatement
 void AST_SimpleStatement::accept(AST_visitor &v) {  v.visit(*this) ; }
 
+/// Code to clone an AST_simpleStatement
 AST_type::ASTP AST_SimpleStatement::clone() const {
   CPTR<AST_SimpleStatement> p = new AST_SimpleStatement(exp->clone(),
                                                         Terminal->clone()) ;
@@ -324,9 +314,10 @@ AST_type::ASTP AST_SimpleStatement::clone() const {
   return ASTP(p) ;
 }
 
-/// Acceptor method AST node, passes node to visitor object
+/// Acceptor method AST node, passes node to visitor object for AST_Block
 void AST_Block::accept(AST_visitor &v) {  v.visit(*this) ; }
 
+/// General helper code to clone an ASTList
 inline void cloneList(AST_type::ASTList &l, const AST_type::ASTList &in) {
   AST_type::ASTList tmp(in.size()) ;
   for(size_t i=0;i<in.size();++i)
@@ -334,6 +325,7 @@ inline void cloneList(AST_type::ASTList &l, const AST_type::ASTList &in) {
   l.swap(tmp) ;
 }
 
+// Code to clone the codeblock AST_Block
 AST_type::ASTP AST_Block::clone() const {
   CPTR<AST_Block> p = new AST_Block ;
   p->nodeType = nodeType ;
@@ -342,10 +334,11 @@ AST_type::ASTP AST_Block::clone() const {
   return ASTP(p) ;
 }
 
-/// Acceptor method AST node, passes node to visitor object
+/// Acceptor method AST node, passes node to visitor object for
+/// AST_typeSpec node.
 void AST_typeSpec::accept(AST_visitor &v) {  v.visit(*this) ; }
 
-
+/// Code to clone AST_typeSpec node.
 AST_type::ASTP AST_typeSpec::clone() const {
   CPTR<AST_typeSpec> p = new AST_typeSpec ;
   p->nodeType = nodeType ;
@@ -353,10 +346,11 @@ AST_type::ASTP AST_typeSpec::clone() const {
   return ASTP(p) ;
 }
 
-/// Acceptor method AST node, passes node to visitor object
+/// Acceptor method AST node, passes node to visitor object for
+/// AST_declaration node
 void AST_declaration::accept(AST_visitor &v) {  v.visit(*this) ; }
 
-
+/// Code to clone AST_declaration node
 AST_type::ASTP AST_declaration::clone() const {
   CPTR<AST_declaration> p = new AST_declaration ;
   p->nodeType = nodeType ;
@@ -368,6 +362,7 @@ AST_type::ASTP AST_declaration::clone() const {
 /// Acceptor method AST node, passes node to visitor object
 void AST_exprOper::accept(AST_visitor &v) {  v.visit(*this) ; }
 
+///Code to clone an expression operator node.  (AST_exprOper)
 AST_type::ASTP AST_exprOper::clone() const {
   CPTR<AST_exprOper> p = new AST_exprOper ;
   p->nodeType = nodeType ;
@@ -375,7 +370,8 @@ AST_type::ASTP AST_exprOper::clone() const {
   return ASTP(p) ;
 }
 
-/// Acceptor method AST node, passes node to visitor object
+/// Acceptor method AST node, passes node to visitor object for
+/// AST_controlStatement
 void AST_controlStatement::accept(AST_visitor &v) {  v.visit(*this) ; }
 
 AST_type::ASTP AST_controlStatement::clone() const {
@@ -421,7 +417,7 @@ AST_type::ASTP parseTerm(std::istream &is, int &linecount) {
     return AST_type::ASTP(token) ;
   else {
     pushToken(token) ;
-    AST_type::ASTP(new AST_syntaxError("expecting token",token->lineno,"")) ;    
+    AST_type::ASTP(new AST_syntaxError("expecting token",token->lineno,"")) ;
     return AST_type::ASTP(0) ;
   }
 }
@@ -515,7 +511,7 @@ AST_type::ASTP parseOperator(std::istream &is, int &linecount) {
   CPTR<AST_Token> openToken = getToken(is,linecount) ;
 #ifdef VERBOSE
   cerr << "in parseOperator, token = " << openToken->text
-         << ", file: " << __FILE__ << ":" << __LINE__
+       << ", file: " << __FILE__ << ":" << __LINE__
        << endl ;
 #endif
   AST_type::elementType op = tokenToOperator(openToken->nodeType) ;
@@ -570,13 +566,13 @@ AST_type::elementType unaryOperator(AST_type::elementType e) {
   }
 }
 
-/// Check for postfix token '++' or '--' 
+/// Check for postfix token '++' or '--'
 bool checkPostFixToken(AST_type::elementType e) {
   return (e == TK_INCREMENT ||
 	  e == TK_DECREMENT) ;
 }
 
-/// Pares postfix operator convert node type from TK_* to appropriate OP_* 
+/// Pares postfix operator convert node type from TK_* to appropriate OP_*
 AST_type::elementType postFixOperator(AST_type::elementType e) {
   switch(e) {
   case TK_INCREMENT:
@@ -624,7 +620,7 @@ AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
     array->nodeType = OP_ARRAY ;
     array->terms.push_back(expr) ;
     array->terms.push_back(index) ;
-    
+
     openToken = getToken(is,linecount) ;
     pushToken(openToken) ;
     if(checkPostFixToken(openToken->nodeType) ||
@@ -635,7 +631,7 @@ AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
       return AST_type::ASTP(array) ;
   }
   pushToken(openToken) ;
-    
+
   return expr ;
 }
 
@@ -646,10 +642,10 @@ AST_type::ASTP parseScopedObject(std::istream &is, int &linecount,
 #ifdef VERBOSE
   cerr << "parseScopedObject, parsing named object with scope, "
        << OPtoName(openToken->nodeType) ;
-    if(ASTEqual(openToken,TK_NAME))
-      cerr << " name=" << openToken->text ;
-    cerr << ", file: " << __FILE__ << ":" << __LINE__ 
-         << endl ;
+  if(ASTEqual(openToken,TK_NAME))
+    cerr << " name=" << openToken->text ;
+  cerr << ", file: " << __FILE__ << ":" << __LINE__
+       << endl ;
 #endif
   AST_type::ASTList terms ;
   // Special case for global scope (eg ::name)
@@ -664,7 +660,7 @@ AST_type::ASTP parseScopedObject(std::istream &is, int &linecount,
   // Now openToken should be a name, so push it onto the terms list
   if(!ASTEqual(openToken,TK_NAME)) {
     terms.push_back(AST_type::ASTP(new AST_syntaxError("expecting name following '::'",openToken->lineno,fileName))) ;
-  } else 
+  } else
     terms.push_back(AST_type::ASTP(openToken)) ;
 
   // Now get more terms as long as we have a scope operator
@@ -687,13 +683,13 @@ AST_type::ASTP parseScopedObject(std::istream &is, int &linecount,
   }
   // We are done parsing, so return this to the token input
   pushToken(openToken) ;
-      
+
   if(terms.size() > 1) {
     CPTR<AST_exprOper> tmp = new AST_exprOper ;
     tmp->nodeType = OP_SCOPE ;
     tmp->terms = terms ;
     return AST_type::ASTP(tmp) ;
-  } 
+  }
   return AST_type::ASTP(terms.back()) ;
 }
 
@@ -703,7 +699,7 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
                                       varmap &typemap) {
   // Template Arguments
 #ifdef VERBOSE
-  cerr << "parseTemplateArguments: found term template open '<'" 
+  cerr << "parseTemplateArguments: found term template open '<'"
        << ", file: " << __FILE__ << ":" << __LINE__
        << endl ;
 #endif
@@ -713,19 +709,19 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
     pushToken(token) ;
     arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
   }
-  
+
 #ifdef VERBOSE
-  cerr << "parseTemplateArguments: parsed type specification " 
+  cerr << "parseTemplateArguments: parsed type specification "
        << ", file: " << __FILE__ << ":" << __LINE__
        << endl ;
-#endif    
+#endif
   CPTR<AST_Token> closeToken = getToken(is,linecount) ;
   if(ASTEqual(closeToken,TK_CLOSETEMPLATE)) {
 #ifdef VERBOSE
-  cerr << "parseTemplateArguments: only single argument " 
-       << ", file: " << __FILE__ << ":" << __LINE__
-       << endl ;
-#endif    
+    cerr << "parseTemplateArguments: only single argument "
+         << ", file: " << __FILE__ << ":" << __LINE__
+         << endl ;
+#endif
     // only a single type in template parameters
     CPTR<AST_exprOper> func = new AST_exprOper ;
     func->nodeType = OP_TEMPLATE ;
@@ -736,11 +732,11 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
   if(ASTEqual(closeToken,TK_COMMA)) {
 
 #ifdef VERBOSE
-  cerr << "parseTemplateArguments: parsing comma separated list of types " 
-       << ", file: " << __FILE__ << ":" << __LINE__
-       << endl ;
-#endif    
-    
+    cerr << "parseTemplateArguments: parsing comma separated list of types "
+         << ", file: " << __FILE__ << ":" << __LINE__
+         << endl ;
+#endif
+
     CPTR<AST_exprOper> tlist = new AST_exprOper ;
     tlist->nodeType = OP_COMMA ;    tlist->terms.push_back(arg) ;
     while(ASTEqual(closeToken,TK_COMMA)) {
@@ -755,7 +751,7 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
         pushToken(token) ;
         arg = parseTypeSpecifier(is,linecount,fileName,typemap) ;
       }
-      
+
       tlist->terms.push_back(arg) ;
       closeToken = getToken(is,linecount) ;
     }
@@ -768,7 +764,7 @@ AST_type::ASTP parseTemplateArguments(AST_type::ASTP objname,
     func->terms.push_back(AST_type::ASTP(tlist)) ;
     return AST_type::ASTP(func) ;
   }
-  
+
   AST_type::ASTP p =
     AST_type::ASTP(new AST_syntaxError("Syntax error parsing template arguments",
                                        closeToken->lineno,fileName)) ;
@@ -780,10 +776,10 @@ AST_type::ASTP parseFunctionArguments(AST_type::ASTP objname,
                                       const string &fileName,
                                       varmap &typemap) {
 #ifdef VERBOSE
-  cerr << "parseFunctionArguments: found term template open '('" 
+  cerr << "parseFunctionArguments: found term template open '('"
        << ", file: " << __FILE__ << ":" << __LINE__
        << endl ;
-#endif    
+#endif
   AST_type::ASTP args = parseExpression(is,linecount,fileName,typemap) ;
   CPTR<AST_Token> closeToken = getToken(is,linecount) ;
   CPTR<AST_exprOper> func = new AST_exprOper ;
@@ -802,13 +798,13 @@ AST_type::ASTP parseFunctionArguments(AST_type::ASTP objname,
 }
 /// Parse identifier or function call
 AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
-				      const string &fileName,
-				      varmap &typemap) {
+                               const string &fileName,
+                               varmap &typemap) {
 #ifdef VERBOSE
   cerr << "in parseIdentifier"
        << ", file: " << __FILE__ << ":" << __LINE__
        << endl ;
-#endif 
+#endif
 
   AST_type::ASTP objname = parseScopedObject(is,linecount,fileName,typemap) ;
 
@@ -834,7 +830,7 @@ AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
     openToken = getToken(is,linecount) ;
   }
   pushToken(openToken) ;
-    
+
   openToken = getToken(is,linecount) ;
   if(ASTEqual(openToken,TK_OPENPAREN)) {
     objname = parseFunctionArguments(objname,is,linecount,fileName,typemap) ;
@@ -861,13 +857,13 @@ bool scanForCStyleCast(std::istream &is, int &linecount,varmap &typemap) {
     tokenStack.push_back(openToken) ;
     openToken = getToken(is,linecount) ;
     // If we find a close paren, then break out of loop
-    // to check for 
+    // to check for
     if(ASTEqual(openToken,TK_CLOSEPAREN) &&
        tokenStack.size() > 1)
       break ;
     bool builtintype = false ;
     bool usertype = false ;
-    switch(openToken->nodeType) { 
+    switch(openToken->nodeType) {
     case TK_CHAR:
     case TK_FLOAT:
     case TK_DOUBLE:
@@ -919,7 +915,7 @@ bool scanForCStyleCast(std::istream &is, int &linecount,varmap &typemap) {
         tokenStack.pop_back() ;
       }
       return ASTEqual(openToken,TK_CLOSEPAREN) ;
-        
+
     default:
       pushToken(openToken) ;
       while(tokenStack.size() > 0) {
@@ -927,7 +923,7 @@ bool scanForCStyleCast(std::istream &is, int &linecount,varmap &typemap) {
         tokenStack.pop_back() ;
       }
       return false ;
-    }        
+    }
   } while(true) ;
   // found closing paren, search what follows to determine if this is a
   // C style cast.
@@ -954,7 +950,7 @@ bool scanForCStyleCast(std::istream &is, int &linecount,varmap &typemap) {
   default:
     break ;
   }
-      
+
   pushToken(openToken) ;
   while(tokenStack.size() > 0) {
     pushToken(tokenStack.back()) ;
@@ -1002,24 +998,24 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       // Cast has unary-level precedence: parse operand with parseExpressionPartial.
       (void)getToken(is, linecount) ; // '('
       AST_type::ASTP maybeType =
-          parseTypeSpecifier(is, linecount, fileName, typemap) ;
+        parseTypeSpecifier(is, linecount, fileName, typemap) ;
       CPTR<AST_Token> closeTok = getToken(is, linecount) ;
       if(closeTok->nodeType != TK_CLOSEPAREN) {
         pushToken(closeTok) ;
         return AST_type::ASTP(new AST_syntaxError(
-            "expecting ')' in cast", closeTok->lineno, fileName)) ;
+                                                  "expecting ')' in cast", closeTok->lineno, fileName)) ;
       }
       CPTR<AST_typeSpec> ts = CPTR<AST_typeSpec>(maybeType) ;
       if(maybeType == 0 || maybeType->nodeType != ND_TYPE_SPEC ||
          ts == 0 || ts->type_spec.empty()) {
         return AST_type::ASTP(new AST_syntaxError(
-            "invalid type in cast", closeTok->lineno, fileName)) ;
+                                                  "invalid type in cast", closeTok->lineno, fileName)) ;
       }
       AST_type::ASTP operand =
         parseExpressionPartial(is, linecount, fileName, typemap) ;
       if(operand == 0) {
         return AST_type::ASTP(new AST_syntaxError(
-            "expecting expression after cast", closeTok->lineno, fileName)) ;
+                                                  "expecting expression after cast", closeTok->lineno, fileName)) ;
       }
       CPTR<AST_exprOper> castNode = new AST_exprOper ;
       castNode->nodeType = OP_CAST ;
@@ -1047,7 +1043,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       cerr << endl ;
     }
 #endif
-    
+
     CPTR<AST_Token> closeToken = getToken(is,linecount) ;
     CPTR<AST_exprOper> group = new AST_exprOper ;
     group->nodeType = OP_GROUP ;
@@ -1055,7 +1051,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     if(closeToken->nodeType != TK_CLOSEPAREN) {
       pushToken(closeToken) ;
       return AST_type::ASTP(new AST_syntaxError("expecting ')'",closeToken->lineno,fileName)) ;
-      
+
     }
     return applyPostFixOperator(AST_type::ASTP(group),is,linecount,fileName,
 				typemap) ;
@@ -1066,8 +1062,8 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
      ASTEqual(openToken,TK_STATIC_CAST)) {
 #ifdef VERBOSE
     cerr << "in template cast, token = " << openToken->text
-       << ", file: " << __FILE__ << ":" << __LINE__
-       << endl ;
+         << ", file: " << __FILE__ << ":" << __LINE__
+         << endl ;
 #endif
     // parse templated cast
     CPTR<AST_exprOper> cast = new AST_exprOper ;
@@ -1077,8 +1073,8 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     openToken=getToken(is,linecount) ;
 #ifdef VERBOSE
     cerr << "in template cast parser, token = " << openToken->text
-       << ", file: " << __FILE__ << ":" << __LINE__
-       << endl ;
+         << ", file: " << __FILE__ << ":" << __LINE__
+         << endl ;
 #endif
     if(!ASTEqual(openToken,TK_OPENTEMPLATE)) {
       cerr << "expecting '<'" << endl ;
@@ -1091,7 +1087,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 #ifdef VERBOSE
     cerr << "in template cast parser, got template arguments"
          << ", file: " << __FILE__ << ":" << __LINE__
-       << endl ;
+         << endl ;
 #endif
     cast->terms.push_back(objname) ;
     openToken=getToken(is,linecount) ;
@@ -1140,7 +1136,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     if(closeTok->nodeType != TK_CLOSEBRACE) {
       pushToken(closeTok) ;
       return AST_type::ASTP(new AST_syntaxError(
-          "expecting '}' in brace initializer", closeTok->lineno,fileName)) ;
+                                                "expecting '}' in brace initializer", closeTok->lineno,fileName)) ;
     }
     CPTR<AST_exprOper> br = new AST_exprOper ;
     br->nodeType = OP_BRACEBLOCK ;
@@ -1152,10 +1148,10 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
   if(checkUnaryToken(openToken)) {
 #ifdef VERBOSE
     cerr << "parseExpressionPartial: found unary operator '"
-         << openToken->text << " parsing unary target." 
+         << openToken->text << " parsing unary target."
          << ", file: " << __FILE__ << ":" << __LINE__
          << endl ;
-#endif    
+#endif
     //check for unary operators
     AST_type::ASTP expr =
       parseExpression(is,linecount,fileName,typemap,
@@ -1166,10 +1162,10 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       unary->terms.push_back(expr) ;
 #ifdef VERBOSE
       cerr << "parseExpressionPartial: creating unary operator, "
-           << "search for postfix operators ++,--, or []" 
+           << "search for postfix operators ++,--, or []"
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
-#endif    
+#endif
       return applyPostFixOperator(AST_type::ASTP(unary),is,linecount,fileName,
 				  typemap) ;
     }
@@ -1180,7 +1176,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     pushToken(openToken) ;
     AST_type::ASTP objname = parseIdentifier(is,linecount,fileName,typemap) ;
     return applyPostFixOperator(objname,is,linecount,fileName, typemap) ;
-    
+
     //    AST_type::ASTP objname = parseScopedObject(is,linecount,fileName,typemap) ;
 
     openToken = getToken(is,linecount) ;
@@ -1188,7 +1184,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       objname = parseTemplateArguments(objname,is,linecount,fileName,typemap) ;
     } else
       pushToken(openToken) ;
-    
+
     openToken = getToken(is,linecount) ;
     if(ASTEqual(openToken,TK_OPENPAREN)) {
       objname = parseFunctionArguments(objname,is,linecount,fileName,typemap) ;
@@ -1196,17 +1192,17 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       pushToken(openToken) ;
 
     return applyPostFixOperator(AST_type::ASTP(objname),is,linecount,fileName,
-				  typemap) ;
-    
+                                typemap) ;
+
   }
-      
+
   if(isTerm(openToken)) {
 #ifdef VERBOSE
-    cerr << "parseExpressionPartial: found term '" 
+    cerr << "parseExpressionPartial: found term '"
          << openToken->text << "', checking for following parenthesis"
          << ", file: " << __FILE__ << ":" << __LINE__
          << endl ;
-#endif    
+#endif
     pushToken(openToken) ;
     AST_type::ASTP exp = parseTerm(is,linecount);
 
@@ -1230,7 +1226,7 @@ inline AST_type::operatorPrecedence getPrecedence(AST_type::elementType op) {
   case OP_ARRAY:
   case OP_DOT:
   case OP_ARROW:
-   return AST_type::operatorPrecedence::PREC_UNARY_POSTFIX ;
+    return AST_type::operatorPrecedence::PREC_UNARY_POSTFIX ;
   case OP_INCREMENT:
   case OP_DECREMENT:
   case OP_UNARY_PLUS:
@@ -1306,17 +1302,19 @@ inline bool rightToLeftAssociativePrecedence(AST_type::operatorPrecedence op) {
   return (op == AST_type::operatorPrecedence::PREC_ASSIGNMENT ||
           op == AST_type::operatorPrecedence::PREC_UNARY_PREFIX) ;
 }
+inline bool precedenceCompare(AST_type::operatorPrecedence prec_op,
+                              AST_type::operatorPrecedence prec_opStack) {
+  return ((prec_op == prec_opStack &&
+           rightToLeftAssociativePrecedence(prec_op)) ||
+          prec_op > prec_opStack) ;
+}  
 
 inline bool precedenceCompare(AST_type::ASTP &op,
                               CPTR<AST_exprOper> &opStack) {
 
   AST_type::operatorPrecedence prec_op = getPrecedence(op);
   AST_type::operatorPrecedence prec_opStack = getPrecedence(opStack) ;
-  //  if(prec_op == prec_opStack && op->nodeType == OP_TERNARY)
-  //    return false ;
-  return ((prec_op == prec_opStack &&
-           rightToLeftAssociativePrecedence(prec_op)) ||
-          prec_op > prec_opStack) ;
+  return precedenceCompare(prec_op,prec_opStack) ;
 }
 
 void printStack(vector<CPTR<AST_exprOper> > &exprStack,
@@ -1403,16 +1401,24 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
          << endl ;
 #endif
     // Special case for ?: operator or array
-    if(ASTEqual(op,OP_TERNARY)) 
+    if(ASTEqual(op,OP_TERNARY)) {
+#ifdef VERBOSE
+      cerr << "parsing expression for first term of TERNARY operator" << endl ;
+#endif
       expr = parseExpression(is,linecount,fileName,typemap,
                              AST_type::operatorPrecedence::PREC_ASSIGNMENT) ;
-    else 
+#ifdef VERBOSE
+      cerr << "expr parsed = " << endl ;
+      AST_simplePrint printer(cerr,-2) ;
+      expr->accept(printer) ;
+#endif
+    } else {
       expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
-    
+    }
     if(expr == 0) {
       return AST_type::ASTP(new AST_syntaxError("Expecting expression after binary operator",linecount,fileName)) ;
     }
-    
+
     if(ASTEqual(exprStack.back(),OP_NIL)) {
       // If no operator is parsed yet, we just get started and initilize
       // the left branch
@@ -1423,34 +1429,41 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
            << OPtoName(exprStack.back()->nodeType)
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+      if(exprStack.size() > 0) {
+        printStack(exprStack,cerr) ;
+      }
 #endif
       // ?: must read ':' and the false branch here as well; the lower
       // branches only handle colon when exprStack.back() is not OP_NIL.
       if(ASTEqual(op,OP_TERNARY)) {
         CPTR<AST_Token> op2 = getToken(is,linecount) ;
+#ifdef VERBOSE
+        cerr << "op2 = " << OPtoName(op2->nodeType) << endl ;
+#endif
         if(ASTEqual(op2,TK_COLON)) {
+#ifdef VERBOSE
+          cerr << "Found ':' of '?' operator" << endl ;
+#endif
+          
           AST_type::ASTP expr3 =
             parseExpression(is,linecount,fileName,typemap,
-                            AST_type::operatorPrecedence::PREC_ASSIGNMENT) ;
-            //              parseExpressionPartial(is,linecount,fileName,typemap) ;
+                            AST_type::operatorPrecedence::PREC_COMMA) ;
+          //              parseExpressionPartial(is,linecount,fileName,typemap) ;
           if(expr3 == 0) {
             return AST_type::ASTP(new AST_syntaxError(
-                "Expecting expression after ':' in ?: operator", linecount,
-                fileName)) ;
+                                                      "Expecting expression after ':' in ?: operator", linecount,
+                                                      fileName)) ;
           }
           exprStack.back()->terms.push_back(expr3) ;
 #ifdef VERBOSE
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+          if(exprStack.size() > 0) {
+            printStack(exprStack,cerr) ;
+          }
 #endif
         } else {
           pushToken(op2) ;
           return AST_type::ASTP(new AST_syntaxError(
-              "expecting ':' in tertiary operator", op2->lineno, fileName)) ;
+                                                    "expecting ':' in tertiary operator", op2->lineno, fileName)) ;
         }
       }
     } else {
@@ -1465,39 +1478,39 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 	}
 #endif
 #ifdef VERBOSE
-    cerr << "pop off exprStack:" << OPtoName(exprStack.back()->nodeType)
-         << ", file: " << __FILE__ << ":" << __LINE__
-         << endl ;
+        cerr << "pop off exprStack:" << OPtoName(exprStack.back()->nodeType)
+             << ", file: " << __FILE__ << ":" << __LINE__
+             << endl ;
 #endif
 	exprStack.pop_back() ;
 #ifdef VERBOSE
-    cerr << "after pop top of stack is:" << OPtoName(exprStack.back()->nodeType)
-         << ", size=" << exprStack.size()
-         << ", file: " << __FILE__ << ":" << __LINE__
-         << endl ;
+        cerr << "after pop top of stack is:" << OPtoName(exprStack.back()->nodeType)
+             << ", size=" << exprStack.size()
+             << ", file: " << __FILE__ << ":" << __LINE__
+             << endl ;
 #endif
 #ifdef VERBOSE
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+        if(exprStack.size() > 0) {
+          printStack(exprStack,cerr) ;
+        }
 #endif
-        
+
       }
-      
+
       if(ASTEqual(op,exprStack.back())) {
 	// If operator is the same, just chain the terms
 	exprStack.back()->terms.push_back(expr) ;
 #ifdef VERBOSE
         cerr << "adding term to operator: "
              << OPtoName(exprStack.back()->nodeType)
-             << " stack size=" << exprStack.size() 
+             << " stack size=" << exprStack.size()
              << ", file: " << __FILE__ << ":" << __LINE__
              << endl ;
 #endif
 #ifdef VERBOSE
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+        if(exprStack.size() > 0) {
+          printStack(exprStack,cerr) ;
+        }
 #endif
       } else if(precedenceCompare(op,exprStack.back())) {
         // if operator is lower precedence than top of stack, then we need
@@ -1521,9 +1534,9 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << endl ;
 #endif
 #ifdef VERBOSE
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+        if(exprStack.size() > 0) {
+          printStack(exprStack,cerr) ;
+        }
 #endif
         if(ASTEqual(op,OP_TERNARY)) {
           CPTR<AST_Token> op2 = getToken(is,linecount) ;
@@ -1533,6 +1546,9 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
                << endl ;
 #endif
           if(ASTEqual(op2,TK_COLON)) {
+#ifdef VERBOSE
+            cerr << "detected TK_COLON, parsing expression" << endl ;
+#endif
             //            expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
             expr = parseExpression(is,linecount,fileName,typemap,
                                    AST_type::operatorPrecedence::PREC_COMMA) ;
@@ -1541,7 +1557,7 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
             AST_simplePrint printer(cerr,-2) ;
             expr->accept(printer) ;
 #endif
-              
+
             np->terms.push_back(expr) ;
           } else {
             pushToken(op2) ;
@@ -1556,9 +1572,9 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << endl ;
 #endif
 #ifdef VERBOSE
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+        if(exprStack.size() > 0) {
+          printStack(exprStack,cerr) ;
+        }
 #endif
       } else {
 	CPTR<AST_exprOper> np = new AST_exprOper ;
@@ -1568,7 +1584,7 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << OPtoName(np->nodeType)
              << ", file: " << __FILE__ << ":" << __LINE__
              << endl ;
-#endif        
+#endif
 	np->terms.push_back(AST_type::ASTP(exprStack.back())) ;
 	np->terms.push_back(expr) ;
 	if(ASTEqual(op,OP_TERNARY)) {
@@ -1577,7 +1593,7 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 	    pushToken(op2) ;
 	    expr = AST_type::ASTP(new AST_syntaxError("unexpected ':' in tertiary operator",linecount,fileName)) ;
 	  } else {
-	      expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+            expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
 	  }
 	  np->terms.push_back(expr) ;
 #ifdef VERBOSE
@@ -1585,8 +1601,8 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
                << ", file: " << __FILE__ << ":" << __LINE__
                << endl ;
 #endif
-	  
-	} 
+
+	}
 	exprStack.back() = np ;
 #ifdef VERBOSE
         cerr << "changing exprStack to" << OPtoName(exprStack.back()->nodeType)
@@ -1594,9 +1610,9 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
              << endl ;
 #endif
 #ifdef VERBOSE
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+        if(exprStack.size() > 0) {
+          printStack(exprStack,cerr) ;
+        }
 #endif
       }
     }
@@ -1605,13 +1621,13 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 
 #ifdef VERBOSE
   cerr << "parseExpressionOperator exit loop stack" << endl ;
-    if(exprStack.size() > 0) {
-      printStack(exprStack,cerr) ;
-    }
+  if(exprStack.size() > 0) {
+    printStack(exprStack,cerr) ;
+  }
 #endif
 
   AST_type::ASTP e = CPTR<AST_type>(exprStack.front()) ;
-  if(ASTEqual(exprStack.front(),OP_NIL)) 
+  if(ASTEqual(exprStack.front(),OP_NIL))
     e = CPTR<AST_type>(exprStack.front()->terms.front()) ;
 
   return applyPostFixOperator(AST_type::ASTP(e),is,linecount,fileName,typemap) ;
@@ -1633,9 +1649,9 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,
   AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,typemap,prec) ;
   if(expr == 0) // If no valid expression then return null
     return expr ;
-  
+
   return parseExpressionOperator(expr,is,linecount,fileName,typemap,prec) ;
-  
+
 }
 
 
@@ -1662,13 +1678,13 @@ AST_type::ASTP parseCaseStatement(std::istream &is, int &linecount,
       parseExpression(is,linecount,fileName,AST_data->identifiers) ;
     AST_data->elements.push_back(expr) ;
   }
-  
+
   token = getToken(is,linecount) ;
   if(!ASTEqual(token,TK_COLON)) {
-    pushToken(token) ; 
+    pushToken(token) ;
     return AST_type::ASTP(new AST_syntaxError("expecting ':' in case statement",token->lineno,fileName)) ;
   }
-  
+
   AST_data->elements.push_back(AST_type::ASTP(token)) ;
   return AST_type::ASTP(AST_data) ;
 }
@@ -1719,8 +1735,8 @@ AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount,
     }
     token = getToken(is,linecount) ;
   }
-			
-  if(ASTEqual(token,TK_ERROR)) 
+
+  if(ASTEqual(token,TK_ERROR))
     return AST_type::ASTP(new AST_syntaxError("failed to find closing brace in swithc statement",linecount,fileName)) ;
 
   ctrl->parts.push_back(AST_type::ASTP(token)) ;
@@ -1742,7 +1758,7 @@ AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
     return AST_type::ASTP(new AST_syntaxError("confused in if statement",token->lineno,fileName)) ;
   }
   AST_type::ASTP iftok = AST_type::ASTP(token) ;
-  
+
   token = getToken(is,linecount) ;
   if(!ASTEqual(token,TK_OPENPAREN)) {
     pushToken(token) ;
@@ -1750,7 +1766,7 @@ AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
   }
   pushToken(token) ;
   AST_type::ASTP conditional = parseExpression(is,linecount,fileName,typemap) ;
-  if(conditional == 0) 
+  if(conditional == 0)
     return AST_type::ASTP(new AST_syntaxError("malformed if conditional",token->lineno,fileName)) ;
 
   AST_type::ASTP body = parseStatement(is,linecount,fileName,typemap) ;
@@ -1758,7 +1774,7 @@ AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
   AST_type::ASTP elsetok = 0 ;
   AST_type::ASTP ebody = 0 ;
   token = getToken(is,linecount) ;
-  
+
   if(ASTEqual(token,TK_ELSE)) {
     elsetok = AST_type::ASTP(token) ;
     ebody = parseStatement(is,linecount,fileName,typemap) ;
@@ -1769,7 +1785,7 @@ AST_type::ASTP parseIfStatement(std::istream &is, int &linecount,
   ctrl->identifiers = typemap ;
   ctrl->constructIf(iftok,conditional,body,elsetok,ebody) ;
   return AST_type::ASTP(ctrl) ;
-}			 
+}
 
 AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
 				  const string &fileName,
@@ -1799,14 +1815,14 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
       // advance
       // TK_CLOSEPAREN
       // for body
-      
+
       ctrl->nodeType = ND_CTRL_FOR ;
-      
+
       token = getToken(is,linecount) ;
       if(!ASTEqual(token,TK_OPENPAREN)) {
 	pushToken(token) ;
 	return AST_type::ASTP(new AST_syntaxError("for expecting '('",token->lineno,fileName)) ;
-     } 
+      }
       ctrl->parts.push_back(AST_type::ASTP(token)) ;
       token = getToken(is,linecount) ;
 #ifdef VERBOSE
@@ -1814,7 +1830,7 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
 #endif
-      
+
       AST_type::ASTP initializer = 0 ;
       if(ASTEqual(token,TK_SEMICOLON)) {
         initializer = AST_type::ASTP(token) ;
@@ -1843,9 +1859,9 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
       cerr << "initializer = " << OPtoName(initializer->nodeType)
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
-#endif      
+#endif
       ctrl->parts.push_back(initializer) ;
-	
+
 #ifdef VERBOSE
       cerr << "for: parsing conditional expression"
            << ", file: " << __FILE__ << ":" << __LINE__
@@ -1853,12 +1869,12 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
 #endif
       AST_type::ASTP conditional = parseExpression(is,linecount,fileName,
 						   ctrl->identifiers) ;
-      
+
 #ifdef VERBOSE
       cerr << "conditional = " << OPtoName(conditional->nodeType)
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
-#endif      
+#endif
       ctrl->parts.push_back(conditional) ;
       token = getToken(is,linecount) ;
       if(!ASTEqual(token,TK_SEMICOLON)) {
@@ -1942,7 +1958,7 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
       token = getToken(is,linecount) ;
       if(!ASTEqual(token,TK_SEMICOLON)) {
 	pushToken(token) ;
-	
+
 	ctrl->parts.push_back(AST_type::ASTP(new AST_syntaxError("Expecting ';' in do loop",token->lineno,fileName))) ;
       } else
 	ctrl->parts.push_back(AST_type::ASTP(token)) ;
@@ -1952,7 +1968,7 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
   default:
     return 0 ;
   }
-  
+
   return AST_type::ASTP(getToken(is,linecount)) ;
 }
 
@@ -2031,9 +2047,9 @@ string getIdentifierName(std::istream &is,
 #endif
   return name ;
 }
-    
-      
-    
+
+
+
 /// Determine if statement is a declration or a simple statement by
 /// looking up potential typename in varmap.  We assume that the first
 /// token is either an TK_NAME or TK_SCOPE as a prerequisite
@@ -2059,7 +2075,7 @@ AST_type::ASTP parseDeclarationOrSimpleStatement(std::istream &is,
   }
   if(ASTEqual(openToken,TK_STRUCT) || ASTEqual(openToken,TK_CLASS))
     return parseDeclaration(is,linecount,fileName,typemap) ;
-  
+
   bool isFunc = false ;
   string ident = getIdentifierName(is,linecount,fileName,isFunc) ;
 #ifdef VERBOASE
@@ -2097,9 +2113,9 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
 
   do {
 #ifdef VERBOSE
-  cerr << "in parseDeclaration, token = " << token->text
-       << ", file: " << __FILE__ << ":" << __LINE__
-       << endl ;
+    cerr << "in parseDeclaration, token = " << token->text
+         << ", file: " << __FILE__ << ":" << __LINE__
+         << endl ;
 #endif
     switch(token->nodeType) {
     case TK_CONST:
@@ -2158,7 +2174,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
         istype = false ;
       } else {
         pushToken(token) ;
-        
+
         AST_type::ASTP typedec =
           parseIdentifier(is,linecount,fileName,typemap) ;
         if(typedec->nodeType == OP_FUNC) {
@@ -2216,36 +2232,36 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
       AST_data->decls.push_back(AST_type::ASTP(token)) ;
       token = getToken(is,linecount) ;
     }
-    
+
 #ifdef VERBOSE
-  cerr << "in parseDeclaration, processed pointer or reference: " << token->text
-       << ", file: " << __FILE__ << ":" << __LINE__
-       << endl ;
+    cerr << "in parseDeclaration, processed pointer or reference: " << token->text
+         << ", file: " << __FILE__ << ":" << __LINE__
+         << endl ;
 #endif
     if(ASTEqual(token,TK_NAME)) {
       typemap[token->text] = localIdentifier() ;
       AST_data->decl_varnames.push_back(token->text) ;
       pushToken(token) ;
-      
+
       AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
 #ifdef VERBOSE
-  cerr << "in parseDeclaration, parsing expression "
-       << ", file: " << __FILE__ << ":" << __LINE__
-       <<  endl ;
+      cerr << "in parseDeclaration, parsing expression "
+           << ", file: " << __FILE__ << ":" << __LINE__
+           <<  endl ;
 #endif
       if(expr != 0) { // If no valid expression then return null
         expr = parseExpressionOperator(expr,is,linecount,fileName,typemap,
                                        AST_type::operatorPrecedence::PREC_COMMA) ;
       } else {
 #ifdef VERBOSE
-  cerr << "in parseDeclaration, parseExpressionPartial returned nil "
-       << ", file: " << __FILE__ << ":" << __LINE__
-       <<  endl ;
+        cerr << "in parseDeclaration, parseExpressionPartial returned nil "
+             << ", file: " << __FILE__ << ":" << __LINE__
+             <<  endl ;
 #endif
-        
+
         AST_type::ASTP p =
           AST_type::ASTP(new AST_syntaxError("Syntax error variable declaration",
-                                         token->lineno,fileName)) ;
+                                             token->lineno,fileName)) ;
         AST_data->decls.push_back(p) ;
       }
       AST_data->decls.push_back(expr) ;
@@ -2278,7 +2294,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
 AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,
 					    const string &fileName,
 					    varmap &typemap) {
-  
+
   CPTR<AST_Block> AST_data = new AST_Block ;
   AST_data->identifiers = typemap ;
   AST_data->nodeType = OP_SPECIAL ;
@@ -2320,7 +2336,7 @@ AST_type::ASTP parseSimpleStatement(std::istream &is, int &linecount,
        << endl ;
 #endif
   AST_type::ASTP exp = parseExpression(is,linecount,fileName,typemap) ;
-  
+
   CPTR<AST_Token> termToken = getToken(is,linecount) ;
   AST_type::ASTP term = AST_type::ASTP(termToken) ;
 #ifdef VERBOSE
@@ -2424,7 +2440,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
       return AST_type::ASTP(AST_data) ;
     }
     break ;
-    
+
   case TK_OPENPAREN:
   case TK_PLUS:
   case TK_MINUS:
@@ -2437,8 +2453,8 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case TK_LOCI_CONTAINER:
     {
       return parseSimpleStatement(is,linecount,fileName,typemap) ;
-    } 
-    
+    }
+
   case TK_MACRO:
     firstToken = getToken(is,linecount) ;
     return AST_type::ASTP(firstToken) ;
@@ -2448,7 +2464,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   default:
     break ;
   }
-  
+
   firstToken = getToken(is,linecount) ;
   return AST_type::ASTP(new AST_syntaxError("Expecting statement or ';' ",
 					    firstToken->lineno,
@@ -2486,7 +2502,7 @@ AST_type::ASTP parseBlock(std::istream &is, int &linecount,
       parseStatement(is,linecount,fileName,AST_data->identifiers) ;
     AST_data->elements.push_back(statement) ;
     token = getToken(is,linecount) ;
-    if(is.fail() || is.eof()) 
+    if(is.fail() || is.eof())
       break ;
   }
   AST_data->elements.push_back(AST_type::ASTP(token)) ;
@@ -2496,7 +2512,7 @@ AST_type::ASTP parseBlock(std::istream &is, int &linecount,
 void AST_visitor::visit(AST_SimpleStatement &s) {
   if(s.exp!=0)
     s.exp->accept(*this) ;
-  if(s.Terminal!=0) 
+  if(s.Terminal!=0)
     s.Terminal->accept(*this) ;
 }
 void AST_visitor::visit(AST_Block &s) {
@@ -2537,7 +2553,7 @@ void AST_visitor::visit(AST_controlStatement &s) {
 void AST_errorCheck::visit(AST_syntaxError &s) {
   cerr << s.fileName << ":" << s.lineno << ": syntax, " <<s.error << endl ;
   error_count++ ;
-}  
+}
 
 void AST_collectAccessInfo::visit(AST_Token &s) {
   if(ASTEqual(s,TK_LOCI_VARIABLE)) {
@@ -2557,11 +2573,11 @@ AST_type::ASTP getArrayVar(AST_type::ASTP expr) {
 }
 bool isExprLociVariable(AST_type::ASTP expr) {
   expr = getArrayVar(expr) ;
-  
+
   return ASTEqual(expr,TK_LOCI_VARIABLE) ;
 }
 
-  
+
 void AST_collectAccessInfo::visit(AST_exprOper &s) {
   switch(s.nodeType) {
   case OP_ASSIGN:
@@ -2587,7 +2603,7 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
       for(auto mi=first.id2vmap.begin();mi!=first.id2vmap.end();++mi)
 	id2vmap[mi->first] = mi->second ;
       for(++ii;ii!=s.terms.end();++ii)
-	if(*ii != 0) 
+	if(*ii != 0)
           (*ii)->accept(*this) ;
     }
     break ;
@@ -2596,11 +2612,11 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
       // Work on this to fill in the maps
       bool allLociVars = true ;
       for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	if(*ii != 0) 
+	if(*ii != 0)
 	  allLociVars = allLociVars && isExprLociVariable(*ii) ;
       if(allLociVars) {
 	Loci::vmap_info vm ;
-	
+
 	for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	  if(*ii != 0) {
 	    AST_type::ASTP vp = getArrayVar(*ii) ;
@@ -2641,7 +2657,7 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
     break ;
   }
 }
-  
+
 void AST_simplePrint::visit(AST_exprOper &s) {
   auto t = id2rename.find(s.id) ;
   if(t != id2rename.end()) {
@@ -2732,23 +2748,25 @@ void AST_simplePrint::visit(AST_exprOper &s) {
   case OP_TERNARY:
     {
       AST_type::ASTList::iterator ii=s.terms.begin() ;
-      if(*ii != 0)
+      
+      if(ii!=s.terms.end() && *ii != 0) {
 	(*ii)->accept(*this) ;
-      ++ii ;
+      }
+      if(ii!=s.terms.end()) 
+        ++ii ;
       out << '?' ;
-      if(*ii != 0)
+      if(ii!=s.terms.end() && *ii != 0)
 	(*ii)->accept(*this) ;
       out << ':' ;
       if(ii==s.terms.end()) {
 	cerr << "internal error on tertiary operator" << endl ;
       } else
 	++ii ;
-      if(*ii != 0)
+      if(ii!=s.terms.end() && *ii != 0)
 	(*ii)->accept(*this) ;
-
     }
     break ;
-      
+
   case OP_UNARY_PLUS:
   case OP_UNARY_MINUS:
   case OP_NOT:
@@ -2810,7 +2828,7 @@ void AST_simplePrint::visit(AST_Token &s) {
       out << "$" << s.text ;
     } else if(ASTEqual(s,TK_MACRO)) {
       out << endl << '#' << s.text << endl ;
-    } else 
+    } else
       out <<s.text << ' ' ;
   }
 }
@@ -2827,7 +2845,7 @@ bool condenseOp(AST_type::elementType et) {
     return false ;
   }
 }
-    
+
 void AST_condenseLeftAssociative::visit(AST_exprOper &e) {
   AST_type::elementType op = e.nodeType ;
 
