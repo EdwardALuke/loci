@@ -41,7 +41,7 @@ $type ref Map ;
 $type pmap Map ;
 
 /** The transformation that maps periodic faces */
-$type periodicTransform store<rigid_transform> ;
+$type periodicTransform store<Loci::rigid_transform> ;
 
 /** Mapping from face to nodes that define the face */
 $type face2node multiMap ;
