@@ -609,6 +609,9 @@ AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
     else
       return AST_type::ASTP(post) ;
   }
+  if(ASTEqual(openToken,TK_OPENPAREN)) {
+    return parseFunctionArguments(expr,is,linecount,fileName,typemap) ;
+  }
   if(ASTEqual(openToken,TK_OPENBRACKET)) {
     AST_type::ASTP index = parseExpression(is,linecount,fileName,typemap) ;
     openToken = getToken(is,linecount) ;
