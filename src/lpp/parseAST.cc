@@ -971,27 +971,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
        << endl ;
 #endif
 
-#ifdef C_STYLE_CAST
-  // Check for a type cast
-  if(ASTEqual(openToken,TK_DOUBLE) ||
-     ASTEqual(openToken,TK_FLOAT) ||
-     ASTEqual(openToken,TK_INT) ||
-     ASTEqual(openToken,TK_SHORT) ||
-     ASTEqual(openToken,TK_CHAR) ||
-     ASTEqual(openToken,TK_LONG)) {
-    CPTR<AST_Token> nextToken = getToken(is,linecount) ;
-    pushToken(nextToken) ;
-    if(ASTEqual(nextToken,TK_OPENPAREN)) {
-      CPTR<AST_declaration> AST_data = new AST_declaration ;
-      AST_data->type_decl.push_back(AST_type::ASTP(openToken)) ;
-      AST_data->type_decl.push_back(parseExpressionPartial(is,linecount,
-                                                           fileName,
-                                                           typemap,prec)) ;
-      return AST_type::ASTP(AST_data) ;
-    }
-  }
-#endif
-  // Check for a parenthesized group or C-style cast ( type ) expr
+  // Check for a parenthesized group 
   if(ASTEqual(openToken,TK_OPENPAREN)) {
     pushToken(openToken) ;
     // Grab '('
@@ -1023,8 +1003,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       return AST_type::ASTP(new AST_syntaxError("expecting ')'",closeToken->lineno,fileName)) ;
 
     }
-    return applyPostFixOperator(AST_type::ASTP(group),is,linecount,fileName,
-				typemap) ;
+    return AST_type::ASTP(group) ;
   }
   if(ASTEqual(openToken,TK_CONST_CAST) ||
      ASTEqual(openToken,TK_DYNAMIC_CAST) ||
@@ -1096,8 +1075,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     if(ASTEqual(afterBrace,TK_CLOSEBRACE)) {
       CPTR<AST_exprOper> br = new AST_exprOper ;
       br->nodeType = OP_BRACEBLOCK ;
-      return applyPostFixOperator(AST_type::ASTP(br),is,linecount,fileName,
-				  typemap) ;
+      return AST_type::ASTP(br) ;
     }
     pushToken(afterBrace) ;
     AST_type::ASTP inner =
@@ -1111,8 +1089,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     CPTR<AST_exprOper> br = new AST_exprOper ;
     br->nodeType = OP_BRACEBLOCK ;
     br->terms.push_back(inner) ;
-    return applyPostFixOperator(AST_type::ASTP(br),is,linecount,fileName,
-				typemap) ;
+    return AST_type::ASTP(br) ;
   }
   // Check for unary operators
   if(checkUnaryToken(openToken)) {
@@ -1136,8 +1113,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
 #endif
-      return applyPostFixOperator(AST_type::ASTP(unary),is,linecount,fileName,
-				  typemap) ;
+      return AST_type::ASTP(unary) ;
     }
   }
   // Check if we are parsing a scoped name
@@ -1145,25 +1121,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
      ASTEqual(openToken,TK_SCOPE)) {
     pushToken(openToken) ;
     AST_type::ASTP objname = parseIdentifier(is,linecount,fileName,typemap) ;
-    return applyPostFixOperator(objname,is,linecount,fileName, typemap) ;
-
-    //    AST_type::ASTP objname = parseScopedObject(is,linecount,fileName,typemap) ;
-
-    openToken = getToken(is,linecount) ;
-    if(ASTEqual(openToken,TK_OPENTEMPLATE)) {
-      objname = parseTemplateArguments(objname,is,linecount,fileName,typemap) ;
-    } else
-      pushToken(openToken) ;
-
-    openToken = getToken(is,linecount) ;
-    if(ASTEqual(openToken,TK_OPENPAREN)) {
-      objname = parseFunctionArguments(objname,is,linecount,fileName,typemap) ;
-    } else
-      pushToken(openToken) ;
-
-    return applyPostFixOperator(AST_type::ASTP(objname),is,linecount,fileName,
-                                typemap) ;
-
+    return objname ;
   }
 
   if(isTerm(openToken)) {
@@ -1177,8 +1135,7 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
     AST_type::ASTP exp = parseTerm(is,linecount);
 
 
-    return applyPostFixOperator(exp,is,linecount,fileName,typemap) ;
-    //    return exp ;
+    return exp ;
   }
   pushToken(openToken) ;
   return 0 ;
@@ -1372,7 +1329,8 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
          << endl ;
 #endif
     expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
-
+    expr = applyPostFixOperator(expr,is,linecount,fileName,typemap) ;
+    
     if(expr == 0) {
       return AST_type::ASTP(new AST_syntaxError("Expecting expression after binary operator",linecount,fileName)) ;
     }
@@ -1417,10 +1375,12 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
       }
 
       if(ASTEqual(op,OP_COLON)) {
-        //        cerr << "FOUND COLON" << endl ;
+#ifdef VERBOSE
+        cerr << "FOUND COLON" << endl ;
         printStack(exprStack,cerr) ;
+#endif
         if(exprStack.back()->nodeType != OP_TERNARY) {
-          cerr << "expected to be working with TERNARY operator" << endl ;
+          cerr << "expected ':' to be working with '?' in TERNARY operator" << endl ;
           CPTR<AST_Token> optoken = CPTR<AST_Token>(op) ;
           AST_type::ASTP err =
             AST_type::ASTP(new AST_syntaxError("expecting ':' to be paired with '?'",
@@ -1536,6 +1496,7 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,
 #endif
 
   AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,typemap,prec) ;
+  expr = applyPostFixOperator(expr,is,linecount,fileName,typemap) ;
   if(expr == 0) // If no valid expression then return null
     return expr ;
 
@@ -2134,6 +2095,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
       pushToken(token) ;
 
       AST_type::ASTP expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+      expr = applyPostFixOperator(expr,is,linecount,fileName,typemap) ;
 #ifdef VERBOSE
       cerr << "in parseDeclaration, parsing expression "
            << ", file: " << __FILE__ << ":" << __LINE__
