@@ -625,18 +625,43 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
 #endif
     return AST_data ;
   case '"':
-    while(is.peek() != '"' && !is.eof() && !is.fail()) {
+    {
+      while(is.peek() != '"' && !is.eof() && !is.fail()) {
+        AST_data->text += is.get() ;
+      }
+      if(is.peek() != '"') {
+        break ;
+      }
       AST_data->text += is.get() ;
-    }
-    if(is.peek() == '"') {
-      AST_data->text += is.get() ;
+      // C++: concatenate adjacent string literals ("a" "b" is one literal "ab")
+      for(;;) {
+        killsp(is, linecount) ;
+        if(is.peek() != '"' || is.eof() || is.fail()) {
+          break ;
+        }
+        if(AST_data->text.empty() || AST_data->text.back() != '"') {
+          break ;
+        }
+        AST_data->text.pop_back() ;
+        is.get() ; // opening '"' of the next literal
+        while(is.peek() != '"' && !is.eof() && !is.fail()) {
+          AST_data->text += is.get() ;
+        }
+        if(is.peek() != '"') {
+          AST_data->nodeType = TK_ERROR ;
+#ifdef VERBOSE
+          cerr << "get token ERR(unclosed string in concatenation)" << endl ;
+#endif
+          return AST_data ;
+        }
+        AST_data->text += is.get() ;
+      }
       AST_data->nodeType = TK_STRING ;
 #ifdef VERBOSE
       cerr << "get token STRING("<< AST_data->text<< ")" << endl ;
 #endif
       return AST_data ;
     }
-    break ;
   case '\'':
     while(is.peek() != '\'' && !is.eof() && !is.fail()) {
       AST_data->text += is.get() ;
@@ -778,7 +803,16 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
 	      count-- ;
 	    AST_data->text += is.get() ;
 	  }
-	} else
+	} else if(is.peek() == ':') {
+          is.get() ;
+          if(is.peek() == ':') {
+            AST_data->text += ':' ;
+            AST_data->text += is.get() ;
+          } else {
+            is.putback(':') ;
+            break ;
+          }
+        } else
 	  AST_data->text += is.get() ;
       }
 
@@ -886,10 +920,10 @@ CPTR<AST_Token> getToken(std::istream &is, int &linecount) {
 #endif
           toklist[LT_LIST.back()]->nodeType =
             TK_OPENTEMPLATE ;
-          toklist[LT_LIST.back()]->text = "<<<" ; ;
+          toklist[LT_LIST.back()]->text = "<" ; ;
           toklist.back()->nodeType =
             TK_CLOSETEMPLATE ;
-          toklist.back()->text = ">>>" ;
+          toklist.back()->text = ">" ;
           LT_LIST.pop_back() ;
           LT_DEPTH.pop_back() ;
           if(LT_LIST.size() == 0) {

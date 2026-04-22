@@ -119,7 +119,7 @@ namespace Loci {
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1;
+    const real pp1 = static_cast<real>($nisPow+1);
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
     const real epsilon2 = venkaFac*pow(ref,$nisPow);
 
@@ -192,7 +192,7 @@ namespace Loci {
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1;
+    const real pp1 = static_cast<real>($nisPow+1);
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
     const real epsilon2 = venkaFac*pow(ref,$nisPow);
 
@@ -270,7 +270,7 @@ namespace Loci {
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1;
+    const real pp1 = static_cast<real>($nisPow+1);
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
     const real epsilon2 = venkaFac*pow(ref,$nisPow);
 
@@ -313,7 +313,7 @@ namespace Loci {
     for(int j=0;j<vs;++j)
       ref += fabs($M[j]) ;
     ref = max(ref,real_t(1e-5)) ;
-    const real pp1 = (real)$nisPow+1;
+    const real pp1 = static_cast<real>($nisPow+1);
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0);
     const real epsilon2 = venkaFac*pow(ref,$nisPow);
 
@@ -372,7 +372,7 @@ $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
     for(int j=0;j<vs;++j)
       ref += fabs($M[j]) ;
     ref = max(ref,real_t(1e-5)) ;
-    const real pp1 = (real)$nisPow+1;
+    const real pp1 = static_cast<real>($nisPow+1);
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
     const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
@@ -461,7 +461,7 @@ $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1 ;
+    const real pp1 = static_cast<real>($nisPow+1) ;
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
     const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
@@ -513,7 +513,7 @@ $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1 ;
+    const real pp1 = static_cast<real>($nisPow+1) ;
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
     const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
@@ -569,7 +569,7 @@ $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
     }
 
     const real ref = 1e-20+sqrt(refsq)/numrefs ;
-    const real pp1 = (real)$nisPow+1 ;
+    const real pp1 = static_cast<real>($nisPow+1) ;
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
     const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
@@ -601,7 +601,7 @@ $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
       ref += fabs($M[j]) ;
     }
     ref = max(ref,real_t(1e-5)) ;
-    const real pp1 = (real)$nisPow+1;
+    const real pp1 = static_cast<real>($nisPow+1);
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
     const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 
@@ -649,7 +649,7 @@ $rule pointwise(limiterv(M)<-cellcenter, M, gradv(M), firstOrderCells,
       ref += fabs($M[j]) ;
     }
     ref = max(ref,real_t(1e-5)) ;
-    const real pp1 = (real)$nisPow+1 ;
+    const real pp1 = static_cast<real>($nisPow+1) ;
     const real venkaFac = pow($Kl,pp1)*pow(6/(M_PI*$grid_vol)*$vol,pp1/3.0) ;
     const real epsilon2 = venkaFac*pow(ref,$nisPow) ;
 

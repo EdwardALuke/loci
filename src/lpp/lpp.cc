@@ -1465,6 +1465,14 @@ void AST_printTree::visit(AST_exprOper &s) {
       popindent() ;
     }
     break ;
+  case OP_TEMPLATE_CAST:
+    pushindent(s) ;
+    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+    }
+    popindent() ;
+    break ;
   case OP_BRACEBLOCK:
     {
       pushindent(s) ;
@@ -1554,13 +1562,6 @@ void AST_printTree::visit(AST_exprOper &s) {
 	(*ii)->accept(*this) ;
       ++ii ;
       out << '?' ;
-      if(*ii != 0)
-	(*ii)->accept(*this) ;
-      out << ':' ;
-      if(ii==s.terms.end()) {
-	cerr << "internal error on tertiary operator" << endl ;
-      } else
-	++ii ;
       if(*ii != 0)
 	(*ii)->accept(*this) ;
       popindent() ;
@@ -1708,8 +1709,8 @@ public:
   AST_type::ASTP convertLociVar(AST_type::ASTP var) {
     CPTR<AST_Token> p = CPTR<AST_Token>(var) ;
     variable v(p->text) ;
-    while(v.get_info().priority.size() != 0)
-      v = v.drop_priority() ;
+    //    while(v.get_info().priority.size() != 0)
+    //      v = v.drop_priority() ;
     
     auto vmi = vnames.find(v) ;
     if(vmi == vnames.end()) {

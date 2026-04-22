@@ -176,7 +176,7 @@ namespace Loci {
   prelude {
     $cell2node_v(M).setVecSize($nodal_sum(M).vecSize()) ;
   } compute {
-    double rsum = 1./(double($nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($nodalw_sum)+1e-20) ;
     for(int i=0;i<$*nodal_sum(M).vecSize();++i) {
       $cell2node_v(M)[i] = $nodal_sum(M)[i]*rsum ;
     }
@@ -241,7 +241,7 @@ namespace Loci {
   prelude {
     $cell2node_v(M).setVecSize($boundary_nodal_sum(M).vecSize()) ;
   } compute {
-      double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
+      double rsum = 1./(static_cast<double>($boundary_nodalw_sum)+1e-20) ;
       for(int i=0;i<$*boundary_nodal_sum(M).vecSize();++i) {
         $cell2node_v(M)[i] = $boundary_nodal_sum(M)[i]*rsum ;
       }
@@ -305,7 +305,7 @@ namespace Loci {
   /// nodes
   $rule pointwise(cell2node(X)<-c2n_scalar_sum(X), nodalw_sum),
   constraint(pos, hasCellValues(X)) {
-    double rsum = 1./(double($nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($nodalw_sum)+1e-20) ;
     $cell2node(X) = $c2n_scalar_sum(X)*rsum ;
   }
 
@@ -330,7 +330,7 @@ namespace Loci {
   $rule pointwise(boundary::cell2node(X)<-boundary_scalar_sum(X),
     boundary_nodalw_sum),
   constraint(boundary_node,hasCellValues(X)) {
-    double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($boundary_nodalw_sum)+1e-20) ;
     $cell2node(X) = $boundary_scalar_sum(X)*rsum ;
   }
 
@@ -393,7 +393,7 @@ namespace Loci {
   /// compute interior node interpolated values
   $rule pointwise(cell2node_v3d(V)<-c2n_v3d_sum(V), nodalw_sum),
   constraint(pos, hasCellValues(V)) {
-    double rsum = 1./(double($nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($nodalw_sum)+1e-20) ;
     $cell2node_v3d(V) = $c2n_v3d_sum(V)*rsum ;
   }
 
@@ -423,7 +423,7 @@ namespace Loci {
   $rule pointwise(boundary::cell2node_v3d(V)<-boundary_v3d_sum(V),
     boundary_nodalw_sum),
   constraint(boundary_node, hasCellValues(V)) {
-    double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($boundary_nodalw_sum)+1e-20) ;
     $cell2node_v3d(V) = $boundary_v3d_sum(V)*rsum ;
   }
 
@@ -512,7 +512,7 @@ namespace Loci {
 
   $rule pointwise(cell2nodep(XF)<-c2n_scalar_sump(XF), nodalw_sum),
   constraint(pos, hasCellValues(XF)) {
-    double rsum = 1./(double($nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($nodalw_sum)+1e-20) ;
     $cell2nodep(XF) = $c2n_scalar_sump(XF)*rsum ;
   }
 
@@ -544,7 +544,7 @@ namespace Loci {
   $rule pointwise(boundary::cell2nodep(XF)<-boundary_scalar_sump(XF),
     boundary_nodalw_sum),
   constraint(boundary_node, hasCellValues(XF)) {
-    double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($boundary_nodalw_sum)+1e-20) ;
     $cell2nodep(XF) = $boundary_scalar_sump(XF)*rsum ;
   }
 
@@ -617,7 +617,7 @@ namespace Loci {
   $type cell2nodep_v3d(VF) store<vector3d<FADPLOT> > ;
   $rule pointwise(cell2nodep_v3d(VF)<-c2n_v3d_sump(VF), nodalw_sum),
   constraint(pos, hasCellValues(VF)) {
-    double rsum = 1./(double($nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($nodalw_sum)+1e-20) ;
     $cell2nodep_v3d(VF) = $c2n_v3d_sump(VF)*rsum ;
   }
 
@@ -654,7 +654,7 @@ namespace Loci {
   $rule pointwise(boundary::cell2nodep_v3d(VF)<-boundary_v3d_sump(VF),
     boundary_nodalw_sum),
   constraint(boundary_node, hasCellValues(VF)) {
-    double rsum = 1./(double($boundary_nodalw_sum)+1e-20) ;
+    double rsum = 1./(static_cast<double>($boundary_nodalw_sum)+1e-20) ;
     $cell2nodep_v3d(VF) = $boundary_v3d_sump(VF)*rsum ;
   }
 
