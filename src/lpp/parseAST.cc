@@ -1332,6 +1332,79 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
          << endl ;
 #endif
     expr = parseExpressionPartial(is,linecount,fileName,typemap) ;
+    openToken = getToken(is,linecount) ;
+    pushToken(openToken) ;
+    if((ASTEqual(op,OP_ARROW) || ASTEqual(op,OP_DOT)) &&
+       checkPostFixToken(openToken->nodeType)) {
+      // Here we have a special case where the postfix ++ or -- operator
+      // needs to happen after we close the existing arrow operator
+      if(ASTEqual(exprStack.back(),OP_NIL)) {
+        // If no operator on the stack, add this to the node
+        exprStack.back()->nodeType = op->nodeType ;
+        exprStack.back()->terms.push_back(expr) ;
+      } else {
+        // Put arrow or dot operator on stack
+        if(ASTEqual(op,exprStack.back())) {      
+          // If operator is the same, just chain the terms
+          exprStack.back()->terms.push_back(expr) ;
+#ifdef VERBOSE
+          cerr << "adding term to operator: "
+               << OPtoName(exprStack.back()->nodeType)
+               << " stack size=" << exprStack.size()
+               << ", file: " << __FILE__ << ":" << __LINE__
+               << endl ;
+#endif
+#ifdef VERBOSE
+          if(exprStack.size() > 0) {
+            printStack(exprStack,cerr) ;
+          }
+#endif
+        } else {
+          CPTR<AST_exprOper> np = new AST_exprOper ;
+          np->nodeType = op->nodeType ;
+#ifdef VERBOSE
+          cerr << "top of stack is" << OPtoName(exprStack.back()->nodeType)
+               << endl ;
+          cerr << "editing rightmost term: " << OPtoName(exprStack.back()->terms.back()->nodeType)
+               << ", file: " << __FILE__ << ":" << __LINE__
+               << endl ;
+#endif
+          np->terms.push_back(exprStack.back()->terms.back()) ;
+          np->terms.push_back(expr) ;
+          exprStack.back()->terms.back() = AST_type::ASTP(np) ;
+#ifdef VERBOSE
+          cerr << "pushing " << OPtoName(exprStack.back()->nodeType)
+               << "to stack,  line " << __LINE__
+               << ", file: " << __FILE__ << ":" << __LINE__
+               << endl ;
+#endif
+#ifdef VERBOSE
+          if(exprStack.size() > 0) {
+            printStack(exprStack,cerr) ;
+          }
+#endif
+          exprStack.push_back(np) ;
+        }
+      }
+      // Now parse post increment/decrement
+      expr = AST_type::ASTP(exprStack.back()),
+      exprStack.back() =
+        CPTR<AST_exprOper>(applyPostFixOperator(expr,
+                                                is,linecount,
+                                                fileName,typemap)) ;
+      if(exprStack.size() > 1)
+        exprStack[exprStack.size()-2]->terms.back()=
+          AST_type::ASTP(exprStack.back()) ;
+      continue ;
+    }
+      
+
+#ifdef VERBOSE
+    cerr << "before applyPostFixOperator" << endl ;
+    if(exprStack.size() > 0) {
+      printStack(exprStack,cerr) ;
+    }
+#endif
     expr = applyPostFixOperator(expr,is,linecount,fileName,typemap) ;
     
     if(expr == 0) {
@@ -1374,8 +1447,8 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
           printStack(exprStack,cerr) ;
         }
 #endif
-
       }
+
 
       if(ASTEqual(op,OP_COLON)) {
 #ifdef VERBOSE
