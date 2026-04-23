@@ -41,11 +41,10 @@ namespace Loci {
   class gpuMapVecRepI : public gpuMapRep {
   private:
     entitySet store_domain;
-    Entity * base_ptr;
-    Entity * access_ptr;
+    Array<Entity, M> * base_ptr;
 
   public:
-    gpuMapVecRepI() : base_ptr(0), access_ptr(0) { }
+    gpuMapVecRepI() : base_ptr(0) { }
     gpuMapVecRepI(entitySet const & p) { allocate(p); }
     ~gpuMapVecRepI();
     virtual void allocate(entitySet const & ptn);
@@ -88,12 +87,8 @@ namespace Loci {
     virtual void writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, char const * name, entitySet & en, hid_t xfer_plist_id) const;
 #endif
 
-    Entity * get_base_ptr() const {
+    Array<Entity, M> * get_base_ptr() const {
       return base_ptr;
-    }
-
-    Entity * get_access_ptr() const {
-      return access_ptr;
     }
 
     virtual storeRepP expand(entitySet & out_of_dom, std::vector<entitySet> & init_ptn);
@@ -121,95 +116,12 @@ namespace Loci {
     store_type RepType() const override;
   } ;
 
-  template<unsigned int M>
-  class EntityMapVec {
-    Entity * ptr ;
-
-  public:
-    GPU_DECL
-    EntityMapVec(Entity * ptr) : ptr(ptr) { }
-
-    GPU_DECL
-    Entity & operator[](int index) {
-      return ptr[index];
-    }
-
-    GPU_DECL
-    Entity const & operator[](int index) const {
-      return ptr[index];
-    }
-
-    GPU_DECL
-    unsigned int size() const {
-      return M;
-    }
-  };
-
-  template<unsigned int M>
-  class const_EntityMapVec {
-    Entity const * ptr;
-
-  public:
-    GPU_DECL
-    const_EntityMapVec(Entity const * ptr) : ptr(ptr) { }
-
-    GPU_DECL
-    Entity const & operator[](int index) const {
-      return ptr[index];
-    }
-
-    GPU_DECL
-    unsigned int size() const {
-      return M;
-    }
-  };
-
-  template<unsigned int M>
-  class MapVecView {
-    Entity * access_ptr;
-
-  public:
-    GPU_DECL
-    MapVecView() : access_ptr(nullptr) { }
-
-    GPU_DECL
-    MapVecView(Entity * access_ptr) : access_ptr(access_ptr) { }
-
-    GPU_DECL
-    EntityMapVec<M> operator[](Entity e) {
-      return EntityMapVec<M>(&access_ptr[e*M]);
-    }
-
-    GPU_DECL
-    const_EntityMapVec<M> operator[](Entity e) const {
-      return EntityMapVec<M>(&access_ptr[e*M]);
-    }
-  };
-
-  template<unsigned int M>
-  class const_MapVecView {
-    Entity const * access_ptr;
-
-  public:
-    GPU_DECL
-    const_MapVecView() : access_ptr(nullptr) { }
-
-    GPU_DECL
-    const_MapVecView(int const * access_ptr) : access_ptr(access_ptr) { }
-
-    GPU_DECL
-    const_EntityMapVec<M> operator[](Entity e) const {
-      return const_EntityMapVec<M>(&access_ptr[e*M]);
-    }
-  };
-
   template<unsigned int M> class const_gpuMapVec ;
 
   template<unsigned int M> class gpuMapVec : public store_instance {
     friend class const_gpuMapVec<M> ;
 
-    Entity * base_ptr ;
-    Entity * access_ptr ;
+    Array<Entity, M> * base_ptr ;
 
     gpuMapVec(gpuMapVec<M> const & var) {
       setRep(var.Rep()) ;
@@ -223,7 +135,6 @@ namespace Loci {
   public:
     gpuMapVec() {
       setRep(new gpuMapVecRepI<M>()) ;
-
     }
 
     gpuMapVec(storeRepP rp) {
@@ -243,6 +154,10 @@ namespace Loci {
     void allocate(entitySet const & ptn) {
       Rep()->allocate(ptn);
     }
+
+    Array<Entity, M> * ptr() { return base_ptr; }
+
+    Array<Entity, M> const * ptr() const { return base_ptr; }
 
     entitySet domain() const {
       return Rep()->domain();
@@ -266,12 +181,12 @@ namespace Loci {
       return p;
     }
 
-    MapVecView<M> view() {
-      return MapVecView<M>(access_ptr);
+    Array<Entity, M> * operator[](Entity e) {
+      return &base_ptr[e];
     }
 
-    const_MapVecView<M> view() const {
-      return const_MapVecView<M>(access_ptr);
+    Array<Entity, M> const * operator[](Entity e) const {
+      return &base_ptr[e];
     }
 
     std::ostream & Print(std::ostream & s) const {
@@ -298,8 +213,7 @@ namespace Loci {
   template<unsigned int M>
   class const_gpuMapVec : public store_instance {
 
-    Entity * base_ptr ;
-    Entity * access_ptr ;
+    Array<Entity, M> const * base_ptr ;
 
     const_gpuMapVec(const_gpuMapVec<M> & src) {
       setRep(src.Rep());
@@ -340,6 +254,8 @@ namespace Loci {
       return *this;
     }
 
+    Array<Entity, M> const * ptr() const { return base_ptr; }
+
     entitySet const domain() const {
       return Rep()->domain();
     }
@@ -362,8 +278,8 @@ namespace Loci {
       return p;
     }
 
-    const_MapVecView<M> view() {
-      return const_MapVecView<M>(access_ptr);
+    Array<Entity, M> const * operator[](Entity e) {
+      return &base_ptr[e];
     }
 
     std::ostream & Print(std::ostream & s) const {

@@ -35,17 +35,17 @@ namespace Loci {
       alloc_id = getGPUStoreAllocateID();
     }
 
-    GPUstoreAllocateData[alloc_id].template allocBasic<Entity>(ptn, M);
+    GPUstoreAllocateData[alloc_id].template allocBasic<Array<Entity, M>>(ptn, 1);
     store_domain = GPUstoreAllocateData[alloc_id].allocset;
-    base_ptr = (Entity *)GPUstoreAllocateData[alloc_id].base_ptr;
-    access_ptr = base_ptr - GPUstoreAllocateData[alloc_id].base_offset*M;
+    base_ptr = (Array<Entity, M> *)GPUstoreAllocateData[alloc_id].base_ptr;
+    base_ptr -= GPUstoreAllocateData[alloc_id].base_offset;
     dispatch_notify();
   }
 
   template<unsigned int M>
   inline gpuMapVecRepI<M>::~gpuMapVecRepI() {
     if(alloc_id >= 0) {
-      GPUstoreAllocateData[alloc_id].template release<int>();
+      GPUstoreAllocateData[alloc_id].template release<Array<Entity, M>>();
       releaseGPUStoreAllocateID(alloc_id);
       alloc_id = -1;
     }
@@ -171,33 +171,47 @@ namespace Loci {
   }
 
   template<unsigned int M>
-  inline void gpuMapVecRepI<M>::readhdf5(hid_t group_id, hid_t daaspace, hid_t dataset, hsize_t dimension, char const * name, frame_info & fi, entitySet & en) {
+  inline void gpuMapVecRepI<M>::readhdf5(
+    hid_t group_id, hid_t daaspace, hid_t dataset, hsize_t dimension,
+    char const * name, frame_info & fi, entitySet & en
+  ) {
     cerr << "gpuMapVecRepI<M>::readhdf5 is not implemented" << endl;
     Loci::Abort();
   }
 
   template<unsigned int M>
-  inline void gpuMapVecRepI<M>::writehdf5(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, char const * name, entitySet & en) const {
+  inline void gpuMapVecRepI<M>::writehdf5(
+    hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
+    char const * name, entitySet & en
+  ) const {
     cerr << "gpuMapVecRepI<M>::writehdf5 is not implemented" << endl;
     Loci::Abort();
   }
 
 #ifdef H5_HAVE_PARALLEL
   template<unsigned int M>
-  inline void gpuMapVecRepI<M>::readhdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, char const * name, frame_info & fi, entitySet & en, hid_t xfer_plist_id) {
+  inline void gpuMapVecRepI<M>::readhdf5P(
+    hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
+    char const * name, frame_info & fi, entitySet & en, hid_t xfer_plist_id
+  ) {
     cerr << "gpuMapVecRepI<M>::readhdf5P is not implemented" << endl;
     Loci::Abort();
   }
 
   template<unsigned int M>
-  inline void gpuMapVecRepI<M>::writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, char const * name, entitySet & en, hid_t xfer_plist_id) const {
+  inline void gpuMapVecRepI<M>::writehdf5P(
+    hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
+    char const * name, entitySet & en, hid_t xfer_plist_id
+  ) const {
     cerr << "gpuMapVecRepI<M>::writehdf5P is not implemented" << endl;
     Loci::Abort();
   }
 #endif
 
   template<unsigned int M>
-  inline storeRepP gpuMapVecRepI<M>::expand(entitySet & out_of_dom, std::vector<entitySet> & init_ptn) {
+  inline storeRepP gpuMapVecRepI<M>::expand(
+    entitySet & out_of_dom, std::vector<entitySet> & init_ptn
+  ) {
     cerr << "gpuMapVecRepI<M>::expand is not implemented" << endl;
     Loci::Abort();
     return 0;
@@ -237,13 +251,16 @@ namespace Loci {
     int num_intervals = set.num_intervals();
     MapVec<M> m;
     m.setRep(fromMap);
-    Entity * gpu_access_ptr = get_access_ptr();
+    Array<Entity, M> * gpu_base_ptr = get_base_ptr();
     for(int i = 0; i < num_intervals; ++i) {
       int start = set[i].first;
       int end = set[i].second;
       int sz = end-start+1;
 
-      cudaError_t err = cudaMemcpy(&gpu_access_ptr[start*M], &m[start][0], sizeof(Entity)*sz*M, cudaMemcpyHostToDevice);
+      cudaError_t err = cudaMemcpy(
+        &gpu_base_ptr[start], &m[start], sizeof(Array<Entity, M>)*sz,
+        cudaMemcpyHostToDevice
+      );
       cudaDeviceSynchronize();
       if(err != cudaSuccess) {
         cerr << "cudaMemcpy failed in gpuMapVecRepI<M>::copyFrom" << endl;
@@ -264,7 +281,6 @@ namespace Loci {
     NPTR<gpuMapVecRepI<M>> p(Rep());
     if(p != 0) {
       base_ptr = p->get_base_ptr();
-      access_ptr = p->get_access_ptr();
     }
     warn(p == 0);
   }
@@ -279,7 +295,6 @@ namespace Loci {
     NPTR<gpuMapVecRepI<M>> p(Rep());
     if(p != 0) {
       base_ptr = p->get_base_ptr();
-      access_ptr = p->get_access_ptr();
     }
     warn(p == 0);
   }
