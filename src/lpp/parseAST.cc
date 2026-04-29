@@ -2499,6 +2499,15 @@ AST_type::ASTP getArrayVar(AST_type::ASTP expr) {
   }
   return expr ;
 }
+
+AST_type::ASTP getArraySubscript(AST_type::ASTP expr) {
+  if(ASTEqual(expr,OP_ARRAY)) {
+    CPTR<AST_exprOper> p(expr) ;
+    return AST_type::ASTP(p->terms.back()) ;
+  }
+  return 0 ;
+}
+
 bool isExprLociVariable(AST_type::ASTP expr) {
   expr = getArrayVar(expr) ;
 
@@ -2523,15 +2532,15 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
       auto ii=s.terms.begin();
       AST_collectAccessInfo first ;
       if(ii!=s.terms.end() && *ii != 0)
-	(*ii)->accept(first) ;
+        (*ii)->accept(first) ;
       for(auto fi=first.accessed.begin();fi!= first.accessed.end();++fi)
-	writes.insert(*fi) ;
+        writes.insert(*fi) ;
       for(auto mi=first.id2var.begin();mi!=first.id2var.end();++mi)
-	id2var[mi->first] = mi->second ;
+        id2var[mi->first] = mi->second ;
       for(auto mi=first.id2vmap.begin();mi!=first.id2vmap.end();++mi)
-	id2vmap[mi->first] = mi->second ;
+        id2vmap[mi->first] = mi->second ;
       for(++ii;ii!=s.terms.end();++ii)
-	if(*ii != 0)
+        if(*ii != 0)
           (*ii)->accept(*this) ;
     }
     break ;
@@ -2540,58 +2549,79 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
       // Work on this to fill in the maps
       bool allLociVars = true ;
       for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	if(*ii != 0)
-	  allLociVars = allLociVars && isExprLociVariable(*ii) ;
+        if(*ii != 0)
+          allLociVars = allLociVars && isExprLociVariable(*ii) ;
+
       if(allLociVars) {
-	Loci::vmap_info vm ;
+        Loci::vmap_info vm ;
+        AST_type::ASTP mapsub = 0 ;
 
-	for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	  if(*ii != 0) {
-	    AST_type::ASTP vp = getArrayVar(*ii) ;
-	    CPTR<AST_Token> tok(vp) ;
+        for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
+          if(*ii != 0) {
+            AST_type::ASTP vp = getArrayVar(*ii) ;
 
-	    Loci::variable v(tok->text) ;
+            CPTR<AST_Token> tok(vp) ;
 
-	    variableSet vset ;
-	    vset += v ;
-	    if(ii+1 == s.terms.end()) {
-	      vm.var += vset ;
-	    } else {
-	      vm.mapping.push_back(vset) ;
-	    }
-	  }
-	id2vmap[s.id] = vm ;
-	accessed.insert(vm) ;
-	AST_collectAccessInfo base ;
-	for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	  if(*ii != 0)
-	    (*ii)->accept(base) ;
-	for(auto mi=base.id2var.begin();mi!=base.id2var.end();++mi)
-	  id2var[mi->first] = mi->second ;
-	for(auto mi=base.id2vmap.begin();mi!=base.id2vmap.end();++mi)
-	  id2vmap[mi->first] = mi->second ;
+            Loci::variable v(tok->text) ;
 
+            variableSet vset ;
+            vset += v ;
+            if(ii+1 == s.terms.end()) {
+              vm.var += vset ;
+            } else {
+              vm.mapping.push_back(vset) ;
+              mapsub = getArraySubscript(*ii) ;
+            }
+          }
+        }
+
+        id2vmap[s.id] = vm ;
+        id2vmapsub[s.id] = mapsub ;
+        accessed.insert(vm) ;
+        AST_collectAccessInfo base ;
+        for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
+          if(*ii != 0)
+            (*ii)->accept(base) ;
+        for(auto mi=base.id2var.begin();mi!=base.id2var.end();++mi)
+          id2var[mi->first] = mi->second ;
+        for(auto mi=base.id2vmap.begin();mi!=base.id2vmap.end();++mi)
+          id2vmap[mi->first] = mi->second ;
+        for(auto mi=base.id2vmapsub.begin();mi!=base.id2vmapsub.end();++mi)
+          id2vmapsub[mi->first] = mi->second ;
       } else {
-	for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	  if(*ii != 0)
-	    (*ii)->accept(*this) ;
+        for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
+          if(*ii != 0)
+            (*ii)->accept(*this) ;
       }
     }
     break ;
   default:
     for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
       if(*ii != 0)
-	(*ii)->accept(*this) ;
+        (*ii)->accept(*this) ;
     break ;
   }
 }
 
 void AST_simplePrint::visit(AST_exprOper &s) {
+  auto m = id2vmrename.find(s.id) ;
+  if(m != id2vmrename.end()) {
+    out << std::get<0>(m->second) << "[" << std::get<1>(m->second) ;
+    if(std::get<2>(m->second) != 0) {
+      out << "[" ;
+      std::get<2>(m->second)->accept(*this) ;
+      out << "]" ;
+    }
+    out << "]" ;
+    return ;
+  }
+
   auto t = id2rename.find(s.id) ;
   if(t != id2rename.end()) {
     out << t->second ;
     return ;
   }
+
   switch (s.nodeType) {
   case OP_GROUP:
     out << '(' ;
@@ -2749,8 +2779,9 @@ void AST_simplePrint::visit(AST_Token &s) {
       out << "$" << s.text ;
     } else if(ASTEqual(s,TK_MACRO)) {
       out << endl << '#' << s.text << endl ;
-    } else
+    } else {
       out <<s.text << ' ' ;
+    }
   }
 }
 

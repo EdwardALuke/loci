@@ -2320,7 +2320,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       }
     }
   }
-              
+
   outputFile << " {" << endl ;
   syncFile(outputFile) ;
 
@@ -2340,24 +2340,34 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     }
     if(mi->second.container == "Map") {
       typetable[*vi] = "int" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      if(scratch.size() > 2) {
+        typetable[*vi] = string("Array<Entity,") + scratch.substr(1,scratch.size()-3) + ">" ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
     } else {
       string scratch = mi->second.container_args ;
       if(scratch.size() > 2) {
-	typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
+        typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
       } else {
-	cerr << "unexpected loci variable type!" << endl ;
+        cerr << "unexpected loci variable type!" << endl ;
       }
     }
-	  
-    if(!prettyOutput) 
+
+    if(!prettyOutput) {
       outputFile << "    Loci::const_gpu" << mi->second.container
-		 <<  mi->second.container_args ;
-    else 
+                 <<  mi->second.container_args ;
+    } else {
       outputFile << "    const_gpu" << mi->second.container
-		 <<  mi->second.container_args ;
+                 <<  mi->second.container_args ;
+    }
+
     outputFile << " " << vnames[*vi] << " ; " << endl ;
     syncFile(outputFile) ;
   }
+
   for(auto vi=outs.begin();vi!=outs.end();++vi) {
     auto mi = lookupVarType(*vi) ;
     if(!checkTypeValid(mi)) {
@@ -2366,12 +2376,19 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     }
     if(mi->second.container == "Map") {
       typetable[*vi] = "int" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      if(scratch.size() > 2) {
+        typetable[*vi] = string("Array<Entity,") + scratch.substr(1,scratch.size()-3) + ">" ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
     } else {
       string scratch = mi->second.container_args ;
       if(scratch.size() > 2) {
-	typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
+        typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
       } else {
-	cerr << "unexpected loci variable type!" << endl ;
+        cerr << "unexpected loci variable type!" << endl ;
       }
     }
     if(!prettyOutput)
@@ -2455,10 +2472,8 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
 
         cerr << filename << ':' << line_no << ":0: warning: type of constraint variable '" << *vi << "' not found!"  << endl  ;
 
-      } 
+      }
     }
-    
-    
 
     outputFile <<   "       constraint(\"" << constraint << "\") ;" << endl ;
     syncFile(outputFile) ;
@@ -2514,7 +2529,6 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     throw parseError("prelude not compatible with cuda rules") ;
   }
 
-  
   //  if(use_compute && is.peek() != '{')
   //    throw parseError("syntax error, expecting '{'") ;
 
@@ -2561,8 +2575,14 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   
   AST_collectAccessInfo varaccess ;
   ap->accept(varaccess) ;
-  //  cerr << "variables = " << varaccess.accessed << endl ;
-  //  cerr << "write variables = " << varaccess.writes << endl ;
+  //cerr << "variables = " << varaccess.accessed << endl ;
+  //cerr << "write variables = " << varaccess.writes << endl ;
+  //for(auto i = varaccess.id2var.begin();i!=varaccess.id2var.end();++i) {
+  //  cerr << "id2var[" << i->first << "] = " << i->second << endl ;
+  //}
+  //for(auto i = varaccess.id2vmap.begin();i!=varaccess.id2vmap.end();++i) {
+  //  cerr << "id2vmap[" << i->first << "] = " << i->second << endl ;
+  //}
 
   variableSet readvars ;
   variableSet writevars ;
@@ -2597,7 +2617,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     const string &ot  = mi->second.container ;
     if(ot == "param") {
       printer.id2rename[i->first] = string("(*") +vnames[i->second]+")" ;
-    } else if(ot == "store" || ot == "Map") {
+    } else if(ot == "store" || ot == "Map" || ot == "MapVec") {
       printer.id2rename[i->first] = vnames[i->second]+"[_e_]" ;
     } else  {
       cerr << "Warning: type " << ot << " for variable " << i->second << " not supported in cuda rule" << endl ;
@@ -2605,27 +2625,20 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     }
   }
 
-  map<string,string> maplist ;
   for(auto i = varaccess.id2vmap.begin();i!=varaccess.id2vmap.end();++i) {
-    string mapaccess = vnames[*(i->second.var.begin())] ;
-    string mapvar ;
-    string mapsurrogate = "M_";
-    mapaccess += "[" ;
+    string varname = vnames[*(i->second.var.begin())] ;
+    string mapvar = "";
     for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) {
       mapvar += vnames[*(j->begin())]+"[" ;
-      string mv = vnames[*(j->begin())] ;
-      if(prettyOutput)
-	mapsurrogate += mv ;
-      else
-	mapsurrogate += mv.substr(2,mv.size()-2) ;
     }
     mapvar += "_e_" ;
-    for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) 
-      mapvar +="]" ;
-    maplist[mapsurrogate] = mapvar ;
-    mapaccess += mapsurrogate + "]" ;
-
-    printer.id2rename[i->first] = mapaccess ;
+    for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) {
+      mapvar += "]" ;
+    }
+    AST_type::ASTP subexpr = varaccess.id2vmapsub[i->first] ;
+    printer.id2vmrename[i->first] = std::tuple<string, string, AST_type::ASTP>(
+      varname, mapvar, subexpr
+    ) ;
   }
 
   if(!prettyOutput)
@@ -2660,20 +2673,10 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   outputFile << "   if(_e_ <= _end_) {" << endl ;
   if(!prettyOutput)
     outputFile <<  "#line " << printer.lineno << endl  ;
-  if(!maplist.empty()) {
-    outputFile << "  int " ;
-    for(auto i=maplist.begin();i!=maplist.end();) {
-      outputFile << i->first << "=" << i->second ;
-      ++i ;
-      if(i!=maplist.end())
-	outputFile << "," ;
-    }
-    outputFile << ";" ;
-  }
-  
+
   ap->accept(printer) ;
 
-  close->accept(printer) ;  
+  close->accept(printer) ;
   close->accept(printer) ;
   outputFile << endl ;
   syncFile(outputFile) ;

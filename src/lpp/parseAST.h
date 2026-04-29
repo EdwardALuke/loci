@@ -846,6 +846,7 @@ public:
   ostream &out ;
   int lineno ;
   map<int,std::string> id2rename ;
+  map<int,std::tuple<std::string, std::string, AST_type::ASTP>> id2vmrename ;
   bool prettyPrint ;
   AST_simplePrint(ostream &s, int line=-1,bool pp=true): out(s),lineno(line),prettyPrint(pp) {}
   virtual void visit(AST_exprOper &)  ;
@@ -858,6 +859,7 @@ public:
   std::set<Loci::vmap_info> writes ;
   std::map<int,Loci::variable> id2var ;
   std::map<int,Loci::vmap_info> id2vmap ;
+  std::map<int,AST_type::ASTP> id2vmapsub ;
   AST_collectAccessInfo() {} ;
   virtual void visit(AST_exprOper &) ;
   virtual void visit(AST_Token &) ;
