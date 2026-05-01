@@ -1,13 +1,23 @@
-/** ****************************************************************************
- * @file      inCone.h
- * @author    Mark A. Hunt (CFDRC)
- * @brief     Contains the inCone class. Mostly used for defining regions in the
- *            vars file.
- * @date      2022-11-07
- * @copyright CFDRC Copyright (c) 2022
- * @version   0.1
- * @details
- ******************************************************************************/
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
 #ifndef INCONE_H
 #define INCONE_H
 #include "geomTest.h"
@@ -22,6 +32,16 @@ class inCone : public geomTest
   vector3d<real_t> p2;  //!< [m]
   vector3d<real_t> n;   //!< [-]
 public:
+
+  inCone()
+  {
+    p1 = vector3d<real>(0.0,0.0,0.0);
+    p2 = p2;
+    r1 = 1.0; 
+    r2 = 1.0;
+    mag = 1.0;
+    n = p1;
+  }
 
   /** **************************************************************************
    * @brief
@@ -86,6 +106,31 @@ public:
       return false; // outside
     return true;
   } // End of inGeomPt()
+
+  real_t distToSurface(vector3d<real_t> pt) const {
+    vector3d<real_t> v = pt-pt2 ;
+    vector3d<real_t> h = pt2-pt1;
+    real_t t = dot(p,h)*rlen2 ;
+    real_t hn = norm(h);
+    real_t rad = sqrt(radius*radius + hn*hn);
+    real_t orad = rad;
+    real_t sint = radius*orad;
+    real_t cost = hn*orad;
+
+    real_t dperp = norm(v - (t * h));
+    real_t d2side = dperp * cost - t * sint;
+    real_t daside = dperp * sint + t * cost;
+    real_t dbase = hn - t;
+    // outside the body
+    if (t < 0) { // below the base
+        return sqrt(dperp*dperp + t*t);
+    }  else if (dperp*hn > t*radius) { // outside
+      if (d2side < 0) return sqrt(dperp*dperp + t*t);
+      if (daside > rad) return sqrt(pow(dperp-radius,2) + pow(t-hn,2));
+    } else { // inside
+      return max(d2side,t-h);
+    }
+  }
 
 }; // End Class inCone
 

@@ -1,13 +1,23 @@
-/** ****************************************************************************
- * @file      inSphere.h
- * @author    Mark A. Hunt (CFDRC)
- * @brief     Contains the inSphere class. Mostly used for defining regions in
- *            the vars file.
- * @date      2022-11-07
- * @copyright CFDRC Copyright (c) 2022
- * @version   0.1
- * @details
- ******************************************************************************/
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
 #ifndef INSPHERE_H
 #define INSPHERE_H
 #include "geomTest.h"
@@ -20,6 +30,14 @@ class inSphere : public geomTest
   real_t   r2;     //!< [m^2]
   vector3d<real_t> center; //!< [m]
 public:
+
+  inSphere()
+  {
+    r1 = 1.0; 
+    r2 = 1.0;
+    center = vector3d<real_t>(0.0,0.0,0.0);
+  }
+
 
   /** **************************************************************************
    * @brief
