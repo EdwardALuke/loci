@@ -1786,7 +1786,7 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
         cerr << "syntax error in Loci mapping operator" << endl ;
         throw parseError("Invalid Loci mapping operator") ;
       }
-    
+
       // Now we have the root pointer start building the access tree
       for(int i=1;i<sz;++i) {
         CPTR<AST_exprOper> newroot = 0 ;
@@ -1797,7 +1797,7 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
           // base map is a multiMap, still need to insert the entity index
           // operator
           CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[i]) ;
-            
+
           if(mapaccess->terms.size() != 2 ||
              mapaccess->terms[0]->nodeType != TK_LOCI_VARIABLE) {
             cerr << "invalid map at base of Loci mapping operator" << endl;
@@ -2562,7 +2562,18 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
 
   CPTR<AST_type> ap = parseBlock(is,line_no,filename,typemap) ;
   //    outputFile << "Parsed TEST:" << endl ;
-  
+
+  AST_condenseLeftAssociative condenseOps ;
+  ap->accept(condenseOps) ;
+
+  AST_editLociMapArrayAccess mapEditOps ;
+  ap->accept(mapEditOps) ;
+
+  if(parseInfo.diag_level > 0) {
+    AST_printTree diagout(cerr) ;
+    ap->accept(diagout) ;
+  }
+
   AST_errorCheck syntaxChecker ;
   ap->accept(syntaxChecker) ;
   if(syntaxChecker.hasErrors()) {
@@ -2612,34 +2623,34 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   
   AST_simplePrint printer(outputFile,-1,prettyOutput) ;
 
-  for(auto i = varaccess.id2var.begin();i!=varaccess.id2var.end();++i) {
-    auto mi = lookupVarType(i->second) ;
-    const string &ot  = mi->second.container ;
-    if(ot == "param") {
-      printer.id2rename[i->first] = string("(*") +vnames[i->second]+")" ;
-    } else if(ot == "store" || ot == "Map" || ot == "MapVec") {
-      printer.id2rename[i->first] = vnames[i->second]+"[_e_]" ;
-    } else  {
-      cerr << "Warning: type " << ot << " for variable " << i->second << " not supported in cuda rule" << endl ;
-      printer.id2rename[i->first] = vnames[i->second]+"[_e_]" ;
-    }
-  }
+  //for(auto i = varaccess.id2var.begin();i!=varaccess.id2var.end();++i) {
+  //  auto mi = lookupVarType(i->second) ;
+  //  const string &ot  = mi->second.container ;
+  //  if(ot == "param") {
+  //    printer.id2rename[i->first] = string("(*") +vnames[i->second]+")" ;
+  //  } else if(ot == "store" || ot == "Map" || ot == "MapVec") {
+  //    printer.id2rename[i->first] = vnames[i->second]+"[_e_]" ;
+  //  } else  {
+  //    cerr << "Warning: type " << ot << " for variable " << i->second << " not supported in cuda rule" << endl ;
+  //    printer.id2rename[i->first] = vnames[i->second]+"[_e_]" ;
+  //  }
+  //}
 
-  for(auto i = varaccess.id2vmap.begin();i!=varaccess.id2vmap.end();++i) {
-    string varname = vnames[*(i->second.var.begin())] ;
-    string mapvar = "";
-    for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) {
-      mapvar += vnames[*(j->begin())]+"[" ;
-    }
-    mapvar += "_e_" ;
-    for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) {
-      mapvar += "]" ;
-    }
-    AST_type::ASTP subexpr = varaccess.id2vmapsub[i->first] ;
-    printer.id2vmrename[i->first] = std::tuple<string, string, AST_type::ASTP>(
-      varname, mapvar, subexpr
-    ) ;
-  }
+  //for(auto i = varaccess.id2vmap.begin();i!=varaccess.id2vmap.end();++i) {
+  //  string varname = vnames[*(i->second.var.begin())] ;
+  //  string mapvar = "";
+  //  for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) {
+  //    mapvar += vnames[*(j->begin())]+"[" ;
+  //  }
+  //  mapvar += "_e_" ;
+  //  for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) {
+  //    mapvar += "]" ;
+  //  }
+  //  AST_type::ASTP subexpr = varaccess.id2vmapsub[i->first] ;
+  //  printer.id2vmrename[i->first] = std::tuple<string, string, AST_type::ASTP>(
+  //    varname, mapvar, subexpr
+  //  ) ;
+  //}
 
   if(!prettyOutput)
     outputFile << "#line " << startline << endl ;
@@ -2673,6 +2684,9 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   outputFile << "   if(_e_ <= _end_) {" << endl ;
   if(!prettyOutput)
     outputFile <<  "#line " << printer.lineno << endl  ;
+
+  AST_editLociVariableAccess AST_editor(vnames) ;
+  ap->accept(AST_editor) ;
 
   ap->accept(printer) ;
 
