@@ -2499,15 +2499,6 @@ AST_type::ASTP getArrayVar(AST_type::ASTP expr) {
   }
   return expr ;
 }
-
-AST_type::ASTP getArraySubscript(AST_type::ASTP expr) {
-  if(ASTEqual(expr,OP_ARRAY)) {
-    CPTR<AST_exprOper> p(expr) ;
-    return AST_type::ASTP(p->terms.back()) ;
-  }
-  return 0 ;
-}
-
 bool isExprLociVariable(AST_type::ASTP expr) {
   expr = getArrayVar(expr) ;
 
@@ -2554,7 +2545,6 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
 
       if(allLociVars) {
         Loci::vmap_info vm ;
-        AST_type::ASTP mapsub = 0 ;
 
         for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
           if(*ii != 0) {
@@ -2570,13 +2560,11 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
               vm.var += vset ;
             } else {
               vm.mapping.push_back(vset) ;
-              mapsub = getArraySubscript(*ii) ;
             }
           }
         }
 
         id2vmap[s.id] = vm ;
-        id2vmapsub[s.id] = mapsub ;
         accessed.insert(vm) ;
         AST_collectAccessInfo base ;
         for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
@@ -2586,8 +2574,6 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
           id2var[mi->first] = mi->second ;
         for(auto mi=base.id2vmap.begin();mi!=base.id2vmap.end();++mi)
           id2vmap[mi->first] = mi->second ;
-        for(auto mi=base.id2vmapsub.begin();mi!=base.id2vmapsub.end();++mi)
-          id2vmapsub[mi->first] = mi->second ;
       } else {
         for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
           if(*ii != 0)
@@ -2604,24 +2590,11 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
 }
 
 void AST_simplePrint::visit(AST_exprOper &s) {
-  auto m = id2vmrename.find(s.id) ;
-  if(m != id2vmrename.end()) {
-    out << std::get<0>(m->second) << "[" << std::get<1>(m->second) ;
-    if(std::get<2>(m->second) != 0) {
-      out << "[" ;
-      std::get<2>(m->second)->accept(*this) ;
-      out << "]" ;
-    }
-    out << "]" ;
-    return ;
-  }
-
   auto t = id2rename.find(s.id) ;
   if(t != id2rename.end()) {
     out << t->second ;
     return ;
   }
-
   switch (s.nodeType) {
   case OP_GROUP:
     out << '(' ;
@@ -2779,9 +2752,8 @@ void AST_simplePrint::visit(AST_Token &s) {
       out << "$" << s.text ;
     } else if(ASTEqual(s,TK_MACRO)) {
       out << endl << '#' << s.text << endl ;
-    } else {
+    } else
       out <<s.text << ' ' ;
-    }
   }
 }
 
