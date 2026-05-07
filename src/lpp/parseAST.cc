@@ -2523,15 +2523,15 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
       auto ii=s.terms.begin();
       AST_collectAccessInfo first ;
       if(ii!=s.terms.end() && *ii != 0)
-	(*ii)->accept(first) ;
+        (*ii)->accept(first) ;
       for(auto fi=first.accessed.begin();fi!= first.accessed.end();++fi)
-	writes.insert(*fi) ;
+        writes.insert(*fi) ;
       for(auto mi=first.id2var.begin();mi!=first.id2var.end();++mi)
-	id2var[mi->first] = mi->second ;
+        id2var[mi->first] = mi->second ;
       for(auto mi=first.id2vmap.begin();mi!=first.id2vmap.end();++mi)
-	id2vmap[mi->first] = mi->second ;
+        id2vmap[mi->first] = mi->second ;
       for(++ii;ii!=s.terms.end();++ii)
-	if(*ii != 0)
+        if(*ii != 0)
           (*ii)->accept(*this) ;
     }
     break ;
@@ -2540,48 +2540,51 @@ void AST_collectAccessInfo::visit(AST_exprOper &s) {
       // Work on this to fill in the maps
       bool allLociVars = true ;
       for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	if(*ii != 0)
-	  allLociVars = allLociVars && isExprLociVariable(*ii) ;
+        if(*ii != 0)
+          allLociVars = allLociVars && isExprLociVariable(*ii) ;
+
       if(allLociVars) {
-	Loci::vmap_info vm ;
+        Loci::vmap_info vm ;
 
-	for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	  if(*ii != 0) {
-	    AST_type::ASTP vp = getArrayVar(*ii) ;
-	    CPTR<AST_Token> tok(vp) ;
+        for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
+          if(*ii != 0) {
+            AST_type::ASTP vp = getArrayVar(*ii) ;
 
-	    Loci::variable v(tok->text) ;
+            CPTR<AST_Token> tok(vp) ;
 
-	    variableSet vset ;
-	    vset += v ;
-	    if(ii+1 == s.terms.end()) {
-	      vm.var += vset ;
-	    } else {
-	      vm.mapping.push_back(vset) ;
-	    }
-	  }
-	id2vmap[s.id] = vm ;
-	accessed.insert(vm) ;
-	AST_collectAccessInfo base ;
-	for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	  if(*ii != 0)
-	    (*ii)->accept(base) ;
-	for(auto mi=base.id2var.begin();mi!=base.id2var.end();++mi)
-	  id2var[mi->first] = mi->second ;
-	for(auto mi=base.id2vmap.begin();mi!=base.id2vmap.end();++mi)
-	  id2vmap[mi->first] = mi->second ;
+            Loci::variable v(tok->text) ;
 
+            variableSet vset ;
+            vset += v ;
+            if(ii+1 == s.terms.end()) {
+              vm.var += vset ;
+            } else {
+              vm.mapping.push_back(vset) ;
+            }
+          }
+        }
+
+        id2vmap[s.id] = vm ;
+        accessed.insert(vm) ;
+        AST_collectAccessInfo base ;
+        for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
+          if(*ii != 0)
+            (*ii)->accept(base) ;
+        for(auto mi=base.id2var.begin();mi!=base.id2var.end();++mi)
+          id2var[mi->first] = mi->second ;
+        for(auto mi=base.id2vmap.begin();mi!=base.id2vmap.end();++mi)
+          id2vmap[mi->first] = mi->second ;
       } else {
-	for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
-	  if(*ii != 0)
-	    (*ii)->accept(*this) ;
+        for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
+          if(*ii != 0)
+            (*ii)->accept(*this) ;
       }
     }
     break ;
   default:
     for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
       if(*ii != 0)
-	(*ii)->accept(*this) ;
+        (*ii)->accept(*this) ;
     break ;
   }
 }

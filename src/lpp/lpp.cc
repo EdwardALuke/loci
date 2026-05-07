@@ -1786,7 +1786,7 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
         cerr << "syntax error in Loci mapping operator" << endl ;
         throw parseError("Invalid Loci mapping operator") ;
       }
-    
+
       // Now we have the root pointer start building the access tree
       for(int i=1;i<sz;++i) {
         CPTR<AST_exprOper> newroot = 0 ;
@@ -1797,7 +1797,7 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
           // base map is a multiMap, still need to insert the entity index
           // operator
           CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[i]) ;
-            
+
           if(mapaccess->terms.size() != 2 ||
              mapaccess->terms[0]->nodeType != TK_LOCI_VARIABLE) {
             cerr << "invalid map at base of Loci mapping operator" << endl;
@@ -1829,6 +1829,164 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
     }
   }
   
+}
+
+class AST_editLociVariableAccess2 : public AST_visitor {
+public:
+  const std::map<variable,std::string> &vnames ;
+  const std::map<variable,std::string> &vtypes ;
+  AST_type::ASTP entityIndex ;
+
+  AST_type::ASTP convertLociVar(AST_type::ASTP var) {
+    CPTR<AST_Token> p = CPTR<AST_Token>(var) ;
+    variable v(p->text) ;
+    //    while(v.get_info().priority.size() != 0)
+    //      v = v.drop_priority() ;
+    
+    auto vmi = vnames.find(v) ;
+    if(vmi == vnames.end()) {
+      cerr << "variable " << v << " is unknown to this rule!" << endl ;
+      throw parseError("type error: is this variable in the rule signature?") ;
+    }
+    CPTR<AST_Token> np = new AST_Token ;
+    np->lineno = p->lineno ;
+    np->text = vmi->second ;
+    np->nodeType = nodeTypes::TK_NAME ;
+    return AST_type::ASTP(np) ;
+  }
+
+  AST_type::ASTP arrayAccess(AST_type::ASTP var, AST_type::ASTP index) {
+    CPTR<AST_exprOper> e = new AST_exprOper ;
+    e->nodeType = nodeTypes::OP_ARRAY ;
+    e->terms.push_back(var) ;
+    e->terms.push_back(index) ;
+    return AST_type::ASTP(e) ;
+  }
+
+  AST_type::ASTP addEntityIndex(AST_type::ASTP var) {
+    return arrayAccess(var,entityIndex) ;
+  }
+  
+  AST_editLociVariableAccess2(
+                              const std::map<variable,std::string> &vnames_in,
+                              const std::map<variable,std::string> &vtypes_in):
+    vnames(vnames_in), vtypes(vtypes_in) {
+    CPTR<AST_Token> e = new AST_Token ;
+    e->lineno = -1 ;
+    e->text = "_e_" ;
+    e->nodeType = nodeTypes::TK_NAME ;
+    entityIndex = AST_type::ASTP(e) ;
+  }
+
+  virtual void visit(AST_exprOper &) ;
+} ;
+
+
+
+void AST_editLociVariableAccess2::visit(AST_exprOper &op) {
+  using namespace nodeTypes ;
+  
+  const int sz = op.terms.size() ;
+  if(op.nodeType == OP_ARROW) {
+    // Check to see if this is a Loci mapping operator
+    if(ASTEqual(op.terms[sz-1],TK_LOCI_VARIABLE)) {
+      // It is so we need to edit create a tree of array accessor operations
+      // First create the root of the tree which starts at the beginning
+      CPTR<AST_exprOper> rootptr = new AST_exprOper ;
+      if(ASTEqual(op.terms[0], TK_NAME)) {
+        // This is the special case of a pointer type (sometimes used to
+        // iterate over multiMaps (may need to be deprecated in the future
+        // as this exposes the memory layout of the multiMap data structure
+        // which may need to change on GPGPUs
+        rootptr->nodeType = OP_STAR ;
+        rootptr->terms.push_back(op.terms[0]) ;
+      } else if(ASTEqual(op.terms[0],TK_LOCI_VARIABLE)) {
+        // base map just add entity index operator
+        rootptr->nodeType = OP_ARRAY ;
+        rootptr->terms.push_back(convertLociVar(op.terms[0])) ;
+        rootptr->terms.push_back(entityIndex) ;
+      } else if(ASTEqual(op.terms[0],OP_ARRAY)) {
+        // base map is a multiMap, still need to insert the entity index
+        // operator
+        CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[0]) ;
+        if(mapaccess->terms.size() != 2 ||
+           mapaccess->terms[0]->nodeType != TK_LOCI_VARIABLE) {
+          cerr << "invalid map at base of Loci mapping operator" << endl;
+          throw parseError("invalid map at base of Loci mapping operator") ;
+        }
+        rootptr->nodeType = OP_ARRAY ;
+        AST_type::ASTP p = addEntityIndex(convertLociVar(mapaccess->terms[0])) ;
+        rootptr->terms.push_back(p) ;
+        rootptr->terms.push_back(mapaccess->terms[1]) ;
+      } else {
+        cerr << "syntax error in Loci mapping operator" << endl ;
+        throw parseError("Invalid Loci mapping operator") ;
+      }
+
+      // Now we have the root pointer start building the access tree
+      for(int i=1;i<sz;++i) {
+        CPTR<AST_exprOper> newroot = 0 ;
+        if(ASTEqual(op.terms[i],TK_LOCI_VARIABLE)) {
+          newroot = CPTR<AST_exprOper>(arrayAccess(convertLociVar(op.terms[i]),
+                                                   AST_type::ASTP(rootptr))) ;
+        } else if(ASTEqual(op.terms[i],OP_ARRAY)) {
+          // base map is a multiMap, still need to insert the entity index
+          // operator
+          CPTR<AST_exprOper> mapaccess= CPTR<AST_exprOper>(op.terms[i]) ;
+
+          if(mapaccess->terms.size() != 2 ||
+             mapaccess->terms[0]->nodeType != TK_LOCI_VARIABLE) {
+            cerr << "invalid map at base of Loci mapping operator" << endl;
+            throw parseError("invalid map at base of Loci mapping operator") ;
+          }
+          AST_type::ASTP var = convertLociVar(mapaccess->terms[0]) ;
+          newroot =
+            CPTR<AST_exprOper>(arrayAccess(arrayAccess(var,
+                                                       AST_type::ASTP(rootptr)),
+                                           mapaccess->terms[1])) ;
+        } else {
+          cerr << "invalid Loci mapping operator" << endl ;
+          throw parseError("Invalid Loci mapping operator") ;
+        }
+        if(newroot != 0)
+          rootptr = newroot ;
+      }
+      op.nodeType = rootptr->nodeType ;
+      op.terms = rootptr->terms ;
+    }
+  }
+
+  for(size_t i=0;i<op.terms.size();++i) {
+    if(ASTEqual(op.terms[i],TK_LOCI_VARIABLE)) {
+      bool is_param = false ;
+      CPTR<AST_Token> tok(op.terms[i]) ;
+      variable v(tok->text) ;
+      auto t = vtypes.find(v) ;
+      if(t != vtypes.end()) {
+        if(t->second == "param") {
+          is_param = true ;
+        }
+      }
+
+      if(is_param) {
+        CPTR<AST_exprOper> param_access = new AST_exprOper ;
+        param_access->nodeType = nodeTypes::OP_STAR ;
+        param_access->terms.push_back(convertLociVar(op.terms[i])) ;
+
+        CPTR<AST_exprOper> param_group = new AST_exprOper ;
+        param_group->nodeType = nodeTypes::OP_GROUP ;
+        param_group->terms.push_back(AST_type::ASTP(param_access)) ;
+
+        op.terms[i] = AST_type::ASTP(param_group) ;
+      } else {
+        op.terms[i] = addEntityIndex(convertLociVar(op.terms[i])) ;
+      }
+    } else if(ASTEqual(op.terms[i],TK_LOCI_CONTAINER)) {
+      op.terms[i] = convertLociVar(op.terms[i]);
+    } else {
+      op.terms[i]->accept(*this) ;
+    }
+  }
 }
 
 void parseFile::process_Calculate2(std::ostream &outputFile,
@@ -2320,7 +2478,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       }
     }
   }
-              
+
   outputFile << " {" << endl ;
   syncFile(outputFile) ;
 
@@ -2332,46 +2490,66 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   variableSet ins = input ;
   ins -= outs ;
   map<variable,string> typetable ;
+  map<variable,string> ctypetable ;
   for(auto vi=ins.begin();vi!=ins.end();++vi) {
     auto mi = lookupVarType(*vi) ;
     if(!checkTypeValid(mi)) {
       cerr << "unknown type for variable " << *vi << endl ;
       throw parseError("untyped Loci variable") ;
     }
+    ctypetable[*vi] = mi->second.container ;
     if(mi->second.container == "Map") {
       typetable[*vi] = "int" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      if(scratch.size() > 2) {
+        typetable[*vi] = string("Array<Entity,") + scratch.substr(1,scratch.size()-3) + ">" ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
     } else {
       string scratch = mi->second.container_args ;
       if(scratch.size() > 2) {
-	typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
+        typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
       } else {
-	cerr << "unexpected loci variable type!" << endl ;
+        cerr << "unexpected loci variable type!" << endl ;
       }
     }
-	  
-    if(!prettyOutput) 
+
+    if(!prettyOutput) {
       outputFile << "    Loci::const_gpu" << mi->second.container
-		 <<  mi->second.container_args ;
-    else 
+                 <<  mi->second.container_args ;
+    } else {
       outputFile << "    const_gpu" << mi->second.container
-		 <<  mi->second.container_args ;
+                 <<  mi->second.container_args ;
+    }
+
     outputFile << " " << vnames[*vi] << " ; " << endl ;
     syncFile(outputFile) ;
   }
+
   for(auto vi=outs.begin();vi!=outs.end();++vi) {
     auto mi = lookupVarType(*vi) ;
     if(!checkTypeValid(mi)) {
       cerr << "unknown type for variable " << *vi << endl ;
       throw parseError("untyped Loci variable") ;
     }
+    ctypetable[*vi] = mi->second.container ;
     if(mi->second.container == "Map") {
       typetable[*vi] = "int" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      if(scratch.size() > 2) {
+        typetable[*vi] = string("Array<Entity,") + scratch.substr(1,scratch.size()-3) + ">" ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
     } else {
       string scratch = mi->second.container_args ;
       if(scratch.size() > 2) {
-	typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
+        typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
       } else {
-	cerr << "unexpected loci variable type!" << endl ;
+        cerr << "unexpected loci variable type!" << endl ;
       }
     }
     if(!prettyOutput)
@@ -2455,10 +2633,8 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
 
         cerr << filename << ':' << line_no << ":0: warning: type of constraint variable '" << *vi << "' not found!"  << endl  ;
 
-      } 
+      }
     }
-    
-    
 
     outputFile <<   "       constraint(\"" << constraint << "\") ;" << endl ;
     syncFile(outputFile) ;
@@ -2514,7 +2690,6 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     throw parseError("prelude not compatible with cuda rules") ;
   }
 
-  
   //  if(use_compute && is.peek() != '{')
   //    throw parseError("syntax error, expecting '{'") ;
 
@@ -2548,7 +2723,18 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
 
   CPTR<AST_type> ap = parseBlock(is,line_no,filename,typemap) ;
   //    outputFile << "Parsed TEST:" << endl ;
-  
+
+  AST_condenseLeftAssociative condenseOps ;
+  ap->accept(condenseOps) ;
+
+  AST_editLociMapArrayAccess mapEditOps ;
+  ap->accept(mapEditOps) ;
+
+  if(parseInfo.diag_level > 0) {
+    AST_printTree diagout(cerr) ;
+    ap->accept(diagout) ;
+  }
+
   AST_errorCheck syntaxChecker ;
   ap->accept(syntaxChecker) ;
   if(syntaxChecker.hasErrors()) {
@@ -2561,8 +2747,14 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   
   AST_collectAccessInfo varaccess ;
   ap->accept(varaccess) ;
-  //  cerr << "variables = " << varaccess.accessed << endl ;
-  //  cerr << "write variables = " << varaccess.writes << endl ;
+  //cerr << "variables = " << varaccess.accessed << endl ;
+  //cerr << "write variables = " << varaccess.writes << endl ;
+  //for(auto i = varaccess.id2var.begin();i!=varaccess.id2var.end();++i) {
+  //  cerr << "id2var[" << i->first << "] = " << i->second << endl ;
+  //}
+  //for(auto i = varaccess.id2vmap.begin();i!=varaccess.id2vmap.end();++i) {
+  //  cerr << "id2vmap[" << i->first << "] = " << i->second << endl ;
+  //}
 
   variableSet readvars ;
   variableSet writevars ;
@@ -2591,42 +2783,6 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   bigblock->elements.pop_back() ;
   
   AST_simplePrint printer(outputFile,-1,prettyOutput) ;
-
-  for(auto i = varaccess.id2var.begin();i!=varaccess.id2var.end();++i) {
-    auto mi = lookupVarType(i->second) ;
-    const string &ot  = mi->second.container ;
-    if(ot == "param") {
-      printer.id2rename[i->first] = string("(*") +vnames[i->second]+")" ;
-    } else if(ot == "store" || ot == "Map") {
-      printer.id2rename[i->first] = vnames[i->second]+"[_e_]" ;
-    } else  {
-      cerr << "Warning: type " << ot << " for variable " << i->second << " not supported in cuda rule" << endl ;
-      printer.id2rename[i->first] = vnames[i->second]+"[_e_]" ;
-    }
-  }
-
-  map<string,string> maplist ;
-  for(auto i = varaccess.id2vmap.begin();i!=varaccess.id2vmap.end();++i) {
-    string mapaccess = vnames[*(i->second.var.begin())] ;
-    string mapvar ;
-    string mapsurrogate = "M_";
-    mapaccess += "[" ;
-    for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) {
-      mapvar += vnames[*(j->begin())]+"[" ;
-      string mv = vnames[*(j->begin())] ;
-      if(prettyOutput)
-	mapsurrogate += mv ;
-      else
-	mapsurrogate += mv.substr(2,mv.size()-2) ;
-    }
-    mapvar += "_e_" ;
-    for(auto j = i->second.mapping.rbegin(); j!=i->second.mapping.rend();++j) 
-      mapvar +="]" ;
-    maplist[mapsurrogate] = mapvar ;
-    mapaccess += mapsurrogate + "]" ;
-
-    printer.id2rename[i->first] = mapaccess ;
-  }
 
   if(!prettyOutput)
     outputFile << "#line " << startline << endl ;
@@ -2660,20 +2816,13 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   outputFile << "   if(_e_ <= _end_) {" << endl ;
   if(!prettyOutput)
     outputFile <<  "#line " << printer.lineno << endl  ;
-  if(!maplist.empty()) {
-    outputFile << "  int " ;
-    for(auto i=maplist.begin();i!=maplist.end();) {
-      outputFile << i->first << "=" << i->second ;
-      ++i ;
-      if(i!=maplist.end())
-	outputFile << "," ;
-    }
-    outputFile << ";" ;
-  }
-  
+
+  AST_editLociVariableAccess2 AST_editor(vnames, ctypetable) ;
+  ap->accept(AST_editor) ;
+
   ap->accept(printer) ;
 
-  close->accept(printer) ;  
+  close->accept(printer) ;
   close->accept(printer) ;
   outputFile << endl ;
   syncFile(outputFile) ;
