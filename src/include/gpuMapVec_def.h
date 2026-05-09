@@ -62,15 +62,6 @@ namespace Loci {
     virtual void pack(void * ptr, int & loc, int & size, entitySet const & e);
     virtual void unpack(void * ptr, int & loc, int & size, sequence const & seq);
 
-#ifdef DYNAMICSCHEDULING
-    virtual void pack(void * ptr, int & loc, int & size, entitySet const & e, Map const & remap) {
-      pack(ptr, loc, size, e);
-    }
-
-    virtual void unpack(void * ptr, int & loc, int & size, sequence const & seq, dMap const & remap) {
-      unpack(ptr, loc, size, seq);
-    }
-#endif
 
     virtual entitySet domain() const;
 
@@ -97,19 +88,6 @@ namespace Loci {
     virtual DatatypeP getType();
     virtual frame_info get_frame_info();
 
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP freeze(entitySet const & es) const {
-      cerr << "gpuMapVecRepI::freeze is not implemented yet" << endl;
-      Loci::Abort();
-      return storeRepP(0);
-    }
-
-    virtual storeRepP thaw(entitySet const & es) const {
-      cerr << "gpuMapVecRepI::thaw is not implemented yet" << endl;
-      Loci::Abort();
-      return storeRepP(0);
-    }
-#endif
 
     void copyFrom(const storeRepP &fromMap, entitySet set) override;
 

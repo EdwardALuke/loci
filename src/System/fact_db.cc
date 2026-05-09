@@ -538,33 +538,6 @@ namespace Loci {
     fmap[remove_synonym(lvars.front())].data_rep->setRep(cp) ;
   }
 
-#ifdef DYNAMICSCHEDULING
-  void fact_db::adjust_rotation_vars(const std::list<variable>& lvars) {
-    list<variable>::const_iterator jj ;
-    jj = lvars.begin() ;
-    storeRepP cur = fmap[remove_synonym(*jj)].data_rep->getRep() ;
-    entitySet cur_dom = cur->domain() ;
-
-    ++jj ;
-    if(jj != lvars.end()) {
-      for(;jj!=lvars.end();++jj) {
-        fact_info& fd = fmap[remove_synonym(*jj)] ;
-        storeRepP his = fd.data_rep->getRep() ;
-        // first we will erase the domains outside of cur_dom
-        entitySet his_dom = his->domain() ;
-        entitySet out = his_dom - cur_dom ;
-        if(out != EMPTY) {
-          his->erase(out) ;
-        }
-        // then copy those missing
-        entitySet missing = cur_dom - his_dom ;
-        if(missing != EMPTY) {
-          his->copy(cur, missing) ;
-        }
-      }
-    }
-  }
-#endif
   ostream &fact_db::write(ostream &s) const {
     std::map<variable, fact_info>::const_iterator vmi ;
     for(vmi=fmap.begin();vmi!=fmap.end();++vmi) {
@@ -1101,57 +1074,6 @@ namespace Loci {
   }
 
 
-#ifdef DYNAMICSCHEDULING
-  // experimental code to create keyspace from the
-  // global registered keyspace list
-  // returns "true" to indicate the methods succeeded,
-  // "false" to indicate an error.
-  bool
-  fact_db::create_keyspace(KeySpaceList& global_list) {
-    for(KeySpaceList::Iterator ki=global_list.begin();
-        ki!=global_list.end();++ki) {
-      KeySpaceP kp = ki.get_p()->rr->get_space() ;
-      // first get the space name
-      if(!kp->named_space()) {
-        if(Loci::MPI_rank == 0) {
-	  auto &kpdr = *kp ;
-          cerr << "fact_db Error: Initializing Unnamed Keyspace!"
-               << " typeid = " << typeid(kpdr).name() << endl ;
-	}
-        return false ;
-      }
-      string name = kp->get_name() ;
-      map<string,KeySpaceP>::const_iterator mi = keyspace.find(name) ;
-      if(mi!=keyspace.end()) {
-        if(Loci::MPI_rank == 0)
-          cerr << "fact_db Error: Duplicated Keyspace: "
-               << name << endl ;
-        return false ;
-      }
-      kp->set_synonyms(&synonyms) ;
-      keyspace[name] = kp ;
-    }
-    return true ;
-  }
-
-  KeySpaceP
-  fact_db::get_keyspace(const string& kname) {
-    map<string,KeySpaceP>::const_iterator mi = keyspace.find(kname) ;
-    if(mi == keyspace.end())
-      return KeySpaceP(0) ;
-    else
-      return mi->second ;
-  }
-  
-  void
-  fact_db::init_key_manager() {
-    int max_alloc = get_max_alloc(0) ;
-    int global_max = 0 ;
-    MPI_Allreduce(&max_alloc, &global_max, 1,
-                  MPI_INT, MPI_MAX, MPI_COMM_WORLD) ;
-    key_manager = new KeyManager(global_max+1) ;
-  }
-#endif  
 }
 
   

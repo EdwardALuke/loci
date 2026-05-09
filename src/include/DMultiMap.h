@@ -90,28 +90,6 @@ namespace Loci {
     block_hash<std::vector<int, malloc_alloc<int> > > *get_attrib_data() {return &attrib_data;}
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP freeze(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual storeRepP thaw(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual void pack(void* ptr, int& loc,
-                      int& size, const entitySet& e, const Map& remap) {
-      pack(ptr,loc,size,e) ;
-    }
-    virtual void unpack(void* ptr, int& loc,
-                        int& size, const sequence& seq, const dMap& remap) {
-      unpack(ptr,loc,size,seq) ;
-    }
-#endif
   } ;
   
   //***************************************************************************
