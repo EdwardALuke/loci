@@ -361,8 +361,6 @@ namespace Loci {
     for(ri=rs.begin();ri!=rs.end();++ri) {
       variableSet varcheck ;
       const rule_impl::info &finfo = ri->get_info().desc ;
-      // get the keyspace tag the rule has
-      bool skip_type_check = false ;
       // Collect all variables for which are actually read or written in the class
       set<vmap_info>::const_iterator i ;
       for(i=finfo.sources.begin();i!=finfo.sources.end();++i) {
@@ -396,17 +394,15 @@ namespace Loci {
 
         storeRepP rule_type = ri->get_rule_implP()->get_store(*vi)->getRep() ;
         if(typed_vars.inSet(*vi)) {
-          if(!skip_type_check) {
-            storeRepP fact_type = facts.get_variable(*vi)->getRep() ;
+          storeRepP fact_type = facts.get_variable(*vi)->getRep() ;
 	    auto &rule_type_dr = *rule_type ;
 	    auto &fact_type_dr = *fact_type ;
-            if(typeid(rule_type_dr) != typeid(fact_type_dr)) {
-              cerr << "variable type mismatch for variable " << *vi << " in rule "
-                   << *ri << endl ;
-              cerr << "fact database has type " << typeid(fact_type_dr).name() << endl ;
-              cerr << "rule has type " << typeid(rule_type_dr).name() << endl ;
-              type_error = true ;
-            }
+          if(typeid(rule_type_dr) != typeid(fact_type_dr)) {
+            cerr << "variable type mismatch for variable " << *vi << " in rule "
+                 << *ri << endl ;
+            cerr << "fact database has type " << typeid(fact_type_dr).name() << endl ;
+            cerr << "rule has type " << typeid(rule_type_dr).name() << endl ;
+            type_error = true ;
           }
         } else {
           cerr << "Untyped Variable " << *vi << endl ;

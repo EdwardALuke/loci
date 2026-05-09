@@ -63,7 +63,6 @@ void dummyFunctionDependencies(int i) {
 #endif
 
 #include <rule.h>
-#include <keyspace.h>
 #include <mod_db.h>
 #include "dist_tools.h"
 #include "loci_globs.h"
@@ -1050,10 +1049,6 @@ namespace Loci {
     register_rule_list.clear() ;
     global_rule_list.clear() ;
     rule::rdb_cleanup() ;
-#ifdef DYNAMICSHCEDULING
-    register_key_space_list.clear() ;
-    global_key_space_list.clear() ;
-#endif
     //    storeAllocateData.clear() ;
     //    GPUstoreAllocateData.clear() ;
     exec_current_fact_db = 0 ;

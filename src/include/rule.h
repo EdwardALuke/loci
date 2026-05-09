@@ -29,7 +29,6 @@
 #include <Tools/debug.h>
 #include <entitySet.h>
 #include <store_rep.h>
-#include <key_manager.h>
 
 #include <iostream>
 #include <string>

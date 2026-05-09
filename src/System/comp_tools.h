@@ -652,28 +652,6 @@ namespace Loci {
     virtual executeP create_execution_schedule(fact_db& facts,sched_db& scheds) ;
   } ;
 
-  // compiler to handle the dynamic scheduling stuff
-  class dynamic_compiler: public rule_compiler {
-  public:
-    int cid ;
-    std::vector<rule_compilerP> comp ;
-    std::vector<digraph::vertexSet> sched ;
-    digraph gr ;
-    rulecomp_map rule_compiler_map ;
-    variableSet all_reduce_vars ;
-    std::map<variable,std::pair<rule,CPTR<joiner> > > reduce_info ;
-  public:
-    dynamic_compiler(rulecomp_map& rp, const digraph& g, int id) ;
-    virtual void accept(visitor& v) {}
-    void collect_reduce_info() ;
-    void schedule() ;
-    void compile() ;
-    virtual void set_var_existence(fact_db& facts, sched_db& scheds) ;
-    virtual void process_var_requests(fact_db& facts, sched_db& scheds) ;
-    virtual executeP create_execution_schedule(fact_db& facts,
-                                               sched_db& scheds) ;
-  } ;
-  
   // rule compiler for constraint rules
   class constraint_compiler : public rule_compiler {
     rule constraint_rule ;  // the constraint rule

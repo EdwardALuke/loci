@@ -86,26 +86,6 @@ namespace Loci {
     nspace_vec = f.nspace_vec ;
     extensional_facts = f.extensional_facts ;
 
-#ifdef DYNAMICSCHDEDULING
-    // create new keyspaces
-    keyspace.clear() ;
-    const std::map<std::string,KeySpaceP>& fks = f.keyspace ;
-    for(std::map<std::string,KeySpaceP>::const_iterator
-          mi=fks.begin();mi!=fks.end();++mi) {
-      keyspace[mi->first] = mi->second->new_keyspace() ;
-    }      
-    // here is something very important, we'll need to
-    // assign the current fact_db's synonym record to
-    // all the keyspaces here
-    for(std::map<std::string,KeySpaceP>::iterator
-          mi=keyspace.begin();mi!=keyspace.end();++mi) {
-      (mi->second)->set_synonyms(&synonyms) ;
-    }
-    // deep copy the key manager
-    if(f.key_manager != 0) {
-      key_manager = f.key_manager->clone() ;
-    }
-#endif
     /* we cannot use the following direct assignment
        to copy the distributed_info from f since
        distributed_info is a NPTR pointer and is

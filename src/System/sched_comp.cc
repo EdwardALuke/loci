@@ -334,8 +334,6 @@ namespace Loci {
     unitApplyMapVisitor reduceV ;
     top_down_visit(reduceV) ;
 
-    // insert rule that redistribute dynamic keyspaces
-
 #ifdef COMPILE_PROGRESS
     if(Loci::MPI_rank==0)
       cerr << "[Graph Compile Phase] Passed Information Collection!" << endl ;

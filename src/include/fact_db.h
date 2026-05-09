@@ -42,8 +42,6 @@
 #include <Map_rep.h>
 #include <Map.h>
 #include <DMap.h>
-#include <key_manager.h>
-#include <keyspace.h>
 
 #define LOCI_COMPAT_MODE1
 #define LOCI_HAS_STATIC_KEYSPACE 1
