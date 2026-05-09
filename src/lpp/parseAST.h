@@ -73,7 +73,7 @@ struct varinfo {
   bool isLocalIdentifier() { return statusLocal ; }
 } ;
 
-/// create varinfo type for local variable 
+/// create varinfo type for local variable
 inline varinfo localIdentifier() {
   varinfo v ;
   v.statusType=false ;
@@ -118,133 +118,602 @@ public:
   AST_type() ;
   typedef CPTR<AST_type> ASTP ;
   typedef std::vector<ASTP> ASTList ;
-  enum elementType {
-		    OP_SCOPE=0x000,
-		    OP_AT=0x080, // For using @ to separate namespaces
-		    // Traditional C operators
-                    OP_DOT=0x100,
-		    OP_ARROW,
-                    OP_ARRAY,
-		    OP_TIMES = 0x300, OP_DIVIDE, OP_MODULUS,
-		    OP_PLUS  = 0x400, OP_MINUS, 
-		    OP_SHIFT_RIGHT = 0x500, OP_SHIFT_LEFT,
-		    OP_LT = 0x600, OP_GT, OP_GE, OP_LE,
-		    OP_EQUAL = 0x700, OP_NOT_EQUAL, 
-		    OP_AND=0x800, OP_EXOR=0x900, OP_OR=0xa00,
-		    OP_LOGICAL_AND=0xb00, OP_LOGICAL_OR=0xc00,
-		    OP_TERNARY,
-		    OP_ASSIGN=0xd00,
-		    OP_TIMES_ASSIGN,
-		    OP_DIVIDE_ASSIGN,
-		    OP_MODULUS_ASSIGN,
-		    OP_PLUS_ASSIGN,
-		    OP_MINUS_ASSIGN,
-		    OP_SHIFT_LEFT_ASSIGN,
-		    OP_SHIFT_RIGHT_ASSIGN,
-		    OP_AND_ASSIGN,
-		    OP_OR_ASSIGN,
-		    OP_EXOR_ASSIGN,
-		    OP_COMMA=0xe00, 
-		    OP_COLON=0xf00,
-		    OP_SEMICOLON,
-		    // terminal for empty statement
-		    OP_NIL=0x1000,
-		    // terminals for variable name, function, array or name{args}
-		    OP_INCREMENT,OP_DECREMENT,
-		    OP_POSTINCREMENT, OP_POSTDECREMENT,
-		    OP_COMMENT,
-		    OP_BRACEBLOCK,
-		    OP_NAME, OP_FUNC, OP_NAME_BRACE, OP_FUNC_BRACE,
-                    OP_TEMPLATE,OP_TEMPLATE_FUNC,
-		    // terminal for string, integer, or unspecified error condition
-		    OP_STRING, OP_NUMBER, OP_ERROR,
-		    // Unary operations
-		    OP_UNARY_PLUS, OP_UNARY_MINUS, OP_NOT, OP_TILDE,
-		    OP_AMPERSAND, OP_DOLLAR, OP_STAR,
-		    OP_GROUP,OP_GROUP_ERROR,
-		    OP_OPENPAREN,OP_CLOSEPAREN,OP_OPENBRACKET,OP_CLOSEBRACKET,
-		    OP_OPENBRACE,OP_CLOSEBRACE,
-		    OP_LOCI_DIRECTIVE,OP_LOCI_VARIABLE,OP_LOCI_CONTAINER,
-		    OP_TERM, OP_SPECIAL,
-		    TK_BRACEBLOCK=0x2000,
-		    TK_SCOPE,
-		    TK_AT, // For using @ to separate namespaces
-		    // Traditional C operators
-		    TK_ARROW, 
-		    TK_TIMES, TK_DIVIDE, TK_MODULUS,
-		    TK_PLUS, TK_MINUS, 
-		    TK_SHIFT_RIGHT, TK_SHIFT_LEFT,
-		    TK_LT, TK_GT, TK_GE, TK_LE,
-		    TK_EQUAL, TK_NOT_EQUAL, 
-		    TK_AND, TK_EXOR, TK_OR,
-		    TK_LOGICAL_AND, TK_LOGICAL_OR, 
-		    TK_ASSIGN,
-		    TK_TIMES_ASSIGN,
-		    TK_DIVIDE_ASSIGN,
-		    TK_MODULUS_ASSIGN,
-		    TK_PLUS_ASSIGN,
-		    TK_MINUS_ASSIGN,
-		    TK_SHIFT_LEFT_ASSIGN,
-		    TK_SHIFT_RIGHT_ASSIGN,
-		    TK_AND_ASSIGN,
-		    TK_OR_ASSIGN,
-		    TK_EXOR_ASSIGN,
-		    TK_COMMA, TK_DOT,
-		    TK_COLON,
-		    TK_SEMICOLON,
-		    // terminal for empty statement
-		    TK_NIL,
-		    // terminals for variable name, function, array or name{args}
-		    TK_INCREMENT,TK_DECREMENT,TK_COMMENT,
-		    TK_NAME, 
-		    // terminal for string, integer, or unspecified error condition
-		    TK_STRING, TK_NUMBER, TK_ERROR,
-		    // Unary operations
-		    TK_UNARY_PLUS, TK_UNARY_MINUS, TK_NOT, TK_TILDE,
-		    TK_QUESTION, TK_AMPERSAND, TK_STAR,
-		    TK_OPENPAREN,TK_CLOSEPAREN,TK_OPENBRACKET,TK_CLOSEBRACKET,
-		    TK_OPENBRACE,TK_CLOSEBRACE,
-                    TK_OPENTEMPLATE,TK_CLOSETEMPLATE,
-		    TK_LOCI_DIRECTIVE,TK_LOCI_VARIABLE,TK_LOCI_CONTAINER,
-		    // Now the keywords
-		    TK_ALIGNAS, TK_ALIGNOF, TK_ASM, 
-		    TK_BOOL,TK_FALSE,TK_TRUE,TK_CHAR,TK_INT,TK_LONG,
-		    TK_SHORT,TK_SIGNED,TK_UNSIGNED,TK_DOUBLE,TK_FLOAT,TK_ENUM,
-		    TK_MUTABLE,TK_CONST,TK_STATIC,TK_VOLATILE,TK_AUTO,
-		    TK_REGISTER,TK_EXPORT,TK_EXTERN,TK_INLINE,TK_NAMESPACE,
-                    TK_USING,TK_EXPLICIT,TK_DYNAMIC_CAST,TK_STATIC_CAST,
-		    TK_REINTERPRET_CAST,
-		    TK_OPERATOR,TK_PROTECTED,TK_NOEXCEPT,TK_NULLPTR,
-		    TK_RETURN,TK_SIZEOF,TK_THIS,TK_TYPEID,
-		    TK_SWITCH,TK_CASE,TK_BREAK,TK_DEFAULT,
-		    TK_FOR,TK_DO,TK_WHILE,TK_CONTINUE,
-		    TK_CLASS,TK_STRUCT,TK_PUBLIC,TK_PRIVATE,TK_FRIEND,
-		    TK_UNION,TK_TYPENAME,TK_TEMPLATE,TK_TYPEDEF,
-		    TK_VIRTUAL,TK_VOID,TK_TRY,TK_CATCH,TK_THROW,
-		    TK_IF,TK_ELSE,TK_GOTO,TK_NEW,TK_DELETE,
-		    ND_SYNTAXERR,
-		    ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_WHILE, ND_CTRL_DO,
-		    ND_CTRL_SWITCH, ND_SIMPLE_STATEMENT,ND_BLOCK,
-		    ND_DECL,ND_TYPE_SPEC,ND_TERMINAL,
-		    TK_SENTINEL 
-		    
+  // Operator precedence ordered from lowest to highest
+  // Look at getPrecedence() in parseAST.cc to see what operators are
+  // associated with each precedence level.
+  enum class operatorPrecedence {
+    PREC_ERROR = 0, // reserved for error value
+    PREC_NIL,       // lowest precedence
+    PREC_COMMA,
+    PREC_ASSIGNMENT,
+    PREC_LOGICAL_OR,
+    PREC_LOGICAL_AND,
+    PREC_BITWISE_OR,
+    PREC_BITWISE_XOR,
+    PREC_BITWISE_AND,
+    PREC_EQUALITY,
+    PREC_RELATIONAL,
+    PREC_SHIFT,
+    PREC_ADDITIVE,
+    PREC_MULTIPLICATIVE,
+    PREC_MEMBER_ACCESS,
+    PREC_UNARY_PREFIX,
+    PREC_UNARY_POSTFIX,
+    PREC_SCOPE
+  } ;
+
+  // potential node types for the AST_tree nodes.
+  // Note, if changing this enum, remember to make the changes to the
+  // convenience namespace, nodeTypes, below.
+  enum class elementType {
+    OP_SCOPE,
+    OP_AT, // For using @ to separate namespaces
+    // Traditional C operators
+    OP_DOT,
+    OP_ARROW,
+    OP_ARRAY,
+    OP_TIMES, OP_DIVIDE, OP_MODULUS,
+    OP_PLUS, OP_MINUS,
+    OP_SHIFT_RIGHT, OP_SHIFT_LEFT,
+    OP_LT, OP_GT, OP_GE, OP_LE,
+    OP_EQUAL, OP_NOT_EQUAL,
+    OP_AND, OP_EXOR, OP_OR,
+    OP_LOGICAL_AND, OP_LOGICAL_OR,
+    OP_TERNARY,
+    OP_ASSIGN,
+    OP_TIMES_ASSIGN,
+    OP_DIVIDE_ASSIGN,
+    OP_MODULUS_ASSIGN,
+    OP_PLUS_ASSIGN,
+    OP_MINUS_ASSIGN,
+    OP_SHIFT_LEFT_ASSIGN,
+    OP_SHIFT_RIGHT_ASSIGN,
+    OP_AND_ASSIGN,
+    OP_OR_ASSIGN,
+    OP_EXOR_ASSIGN,
+    OP_COMMA,
+    OP_COLON,
+    OP_SEMICOLON,
+    // terminal for empty statement
+    OP_NIL,
+    // terminals for variable name, function, array or name{args}
+    OP_INCREMENT,OP_DECREMENT,
+    OP_POSTINCREMENT, OP_POSTDECREMENT,
+    OP_COMMENT,
+    OP_BRACEBLOCK,
+    OP_NAME, OP_FUNC, OP_NAME_BRACE, OP_FUNC_BRACE,
+    OP_TEMPLATE,OP_TEMPLATE_FUNC,
+    // terminal for string, integer, or unspecified error condition
+    OP_STRING, OP_NUMBER, OP_ERROR,
+    // Unary operations
+    OP_UNARY_PLUS, OP_UNARY_MINUS, OP_NOT, OP_TILDE,
+    OP_AMPERSAND, OP_DOLLAR, OP_STAR,
+    OP_CAST,OP_TEMPLATE_CAST,
+    OP_GROUP,OP_GROUP_ERROR,
+    OP_OPENPAREN,OP_CLOSEPAREN,OP_OPENBRACKET,OP_CLOSEBRACKET,
+    OP_OPENBRACE,OP_CLOSEBRACE,
+    OP_LOCI_DIRECTIVE,OP_LOCI_VARIABLE,OP_LOCI_CONTAINER,
+    OP_TERM, OP_SPECIAL,
+    TK_BRACEBLOCK,
+    TK_SCOPE,
+    TK_AT, // For using @ to separate namespaces
+    // Traditional C operators
+    TK_ARROW,
+    TK_TIMES, TK_DIVIDE, TK_MODULUS,
+    TK_PLUS, TK_MINUS,
+    TK_SHIFT_RIGHT, TK_SHIFT_LEFT,
+    TK_LT, TK_GT, TK_GE, TK_LE,
+    TK_EQUAL, TK_NOT_EQUAL,
+    TK_AND, TK_EXOR, TK_OR,
+    TK_LOGICAL_AND, TK_LOGICAL_OR,
+    TK_ASSIGN,
+    TK_TIMES_ASSIGN,
+    TK_DIVIDE_ASSIGN,
+    TK_MODULUS_ASSIGN,
+    TK_PLUS_ASSIGN,
+    TK_MINUS_ASSIGN,
+    TK_SHIFT_LEFT_ASSIGN,
+    TK_SHIFT_RIGHT_ASSIGN,
+    TK_AND_ASSIGN,
+    TK_OR_ASSIGN,
+    TK_EXOR_ASSIGN,
+    TK_COMMA, TK_DOT,
+    TK_COLON,
+    TK_SEMICOLON,
+    // terminal for empty statement
+    TK_NIL,
+    // terminals for variable name, function, array or name{args}
+    TK_INCREMENT,TK_DECREMENT,TK_COMMENT,TK_MACRO,
+    TK_NAME,
+    // terminal for string, integer, or unspecified error condition
+    TK_STRING, TK_NUMBER, TK_ERROR,
+    // Unary operations
+    TK_UNARY_PLUS, TK_UNARY_MINUS, TK_NOT, TK_TILDE,
+    TK_QUESTION, TK_AMPERSAND, TK_STAR,
+    TK_OPENPAREN,TK_CLOSEPAREN,TK_OPENBRACKET,TK_CLOSEBRACKET,
+    TK_OPENBRACE,TK_CLOSEBRACE,
+    TK_OPENTEMPLATE,TK_CLOSETEMPLATE,
+    TK_LOCI_DIRECTIVE,TK_LOCI_VARIABLE,TK_LOCI_CONTAINER,
+    // Now the keywords
+    TK_ALIGNAS, TK_ALIGNOF, TK_ASM,
+    TK_BOOL,TK_FALSE,TK_TRUE,TK_CHAR,TK_INT,TK_LONG,
+    TK_SHORT,TK_SIGNED,TK_UNSIGNED,TK_DOUBLE,TK_FLOAT,TK_ENUM,
+    TK_MUTABLE,TK_CONST,TK_STATIC,TK_VOLATILE,TK_AUTO,
+    TK_REGISTER,TK_EXPORT,TK_EXTERN,TK_INLINE,TK_NAMESPACE,
+    TK_USING,TK_EXPLICIT,TK_DYNAMIC_CAST,TK_STATIC_CAST,
+    TK_REINTERPRET_CAST,TK_CONST_CAST,
+    TK_OPERATOR,TK_PROTECTED,TK_NOEXCEPT,TK_NULLPTR,
+    TK_RETURN,TK_SIZEOF,TK_THIS,TK_TYPEID,
+    TK_SWITCH,TK_CASE,TK_BREAK,TK_DEFAULT,
+    TK_FOR,TK_DO,TK_WHILE,TK_CONTINUE,
+    TK_CLASS,TK_STRUCT,TK_PUBLIC,TK_PRIVATE,TK_FRIEND,
+    TK_UNION,TK_TYPENAME,TK_TEMPLATE,TK_TYPEDEF,
+    TK_VIRTUAL,TK_VOID,TK_TRY,TK_CATCH,TK_THROW,
+    TK_IF,TK_ELSE,TK_GOTO,TK_NEW,TK_DELETE,
+    ND_SYNTAXERR,
+    ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_WHILE, ND_CTRL_DO,
+    ND_CTRL_SWITCH, ND_SIMPLE_STATEMENT,ND_BLOCK,
+    ND_DECL,ND_TYPE_SPEC,ND_TERMINAL,
+    TK_SENTINEL
+
   } ;
   int id ;
   elementType nodeType ;
   virtual void accept(AST_visitor &v) = 0 ;
   virtual ASTP clone() const = 0 ;
-  
+
 } ;
+
+namespace nodeTypes {
+
+  constexpr AST_type::elementType OP_SCOPE =
+    AST_type::elementType::OP_SCOPE ;
+  constexpr AST_type::elementType OP_AT =
+    AST_type::elementType::OP_AT ;
+  constexpr AST_type::elementType OP_DOT =
+    AST_type::elementType::OP_DOT ;
+  constexpr AST_type::elementType OP_ARROW =
+    AST_type::elementType::OP_ARROW ;
+  constexpr AST_type::elementType OP_ARRAY =
+    AST_type::elementType::OP_ARRAY ;
+  constexpr AST_type::elementType OP_TIMES =
+    AST_type::elementType::OP_TIMES ;
+  constexpr AST_type::elementType OP_DIVIDE =
+    AST_type::elementType::OP_DIVIDE;
+  constexpr AST_type::elementType OP_MODULUS =
+    AST_type::elementType::OP_MODULUS;
+  constexpr AST_type::elementType OP_PLUS =
+    AST_type::elementType::OP_PLUS;
+  constexpr AST_type::elementType OP_MINUS =
+    AST_type::elementType::OP_MINUS;
+  constexpr AST_type::elementType OP_SHIFT_RIGHT =
+    AST_type::elementType::OP_SHIFT_RIGHT;
+  constexpr AST_type::elementType OP_SHIFT_LEFT =
+    AST_type::elementType::OP_SHIFT_LEFT;
+  constexpr AST_type::elementType OP_LT =
+    AST_type::elementType::OP_LT;
+  constexpr AST_type::elementType OP_GT =
+    AST_type::elementType::OP_GT;
+  constexpr AST_type::elementType OP_GE =
+    AST_type::elementType::OP_GE;
+  constexpr AST_type::elementType OP_LE =
+    AST_type::elementType::OP_LE;
+  constexpr AST_type::elementType OP_EQUAL =
+    AST_type::elementType::OP_EQUAL;
+  constexpr AST_type::elementType OP_NOT_EQUAL =
+    AST_type::elementType::OP_NOT_EQUAL;
+  constexpr AST_type::elementType OP_AND =
+    AST_type::elementType::OP_AND;
+  constexpr AST_type::elementType OP_EXOR =
+    AST_type::elementType::OP_EXOR;
+  constexpr AST_type::elementType OP_OR =
+    AST_type::elementType::OP_OR;
+  constexpr AST_type::elementType OP_LOGICAL_AND =
+    AST_type::elementType::OP_LOGICAL_AND;
+  constexpr AST_type::elementType OP_LOGICAL_OR =
+    AST_type::elementType::OP_LOGICAL_OR;
+  constexpr AST_type::elementType OP_TERNARY =
+    AST_type::elementType::OP_TERNARY;
+  constexpr AST_type::elementType OP_ASSIGN =
+    AST_type::elementType::OP_ASSIGN;
+  constexpr AST_type::elementType OP_TIMES_ASSIGN =
+    AST_type::elementType::OP_TIMES_ASSIGN;
+  constexpr AST_type::elementType OP_DIVIDE_ASSIGN =
+    AST_type::elementType::OP_DIVIDE_ASSIGN;
+  constexpr AST_type::elementType OP_MODULUS_ASSIGN =
+    AST_type::elementType::OP_MODULUS_ASSIGN;
+  constexpr AST_type::elementType OP_PLUS_ASSIGN =
+    AST_type::elementType::OP_PLUS_ASSIGN;
+  constexpr AST_type::elementType OP_MINUS_ASSIGN =
+    AST_type::elementType::OP_MINUS_ASSIGN;
+  constexpr AST_type::elementType OP_SHIFT_LEFT_ASSIGN =
+    AST_type::elementType::OP_SHIFT_LEFT_ASSIGN;
+  constexpr AST_type::elementType OP_SHIFT_RIGHT_ASSIGN =
+    AST_type::elementType::OP_SHIFT_RIGHT_ASSIGN;
+  constexpr AST_type::elementType OP_AND_ASSIGN =
+    AST_type::elementType::OP_AND_ASSIGN;
+  constexpr AST_type::elementType OP_OR_ASSIGN =
+    AST_type::elementType::OP_OR_ASSIGN;
+  constexpr AST_type::elementType OP_EXOR_ASSIGN =
+    AST_type::elementType::OP_EXOR_ASSIGN;
+  constexpr AST_type::elementType OP_COMMA =
+    AST_type::elementType::OP_COMMA;
+  constexpr AST_type::elementType OP_COLON =
+    AST_type::elementType::OP_COLON;
+  constexpr AST_type::elementType OP_SEMICOLON =
+    AST_type::elementType::OP_SEMICOLON;
+  constexpr AST_type::elementType OP_NIL =
+    AST_type::elementType::OP_NIL;
+  constexpr AST_type::elementType OP_INCREMENT =
+    AST_type::elementType::OP_INCREMENT;
+  constexpr AST_type::elementType OP_DECREMENT =
+    AST_type::elementType::OP_DECREMENT;
+  constexpr AST_type::elementType OP_POSTINCREMENT =
+    AST_type::elementType::OP_POSTINCREMENT;
+  constexpr AST_type::elementType OP_POSTDECREMENT =
+    AST_type::elementType::OP_POSTDECREMENT;
+  constexpr AST_type::elementType OP_COMMENT =
+    AST_type::elementType::OP_COMMENT;
+  constexpr AST_type::elementType OP_BRACEBLOCK =
+    AST_type::elementType::OP_BRACEBLOCK;
+  constexpr AST_type::elementType OP_NAME =
+    AST_type::elementType::OP_NAME;
+  constexpr AST_type::elementType OP_FUNC =
+    AST_type::elementType::OP_FUNC;
+  constexpr AST_type::elementType OP_NAME_BRACE =
+    AST_type::elementType::OP_NAME_BRACE;
+  constexpr AST_type::elementType OP_FUNC_BRACE =
+    AST_type::elementType::OP_FUNC_BRACE;
+  constexpr AST_type::elementType OP_TEMPLATE =
+    AST_type::elementType::OP_TEMPLATE;
+  constexpr AST_type::elementType OP_TEMPLATE_FUNC =
+    AST_type::elementType::OP_TEMPLATE_FUNC;
+  constexpr AST_type::elementType OP_STRING =
+    AST_type::elementType::OP_STRING;
+  constexpr AST_type::elementType OP_NUMBER =
+    AST_type::elementType::OP_NUMBER;
+  constexpr AST_type::elementType OP_ERROR =
+    AST_type::elementType::OP_ERROR;
+  constexpr AST_type::elementType OP_UNARY_PLUS =
+    AST_type::elementType::OP_UNARY_PLUS;
+  constexpr AST_type::elementType OP_UNARY_MINUS =
+    AST_type::elementType::OP_UNARY_MINUS;
+  constexpr AST_type::elementType OP_NOT =
+    AST_type::elementType::OP_NOT;
+  constexpr AST_type::elementType OP_TILDE =
+    AST_type::elementType::OP_TILDE;
+  constexpr AST_type::elementType OP_AMPERSAND =
+    AST_type::elementType::OP_AMPERSAND;
+  constexpr AST_type::elementType OP_DOLLAR =
+    AST_type::elementType::OP_DOLLAR;
+  constexpr AST_type::elementType OP_STAR =
+    AST_type::elementType::OP_STAR;
+  constexpr AST_type::elementType OP_CAST =
+    AST_type::elementType::OP_CAST;
+  constexpr AST_type::elementType OP_TEMPLATE_CAST =
+    AST_type::elementType::OP_TEMPLATE_CAST;
+  constexpr AST_type::elementType OP_GROUP =
+    AST_type::elementType::OP_GROUP;
+  constexpr AST_type::elementType OP_GROUP_ERROR =
+    AST_type::elementType::OP_GROUP_ERROR;
+  constexpr AST_type::elementType OP_OPENPAREN =
+    AST_type::elementType::OP_OPENPAREN;
+  constexpr AST_type::elementType OP_CLOSEPAREN =
+    AST_type::elementType::OP_CLOSEPAREN;
+  constexpr AST_type::elementType OP_OPENBRACKET =
+    AST_type::elementType::OP_OPENBRACKET;
+  constexpr AST_type::elementType OP_CLOSEBRACKET =
+    AST_type::elementType::OP_CLOSEBRACKET;
+  constexpr AST_type::elementType OP_OPENBRACE =
+    AST_type::elementType::OP_OPENBRACE;
+  constexpr AST_type::elementType OP_CLOSEBRACE =
+    AST_type::elementType::OP_CLOSEBRACE;
+  constexpr AST_type::elementType OP_LOCI_DIRECTIVE =
+    AST_type::elementType::OP_LOCI_DIRECTIVE;
+  constexpr AST_type::elementType OP_LOCI_VARIABLE =
+    AST_type::elementType::OP_LOCI_VARIABLE;
+  constexpr AST_type::elementType OP_LOCI_CONTAINER =
+    AST_type::elementType::OP_LOCI_CONTAINER;
+  constexpr AST_type::elementType OP_TERM =
+    AST_type::elementType::OP_TERM;
+  constexpr AST_type::elementType OP_SPECIAL =
+    AST_type::elementType::OP_SPECIAL;
+  constexpr AST_type::elementType TK_BRACEBLOCK =
+    AST_type::elementType::TK_BRACEBLOCK;
+  constexpr AST_type::elementType TK_SCOPE =
+    AST_type::elementType::TK_SCOPE;
+  constexpr AST_type::elementType TK_AT =
+    AST_type::elementType::TK_AT;
+  constexpr AST_type::elementType TK_ARROW =
+    AST_type::elementType::TK_ARROW;
+  constexpr AST_type::elementType TK_TIMES =
+    AST_type::elementType::TK_TIMES;
+  constexpr AST_type::elementType TK_DIVIDE =
+    AST_type::elementType::TK_DIVIDE;
+  constexpr AST_type::elementType TK_MODULUS =
+    AST_type::elementType::TK_MODULUS;
+  constexpr AST_type::elementType TK_PLUS =
+    AST_type::elementType::TK_PLUS;
+  constexpr AST_type::elementType TK_MINUS =
+    AST_type::elementType::TK_MINUS;
+  constexpr AST_type::elementType TK_SHIFT_RIGHT =
+    AST_type::elementType::TK_SHIFT_RIGHT;
+  constexpr AST_type::elementType TK_SHIFT_LEFT =
+    AST_type::elementType::TK_SHIFT_LEFT;
+  constexpr AST_type::elementType TK_LT =
+    AST_type::elementType::TK_LT;
+  constexpr AST_type::elementType TK_GT =
+    AST_type::elementType::TK_GT;
+  constexpr AST_type::elementType TK_GE =
+    AST_type::elementType::TK_GE;
+  constexpr AST_type::elementType TK_LE =
+    AST_type::elementType::TK_LE;
+  constexpr AST_type::elementType TK_EQUAL =
+    AST_type::elementType::TK_EQUAL;
+  constexpr AST_type::elementType TK_NOT_EQUAL =
+    AST_type::elementType::TK_NOT_EQUAL;
+  constexpr AST_type::elementType TK_AND =
+    AST_type::elementType::TK_AND;
+  constexpr AST_type::elementType TK_EXOR =
+    AST_type::elementType::TK_EXOR;
+  constexpr AST_type::elementType TK_OR =
+    AST_type::elementType::TK_OR;
+  constexpr AST_type::elementType TK_LOGICAL_AND =
+    AST_type::elementType::TK_LOGICAL_AND;
+  constexpr AST_type::elementType TK_LOGICAL_OR =
+    AST_type::elementType::TK_LOGICAL_OR;
+  constexpr AST_type::elementType TK_ASSIGN =
+    AST_type::elementType::TK_ASSIGN;
+  constexpr AST_type::elementType TK_TIMES_ASSIGN =
+    AST_type::elementType::TK_TIMES_ASSIGN;
+  constexpr AST_type::elementType TK_DIVIDE_ASSIGN =
+    AST_type::elementType::TK_DIVIDE_ASSIGN;
+  constexpr AST_type::elementType TK_MODULUS_ASSIGN =
+    AST_type::elementType::TK_MODULUS_ASSIGN;
+  constexpr AST_type::elementType TK_PLUS_ASSIGN =
+    AST_type::elementType::TK_PLUS_ASSIGN;
+  constexpr AST_type::elementType TK_MINUS_ASSIGN =
+    AST_type::elementType::TK_MINUS_ASSIGN;
+  constexpr AST_type::elementType TK_SHIFT_LEFT_ASSIGN =
+    AST_type::elementType::TK_SHIFT_LEFT_ASSIGN;
+  constexpr AST_type::elementType TK_SHIFT_RIGHT_ASSIGN =
+    AST_type::elementType::TK_SHIFT_RIGHT_ASSIGN;
+  constexpr AST_type::elementType TK_AND_ASSIGN =
+    AST_type::elementType::TK_AND_ASSIGN;
+  constexpr AST_type::elementType TK_OR_ASSIGN =
+    AST_type::elementType::TK_OR_ASSIGN;
+  constexpr AST_type::elementType TK_EXOR_ASSIGN =
+    AST_type::elementType::TK_EXOR_ASSIGN;
+  constexpr AST_type::elementType TK_COMMA =
+    AST_type::elementType::TK_COMMA;
+  constexpr AST_type::elementType TK_DOT =
+    AST_type::elementType::TK_DOT;
+  constexpr AST_type::elementType TK_COLON =
+    AST_type::elementType::TK_COLON;
+  constexpr AST_type::elementType TK_SEMICOLON =
+    AST_type::elementType::TK_SEMICOLON;
+  constexpr AST_type::elementType TK_NIL =
+    AST_type::elementType::TK_NIL;
+
+  constexpr AST_type::elementType TK_INCREMENT =
+    AST_type::elementType::TK_INCREMENT;
+  constexpr AST_type::elementType TK_DECREMENT =
+    AST_type::elementType::TK_DECREMENT;
+  constexpr AST_type::elementType TK_COMMENT =
+    AST_type::elementType::TK_COMMENT;
+  constexpr AST_type::elementType TK_MACRO =
+    AST_type::elementType::TK_MACRO;
+  constexpr AST_type::elementType TK_NAME =
+    AST_type::elementType::TK_NAME;
+  constexpr AST_type::elementType TK_STRING =
+    AST_type::elementType::TK_STRING;
+  constexpr AST_type::elementType TK_NUMBER =
+    AST_type::elementType::TK_NUMBER;
+  constexpr AST_type::elementType TK_ERROR =
+    AST_type::elementType::TK_ERROR;
+  constexpr AST_type::elementType TK_UNARY_PLUS =
+    AST_type::elementType::TK_UNARY_PLUS;
+  constexpr AST_type::elementType TK_UNARY_MINUS =
+    AST_type::elementType::TK_UNARY_MINUS;
+  constexpr AST_type::elementType TK_NOT =
+    AST_type::elementType::TK_NOT;
+  constexpr AST_type::elementType TK_TILDE =
+    AST_type::elementType::TK_TILDE;
+  constexpr AST_type::elementType TK_QUESTION =
+    AST_type::elementType::TK_QUESTION;
+  constexpr AST_type::elementType TK_AMPERSAND =
+    AST_type::elementType::TK_AMPERSAND;
+  constexpr AST_type::elementType TK_STAR =
+    AST_type::elementType::TK_STAR;
+  constexpr AST_type::elementType TK_OPENPAREN =
+    AST_type::elementType::TK_OPENPAREN;
+  constexpr AST_type::elementType TK_CLOSEPAREN =
+    AST_type::elementType::TK_CLOSEPAREN;
+  constexpr AST_type::elementType TK_OPENBRACKET =
+    AST_type::elementType::TK_OPENBRACKET;
+  constexpr AST_type::elementType TK_CLOSEBRACKET =
+    AST_type::elementType::TK_CLOSEBRACKET;
+  constexpr AST_type::elementType TK_OPENBRACE =
+    AST_type::elementType::TK_OPENBRACE;
+  constexpr AST_type::elementType TK_CLOSEBRACE =
+    AST_type::elementType::TK_CLOSEBRACE;
+  constexpr AST_type::elementType TK_OPENTEMPLATE =
+    AST_type::elementType::TK_OPENTEMPLATE;
+  constexpr AST_type::elementType TK_CLOSETEMPLATE =
+    AST_type::elementType::TK_CLOSETEMPLATE;
+  constexpr AST_type::elementType TK_LOCI_DIRECTIVE =
+    AST_type::elementType::TK_LOCI_DIRECTIVE;
+  constexpr AST_type::elementType TK_LOCI_VARIABLE =
+    AST_type::elementType::TK_LOCI_VARIABLE;constexpr AST_type::elementType TK_LOCI_CONTAINER =
+                                              AST_type::elementType::TK_LOCI_CONTAINER;
+
+  constexpr AST_type::elementType TK_ALIGNAS =
+    AST_type::elementType::TK_ALIGNAS;
+  constexpr AST_type::elementType TK_ALIGNOF =
+    AST_type::elementType::TK_ALIGNOF;
+  constexpr AST_type::elementType TK_ASM =
+    AST_type::elementType::TK_ASM;
+  constexpr AST_type::elementType TK_BOOL =
+    AST_type::elementType::TK_BOOL;
+  constexpr AST_type::elementType TK_FALSE =
+    AST_type::elementType::TK_FALSE;
+  constexpr AST_type::elementType TK_TRUE =
+    AST_type::elementType::TK_TRUE;
+  constexpr AST_type::elementType TK_CHAR =
+    AST_type::elementType::TK_CHAR;
+  constexpr AST_type::elementType TK_INT =
+    AST_type::elementType::TK_INT;
+  constexpr AST_type::elementType TK_LONG =
+    AST_type::elementType::TK_LONG;
+  constexpr AST_type::elementType TK_SHORT =
+    AST_type::elementType::TK_SHORT;
+  constexpr AST_type::elementType TK_SIGNED =
+    AST_type::elementType::TK_SIGNED;
+  constexpr AST_type::elementType TK_UNSIGNED =
+    AST_type::elementType::TK_UNSIGNED;
+  constexpr AST_type::elementType TK_DOUBLE =
+    AST_type::elementType::TK_DOUBLE;
+  constexpr AST_type::elementType TK_FLOAT =
+    AST_type::elementType::TK_FLOAT;
+  constexpr AST_type::elementType TK_ENUM =
+    AST_type::elementType::TK_ENUM;
+  constexpr AST_type::elementType TK_MUTABLE =
+    AST_type::elementType::TK_MUTABLE;
+  constexpr AST_type::elementType TK_CONST =
+    AST_type::elementType::TK_CONST;
+  constexpr AST_type::elementType TK_STATIC =
+    AST_type::elementType::TK_STATIC;
+  constexpr AST_type::elementType TK_VOLATILE =
+    AST_type::elementType::TK_VOLATILE;
+  constexpr AST_type::elementType TK_AUTO =
+    AST_type::elementType::TK_AUTO;
+  constexpr AST_type::elementType TK_REGISTER =
+    AST_type::elementType::TK_REGISTER;
+  constexpr AST_type::elementType TK_EXPORT =
+    AST_type::elementType::TK_EXPORT;
+  constexpr AST_type::elementType TK_EXTERN =
+    AST_type::elementType::TK_EXTERN;
+  constexpr AST_type::elementType TK_INLINE =
+    AST_type::elementType::TK_INLINE;
+  constexpr AST_type::elementType TK_NAMESPACE =
+    AST_type::elementType::TK_NAMESPACE;
+  constexpr AST_type::elementType TK_USING =
+    AST_type::elementType::TK_USING;
+  constexpr AST_type::elementType TK_EXPLICIT =
+    AST_type::elementType::TK_EXPLICIT;
+  constexpr AST_type::elementType TK_CONST_CAST =
+    AST_type::elementType::TK_CONST_CAST;
+  constexpr AST_type::elementType TK_DYNAMIC_CAST =
+    AST_type::elementType::TK_DYNAMIC_CAST;
+  constexpr AST_type::elementType TK_STATIC_CAST =
+    AST_type::elementType::TK_STATIC_CAST;
+  constexpr AST_type::elementType TK_REINTERPRET_CAST =
+    AST_type::elementType::TK_REINTERPRET_CAST;
+  constexpr AST_type::elementType TK_OPERATOR =
+    AST_type::elementType::TK_OPERATOR;
+  constexpr AST_type::elementType TK_PROTECTED =
+    AST_type::elementType::TK_PROTECTED;
+  constexpr AST_type::elementType TK_NOEXCEPT =
+    AST_type::elementType::TK_NOEXCEPT;
+  constexpr AST_type::elementType TK_NULLPTR =
+    AST_type::elementType::TK_NULLPTR;
+  constexpr AST_type::elementType TK_RETURN =
+    AST_type::elementType::TK_RETURN;
+  constexpr AST_type::elementType TK_SIZEOF =
+    AST_type::elementType::TK_SIZEOF;
+  constexpr AST_type::elementType TK_THIS =
+    AST_type::elementType::TK_THIS;
+  constexpr AST_type::elementType TK_TYPEID =
+    AST_type::elementType::TK_TYPEID;
+  constexpr AST_type::elementType TK_SWITCH =
+    AST_type::elementType::TK_SWITCH;
+  constexpr AST_type::elementType TK_CASE =
+    AST_type::elementType::TK_CASE;
+  constexpr AST_type::elementType TK_BREAK =
+    AST_type::elementType::TK_BREAK;
+  constexpr AST_type::elementType TK_DEFAULT =
+    AST_type::elementType::TK_DEFAULT;
+  constexpr AST_type::elementType TK_FOR =
+    AST_type::elementType::TK_FOR;
+  constexpr AST_type::elementType TK_DO =
+    AST_type::elementType::TK_DO;
+  constexpr AST_type::elementType TK_WHILE =
+    AST_type::elementType::TK_WHILE;
+  constexpr AST_type::elementType TK_CONTINUE =
+    AST_type::elementType::TK_CONTINUE;
+  constexpr AST_type::elementType TK_CLASS =
+    AST_type::elementType::TK_CLASS;
+  constexpr AST_type::elementType TK_STRUCT =
+    AST_type::elementType::TK_STRUCT;
+  constexpr AST_type::elementType TK_PUBLIC =
+    AST_type::elementType::TK_PUBLIC;
+  constexpr AST_type::elementType TK_PRIVATE =
+    AST_type::elementType::TK_PRIVATE;
+  constexpr AST_type::elementType TK_FRIEND =
+    AST_type::elementType::TK_FRIEND;
+  constexpr AST_type::elementType TK_UNION =
+    AST_type::elementType::TK_UNION;
+  constexpr AST_type::elementType TK_TYPENAME =
+    AST_type::elementType::TK_TYPENAME;
+  constexpr AST_type::elementType TK_TEMPLATE =
+    AST_type::elementType::TK_TEMPLATE;
+  constexpr AST_type::elementType TK_TYPEDEF =
+    AST_type::elementType::TK_TYPEDEF;
+  constexpr AST_type::elementType TK_VIRTUAL =
+    AST_type::elementType::TK_VIRTUAL;
+  constexpr AST_type::elementType TK_VOID =
+    AST_type::elementType::TK_VOID;
+  constexpr AST_type::elementType TK_TRY =
+    AST_type::elementType::TK_TRY;
+  constexpr AST_type::elementType TK_CATCH =
+    AST_type::elementType::TK_CATCH;
+  constexpr AST_type::elementType TK_THROW =
+    AST_type::elementType::TK_THROW;
+  constexpr AST_type::elementType TK_IF =
+    AST_type::elementType::TK_IF;
+  constexpr AST_type::elementType TK_ELSE =
+    AST_type::elementType::TK_ELSE;
+  constexpr AST_type::elementType TK_GOTO =
+    AST_type::elementType::TK_GOTO;
+  constexpr AST_type::elementType TK_NEW =
+    AST_type::elementType::TK_NEW;
+  constexpr AST_type::elementType TK_DELETE =
+    AST_type::elementType::TK_DELETE;
+  constexpr AST_type::elementType ND_SYNTAXERR =
+    AST_type::elementType::ND_SYNTAXERR;
+  constexpr AST_type::elementType ND_CTRL_IF =
+    AST_type::elementType::ND_CTRL_IF;
+  constexpr AST_type::elementType ND_CTRL_FOR =
+    AST_type::elementType::ND_CTRL_FOR;
+  constexpr AST_type::elementType ND_CTRL_WHILE =
+    AST_type::elementType::ND_CTRL_WHILE;
+  constexpr AST_type::elementType ND_CTRL_DO =
+    AST_type::elementType::ND_CTRL_DO;
+  constexpr AST_type::elementType ND_CTRL_SWITCH =
+    AST_type::elementType::ND_CTRL_SWITCH;
+  constexpr AST_type::elementType ND_SIMPLE_STATEMENT =
+    AST_type::elementType::ND_SIMPLE_STATEMENT;
+  constexpr AST_type::elementType ND_BLOCK =
+    AST_type::elementType::ND_BLOCK;
+  constexpr AST_type::elementType ND_DECL =
+    AST_type::elementType::ND_DECL;
+  constexpr AST_type::elementType ND_TYPE_SPEC =
+    AST_type::elementType::ND_TYPE_SPEC;
+  constexpr AST_type::elementType ND_TERMINAL =
+    AST_type::elementType::ND_TERMINAL;
+  constexpr AST_type::elementType TK_SENTINEL =
+    AST_type::elementType::TK_SENTINEL;
+}
 
 extern std::string OPtoString(AST_type::elementType val) ;
 
 class AST_syntaxError: public AST_type {
- public:
+public:
   string error ;
   int lineno ;
   string fileName ;
   AST_syntaxError(string e,int l, string f) :error(e),lineno(l),fileName(f)
-    {nodeType=AST_type::ND_SYNTAXERR;}
+  {nodeType=AST_type::elementType::ND_SYNTAXERR;}
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
 } ;
@@ -260,14 +729,14 @@ public:
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
   /// Default constructor is an error, will be overridden during parsing
-  AST_Token() {nodeType = AST_type::OP_ERROR; ; lineno=-1; }
+  AST_Token() {nodeType = AST_type::elementType::OP_ERROR; ; lineno=-1; }
 } ;
 
 /// A statement that is typically terminated by a semicolon
 class AST_SimpleStatement: public AST_type {
 public:
   AST_SimpleStatement(ASTP e, ASTP t) : exp(e),Terminal(t)
-    {nodeType = AST_type::ND_SIMPLE_STATEMENT ;}
+  {nodeType = AST_type::elementType::ND_SIMPLE_STATEMENT ;}
   /// Expression of statement.
   ASTP exp ;
   /// Statement Termination
@@ -284,7 +753,7 @@ public:
   varmap identifiers ;
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
-  AST_Block() {nodeType = AST_type::ND_BLOCK; }
+  AST_Block() {nodeType = AST_type::elementType::ND_BLOCK; }
 } ;
 
 /// Type specifier
@@ -293,7 +762,7 @@ public:
   ASTList type_spec ;
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
-  AST_typeSpec() { nodeType = AST_type::ND_TYPE_SPEC ; }
+  AST_typeSpec() { nodeType = AST_type::elementType::ND_TYPE_SPEC ; }
 } ;
 
 /// Variable declaration statement
@@ -304,7 +773,7 @@ public:
   std::vector<std::string> decl_varnames ;
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
-  AST_declaration() { nodeType = AST_type::ND_DECL ; }
+  AST_declaration() { nodeType = AST_type::elementType::ND_DECL ; }
 } ;
 
 /// Operator in expression
@@ -313,20 +782,20 @@ public:
   ASTList terms ;
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
-  AST_exprOper() {nodeType = AST_type::OP_ERROR; }
+  AST_exprOper() {nodeType = AST_type::elementType::OP_ERROR; }
 } ;
 
-/// Control statement (if else 
+/// Control statement (if else
 class AST_controlStatement: public AST_type {
- public:
+public:
   ASTP controlType ;
   ASTList parts ;
   varmap identifiers ;
   void accept(AST_visitor &v) ;
   ASTP clone() const ;
-  AST_controlStatement() {nodeType = AST_type::OP_ERROR; }
+  AST_controlStatement() {nodeType = AST_type::elementType::OP_ERROR; }
   void constructIf(ASTP tok, ASTP C, ASTP IFBLOCK, ASTP ELSE, ASTP ELSEBLOCK) {
-    nodeType = AST_type::ND_CTRL_IF ;
+    nodeType = AST_type::elementType::ND_CTRL_IF ;
     controlType = tok ;
     parts.push_back(C) ;
     parts.push_back(IFBLOCK) ;
@@ -340,7 +809,7 @@ class AST_controlStatement: public AST_type {
 
 /// Visitor abstract base class
 class AST_visitor {
- public :
+public :
   virtual ~AST_visitor() {} ;
   virtual void visit(AST_SimpleStatement &)  ;
   virtual void visit(AST_Block &)  ;
@@ -355,7 +824,7 @@ class AST_visitor {
 /// Visitor class that scans an AST to determine if any systax errors were
 /// created during parsing
 class AST_errorCheck : public AST_visitor {
- public:
+public:
   int error_count ;
   AST_errorCheck() {error_count = 0  ; }
   bool hasErrors() const {return error_count != 0; }
@@ -373,12 +842,12 @@ public:
 
 /// Visitor that prints an AST using a simple substitution map
 class AST_simplePrint : public AST_visitor {
- public:
+public:
   ostream &out ;
   int lineno ;
   map<int,std::string> id2rename ;
   bool prettyPrint ;
-  AST_simplePrint(ostream &s, int line=-1,bool pp=true): out(s),lineno(line),prettyPrint(pp) {} 
+  AST_simplePrint(ostream &s, int line=-1,bool pp=true): out(s),lineno(line),prettyPrint(pp) {}
   virtual void visit(AST_exprOper &)  ;
   virtual void visit(AST_Token &) ;
 } ;
@@ -393,7 +862,7 @@ public:
   virtual void visit(AST_exprOper &) ;
   virtual void visit(AST_Token &) ;
 } ;
-  
+
 
 /// parse an identifier
 extern AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
@@ -402,18 +871,22 @@ extern AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
 /// Parse a general expression
 extern AST_type::ASTP parseExpression(std::istream &is, int &linecount,
 				      const string &fileName,
-				      varmap &typemap) ;
+				      varmap &typemap,
+                                      AST_type::operatorPrecedence prec=
+                                      AST_type::operatorPrecedence::PREC_NIL) ;
 /// Parse terms excluding operator
 extern AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 					     const string &fileName,
-					     varmap &typemap) ;
+					     varmap &typemap,
+                                             AST_type::operatorPrecedence prec=
+                                             AST_type::operatorPrecedence::PREC_NIL) ;
 /// Parse a statement after the first identifier is parsed
 extern AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
                                               std::istream &is, int &linecount,
                                               const string &fileName,
                                               varmap &typemap,
-                                              AST_type::elementType
-                                              term=AST_type::TK_SENTINEL) ;
+                                              AST_type::operatorPrecedence
+                                              prec=AST_type::operatorPrecedence::PREC_NIL) ;
 /// Parse operator token, convert from TK_* node type to OP_* nodetype
 extern AST_type::ASTP parseOperator(std::istream &is, int &linecount) ;
 /// Apply postfix operator to previous expression passed in expr
@@ -421,6 +894,7 @@ extern AST_type::ASTP applyPostFixOperator(AST_type::ASTP expr,
                                            std::istream &is, int &linecount,
                                            string fileName,
                                            varmap &typemap) ;
+
 /// Parse a named object using the scope operator
 extern AST_type::ASTP parseScopedObject(std::istream &is, int &linecount,
                                         const string &fileName,

@@ -26,7 +26,7 @@ $include "FVM.lh"
 namespace Loci {
 
   const real_t EPSILON=1e-33 ;
-  
+
 
   $rule default(gridCoordinates) { $gridCoordinates = "cartesian" ; }
 
@@ -44,19 +44,21 @@ namespace Loci {
     } else if($gridCoordinates == "cartesian") {
       $cartesianCoordinateModel = $*gridCoordinates.domain() ;
     } else {
-      cerr << "gridCoordinates = " << $gridCoordinates << " not understood, defaulting to cartesian" << endl;
+      cerr << "gridCoordinates = " << $gridCoordinates
+           << " not understood, defaulting to cartesian" << endl;
       $cartesianCoordinateModel = $*gridCoordinates.domain() ;
-    }      
+    }
   }
 
   $rule pointwise(OUTPUT<-selector(centroid,exact)) {}
-  $type centroid_select_exact Constraint ; 
+  $type centroid_select_exact Constraint ;
+
   $rule pointwise(OUTPUT<-selector(centroid,wireframe)) {}
   $type centroid_select_wireframe Constraint ;
-  
+
   /// unit rule used to compute cell z coordinate thickness for processing
   /// 2-D grids
-  $rule unit(cell_thickness),constraint(geom_cells) {
+  $rule unit(cell_thickness), constraint(geom_cells) {
     $cell_thickness = 0 ;
   }
 
@@ -65,7 +67,7 @@ namespace Loci {
     int fsz = $face2node.size() ;
     vector3d<real_t> pt = $face2node[0]->$pos ;
     vector3d<real_t> sum = vector3d<real_t>(0,0,0) ;
-    
+
     for(int i=1;i<fsz-1;++i) {
       sum += cross($face2node[i]->$pos-pt,$face2node[i+1]->$pos-pt) ;
     }
@@ -78,44 +80,49 @@ namespace Loci {
 
   /// Compute the maximum cell thickness for the grid by combining all
   /// grid cells.
-  $rule unit(gridThickMax),constraint(UNIVERSE) {
+  $rule unit(gridThickMax), constraint(UNIVERSE) {
     $gridThickMax = 0 ;
   }
+
   /// Apply rule to combine cell_thickness to global max value
-  $rule apply(gridThickMax<-cell_thickness)[Loci::Maximum],constraint(geom_cells) {
+  $rule apply(gridThickMax<-cell_thickness)[Loci::Maximum],
+  constraint(geom_cells) {
     join($gridThickMax,($cell_thickness)) ;
   }
 
   /// Compute the minimum cell thickness for the grid by combining all
-  /// grid cells. 
-  $rule unit(gridThickMin),constraint(UNIVERSE) {
+  /// grid cells.
+  $rule unit(gridThickMin), constraint(UNIVERSE) {
     $gridThickMin = 1e100 ;
   }
-  /// Apply rule to combinne cell_thickness to global min value
-  $rule apply(gridThickMin<-cell_thickness)[Loci::Minimum],constraint(geom_cells) {
+
+  /// Apply rule to combine cell_thickness to global min value
+  $rule apply(gridThickMin<-cell_thickness)[Loci::Minimum],
+  constraint(geom_cells) {
     join($gridThickMin,($cell_thickness)) ;
   }
 
-  /// compute grid thickness by averaging max an min value.  If the difference
+  /// Compute grid thickness by averaging max an min value.  If the difference
   /// between these to values exceeds a threshold, then the grid is not
   /// acceptable for axisymmetric computations.  The code aborts if this
   /// condition is detected.
-  $rule singleton(gridThickness<-gridThickMax,gridThickMin),constraint(axisymmetricCoordinateModel) {
+  $rule singleton(gridThickness<-gridThickMax, gridThickMin),
+  constraint(axisymmetricCoordinateModel) {
     $gridThickness = .5*($gridThickMax+$gridThickMin) ;
-    if($gridThickMin == 0 ||
-       ($gridThickMax-$gridThickMin) > 1e-8) {
-      cerr << "Grid not extruded as needed by axisymmetric computations" << endl ;
+    if($gridThickMin == 0 || ($gridThickMax-$gridThickMin) > 1e-8) {
+      cerr << "Grid not extruded as needed by axisymmetric computations"
+           << endl ;
       cerr << "gridThickMin = " << $gridThickMin << " Max = " << $gridThickMax
            << endl ;
       Loci::Abort() ;
     }
   }
-  
+
   /// Compute the area of a face in cartesian coordinates.  This is accomplished
   /// by subdividing the face into triangles formed between each face edge and
   /// The face centroid.
-  $rule pointwise(area<-face2node->pos,facecenter),
-              constraint(cartesianCoordinateModel,facecenter) {
+  $rule pointwise(area<-face2node->pos, facecenter),
+  constraint(cartesianCoordinateModel, facecenter) {
      const vector3d<real_t> center = $facecenter ;
      const Entity *first = $face2node.begin() ;
      const Entity *last = ($face2node.end()-1) ;
@@ -134,8 +141,8 @@ namespace Loci {
   /// z coordinate direction are not participating and set to zero, otherwise
   /// the are is computed by sweeping the line segment formed by the face about
   /// the x axis.  The exact area of this conical slice is computed.
-  $rule pointwise(area<-face2node->pos,facecenter,gridThickness),
-              constraint(axisymmetricCoordinateModel,facecenter) {
+  $rule pointwise(area<-face2node->pos, facecenter, gridThickness),
+  constraint(axisymmetricCoordinateModel, facecenter) {
      const vector3d<real_t> center = $facecenter ;
      const Entity *first = $face2node.begin() ;
      const Entity *last = ($face2node.end()-1) ;
@@ -151,10 +158,11 @@ namespace Loci {
        sada = 0 ;
        $area.n.x = 0 ;
        $area.n.y = 0 ;
-       if($area.n.z > 0)
+       if($area.n.z > 0) {
          $area.n.z = 1 ;
-       else
+       } else {
          $area.n.z = -1;
+       }
        $area.sada = 0 ; // For symmetry planes, set area to zero
      } else {
        $area.n.z = 0 ;
@@ -193,73 +201,79 @@ namespace Loci {
   /// Volumes are computed in the cartesian mode by forming tetrahedra between
   /// the triangulated face segments and the cell centroid. This provides a
   /// geometrically consistent volume for the cells forming a proper partition
-  /// of space.  
-  $rule pointwise(vol<-minVolume,cellcenter,(upper,lower,boundary_map)->(area,facecenter)),constraint(cartesianCoordinateModel,geom_cells) {
+  /// of space.
+  $rule pointwise(vol<-minVolume, cellcenter,
+    (upper, lower, boundary_map)->(area, facecenter)),
+  constraint(cartesianCoordinateModel, geom_cells) {
     real_t sum = 0.0 ;
     vector3d<real_t> dv ;
     for(const Entity* nf=$upper.begin();nf!=$upper.end();++nf) {
       dv = nf->$facecenter - $cellcenter ;
       sum = sum + nf->$area.sada*(dot(dv,nf->$area.n)) ;
 #ifdef STRONG_CHECK
-      if(dot(dv,nf->$area.n) < 0)
+      if(dot(dv,nf->$area.n) < 0) {
         Loci::debugout << "warning, non-convex cell" << _e_ << endl ;
+      }
 #endif
     }
     for(const Entity* nf=$lower.begin();nf!=$lower.end();++nf) {
       dv = nf->$facecenter - $cellcenter ;
       sum = sum - nf->$area.sada*(dot(dv,nf->$area.n)) ;
 #ifdef STRONG_CHECK
-      if(dot(dv,nf->$area.n) > 0)
+      if(dot(dv,nf->$area.n) > 0) {
         Loci::debugout << "warning, non-convex cell " << _e_ << endl ;
+      }
 #endif
     }
     for(const Entity* nf=$boundary_map.begin();nf!=$boundary_map.end();++nf) {
       dv = nf->$facecenter - $cellcenter ;
       sum = sum + nf->$area.sada*(dot(dv,nf->$area.n)) ;
 #ifdef STRONG_CHECK
-      if(dot(dv,nf->$area.n) < 0)
+      if(dot(dv,nf->$area.n) < 0) {
         Loci::debugout << "warning, non-convex cell " << _e_ << endl ;
+      }
 #endif
     }
     $vol = sum/3.0 ;
     if(sum <= 0.0) {
-      cerr << "MPI_rank = " << Loci::MPI_rank << ":  Zero or negative volume in grid cell id :" << _e_ << endl ;
+      cerr << "MPI_rank = " << Loci::MPI_rank
+           << ":  Zero or negative volume in grid cell id :" << _e_ << endl ;
       cerr << "For more information see debug file." << endl ;
       for(const Entity* nf=$upper.begin();nf!=$upper.end();++nf) {
-	Loci::debugout << "upper facecenter [" << *nf << " ] =  "
+        Loci::debugout << "upper facecenter [" << *nf << " ] =  "
                        << nf->$facecenter << endl ;
-	Loci::debugout << "upper area [" << *nf << " ] =  "
+        Loci::debugout << "upper area [" << *nf << " ] =  "
                        << nf->$area << endl ;
       }
-      for(const Entity * nf=$lower.begin();nf!=$lower.end();++nf) {
-	Loci::debugout << "lower facecenter [" << *nf << " ] =  "
+      for(const Entity* nf=$lower.begin();nf!=$lower.end();++nf) {
+        Loci::debugout << "lower facecenter [" << *nf << " ] =  "
                        << nf->$facecenter << endl ;
-	Loci::debugout << "lower area [" << *nf << " ] =  "
+        Loci::debugout << "lower area [" << *nf << " ] =  "
                        << nf->$area << endl ;
       }
       for(const Entity* nf=$boundary_map.begin();nf!=$boundary_map.end();++nf) {
-	Loci::debugout << "BM facecenter [" << *nf << " ] =  "
+        Loci::debugout << "BM facecenter [" << *nf << " ] =  "
                        << nf->$facecenter << endl ;
-	Loci::debugout << "BM area [" << *nf << " ] =  "
+        Loci::debugout << "BM area [" << *nf << " ] =  "
                        << nf->$area << endl ;
       }
       Loci::debugout << " cellcenter [" << _e_ << " ] =  "
                      << $cellcenter << endl ;
       Loci::debugout << " volume[ " << _e_ << " ] = "
                      << $vol << endl ;
-      
+
       $vol = max($minVolume,$vol) ;
-      if($vol < 1e-40) 
-	exit(-1) ;
+      if($vol < 1e-40) {
+	      exit(-1) ;
+      }
     }
   }
 
   /// This computes the volume of a cell for the axisymmetric cell by sweeping
   /// out the volume of the 2-D face swept around the x axis.
-  $rule pointwise(vol<-
-                  (upper,lower,boundary_map)->area,
-                  (upper,lower,boundary_map)->face2node->pos,gridThickness
-                  ),constraint(geom_cells,axisymmetricCoordinateModel) {
+  $rule pointwise(vol<-(upper, lower, boundary_map)->area,
+    (upper, lower, boundary_map)->face2node->pos, gridThickness),
+  constraint(geom_cells, axisymmetricCoordinateModel) {
 #ifdef EXACT
     // Compute volume using analytical solid revolution
     // Use long double since viscous grids could cause catastrophic cancelation
@@ -345,8 +359,9 @@ namespace Loci {
     }
     $vol = (M_PI/3.)*vol_sum ;
 #else
-    if($boundary_map.size() == 0)  {
-      cerr << "Grid not extruded one cell!  Not a valid grid for axisymmetric computations" << endl ;
+    if($boundary_map.size() == 0) {
+      cerr << "Grid not extruded one cell!  "
+           << "Not a valid grid for axisymmetric computations" << endl ;
       Loci::Abort() ;
     }
 
@@ -372,7 +387,6 @@ namespace Loci {
         volume += cross(d1,d2).z*(id->$area.n.z)*
           (center.y+ id->$face2node[fsz-1]->$pos.y+ id->$face2node[0]->$pos.y) ;
         for(int i=1;i<fsz;++i) {
-        
           vector3d<real_t> d1 = (id->$face2node[i-1]->$pos - center) ;
           vector3d<real_t> d2 = (id->$face2node[i]->$pos - center) ;
           volume += cross(d1,d2).z*(id->$area.n.z)*
@@ -389,24 +403,25 @@ namespace Loci {
     $vol = volume ;
 #endif
   }
-  
+
 
   /// Unit rule to compute total grid volume
   $rule unit(grid_vol),constraint(vol) {
     $grid_vol = 0 ;
   }
+
   /// Apply rule to sum up all the cell volumes in the mesh
   $rule apply(grid_vol<-vol)[Loci::Summation], constraint(geom_cells) {
     join($grid_vol,$vol) ;
   }
 
-  ///The following class gives the two perpendicular vectors in the face to 
-  ///form the orthogonal coordinates of the face along with the normal vector
+  /// The following class gives the two perpendicular vectors in the face to
+  /// form the orthogonal coordinates of the face along with the normal vector
   $rule pointwise(ln,mn<-area) {
     // find vectors orthogonal to axn,ayn,azn
 
     vector3d<real_t> l ; // vect3d defined in sciTypes.h
-    const vector3d<real_t> &an = $area.n ; 
+    const vector3d<real_t> &an = $area.n ;
     //an.x, an.y, an.z are the x,y, and z components of an
     // Attempt to minimize cancellation error when finding orthogonal vector.
     // Find the coordinate direction which is largest and base orthognality
@@ -444,8 +459,8 @@ namespace Loci {
     warn(dot(l,l) < EPSILON) ; // Sanity check (should never happen)
     const real_t lsr = 1./sqrt(dot(l,l)) ;
     l *= lsr ;  //normalize the vector
-    warn(dot(an,l) > 1e-9) ; // Sanity check, l and an should be orthogonal 
-    
+    warn(dot(an,l) > 1e-9) ; // Sanity check, l and an should be orthogonal
+
     $ln = l ;
     $mn = cross(l,an) ;
   }
@@ -456,7 +471,7 @@ namespace Loci {
   /// This amounts to an centroid computation assuming that the mass is
   /// on the edges of the face.
   $rule pointwise(facecenter<-face2node->pos),
-  constraint(face2node->pos,centroid_select_wireframe) {
+  constraint(face2node->pos, centroid_select_wireframe) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t lensum = 0 ;
     warn($face2node.begin() == $face2node.end() ||
@@ -476,7 +491,7 @@ namespace Loci {
     real_t len = sqrt(dot(edge_vec,edge_vec)) ;
     nodesum += len*edge_loc ;
     lensum += len ;
-    
+
     $facecenter = nodesum/lensum ;
   }
 
@@ -501,28 +516,29 @@ namespace Loci {
     }
     $cellcenter = nodesum/areasum ;
   }
-  
+
   /// Exact Centroid Computation override for the face center.  Note that
   /// The geometry of the face is ambiguous as the centroid is used to define
   /// the geometry of the face (e.g. its triangulation).  We start with
   /// the nodal average approximation and then iterate with the exact centroid
   /// computation four iterations to arrive at a close approximation to a face
-  /// where the centroid also defines the triangulation of the face. 
+  /// where the centroid also defines the triangulation of the face.
   $rule pointwise(facecenter<-face2node->pos),
-  constraint(centroid_select_exact,face2node->pos) {
-    
+  constraint(centroid_select_exact, face2node->pos) {
+
     // Compute approximate centroid
     const int fsz = $face2node.size() ;
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
-    for(int i=0;i<fsz;++i) 
+    for(int i=0;i<fsz;++i) {
       nodesum += $face2node[i]->$pos ;
-    
+    }
+
     vector3d<real_t> tmpcenter = nodesum/real_t(fsz) ;
-    
+
     // Iterate to find exact centroid that is on the face
     const int NITER=4 ;
     for(int iter=0;iter<NITER;++iter) {
-    
+
       // compute centroid using triangles formed by wireframe centroid
       vector3d<real_t> centroidsum(0.0,0.0,0.0) ;
       real_t facearea = 0 ;
@@ -541,15 +557,13 @@ namespace Loci {
     }
     $facecenter = tmpcenter ;
   }
-  
+
   /// Exact centroid override for the cell center computation.  This computes
   /// The exact centroid by dividing the cell into tetrahedra and computing
   /// an exact integration of the positions over the cell.
-  $rule pointwise(cellcenter<-
-                  (upper,lower,boundary_map)->(facecenter,area),
-                  (upper,lower,boundary_map)->face2node->pos
-                  ),
-  constraint(geom_cells,centroid_select_exact,cartesianCoordinateModel) {
+  $rule pointwise(cellcenter<-(upper,lower,boundary_map)->(facecenter,area),
+  (upper,lower,boundary_map)->face2node->pos),
+  constraint(geom_cells, centroid_select_exact, cartesianCoordinateModel) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
     real_t areasum = 0 ;
     for(const Entity *id=$upper.begin();id!=$upper.end();++id) {
@@ -574,7 +588,7 @@ namespace Loci {
       vector3d<real_t> nodesum(0.0,0.0,0.0) ;
       real_t lensum = 0 ;
       for(int i=0;i<sz;++i) {
-        int nd1 = i ; 
+        int nd1 = i ;
         int nd2 = (i+1)%sz ;
         vector3d<real_t> e1 = id->$face2node[nd1]->$pos ;
         vector3d<real_t> e2 = id->$face2node[nd2]->$pos ;
@@ -601,7 +615,7 @@ namespace Loci {
       vector3d<real_t> nodesum(0.0,0.0,0.0) ;
       real_t lensum = 0 ;
       for(int i=0;i<sz;++i) {
-        int nd1 = i ; 
+        int nd1 = i ;
         int nd2 = (i+1)%sz ;
         vector3d<real_t> e1 = id->$face2node[nd1]->$pos ;
         vector3d<real_t> e2 = id->$face2node[nd2]->$pos ;
@@ -628,7 +642,7 @@ namespace Loci {
       vector3d<real_t> nodesum(0.0,0.0,0.0) ;
       real_t lensum = 0 ;
       for(int i=0;i<sz;++i) {
-        int nd1 = i ; 
+        int nd1 = i ;
         int nd2 = (i+1)%sz ;
         vector3d<real_t> e1 = id->$face2node[nd1]->$pos ;
         vector3d<real_t> e2 = id->$face2node[nd2]->$pos ;
@@ -655,25 +669,25 @@ namespace Loci {
 
   /// Compute the cell centroid for the axisymmetric mode grid metrics.
   $rule pointwise(cellcenter<-
-                  (upper,lower,boundary_map)->(facecenter,area),
-                  (upper,lower,boundary_map)->face2node->pos
-                  ),
+    (upper,lower,boundary_map)->(facecenter,area),
+    (upper,lower,boundary_map)->face2node->pos),
   constraint(geom_cells,axisymmetricCoordinateModel,centroid_select_wireframe) {
     vector3d<real_t> nodesum(0.0,0.0,0.0) ;
 
     // cellcenter is just average of two symmetry plane face centers
     for(const Entity *id=$boundary_map.begin();id!=$boundary_map.end();++id) {
-      if(fabs(id->$area.n.z) > 0.99)
+      if(fabs(id->$area.n.z) > 0.99) {
         nodesum += 0.5*id->$facecenter ;
+      }
     }
     $cellcenter = nodesum ;
   }
-  
+
 
   /// Unit rule to find the maximum faces per cell in the grid
-  $rule unit(max_fpc),constraint(lower,upper,boundary_map) {
+  $rule unit(max_fpc), constraint(lower,upper,boundary_map) {
     $max_fpc = 0 ;
-  } 
+  }
 
   /// Apply rule to gather the number of faces from the upper, lower, and
   /// boundary_map sizes.

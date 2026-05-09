@@ -111,6 +111,7 @@ soft_copy_dir FVMtools/plot3d2vog $INSTALL_PATH/bin
 soft_copy_dir FVMtools/vog2surf $INSTALL_PATH/bin
 soft_copy_dir FVMtools/ugrid2vog $INSTALL_PATH/bin
 soft_copy_dir FVMtools/msh2vog $INSTALL_PATH/bin
+soft_copy_dir FVMtools/foam2vog $INSTALL_PATH/bin
 soft_copy_dir FVMtools/cfd++2vog $INSTALL_PATH/bin
 soft_copy_dir FVMtools/fluent2vog $INSTALL_PATH/bin
 soft_copy_dir FVMtools/ccm2vog $INSTALL_PATH/bin

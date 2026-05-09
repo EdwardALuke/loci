@@ -139,7 +139,7 @@ namespace flowPsi {
 
 $type cell2nodeD(X) store<double> ;
   $rule pointwise(cell2nodeD(X)<-c2nD_scalar_sum(X),nodalw_sumD),constraint(pos) {
-    double rsum = 1./(double($nodalw_sumD)+1e-20) ;
+    double rsum = 1./(static_cast<double>($nodalw_sumD)+1e-20) ;
     $cell2nodeD(X) = $c2nD_scalar_sum(X)*rsum ;
   }
 
@@ -176,7 +176,7 @@ $type cell2nodeD(X) store<double> ;
   $type boundary_node param<bool> ;
 
 $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw_sumD),constraint(boundary_node) {
-      double rsum = 1./(double($boundary_nodalw_sumD)+1e-20) ;
+      double rsum = 1./(static_cast<double>($boundary_nodalw_sumD)+1e-20) ;
       $cell2nodeD(X) = $boundary_scalar_sumD(X)*rsum ;
   }
 
@@ -228,7 +228,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
   $type cell2nodeD_v3d(V) store<vector3d<double> > ;
   $rule pointwise(cell2nodeD_v3d(V)<-c2nD_v3d_sum(V),nodalw_sumD) {
-    double rsum = 1./(double($nodalw_sumD)+1e-20) ;
+    double rsum = 1./(static_cast<double>($nodalw_sumD)+1e-20) ;
     $cell2nodeD_v3d(V) = $c2nD_v3d_sum(V)*rsum ;
   }
   $type boundary_v3d_sumD(V) store<vector3d<double> > ;
@@ -253,7 +253,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
   $rule pointwise(boundary::cell2nodeD_v3d(V)<-
 		  boundary_v3d_sumD(V),boundary_nodalw_sumD),
     constraint(boundary_node) {
-      double rsum = 1./(double($boundary_nodalw_sumD)+1e-20) ;
+      double rsum = 1./(static_cast<double>($boundary_nodalw_sumD)+1e-20) ;
       $cell2nodeD_v3d(V) = $boundary_v3d_sumD(V)*rsum ;
   }
 

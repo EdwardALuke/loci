@@ -27,27 +27,31 @@ using std::endl ;
 
 namespace Loci {
   $rule pointwise(OUTPUT<-selector(limiter,zero)) {}
+
   /// Always limit the extrapolations reducing MUSCL extrapolations first order
   $type limiter_select_zero Constraint ;
-  
+
   typedef vector3d<real_t> vect3d ;
   typedef tensor3d<real_t> tens3d ;
   typedef real_t real ;
 
   $type S store<real> ;
 
-  $rule pointwise(limiters(S)<-S),constraint(geom_cells,limiter_select_zero) {
+  $rule pointwise(limiters(S)<-S), constraint(geom_cells,
+  limiter_select_zero) {
     $limiters(S) = 0.0 ;
   }
 
   $type V store<vect3d> ;
-  
-  $rule pointwise(limiterv3d(V)<-V),constraint(geom_cells,limiter_select_zero) {
+
+  $rule pointwise(limiterv3d(V)<-V), constraint(geom_cells,
+  limiter_select_zero) {
     $limiterv3d(V) = vect3d(0.0,0.0,0.0) ;
   }
-    
+
   $type M storeVec<real> ;
-  $rule pointwise(limiterv(M)<-M),constraint(geom_cells,limiter_select_zero),prelude {
+  $rule pointwise(limiterv(M)<-M), constraint(geom_cells,
+  limiter_select_zero), prelude {
     $limiterv(M).setVecSize($M.vecSize()) ;
   } compute {
     $limiterv(M) = mk_Scalar(0.) ;
