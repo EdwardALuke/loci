@@ -87,20 +87,6 @@ namespace Loci {
     int vec_size(int indx) const { return end(indx)-begin(indx) ; }
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP freeze(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual storeRepP thaw(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-#endif
   private:
     virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
     virtual storeRepP freeze() ;

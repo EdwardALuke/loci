@@ -97,11 +97,6 @@ namespace Loci {
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
                  const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP
-    redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                     const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
-#endif
     virtual void shift(int_type offset) ;
     virtual ~gpuparamRepI() ;
     virtual store_type RepType() const ;
@@ -123,28 +118,6 @@ namespace Loci {
     virtual void pack(void *ptr, int &loc, int &size, const entitySet &e) ;
     virtual void unpack(void *ptr, int &loc, int &size, const sequence &seq)  ;
 
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP freeze(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual storeRepP thaw(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual void pack(void* ptr, int& loc,
-                      int& size, const entitySet& e, const Map& remap) {
-      pack(ptr,loc,size,e) ;
-    }
-    virtual void unpack(void* ptr, int& loc,
-                        int& size, const sequence& seq, const dMap& remap) {
-      unpack(ptr,loc,size,seq) ;
-    }
-#endif
     virtual std::ostream &Print(std::ostream &s) const ;
     virtual std::istream &Input(std::istream &s) ;
     virtual void readhdf5(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, frame_info &fi, entitySet &en) ;

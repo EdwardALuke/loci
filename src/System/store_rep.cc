@@ -182,26 +182,4 @@ namespace Loci {
                const dMap& remap, MPI_Comm comm)
   { return Rep()->redistribute(dom_ptn,remap,comm) ;}
   
-#ifdef DYNAMICSCHEDULING
-  storeRepP store_ref::
-  redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                   const dMap& remap, MPI_Comm comm)
-  { return Rep()->redistribute_omd(dom_ptn,remap,comm) ;}
-
-  storeRepP store_ref::
-  freeze(const entitySet& es) const { return Rep()->freeze(es) ;}
-
-  storeRepP store_ref::
-  thaw(const entitySet& es) const { return Rep()->thaw(es) ;}
-
-  void store_ref::
-  pack(void* ptr, int& loc,
-       int& size, const entitySet& e, const Map& remap)
-  { Rep()->pack(ptr,loc,size,e,remap) ;}
-  
-  void store_ref::
-  unpack(void* ptr, int& loc,
-         int& size, const sequence& seq, const dMap& remap)
-  { Rep()->unpack(ptr,loc,size,seq,remap) ;}
-#endif
 }
