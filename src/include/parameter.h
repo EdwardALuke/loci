@@ -92,20 +92,6 @@ namespace Loci {
     virtual storeRepP remap(const dMap &m) const ;
     virtual storeRepP freeze() ;
     virtual storeRepP thaw() ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP freeze(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual storeRepP thaw(const entitySet& es) const {
-      std::cerr << "storeRep.thaw(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-#endif
     virtual void copy(storeRepP &st, const entitySet &context) ;
     virtual void fast_copy(storeRepP& st, const entitySet& context);
     virtual void gather(const dMap &m, storeRepP &st,
@@ -118,19 +104,6 @@ namespace Loci {
     virtual void pack(void *ptr, int &loc, int &size, const entitySet &e) ;
     virtual void unpack(void *ptr, int &loc, int &size, const sequence &seq)  ;
 
-#ifdef DYNAMICSCHEDULING
-    // this version of pack/unpack uses a remap during the process
-    // mainly for maps images to transform to another numbering scheme
-    // default behavior is to ignore the remaps
-    virtual void pack(void* ptr, int& loc,
-                      int& size, const entitySet& e, const Map& remap) {
-      pack(ptr,loc,size,e) ;
-    }
-    virtual void unpack(void* ptr, int& loc,
-                        int& size, const sequence& seq, const dMap& remap) {
-      unpack(ptr,loc,size,seq) ;
-    }
-#endif
     virtual std::ostream &Print(std::ostream &s) const ;
     virtual std::istream &Input(std::istream &s) ;
     

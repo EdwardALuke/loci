@@ -61,11 +61,6 @@ namespace Loci {
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
                  const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP
-    redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                     const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
-#endif
     virtual void compose(const dMap &m, const entitySet &context) ;
     virtual void copy(storeRepP &st, const entitySet &context) ;
     virtual void gather(const dMap &m, storeRepP &st,
@@ -79,12 +74,6 @@ namespace Loci {
 
     virtual void pack(void *ptr, int &loc, int &size, const entitySet &e) ;
     virtual void unpack(void *ptr, int &loc, int &size, const sequence &seq) ;
-#ifdef DYNAMICSCHEDULING
-    virtual void pack(void *ptr, int &loc,
-                      int &size, const entitySet &e, const Map& remap) ;
-    virtual void unpack(void *ptr, int &loc,
-                        int &size, const sequence &seq, const dMap& remap) ;
-#endif
     
     virtual entitySet domain() const ;
 
@@ -108,20 +97,6 @@ namespace Loci {
     virtual block_hash<int> *get_attrib_data() { return &attrib_data; }
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP freeze(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual storeRepP thaw(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-#endif
   } ;
       
   class dMap : public store_instance {
