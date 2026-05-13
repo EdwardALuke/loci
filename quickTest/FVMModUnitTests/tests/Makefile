@@ -15,7 +15,7 @@ TestResults: $(TEST_FILES) FRC
 
 %.test : %.vars
 	@echo Test $*
-	@ MPIRUN="$(MPIRUN)" MPINUMPROC=$(MPINUMPROC) LOCI_FLAGS="$(LOCI_CMD_FLAGS)" ./test.sh $*.vars $*.log
+	@ MPIRUN="$(MPIRUN)" LOCI_FLAGS="$(LOCI_CMD_FLAGS)" ./test.sh $*.vars $*.log
 	tail -n 1 $*.log > $*.test
 	@grep TEST $*.test
 
