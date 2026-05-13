@@ -27,37 +27,28 @@
 ###########################################################################
 
 include $(LOCI_BASE)/Loci.conf
+include $(LOCI_BASE)/version.conf
 
-SOURCE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
-vpath %.cc $(SOURCE_DIR)
+INCLUDES = -I../contrib/doctest -I$(LOCI_BASE)/include
 
-INCLUDES = -I./include -I$(SOURCE_DIR)/include
+AUTOMATIC_FILES = $(call loci_compile_files,)
+AUTOMATIC_OBJS = $(call loci_file2objs,$(AUTOMATIC_FILES))
+AUTOMATIC_TESTS= $(subst .o,.test, $(AUTOMATIC_OBJS))
+TESTS = $(AUTOMATIC_TESTS)
 
-TESTS = test_vtypes test_VFAD
+TestResults: $(TESTS)
+	cat $(TESTS) > TestResults; rm $(TESTS)
 
-.PHONY: test_vtypes test_VFAD
-
-
-tests: $(TESTS)
-
-test_vtypes: test_vtypes.o  
-	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	./$@.exe
-	rm $@.exe
-
-test_VFAD: test_VFAD.o 
-	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	./$@.exe
-	rm $@.exe
-
-
-
-
-#tests: $(TARGET) FORCE
-#	$(MAKE) -C tests TestResults LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+%.test: %.o
+	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
+	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe >& $*.log || true)
+	tail -n 1 $*.log > $*.log1
+	echo -n Containers/$*":" > $@
+	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
+	rm $*.log1 $*.exe
 
 clean:
-	rm -fr *.o *.exe *.d
+	rm -fr *.o *.exe *.d *.log *.log1
 
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) 
@@ -65,7 +56,7 @@ JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o
 LOCI_LPP_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
 
 distclean: clean
-	rm -fr test_vtypes test_VFAD $(JUNK) $(LOCI_LPP_FILES) $(DEPEND_FILES)
+	rm -fr TestResults $(JUNK) $(LOCI_LPP_FILES) $(DEPEND_FILES) $(TESTS)
 
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 

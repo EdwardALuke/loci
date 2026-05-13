@@ -10,12 +10,13 @@ default: TestResults
 FRC:
 
 TestResults: $(TEST_FILES) FRC
-	grep TEST $(TEST_FILES) > TestResults ; rm -f $(TEST_FILES) 
+	cat $(TEST_FILES) > TestResults ; rm $(TEST_FILES)
 
 
 %.test : %.vars
 	@echo Test $*
-	@ MPIRUN="$(MPIRUN)" MPINUMPROC=$(MPINUMPROC) LOCI_FLAGS="$(LOCI_CMD_FLAGS)" ./test.sh $*.vars $*.test
+	@ MPIRUN="$(MPIRUN)" LOCI_FLAGS="$(LOCI_CMD_FLAGS)" ./test.sh $*.vars $*.log
+	tail -n 1 $*.log > $*.test
 	@grep TEST $*.test
 
 
@@ -23,6 +24,6 @@ clean:
 	rm -f $(TEST_FILES)
 
 distclean: clean
-	rm -fr TestResults output debug *~
+	rm -fr TestResults output debug *~ *.log 
 
 

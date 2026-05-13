@@ -8,7 +8,7 @@ include $(TEST_BASE)/test.conf
 default: TestResults
 
 TestResults: $(TEST_FILES) FRC
-	cat $(TEST_FILES) > TestResults; rm -f $(TEST_FILES)
+	tail -n 1 $(TEST_FILES) > TestResults; rm -f $(TEST_FILES)
 
 FRC:
 
