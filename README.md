@@ -215,6 +215,10 @@ The source code under FVMtools/libadf is the ADF library is an open
 source library that is used by some grid converters found in FVMtools
 and is provided here as a convenience.
 
+The source code under quickTest/contrib/doctest is the single header testing
+framework that is provided under the MIT license.  The software can be obtained
+from https://github.com/doctest/doctest
+
 Note that the parMETIS tools are licensed only for non-commercial use by
 University of Minnesota.  For commercial use, contact University of
 Minnesota to obtain a license, or alternatively use the open source
