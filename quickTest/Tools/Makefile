@@ -18,50 +18,49 @@
 # along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 #
 ###############################################################################
+# LOCI_BASE should be set before the Makefile
+# Set TARGET to the name of your program
+# Set FILES to list '.loci' files that will be compiled into your module, or
+
+###########################################################################
+# No changes required below this line
+###########################################################################
 
 include $(LOCI_BASE)/Loci.conf
 
-SOURCE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
-vpath %.cc $(SOURCE_DIR)
+INCLUDES = -I../contrib/doctest -I$(LOCI_BASE)/include
 
-INCLUDES = -I./include -I$(SOURCE_DIR)/include -I$(SOURCE_DIR)/../Containers/include
+AUTOMATIC_FILES = $(call loci_compile_files,)
+AUTOMATIC_OBJS = $(call loci_file2objs,$(AUTOMATIC_FILES))
+AUTOMATIC_TESTS= $(subst .o,.test, $(AUTOMATIC_OBJS))
+TESTS = $(AUTOMATIC_TESTS)
+#vtypes.test VFAD.test
 
-TESTS = test_units test_options_list
+TestResults: $(TESTS)
+	cat $(TESTS) > TestResults; rm $(TESTS)
 
-.PHONY: test_units test_options_list
-
-
-tests: $(TESTS)
-
-test_units.o: $(SOURCE_DIR)/test_units.cc
-	$(CXX) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o $@ -c $<
-
-test_options_list.o: $(SOURCE_DIR)/test_options_list.cc
-	$(CXX) $(COPT) $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -o $@ -c $<
-
-test_units: test_units.o
-	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	./$@.exe
-	rm $@.exe
-
-test_options_list: test_options_list.o
-	$(LD) -o $@.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	./$@.exe
-	rm $@.exe
-
+%.test: %.o
+	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
+	@(./$*.exe >& $*.log || /bin/true)
+	tail -n 1 $*.log > $*.log1
+	echo -n Containers/$*":" > $@
+	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
+	rm $*.log1 $*.exe
 
 clean:
-	rm -fr *.o *.exe *.d
+	rm -fr *.o *.exe *.d *.log *.log1
 
 # Junk files that are created while editing and running cases
-JUNK = $(wildcard *~) $(wildcard crash_dump.*) core debug output $(wildcard *.o)
+JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) 
+# ".cc" files created from .loci files
+LOCI_LPP_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
 
 distclean: clean
-	rm -fr test_units test_options_list $(JUNK) $(DEPEND_FILES)
+	rm -fr TestResults $(JUNK) $(LOCI_LPP_FILES) $(DEPEND_FILES) $(TESTS)
 
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
-# include automatically generated dependencies
+#include automatically generated dependencies
 ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
 -include $(DEPEND_FILES)
 endif
