@@ -1,4 +1,7 @@
 TEST_BASE = $(shell pwd)
+
+.PHONY: FRC FVMModUnitTests FVMAdaptTest Containers Tools test default
+
 default: FVM FVMModUnitTests FVMAdaptTest Containers Tools
 	cat Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults > TestResults
 	rm Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults
@@ -6,8 +9,7 @@ default: FVM FVMModUnitTests FVMAdaptTest Containers Tools
 	@grep FAIL TestResults || true
 	@! grep -q FAIL TestResults
 
-
-.PHONY: FRC
+test: default
 
 FVMModUnitTests: FRC
 	$(MAKE) -C FVMModUnitTests tests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
