@@ -3,7 +3,7 @@ default: FVM FVMModUnitTests FVMAdaptTest Containers Tools
 	cat Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults > TestResults
 	rm Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults
 	@grep PASS TestResults
-	@grep FAIL TestResults || /bin/true
+	@grep FAIL TestResults || true
 	@! grep -q FAIL TestResults
 
 

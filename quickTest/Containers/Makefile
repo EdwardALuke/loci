@@ -27,6 +27,7 @@
 ###########################################################################
 
 include $(LOCI_BASE)/Loci.conf
+include $(LOCI_BASE)/version.conf
 
 INCLUDES = -I../contrib/doctest -I$(LOCI_BASE)/include
 
@@ -34,14 +35,13 @@ AUTOMATIC_FILES = $(call loci_compile_files,)
 AUTOMATIC_OBJS = $(call loci_file2objs,$(AUTOMATIC_FILES))
 AUTOMATIC_TESTS= $(subst .o,.test, $(AUTOMATIC_OBJS))
 TESTS = $(AUTOMATIC_TESTS)
-#vtypes.test VFAD.test
 
 TestResults: $(TESTS)
 	cat $(TESTS) > TestResults; rm $(TESTS)
 
 %.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	@(./$*.exe > $*.log || /bin/true)
+	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe >& $*.log || true)
 	tail -n 1 $*.log > $*.log1
 	echo -n Containers/$*":" > $@
 	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
