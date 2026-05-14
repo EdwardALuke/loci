@@ -18,10 +18,9 @@
 # along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 #
 ###############################################################################
-# SystemTests is a doctest harness for small executable checks that need the
-# linked Loci libraries.  Every compilable source file in this directory is
-# discovered automatically, linked into its own executable, and summarized in
-# TestResults.
+# LOCI_BASE should be set before the Makefile
+# Set TARGET to the name of your program
+# Set FILES to list '.loci' files that will be compiled into your module, or
 
 ###########################################################################
 # No changes required below this line
