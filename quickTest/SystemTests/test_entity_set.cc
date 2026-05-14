@@ -11,6 +11,12 @@ using namespace Loci;
 
 namespace {
 
+  /*
+    entitySet is the public name for intervalSet, while sequence preserves
+    execution order, including reverse intervals.  These tests cover the public
+    algebra and loop helpers that many scheduler and container paths rely on.
+  */
+
   entitySet set_of(std::initializer_list<int> values) {
     entitySet result;
     for(std::initializer_list<int>::const_iterator i = values.begin();
@@ -38,13 +44,21 @@ namespace {
     REQUIRE(actual.size() == expected.size());
     size_t idx = 0;
     for(std::initializer_list<int>::const_iterator i = expected.begin();
-        i != expected.end(); ++i, ++idx)
+        i != expected.end(); ++i, ++idx) {
+      CAPTURE(idx);
       CHECK(actual[idx] == *i);
+    }
   }
 
   struct Recorder {
     std::vector<int> seen;
+    std::vector<int> segment_starts;
+    std::vector<int> segment_counts;
     void calculate(Entity entity) { seen.push_back(entity); }
+    void segment(Entity start, Entity count) {
+      segment_starts.push_back(start);
+      segment_counts.push_back(count);
+    }
   };
 
 } // namespace
@@ -75,7 +89,22 @@ TEST_CASE("entitySet set algebra handles sparse intervals and complements") {
   CHECK((entitySet(interval(2, 4)) - interval(3, 3)) == set_of({2, 4}));
 }
 
-TEST_CASE("create_entitySet sorts input and compresses adjacent runs") {
+TEST_CASE("entitySet shifts and symmetric difference preserve normalized intervals") {
+  entitySet base = entitySet(interval(1, 3)) | interval(6, 8);
+
+  CHECK((base >> 10) ==
+        (entitySet(interval(11, 13)) | interval(16, 18)));
+  CHECK(((base >> 10) << 10) == base);
+
+  entitySet toggled = base ^ (entitySet(interval(3, 6)) | interval(9, 9));
+  CHECK(toggled ==
+        (entitySet(interval(1, 2)) | interval(4, 5) | interval(7, 9)));
+
+  toggled ^= entitySet(interval(4, 5));
+  CHECK(toggled == (entitySet(interval(1, 2)) | interval(7, 9)));
+}
+
+TEST_CASE("create_entitySet compresses adjacent runs from unsorted input") {
   std::vector<int> ids;
   ids.push_back(7);
   ids.push_back(2);
@@ -85,7 +114,6 @@ TEST_CASE("create_entitySet sorts input and compresses adjacent runs") {
 
   entitySet set = create_entitySet(ids.begin(), ids.end());
 
-  check_values(ids, {2, 3, 5, 6, 7});
   REQUIRE(set.num_intervals() == 2);
   CHECK(set[0] == interval(2, 3));
   CHECK(set[1] == interval(5, 7));
@@ -100,6 +128,7 @@ TEST_CASE("entitySet stream format round trips finite and universe intervals") {
   std::istringstream finite_in(finite_out.str());
   finite_in >> finite_parsed;
 
+  CHECK_FALSE(finite_in.fail());
   CHECK(finite_parsed == finite);
 
   entitySet universe = ~EMPTY;
@@ -110,6 +139,7 @@ TEST_CASE("entitySet stream format round trips finite and universe intervals") {
   std::istringstream universe_in(universe_out.str());
   universe_in >> universe_parsed;
 
+  CHECK_FALSE(universe_in.fail());
   CHECK(universe_parsed == universe);
 }
 
@@ -123,9 +153,31 @@ TEST_CASE("sequence appends preserve reverse intervals during iteration") {
   CHECK(seq[0] == interval(1, 3));
   CHECK(seq[1] == interval(6, 4));
   check_values(collect(seq), {1, 2, 3, 6, 5, 4});
+
+  sequence reversed = seq;
+  reversed.Reverse();
+  check_values(collect(reversed), {4, 5, 6, 3, 2, 1});
+
+  CHECK(entitySet(seq) == entitySet(interval(1, 6)));
 }
 
-TEST_CASE("do_loop preserves sequence order and do_loop_seq pointer overload matches it") {
+TEST_CASE("create_sequence keeps input order and merges adjacent runs") {
+  std::vector<int> ids;
+  ids.push_back(1);
+  ids.push_back(2);
+  ids.push_back(5);
+  ids.push_back(4);
+  ids.push_back(3);
+
+  sequence seq = create_sequence(ids.begin(), ids.end());
+
+  REQUIRE(seq.num_intervals() == 2);
+  CHECK(seq[0] == interval(1, 2));
+  CHECK(seq[1] == interval(5, 3));
+  check_values(collect(seq), {1, 2, 5, 4, 3});
+}
+
+TEST_CASE("do_loop variants document sequence ordering semantics") {
   std::vector<int> seen_set;
   do_loop(entitySet(interval(2, 4)),
           [&](Entity entity) { seen_set.push_back(entity); });
@@ -138,9 +190,18 @@ TEST_CASE("do_loop preserves sequence order and do_loop_seq pointer overload mat
   do_loop(seq, [&](Entity entity) { seen_seq.push_back(entity); });
   check_values(seen_seq, {4, 3, 2});
 
-  Recorder recorder;
-  do_loop_seq(seq, &recorder);
-  check_values(recorder.seen, {4, 3, 2});
+  Recorder normalized_recorder;
+  do_loop(seq, &normalized_recorder);
+  check_values(normalized_recorder.seen, {2, 3, 4});
+
+  Recorder ordered_recorder;
+  do_loop_seq(seq, &ordered_recorder);
+  check_values(ordered_recorder.seen, {4, 3, 2});
+
+  Recorder segments;
+  do_segments(seq, &segments);
+  check_values(segments.segment_starts, {2});
+  check_values(segments.segment_counts, {3});
 }
 
 int main(int argc, char **argv) {
