@@ -132,28 +132,28 @@ namespace Loci {
   extern bool collect_memory_info ;
   extern bool show_graphs ;
   extern void deco_depend_gr(digraph& gr,const variableSet& given) ;
-  extern bool threading_pointwise ;
-  extern bool threading_global_reduction ;
-  extern bool threading_local_reduction ;
-  extern bool threading_chomping ;
-  extern bool threading_recursion ;
-  extern int num_threads ;
-  extern int num_thread_blocks ;
-  //
-  int num_threaded_pointwise = 0 ;
-  int num_total_pointwise = 0 ;
+  extern bool threading_pointwise;
+  extern bool threading_global_reduction;
+  extern bool threading_local_reduction;
+  extern bool threading_chomping;
+  extern bool threading_recursion;
+  extern int num_threads;  
+  extern int num_thread_blocks;
+  // 
+  int num_threaded_pointwise = 0;
+  int num_total_pointwise = 0;
 
-  int num_threaded_global_reduction = 0 ;
-  int num_total_global_reduction = 0 ;
+  int num_threaded_global_reduction = 0;
+  int num_total_global_reduction = 0;
 
-  int num_threaded_local_reduction = 0 ;
-  int num_total_local_reduction = 0 ;
+  int num_threaded_local_reduction = 0;
+  int num_total_local_reduction = 0;
 
-  int num_threaded_chomping = 0 ;
-  int num_total_chomping = 0 ;
+  int num_threaded_chomping = 0;
+  int num_total_chomping = 0;
 
-  int num_threaded_recursion = 0 ;
-  int num_total_recursion = 0 ;
+  int num_threaded_recursion = 0;
+  int num_total_recursion = 0;
   ////////////////////////////
 
   namespace {
@@ -177,27 +177,18 @@ namespace Loci {
     }
   } // end of unnamed namespace
 
-  //---------------------------------------------------------------------------
-  // Graph Visualization Helpers
-  //---------------------------------------------------------------------------
-  // These helpers emit Graphviz DOT files for scheduler dependency graphs and
-  // decomposed multi-level graphs used during debugging.
-
-  /// @brief Writes a Graphviz DOT file for a dependency graph.
-  ///
-  /// Rules are rendered as gold nodes and variables as green nodes. Nodes with
-  /// no incoming edges are recolored red, and nodes with no outgoing edges are
-  /// recolored blue.
-  ///
-  /// @param[in] dg Dependency graph to serialize.
-  /// @param[in] fname Output filename for the DOT description.
-  void create_digraph_dot_file(const digraph &dg, const char* fname) {
+  ////////////////////////////////////////////////////////////////////
+  // the following part are functions to visualize loci internal graphs
+  // they create files to be used by "dot", "lefty" and "dotty"
+  // programs from AT&T research
+  void create_digraph_dot_file(const digraph &dg, const char* fname)
+  {
     digraph dgt = dg.transpose() ;
     digraph::vertexSet allvertices = dg.get_all_vertices() ;
     digraph::vertexSet::const_iterator ri ;
     ofstream outf(fname) ;
 
-    outf << "digraph G {\n" ;
+    outf<<"digraph G {\n" ;
     //outf<<"size = \"8.5,11\";\n" ;
 
     for(ri=allvertices.begin();ri!=allvertices.end();++ri) {
@@ -208,32 +199,32 @@ namespace Loci {
       if(*ri < 0) {
         rule r(*ri) ;
         if(r.type() == rule::INTERNAL)
-          outf << "\"" << pretty_sig(r) << "\""
-               << "[shape=doubleoctagon,style=filled,color=gold];\n" ;
+          outf<<"\""<<pretty_sig(r)<<"\""
+              <<"[shape=doubleoctagon,style=filled,color=gold];\n" ;
         else
-          outf << "\"" << pretty_sig(r) << "\""
-               << "[shape=box,style=filled,color=gold];\n" ;
+          outf<<"\""<<pretty_sig(r)<<"\""
+              <<"[shape=box,style=filled,color=gold];\n" ;
       }
       else {
         variable v(*ri) ;
-        outf << "\"" << v << "\"" << "[style=filled,color=green];\n" ;
+        outf<<"\""<<v<<"\""<<"[style=filled,color=green];\n" ;
       }
       if(incomevertices == EMPTY) {
         if(*ri >= 0) {
           variable v(*ri) ;
-          outf << "\"" << v << "\"" << "[style=filled,color=red];\n" ;
+          outf<<"\""<<v<<"\""<<"[style=filled,color=red];\n" ;
         }else {
           rule r(*ri) ;
-          outf << "\"" << pretty_sig(r) << "\"" << "[style=filled,color=red];\n" ;
+          outf<<"\""<<pretty_sig(r)<<"\""<<"[style=filled,color=red];\n" ;
         }
       }
       if(outvertices == EMPTY) {
         if(*ri >= 0) {
           variable v(*ri) ;
-          outf << "\"" << v << "\"" << "[style=filled,color=blue];\n" ;
+          outf<<"\""<<v<<"\""<<"[style=filled,color=blue];\n" ;
         }else {
           rule r(*ri) ;
-          outf << "\"" << pretty_sig(r) << "\"" << "[style=filled,color=blue];\n" ;
+          outf<<"\""<<pretty_sig(r)<<"\""<<"[style=filled,color=blue];\n" ;
         }
         continue ;
       }
@@ -244,36 +235,33 @@ namespace Loci {
         for(ii=outvertices.begin();ii!=outvertices.end();++ii) {
           if(*ii < 0) {
             rule r2(*ii) ;
-            outf << "\"" << pretty_sig(r) << "\"" << " -> "
-                 << "\"" << pretty_sig(r2) << "\"" << ";\n" ;
-          } else {
+            outf<<"\""<<pretty_sig(r)<<"\""<<" -> "
+                <<"\""<<pretty_sig(r2)<<"\""<<";\n" ;
+          }else {
             variable v(*ii) ;
-            outf << "\"" << pretty_sig(r) << "\"" << " -> " << "\"" << v << "\"" << ";\n" ;
+            outf<<"\""<<pretty_sig(r)<<"\""<<" -> "<<"\""<<v<<"\""<<";\n" ;
           }
         }
-      } else {
+      }else {
         variable v(*ri) ;
         digraph::vertexSet::const_iterator ii ;
         for(ii=outvertices.begin();ii!=outvertices.end();++ii) {
           if(*ii < 0) {
             rule r(*ii) ;
-            outf << "\"" << v << "\"" << " -> " << "\"" << pretty_sig(r) << "\"" << ";\n" ;
-          } else {
+            outf<<"\""<<v<<"\""<<" -> "<<"\""<<pretty_sig(r)<<"\""<<";\n" ;
+          }else {
             variable v2(*ii) ;
-            outf << "\"" << v << "\"" << " -> " << "\"" << v2 << "\"" << ";\n" ;
+            outf<<"\""<<v<<"\""<<" -> "<<"\""<<v2<<"\""<<";\n" ;
           }
         }
       }
     }
-    outf << "}\n" ;
+    outf<<"}\n" ;
     outf.close() ;
   }
 
-  /// @brief Returns whether a graph vertex id names a scheduler super-node.
-  ///
-  /// @param[in] rid Graph vertex id to classify.
-  /// @return True when `rid` is a rule whose qualifier begins with `SN`.
-  bool is_super_rule(int rid) {
+  bool is_super_rule(int rid)
+  {
     if(rid >= 0) // a variable
       return false ;
     rule r(rid) ;
@@ -282,12 +270,8 @@ namespace Loci {
     return (rqualifier.substr(0,2) == "SN") ;
   }
 
-  /// @brief Builds the Graphviz cluster name associated with a super-node.
-  ///
-  /// @param[in] rid Rule vertex id whose qualifier is expected to begin with
-  ///   `SN`.
-  /// @return Cluster name used in Graphviz `lhead` and `ltail` attributes.
-  std::string get_assigned_cluster_name(int rid) {
+  std::string get_assigned_cluster_name(int rid)
+  {
     rule r(rid) ;
     std::string rqualifier = r.get_info().qualifier() ;
     // reads until ':'
@@ -301,15 +285,11 @@ namespace Loci {
     return clustername ;
   }
 
-  /// @brief Emits outgoing DOT edges from a super-node cluster to its targets.
-  ///
-  /// @param[in] mlg Multi-level graph that owns the super-node hierarchy.
-  /// @param[in] rid Super-node rule id whose cluster is the edge source.
-  /// @param[in] targets Vertices reached from `rid` in the current subgraph.
-  /// @param[in,out] outf Stream that receives the generated DOT edges.
+  // given rid is a supernode, connect it to its targets
   void writeout_super_rule(multiLevelGraph &mlg, int rid,
                            const digraph::vertexSet &targets,
-                           std::ofstream &outf) {
+                           std::ofstream &outf)
+  {
     int repnode = *(mlg.find(rid)->graph_v-mlg.subgraphs).begin() ;
     // if the picked node is a rule
     if(repnode < 0) {
@@ -322,28 +302,28 @@ namespace Loci {
             int repnode2 = *(mlg.find(*ii)->graph_v-mlg.subgraphs).begin() ;
             if(repnode2 < 0) { // if the picked node is a rule
               rule r2(repnode2) ;
-              outf << "\"" << pretty_sig(r) << "\"" << " -> " << "\""
-                   << pretty_sig(r2) << "\""
-                   << "[style=dotted,color=red,ltail="
-                   << get_assigned_cluster_name(rid) << ",lhead="
-                   << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
+              outf<<"\""<<pretty_sig(r)<<"\""<<" -> "<<"\""
+                  <<pretty_sig(r2)<<"\""
+                  <<"[style=dotted,color=red,ltail="
+                  << get_assigned_cluster_name(rid) << ",lhead="
+                  << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
             }else { // the picked node is a variable
               variable v2(repnode2) ;
-              outf << "\"" << pretty_sig(r) << "\"" << " -> " << "\"" << v2 << "\""
-                   << "[style=dotted,color=red,ltail="
-                   << get_assigned_cluster_name(rid) << ",lhead="
-                   << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
+              outf<<"\""<<pretty_sig(r)<<"\""<<" -> "<<"\""<<v2<<"\""
+                  <<"[style=dotted,color=red,ltail="
+                  << get_assigned_cluster_name(rid) << ",lhead="
+                  << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
             }
           }else { // if the target rule is a common single rule
             rule r2(*ii) ;
-            outf << "\"" << pretty_sig(r) << "\"" << " -> " << "\"" << pretty_sig(r2) << "\""
-                 << "[style=dotted,color=red,ltail="
-                 << get_assigned_cluster_name(rid) << "]" << ";\n" ;
+            outf<<"\""<<pretty_sig(r)<<"\""<<" -> "<<"\""<<pretty_sig(r2)<<"\""
+                <<"[style=dotted,color=red,ltail="
+                << get_assigned_cluster_name(rid) << "]" << ";\n" ;
           }
         }else { // if the target is variable
           variable v2(*ii) ;
-          outf << "\"" << pretty_sig(r) << "\"" << " -> " << "\"" << v2 << "\""
-              << "[style=dotted,color=red,ltail="
+          outf<<"\""<<pretty_sig(r)<<"\""<<" -> "<<"\""<<v2<<"\""
+              <<"[style=dotted,color=red,ltail="
               << get_assigned_cluster_name(rid) << "]" << ";\n" ;
         }
       }
@@ -357,41 +337,38 @@ namespace Loci {
             int repnode2 = *(mlg.find(*ii)->graph_v-mlg.subgraphs).begin() ;
             if(repnode2 < 0) { // if the picked node is a rule
               rule r2(repnode2) ;
-              outf << "\"" << v << "\"" << " -> " << "\"" << pretty_sig(r2) << "\""
-                   << "[style=dotted,color=red,ltail="
-                   << get_assigned_cluster_name(rid) << ",lhead="
-                   << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
+              outf<<"\""<<v<<"\""<<" -> "<<"\""<<pretty_sig(r2)<<"\""
+                  <<"[style=dotted,color=red,ltail="
+                  << get_assigned_cluster_name(rid) << ",lhead="
+                  << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
             }else { // the picked node is a variable
               variable v2(repnode2) ;
-              outf << "\"" << v << "\"" << " -> " << "\"" << v2 << "\""
-                   << "[style=dotted,color=red,ltail="
-                   << get_assigned_cluster_name(rid) << ",lhead="
-                   << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
+              outf<<"\""<<v<<"\""<<" -> "<<"\""<<v2<<"\""
+                  <<"[style=dotted,color=red,ltail="
+                  << get_assigned_cluster_name(rid) << ",lhead="
+                  << get_assigned_cluster_name(*ii) << "]" << ";\n" ;
             }
           }else { // if the target rule is a common single rule
             rule r2(*ii) ;
-            outf << "\"" << v << "\"" << " -> " << "\"" << pretty_sig(r2) << "\""
-                 << "[style=dotted,color=red,ltail="
-                 << get_assigned_cluster_name(rid) << "]" << ";\n" ;
+            outf<<"\""<<v<<"\""<<" -> "<<"\""<<pretty_sig(r2)<<"\""
+                <<"[style=dotted,color=red,ltail="
+                << get_assigned_cluster_name(rid) << "]" << ";\n" ;
           }
         }else { // if the target is variable
           variable v2(*ii) ;
-          outf << "\"" << v << "\"" << " -> " << "\"" << v2 << "\""
-               << "[style=dotted,color=red,ltail="
-               << get_assigned_cluster_name(rid) << "]" << ";\n" ;
+          outf<<"\""<<v<<"\""<<" -> "<<"\""<<v2<<"\""
+              <<"[style=dotted,color=red,ltail="
+              << get_assigned_cluster_name(rid) << "]" << ";\n" ;
         }
       }
     }
   }
 
-  /// @brief Emits a DOT edge from a regular vertex into a super-node cluster.
-  ///
-  /// @param[in] mlg Multi-level graph that owns the target super-node.
-  /// @param[in] sid Source vertex id that is not itself a super-node.
-  /// @param[in] tid Target rule id that represents a super-node cluster.
-  /// @param[in,out] outf Stream that receives the generated DOT edge.
+  // given sid is a NON-super node, tid IS a super node
+  // connect sid to tid
   void writeout_super_rule2(multiLevelGraph &mlg, int sid, int tid,
-                            std::ofstream &outf) {
+                            std::ofstream &outf)
+  {
     if(sid < 0) { // sid is a rule
       rule srule(sid) ;
 
@@ -399,14 +376,14 @@ namespace Loci {
       int repnode = *(mlg.find(tid)->graph_v-mlg.subgraphs).begin() ;
       if(repnode < 0) { // if the picked node is a rule
         rule r2(repnode) ;
-        outf << "\"" << srule << "\"" << " -> " << "\"" << pretty_sig(r2) << "\""
-             << "[style=dotted,color=red,lhead="
-             << get_assigned_cluster_name(tid) << "]" << ";\n" ;
+        outf<<"\""<<srule<<"\""<<" -> "<<"\""<<pretty_sig(r2)<<"\""
+            <<"[style=dotted,color=red,lhead="
+            << get_assigned_cluster_name(tid) << "]" << ";\n" ;
       }else { // the picked node is a variable
         variable v2(repnode) ;
-        outf << "\"" << srule << "\"" << " -> " << "\"" << v2 << "\""
-             << "[style=dotted,color=red,lhead="
-             << get_assigned_cluster_name(tid) << "]" << ";\n" ;
+        outf<<"\""<<srule<<"\""<<" -> "<<"\""<<v2<<"\""
+            <<"[style=dotted,color=red,lhead="
+            << get_assigned_cluster_name(tid) << "]" << ";\n" ;
       }
     }else { // sid is a variable
       variable sv(sid) ;
@@ -415,28 +392,23 @@ namespace Loci {
       int repnode = *(mlg.find(tid)->graph_v-mlg.subgraphs).begin() ;
       if(repnode < 0) { // if the picked node is a rule
         rule r2(repnode) ;
-        outf << "\"" << sv << "\"" << " -> " << "\"" << pretty_sig(r2) << "\""
-             << "[style=dotted,color=red,lhead="
-             << get_assigned_cluster_name(tid) << "]" << ";\n" ;
+        outf<<"\""<<sv<<"\""<<" -> "<<"\""<<pretty_sig(r2)<<"\""
+            <<"[style=dotted,color=red,lhead="
+            << get_assigned_cluster_name(tid) << "]" << ";\n" ;
       }else { // the picked node is a variable
         variable v2(repnode) ;
-        outf << "\"" << sv << "\"" << " -> " << "\"" << v2 << "\""
-             << "[style=dotted,color=red,lhead="
-             << get_assigned_cluster_name(tid) << "]" << ";\n" ;
+        outf<<"\""<<sv<<"\""<<" -> "<<"\""<<v2<<"\""
+            <<"[style=dotted,color=red,lhead="
+            << get_assigned_cluster_name(tid) << "]" << ";\n" ;
       }
     }
   }
 
-  /// @brief Recursively emits DOT subgraphs for a super-node hierarchy.
-  ///
-  /// This helper assigns graph vertices to the cluster that owns them, then
-  /// descends into any nested super-nodes. It only lays out cluster contents;
-  /// edge emission is handled separately by `fill_mlg_edges()`.
-  ///
-  /// @param[in] mlg Multi-level graph to serialize.
-  /// @param[in] sid Super-node id whose cluster should be emitted.
-  /// @param[in,out] outf Stream that receives the cluster layout.
-  void layout_super_node(multiLevelGraph &mlg, int sid, std::ofstream &outf) {
+  // recursively layout from the toplevel to the bottom
+  // this function just lists which nodes belongs to which cluster(supernode)
+  // and does not do connections.
+  void layout_super_node(multiLevelGraph &mlg, int sid, std::ofstream &outf)
+  {
     static int baseclustercounter = 0 ;
     // colors that fill the clusters
     static vector<string> cluster_color ;
@@ -494,24 +466,24 @@ namespace Loci {
 
         if(*ri < 0) {
           rule r(*ri) ;
-          if(r.type() == rule::INTERNAL) {
-            outf << "\"" << pretty_sig(r) << "\""
-                 << "[shape=doubleoctagon,style=filled,color=gold];\n" ;
-          } else {
-            outf << "\"" << pretty_sig(r) << "\""
-                 << "[shape=box,style=filled,color=gold];\n" ;
-          }
-        } else {
+          if(r.type() == rule::INTERNAL)
+            outf<<"\""<<pretty_sig(r)<<"\""
+                <<"[shape=doubleoctagon,style=filled,color=gold];\n" ;
+          else
+            outf<<"\""<<pretty_sig(r)<<"\""
+                <<"[shape=box,style=filled,color=gold];\n" ;
+        }
+        else {
           variable v(*ri) ;
-          outf << "\"" << v << "\"" << "[style=filled,color=green];\n" ;
+          outf<<"\""<<v<<"\""<<"[style=filled,color=green];\n" ;
         }
         if(incomevertices == EMPTY) {
           variable v(*ri) ;
-          outf << "\"" << v << "\"" << "[style=filled,color=red];\n" ;
+          outf<<"\""<<v<<"\""<<"[style=filled,color=red];\n" ;
         }
         if(outvertices == EMPTY) {
           variable v(*ri) ;
-          outf << "\"" << v << "\"" << "[style=filled,color=blue];\n" ;
+          outf<<"\""<<v<<"\""<<"[style=filled,color=blue];\n" ;
           continue ;
         }
       }
@@ -530,13 +502,9 @@ namespace Loci {
     outf << "}" << '\n' ;
   }
 
-  /// @brief Emits inter-vertex and inter-cluster edges for a multi-level graph.
-  ///
-  /// @param[in] mlg Multi-level graph whose edges should be serialized.
-  /// @param[in] sid Unused root super-node id retained by this helper
-  ///   interface.
-  /// @param[in,out] outf Stream that receives the generated DOT edges.
-  void fill_mlg_edges(multiLevelGraph &mlg, int sid, std::ofstream &outf) {
+  // connect all the nodes together
+  void fill_mlg_edges(multiLevelGraph &mlg, int sid, std::ofstream &outf)
+  {
     // get all the levels of the multi level graph
     vector<int> levels ;
     digraph::vertexSet working ;
@@ -584,14 +552,14 @@ namespace Loci {
                   writeout_super_rule2(mlg,*ri,*ii,outf) ;
                 }else {// the rule is a common single rule
                   rule r2(*ii) ;
-                  outf << "\"" << pretty_sig(r) << "\"" << " -> "
-                       << "\"" << pretty_sig(r2) << "\""
-                       << "[style=bold,color=" << edge_color << "]" << ";\n" ;
+                  outf<<"\""<<pretty_sig(r)<<"\""<<" -> "
+                      <<"\""<<pretty_sig(r2)<<"\""
+                      <<"[style=bold,color="<<edge_color<<"]"<<";\n" ;
                 }
               }else {// the target is a variable
                 variable v(*ii) ;
-                outf << "\"" << pretty_sig(r) << "\"" << " -> " << "\"" << v << "\""
-                     << "[style=bold,color=" << edge_color << "]" << ";\n" ;
+                outf<<"\""<<pretty_sig(r)<<"\""<<" -> "<<"\""<<v<<"\""
+                    <<"[style=bold,color="<<edge_color<<"]"<<";\n" ;
               }
             }
           }
@@ -604,13 +572,13 @@ namespace Loci {
                 writeout_super_rule2(mlg,*ri,*ii,outf) ;
               }else {// the rule is a common single rule
                 rule r(*ii) ;
-                outf << "\"" << v << "\"" << " -> " << "\"" << pretty_sig(r) << "\""
-                     << "[style=bold,color=" << edge_color << "]" << ";\n" ;
+                outf<<"\""<<v<<"\""<<" -> "<<"\""<<pretty_sig(r)<<"\""
+                    <<"[style=bold,color="<<edge_color<<"]"<<";\n" ;
               }
             }else {// the target is a variable
               variable v2(*ii) ;
-              outf << "\"" << v << "\"" << " -> " << "\"" << v2 << "\""
-                   << "[style=bold,color=" << edge_color << "]" << ";\n" ;
+              outf<<"\""<<v<<"\""<<" -> "<<"\""<<v2<<"\""
+                  <<"[style=bold,color="<<edge_color<<"]"<<";\n" ;
             }
           }
         }
@@ -618,14 +586,8 @@ namespace Loci {
     }
   }
 
-  /// @brief Writes a Graphviz DOT file for a decomposed scheduler graph.
-  ///
-  /// The generated DOT enables compound edges so dependencies can connect into
-  /// and out of nested super-node clusters.
-  ///
-  /// @param[in] deco Decomposed graph whose multi-level structure is emitted.
-  /// @param[in] fname Output filename for the DOT description.
-  void create_mlg_dot_file(decomposed_graph &deco, const char* fname) {
+  void create_mlg_dot_file(decomposed_graph &deco, const char* fname)
+  {
     multiLevelGraph &mlg = deco.mlg ;
 
     // out put dot file
@@ -642,14 +604,10 @@ namespace Loci {
     outf.close() ;
   }
 
-  /// @brief Displays each super-node subgraph as a temporary Graphviz view.
-  ///
-  /// This debugging helper walks the multi-level graph from the top level down,
-  /// writes a DOT file for each level, invokes `dotty`, and then removes the
-  /// temporary file.
-  ///
-  /// @param[in] deco Decomposed graph whose super-node contents are visualized.
-  void visualize_mlg(decomposed_graph &deco) {
+  // visualize the content of each super node
+  // from the toplevel down to the bottom
+  void visualize_mlg(decomposed_graph &deco)
+  {
     multiLevelGraph &mlg = deco.mlg ;
     // get all the levels of the multi level graph
     vector<int> levels ;
@@ -688,22 +646,18 @@ namespace Loci {
       cout << "This is super node: " << "SN" << levelcounter-2 << '\n' ;
       int err = system(cmd.c_str()) ;
       if(err != 0)
-	      cerr << "system call returned " << err << " in call '" << cmd << "'"
-	           << endl ;
+	cerr << "system call returned " << err << " in call '" << cmd << "'" 
+	     << endl ;
 
       // rm the generated "dot" file
       cmd = "rm -fr " ;
       cmd += sname ;
       err = system(cmd.c_str()) ;
       if(err != 0)
-      cerr << "system call returned " << err << " on system('"
-           << cmd << "')" << endl ;
+	cerr << "system call returned " << err << " on system('"
+	     << cmd << "')" << endl ;
     }
   }
-
-  //---------------------------------------------------------------------------
-  // End Graph Visualization Helpers
-  //---------------------------------------------------------------------------
 
   void prune_graph(digraph& gr, variableSet& given,
                    const variableSet& target, fact_db& facts) {
@@ -732,7 +686,6 @@ namespace Loci {
 
   extern rule_db rename_gpu_containers(fact_db  &facts,
 				       const rule_db &rdb) ;
-
 #define ENABLE_RELATION_GEN
   executeP create_execution_schedule(const rule_db &rdb,
                                      fact_db &facts,
@@ -775,10 +728,10 @@ namespace Loci {
     if(Loci::MPI_rank==0)
       cout << "generating dependency graph..." << endl ;
 
-
+    
     stopWatch sw ;
     sw.start() ;
-
+	
     digraph gr ;
 
     given -= variable("EMPTY") ;
@@ -799,9 +752,10 @@ namespace Loci {
         create_digraph_dot_file(gr,"dependgr.dot") ;
         std::string cmd = dottycmd + "dependgr.dot" ;
         int err = system(cmd.c_str()) ;
-        if(err != 0)
-          cerr << "system call returned " << err << " on system('"
-               << cmd << "')" << endl ;
+	if(err != 0)
+	  cerr << "system call returned " << err << " on system('"
+	       << cmd << "')" << endl ;
+	
       }
     }
     ////////////////////////////////////////////////////////////////////////
@@ -831,9 +785,9 @@ namespace Loci {
         create_mlg_dot_file(decomp,"decogr.dot") ;
         std::string cmd = dottycmd + "decogr.dot&" ;
         int err = system(cmd.c_str()) ;
-        if(err != 0)
-          cerr << "system call returned " << err << " on system('"
-               << cmd << "')" << endl ;
+	if(err != 0)
+	  cerr << "system call returned " << err << " on system('"
+	       << cmd << "')" << endl ;
         visualize_mlg(decomp) ;
       }
     }
@@ -852,26 +806,26 @@ namespace Loci {
       //For regular execution it won't affect the schedule but for duplication of work,
       //it is required for saving communication.
       if(isMAP(vp)) {
-        if(facts.isDistributed()) {
-          entitySet exist = scheds.variable_existence(*vi);
-          exist = fill_entitySet(exist, facts);
-          scheds.set_variable_existence(*vi, exist);
-        }
+	if(facts.isDistributed()) {
+	  entitySet exist = scheds.variable_existence(*vi);
+	  exist = fill_entitySet(exist, facts);
+	  scheds.set_variable_existence(*vi, exist);
+	}
       }
       if(variable(*vi).time().level_name() == "*" ) {
-        if(isSTORE(vp)) {
-          ostringstream oss ;
-          oss << "source(" <<"EMPTY"<<')' ;
-          oss << ",target(" << *vi << ')' ;
-          string sig = oss.str() ;
-          rule r(sig) ;
-          if(par_rdb.rules_by_target(*vi) == EMPTY) {
-            if(facts.isDistributed()) {
-              scheds.set_existential_info(*vi, r, scheds.variable_existence(*vi));
-              initial_vars += *vi ;
-            }
-          }
-        }
+	if(isSTORE(vp)) {
+	  ostringstream oss ;
+	  oss << "source(" <<"EMPTY"<<')' ;
+	  oss << ",target(" << *vi << ')' ;
+	  string sig = oss.str() ;
+	  rule r(sig) ;
+	  if(par_rdb.rules_by_target(*vi) == EMPTY) {
+	    if(facts.isDistributed()) {
+	      scheds.set_existential_info(*vi, r, scheds.variable_existence(*vi));
+	      initial_vars += *vi ;
+	    }
+	  }
+	}
       }
     }
     Loci::debugout << " initial_vars = " << initial_vars << endl ;
@@ -879,62 +833,61 @@ namespace Loci {
     if(duplicate_work) {
 #ifdef DUPLICATE_DATA_FILE
       if(use_duplicate_model) {
-        std::ifstream fin(model_file) ;
-        if(!fin) {
-          cerr << "Error: Opening the model file " << model_file << endl ;
-          cerr << "Using default duplication policies." << endl ;
-          use_duplicate_model = false;
-        }
+	std::ifstream fin(model_file);
+	if(!fin) {
+	  cerr << "Error: Opening the model file " << model_file << endl;
+	  cerr << "Using default duplication policies." << endl;
+	  use_duplicate_model = false;
+	}
+	
+	if(use_duplicate_model) {
+	      double comm_ts, comm_tw;
+	      double comm_ts1, comm_ts2;
+	      fin >> comm_ts1 >> comm_ts2 >> comm_tw;
+	      comm_ts = comm_ts2;
+	      
+	      if(comm_tw < 0)
+		    comm_tw = 0;
 
-        if(use_duplicate_model) {
-          double comm_ts, comm_tw;
-          double comm_ts1, comm_ts2;
-          fin >> comm_ts1 >> comm_ts2 >> comm_tw;
-          comm_ts = comm_ts2;
+	      unsigned int count;
+	      fin >> count;
 
-          if(comm_tw < 0)
-          comm_tw = 0;
-
-          unsigned int count;
-          fin >> count;
-
-          map<rule, pair<double, double> > comp_info;
-          string  rule_name;
-          double ts, tw;
-          double ts1, ts2;
-          for(unsigned int i = 0; i < count; i++) {
-            fin >> rule_name >> ts1 >> ts2 >> tw;
-            ts = ts2;
-            if(tw < 0)
-            tw = 0;
-
-            pair<double, double> tmpModel(ts, tw);
-            rule myRule = rule::get_rule_by_name(rule_name);
-            if(myRule.get_info().name() == "NO_RULE") {
-              cerr << "Warning (Rule Ignored): " << rule_name
-                   << " read from model file is not in rule database" << endl;
-            } else {
-              comp_info[myRule] = tmpModel;
-            }
-          }
-          scheds.add_model_info(comm_ts, comm_tw, comp_info);
-        }
+	      map<rule, pair<double, double> > comp_info;
+	      string  rule_name;
+	      double ts, tw;
+	      double ts1, ts2;
+	      for(unsigned int i = 0; i < count; i++) {
+		    fin >> rule_name >> ts1 >> ts2 >> tw;
+		    ts = ts2;
+		    if(tw < 0)
+			  tw = 0;
+		    
+		    pair<double, double> tmpModel(ts, tw);
+		    rule myRule = rule::get_rule_by_name(rule_name);
+		    if(myRule.get_info().name() == "NO_RULE") {
+			  cerr << "Warning (Rule Ignored): " << rule_name << " read from model file is not in rule database" << endl;
+		    }
+		    else
+			  comp_info[myRule] = tmpModel;
+	      }
+	      scheds.add_model_info(comm_ts, comm_tw, comp_info);	
+	}
       }
 #endif
     }
 
     graph_compiler compile_graph(decomp, initial_vars) ;
     compile_graph.compile(facts,scheds,given,target) ;
-
+	
     Loci::debugout << "Time taken for graph processing  = "
                    << sw.stop() << "  seconds " << endl ;
 
     if(Loci::MPI_rank==0)
       cout << "existential analysis..." << endl ;
     sw.start() ;
-
+      
     compile_graph.existential_analysis(facts, scheds) ;
-
+      
     Loci::debugout << "Time taken for existential_analysis  = "
                    << sw.stop() << "  seconds " << endl ;
     ///////////////////////////////////
@@ -949,7 +902,7 @@ namespace Loci {
     if(Loci::MPI_rank==0) {
 #ifdef PTHREADS
       if(threading_pointwise || threading_global_reduction
-         || threading_local_reduction || threading_chomping
+         || threading_local_reduction || threading_chomping 
          || threading_recursion) {
         cout << "creating multithreaded execution schedule ("
              << num_threads << " threads per MPI process, "
@@ -966,12 +919,12 @@ namespace Loci {
         if(threading_recursion)
           cout << "[recursive] ";
         cout << "rules" << endl;
-      } else
+      } else 
 #endif
         cout << "creating execution schedule..." << endl;
     }
     sw.start() ;
-
+    
     executeP sched =  compile_graph.execution_schedule
       (facts,scheds,initial_vars) ;
     Loci::debugout << "Time taken for create execution schedule = "
@@ -996,6 +949,7 @@ namespace Loci {
       sched->Print(sched_file) ;
       sched_file.close() ;
 
+
       Loci::Abort() ;
     }
     //scheds.print_summary(facts,Loci::debugout) ;
@@ -1017,9 +971,9 @@ namespace Loci {
       double totalTime, maxTime, meanTime ;
       double totalEvents ;
       double maxEvents ;
-      bool operator <(const timingData &d) const {
-        return (max(accumTime.getTime(),maxTime) <
-                max(d.accumTime.getTime(),d.maxTime)) ;
+bool operator <(const timingData &d) const {
+        return (max(accumTime.getTime(),maxTime) < 
+		max(d.accumTime.getTime(),d.maxTime)) ;
       }
       timingData() : eventType(EXEC_CONTROL),totalTime(0),maxTime(0),meanTime(0),totalEvents(0),maxEvents(0) {}
     } ;
@@ -1028,60 +982,53 @@ namespace Loci {
     struct schedData {
       std::string eventName;
       double bytes;
-      bool operator<(const schedData& s) const {
-        return bytes < s.bytes ;
-      }
-    } ;
-    std::list<schedData> sched_data ;
+      bool operator<(const schedData& s) const
+      { return bytes < s.bytes; }
+    };
+    std::list<schedData> sched_data;
     struct cmpSchedName {
-      bool operator()(const schedData& s1, const schedData& s2) const {
-        return s1.eventName < s2.eventName ;
-      }
+      bool operator()(const schedData& s1, const schedData& s2) const
+      { return s1.eventName < s2.eventName; }
     };
     struct cacheData {
-      std::string eventName ;
-      long_long l1_dcm ;
-      long_long l2_dcm ;
-      bool operator<(const cacheData& c) const {
-        return l1_dcm < c.l1_dcm ;
-      }
-    } ;
-    std::list<cacheData> cache_data ;
+      std::string eventName;
+      long_long l1_dcm;
+      long_long l2_dcm;
+      bool operator<(const cacheData& c) const
+      { return l1_dcm < c.l1_dcm; }
+    };
+    std::list<cacheData> cache_data;
   public:
 
     void accumulateTime(const timeAccumulator &ta, executeEventType t,
                         string eventName) ;
-
     void accumulateMemory(const std::string &var,
                           allocEventType t,
                           double maxMallocMemory,
                           double maxBeanMemory) ;
-
     void accumulateSchedMemory(const std::string& eventName,
                                double bytes);
-
     void accumulateDCM(const std::string& eventName,
                        long_long l1_dcm, long_long l2_dcm);
-
+      
     double getComputeTime() ;
-
     double getTotalTime() ;
-
+    
     void balanceAnalysis(MPI_Comm comm) ;
 
     ostream &PrintSummary(ostream &s) ;
-
+    
   } ;
-
-  void collectTiming::accumulateTime(const timeAccumulator &ta,
-                                     executeEventType t, string eventName) {
+  
+  void collectTiming::accumulateTime(const timeAccumulator &ta, executeEventType t, string eventName) {
     timingData td ;
-    td.eventType = t ;
+    td.eventType =
+      t ;
     td.eventName = eventName ;
     td.accumTime = ta ;
     if(!groups.empty())
       td.groupName = groups[0] ;
-
+    
     for(size_t i=1;i<groups.size();++i) {
       td.groupName += ':' ;
       td.groupName += groups[i] ;
@@ -1096,25 +1043,27 @@ namespace Loci {
   }
 
   void collectTiming::accumulateSchedMemory(const std::string& eventName,
-                                            double bytes) {
-    schedData sd ;
-    sd.eventName = eventName ;
-    sd.bytes = bytes ;
-    sched_data.push_back(sd) ;
+                                            double bytes)
+  {
+    schedData sd;
+    sd.eventName = eventName;
+    sd.bytes = bytes;
+    sched_data.push_back(sd);
   }
 
   void collectTiming::accumulateDCM(const std::string& eventName,
-                                    long_long l1_dcm, long_long l2_dcm) {
-    cacheData cd ;
-    cd.eventName = eventName ;
-    cd.l1_dcm = l1_dcm ;
-    cd.l2_dcm = l2_dcm ;
-    cache_data.push_back(cd) ;
+                                    long_long l1_dcm, long_long l2_dcm)
+  {
+    cacheData cd;
+    cd.eventName = eventName;
+    cd.l1_dcm = l1_dcm;
+    cd.l2_dcm = l2_dcm;
+    cache_data.push_back(cd);
   }
 
   void collectTiming::balanceAnalysis(MPI_Comm comm)  {
     int np = 1 ;
-    int r =  0 ;
+    int r =  0; 
     MPI_Comm_size(comm,&np) ;
     MPI_Comm_rank(comm,&r) ;
     map<string,timingData> dataList ;
@@ -1122,11 +1071,12 @@ namespace Loci {
     std::list<timingData>::iterator  ti = timing_data.begin() ;
     // Collect timing data on this processor
     for(ti=timing_data.begin();ti!=timing_data.end();++ti) {
+      
       if((lp = dataList.find(ti->eventName)) != dataList.end()) {
-        debugout << "balanceAnalysis: event " << ti->eventName << " is duplicate!" << endl ;
-        lp->second.accumTime.addTime(ti->accumTime.getTime(),ti->accumTime.getEvents()) ;
+	debugout << "balanceAnalysis: event " << ti->eventName << " is duplicate!" << endl ;
+	lp->second.accumTime.addTime(ti->accumTime.getTime(),ti->accumTime.getEvents()) ;
       } else {
-	      dataList[ti->eventName] = *ti ;
+	dataList[ti->eventName] = *ti ;
       }
     }
     // Not all processors have the same data so we need to make it consistent
@@ -1138,7 +1088,7 @@ namespace Loci {
 
     // start with process 0 as the source of entry types
     int psource = 0 ;
-
+    
     // process unprocessed data until all processors have no unprocessed
     // data
     bool processmore = false ;
@@ -1147,56 +1097,51 @@ namespace Loci {
       MPI_Bcast(&lsz,1,MPI_INT,psource,comm) ;
       vector<int> sizes(lsz) ;
       if(r == psource) {
-        int i = 0 ;
-        for(si=unprocessed.begin();si!=unprocessed.end();++si) {
-          sizes[i++] = si->size() ;
-        }
+	int i = 0 ;
+	for(si=unprocessed.begin();si!=unprocessed.end();++si)
+	  sizes[i++] = si->size() ;
       }
       MPI_Bcast(&sizes[0],lsz,MPI_INT,psource,comm) ;
       int tot = 0 ;
-      for(int i=0;i<lsz;++i) {
-	      tot += sizes[i] ;
-      }
+      for(int i=0;i<lsz;++i)
+	tot += sizes[i] ;
       vector<char> data(tot) ;
       if(r == psource) {
-        int ii = 0 ;
-        int i = 0 ;
-        for(si=unprocessed.begin();si!=unprocessed.end();++si) {
-          string val = *si ;
-          for(int j=0;j<sizes[i];++j) {
-            data[ii++] =val[j] ;
-          }
-          i++ ;
-        }
+	int ii = 0 ;
+	int i = 0 ;
+	for(si=unprocessed.begin();si!=unprocessed.end();++si) {
+	  string val = *si ;
+	  for(int j=0;j<sizes[i];++j)
+	    data[ii++] =val[j] ;
+	  i++ ;
+	}
       }
       MPI_Bcast(&data[0],tot,MPI_BYTE,psource,comm) ;
       int ii = 0 ;
       for(int i=0;i<lsz;++i) {
-        string event ;
-        for(int j=0;j<sizes[i];++j) {
-          event += data[ii++] ;
-        }
-        if((si = unprocessed.find(event)) != unprocessed.end()) {
-          unprocessed.erase(si) ;
-        } else { // Not in my list so add entry to dataList
-          dataList[event] = timingData() ;
-        }
+	string event ;
+	for(int j=0;j<sizes[i];++j)
+	  event += data[ii++] ;
+	if((si = unprocessed.find(event)) != unprocessed.end()) {
+	  unprocessed.erase(si) ;
+	} else { // Not in my list so add entry to dataList
+	  dataList[event] = timingData() ;
+	}
       }
       int pcandidate = np ;
-      if(unprocessed.size() != 0) {
-	      pcandidate = r ;
-      }
+      if(unprocessed.size() != 0)
+	pcandidate = r ;
       MPI_Allreduce(&pcandidate,&psource, 1, MPI_INT,MPI_MIN,comm) ;
 
       processmore = (psource != np) ;
-
-    } while (processmore) ;
+			    
+    }  while (processmore) ;
 
     // Now that dataList is consistent across all processors, lets gather
     // data from all processors to get idea of load imbalances not visible from
     // any one processor
     int datasize = dataList.size() ;
-
+    
     vector<double> localTimes(datasize) ;
     vector<double> localEvents(datasize) ;
     int i = 0 ;
@@ -1253,37 +1198,34 @@ namespace Loci {
     s << " -- Computation:   " << totComp << endl ;
     s << " -- Communication: " << totComm << endl ;
     s << " -- Control:       " << totCtrl << endl ;
-    double totTime = totComp + totComm+totCtrl + 1e-30 ;
+    double totTime = totComp+totComm+totCtrl+1e-30 ;
     s << " -- totalTime:     " << totTime << endl ;
     s << endl ;
     s << "------------------------------------------------------------------------------" << endl ;
 
     std::list<timingData>::const_reverse_iterator rti = timing_data.rbegin() ;
     int lcnt = 10 ;
-    if(verbose) {
+    if(verbose)
       lcnt = timing_data.size() ;
-    }
     s << "Top " << lcnt << " Most Expensive Steps:" << endl ;
     lcnt = min(int(timing_data.size()),lcnt) ;
     for(int i =0;i<lcnt;++i,++rti) {
       s << i << "- " << rti->eventName << endl ;
-      if(rti->groupName != "") {
+      if(rti->groupName != "")
         s << " --- Group " << rti->groupName << endl ;
-      }
 
       double t = rti->accumTime.getTime() ;
       double e = double(rti->accumTime.getEvents()) ;
       s << " --- Local Time: " << t << " "
-        << ceil(1000.0*t/totTime)/10.0 << "% of total,"
+        << ceil(1000.0*t/totTime)/10.0 << "% of total," 
         <<  " time per entity: " << t/max(e,1.0)
         << endl ;
       double meanEvents = rti->totalEvents/double(MPI_processes) ;
       s << " === max " << rti->maxTime << ", mean = " << rti->meanTime
-	      << ", imbalance = " << 100.0*(rti->maxTime-rti->meanTime)/max(rti->meanTime,1e-10)<<"%" << endl	 ;
-      if(rti->eventType == EXEC_COMPUTATION) {
-	      s << " === partition imbalance =" <<  100.0*(rti->maxEvents-meanEvents)/max(meanEvents,1.0) << "%"
-	        << ", mean time per entity = " << rti->totalTime/max(rti->totalEvents,1.0) << endl;
-      }
+	<< ", imbalance = " << 100.0*(rti->maxTime-rti->meanTime)/max(rti->meanTime,1e-10)<<"%" << endl	 ;
+      if(rti->eventType == EXEC_COMPUTATION) 
+	s << " === partition imbalance =" <<  100.0*(rti->maxEvents-meanEvents)/max(meanEvents,1.0) << "%" 
+	  << ", mean time per entity = " << rti->totalTime/max(rti->totalEvents,1.0) << endl;
 
       // DEBUG
       s << " --- Type: " ;
@@ -1299,7 +1241,7 @@ namespace Loci {
         break ;
       }
       s << endl ;
-      ////////
+      ////////      
       s << "------------------------------------------------------------------------------" << endl ;
     }
 
@@ -1309,30 +1251,26 @@ namespace Loci {
       string group = ti->groupName ;
       vector<string> groups ;
       string working ;
-      for(size_t i=0;i<group.size();++i) {
+      for(size_t i=0;i<group.size();++i)
         if(group[i] == ':') {
-          if(working != "") {
+          if(working != "")
             groups.push_back(working) ;
-          }
           working = "" ;
         } else {
           working += group[i] ;
         }
-      }
-      if(working != "") {
+      if(working != "")
         groups.push_back(working) ;
-      }
-      for(size_t i=0;i<groups.size();++i) {
+      for(size_t i=0;i<groups.size();++i) 
         group_times[groups[i]] += ti->accumTime.getTime() ;
-      }
     }
 
     s << "----- Time per category:" << endl ;
     for(gi=group_times.begin();gi!=group_times.end();++gi) {
       double t = gi->second ;
-      s << "Group " << gi->first << " time = " << gi->second << ", "
+      s << "Group " << gi->first << " time = " << gi->second << ", " 
         << ceil(1000.0*t/totTime)/10.0 << "% of total" << endl ;
-    }
+    }    
     s << "------------------------------------------------------------------------------" << endl ;
 
     // display the schedule memory consumption
@@ -1354,17 +1292,15 @@ namespace Loci {
     // then sort based on bytes size
     sched_data.sort();
     double total_mem = 0;
-    for(si=sched_data.begin();si!=sched_data.end();++si) {
+    for(si=sched_data.begin();si!=sched_data.end();++si)
       total_mem += si->bytes;
-    }
     s << "Total scheduler bean-counting memory: " << total_mem << " bytes"
       << endl;
-
+    
     std::list<schedData>::const_reverse_iterator rsi = sched_data.rbegin();
     lcnt = 10 ;
-    if(verbose) {
+    if(verbose)
       lcnt = sched_data.size() ;
-    }
     s << "Top " << lcnt << " Steps with Most Scheduler Memory:" << endl;
     lcnt = min(int(sched_data.size()),lcnt);
     for(int i =0;i<lcnt;++i,++rsi) {
@@ -1372,15 +1308,14 @@ namespace Loci {
         << " | " << rsi->bytes << " bytes" << endl ;
       s << "------------------------------------------------------------------------------" << endl ;
     }
-
+    
 #ifdef PAPI_DEBUG
     // display the cache misses
     cache_data.sort();
     std::list<cacheData>::const_reverse_iterator rci = cache_data.rbegin();
     lcnt = 10 ;
-    if(verbose) {
+    if(verbose)
       lcnt = cache_data.size() ;
-    }
     s << "Top " << lcnt << " Steps with Most Data Cache Misses:" << endl;
     lcnt = min(int(cache_data.size()),lcnt);
     for(int i =0;i<lcnt;++i,++rci) {
@@ -1390,18 +1325,18 @@ namespace Loci {
       s << "------------------------------------------------------------------------------" << endl ;
     }
 #endif
-
+    
     return s ;
   }
-
+  
   double collectTiming::getComputeTime() {
     double totComp = 0 ;
     std::list<timingData>::const_iterator  ti = timing_data.begin() ;
     for(ti=timing_data.begin();ti!=timing_data.end();++ti)
-      if(ti->eventType==EXEC_COMPUTATION || ti->eventType == EXEC_CONTROL)
+      if(ti->eventType==EXEC_COMPUTATION || ti->eventType == EXEC_CONTROL) 
         totComp += ti->accumTime.getTime() ;
     return totComp ;
-  }
+  }  
 
   double collectTiming::getTotalTime() {
     double totComp = 0 ;
@@ -1409,8 +1344,8 @@ namespace Loci {
     for(ti=timing_data.begin();ti!=timing_data.end();++ti)
       totComp += ti->accumTime.getTime() ;
     return totComp ;
-  }
-
+  }  
+  
   // get profiling information from schedule
   class collectMemory : public collectData {
     struct spaceData {
@@ -1421,14 +1356,12 @@ namespace Loci {
         return max_memory < d.max_memory ;
       }
     } ;
-
     struct var_size_info {
       double mem_size ;
       double event_tick ;
       var_size_info(){mem_size=0;event_tick=0;}
       var_size_info(double x, double y) : mem_size(x),event_tick(y) {}
     } ;
-
     struct alloc_event {
       variable alloc_var ;
       variableSet live_set ;
@@ -1440,20 +1373,19 @@ namespace Loci {
       alloc_event(const variableSet &ls, double mem) : live_set(ls),live_mem(mem)
       {}
     } ;
-
     std::list<spaceData>  space_data ;
     std::map<variable,var_size_info> variable_size ;
     double event_count ;
   public:
     collectMemory() { event_count = 0 ; }
-
+      
     void accumulateTime(const timeAccumulator &ta, executeEventType t,
                         string eventName) ;
     void accumulateMemory(const std::string &var,
                           allocEventType t,
                           double maxMallocMemory,
                           double maxBeanMemory) ;
-
+      
     void accumulateSchedMemory(const std::string& eventName,
                                double bytes) {}
     void accumulateDCM(const std::string& eventName,
@@ -1462,12 +1394,12 @@ namespace Loci {
     double getComputeTime() ;
     double getTotalTime() ;
     ostream &PrintSummary(ostream &s) ;
-
+    
   } ;
-
+  
   void collectMemory::accumulateTime(const timeAccumulator &ta, executeEventType t, string eventName) {
   }
-
+  
   void collectMemory::accumulateMemory(const std::string &var,
                                        allocEventType t,
                                        double maxMallocMemory,
@@ -1488,7 +1420,7 @@ namespace Loci {
       variable_size[v] = var_size_info(beanMemory,event_count+create_count) ;
     }
   }
-
+  
   ostream &collectMemory::PrintSummary(ostream &s) {
     // Now scan through the data to get memory totals
     double tot_memory = 0 ;
@@ -1522,7 +1454,7 @@ namespace Loci {
     lcnt = min(int(l2.size()),lcnt) ;
     for(int i =0;i<lcnt;++i,++rti) {
       // Output variable that was allocated during max allocation
-      s << i << "- allocate var " << rti->alloc_var << " tot mem = "
+      s << i << "- allocate var " << rti->alloc_var << " tot mem = " 
         << rti->live_mem/(1024.0*1024.0) << "MB" << endl ;
       // Now sort liveset according to procesor-time product
       vector<pair<double,variable> > live_list ;
@@ -1536,15 +1468,22 @@ namespace Loci {
       int sz = live_list.size() ;
       for(int i=sz-1; i>=0;--i) {
         variable v = live_list[i].second ;
-        if(verbose || variable_size[v].mem_size > 2048) {
+        if(verbose || variable_size[v].mem_size > 2048)
           s << "    " << v << ":" << variable_size[v].mem_size/1024.0 << "k,"
             << " lifetime=" << variable_size[v].event_tick << endl ;
-        }
       }
     }
     return s ;
   }
 
+  // this function is used to create an execution schedule
+  // for internalQuery below. This function and the internalQuery
+  // function are mainly intended to be used by the Loci scheduler
+  // to compute intermediate values.
+
+  // NOTE: the passed in rule database is the expanded parametric
+  // rule database since the expanded rule base is what we needed
+  // and this expansion process only needs to be performed once.
   //#define INTERNAL_VERBOSE
   executeP create_internal_execution_schedule(rule_db& par_rdb,
                                               fact_db &facts,
@@ -1576,7 +1515,7 @@ namespace Loci {
     if(gr.get_target_vertices() == EMPTY)
       return executeP(0) ;
 
-
+    
 //         std::string dottycmd = "dotty " ;
 //         if(Loci::MPI_rank==0) {
 //           if(show_graphs) {
@@ -1586,7 +1525,7 @@ namespace Loci {
 //             system(cmd.c_str()) ;
 //           }
 //         }
-
+    
 
     scheds.init(facts) ;
 #ifdef INTERNAL_VERBOSE
@@ -1620,26 +1559,27 @@ namespace Loci {
       //existence. For regular execution it won't affect the schedule but
       //for duplication of work, it is required for saving communication.
       if(isMAP(vp)) {
-        if(facts.isDistributed()) {
-          entitySet exist = scheds.variable_existence(*vi);
-          exist = fill_entitySet(exist, facts);
-          scheds.set_variable_existence(*vi, exist);
-        }
+	if(facts.isDistributed()) {
+	  entitySet exist = scheds.variable_existence(*vi);
+	  exist = fill_entitySet(exist, facts);
+	  scheds.set_variable_existence(*vi, exist);
+	}
       }
       if(variable(*vi).time().level_name() == "*" ) {
-        if(isSTORE(vp)) {
-          ostringstream oss ;
-          oss << "source(" <<"EMPTY"<<')' ;
-          oss << ",target(" << *vi << ')' ;
-          string sig = oss.str() ;
-          rule r(sig) ;
-          if(par_rdb.rules_by_target(*vi) == EMPTY) {
-            if(facts.isDistributed()) {
-              scheds.set_existential_info(*vi, r, scheds.variable_existence(*vi)) ;
-              initial_vars += *vi ;
-            }
-          }
-        }
+	if(isSTORE(vp)) {
+	  ostringstream oss ;
+	  oss << "source(" <<"EMPTY"<<')' ;
+	  oss << ",target(" << *vi << ')' ;
+	  string sig = oss.str() ;
+	  rule r(sig) ;
+	  if(par_rdb.rules_by_target(*vi) == EMPTY) {
+	    if(facts.isDistributed()) {
+	      scheds.set_existential_info(*vi, r,
+                                          scheds.variable_existence(*vi));
+	      initial_vars += *vi ;
+	    }
+	  }
+	}
       }
     }
     //    Loci::debugout << " initial_vars = " << initial_vars << endl ;
@@ -1661,16 +1601,16 @@ namespace Loci {
     if(Loci::MPI_rank==0)
       cout << "[Internal] creating execution schedule..." << endl;
 #endif
-    executeP sched = compile_graph.execution_schedule
+    executeP sched =  compile_graph.execution_schedule
       (facts,scheds,initial_vars) ;
 
     if(GLOBAL_OR(scheds.errors_found())) {
       if(MPI_rank == 0) {
         cerr << "[Internal] error in generating schedule" << endl ;
-        if(MPI_processes != 1) {
+        if(MPI_processes != 1)
           cerr << "[Internal] see debug files for more information" << endl ;
-        }
         cerr << "[Internal] Aborting..." << endl ;
+
       }
       Loci::Abort() ;
     }
@@ -1678,11 +1618,17 @@ namespace Loci {
     return sched ;
   }
 
+  // this function is used by the Loci scheduler to issue
+  // queries for intermediate relations. It is basically a
+  // reduced version of the user function makeQuery
+  // NOTE: the passed in rule database is the expanded parametric
+  // rule database since the expanded rule base is what we needed
+  // and this expansion process only needs to be performed once.
   bool internalQuery(rule_db& par_rdb, fact_db& facts,
                      const variableSet& query) {
     stopWatch sw ;
     sw.start() ;
-
+    
     if(MPI_rank == 0) {
       cout << "[Internal] Quering facts: " << query << endl ;
     }
@@ -1718,14 +1664,14 @@ namespace Loci {
     double tlocal = sw.stop() ;
     double tglobal = 0 ;
     MPI_Allreduce(&tlocal,&tglobal, 1, MPI_DOUBLE, MPI_MAX,MPI_COMM_WORLD) ;
-    debugout << "time to execute internal query " << tglobal <<endl ;
+    debugout << "time to execute internal query " << tglobal <<endl;
 
     return true ;
   }
 
   bool makeQuery(const rule_db &rdb, fact_db &facts,
                  const std::string& query) {
-	/*
+	/*	
 	  #ifdef USE_PAPI
 	  int perr,ev_set=PAPI_NULL;
 	  int i,ncnt,k;
@@ -1760,12 +1706,11 @@ namespace Loci {
       }
       target -= remove_query ;
 
-      if(remove_query != EMPTY) {
+      if(remove_query != EMPTY)
         if(MPI_rank == 0) {
           cout << "Queried facts: \"" << remove_query << "\" are extensional" ;
           cout << " facts, action not performed on these facts!" << endl ;
         }
-      }
       if(target == EMPTY)
         return true ;
 
@@ -1826,7 +1771,7 @@ namespace Loci {
       if((perr=PAPI_start(ev_set)))
         cout<<"\nPAPI_start_event failed."<<PAPI_strerror(perr)<<"\n";
 #endif
-
+      
       */
 
       sw.start() ;
@@ -1840,36 +1785,31 @@ namespace Loci {
       double tglobal = 0 ;
       MPI_Allreduce(&tlocal,&tglobal, 1, MPI_DOUBLE, MPI_MAX,MPI_COMM_WORLD) ;
       debugout << "time to create schedule " << tglobal  << endl ;
-
+      
       // If a schedule was generated, execute it
       if(MPI_rank == 0)
         cout << "begin execution" << endl ;
 
       if(MPI_rank == 0) {
-        if (threading_pointwise) {
-          cout << "--threading " << num_threaded_pointwise
-               << "/" << num_total_pointwise << " pointwise rules" << endl ;
-        }
-        if (threading_global_reduction) {
-          cout << "--threading " << num_threaded_global_reduction
-               << "/" << num_total_global_reduction
-               << " global reduction rules" << endl ;
-        }
-        if (threading_local_reduction) {
-          cout << "--threading " << num_threaded_local_reduction
-               << "/" << num_total_local_reduction
-               << " local reduction rules" << endl ;
-        }
-        if (threading_chomping) {
-          cout << "--threading " << num_threaded_chomping
-               << "/" << num_total_chomping << " chomping rules" << endl ;
-        }
-        if (threading_recursion) {
-          cout << "--threading " << num_threaded_recursion
-               << "/" << num_total_recursion << " recursive rules" << endl ;
-        }
+	if (threading_pointwise)
+	  cout << "--threading " << num_threaded_pointwise
+	       << "/" << num_total_pointwise << " pointwise rules" << endl;
+	if (threading_global_reduction)
+	  cout << "--threading " << num_threaded_global_reduction
+	       << "/" << num_total_global_reduction 
+	       << " global reduction rules" << endl;
+	if (threading_local_reduction)
+	  cout << "--threading " << num_threaded_local_reduction
+	       << "/" << num_total_local_reduction 
+	       << " local reduction rules" << endl;
+	if (threading_chomping)
+	  cout << "--threading " << num_threaded_chomping
+	       << "/" << num_total_chomping << " chomping rules" << endl;
+	if (threading_recursion)
+	  cout << "--threading " << num_threaded_recursion
+	       << "/" << num_total_recursion << " recursive rules" << endl;
       }
-
+      
       if(schedule_output) {
         // Save the schedule in the file schedule for reference
         ostringstream oss ;
@@ -1902,7 +1842,7 @@ namespace Loci {
         schedule->dataCollate(memProf) ;
         memProf.PrintSummary(debugout) ;
       }
-
+      
       collectTiming timeProf ;
       schedule->dataCollate(timeProf) ;
 
@@ -1914,7 +1854,9 @@ namespace Loci {
       MPI_Allreduce(&compute_time_local,&compute_time_total, 1, MPI_DOUBLE,
                     MPI_SUM,MPI_COMM_WORLD) ;
 
+
       timeProf.PrintSummary(debugout) ;
+
 
       /*
 #ifdef USE_PAPI
@@ -1927,14 +1869,14 @@ namespace Loci {
 #endif
       */
 
-      Loci::debugout << "Time taken for execution of the schedule = "
-                     << exec_time << " seconds " << endl ;
+      Loci::debugout << "Time taken for execution of the schedule = " << exec_time << " seconds " << endl ;
 
-      // put the computed results back to the global facts but we want to
-      // restore the facts back to its global numbering scheme if the fact_db
-      // was started distributed at the beginning, since if it was started
-      // distributed at the beginning, then we've already done the local
-      // renumbering step to the facts.
+      // put the computed results back to the global facts
+      // but we want to restore the facts back to its global
+      // numbering scheme if the fact_db was started
+      // distributed at the beginning, since if it was
+      // started distributed at the beginning, then we've already
+      // done the local renumbering step to the facts.
       if(local_facts.is_distributed_start()) {
         fact_db::distribute_infoP df = local_facts.get_distribute_info() ;
         // first get the local to global dMap
@@ -1949,14 +1891,15 @@ namespace Loci {
           // the results are clearly intensional facts
           facts.create_intensional_fact(*vi,srp->remap(l2g)) ;
         }
-      } else {
+      }else{
         for(variableSet::const_iterator vi=target.begin();
             vi!=target.end();++vi) {
           storeRepP srp = local_facts.get_variable(*vi) ;
           facts.create_intensional_fact(*vi,srp) ;
         }
       }
-
+	  
+		
       if(profile_memory_usage) {
         Loci::debugout << "++++++++Memory Profiling Report++++++++"
                        << endl ;
@@ -2151,7 +2094,7 @@ namespace Loci {
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_compute.getTime() ;
-        maxtime = 0 ;
+        maxtime = 0 ;        
         MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
         Loci::debugout << "[dynamic] total compute time: "
                        << mytime << ", max = " << maxtime << endl ;
@@ -2335,3 +2278,4 @@ namespace Loci {
   }
 
 } // end of namespace Loci
+
