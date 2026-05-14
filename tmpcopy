@@ -32,7 +32,7 @@ set -u
 copy_with_symlinks() {
     local src=$1
     local dst=$2
-    echo symlink_copy "${src#${PWD}}" > /dev/tty
+    echo symlink_copy "${src#${PWD}}" > /dev/tty 2>/dev/null || true
     if [ ! -d "$src" ]; then
         echo "Error: $src is not a directory."
         return 1
