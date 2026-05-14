@@ -23,6 +23,15 @@ namespace {
     std::string str() const { return captured_.str(); }
   };
 
+  bool check_perm_bits_quietly(const rule_implP &impl) {
+    CErrCapture capture;
+    return impl->check_perm_bits();
+  }
+
+  std::string generated_map_constraint_name(const std::string &map_name) {
+    return "__" + map_name + "_MAP_constraint__";
+  }
+
   /// @brief Wraps a concrete rule type in the external `rule` handle used by
   ///   the public APIs under test.
   template <class TRule>
@@ -106,6 +115,24 @@ namespace {
       name_store("p1::p2::tgt_pri", tgt);
       input("src_pri");
       output("p1::p2::tgt_pri");
+    }
+
+    void compute(const sequence &) {}
+    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
+  };
+
+  /// @brief Pointwise rule assigned to a non-default keyspace.
+  class custom_keyspace_rule : public pointwise_rule {
+    const_store<int> src;
+    store<int> tgt;
+  public:
+    custom_keyspace_rule() {
+      keyspace_tag("ks_test");
+      keyspace_dist_hint();
+      name_store("ks_src", src);
+      name_store("ks_tgt", tgt);
+      input("ks_src");
+      output("ks_tgt");
     }
 
     void compute(const sequence &) {}
@@ -246,6 +273,23 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
+  /// @brief Pointwise rule with both static and dynamic-candidate constraints.
+  class split_constraint_rule : public pointwise_rule {
+    const_store<int> src;
+    store<int> tgt;
+  public:
+    split_constraint_rule() {
+      name_store("src_split_con", src);
+      name_store("tgt_split_con", tgt);
+      input("src_split_con");
+      output("tgt_split_con");
+      constraint("static_con,dyn_con");
+    }
+
+    void compute(const sequence &) {}
+    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
+  };
+
   /// @brief Singleton rule whose priority-qualified target exercises
   ///   priority-override validation.
   class singleton_priority_override_rule : public singleton_rule {
@@ -261,6 +305,18 @@ namespace {
 
     void compute(const sequence &) {}
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
+  };
+
+  /// @brief Default rule whose target name is assigned to an unnamed alias.
+  class unnamed_alias_target_rule : public default_rule {
+    param<int> real_tgt;
+  public:
+    unnamed_alias_target_rule() {
+      name_store("real_tgt", real_tgt);
+      output("alias_tgt=real_tgt");
+    }
+
+    void compute(const sequence &) {}
   };
 
   /// @brief Pointwise rule whose alias target expression exercises target-type
@@ -339,27 +395,21 @@ TEST_CASE("internal prepend preserves mapping variables") {
   time_ident n_level("n", time_ident());
   rule prepended(n_level, internal_rule);
 
-  // Inspect the prepended INTERNAL-rule descriptor directly.
   const std::set<vmap_info> &sources = prepended.get_info().desc.sources;
-  REQUIRE(!sources.empty());
-
-  const vmap_info &first_source = *(sources.begin());
-  REQUIRE(!first_source.mapping.empty());
-
   const variable expected_mapping_var(n_level, variable("m"));
   const variable wrong_mapping_var(n_level, variable("src"));
 
   // The prepended mapping should still refer to the mapping variable, not the
   // source payload variable.
-  CHECK(first_source.mapping.front().inSet(expected_mapping_var));
-  CHECK_FALSE(first_source.mapping.front().inSet(wrong_mapping_var));
+  CHECK(desc_has_map_var(sources, expected_mapping_var));
+  CHECK_FALSE(desc_has_map_var(sources, wrong_mapping_var));
 }
 
 TEST_CASE("singleton priority override makes check_perm_bits fail") {
   rule_implP impl = new copy_rule_impl<singleton_priority_override_rule>;
 
   // Priority-qualified singleton targets should be rejected by validation.
-  CHECK_FALSE(impl->check_perm_bits());
+  CHECK_FALSE(check_perm_bits_quietly(impl));
 }
 
 TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs") {
@@ -372,6 +422,17 @@ TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs") 
   CHECK(err.find("can't mix parameters and stores in target") == std::string::npos);
 
   (void)r;
+}
+
+TEST_CASE("get_store resolves unnamed alias targets through their backing variable") {
+  rule_implP impl = new copy_rule_impl<unnamed_alias_target_rule>;
+
+  storeRepP alias = impl->get_store(variable("alias_tgt"));
+  storeRepP backing = impl->get_store(variable("real_tgt"));
+
+  REQUIRE(alias != static_cast<storeRep *>(0));
+  REQUIRE(backing != static_cast<storeRep *>(0));
+  CHECK(&*alias == &*backing);
 }
 
 //----------------------------------------------------------------------------
@@ -522,6 +583,25 @@ TEST_CASE("remove_rules clears target indexes for every rule in the input ruleSe
   CHECK_FALSE(rdb.rules_by_target(variable("tgt_idx_b")).inSet(r2));
 }
 
+TEST_CASE("add_rule and remove_rule maintain source indexes") {
+  rule_db rdb;
+  rule r = make_rule<mapping_conditional_rule>();
+
+  rdb.add_rule(r);
+  CHECK(rdb.rules_by_source(variable("src_mc")).inSet(r));
+  CHECK(rdb.rules_by_source(variable("c_mc")).inSet(r));
+  CHECK(rdb.rules_by_source(variable("cond_mc")).inSet(r));
+  CHECK(rdb.rules_by_source(variable("m_in")).inSet(r));
+  CHECK(rdb.rules_by_source(variable("m_out")).inSet(r));
+
+  rdb.remove_rule(r);
+  CHECK_FALSE(rdb.rules_by_source(variable("src_mc")).inSet(r));
+  CHECK_FALSE(rdb.rules_by_source(variable("c_mc")).inSet(r));
+  CHECK_FALSE(rdb.rules_by_source(variable("cond_mc")).inSet(r));
+  CHECK_FALSE(rdb.rules_by_source(variable("m_in")).inSet(r));
+  CHECK_FALSE(rdb.rules_by_source(variable("m_out")).inSet(r));
+}
+
 TEST_CASE("default and optional rules are routed to their dedicated rule sets") {
   rule_db rdb;
   rule dr = make_rule<default_category_rule>();
@@ -537,6 +617,28 @@ TEST_CASE("default and optional rules are routed to their dedicated rule sets") 
   CHECK(rdb.get_optional_rules().inSet(orule));
   CHECK_FALSE(rdb.all_rules().inSet(dr));
   CHECK_FALSE(rdb.all_rules().inSet(orule));
+
+  rdb.remove_rule(dr);
+  rdb.remove_rule(orule);
+
+  CHECK_FALSE(rdb.get_default_rules().inSet(dr));
+  CHECK_FALSE(rdb.get_optional_rules().inSet(orule));
+}
+
+TEST_CASE("rule_db partitions non-default rules by keyspace") {
+  rule_db rdb;
+  rule r = make_rule<custom_keyspace_rule>();
+
+  CHECK(r.get_info().rule_impl->get_keyspace_tag() == "ks_test");
+  CHECK(r.get_info().rule_impl->affect_keyspace_dist());
+
+  rdb.add_rule(r);
+  CHECK(rdb.all_rules().inSet(r));
+  CHECK(rdb.all_rules("ks_test").inSet(r));
+  CHECK_FALSE(rdb.all_rules("main").inSet(r));
+
+  rdb.remove_rule(r);
+  CHECK_FALSE(rdb.all_rules("ks_test").inSet(r));
 }
 
 TEST_CASE("mapping and conditional variables appear in sources() for external rules") {
@@ -576,6 +678,23 @@ TEST_CASE("rename_vars on external rules renames mappings targets constraints an
   CHECK_FALSE(ri.targets().inSet(variable("tgt_mc")));
 }
 
+TEST_CASE("add_namespace namespaces mappings payload variables constraints and conditionals") {
+  rule namespaced = make_rule<mapping_conditional_rule>().add_namespace("ns");
+  const rule::info &ri = namespaced.get_info();
+
+  CHECK(ri.sources().inSet(variable("src_mc").add_namespace("ns")));
+  CHECK(ri.sources().inSet(variable("c_mc").add_namespace("ns")));
+  CHECK(ri.sources().inSet(variable("cond_mc").add_namespace("ns")));
+  CHECK(ri.sources().inSet(variable("m_in").add_namespace("ns")));
+  CHECK(ri.sources().inSet(variable("m_out").add_namespace("ns")));
+  CHECK(ri.targets().inSet(variable("tgt_mc").add_namespace("ns")));
+  CHECK(desc_has_map_var(ri.desc.sources, variable("m_in").add_namespace("ns")));
+  CHECK(desc_has_map_var(ri.desc.targets, variable("m_out").add_namespace("ns")));
+
+  CHECK_FALSE(ri.sources().inSet(variable("src_mc")));
+  CHECK_FALSE(ri.targets().inSet(variable("tgt_mc")));
+}
+
 TEST_CASE("remove_rule followed by add_rule restores target index") {
   rule_db rdb;
   rule r = make_rule<simple_rule_for_indexes>();
@@ -592,6 +711,7 @@ TEST_CASE("remove_rule followed by add_rule restores target index") {
 TEST_CASE("replace_map_constraints converts map constraints to generated constraints") {
   rule_implP impl = new copy_rule_impl<map_constraint_replace_rule>;
   fact_db facts;
+  const std::string generated_name = generated_map_constraint_name("map_con");
 
   // Seed one map constraint and one ordinary constraint.
   Map map_con;
@@ -606,12 +726,12 @@ TEST_CASE("replace_map_constraints converts map constraints to generated constra
   impl->replace_map_constraints(facts);
   const rule_impl::info &info = impl->get_info();
 
-  CHECK(desc_has_var(info.constraints, variable("__map_con_MAP_constraint__")));
+  CHECK(desc_has_var(info.constraints, variable(generated_name)));
   CHECK(desc_has_var(info.constraints, variable("keep_con")));
   CHECK_FALSE(desc_has_var(info.constraints, variable("map_con")));
 
   // The generated fact should be materialized as a constraint in `fact_db`.
-  storeRepP generated = facts.get_variable("__map_con_MAP_constraint__");
+  storeRepP generated = facts.get_variable(generated_name);
   REQUIRE(generated != static_cast<storeRep *>(0));
   CHECK(isCONSTRAINT(generated));
 }
@@ -619,6 +739,7 @@ TEST_CASE("replace_map_constraints converts map constraints to generated constra
 TEST_CASE("replace_map_constraints is idempotent for generated constraint facts") {
   rule_implP impl = new copy_rule_impl<map_constraint_replace_rule>;
   fact_db facts;
+  const std::string generated_name = generated_map_constraint_name("map_con");
 
   // Seed fresh map and ordinary constraints for the idempotence check.
   Map map_con;
@@ -631,15 +752,32 @@ TEST_CASE("replace_map_constraints is idempotent for generated constraint facts"
 
   // The first rewrite establishes the generated constraint fact and its domain.
   impl->replace_map_constraints(facts);
-  storeRepP first = facts.get_variable("__map_con_MAP_constraint__");
+  storeRepP first = facts.get_variable(generated_name);
   REQUIRE(first != static_cast<storeRep *>(0));
   const entitySet first_dom = first->domain();
 
   // A second rewrite should leave that generated fact stable.
   impl->replace_map_constraints(facts);
-  storeRepP second = facts.get_variable("__map_con_MAP_constraint__");
+  storeRepP second = facts.get_variable(generated_name);
   REQUIRE(second != static_cast<storeRep *>(0));
   CHECK(second->domain() == first_dom);
+}
+
+TEST_CASE("split_constraints moves selected constraints to the dynamic set") {
+  rule_implP impl = new copy_rule_impl<split_constraint_rule>;
+  variableSet dynamic_constraints;
+  dynamic_constraints += variable("dyn_con");
+
+  impl->split_constraints(dynamic_constraints);
+  const rule_impl::info &info = impl->get_info();
+
+  CHECK(desc_has_var(info.constraints, variable("static_con")));
+  CHECK_FALSE(desc_has_var(info.constraints, variable("dyn_con")));
+  CHECK(desc_has_var(info.dynamic_constraints, variable("dyn_con")));
+
+  const std::string id = info.rule_identifier();
+  CHECK(id.find("CONSTRAINT(") != std::string::npos);
+  CHECK(id.find("DYNAMIC_CONSTRAINT(") != std::string::npos);
 }
 
 TEST_CASE("check_perm_bits type matrix catches bad and accepts good rule targets") {
@@ -652,13 +790,13 @@ TEST_CASE("check_perm_bits type matrix catches bad and accepts good rule targets
   rule_implP bad_constraint = new copy_rule_impl<constraint_bad_store_target_rule>;
 
   // Each category should accept the container type it expects.
-  CHECK(good_default->check_perm_bits());
-  CHECK_FALSE(bad_default->check_perm_bits());
-  CHECK_FALSE(bad_pointwise->check_perm_bits());
-  CHECK(good_map->check_perm_bits());
-  CHECK_FALSE(bad_map->check_perm_bits());
-  CHECK(good_constraint->check_perm_bits());
-  CHECK_FALSE(bad_constraint->check_perm_bits());
+  CHECK(check_perm_bits_quietly(good_default));
+  CHECK_FALSE(check_perm_bits_quietly(bad_default));
+  CHECK_FALSE(check_perm_bits_quietly(bad_pointwise));
+  CHECK(check_perm_bits_quietly(good_map));
+  CHECK_FALSE(check_perm_bits_quietly(bad_map));
+  CHECK(check_perm_bits_quietly(good_constraint));
+  CHECK_FALSE(check_perm_bits_quietly(bad_constraint));
 }
 
 int main(int argc, char **argv) {
