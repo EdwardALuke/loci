@@ -153,6 +153,7 @@ int main(int argc, char *argv[]) {
         for(int j=2;argv[i][j] != '\0';++j) {
           if(argv[i][j] == '=') {
             val = string(&argv[i][j+1]) ;
+            break ;
           }
           var += argv[i][j] ;
         }
