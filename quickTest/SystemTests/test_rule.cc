@@ -312,16 +312,10 @@ namespace {
 }
 
 //----------------------------------------------------------------------------
-// Expected-Failure Regression Tests
+// Regression Tests
 //----------------------------------------------------------------------------
 
-// `doctest::may_fail()` lets us keep known regressions visible in the suite
-// without making the quickTest aggregate fail while the behavior is under
-// investigation. When a regression is fixed, remove the `may_fail()` marker so
-// the test becomes ordinary required coverage.
-
-TEST_CASE("remove_rule removes both priority and base target indexes"
-          * doctest::may_fail()) {
+TEST_CASE("remove_rule removes both priority and base target indexes") {
   rule_db rdb;
   rule r = make_rule<priority_target_rule_for_removal>();
 
@@ -339,8 +333,7 @@ TEST_CASE("remove_rule removes both priority and base target indexes"
   CHECK_FALSE(rdb.rules_by_target(base_target).inSet(r));
 }
 
-TEST_CASE("internal prepend preserves mapping variables"
-          * doctest::may_fail()) {
+TEST_CASE("internal prepend preserves mapping variables") {
   rule internal_rule("qualifier(internal_map_test),source(m->src),target(tgt)");
 
   time_ident n_level("n", time_ident());
@@ -362,16 +355,14 @@ TEST_CASE("internal prepend preserves mapping variables"
   CHECK_FALSE(first_source.mapping.front().inSet(wrong_mapping_var));
 }
 
-TEST_CASE("singleton priority override makes check_perm_bits fail"
-          * doctest::may_fail()) {
+TEST_CASE("singleton priority override makes check_perm_bits fail") {
   rule_implP impl = new copy_rule_impl<singleton_priority_override_rule>;
 
   // Priority-qualified singleton targets should be rejected by validation.
   CHECK_FALSE(impl->check_perm_bits());
 }
 
-TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs"
-          * doctest::may_fail()) {
+TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs") {
   CErrCapture capture;
   rule r = make_rule<assign_param_alias_rule>();
 
