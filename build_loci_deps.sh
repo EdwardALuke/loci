@@ -48,25 +48,11 @@ have_submodule() { [[ -d "$ext/$1" && -n "$(ls -A "$ext/$1" 2>/dev/null || true)
 ensure_submodule() {
   local name="$1"
   local submodule_path="ext/$name"
-  local heartbeat_secs=15
-  local git_pid=0
-  local elapsed=0
   if ! have_submodule "$name"; then
-    say "Initializing submodule: $submodule_path (HTTPS clone may take several minutes)"
+    say "Initializing shallow submodule: $submodule_path"
     (
       cd "$root"
-      # Keep users informed during large first-time clones.
-      git submodule update --init --progress "$submodule_path" &
-      git_pid=$!
-      elapsed=0
-      while kill -0 "$git_pid" 2>/dev/null; do
-        sleep "$heartbeat_secs"
-        elapsed=$((elapsed + heartbeat_secs))
-        if kill -0 "$git_pid" 2>/dev/null; then
-          say "Submodule $submodule_path still downloading... ${elapsed}s elapsed"
-        fi
-      done
-      wait "$git_pid"
+      git submodule update --init --recursive --depth 1 "$submodule_path"
     )
     say "Submodule ready: $submodule_path"
   fi
