@@ -1,6 +1,6 @@
 # Git submodule build and install local directories
-GKLIB_build
-GKLIB_install
+GKlib_build
+GKlib_install
 
 hdf5_install
 hdf5_build
@@ -43,3 +43,6 @@ config.log
 Tutorial/docs/Makefile_ex.tex
 Tutorial/docs/entities_cc.tex
 Tutorial/docs/helpers_cc.tex
+
+# Doxygen generated files
+doc
