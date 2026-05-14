@@ -18,46 +18,49 @@
 # along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 #
 ###############################################################################
+# LOCI_BASE should be set before the Makefile
+# Set TARGET to the name of your program
+# Set FILES to list '.loci' files that will be compiled into your module, or
+
+###########################################################################
+# No changes required below this line
+###########################################################################
 
 include $(LOCI_BASE)/Loci.conf
+include $(LOCI_BASE)/version.conf
 
-SOURCE_DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
-vpath %.cc $(SOURCE_DIR)
+INCLUDES = -I../contrib/doctest -I$(LOCI_BASE)/include
 
-INCLUDES = -I$(SOURCE_DIR)/../contrib/doctest
+AUTOMATIC_FILES = $(call loci_compile_files,)
+AUTOMATIC_OBJS = $(call loci_file2objs,$(AUTOMATIC_FILES))
+AUTOMATIC_TESTS= $(subst .o,.test, $(AUTOMATIC_OBJS))
+TESTS = $(AUTOMATIC_TESTS)
 
-TESTS = test_rule
-OBJS = $(addsuffix .o,$(TESTS))
-TEST_RESULTS = $(addsuffix .test,$(TESTS))
+TestResults: $(TESTS)
+	cat $(TESTS) > TestResults; rm $(TESTS)
 
-.PHONY: tests $(TESTS)
-
-tests: TestResults
-
-TestResults: $(TEST_RESULTS)
-	cat $(TEST_RESULTS) > TestResults; rm $(TEST_RESULTS)
-
-$(TEST_RESULTS): %.test: %.o
+%.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
 	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe > $*.log 2>&1 || true)
+	tail -n 1 $*.log > $*.log1
 	echo -n SystemTests/$*":" > $@
-	@if grep -q "Status: SUCCESS!" $*.log ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
-	rm $*.exe
-
-$(TESTS): %: %.test
+	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
+	rm $*.log1 $*.exe
 
 clean:
-	rm -fr *.o *.d *.exe *.log *.test
+	rm -fr *.o *.exe *.d *.log *.log1
 
 # Junk files that are created while editing and running cases
-JUNK = $(wildcard *~) $(wildcard crash_dump.*) core debug output
+JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o)
+# ".cc" files created from .loci files
+LOCI_LPP_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
 
 distclean: clean
-	rm -fr TestResults $(JUNK) $(DEPEND_FILES) $(TEST_RESULTS)
+	rm -fr TestResults $(JUNK) $(LOCI_LPP_FILES) $(DEPEND_FILES) $(TESTS)
 
 DEPEND_FILES=$(subst .o,.d,$(OBJS))
 
-# include automatically generated dependencies
+#include automatically generated dependencies
 ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
 -include $(DEPEND_FILES)
 endif

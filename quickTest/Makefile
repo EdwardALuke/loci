@@ -27,7 +27,7 @@ Tools: FRC
 	$(MAKE) -C Tools LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
 
 SystemTests: FRC
-	$(MAKE) -C SystemTests tests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+	$(MAKE) -C SystemTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
 
 clean: FRC
 	rm -f TestResults
