@@ -4,6 +4,7 @@
 #include <doctest.h>
 
 #include <initializer_list>
+#include <sstream>
 #include <vector>
 
 using namespace Loci;
@@ -24,6 +25,14 @@ namespace {
       values[*i] = offset + *i;
   }
 
+  std::vector<int> read_values(const store<int> &values,
+                               const entitySet &domain) {
+    std::vector<int> result;
+    for(entitySet::const_iterator i = domain.begin(); i != domain.end(); ++i)
+      result.push_back(values[*i]);
+    return result;
+  }
+
 } // namespace
 
 TEST_CASE("store allocates sparse domains and exposes indexed values") {
@@ -37,6 +46,62 @@ TEST_CASE("store allocates sparse domains and exposes indexed values") {
   CHECK(values[2] == 102);
   CHECK(values[4] == 104);
   CHECK(values[8] == 108);
+}
+
+TEST_CASE("store reallocation preserves values on the overlapping domain") {
+  store<int> values;
+  values.allocate(interval(1, 4));
+  fill(values, 100);
+
+  values.allocate(interval(3, 6));
+
+  CHECK(values.domain() == entitySet(interval(3, 6)));
+  CHECK(values[3] == 103);
+  CHECK(values[4] == 104);
+
+  values[5] = 205;
+  values[6] = 206;
+  values.allocate(interval(4, 5));
+
+  CHECK(values.domain() == entitySet(interval(4, 5)));
+  CHECK(values[4] == 104);
+  CHECK(values[5] == 205);
+
+  values.allocate(EMPTY);
+  CHECK(values.domain() == EMPTY);
+
+  values.allocate(interval(9, 9));
+  values[9] = 909;
+  CHECK(values.domain() == entitySet(interval(9, 9)));
+  CHECK(values[9] == 909);
+}
+
+TEST_CASE("store shift renumbers the domain without moving stored values") {
+  store<int> values;
+  values.allocate(set_of({2, 4}));
+  values[2] = 20;
+  values[4] = 40;
+
+  values.Rep()->shift(10);
+
+  CHECK(values.domain() == set_of({12, 14}));
+  CHECK(values[12] == 20);
+  CHECK(values[14] == 40);
+}
+
+TEST_CASE("store new_store creates an independent empty store of the same type") {
+  store<int> source;
+  source.allocate(interval(1, 2));
+  fill(source, 10);
+
+  storeRepP fresh(source.Rep()->new_store(interval(7, 8)));
+  store<int> created(fresh);
+  fill(created, 100);
+
+  CHECK(isSTORE(fresh));
+  CHECK(created.domain() == entitySet(interval(7, 8)));
+  CHECK(read_values(created, interval(7, 8)) == std::vector<int>({107, 108}));
+  CHECK(read_values(source, interval(1, 2)) == std::vector<int>({11, 12}));
 }
 
 TEST_CASE("storeRep copy updates only the requested context") {
@@ -56,6 +121,48 @@ TEST_CASE("storeRep copy updates only the requested context") {
   CHECK(target[2] == -98);
   CHECK(target[3] == 13);
   CHECK(target[4] == -96);
+}
+
+TEST_CASE("store pack_size reports the packable intersection") {
+  store<int> source;
+  source.allocate(interval(2, 4));
+  source[2] = 22;
+  source[3] = 33;
+  source[4] = 44;
+
+  entitySet packed;
+  const entitySet requested = set_of({1, 2, 4, 9});
+  int size = source.Rep()->pack_size(requested, packed);
+
+  CHECK(packed == set_of({2, 4}));
+  CHECK(size == static_cast<int>(2 * sizeof(int)));
+
+  std::vector<char> buffer(size);
+  int position = 0;
+  source.Rep()->pack(&buffer[0], position, size, packed);
+  CHECK(position == size);
+
+  store<int> target;
+  target.allocate(interval(20, 21));
+  sequence unpack_order;
+  unpack_order += interval(20, 21);
+
+  position = 0;
+  target.Rep()->unpack(&buffer[0], position, size, unpack_order);
+  CHECK(position == size);
+
+  CHECK(read_values(target, interval(20, 21)) == std::vector<int>({22, 44}));
+}
+
+TEST_CASE("store one-argument pack_size ignores out-of-domain entities" *
+          doctest::may_fail()) {
+  store<int> source;
+  source.allocate(interval(2, 4));
+
+  const entitySet requested = set_of({1, 2, 4, 9});
+
+  CHECK(source.Rep()->pack_size(requested) ==
+        static_cast<int>(2 * sizeof(int)));
 }
 
 TEST_CASE("store gather and scatter move values through dMap images") {
@@ -118,6 +225,24 @@ TEST_CASE("store remap creates a new store over the map image") {
   CHECK(result[31] == 9);
 }
 
+TEST_CASE("store stream output can be read back into another store") {
+  store<int> source;
+  source.allocate(set_of({3, 5, 6}));
+  source[3] = 13;
+  source[5] = 15;
+  source[6] = 16;
+
+  std::ostringstream output;
+  source.Print(output);
+
+  store<int> parsed;
+  std::istringstream input(output.str());
+  parsed.Input(input);
+
+  CHECK(parsed.domain() == source.domain());
+  CHECK(read_values(parsed, parsed.domain()) == std::vector<int>({13, 15, 16}));
+}
+
 TEST_CASE("store pack and unpack respects sequence ordering") {
   store<int> source;
   source.allocate(interval(2, 4));
@@ -129,6 +254,7 @@ TEST_CASE("store pack and unpack respects sequence ordering") {
   std::vector<char> buffer(size);
   int position = 0;
   source.Rep()->pack(&buffer[0], position, size, interval(2, 4));
+  CHECK(position == size);
 
   store<int> target;
   target.allocate(interval(10, 12));
@@ -138,6 +264,7 @@ TEST_CASE("store pack and unpack respects sequence ordering") {
 
   position = 0;
   target.Rep()->unpack(&buffer[0], position, size, unpack_order);
+  CHECK(position == size);
 
   CHECK(target[12] == 22);
   CHECK(target[11] == 33);
