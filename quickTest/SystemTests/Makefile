@@ -39,16 +39,15 @@ TestResults: $(TEST_RESULTS)
 
 $(TEST_RESULTS): %.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe >& $*.log || true)
-	tail -n 1 $*.log > $*.log1
+	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe > $*.log 2>&1 || true)
 	echo -n SystemTests/$*":" > $@
-	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
-	rm $*.log1 $*.exe
+	@if grep -q "Status: SUCCESS!" $*.log ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
+	rm $*.exe
 
 $(TESTS): %: %.test
 
 clean:
-	rm -fr *.o *.d *.exe *.log *.log1 *.test
+	rm -fr *.o *.d *.exe *.log *.test
 
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~) $(wildcard crash_dump.*) core debug output
