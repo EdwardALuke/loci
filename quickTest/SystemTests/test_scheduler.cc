@@ -4,6 +4,7 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
 
+#include <iostream>
 #include <sstream>
 #include <streambuf>
 #include <string>
@@ -122,6 +123,8 @@ TEST_CASE("create_execution_schedule returns null when no rule can produce the t
   // cleanly by returning a null schedule.
   CHECK(schedule == executeP(0));
   CHECK_FALSE(facts.get_typed_variables().inSet(variable("missing")));
+  CHECK(cerr_capture.str().find("Warning: empty dependency graph!") !=
+        std::string::npos);
 }
 
 TEST_CASE("create_execution_schedule builds and executes a simple pointwise rule") {
@@ -143,6 +146,8 @@ TEST_CASE("create_execution_schedule builds and executes a simple pointwise rule
   // The scheduler should find a plan for `dst` once `src` and the copy rule
   // are present.
   REQUIRE(schedule != executeP(0));
+  CHECK(facts.get_intensional_facts().inSet(variable("dst")));
+  CHECK(scheds.get_typed_variables().inSet(variable("dst")));
 
   schedule->execute(facts, scheds);
 
@@ -154,6 +159,44 @@ TEST_CASE("create_execution_schedule builds and executes a simple pointwise rule
   store<int> dst(rep);
   CHECK(dst.domain() == domain);
   CHECK(read_store_values(dst, domain) == std::vector<int>({11, 13, 15}));
+}
+
+TEST_CASE("create_execution_schedule nth selector has an observable effect" *
+          doctest::may_fail()) {
+  rule_db rdb;
+  store<int> first_src;
+  store<int> second_src;
+  const entitySet domain = make_range(4, 6);
+
+  assign_store_values(first_src, domain, {1, 3, 5});
+  assign_store_values(second_src, domain, {1, 3, 5});
+  rdb.add_rule(make_rule<offset_copy_rule>());
+
+  fact_db first_facts;
+  sched_db first_scheds;
+  first_facts.create_fact("src", first_src);
+
+  fact_db second_facts;
+  sched_db second_scheds;
+  second_facts.create_fact("src", second_src);
+
+  StreamCapture cout_capture(std::cout);
+  StreamCapture cerr_capture(std::cerr);
+  executeP first = create_execution_schedule(rdb, first_facts, first_scheds,
+                                             make_target("dst"), 1);
+  executeP second = create_execution_schedule(rdb, second_facts, second_scheds,
+                                              make_target("dst"), 2);
+
+  REQUIRE(first != executeP(0));
+  REQUIRE(second != executeP(0));
+
+  // The public nth parameter is currently accepted by the API but not read by
+  // scheduler.cc, so this documents the missing observable selection behavior.
+  std::ostringstream first_schedule;
+  std::ostringstream second_schedule;
+  first->Print(first_schedule);
+  second->Print(second_schedule);
+  CHECK(first_schedule.str() != second_schedule.str());
 }
 
 TEST_CASE("makeQuery short-circuits extensional targets without disturbing their facts") {
@@ -181,6 +224,67 @@ TEST_CASE("makeQuery short-circuits extensional targets without disturbing their
   store<int> stored(rep);
   CHECK(stored.domain() == domain);
   CHECK(read_store_values(stored, domain) == std::vector<int>({2, 4, 6}));
+}
+
+TEST_CASE("makeQuery computes an intensional target and copies it back") {
+  rule_db rdb;
+  fact_db facts;
+  store<int> src;
+  store<int> stale;
+  const entitySet domain = make_range(1, 3);
+
+  assign_store_values(src, domain, {4, 5, 6});
+  assign_store_values(stale, make_range(20, 21), {9, 10});
+  facts.create_fact("src", src);
+  facts.create_intensional_fact("stale", stale.Rep());
+  rdb.add_rule(make_rule<offset_copy_rule>());
+
+  StreamCapture cout_capture(std::cout);
+  StreamCapture cerr_capture(std::cerr);
+  const bool ok = makeQuery(rdb, facts, "dst");
+
+  REQUIRE(ok);
+  CHECK(facts.get_extensional_facts().inSet(variable("src")));
+  CHECK(facts.get_intensional_facts().inSet(variable("dst")));
+  CHECK_FALSE(facts.get_intensional_facts().inSet(variable("stale")));
+
+  storeRepP rep = facts.get_variable("dst");
+  REQUIRE(has_rep(rep));
+
+  store<int> dst(rep);
+  CHECK(dst.domain() == domain);
+  CHECK(read_store_values(dst, domain) == std::vector<int>({14, 15, 16}));
+}
+
+TEST_CASE("internalQuery preserves existing intensional facts") {
+  rule_db rdb;
+  fact_db facts;
+  store<int> src;
+  store<int> stale;
+  const entitySet domain = make_range(2, 4);
+  const entitySet stale_domain = make_range(30, 31);
+
+  assign_store_values(src, domain, {7, 8, 9});
+  assign_store_values(stale, stale_domain, {1, 2});
+  facts.create_fact("src", src);
+  facts.create_intensional_fact("stale", stale.Rep());
+  rdb.add_rule(make_rule<offset_copy_rule>());
+
+  StreamCapture cout_capture(std::cout);
+  StreamCapture cerr_capture(std::cerr);
+  const bool ok = internalQuery(rdb, facts, make_target("dst"));
+
+  REQUIRE(ok);
+  CHECK(facts.get_intensional_facts().inSet(variable("stale")));
+  CHECK(facts.get_intensional_facts().inSet(variable("dst")));
+
+  store<int> dst(facts.get_variable("dst"));
+  CHECK(dst.domain() == domain);
+  CHECK(read_store_values(dst, domain) == std::vector<int>({17, 18, 19}));
+
+  store<int> preserved(facts.get_variable("stale"));
+  CHECK(preserved.domain() == stale_domain);
+  CHECK(read_store_values(preserved, stale_domain) == std::vector<int>({1, 2}));
 }
 
 int main(int argc, char **argv) {
