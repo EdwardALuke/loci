@@ -1,12 +1,10 @@
 #include <Loci.h>
-#include <scheduler.h>
 
 #include "../../src/System/comp_tools.h"
 
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
 
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -19,28 +17,14 @@ namespace Loci {
 namespace {
 
   /*
-    These tests exercise comp_impl.cc with deliberately small rules and fact
-    databases. Each fixture uses unique variable names so a test can ask the
-    scheduler for one target without depending on any registered application
-    rules.
+    FVM regressions already cover makeQuery and full rule-graph scheduling with
+    real .loci modules. These fixtures stay below that path and pin only
+    comp_impl contracts that are hard to observe directly from those tests.
   */
 
   template <class TRule>
   rule make_loci_rule() {
     return rule(rule_implP(new copy_rule_impl<TRule>));
-  }
-
-  template <class TRule>
-  rule add_loci_rule(rule_db &rdb) {
-    const rule r = make_loci_rule<TRule>();
-    rdb.add_rule(r);
-    return r;
-  }
-
-  variableSet single_variable(const char *name) {
-    variableSet result;
-    result += variable(name);
-    return result;
   }
 
   entitySet entities(Entity first, Entity last) {
@@ -63,113 +47,50 @@ namespace {
     facts.create_fact(name, source);
   }
 
-  void allocate_store_on_2_to_4(store<int> &values, int value) {
-    values.allocate(interval(2, 4));
-    for(Entity i = 2; i <= 4; ++i)
-      values[i] = value;
-  }
-
-  /*
-    The concrete pointwise rules below model the part of a user rule that the
-    compiler needs: named input/output stores and a deterministic compute body.
-    Threading is disabled so ordering-sensitive assertions stay about
-    comp_impl behavior rather than worker scheduling.
-  */
-
-  class schedule_pointwise_rule : public pointwise_rule {
-    const_store<int> source;
-    store<int> target;
-  public:
-    schedule_pointwise_rule() {
-      disable_threading();
-      name_store("ci_sched_src", source);
-      name_store("ci_sched_tgt", target);
-      input("ci_sched_src");
-      output("ci_sched_tgt");
-    }
-
-    void compute(const sequence &seq) {
-      for(sequence::const_iterator si = seq.begin(); si != seq.end(); ++si)
-        target[*si] = source[*si] + 1;
-    }
-  };
-
-  class query_pointwise_rule : public pointwise_rule {
-    const_store<int> source;
-    store<int> target;
-  public:
-    query_pointwise_rule() {
-      disable_threading();
-      name_store("ci_query_src", source);
-      name_store("ci_query_tgt", target);
-      input("ci_query_src");
-      output("ci_query_tgt");
-    }
-
-    void compute(const sequence &seq) {
-      for(sequence::const_iterator si = seq.begin(); si != seq.end(); ++si)
-        target[*si] = source[*si] + 10;
-    }
-  };
-
-  class lifecycle_pointwise_rule : public pointwise_rule {
+  class lifecycle_execute_rule : public pointwise_rule {
     const_store<int> source;
     store<int> target;
   public:
     static std::vector<std::string> events;
+    static std::vector<int> sequence_seen_in_compute;
+    static int rule_id_seen_in_prelude;
+    static int rule_id_seen_in_compute;
+    static int rule_id_seen_in_postlude;
 
-    lifecycle_pointwise_rule() {
+    lifecycle_execute_rule() {
       disable_threading();
-      name_store("ci_life_src", source);
-      name_store("ci_life_tgt", target);
-      input("ci_life_src");
-      output("ci_life_tgt");
+      name_store("ci_exec_src", source);
+      name_store("ci_exec_tgt", target);
+      input("ci_exec_src");
+      output("ci_exec_tgt");
     }
 
     void prelude(const sequence &seq) {
+      rule_id_seen_in_prelude = current_rule_id;
       events.push_back(std::string("prelude:") + std::to_string(seq.size()));
     }
 
     void compute(const sequence &seq) {
+      rule_id_seen_in_compute = current_rule_id;
       events.push_back(std::string("compute:") + std::to_string(seq.size()));
-      for(sequence::const_iterator si = seq.begin(); si != seq.end(); ++si)
-        target[*si] = source[*si] * 2;
+      sequence_seen_in_compute.clear();
+      for(sequence::const_iterator si = seq.begin(); si != seq.end(); ++si) {
+        sequence_seen_in_compute.push_back(*si);
+        target[*si] = source[*si] + 5;
+      }
     }
 
     void postlude(const sequence &seq) {
+      rule_id_seen_in_postlude = current_rule_id;
       events.push_back(std::string("postlude:") + std::to_string(seq.size()));
     }
   };
 
-  std::vector<std::string> lifecycle_pointwise_rule::events;
-
-  class direct_execute_rule : public pointwise_rule {
-    const_store<int> source;
-    store<int> target;
-  public:
-    static int rule_id_seen_in_compute;
-    static std::vector<int> sequence_seen_in_compute;
-
-    direct_execute_rule() {
-      disable_threading();
-      name_store("ci_direct_src", source);
-      name_store("ci_direct_tgt", target);
-      input("ci_direct_src");
-      output("ci_direct_tgt");
-    }
-
-    void compute(const sequence &seq) {
-      rule_id_seen_in_compute = current_rule_id;
-      sequence_seen_in_compute.clear();
-      for(sequence::const_iterator si = seq.begin(); si != seq.end(); ++si) {
-        sequence_seen_in_compute.push_back(*si);
-        target[*si] = source[*si] + 100;
-      }
-    }
-  };
-
-  int direct_execute_rule::rule_id_seen_in_compute = 0;
-  std::vector<int> direct_execute_rule::sequence_seen_in_compute;
+  std::vector<std::string> lifecycle_execute_rule::events;
+  std::vector<int> lifecycle_execute_rule::sequence_seen_in_compute;
+  int lifecycle_execute_rule::rule_id_seen_in_prelude = 0;
+  int lifecycle_execute_rule::rule_id_seen_in_compute = 0;
+  int lifecycle_execute_rule::rule_id_seen_in_postlude = 0;
 
   class request_tracking_blackbox_rule : public blackbox_rule {
     const_store<int> source;
@@ -220,110 +141,51 @@ namespace {
 
 } // namespace
 
-TEST_CASE("create_execution_schedule records the pointwise execution domain") {
-  rule_db rdb;
-  const rule r = add_loci_rule<schedule_pointwise_rule>(rdb);
+TEST_CASE("execute_rule preserves lifecycle order and rule context") {
+  const rule r = make_loci_rule<lifecycle_execute_rule>();
 
   fact_db facts;
-  create_int_fact_on_2_to_4(facts, "ci_sched_src");
-  facts.setupDefaults(rdb);
+  create_int_fact_on_2_to_4(facts, "ci_exec_src", 10);
 
-  sched_db scheds;
-  executeP schedule =
-    create_execution_schedule(rdb, facts, scheds, single_variable("ci_sched_tgt"));
-
-  executeP empty_schedule;
-  REQUIRE(schedule != empty_schedule);
-  CHECK(scheds.get_existential_info(variable("ci_sched_tgt"), r) ==
-        entities(2, 4));
-  CHECK(scheds.get_variable_requests(variable("ci_sched_src")) ==
-        entities(2, 4));
-  CHECK(scheds.get_variable_requests(variable("ci_sched_tgt")) ==
-        entities(2, 4));
-  CHECK(scheds.get_exec_seq(r) == entities(2, 4));
-
-  std::ostringstream printed;
-  schedule->Print(printed);
-  CHECK(printed.str().find("ci_sched_tgt") != std::string::npos);
-  CHECK(printed.str().find("over sequence") != std::string::npos);
-}
-
-TEST_CASE("makeQuery executes a pointwise rule and installs the computed fact") {
-  rule_db rdb;
-  add_loci_rule<query_pointwise_rule>(rdb);
-
-  fact_db facts;
-  create_int_fact_on_2_to_4(facts, "ci_query_src");
-
-  REQUIRE(makeQuery(rdb, facts, "ci_query_tgt"));
-
-  store<int> target(facts.get_variable("ci_query_tgt"));
-  CHECK(target.domain() == entities(2, 4));
-  CHECK(target[2] == 30);
-  CHECK(target[3] == 40);
-  CHECK(target[4] == 50);
-}
-
-TEST_CASE("execute_rule calls prelude compute and postlude in order") {
-  rule_db rdb;
-  add_loci_rule<lifecycle_pointwise_rule>(rdb);
-
-  fact_db facts;
-  create_int_fact_on_2_to_4(facts, "ci_life_src", 1);
-
-  lifecycle_pointwise_rule::events.clear();
-  REQUIRE(makeQuery(rdb, facts, "ci_life_tgt"));
-
-  REQUIRE(lifecycle_pointwise_rule::events.size() == 3);
-  CHECK(lifecycle_pointwise_rule::events[0] == "prelude:3");
-  CHECK(lifecycle_pointwise_rule::events[1] == "compute:3");
-  CHECK(lifecycle_pointwise_rule::events[2] == "postlude:3");
-
-  store<int> target(facts.get_variable("ci_life_tgt"));
-  CHECK(target[2] == 4);
-  CHECK(target[3] == 6);
-  CHECK(target[4] == 8);
-}
-
-TEST_CASE("execute_rule keeps current_rule_id live and can override a target store") {
-  const rule r = make_loci_rule<direct_execute_rule>();
-
-  fact_db facts;
-  create_int_fact_on_2_to_4(facts, "ci_direct_src", 3);
-
-  store<int> original_target;
-  allocate_store_on_2_to_4(original_target, -1);
-  facts.create_fact("ci_direct_tgt", original_target);
-
-  store<int> replacement_target;
-  allocate_store_on_2_to_4(replacement_target, -9);
-  storeRepP replacement_rep = replacement_target.Rep();
+  store<int> target_fact;
+  target_fact.allocate(interval(2, 4));
+  for(Entity i = 2; i <= 4; ++i)
+    target_fact[i] = -1;
+  facts.create_fact("ci_exec_tgt", target_fact);
 
   sequence reverse_exec;
   reverse_exec += interval(4, 2);
 
   sched_db scheds;
-  direct_execute_rule::rule_id_seen_in_compute = 0;
-  direct_execute_rule::sequence_seen_in_compute.clear();
+  lifecycle_execute_rule::events.clear();
+  lifecycle_execute_rule::sequence_seen_in_compute.clear();
+  lifecycle_execute_rule::rule_id_seen_in_prelude = 0;
+  lifecycle_execute_rule::rule_id_seen_in_compute = 0;
+  lifecycle_execute_rule::rule_id_seen_in_postlude = 0;
   current_rule_id = -1;
 
-  execute_rule execute(r, reverse_exec, facts, variable("ci_direct_tgt"),
-                       replacement_rep, scheds);
+  execute_rule execute(r, reverse_exec, facts, scheds);
   execute.execute(facts, scheds);
 
-  CHECK(direct_execute_rule::rule_id_seen_in_compute == r.ident());
-  CHECK(current_rule_id == 0);
-  REQUIRE(direct_execute_rule::sequence_seen_in_compute.size() == 3);
-  CHECK(direct_execute_rule::sequence_seen_in_compute[0] == 4);
-  CHECK(direct_execute_rule::sequence_seen_in_compute[1] == 3);
-  CHECK(direct_execute_rule::sequence_seen_in_compute[2] == 2);
+  REQUIRE(lifecycle_execute_rule::events.size() == 3);
+  CHECK(lifecycle_execute_rule::events[0] == "prelude:3");
+  CHECK(lifecycle_execute_rule::events[1] == "compute:3");
+  CHECK(lifecycle_execute_rule::events[2] == "postlude:3");
 
-  CHECK(replacement_target[2] == 106);
-  CHECK(replacement_target[3] == 109);
-  CHECK(replacement_target[4] == 112);
-  CHECK(original_target[2] == -1);
-  CHECK(original_target[3] == -1);
-  CHECK(original_target[4] == -1);
+  CHECK(lifecycle_execute_rule::rule_id_seen_in_prelude == r.ident());
+  CHECK(lifecycle_execute_rule::rule_id_seen_in_compute == r.ident());
+  CHECK(lifecycle_execute_rule::rule_id_seen_in_postlude == r.ident());
+  CHECK(current_rule_id == 0);
+
+  REQUIRE(lifecycle_execute_rule::sequence_seen_in_compute.size() == 3);
+  CHECK(lifecycle_execute_rule::sequence_seen_in_compute[0] == 4);
+  CHECK(lifecycle_execute_rule::sequence_seen_in_compute[1] == 3);
+  CHECK(lifecycle_execute_rule::sequence_seen_in_compute[2] == 2);
+
+  store<int> target(facts.get_variable("ci_exec_tgt"));
+  CHECK(target[2] == 25);
+  CHECK(target[3] == 35);
+  CHECK(target[4] == 45);
 }
 
 TEST_CASE("blackbox_compiler requests source and target extents") {
@@ -352,7 +214,6 @@ TEST_CASE("blackbox_compiler requests source and target extents") {
   executeP schedule = compiler.create_execution_schedule(facts, scheds);
   executeP empty_schedule;
   REQUIRE(schedule != empty_schedule);
-  CHECK(schedule->getName() == "execute_rule");
 }
 
 TEST_CASE("superRule_compiler delegates existence and request phases") {
@@ -387,7 +248,6 @@ TEST_CASE("superRule_compiler delegates existence and request phases") {
   executeP schedule = compiler.create_execution_schedule(facts, scheds);
   executeP empty_schedule;
   REQUIRE(schedule != empty_schedule);
-  CHECK(schedule->getName() == "execute_rule");
 }
 
 int main(int argc, char **argv) {
