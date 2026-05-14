@@ -4,6 +4,7 @@
 #include <doctest.h>
 
 #include <list>
+#include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -14,19 +15,11 @@ using namespace Loci;
 
 namespace {
 
-/// @brief Returns an inclusive `entitySet` interval `[first, last]`.
-/// @param[in] first First entity in the interval.
-/// @param[in] last Last entity in the interval.
-/// @return An `entitySet` spanning the requested inclusive interval.
+// Keep scheduler fixtures explicit without repeating store/map allocation loops.
 entitySet make_range(int first, int last) {
   return entitySet(interval(first, last));
 }
 
-/// @brief Allocates `values` on `domain` and fills it from `entries`.
-/// @param[in,out] values Store to allocate and populate.
-/// @param[in] domain Domain to allocate in the store.
-/// @param[in] entries Values copied into the store in domain iteration order.
-/// @throws std::logic_error When `entries.size()` does not match `domain.size()`.
 void assign_store_values(store<int> &values, const entitySet &domain,
                          const std::vector<int> &entries) {
   if(static_cast<size_t>(domain.size()) != entries.size()) {
@@ -41,12 +34,6 @@ void assign_store_values(store<int> &values, const entitySet &domain,
   }
 }
 
-/// @brief Allocates `mapping` on `domain` and fills it from `entries`.
-/// @param[in,out] mapping Map to allocate and populate.
-/// @param[in] domain Domain to allocate in the map.
-/// @param[in] entries Target entities copied into the map in domain iteration
-///   order.
-/// @throws std::logic_error When `entries.size()` does not match `domain.size()`.
 void assign_map_values(Map &mapping, const entitySet &domain,
                        const std::vector<int> &entries) {
   if(static_cast<size_t>(domain.size()) != entries.size()) {
@@ -61,18 +48,10 @@ void assign_map_values(Map &mapping, const entitySet &domain,
   }
 }
 
-/// @brief Returns true when `rep` wraps a non-null representation pointer.
-/// @param[in] rep Store representation handle to inspect.
-/// @return True when `rep` is non-null.
 bool has_rep(const storeRepP &rep) {
   return rep != static_cast<storeRep *>(0);
 }
 
-/// @brief Returns true when both handles refer to the same store representation.
-/// @param[in] lhs First store representation handle.
-/// @param[in] rhs Second store representation handle.
-/// @return True when both handles are non-null and share the same underlying
-///   representation pointer.
 bool same_rep(const storeRepP &lhs, const storeRepP &rhs) {
   if(!has_rep(lhs) || !has_rep(rhs)) {
     return false;
@@ -80,11 +59,6 @@ bool same_rep(const storeRepP &lhs, const storeRepP &rhs) {
   return lhs.operator->() == rhs.operator->();
 }
 
-/// @brief Builds a rule descriptor string that `rule(...)` can parse.
-/// @param[in] source_expr Source portion of the rule signature.
-/// @param[in] target_expr Target portion of the rule signature.
-/// @param[in] qualifier Qualifier portion of the rule signature.
-/// @return A `rule` constructed from the assembled signature.
 rule make_rule(const std::string &source_expr, const std::string &target_expr,
                const std::string &qualifier) {
   std::ostringstream signature;
@@ -93,9 +67,6 @@ rule make_rule(const std::string &source_expr, const std::string &target_expr,
   return rule(signature.str());
 }
 
-/// @brief Collects `vars` into a `variableSet`.
-/// @param[in] vars Variables to insert.
-/// @return A `variableSet` containing every variable from `vars`.
 variableSet make_var_set(const std::vector<variable> &vars) {
   variableSet set;
   for(size_t i = 0; i < vars.size(); ++i) {
@@ -104,9 +75,6 @@ variableSet make_var_set(const std::vector<variable> &vars) {
   return set;
 }
 
-/// @brief Copies a `std::list<comm_info>` into an indexable vector.
-/// @param[in] entries Communication records to copy.
-/// @return A vector containing the same records in the same order.
 std::vector<comm_info> to_vector(const std::list<comm_info> &entries) {
   return std::vector<comm_info>(entries.begin(), entries.end());
 }
@@ -117,20 +85,13 @@ TEST_CASE("sched_db constructor mirrors fact_db variables and existence") {
   fact_db facts;
   store<int> cells;
 
-  // Seed one typed fact so the constructor has scheduler state to mirror.
   assign_store_values(cells, make_range(4, 6), {10, 20, 30});
   facts.create_fact("cells", cells);
 
   sched_db sched(facts);
-
-  // Verify the constructor registers the variable and its self-alias/synonym
-  // bookkeeping.
   CHECK(sched.get_typed_variables().inSet(variable("cells")));
   CHECK(sched.get_aliases(variable("cells")).inSet(variable("cells")));
   CHECK(sched.get_synonyms(variable("cells")).inSet(variable("cells")));
-
-  // Verify the mirrored fact domain becomes known existence and leaves the
-  // remaining scheduler state empty/defaulted.
   CHECK(sched.variable_existence(variable("cells")) == make_range(4, 6));
   CHECK_FALSE(sched.is_a_Map(variable("cells")));
   CHECK(sched.get_variable_requests(variable("cells")) == EMPTY);
@@ -141,25 +102,40 @@ TEST_CASE("set_variable_type installs intensional facts and empty schedule state
   sched_db sched(facts);
   store<int> derived;
 
-  // Build a store representation that will be installed as an intensional fact.
   assign_store_values(derived, make_range(10, 11), {3, 5});
 
   sched.set_variable_type(variable("derived"), derived.Rep(), facts);
-
-  // Verify the new variable is tracked by both sched_db and fact_db, and that
-  // sched_db starts it with no derived existence yet.
   CHECK(sched.get_typed_variables().inSet(variable("derived")));
   CHECK(facts.get_intensional_facts().inSet(variable("derived")));
   CHECK_FALSE(facts.get_extensional_facts().inSet(variable("derived")));
   CHECK(sched.variable_existence(variable("derived")) == EMPTY);
-
-  // Verify the installed fact points at the expected store contents.
   storeRepP rep = facts.get_variable("derived");
   REQUIRE(has_rep(rep));
   store<int> fetched(rep);
   CHECK(fetched.domain() == make_range(10, 11));
   CHECK(fetched[10] == 3);
   CHECK(fetched[11] == 5);
+}
+
+TEST_CASE("set_variable_type preserves map metadata for intensional variables") {
+  fact_db facts;
+  sched_db sched(facts);
+  Map derived_map;
+  assign_map_values(derived_map, make_range(1, 3), {10, 11, 11});
+
+  sched.set_variable_type(variable("derived_map"), derived_map.Rep(), facts);
+
+  CHECK(sched.get_typed_variables().inSet(variable("derived_map")));
+  CHECK(facts.get_intensional_facts().inSet(variable("derived_map")));
+  CHECK(sched.variable_existence(variable("derived_map")) == EMPTY);
+  CHECK(sched.is_a_Map(variable("derived_map")));
+  CHECK(sched.image(variable("derived_map"), make_range(1, 3)) ==
+        make_range(10, 11));
+
+  std::pair<entitySet, entitySet> preimage =
+      sched.preimage(variable("derived_map"), make_range(11, 11));
+  CHECK(preimage.first == make_range(2, 3));
+  CHECK(preimage.second == make_range(2, 3));
 }
 
 TEST_CASE("alias_variable keeps alias bookkeeping in sync with fact_db") {
@@ -172,17 +148,12 @@ TEST_CASE("alias_variable keeps alias bookkeeping in sync with fact_db") {
   sched.alias_variable(variable("cells"), variable("cells_alias"), facts);
 
   variableSet aliases = sched.get_aliases(variable("cells"));
-
-  // Verify sched_db records both names in the shared alias metadata.
   CHECK(aliases.inSet(variable("cells")));
   CHECK(aliases.inSet(variable("cells_alias")));
   CHECK(sched.get_aliases(variable("cells_alias")) == aliases);
   CHECK(sched.get_antialiases(variable("cells_alias"))
             .inSet(variable("cells")));
   CHECK(sched.get_typed_variables().inSet(variable("cells_alias")));
-
-  // Verify fact_db mirrors the alias relationship onto the same store
-  // representation.
   CHECK(same_rep(facts.get_variable("cells"), facts.get_variable("cells_alias")));
 }
 
@@ -196,9 +167,6 @@ TEST_CASE("alias_variable accepts either argument order when one name already ex
   sched.alias_variable(variable("cells_alias"), variable("cells"));
 
   variableSet aliases = sched.get_aliases(variable("cells"));
-
-  // Verify the helper resolves the existing variable as the alias source rather
-  // than treating the reversed argument order as an error.
   CHECK_FALSE(sched.errors_found());
   CHECK(aliases.inSet(variable("cells")));
   CHECK(aliases.inSet(variable("cells_alias")));
@@ -216,19 +184,34 @@ TEST_CASE("synonym_variable records canonical lookup behavior") {
 
   sched_db sched(facts);
   sched.synonym_variable(variable("cells"), variable("cells_shadow"), facts);
-
-  // Verify the synonym resolves back to the canonical scheduler name.
   CHECK(sched.remove_synonym(variable("cells_shadow")) == variable("cells"));
 
   variableSet synonyms = sched.get_synonyms(variable("cells"));
-
-  // Verify the synonym set and fact_db both treat the two names as one logical
-  // variable.
   CHECK(synonyms.inSet(variable("cells")));
   CHECK(synonyms.inSet(variable("cells_shadow")));
   CHECK(sched.get_typed_variables().inSet(variable("cells_shadow")));
   CHECK(
       same_rep(facts.get_variable("cells"), facts.get_variable("cells_shadow")));
+}
+
+TEST_CASE("sched-only synonym_variable reports duplicate existing names" *
+          doctest::may_fail()) {
+  fact_db facts;
+  store<int> cells;
+  store<int> faces;
+  assign_store_values(cells, make_range(1, 2), {1, 2});
+  assign_store_values(faces, make_range(3, 4), {3, 4});
+  facts.create_fact("cells", cells);
+  facts.create_fact("faces", faces);
+
+  sched_db sched(facts);
+  sched.clear_errors();
+
+  // The fact_db overload catches this; the sched-only overload currently logs
+  // the error without setting the sticky scheduler error flag.
+  sched.synonym_variable(variable("cells"), variable("faces"));
+
+  CHECK(sched.errors_found());
 }
 
 TEST_CASE("synonyms resolve requests and direct existence through the canonical variable") {
@@ -244,8 +227,6 @@ TEST_CASE("synonyms resolve requests and direct existence through the canonical 
 
   entitySet expected_existence = make_range(2, 4);
   expected_existence += make_range(20, 21);
-
-  // Verify both names resolve through the same canonical scheduler entry.
   CHECK(sched.remove_synonym(variable("cells_shadow")) == variable("cells"));
   CHECK(sched.variable_existence(variable("cells")) == expected_existence);
   CHECK(sched.variable_existence(variable("cells_shadow")) == expected_existence);
@@ -266,12 +247,8 @@ TEST_CASE("rotation groups are recorded and try_get helpers stay safe for unknow
   sched_db sched(facts);
   variableSet rotations = make_var_set({variable("cells"), variable("faces")});
   sched.set_variable_rotations(rotations);
-
-  // Verify every member of the rotation group sees the full recorded set.
   CHECK(sched.get_rotations(variable("cells")) == rotations);
   CHECK(sched.get_rotations(variable("faces")) == rotations);
-
-  // Verify the unknown-safe accessors return empty results instead of aborting.
   CHECK(sched.try_get_synonyms(variable("ghost")) == variableSet(EMPTY));
   CHECK(sched.try_get_aliases(variable("ghost")) == variableSet(EMPTY));
   CHECK(sched.try_get_antialiases(variable("ghost")) == variableSet(EMPTY));
@@ -288,14 +265,9 @@ TEST_CASE("aliases share scheduling data but keep separate existence and request
   sched.alias_variable(variable("cells"), variable("cells_alias"), facts);
   sched.set_variable_existence(variable("cells"), make_range(30, 31));
   sched.variable_request(variable("cells"), make_range(31, 32));
-
-  // Verify the alias still participates in the shared alias group.
   CHECK(sched.get_aliases(variable("cells_alias")).inSet(variable("cells")));
   CHECK(sched.get_aliases(variable("cells_alias"))
             .inSet(variable("cells_alias")));
-
-  // Verify existence and requests remain separate because aliases keep distinct
-  // sched_info records.
   CHECK(sched.variable_existence(variable("cells_alias")) == EMPTY);
   CHECK(sched.get_variable_requests(variable("cells_alias")) == EMPTY);
 }
@@ -334,21 +306,14 @@ TEST_CASE("requests are intersected with rule existence and can be cleared") {
   sched.set_existential_info(variable("cells"), producer, make_range(10, 12));
   sched.variable_request(variable("cells"), make_range(11, 13));
   sched.add_extra_unit_request(variable("cells"), make_range(20, 21));
-
-  // Verify the direct getters expose the stored existential and request state.
   CHECK(sched.get_existential_info(variable("cells"), producer) ==
         make_range(10, 12));
   CHECK(sched.get_variable_requests(variable("cells")) == make_range(11, 13));
-
-  // Verify per-rule requests intersect the existential region, and that UNIT
-  // extras are tracked separately.
   CHECK(sched.get_variable_request(producer, variable("cells")) ==
         make_range(11, 12));
   CHECK(sched.get_extra_unit_request(variable("cells")) == make_range(20, 21));
 
   sched.clear_variable_request();
-
-  // Verify clearing requests also clears the extra UNIT-request bookkeeping.
   CHECK(sched.get_variable_requests(variable("cells")) == EMPTY);
   CHECK(sched.get_extra_unit_request(variable("cells")) == EMPTY);
 }
@@ -359,9 +324,6 @@ TEST_CASE("time variables exist everywhere and ignore request updates") {
 
   // Sanity-check the fixture before probing sched_db behavior.
   REQUIRE(time_step.get_info().tvar);
-
-  // Verify time variables behave as globally existing scheduler variables and
-  // ignore request accumulation.
   CHECK(sched.variable_existence(time_step) == ~EMPTY);
   CHECK_NOTHROW(sched.variable_request(time_step, make_range(1, 3)));
   CHECK_FALSE(sched.errors_found());
@@ -408,13 +370,9 @@ TEST_CASE("repeated existential writes from the same rule accumulate without con
   sched.set_existential_info(variable("cells"), producer, make_range(1, 2));
   sched.set_existential_info(variable("cells"), producer, make_range(2, 4));
   sched.variable_request(variable("cells"), make_range(3, 5));
-
-  // Verify repeated writes from the same producer merge instead of conflicting.
   CHECK_FALSE(sched.errors_found());
   CHECK(sched.get_existential_info(variable("cells"), producer) ==
         make_range(1, 4));
-
-  // Verify unrelated rules still report no request overlap.
   CHECK(sched.get_variable_request(producer, variable("cells")) ==
         make_range(3, 4));
   CHECK(sched.get_variable_request(unrelated, variable("cells")) == EMPTY);
@@ -430,19 +388,12 @@ TEST_CASE("map variables expose cached image and preimage queries") {
   facts.create_fact("cells", cells);
 
   sched_db sched(facts);
-
-  // Verify map-ness is detected from the shared scheduling data.
   CHECK(sched.is_a_Map(variable("cell_to_parent")));
   CHECK_FALSE(sched.is_a_Map(variable("cells")));
-
-  // Verify forward image queries return the mapped codomain and remain stable
-  // across repeated lookups.
   CHECK(sched.image(variable("cell_to_parent"), make_range(1, 3)) ==
         make_range(10, 11));
   CHECK(sched.image(variable("cell_to_parent"), make_range(1, 3)) ==
         make_range(10, 11));
-
-  // Verify preimage queries preserve the underlying map semantics.
   std::pair<entitySet, entitySet> preimage =
       sched.preimage(variable("cell_to_parent"), make_range(10, 10));
   CHECK(preimage.first == make_range(1, 2));
@@ -472,9 +423,6 @@ TEST_CASE("direct existence and shadow helpers update bookkeeping without adding
   sched.set_variable_existence(variable("cells"), make_range(5, 6));
   sched.set_variable_shadow(variable("cells"), make_range(20, 20));
   sched.variable_shadow(variable("cells"), make_range(21, 22));
-
-  // Verify direct existence/shadow helpers update bookkeeping without
-  // synthesizing existential producer records.
   CHECK(sched.variable_existence(variable("cells")) == expected_existence);
   CHECK(sched.get_existential_rules(variable("cells")).size() == 0);
   CHECK(sched.get_variable_shadow(variable("cells")) == make_range(20, 22));
@@ -515,9 +463,6 @@ TEST_CASE("duplication policies and flags propagate across synonym sets") {
   sched.add_policy(variable("cells"), sched_db::ALWAYS);
   sched.add_policy(variable("cells"), sched_db::MODEL_BASED);
   sched.set_duplicate_variable(variable("cells"), true);
-
-  // Verify both the policy bitmask and the final duplication choice propagate
-  // across the synonym set.
   CHECK(sched.is_policy(variable("cells"), sched_db::ALWAYS));
   CHECK(sched.is_policy(variable("cells_shadow"), sched_db::ALWAYS));
   CHECK(sched.is_policy(variable("cells"), sched_db::MODEL_BASED));
@@ -600,9 +545,6 @@ TEST_CASE("duplication metadata and timing models are retained") {
   sched.add_duplication_computation_time(variable("cells"), 2.5);
   sched.add_original_communication_time(variable("cells"), 3.25);
   sched.add_duplication_communication_time(variable("cells"), 1.75);
-
-  // Verify the duplication bookkeeping helpers retain the stored entity sets
-  // and reduction-output-map flag.
   CHECK(sched.get_proc_able_entities(variable("cells"), producer) ==
         make_range(5, 6));
   CHECK(sched.get_my_proc_able_entities(variable("cells"), producer) ==
@@ -610,9 +552,6 @@ TEST_CASE("duplication metadata and timing models are retained") {
   CHECK(sched.get_reduce_proc_able_entities(variable("cells")) ==
         make_range(5, 6));
   CHECK(sched.is_reduction_outputmap(variable("cells")));
-
-  // Verify the timing accumulators preserve the totals written through the
-  // adder helpers.
   CHECK(sched.get_precalculated_original_computation_time(variable("cells")) ==
         doctest::Approx(5.0));
   CHECK(sched.get_precalculated_duplication_computation_time(variable("cells")) ==
@@ -621,8 +560,6 @@ TEST_CASE("duplication metadata and timing models are retained") {
         doctest::Approx(3.25));
   CHECK(sched.get_precalculated_duplication_communication_time(variable("cells")) ==
         doctest::Approx(1.75));
-
-  // Verify the installed communication and computation models can be read back.
   auto comm_model = sched.get_comm_model();
   double ts = 0.0;
   double tw = 0.0;
@@ -708,9 +645,6 @@ TEST_CASE("send entity caches only expose variables with mapped-output rules") {
 
   variableSet vars =
       make_var_set({variable("cells"), variable("plain_cells")});
-
-  // Verify get_send_entities filters out variables whose producers do not map
-  // output entities.
   std::vector<std::pair<variable, entitySet> > barrier =
       sched.get_send_entities(vars, sched_db::BARRIER);
   REQUIRE(barrier.size() == 1);
@@ -771,10 +705,6 @@ TEST_CASE("communication list caches return sends before receives in processor o
   variableSet vars = make_var_set({variable("cells"), variable("flux")});
   std::vector<comm_info> sorted =
       to_vector(sched.get_comm_info_list(vars, facts, sched_db::BARRIER_CLIST));
-
-  // Verify repeated cache updates append records, and retrieval repacks the
-  // combined cache so sends come first in processor order, followed by receives
-  // in processor order.
   REQUIRE(sorted.size() == 4);
   CHECK(sorted[0].processor == 0);
   CHECK(sorted[0].send_set == make_range(20, 20));
