@@ -10,6 +10,12 @@ using namespace Loci;
 
 namespace {
 
+  /*
+    DMap and DMultiMap are dynamically-sized map containers.  These tests keep
+    the data local and tiny so failures point at domain bookkeeping, map
+    transforms, or serialization behavior rather than MPI redistribution.
+  */
+
   entitySet set_of(std::initializer_list<int> values) {
     entitySet result;
     for(std::initializer_list<int>::const_iterator i = values.begin();
@@ -160,6 +166,32 @@ TEST_CASE("dMap gather, scatter, pack, and remap use dynamic domains") {
   CHECK(remapped[52] == 9);
 }
 
+TEST_CASE("dMap copy and compose preserve context-scoped updates") {
+  dMap source;
+  source[0] = 10;
+  source[1] = 11;
+  source[2] = 12;
+
+  dMap copied;
+  copied.allocate(interval(0, 2));
+  storeRepP source_rep = source.Rep();
+  copied.Rep()->copy(source_rep, set_of({0, 2}));
+
+  CHECK(copied.domain() == set_of({0, 1, 2}));
+  CHECK(copied[0] == 10);
+  CHECK(copied[1] == 0);
+  CHECK(copied[2] == 12);
+
+  dMap remap;
+  remap[10] = 100;
+  remap[12] = 120;
+
+  MapRepP(copied.Rep())->compose(remap, set_of({0, 2}));
+  CHECK(copied[0] == 100);
+  CHECK(copied[1] == 0);
+  CHECK(copied[2] == 120);
+}
+
 TEST_CASE("dmultiMap insertion, inverse, compose, and get_map preserve rows") {
   dmultiMap map;
   map[0].push_back(10);
@@ -230,6 +262,90 @@ TEST_CASE("dmultiMap domain edits and MapRemap filter incomplete range maps") {
   CHECK(remapped.domain() == set_of({20, 22}));
   check_row(remapped, 20, {100, 101});
   check_row(remapped, 22, {});
+}
+
+TEST_CASE("dmultiMap allocate, copy, freeze, pack, and unpack preserve row sizes") {
+  store<int> sizes;
+  sizes.allocate(interval(0, 2));
+  sizes[0] = 2;
+  sizes[1] = 0;
+  sizes[2] = 1;
+
+  dmultiMap source(sizes);
+  source[0][0] = 10;
+  source[0][1] = 11;
+  source[2][0] = 12;
+
+  CHECK(source.domain() == set_of({0, 1, 2}));
+  CHECK(source.num_elems(0) == 2);
+  CHECK(source.num_elems(1) == 0);
+  CHECK(source.num_elems(2) == 1);
+
+  dmultiMap copied;
+  copied.allocate(interval(0, 2));
+  copied[1].push_back(99);
+  storeRepP source_rep = source.Rep();
+  copied.Rep()->copy(source_rep, set_of({0, 2}));
+
+  check_row(copied, 0, {10, 11});
+  check_row(copied, 1, {99});
+  check_row(copied, 2, {12});
+
+  storeRepP frozen_rep = source.Rep()->freeze();
+  multiMap frozen(frozen_rep);
+  check_row(frozen, 0, {10, 11});
+  check_row(frozen, 1, {});
+  check_row(frozen, 2, {12});
+
+  entitySet packed_domain;
+  int size = source.Rep()->pack_size(set_of({0, 2, 5}), packed_domain);
+  CHECK(packed_domain == set_of({0, 2}));
+
+  std::vector<char> buffer(size);
+  int position = 0;
+  source.Rep()->pack(&buffer[0], position, size, packed_domain);
+
+  dmultiMap unpacked;
+  sequence unpack_order;
+  unpack_order += 20;
+  unpack_order += 21;
+
+  position = 0;
+  unpacked.Rep()->unpack(&buffer[0], position, size, unpack_order);
+  CHECK(unpacked.domain() == set_of({20, 21}));
+  check_row(unpacked, 20, {10, 11});
+  check_row(unpacked, 21, {12});
+}
+
+TEST_CASE("dmultiMap gather and scatter move whole rows through a dMap") {
+  dmultiMap source;
+  source[0].push_back(10);
+  source[0].push_back(11);
+  source[1].push_back(12);
+
+  dMap gather_map;
+  gather_map[20] = 1;
+  gather_map[21] = 0;
+
+  dmultiMap gathered;
+  gathered.allocate(interval(20, 21));
+  storeRepP source_rep = source.Rep();
+  gathered.Rep()->gather(gather_map, source_rep, interval(20, 21));
+
+  check_row(gathered, 20, {12});
+  check_row(gathered, 21, {10, 11});
+
+  dMap scatter_map;
+  scatter_map[20] = 31;
+  scatter_map[21] = 30;
+
+  dmultiMap scattered;
+  scattered.allocate(interval(30, 31));
+  storeRepP gathered_rep = gathered.Rep();
+  scattered.Rep()->scatter(scatter_map, gathered_rep, interval(20, 21));
+
+  check_row(scattered, 30, {10, 11});
+  check_row(scattered, 31, {12});
 }
 
 int main(int argc, char **argv) {
