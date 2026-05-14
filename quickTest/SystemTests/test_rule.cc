@@ -4,11 +4,24 @@
 #include <doctest.h>
 
 #include <map>
+#include <sstream>
 #include <string>
 
 using namespace Loci;
 
 namespace {
+
+  /// @brief Captures `std::cerr` so tests can assert on emitted diagnostics.
+  class CErrCapture {
+    std::streambuf *old_;
+    std::ostringstream captured_;
+  public:
+    CErrCapture() : old_(std::cerr.rdbuf(captured_.rdbuf())) {}
+    ~CErrCapture() { std::cerr.rdbuf(old_); }
+
+    /// @brief Returns the text captured from `std::cerr`.
+    std::string str() const { return captured_.str(); }
+  };
 
   /// @brief Wraps a concrete rule type in the external `rule` handle used by
   ///   the public APIs under test.
@@ -33,6 +46,23 @@ namespace {
           return true;
     return false;
   }
+
+  /// @brief Pointwise rule whose priority-qualified target exercises
+  ///   add/remove indexing across both qualified and base target names.
+  class priority_target_rule_for_removal : public pointwise_rule {
+    const_store<int> src;
+    store<int> tgt;
+  public:
+    priority_target_rule_for_removal() {
+      name_store("src", src);
+      name_store("p::tgt", tgt);
+      input("src");
+      output("p::tgt");
+    }
+
+    void compute(const sequence &) {}
+    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
+  };
 
   /// @brief Baseline pointwise rule used by the general add/remove/index tests.
   class simple_rule_for_indexes : public pointwise_rule {
@@ -216,6 +246,42 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
+  /// @brief Singleton rule whose priority-qualified target exercises
+  ///   priority-override validation.
+  class singleton_priority_override_rule : public singleton_rule {
+    const_param<int> in;
+    param<int> out;
+  public:
+    singleton_priority_override_rule() {
+      name_store("in", in);
+      name_store("p::out", out);
+      input("in");
+      output("p::out");
+    }
+
+    void compute(const sequence &) {}
+    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
+  };
+
+  /// @brief Pointwise rule whose alias target expression exercises target-type
+  ///   mixing diagnostics in `rule::info` parsing.
+  class assign_param_alias_rule : public pointwise_rule {
+    const_param<int> in;
+    param<int> x;
+    param<int> y;
+  public:
+    assign_param_alias_rule() {
+      name_store("in", in);
+      name_store("x", x);
+      name_store("y", y);
+      input("in");
+      output("x=y");
+    }
+
+    void compute(const sequence &) {}
+    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
+  };
+
   /// @brief Pointwise rule that carries mappings, a constraint, and a
   ///   conditional for descriptor, rename, and time-shift coverage.
   class mapping_conditional_rule : public pointwise_rule {
@@ -243,6 +309,78 @@ namespace {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0); }
   };
 
+}
+
+//----------------------------------------------------------------------------
+// Expected-Failure Regression Tests
+//----------------------------------------------------------------------------
+
+// `doctest::may_fail()` lets us keep known regressions visible in the suite
+// without making the quickTest aggregate fail while the behavior is under
+// investigation. When a regression is fixed, remove the `may_fail()` marker so
+// the test becomes ordinary required coverage.
+
+TEST_CASE("remove_rule removes both priority and base target indexes"
+          * doctest::may_fail()) {
+  rule_db rdb;
+  rule r = make_rule<priority_target_rule_for_removal>();
+
+  const variable prio_target("p::tgt");
+  const variable base_target("tgt");
+
+  // Index the rule under both target forms that scheduler lookups can use.
+  rdb.add_rule(r);
+  CHECK(rdb.rules_by_target(prio_target).inSet(r));
+  CHECK(rdb.rules_by_target(base_target).inSet(r));
+
+  // Removing the rule should clear both the qualified and base target indexes.
+  rdb.remove_rule(r);
+  CHECK_FALSE(rdb.rules_by_target(prio_target).inSet(r));
+  CHECK_FALSE(rdb.rules_by_target(base_target).inSet(r));
+}
+
+TEST_CASE("internal prepend preserves mapping variables"
+          * doctest::may_fail()) {
+  rule internal_rule("qualifier(internal_map_test),source(m->src),target(tgt)");
+
+  time_ident n_level("n", time_ident());
+  rule prepended(n_level, internal_rule);
+
+  // Inspect the prepended INTERNAL-rule descriptor directly.
+  const std::set<vmap_info> &sources = prepended.get_info().desc.sources;
+  REQUIRE(!sources.empty());
+
+  const vmap_info &first_source = *(sources.begin());
+  REQUIRE(!first_source.mapping.empty());
+
+  const variable expected_mapping_var(n_level, variable("m"));
+  const variable wrong_mapping_var(n_level, variable("src"));
+
+  // The prepended mapping should still refer to the mapping variable, not the
+  // source payload variable.
+  CHECK(first_source.mapping.front().inSet(expected_mapping_var));
+  CHECK_FALSE(first_source.mapping.front().inSet(wrong_mapping_var));
+}
+
+TEST_CASE("singleton priority override makes check_perm_bits fail"
+          * doctest::may_fail()) {
+  rule_implP impl = new copy_rule_impl<singleton_priority_override_rule>;
+
+  // Priority-qualified singleton targets should be rejected by validation.
+  CHECK_FALSE(impl->check_perm_bits());
+}
+
+TEST_CASE("parameter alias targets do not imply mixed parameter/store outputs"
+          * doctest::may_fail()) {
+  CErrCapture capture;
+  rule r = make_rule<assign_param_alias_rule>();
+
+  // Building the rule should not emit the mixed-target diagnostic for a pure
+  // parameter alias target.
+  std::string err = capture.str();
+  CHECK(err.find("can't mix parameters and stores in target") == std::string::npos);
+
+  (void)r;
 }
 
 //----------------------------------------------------------------------------
