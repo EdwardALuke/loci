@@ -84,7 +84,8 @@ namespace Loci {
       int xmit_total_size ;
       //      dMap remap ;
       std::vector<dMap> g2fv ; // Global to file numbering
-      distribute_info() {} ;
+      MPI_Comm comm ;
+      distribute_info() : comm(MPI_COMM_WORLD) {} ;
     }  ;
     std::vector<std::vector<entitySet> > init_ptn ;
     /// Global numbering partition indexed by key space
@@ -107,7 +108,16 @@ namespace Loci {
         v = mi->second ;
       return v ;
     }
+    MPI_Comm get_comm() const { return comm_ ; }
+    void set_comm(MPI_Comm c) ;
+    int get_comm_rank() const { return comm_rank_ ; }
+    int get_comm_size() const { return comm_size_ ; }
+
   private:
+    MPI_Comm comm_ ;
+    int comm_rank_ ;
+    int comm_size_ ;
+
     struct fact_info {
       store_refP data_rep ;
     } ;
