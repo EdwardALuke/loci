@@ -198,7 +198,7 @@ namespace Loci {
     // Check for empty and universal set
     int sbits = ((inSet != genIntervalSet<T>::EMPTY)?1:0)| ((retval != ptn[r])?2:0) ;
     int rbits = sbits ;
-    MPI_Allreduce(&sbits, &rbits, 1, MPI_INT, MPI_BOR, MPI_COMM_WORLD) ;
+    MPI_Allreduce(&sbits, &rbits, 1, MPI_INT, MPI_BOR, comm) ;
     if((rbits & 1) == 0) // EMPTY set
       return genIntervalSet<T>::EMPTY ;
     if((rbits & 2) == 0) // UNIVERSE set

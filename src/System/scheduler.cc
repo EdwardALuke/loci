@@ -692,6 +692,7 @@ namespace Loci {
                                      sched_db &scheds,
                                      const variableSet& target,
                                      int nth) {
+    exec_current_fact_db = &facts ;
     variableSet parVars = target ;
     parVars += facts.get_extensional_facts() ;
     rule_db par_rdb ;
@@ -712,6 +713,7 @@ namespace Loci {
     if(Loci::MPI_rank==0)
       cout << "Stationary Relation Generation..." << endl ;
     stationary_relation_gen(par_rdb, facts, target) ;
+    exec_current_fact_db = &facts ;
 #endif
     // then we need to perform global -> local renumbering
     if(facts.is_distributed_start()) {
@@ -1490,6 +1492,7 @@ bool operator <(const timingData &d) const {
                                               sched_db &scheds,
                                               const variableSet& target,
                                               int nth) {
+    exec_current_fact_db = &facts ;
     // since this function is always executed inside
     // the create_execution_schedule function so the
     // fact database is always in the local number state
@@ -1655,6 +1658,7 @@ bool operator <(const timingData &d) const {
 #endif
     exec_current_fact_db = &local_facts ;
     schedule->execute(local_facts, local_scheds) ;
+    exec_current_fact_db = &facts ;
 
     for(variableSet::const_iterator vi=query.begin();
         vi!=query.end();++vi) {
@@ -1663,7 +1667,8 @@ bool operator <(const timingData &d) const {
     }
     double tlocal = sw.stop() ;
     double tglobal = 0 ;
-    MPI_Allreduce(&tlocal,&tglobal, 1, MPI_DOUBLE, MPI_MAX,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&tlocal, &tglobal, 1, MPI_DOUBLE,
+                  MPI_MAX, facts.get_comm()) ;
     debugout << "time to execute internal query " << tglobal <<endl;
 
     return true ;
@@ -1783,7 +1788,8 @@ bool operator <(const timingData &d) const {
 
       double tlocal = sw.stop() ;
       double tglobal = 0 ;
-      MPI_Allreduce(&tlocal,&tglobal, 1, MPI_DOUBLE, MPI_MAX,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&tlocal, &tglobal, 1, MPI_DOUBLE,
+                    MPI_MAX, local_facts.get_comm()) ;
       debugout << "time to create schedule " << tglobal  << endl ;
       
       // If a schedule was generated, execute it
@@ -1846,13 +1852,14 @@ bool operator <(const timingData &d) const {
       collectTiming timeProf ;
       schedule->dataCollate(timeProf) ;
 
-      timeProf.balanceAnalysis(MPI_COMM_WORLD) ;
+      timeProf.balanceAnalysis(local_facts.get_comm()) ;
 
       double compute_time_local = timeProf.getComputeTime() ;
       double prof_exec_time = timeProf.getTotalTime() ;
       double compute_time_total = 0 ;
-      MPI_Allreduce(&compute_time_local,&compute_time_total, 1, MPI_DOUBLE,
-                    MPI_SUM,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&compute_time_local, &compute_time_total,
+                    1, MPI_DOUBLE, MPI_SUM,
+                    local_facts.get_comm()) ;
 
 
       timeProf.PrintSummary(debugout) ;
@@ -1944,26 +1951,30 @@ bool operator <(const timingData &d) const {
           MPI_Allreduce(&LociAppPeakMemory,
                         &LargestPeakMemory,
                         1, MPI_DOUBLE,
-                        MPI_MAX,MPI_COMM_WORLD) ;
+                        MPI_MAX,
+                        local_facts.get_comm()) ;
 
           double totalPeakMemory = 0 ;
           MPI_Allreduce(&LociAppPeakMemory,
                         &totalPeakMemory,
                         1, MPI_DOUBLE,
-                        MPI_SUM,MPI_COMM_WORLD) ;
+                        MPI_SUM,
+                        local_facts.get_comm()) ;
           double avgPeakMemory = totalPeakMemory/MPI_processes ;
 
           double LargestPeakMemoryBeanCounting = 0 ;
           MPI_Allreduce(&LociAppPeakMemoryBeanCounting,
                         &LargestPeakMemoryBeanCounting,
                         1, MPI_DOUBLE,
-                        MPI_MAX,MPI_COMM_WORLD) ;
+                        MPI_MAX,
+                        local_facts.get_comm()) ;
 
           double totalPeakMemoryBeanCounting = 0 ;
           MPI_Allreduce(&LociAppPeakMemoryBeanCounting,
                         &totalPeakMemoryBeanCounting,
                         1, MPI_DOUBLE,
-                        MPI_SUM,MPI_COMM_WORLD) ;
+                        MPI_SUM,
+                        local_facts.get_comm()) ;
           double avgPeakMemoryBeanCounting = totalPeakMemoryBeanCounting/MPI_processes ;
 
           Loci::debugout << endl ;
@@ -2005,139 +2016,162 @@ bool operator <(const timingData &d) const {
       {
         double mytime = ta_expand.getTime() ;
         double maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total expand time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_expand2.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total expand time (2): "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_expand_start.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total expand start block time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_expand_cache.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total expand cache management time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_expand_collect_img.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total expand image collection time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_expand_missing.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total expand missing domain comp time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_expand_comm.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total expand comm time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_context.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total context time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_context_nonepd.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total context non-expand block time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_context_nonepd_domt.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total context non-epd block (dom) time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_context_nonepd_ints.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total context non-epd block (int) time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_context_epdend.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total context expand-end block time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_context_epdmid.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total context expand-mid block time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_context_epdsta.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total context expand-sta block time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_output_oh.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total output overhead: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_compute.getTime() ;
         maxtime = 0 ;        
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total compute time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_record_erase.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total record erase time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_erase.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total erase time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_invalidate.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total invalidate time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_keyremoval.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total key removal time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_insertion.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total insertion time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_keyinsert.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total key insert time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_dist.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total distribution time: "
                        << mytime << ", max = " << maxtime << endl ;
         Loci::debugout << "[dynamic] total distribution number: "
@@ -2145,49 +2179,57 @@ bool operator <(const timingData &d) const {
 
         mytime = ta_key_dist.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total key distribution time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_dist_renumber.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total distribution renumber time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_push.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total push time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_pw_push.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total pointwise push time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_param_push.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total param push time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_param_pack.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total param pack time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_param_unpack.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total param unpack time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_param_reduce.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total param reduce time: "
                        << mytime << ", max = " << maxtime << endl ;
         Loci::debugout << "[dynamic] total param reduction num: "
@@ -2195,31 +2237,36 @@ bool operator <(const timingData &d) const {
 
         mytime = ta_dist_keys.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total dist keys time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_dist_all2all.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total dist all2all time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_dist_pack.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total dist pack time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_dist_unpack.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total dist unpack time: "
                        << mytime << ", max = " << maxtime << endl ;
 
         mytime = ta_dctrl.getTime() ;
         maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1, MPI_DOUBLE,
+                      MPI_MAX, local_facts.get_comm()) ;
         Loci::debugout << "[dynamic] total dcontrol reset time: "
                        << mytime << ", max = " << maxtime << endl ;
 
@@ -2234,8 +2281,9 @@ bool operator <(const timingData &d) const {
 #ifdef PARTICLE_PERF
       {
         double pmaxtime = 0 ;
-        MPI_Allreduce(&pwalltime,&pmaxtime,1,
-                      MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&pwalltime, &pmaxtime, 1,
+                      MPI_DOUBLE, MPI_MAX,
+                      local_facts.get_comm()) ;
         Loci::debugout << "Particle Walltime: " << pwalltime
                        << ", max = " << pmaxtime << endl ;
       }
@@ -2244,14 +2292,16 @@ bool operator <(const timingData &d) const {
       if(MPI_processes > 1) {
         double mytime = exec_time ;
         double maxtime = 0 ;
-        MPI_Allreduce(&mytime,&maxtime,1,
-                      MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1,
+                      MPI_DOUBLE, MPI_MAX,
+                      local_facts.get_comm()) ;
         Loci::debugout << "Global max time taken for execution"
                        << " of the schedule = "
                        << maxtime << " seconds " << endl ;
         mytime = prof_exec_time ;
-        MPI_Allreduce(&mytime,&maxtime,1,
-                      MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&mytime, &maxtime, 1,
+                      MPI_DOUBLE, MPI_MAX,
+                      local_facts.get_comm()) ;
         if(MPI_rank == 0 ) {
           double eff = compute_time_total/(double(MPI_processes)*maxtime) ;
           cout << "Schedule execution complete, estimated parallel efficiency = "

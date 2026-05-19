@@ -188,6 +188,7 @@ namespace Loci{
   
       //reorder store first, from local to io entities
       fact_db::distribute_infoP dist =  Loci::exec_current_fact_db->get_distribute_info() ;
+      MPI_Comm comm = Loci::get_exec_comm() ;
       constraint  my_faces, my_geom_cells; 
       entitySet my_entities = dist->my_entities ;
       my_faces = Loci::exec_current_fact_db->get_variable("faces");
@@ -209,24 +210,24 @@ namespace Loci{
  
       int offset = 0;
       store<vect3d> pos_io;
-      pos_io = Loci::Local2FileOrder(pos, local_nodes, offset, dist, MPI_COMM_WORLD) ;
+      pos_io = Loci::Local2FileOrder(pos, local_nodes, offset, dist, comm) ;
       entitySet file_nodes = pos_io.domain();
   
       offset = 0;
       store<Loci::FineNodes> edge_inner_nodes;
-      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes_edge.Rep(),local_edges,offset,dist,MPI_COMM_WORLD) ;
+      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes_edge.Rep(),local_edges,offset,dist,comm) ;
       entitySet file_edges = edge_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> cell_inner_nodes;
-      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes_cell.Rep(),local_cells,offset,dist,MPI_COMM_WORLD) ;
+      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes_cell.Rep(),local_cells,offset,dist,comm) ;
       entitySet file_cells = cell_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> face_inner_nodes;
-      face_inner_nodes = Loci::Local2FileOrder(inner_nodes_face.Rep(),local_faces,offset,dist,MPI_COMM_WORLD) ;
+      face_inner_nodes = Loci::Local2FileOrder(inner_nodes_face.Rep(),local_faces,offset,dist,comm) ;
       entitySet file_faces = face_inner_nodes.domain();
   
   
@@ -234,7 +235,7 @@ namespace Loci{
       int local_pos_size = file_nodes.size();
       std::vector<int> pos_sizes(Loci::MPI_processes) ;
       MPI_Gather(&local_pos_size,1,MPI_INT,
-                 &pos_sizes[0],1,MPI_INT,0,MPI_COMM_WORLD) ;
+                 &pos_sizes[0],1,MPI_INT,0,comm) ;
 
   
   
@@ -257,16 +258,16 @@ namespace Loci{
   
       std::vector<int> inner_edge_nodes_sizes(Loci::MPI_processes);
       MPI_Gather(&num_local_edge_nodes,1,MPI_INT,
-                 &inner_edge_nodes_sizes[0],1,MPI_INT,0,MPI_COMM_WORLD) ;
+                 &inner_edge_nodes_sizes[0],1,MPI_INT,0,comm) ;
   
   
       std::vector<int> inner_cell_nodes_sizes(Loci::MPI_processes);
       MPI_Gather(&num_local_cell_nodes,1,MPI_INT,
-                 &inner_cell_nodes_sizes[0],1,MPI_INT,0,MPI_COMM_WORLD) ;
+                 &inner_cell_nodes_sizes[0],1,MPI_INT,0,comm) ;
   
       std::vector<int> inner_face_nodes_sizes(Loci::MPI_processes);
       MPI_Gather(&num_local_face_nodes,1,MPI_INT,
-                 &inner_face_nodes_sizes[0],1,MPI_INT,0,MPI_COMM_WORLD) ;
+                 &inner_face_nodes_sizes[0],1,MPI_INT,0,comm) ;
   
 
 
@@ -337,10 +338,10 @@ namespace Loci{
           if(pos_sizes[i] == 0)
             continue ;
           int flag = 0 ;
-          MPI_Send(&flag,1,MPI_INT,i,0,MPI_COMM_WORLD) ;
+          MPI_Send(&flag,1,MPI_INT,i,0,comm) ;
           std::vector<vect3d> rv(pos_sizes[i]) ;
           MPI_Status mstat ;
-          MPI_Recv(&rv[0],sizeof(vect3d)*pos_sizes[i],MPI_BYTE,i,1,MPI_COMM_WORLD,
+          MPI_Recv(&rv[0],sizeof(vect3d)*pos_sizes[i],MPI_BYTE,i,1,comm,
                    &mstat) ;
           count = pos_sizes[i] ;
           H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, &start, &stride, &count, NULL) ;
@@ -378,10 +379,10 @@ namespace Loci{
           if(inner_edge_nodes_sizes[i] == 0)
             continue ;
           int flag = 0 ;
-          MPI_Send(&flag,1,MPI_INT,i,2,MPI_COMM_WORLD) ;
+          MPI_Send(&flag,1,MPI_INT,i,2,comm) ;
           std::vector<vector3d<double> > rv(inner_edge_nodes_sizes[i]) ;
           MPI_Status mstat ;
-          MPI_Recv(&rv[0],sizeof(vector3d<double> )*inner_edge_nodes_sizes[i],MPI_BYTE,i,3,MPI_COMM_WORLD,
+          MPI_Recv(&rv[0],sizeof(vector3d<double> )*inner_edge_nodes_sizes[i],MPI_BYTE,i,3,comm,
                    &mstat) ;
           count = inner_edge_nodes_sizes[i] ;
           H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, &start, &stride, &count, NULL) ;
@@ -419,10 +420,10 @@ namespace Loci{
           if(inner_cell_nodes_sizes[i] == 0)
             continue ;
           int flag = 0 ;
-          MPI_Send(&flag,1,MPI_INT,i,4,MPI_COMM_WORLD) ;
+          MPI_Send(&flag,1,MPI_INT,i,4,comm) ;
           std::vector<vector3d<double> > rv(inner_cell_nodes_sizes[i]) ;
           MPI_Status mstat ;
-          MPI_Recv(&rv[0],sizeof(vector3d<double> )*inner_cell_nodes_sizes[i],MPI_BYTE,i,5,MPI_COMM_WORLD,
+          MPI_Recv(&rv[0],sizeof(vector3d<double> )*inner_cell_nodes_sizes[i],MPI_BYTE,i,5,comm,
                    &mstat) ;
           count = inner_cell_nodes_sizes[i] ;
           H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, &start, &stride, &count, NULL) ;
@@ -460,10 +461,10 @@ namespace Loci{
           if(inner_face_nodes_sizes[i] == 0)
             continue ;
           int flag = 0 ;
-          MPI_Send(&flag,1,MPI_INT,i,6,MPI_COMM_WORLD) ;
+          MPI_Send(&flag,1,MPI_INT,i,6,comm) ;
           std::vector<vector3d<double> > rv(inner_face_nodes_sizes[i]) ;
           MPI_Status mstat ;
-          MPI_Recv(&rv[0],sizeof(vector3d<double> )*inner_face_nodes_sizes[i],MPI_BYTE,i,7,MPI_COMM_WORLD,
+          MPI_Recv(&rv[0],sizeof(vector3d<double> )*inner_face_nodes_sizes[i],MPI_BYTE,i,7,comm,
                    &mstat) ;
           count = inner_face_nodes_sizes[i] ;
           H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, &start, &stride, &count, NULL) ;
@@ -489,8 +490,8 @@ namespace Loci{
         
           int flag = 0;
           MPI_Status mstat ;
-          MPI_Recv(&flag,1,MPI_INT,0,0,MPI_COMM_WORLD,&mstat) ;
-          MPI_Send(&v_pos[0],sizeof(vector3d<double> )*local_pos_size,MPI_BYTE,0,1,MPI_COMM_WORLD) ;
+          MPI_Recv(&flag,1,MPI_INT,0,0,comm,&mstat) ;
+          MPI_Send(&v_pos[0],sizeof(vector3d<double> )*local_pos_size,MPI_BYTE,0,1,comm) ;
         }
         if(num_local_edge_nodes != 0){
           std::vector<vector3d<double> > v_nodes(num_local_edge_nodes);
@@ -503,8 +504,8 @@ namespace Loci{
           }ENDFORALL;
           int flag = 0;
           MPI_Status mstat ;
-          MPI_Recv(&flag,1,MPI_INT,0,2,MPI_COMM_WORLD,&mstat) ;
-          MPI_Send(&v_nodes[0],sizeof(vector3d<double> )*num_local_edge_nodes,MPI_BYTE,0,3,MPI_COMM_WORLD) ;
+          MPI_Recv(&flag,1,MPI_INT,0,2,comm,&mstat) ;
+          MPI_Send(&v_nodes[0],sizeof(vector3d<double> )*num_local_edge_nodes,MPI_BYTE,0,3,comm) ;
         }
     
         if(num_local_cell_nodes != 0){
@@ -518,8 +519,8 @@ namespace Loci{
           }ENDFORALL;
           int flag = 0;
           MPI_Status mstat ;
-          MPI_Recv(&flag,1,MPI_INT,0,4,MPI_COMM_WORLD,&mstat) ;
-          MPI_Send(&v_nodes[0],sizeof(vector3d<double> )*num_local_cell_nodes,MPI_BYTE,0,5,MPI_COMM_WORLD) ;
+          MPI_Recv(&flag,1,MPI_INT,0,4,comm,&mstat) ;
+          MPI_Send(&v_nodes[0],sizeof(vector3d<double> )*num_local_cell_nodes,MPI_BYTE,0,5,comm) ;
         }
     
         if(num_local_face_nodes != 0){
@@ -533,8 +534,8 @@ namespace Loci{
           }ENDFORALL;
           int flag = 0;
           MPI_Status mstat ;
-          MPI_Recv(&flag,1,MPI_INT,0,6,MPI_COMM_WORLD,&mstat) ;
-          MPI_Send(&v_nodes[0],sizeof(vector3d<double> )*num_local_face_nodes,MPI_BYTE,0,7,MPI_COMM_WORLD) ;
+          MPI_Recv(&flag,1,MPI_INT,0,6,comm,&mstat) ;
+          MPI_Send(&v_nodes[0],sizeof(vector3d<double> )*num_local_face_nodes,MPI_BYTE,0,7,comm) ;
         }
       }
   
@@ -561,6 +562,7 @@ namespace Loci{
       hid_t group_id = 0 ;  
       //reorder store first, from local to io entities
       fact_db::distribute_infoP dist =  Loci::exec_current_fact_db->get_distribute_info() ;
+      MPI_Comm comm = Loci::get_exec_comm() ;
       constraint  my_faces, my_geom_cells; 
       entitySet my_entities = dist->my_entities ;
       my_faces = Loci::exec_current_fact_db->get_variable("faces");
@@ -582,24 +584,24 @@ namespace Loci{
  
       int offset = 0;
       store<vect3d> pos_io;
-      pos_io = Loci::Local2FileOrder(pos, local_nodes, offset, dist, MPI_COMM_WORLD) ;
+      pos_io = Loci::Local2FileOrder(pos, local_nodes, offset, dist, comm) ;
       entitySet file_nodes = pos_io.domain();
   
       offset = 0;
       store<Loci::FineNodes> edge_inner_nodes;
-      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes_edge.Rep(),local_edges,offset,dist,MPI_COMM_WORLD) ;
+      edge_inner_nodes = Loci::Local2FileOrder(inner_nodes_edge.Rep(),local_edges,offset,dist,comm) ;
       entitySet file_edges = edge_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> cell_inner_nodes;
-      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes_cell.Rep(),local_cells,offset,dist,MPI_COMM_WORLD) ;
+      cell_inner_nodes = Loci::Local2FileOrder(inner_nodes_cell.Rep(),local_cells,offset,dist,comm) ;
       entitySet file_cells = cell_inner_nodes.domain();
   
       offset= 0;
       // Create container vardist that
       store<Loci::FineNodes> face_inner_nodes;
-      face_inner_nodes = Loci::Local2FileOrder(inner_nodes_face.Rep(),local_faces,offset,dist,MPI_COMM_WORLD) ;
+      face_inner_nodes = Loci::Local2FileOrder(inner_nodes_face.Rep(),local_faces,offset,dist,comm) ;
       entitySet file_faces = face_inner_nodes.domain();
   
   
@@ -607,7 +609,7 @@ namespace Loci{
       int local_pos_size = file_nodes.size();
       std::vector<int> pos_sizes(Loci::MPI_processes) ;
       MPI_Allgather(&local_pos_size,1,MPI_INT,
-                    &pos_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+                    &pos_sizes[0],1,MPI_INT,comm) ;
   
   
   
@@ -630,16 +632,16 @@ namespace Loci{
   
       std::vector<int> inner_edge_nodes_sizes(Loci::MPI_processes);
       MPI_Allgather(&num_local_edge_nodes,1,MPI_INT,
-                    &inner_edge_nodes_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+                    &inner_edge_nodes_sizes[0],1,MPI_INT,comm) ;
   
   
       std::vector<int> inner_cell_nodes_sizes(Loci::MPI_processes);
       MPI_Allgather(&num_local_cell_nodes,1,MPI_INT,
-                    &inner_cell_nodes_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+                    &inner_cell_nodes_sizes[0],1,MPI_INT,comm) ;
   
       std::vector<int> inner_face_nodes_sizes(Loci::MPI_processes);
       MPI_Allgather(&num_local_face_nodes,1,MPI_INT,
-                    &inner_face_nodes_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+                    &inner_face_nodes_sizes[0],1,MPI_INT,comm) ;
   
 
 
@@ -845,11 +847,12 @@ void getDist( Loci::entitySet &faces, Loci::entitySet &cells,
               vector<entitySet> &fptn, vector<entitySet> &cptn,
               Map &cl, Map &cr, multiMap &face2node) {
   // Get entity distributions
+  MPI_Comm comm = Loci::get_exec_comm() ;
   
   faces = face2node.domain() ;
   FATAL(cl.domain() != faces) ;
   FATAL(cr.domain() != faces) ;
-  fptn = all_collect_vectors(faces,MPI_COMM_WORLD) ;
+  fptn = all_collect_vectors(faces,comm) ;
 
   entitySet tmp_cells = cl.image(faces)+cr.image(faces) ;
   for(int i = 0 ; i<MPI_processes;++i)
@@ -860,8 +863,8 @@ void getDist( Loci::entitySet &faces, Loci::entitySet &cells,
   int lmaxC = loc_geom_cells.Max() ;
   int minC = lminC ;
   int maxC = lmaxC ;
-  MPI_Allreduce(&lminC, &minC, 1, MPI_INT, MPI_MIN,MPI_COMM_WORLD) ;
-  MPI_Allreduce(&lmaxC, &maxC, 1, MPI_INT, MPI_MAX,MPI_COMM_WORLD) ;
+  MPI_Allreduce(&lminC, &minC, 1, MPI_INT, MPI_MIN,comm) ;
+  MPI_Allreduce(&lmaxC, &maxC, 1, MPI_INT, MPI_MAX,comm) ;
   std:: vector<int> pl = Loci::simplePartitionVec(minC,maxC,MPI_processes) ;
   for(int i=0;i<MPI_processes;++i)
     cptn[i] += interval(pl[i],pl[i+1]-1) ;

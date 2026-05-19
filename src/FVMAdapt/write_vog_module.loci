@@ -130,6 +130,7 @@ public:
     disable_threading();
   }
   virtual void compute(const sequence &seq) {
+    MPI_Comm comm = Loci::get_exec_comm() ;
     //first put fine_faces into a maps
     hid_t file_id = 0 ;
 
@@ -160,7 +161,7 @@ public:
     }
     
     //problem here; MPI has no long long 
-    if(MPI_processes > 1 && !Loci::use_parallel_io) MPI_Bcast(&numNodes, 1, MPI_LONG_LONG_INT, 0, MPI_COMM_WORLD);
+    if(MPI_processes > 1 && !Loci::use_parallel_io) MPI_Bcast(&numNodes, 1, MPI_LONG_LONG_INT, 0, comm);
      
     // get 
     //compute numFaces

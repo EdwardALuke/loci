@@ -380,6 +380,11 @@ namespace Loci {
 
   extern fact_db *exec_current_fact_db ;
 
+  inline MPI_Comm get_exec_comm() {
+    return (exec_current_fact_db != 0) ?
+      exec_current_fact_db->get_comm() : MPI_COMM_WORLD ;
+  }
+
   inline entitySet collect_entitySet(entitySet e)
   { return collect_entitySet(e,*exec_current_fact_db) ; }
 

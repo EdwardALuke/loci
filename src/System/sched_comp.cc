@@ -662,7 +662,7 @@ namespace Loci {
        MPI_Allreduce(local_sizes,
                      global_sizes,
                      num_vars, MPI_DOUBLE,
-                     MPI_MAX,MPI_COMM_WORLD) ;
+                     MPI_MAX, facts.get_comm()) ;
        id = 0;
        for(variableSet::const_iterator
              mi=all_vars.begin();mi!=all_vars.end();++mi) {

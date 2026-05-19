@@ -222,7 +222,8 @@ namespace Loci {
 
 	      entitySet tmp_dom = p->domain() ;
 	      MapRepP mp =  MapRepP(p->getRep()) ;
-	      entitySet glob_dom = collectSet(tmp_dom,locdom[kd],MPI_COMM_WORLD) ;
+	      entitySet glob_dom = collectSet(tmp_dom,
+	        locdom[kd], facts.get_comm()) ;
 	      entitySet tmp_out = (glob_dom & locdom[kd]) - tmp_dom ;
 	      storeRepP sp = mp->expand(tmp_out, ptn) ;
 	      if(sp->domain() != tmp_dom) {
@@ -372,9 +373,8 @@ namespace Loci {
 	    if(isMAP(p)) {
 	      entitySet tmp_dom = p->domain() ;
 	      MapRepP mp =  MapRepP(p->getRep()) ;
-	      entitySet glob_dom = collectSet(tmp_dom,locdom,MPI_COMM_WORLD)
-
- ;
+	      entitySet glob_dom = collectSet(tmp_dom,
+	        locdom, facts.get_comm()) ;
 	      entitySet tmp_out = (glob_dom & locdom) - tmp_dom ;
 	      storeRepP sp = mp->expand(tmp_out, ptn) ;
 	      if(sp->domain() != tmp_dom) {
@@ -416,7 +416,7 @@ namespace Loci {
       storeRepP tmp_sp = facts.get_variable(*vi) ;
       if(tmp_sp->RepType() == CONSTRAINT) {
         entitySet tmp_dom = tmp_sp->domain() ;
-        if(GLOBAL_OR(tmp_dom != ~EMPTY,MPI_COMM_WORLD)) {
+        if(GLOBAL_OR(tmp_dom != ~EMPTY, facts.get_comm())) {
           std::vector<entitySet> &ptn =
             facts.get_init_ptn(tmp_sp->getDomainKeySpace()) ; 
 	  entitySet global_tmp_dom = distribute_entitySet(tmp_dom,ptn) ;
@@ -560,7 +560,7 @@ namespace Loci {
       
       int *send_buf = new int[size_send] ;
       MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
-		   MPI_COMM_WORLD) ;
+		   facts.get_comm()) ;
       size_send = 0 ;
       for(int i = 0; i < MPI_processes; ++i) {
 	size_send += recv_count[i] ;
@@ -581,7 +581,7 @@ namespace Loci {
       }
       MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
 		    recv_buf, recv_count, recv_displacement, MPI_INT,
-		    MPI_COMM_WORLD) ;
+		    facts.get_comm()) ;
       std::vector<entitySet> add(MPI_processes) ;
       for(int i = 0; i < MPI_processes; ++i) {
 	for(int j = recv_displacement[i]; j <
@@ -876,12 +876,13 @@ namespace Loci {
         xmitSizes[i*nsets+j] = ve[j][i].size() ;
     vector<MPI_Request> requestList(d->copy.size()+d->xmit.size()) ;
     vector<MPI_Status> requestStatus(d->copy.size()+d->xmit.size()) ;
+    MPI_Comm comm = facts.get_comm() ;
     for(size_t i=0;i<d->copy.size();++i)
       MPI_Irecv(&copySizes[i*nsets],nsets,MPI_INT,d->copy[i].proc,1,
-                MPI_COMM_WORLD, &requestList[i]) ;
+                comm, &requestList[i]) ;
     for(size_t i=0;i<d->xmit.size();++i)
       MPI_Isend(&xmitSizes[i*nsets],nsets,MPI_INT,d->xmit[i].proc,1,
-                MPI_COMM_WORLD, &requestList[i+d->copy.size()]) ;
+                comm, &requestList[i+d->copy.size()]) ;
     MPI_Waitall(requestList.size(), &requestList[0], &requestStatus[0]) ;
     return copySizes ;
   }
@@ -958,12 +959,14 @@ namespace Loci {
     vector<MPI_Request> requestList(send_sizes+recv_sizes) ;
     vector<MPI_Status> requestStatus(send_sizes+recv_sizes) ;
       
+    MPI_Comm comm = facts.get_comm() ;
     int cnt = 0 ;
     int recvBufCnt = 0 ;
     for(size_t i=0;i<d->copy.size();++i)
       if(recvSetSizes[i] > 0) {
-        MPI_Irecv(&recvBuffer[recvBufCnt],recvSetSizes[i]*2,MPI_INT,d->copy[i].proc,1,
-                  MPI_COMM_WORLD, &requestList[cnt]) ;
+        MPI_Irecv(&recvBuffer[recvBufCnt],recvSetSizes[i]*2,
+                  MPI_INT, d->copy[i].proc, 1,
+                  comm, &requestList[cnt]) ;
         recvBufCnt+=recvSetSizes[i]*2 ;
         cnt++ ;
       }
@@ -974,7 +977,7 @@ namespace Loci {
       int sz = sendSets[i].size() ;
       if(sz > 0) {
         MPI_Isend(&sendBuffer[j],sz*2,MPI_INT,d->xmit[i].proc,1,
-                  MPI_COMM_WORLD, &requestList[cnt]) ;
+                  comm, &requestList[cnt]) ;
         j += sz*2 ;
         cnt++ ;
       }
@@ -1068,14 +1071,17 @@ namespace Loci {
     vector<MPI_Request> requestList(send_sizes+recv_sizes) ;
     vector<MPI_Status> requestStatus(send_sizes+recv_sizes) ;
       
+    MPI_Comm comm = facts.get_comm() ;
     int cnt = 0 ;
     int recvBufCnt = 0 ;
     for(size_t i=0;i<d->copy.size();++i)
       if(recvSizes[i] > 0) {
         // test to see if valgrind error is real
         //        bzero(&recvBuffer[recvBufCnt],recvSizes[i]*2*sizeof(int)) ;
-        MPI_Irecv(&recvBuffer[recvBufCnt],recvSizes[i]*2,MPI_INT,d->copy[i].proc,1,
-                  MPI_COMM_WORLD, &requestList[cnt]) ;
+        MPI_Irecv(&recvBuffer[recvBufCnt],
+                  recvSizes[i]*2, MPI_INT,
+                  d->copy[i].proc, 1,
+                  comm, &requestList[cnt]) ;
         recvBufCnt+=recvSizes[i]*2 ;
         cnt++ ;
       }
@@ -1085,8 +1091,9 @@ namespace Loci {
     for(size_t i=0;i<d->xmit.size();++i) {
       int sz = sendSizes[i] ;
       if(sz > 0) {
-        MPI_Isend(&sendBuffer[sendcnt],sz*2,MPI_INT,d->xmit[i].proc,1,
-                  MPI_COMM_WORLD, &requestList[cnt]) ;
+        MPI_Isend(&sendBuffer[sendcnt], sz*2, MPI_INT,
+                  d->xmit[i].proc, 1,
+                  comm, &requestList[cnt]) ;
         sendcnt += sz*2 ;
         cnt++ ;
       }
@@ -1161,12 +1168,14 @@ namespace Loci {
       store<unsigned char> key_domain ;
       key_domain = d->key_domain.Rep() ;
 
+      MPI_Comm comm = facts.get_comm() ;
       MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
       MPI_Status *status = new MPI_Status[d->xmit.size()] ;
 
       for(size_t i=0;i<d->xmit.size();++i)
-	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
-                  MPI_COMM_WORLD, &recv_request[i] ) ;
+	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT,
+                  d->xmit[i].proc, 1,
+                  comm, &recv_request[i] ) ;
 
       /*By intersecting the given entitySet with the clone region
 	entities we can find out which entities are to be sent */
@@ -1180,8 +1189,8 @@ namespace Loci {
 	}
 
         int send_size = temp.size() ;
-        MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
-                 1,MPI_COMM_WORLD) ;
+        MPI_Send(send_buffer[i], send_size, MPI_INT,
+                 d->copy[i].proc, 1, comm) ;
       }
 
       if(d->xmit.size() > 0) {
@@ -1253,12 +1262,14 @@ namespace Loci {
       store<unsigned char> key_domain ;
       key_domain = d->key_domain.Rep() ;
 
+      MPI_Comm comm = facts.get_comm() ;
       MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
       MPI_Status *status = new MPI_Status[d->xmit.size()] ;
 
       for(size_t i=0;i<d->xmit.size();++i)
-	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
-                  MPI_COMM_WORLD, &recv_request[i] ) ;
+	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT,
+                  d->xmit[i].proc, 1,
+                  comm, &recv_request[i] ) ;
 
       for(size_t i=0;i<d->copy.size();++i) {
         int j=evsz ;
@@ -1272,8 +1283,8 @@ namespace Loci {
 	  }
         }
         int send_size = j ;
-        MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
-                 1,MPI_COMM_WORLD) ;
+        MPI_Send(send_buffer[i], send_size, MPI_INT,
+                 d->copy[i].proc, 1, comm) ;
       }
 
       if(d->xmit.size() > 0) {

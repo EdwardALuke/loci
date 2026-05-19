@@ -113,8 +113,7 @@ namespace Loci {
       string filename = name ;
       hid_t file_id = -1;
       hid_t  acc_plist;
-      // open collectively by all processor in MPI_COMM_WORLD,
-      acc_plist = Loci::create_faccess_plist(MPI_COMM_WORLD,
+      acc_plist = Loci::create_faccess_plist(comm,
                                              Loci::PHDF5_MPI_Info,
                                              Loci::hdf5_const::facc_type); 
       file_id = H5Fcreate(filename.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,acc_plist) ;
@@ -134,11 +133,12 @@ namespace Loci {
  
 
   hid_t writeVOGOpen(string filename) {
+    MPI_Comm comm = get_exec_comm() ;
     if(use_parallel_io){    
       hid_t file_id = 0;
       hid_t  acc_plist;
       
-      acc_plist = Loci::create_faccess_plist(MPI_COMM_WORLD,
+      acc_plist = Loci::create_faccess_plist(comm,
                                              Loci::PHDF5_MPI_Info,
                                              Loci::hdf5_const::facc_type); 
       file_id = H5Fcreate(filename.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,acc_plist) ;
@@ -170,8 +170,7 @@ namespace Loci {
 
     hid_t file_id = 0;
     hid_t  acc_plist;
-    // open collectively by all processor in MPI_COMM_WORLD,
-    acc_plist = Loci::create_faccess_plist(MPI_COMM_WORLD,
+    acc_plist = Loci::create_faccess_plist(comm,
                                            Loci::PHDF5_MPI_Info,
                                            Loci::hdf5_const::facc_type); 
     file_id = H5Fopen(name,H5F_ACC_RDONLY, acc_plist) ;
@@ -182,14 +181,13 @@ namespace Loci {
   }
 
   hid_t readVOGOpen(string filename) {
-    
+    MPI_Comm comm = get_exec_comm() ;
     if(use_parallel_io){
     
       hid_t file_id = -1;
     
       hid_t  acc_plist;
-      // open collectively by all processor in MPI_COMM_WORLD,
-      acc_plist = Loci::create_faccess_plist(MPI_COMM_WORLD,
+      acc_plist = Loci::create_faccess_plist(comm,
                                              Loci::PHDF5_MPI_Info,
                                              Loci::hdf5_const::facc_type); 
       file_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, acc_plist) ;
@@ -636,7 +634,7 @@ namespace Loci {
 
     void write_storeS(hid_t group_id, storeRepP qrep, entitySet dom, int offset, MPI_Comm comm) {
 #ifdef io_performance
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(comm);
       Loci::stopWatch s;
       s.start();
 #endif
@@ -783,7 +781,7 @@ namespace Loci {
         }
       }
 #ifdef io_performance
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(comm);
       double wall_time = s.stop();
       if(prank == 0) std::cerr << "                                                    serial time to write_store: "  << "  " << wall_time << endl; 
 #endif
@@ -795,7 +793,7 @@ namespace Loci {
       write_storeS(group_id, qrep, dom, offset, comm) ;
 #else
 #ifdef io_performance
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(comm);
       Loci::stopWatch s;
       s.start();
 #endif
@@ -880,7 +878,7 @@ namespace Loci {
         H5Tclose(datatype) ;
       }
 #ifdef io_performance
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(comm);
       double wall_time = s.stop();
       if(prank == 0) std::cerr << "                                                    parallel time to write_store "  << "  " << wall_time << endl;
 #endif
@@ -888,22 +886,24 @@ namespace Loci {
     }
 
     void write_containerS(hid_t group_id, storeRepP qrep) {
+      MPI_Comm comm = get_exec_comm() ;
       int offset = 0 ;
       if(qrep->RepType() == PARAMETER)
-        write_parameterS(group_id,qrep,MPI_COMM_WORLD) ;
+        write_parameterS(group_id,qrep,comm) ;
       else
-        write_storeS(group_id,qrep,qrep->domain(),offset,MPI_COMM_WORLD) ;
+        write_storeS(group_id,qrep,qrep->domain(),offset,comm) ;
     }
   
     void write_containerP(hid_t group_id, storeRepP qrep) {
 #ifndef H5_HAVE_PARALLEL
       write_containerS(group_id, qrep);
 #else
+      MPI_Comm comm = get_exec_comm() ;
       int offset = 0 ;
       if(qrep->RepType() == PARAMETER)
-        write_parameterP(group_id,qrep,MPI_COMM_WORLD) ;
+        write_parameterP(group_id,qrep,comm) ;
       else
-        write_storeP(group_id,qrep,qrep->domain(),offset,MPI_COMM_WORLD) ;
+        write_storeP(group_id,qrep,qrep->domain(),offset,comm) ;
 #endif
     }
 
@@ -912,7 +912,7 @@ namespace Loci {
 
     void read_storeS(hid_t group_id, storeRepP qrep, int &offset, MPI_Comm comm) {
 #ifdef io_performance   
-      MPI_Barrier(MPI_COMM_WORLD);    
+      MPI_Barrier(comm);    
       Loci::stopWatch s;
       s.start();
 #endif
@@ -1123,7 +1123,7 @@ namespace Loci {
       delete [] tmp_buf ;
       delete [] tmp_int ;
 #ifdef io_performance
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(comm);
       double wall_time = s.stop();
       if(prank == 0) std::cerr << "                                                     serial time to read_store "  << "  " << wall_time << endl; 
 #endif
@@ -1135,7 +1135,7 @@ namespace Loci {
       read_storeS(group_id, qrep, offset, comm);
 #else
 #ifdef io_performance
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(comm);
       Loci::stopWatch s;
       s.start();
 #endif
@@ -1242,7 +1242,7 @@ namespace Loci {
       H5Dclose(dataset) ;
       H5Sclose(dataspace) ;
 #ifdef io_performance
-      MPI_Barrier(MPI_COMM_WORLD);
+      MPI_Barrier(comm);
       double wall_time = s.stop();
       if(prank == 0) std::cerr << "                                                    parallel time to read_store " << "  " << wall_time << endl; 
 #endif
@@ -1315,55 +1315,61 @@ namespace Loci {
 
  
   entitySet findBoundingSet(entitySet in) {
+    MPI_Comm comm = get_exec_comm() ;
     Entity max_val = in.Max() ;
     Entity min_val = in.Min() ;
     Entity gmin_val = min_val;
     Entity gmax_val = max_val ;
-    MPI_Allreduce(&min_val,&gmin_val,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
-    MPI_Allreduce(&max_val,&gmax_val,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&min_val, &gmin_val, 1, MPI_INT,
+                  MPI_MIN, comm) ;
+    MPI_Allreduce(&max_val, &gmax_val, 1, MPI_INT,
+                  MPI_MAX, comm) ;
 
     return entitySet(interval(gmin_val,gmax_val)) ;
   }
 
   vector<sequence> transposeSeq(const vector<sequence> sv) {
-    vector<int> send_sz(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
+    MPI_Comm comm = get_exec_comm() ;
+    int np = MPI_processes ;
+    vector<int> send_sz(np) ;
+    for(int i=0;i<np;++i)
       send_sz[i] = sv[i].num_intervals()*2 ;
-    vector<int> recv_sz(MPI_processes) ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT,
-                 &recv_sz[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+    vector<int> recv_sz(np) ;
+    MPI_Alltoall(&send_sz[0], 1, MPI_INT,
+                 &recv_sz[0], 1, MPI_INT,
+                 comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<np;++i) {
       size_send += send_sz[i] ;
       size_recv += recv_sz[i] ;
     }
-    //    outRep->allocate(new_alloc) ;
     int *send_store = new int[size_send] ;
     int *recv_store = new int[size_recv] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    int *send_displacement = new int[np] ;
+    int *recv_displacement = new int[np] ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i < np; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_sz[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_sz[i-1] ;
     }
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i < np; ++i)
       for(size_t j=0;j<sv[i].num_intervals();++j) {
         send_store[send_displacement[i]+j*2] = sv[i][j].first ;
         send_store[send_displacement[i]+j*2+1] = sv[i][j].second ;
       }
 
 
-    MPI_Alltoallv(send_store,&send_sz[0], send_displacement , MPI_INT,
-                  recv_store, &recv_sz[0], recv_displacement, MPI_INT,
-                  MPI_COMM_WORLD) ;
+    MPI_Alltoallv(send_store, &send_sz[0],
+                  send_displacement, MPI_INT,
+                  recv_store, &recv_sz[0],
+                  recv_displacement, MPI_INT,
+                  comm) ;
 
-    vector<sequence> sv_t(MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    vector<sequence> sv_t(np) ;
+    for(int i = 0; i < np; ++i)
       for(int j=0;j<recv_sz[i]/2;++j) {
         int i1 = recv_store[recv_displacement[i]+j*2]  ;
         int i2 = recv_store[recv_displacement[i]+j*2+1] ;
@@ -1868,9 +1874,10 @@ namespace Loci {
  
   void redistribute_write_container(hid_t file_id, std::string vname,
                                     storeRepP var, fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     fact_db::distribute_infoP dist = facts.get_distribute_info() ;
     if(dist == 0) {
-      writeContainerRAW(file_id,vname,var,MPI_COMM_WORLD) ;
+      writeContainerRAW(file_id, vname, var, comm) ;
       return ;
     }
 
@@ -1882,19 +1889,16 @@ namespace Loci {
 
     // Redistribute container to map from local to global numbering
     if(var->RepType() != PARAMETER && MPI_processes != 1) {
-      // parallel store write.. reorder to file numbering then write out
-      // reorder from local to file numbering
       int offset = 0 ;
       entitySet dom = var->domain() ;
-      // Create container vardist that is ordered across processors in the
-      // file numbering, the domain of this container shifted by offset
-      // is the actual file numbering.
-      storeRepP vardist = Local2FileOrder(var,dom,offset,dist,MPI_COMM_WORLD) ;
-      // Write out container that has been distributed in the file numbering
+      storeRepP vardist =
+        Local2FileOrder(var, dom, offset, dist, comm) ;
       if(use_parallel_io)
-        pio::write_storeP(group_id,vardist,vardist->domain(),offset,MPI_COMM_WORLD) ;
+        pio::write_storeP(group_id, vardist,
+                          vardist->domain(), offset, comm) ;
       else
-        pio::write_storeS(group_id,vardist,vardist->domain(),offset,MPI_COMM_WORLD) ;
+        pio::write_storeS(group_id, vardist,
+                          vardist->domain(), offset, comm) ;
     } else {
       // No need to reorder container if parameter or only one
       // processor, so just write out the container.
@@ -1911,36 +1915,35 @@ namespace Loci {
 
   int getMinFileNumberFromLocal(entitySet read_set,
                                 fact_db::distribute_infoP dist ) {
-
+    MPI_Comm comm = get_exec_comm() ;
     int minIDfl = std::numeric_limits<int>::max() ;
-    int kd =  getKeyDomain(read_set, dist, MPI_COMM_WORLD) ;
+    int kd =  getKeyDomain(read_set, dist, comm) ;
     if(kd< 0) {
       cerr << "read_set not in single keyspace!" << endl ;
       kd = 0 ;
     }
-    // local 2 file
     Map l2f ;
     l2f = dist->l2f.Rep() ;
 
-    // Compute map from local numbering to file numbering
     FORALL(read_set,ii) {
       minIDfl = min(minIDfl,l2f[ii]) ;
     } ENDFORALL ;
     int minIDf = minIDfl ;
-    MPI_Allreduce(&minIDfl,&minIDf,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&minIDfl, &minIDf, 1, MPI_INT,
+                  MPI_MIN, comm) ;
     return minIDf ;
   }
 
-  //serial/parallel io
   void read_container_redistribute(hid_t file_id, std::string vname,
                                    storeRepP var, entitySet read_set,
                                    fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     hid_t group_id = 0;
     if(use_parallel_io || MPI_rank == 0)
       group_id = H5Gopen(file_id, vname.c_str(),H5P_DEFAULT) ;
 
     if(var->RepType() == PARAMETER) {
-      read_parameter(group_id, var, MPI_COMM_WORLD) ;
+      read_parameter(group_id, var, comm) ;
       if(use_parallel_io || MPI_rank == 0)
         H5Gclose(group_id) ;
       return ;
@@ -1949,27 +1952,25 @@ namespace Loci {
     // Read in store in file numbering
     int offset = 0 ;
     storeRepP new_store = var->new_store(EMPTY) ;
-    if(use_parallel_io )
-      pio::read_storeP( group_id, new_store,offset,MPI_COMM_WORLD) ;
-    else pio::read_storeS( group_id, new_store,offset,MPI_COMM_WORLD) ;
+    if(use_parallel_io)
+      pio::read_storeP(group_id, new_store, offset, comm) ;
+    else
+      pio::read_storeS(group_id, new_store, offset, comm) ;
     
     if(use_parallel_io || MPI_rank == 0)
       H5Gclose(group_id) ;
 
-    // map from file number to local numbering
     fact_db::distribute_infoP dist = facts.get_distribute_info() ;
     if(dist != 0) {
-      // Correct offset if file numbering changes.  Assume read_set is being
-      // read in over the same set
       int minID = offset ;
-      MPI_Bcast(&minID,1,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&minID, 1, MPI_INT, 0, comm) ;
       const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
       const int correct = minIDf - minID ;
       offset += correct  ;
 
-      // Allocate space for reordered container
       storeRepP result = var->new_store(read_set) ;
-      File2LocalOrder(result,read_set,new_store,offset,dist,MPI_COMM_WORLD) ;
+      File2LocalOrder(result, read_set, new_store,
+                      offset, dist, comm) ;
       // Copy results into container
       if(read_set == EMPTY) {
         read_set = result->domain() ;
@@ -1995,12 +1996,13 @@ namespace Loci {
 
  
   void writeSetIds(hid_t file_id, entitySet local_set, fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     vector<int> ids(local_set.size()) ;
 
     int c = 0 ;
     if(MPI_processes > 1) {
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
-      int kd =  getKeyDomain(local_set, df, MPI_COMM_WORLD) ;
+      int kd =  getKeyDomain(local_set, df, comm) ;
       if(kd < 0) {
         cerr << "unable to find distribute info in writeSetIds" << endl;
         kd = 0 ;
@@ -2532,13 +2534,14 @@ namespace Loci {
     } else {
       l2f.allocate(dom) ;
 
+      MPI_Comm comm = get_exec_comm() ;
       int mnl = std::numeric_limits<int>::max() ;
       FORALL(dom,ii) {
         l2f[ii] = dist->l2f[ii] ; 
         mnl = min(mnl,l2f[ii]) ;
       } ENDFORALL ;
       int mn=mnl ;
-      MPI_Allreduce(&mnl,&mn,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&mnl, &mn, 1, MPI_INT, MPI_MIN, comm) ;
       FORALL(dom,ii) {
         l2f[ii] -= mn ;
       } ENDFORALL ;

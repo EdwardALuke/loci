@@ -25,6 +25,7 @@
 #include <Map.h>
 #include <DMultiMap.h>
 #include <multiMap.h>
+#include <fact_db.h>
 #include <Tools/hash_map.h>
 #include <cstring>
 
@@ -35,6 +36,8 @@ using std::istream ;
 
 namespace Loci 
 {
+  extern fact_db *exec_current_fact_db ;
+
   using std::pair ;
   using std::make_pair ;
   using std::vector ;
@@ -63,7 +66,7 @@ namespace Loci
   }
   
   storeRepP dmultiMapRepI::expand(entitySet &out_of_dom, std::vector<entitySet> &ptn) {
-
+    MPI_Comm comm = get_exec_comm() ;
     int *recv_count = new int[MPI_processes] ;
     int *send_count = new int[MPI_processes] ;
     int *send_displacement = new int[MPI_processes] ;
@@ -82,7 +85,7 @@ namespace Loci
     }
     int *send_buf = new int[size_send] ;
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
-		 MPI_COMM_WORLD) ; 
+		 comm) ; 
     size_send = 0 ;
     for(int i = 0; i < MPI_processes; ++i)
       size_send += recv_count[i] ;
@@ -102,7 +105,7 @@ namespace Loci
     }
     MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
 		  recv_buf, recv_count, recv_displacement, MPI_INT,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
     for(int i = 0; i < MPI_processes; ++i) {
       for(int j = recv_displacement[i]; j <
 	    recv_displacement[i]+recv_count[i]; ++j) 
@@ -129,7 +132,7 @@ namespace Loci
       size_send += send_count[i] ;
     int *send_map = new int[size_send] ;
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
-		 MPI_COMM_WORLD) ; 
+		 comm) ; 
     size_send = 0 ;
     for(int i = 0; i < MPI_processes; ++i)
       size_send += recv_count[i] ;
@@ -152,7 +155,7 @@ namespace Loci
              
     MPI_Alltoallv(send_map,send_count, send_displacement , MPI_INT,
 		  recv_map, recv_count, recv_displacement, MPI_INT,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
     
     dmultiMap hm ;
     hm.Rep()->setDomainKeySpace(getDomainKeySpace()) ;

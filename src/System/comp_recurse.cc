@@ -687,7 +687,7 @@ namespace Loci {
       if(!facts.isDistributed())
         deltar = deltas ;
       else
-        MPI_Allreduce(&deltas,&deltar, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD) ;
+        MPI_Allreduce(&deltas,&deltar, 1, MPI_INT, MPI_SUM, facts.get_comm()) ;
       if(deltar != 0)
         finished = false ;
     }

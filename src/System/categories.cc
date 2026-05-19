@@ -106,7 +106,8 @@ namespace Loci {
             entitySet testSet = image_dom - total_entities ;
             int size = testSet.size() ;
             int tsize = 0 ;
-            MPI_Allreduce(&size,&tsize,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+            MPI_Allreduce(&size, &tsize, 1, MPI_INT,
+                          MPI_SUM, facts.get_comm()) ;
             if(tsize != 0) {
               std::string name = "image_" ;
               name.append(vi->get_info().name) ;
@@ -259,10 +260,12 @@ namespace Loci {
           }
         }
         int buf_size = buffer.size() ;
-        MPI_Bcast(&buf_size,1,MPI_INT,comm_root,MPI_COMM_WORLD) ;
+        MPI_Comm comm = get_exec_comm() ;
+        MPI_Bcast(&buf_size, 1, MPI_INT, comm_root, comm) ;
         if(comm_root != MPI_rank)
           buffer = vector<int>(buf_size) ;
-        MPI_Bcast(&buffer[0],buf_size,MPI_INT,comm_root,MPI_COMM_WORLD) ;
+        MPI_Bcast(&buffer[0], buf_size, MPI_INT, comm_root,
+                  comm) ;
 
         for(size_t ex=0;ex<buffer.size();) {
           int num_ents = buffer[ex] ;
@@ -278,7 +281,8 @@ namespace Loci {
         int r = -1 ;
         if(cat_set.size() != 0)
           r = MPI_rank ;
-        MPI_Allreduce(&r,&comm_root,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&r, &comm_root, 1, MPI_INT, MPI_MAX,
+                      comm) ;
       }
       clist.clear() ;
       set<entitySet>::const_iterator si ;
@@ -301,7 +305,8 @@ namespace Loci {
         map<variable,entitySet>::const_iterator vinfo = vm.find(v) ;
         int local_size = vinfo->second.size() ;
         int vsize = 0 ;
-        MPI_Allreduce(&local_size,&vsize,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&local_size, &vsize, 1, MPI_INT, MPI_SUM,
+                      get_exec_comm()) ;
         var_sizes.push_back(pair<variable,int>(v,vsize)) ;
       }
       std::stable_sort(var_sizes.begin(),var_sizes.end(),compare_var_sizes) ;

@@ -105,7 +105,7 @@ namespace Loci {
     /*
       write out the store that already in file numbering
     */
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -178,7 +178,7 @@ namespace Loci {
     /*
       write out the storeVec that already in file numbering
     */
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -250,7 +250,7 @@ namespace Loci {
                                const const_store<T> &var,
                                const entitySet& write_set, fact_db &facts, int xfer_type, bool ordered) {
 #ifndef MPI_STUBB
-    MPI_Comm comm = MPI_COMM_WORLD ;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -375,7 +375,7 @@ namespace Loci {
                                    const entitySet& write_set, fact_db &facts, int xfer_type, bool ordered) {
 #ifndef MPI_STUBB
 
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -503,7 +503,7 @@ namespace Loci {
                        entitySet read_set,
                        fact_db &facts, int xfer_type) {
 #ifndef MPI_STUBB
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -662,7 +662,7 @@ namespace Loci {
                           entitySet read_set,
                           fact_db &facts, int xfer_type) {
 #ifndef MPI_STUBB
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;

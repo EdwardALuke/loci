@@ -54,6 +54,7 @@ namespace {
   void memSpace(string s) {
     using Loci::debugout ;
     debugout << s <<":" << endl;
+    MPI_Comm comm = get_exec_comm() ;
 
     struct mallinfo info = mallinfo() ;
     int mem_alloc_local
@@ -63,15 +64,15 @@ namespace {
     int mem_alloc_global = 0 ;
     int mem_req_global = 0 ;
     MPI_Allreduce(&mem_alloc_local,&mem_alloc_global,1,MPI_INT,MPI_SUM,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
     MPI_Allreduce(&mem_req_local,&mem_req_global,1,MPI_INT,MPI_SUM,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
     int mem_alloc_max = 0 ;
     int mem_req_max = 0 ;
     MPI_Allreduce(&mem_alloc_local,&mem_alloc_max,1,MPI_INT,MPI_MAX,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
     MPI_Allreduce(&mem_req_local,&mem_req_max,1,MPI_INT,MPI_MAX,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
     debugout << "   alloc=" << ((mem_alloc_global+512)>>10) <<"Mb"
              << ",imb="
@@ -112,10 +113,11 @@ namespace Loci {
     int r = Loci::MPI_rank ;
     int p = Loci::MPI_processes ;
     int num_entities = dom.size() ;
+    MPI_Comm comm = get_exec_comm() ;
 
     // Store the distribution of entity across MPI ranks
     vector<int> dist_sizes(p,0) ; // number of entities per MPI rank
-    MPI_Allgather(&num_entities,1,MPI_INT,&dist_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&num_entities,1,MPI_INT,&dist_sizes[0],1,MPI_INT,comm) ;
     vector<int> offsets(p+1,0) ; // prefix sum of entity counts across ranks
     for(int i=1;i<p+1;++i) {
       offsets[i] = offsets[i-1]+dist_sizes[i-1] ;
@@ -289,6 +291,7 @@ namespace Loci {
   /// donor cells to estimate stencil extents during interpolation.
   $rule blackbox(stencilSizer<-cellcenter,cellSize2,donorCell,stencilSize2),
   option(disable_threading),prelude {
+    MPI_Comm comm = get_exec_comm() ;
 
 #ifdef REPORT_TIMES
     Loci::stopWatch s ;
@@ -330,10 +333,10 @@ namespace Loci {
       }
     } ENDFORALL ;
 
-    Loci::balanceDistribution(points,MPI_COMM_WORLD) ;
+    Loci::balanceDistribution(points,comm) ;
 
     // Sort points using ORB method
-    Loci::ORBSort(points,MPI_COMM_WORLD) ;
+    Loci::ORBSort(points,comm) ;
 
     cnt = points.size() ;
 
@@ -357,7 +360,7 @@ namespace Loci {
     // Now collect all of these points onto all of the processors
     vector<int> rcounts(p,0) ;
     int tsz = results.size() ;
-    MPI_Allgather(&tsz,1,MPI_INT,&rcounts[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&tsz,1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
 
     int rsize = rcounts[0] ;
     for(int i=1;i<p;++i)
@@ -377,7 +380,7 @@ namespace Loci {
 
     MPI_Allgatherv((void *)&results[0],sizeof(Loci::vpair)*tsz,MPI_BYTE,
                    (void *)&recvdata[0],&rcounts[0],&rdispls[0],MPI_BYTE,
-                   MPI_COMM_WORLD) ;
+                   comm) ;
     vector<int> pt_id(rsize,0);
     coord3df pt0(0.0f,0.0f,0.0f) ;
     vector<coord3df > pts(rsize,pt0) ;
@@ -403,13 +406,14 @@ namespace Loci {
   $rule apply(interpolateFaceStencil<-interpolatePoints(cellcenter,iblank),
   stencilSize2,interpolateMinStencilSize,stencilSizer,facecenter,area,
   ci->cellcenter,ci->iblank)[Loci::NullOp], option(disable_threading), prelude {
+    MPI_Comm comm = get_exec_comm() ;
 
     MEMORY_PROFILE(compute_start) ;
 
 #ifdef REPORT_TIMES
     Loci::stopWatch s ;
     s.start() ;
-    MPI_Barrier(MPI_COMM_WORLD) ;
+    MPI_Barrier(comm) ;
     //    Loci::debugout << "time to sync: " << s.stop() << endl ;
     s.start() ;
 #endif
@@ -454,7 +458,7 @@ namespace Loci {
 
     // Compute how big the decomposition chunks should be
     int tsz = 0 ;
-    MPI_Allreduce(&sz,&tsz,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&sz,&tsz,1,MPI_INT,MPI_SUM,comm) ;
 
     // split boxes until each box has no more then split_lim points
     int p = Loci::MPI_processes ;
@@ -511,7 +515,7 @@ namespace Loci {
     vector<int> box_sp,box_tp,b_sizes,send_block_id,recv_block_id ;
 
     boundingBoxDistribution(box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
-                            boxes,MPI_COMM_WORLD) ;
+                            boxes,comm) ;
 
 
     // ------------------------------------------------------------------------
@@ -519,11 +523,11 @@ namespace Loci {
     vector<vector<Loci::kdTree::KDTree<float>::coord_info>  > loc_pbox ;
     communicateBoxPoints(loc_pbox,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,pbox,boxes,
-                         MPI_COMM_WORLD) ;
+                         comm) ;
     vector<vector<vector3d<double> > > loc_ndelta ;
     communicateBoxPoints(loc_ndelta,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,ndelta,boxes,
-                         MPI_COMM_WORLD) ;
+                         comm) ;
 
 #ifdef REPORT_TIMES
     Loci::debugout << "face time recv box search points: " << s.stop() << endl ;
@@ -534,7 +538,7 @@ namespace Loci {
 
     // First collect bounding box information for each block
     vector<bound_info> boxes_g ;
-    allGatherVec(boxes_g,boxes,MPI_COMM_WORLD) ;
+    allGatherVec(boxes_g,boxes,comm) ;
 
 
 #ifdef REPORT_TIMES
@@ -548,7 +552,7 @@ namespace Loci {
     recieveTargetPoints(recv_targets,interp_pnts->kd,
                         boxes_g,box_sp,box_tp,b_sizes,
                         send_block_id,recv_block_id,
-                        MPI_COMM_WORLD) ;
+                        comm) ;
 
 #ifdef REPORT_TIMES
     Loci::debugout << "time to receive target points: " << s.stop() << endl ;
@@ -834,7 +838,7 @@ namespace Loci {
 #endif
 
     int tot = 0 ;
-    MPI_Allreduce(&st_error,&tot,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&st_error,&tot,1,MPI_INT,MPI_SUM,comm) ;
     if(tot != 0) {
       if(Loci::MPI_rank == 0) {
         cerr << "STENCIL ERROR:  Degenerate interface stencil formed, aborting"
@@ -843,7 +847,7 @@ namespace Loci {
       }
     }
 
-    MPI_Allreduce(&st_warnings,&tot,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&st_warnings,&tot,1,MPI_INT,MPI_SUM,comm) ;
     if(Loci::MPI_rank == 0 && tot != 0) {
       cerr << "Warning: Suboptimal interface stencil in reconstruction: "
            << tot << endl ;
@@ -858,7 +862,7 @@ namespace Loci {
       vector<Array<int,4> > stencil_rcv ;
       returnBlockData(stencil_rcv,stencil_block,2,boxes,
                       box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
-                      MPI_COMM_WORLD) ;
+                      comm) ;
 
       int stsz = stencil_rcv.size() ;
       vector<int> stmp(stsz*4) ;
@@ -920,7 +924,7 @@ namespace Loci {
     vector<Array<double,4> > weight_rcv ;
     //    returnBlockData(weight_rcv,weights_block,3,boxes,
     returnBlockData(weight_rcv,weights_block,2,boxes,box_sp,box_tp,b_sizes,
-                    send_block_id,recv_block_id,MPI_COMM_WORLD) ;
+                    send_block_id,recv_block_id,comm) ;
 
     $interpolateFaceStencil->weights.swap(weight_rcv) ;
 
@@ -935,7 +939,7 @@ namespace Loci {
     s.start() ;
 #endif
 #ifdef REPORT_TIMES
-    MPI_Barrier(MPI_COMM_WORLD) ;
+    MPI_Barrier(comm) ;
     Loci::debugout << "time to sync: " << s.stop() << endl ;
     s.start() ;
 #endif
@@ -1246,13 +1250,14 @@ namespace Loci {
   $rule apply(interpolateCellStencil<-interpolatePoints(cellcenter,iblank),
   stencilSize2,cellcenter,iblank,stencilSizer,interpolateMinStencilSize)
   [Loci::NullOp],option(disable_threading), prelude {
+    MPI_Comm comm = get_exec_comm() ;
 
     MEMORY_PROFILE(compute_start) ;
     MEMORY_PROFILE(buildcellstencil) ;
 #ifdef REPORT_TIMES
     Loci::stopWatch s ;
     s.start() ;
-    MPI_Barrier(MPI_COMM_WORLD) ;
+    MPI_Barrier(comm) ;
     //    Loci::debugout << "time to sync: " << s.stop() << endl ;
     s.start() ;
 #endif
@@ -1292,7 +1297,7 @@ namespace Loci {
 
     // Compute how big the decomposition chunks should be
     int tsz = 0 ;
-    MPI_Allreduce(&sz,&tsz,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&sz,&tsz,1,MPI_INT,MPI_SUM,comm) ;
     MEMORY_PROFILE(pre_split_boxes) ;
     // split boxes until each box has no more then split_lim points
     int p = Loci::MPI_processes ;
@@ -1340,7 +1345,7 @@ namespace Loci {
     vector<int> box_sp,box_tp,b_sizes,send_block_id,recv_block_id ;
 
     boundingBoxDistribution(box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
-                            boxes,MPI_COMM_WORLD) ;
+                            boxes,comm) ;
     MEMORY_PROFILE(post_distribution) ;
 
     // ------------------------------------------------------------------------
@@ -1348,7 +1353,7 @@ namespace Loci {
     vector<vector<Loci::kdTree::KDTree<float>::coord_info> > loc_pbox ;
     communicateBoxPoints(loc_pbox,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,pbox,boxes,
-                         MPI_COMM_WORLD) ;
+                         comm) ;
 
 #ifdef REPORT_TIMES
     Loci::debugout << "time recv box search points: " << s.stop() << endl ;
@@ -1361,7 +1366,7 @@ namespace Loci {
 
     // First collect bounding box information for each block
     vector<bound_info> boxes_g ;
-    allGatherVec(boxes_g,boxes,MPI_COMM_WORLD) ;
+    allGatherVec(boxes_g,boxes,comm) ;
 
 #ifdef REPORT_TIMES
     Loci::debugout << "time allGatherVec boxes: " << s.stop() << endl ;
@@ -1374,7 +1379,7 @@ namespace Loci {
     recieveTargetPoints(recv_targets,interp_pnts->kd,
                         boxes_g,box_sp,box_tp,b_sizes,
                         send_block_id,recv_block_id,
-                        MPI_COMM_WORLD) ;
+                        comm) ;
 
     MEMORY_PROFILE(recv_targetPnts) ;
 #ifdef REPORT_TIMES
@@ -1500,12 +1505,12 @@ namespace Loci {
     }
 
     int tot = 0 ;
-    MPI_Allreduce(&st_error,&tot,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&st_error,&tot,1,MPI_INT,MPI_SUM,comm) ;
     if(Loci::MPI_rank == 0 && tot != 0) {
       cerr << "STENCIL ERROR:  Degenerate stencil formed" << endl ;
       //Loci::Abort() ;
     }
-    MPI_Allreduce(&st_warning,&tot,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&st_warning,&tot,1,MPI_INT,MPI_SUM,comm) ;
     if(Loci::MPI_rank == 0 && tot != 0) {
       cerr << "Warning: Suboptimal stencil in reconstruction: "
            << tot << endl ;
@@ -1522,7 +1527,7 @@ namespace Loci {
       vector<Array<int,4> > stencil_rcv ;
       returnBlockData(stencil_rcv,stencil_block,1,boxes,
                       box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
-                      MPI_COMM_WORLD) ;
+                      comm) ;
 
       MEMORY_PROFILE(recv_stencil) ;
       int stsz = stencil_rcv.size() ;
@@ -1585,7 +1590,7 @@ namespace Loci {
     vector<Array<double,4> > weight_rcv ;
     returnBlockData(weight_rcv,weights_block,1,boxes,
                     box_sp,box_tp,b_sizes,send_block_id,recv_block_id,
-                    MPI_COMM_WORLD) ;
+                    comm) ;
 
     $interpolateCellStencil->weights.swap(weight_rcv) ;
 
@@ -1598,7 +1603,7 @@ namespace Loci {
 #ifdef REPORT_TIMES
     Loci::debugout << "time in new code find stencil: " << s.stop() << endl ;
     s.start() ;
-    MPI_Barrier(MPI_COMM_WORLD) ;
+    MPI_Barrier(comm) ;
     Loci::debugout << "time to sync: " << s.stop() << endl ;
     s.start() ;
 #endif

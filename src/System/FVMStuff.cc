@@ -87,7 +87,8 @@ namespace Loci{
     entitySet fnodes = g2f.image(gnodes) ;
     int minNode_local = fnodes.Min() ;
     int minNode = minNode_local ;
-    MPI_Allreduce(&minNode_local,&minNode,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&minNode_local, &minNode, 1, MPI_INT,
+                   MPI_MIN, facts.get_comm()) ;
 
     FORALL(nodes,i) {
       newnum[i] = g2f[l2g[i]]-minNode+1 ;
@@ -143,7 +144,7 @@ namespace Loci{
     int gsz = gnodes.size() ;
     int color = (gsz>0)?1:0 ;
     MPI_Comm groupcomm ;
-    MPI_Comm_split(MPI_COMM_WORLD,color,p,&groupcomm) ;
+    MPI_Comm_split(facts.get_comm(), color, p, &groupcomm) ;
     if(color==0) {
       MPI_Comm_free(&groupcomm) ;
 #ifdef VERBOSE
@@ -782,7 +783,7 @@ namespace Loci{
     } ENDFORALL ;
 
 
-    bnames = MPIConcatStrings(bnames,MPI_COMM_WORLD) ;
+    bnames = MPIConcatStrings(bnames, facts.get_comm()) ;
 
     vector<string> bnamelist ;
     for(size_t i=0;i<bnames.size();++i) {
@@ -806,7 +807,7 @@ namespace Loci{
     Map l2f ;
     if(MPI_processes > 1) {
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
-      int kd =  getKeyDomain(fset, df, MPI_COMM_WORLD) ;
+      int kd =  getKeyDomain(fset, df, facts.get_comm()) ;
 
       if(kd < 0) {
         cerr << "gridTopology, boundary faces not in single keyspace!"
@@ -946,7 +947,7 @@ namespace Loci{
     } ENDFORALL ;
 
 
-    bnames = MPIConcatStrings(bnames,MPI_COMM_WORLD) ;
+    bnames = MPIConcatStrings(bnames, facts.get_comm()) ;
 
     vector<string> bnamelist ;
     for(size_t i=0;i<bnames.size();++i) {
@@ -1091,7 +1092,8 @@ namespace Loci{
     faceorder.allocate(bfaces) ;
     int sz = bfaces.size() ;
     int off = 0 ;
-    MPI_Scan(&sz,&off,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Scan(&sz, &off, 1, MPI_INT, MPI_SUM,
+             facts.get_comm()) ;
     off -= sz ;
     FORALL(bfaces,fc) {
       faceorder[fc] = off ;
@@ -1659,10 +1661,12 @@ namespace Loci{
 
       vector<int> p1closest(p1.size()) ;
 
-      parallelNearestNeighbors(p2,p2id,p1,p1closest,MPI_COMM_WORLD) ;
+      parallelNearestNeighbors(p2, p2id, p1, p1closest,
+                               facts.get_comm()) ;
 
       vector<int> p2closest(p2.size()) ;
-      parallelNearestNeighbors(p1,p1id,p2,p2closest,MPI_COMM_WORLD) ;
+      parallelNearestNeighbors(p1, p1id, p2, p2closest,
+                               facts.get_comm()) ;
 
       for(size_t i=0;i<p1.size();++i) {
         pmap[p1id[i]] = p1closest[i] ;
@@ -1969,8 +1973,10 @@ namespace Loci{
           int p2inp = p2.bset.size() ;
           int p1size ;
           int p2size ;
-          MPI_Allreduce(&p1inp,&p1size,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
-          MPI_Allreduce(&p2inp,&p2size,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+          MPI_Allreduce(&p1inp, &p1size, 1, MPI_INT,
+                       MPI_SUM, facts.get_comm()) ;
+          MPI_Allreduce(&p2inp, &p2size, 1, MPI_INT,
+                       MPI_SUM, facts.get_comm()) ;
           if(p1size != p2size) {
             if(MPI_rank == 0) {
               cerr << "periodic boundaries " << p1.name
@@ -2244,7 +2250,7 @@ namespace Loci{
 
     // In case there are processors that have no n2c's allocated to them
     // re-balance map distribution
-    Loci::balanceDistribution(n2c,MPI_COMM_WORLD) ;
+    Loci::balanceDistribution(n2c, facts.get_comm()) ;
     // Equijoin node2cell with itself to get cell to cell map of
     // all cells that share one or more nodes
     Loci::protoMap n2cc = n2c ;
@@ -2480,7 +2486,7 @@ namespace Loci{
     Loci::protoMap f2f ;
     Loci::equiJoinFF(f2cell,f2celll,f2f) ;
     Loci::removeIdentity(f2f) ;
-    Loci::balanceDistribution(f2f,MPI_COMM_WORLD) ;
+    Loci::balanceDistribution(f2f, facts.get_comm()) ;
 
     // Create cell stencil map from protoMap
     distributed_inverseMap(cellStencil,f2f,geom_cells,geom_cells,ptn) ;
@@ -3536,7 +3542,8 @@ namespace Loci{
     /// A utility that returns the global sum.
     int global_sum(int l) {
       int g ;
-      MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD) ;
+      MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM,
+                     get_exec_comm()) ;
       return g ;
     }
 
@@ -3548,7 +3555,8 @@ namespace Loci{
       // compute receive counts from all processors
       int* recv_counts = new int[MPI_processes] ;
       MPI_Allgather(&local_size, 1, MPI_INT,
-                    recv_counts, 1, MPI_INT, MPI_COMM_WORLD) ;
+                    recv_counts, 1, MPI_INT,
+                    get_exec_comm()) ;
       // then compute receive displacement
       int* recv_displs = new int[MPI_processes] ;
       recv_displs[0] = 0 ;
@@ -3567,7 +3575,8 @@ namespace Loci{
       // communicate to obtain all esets from every processors
       MPI_Allgatherv(local_eset, local_size, MPI_INT,
                      global_eset, recv_counts, recv_displs,
-                     MPI_INT, MPI_COMM_WORLD) ;
+                     MPI_INT,
+                     get_exec_comm()) ;
       delete[] local_eset ;
       delete[] recv_counts ;
       // unpack the raw buffer into a vector<entitySet>
@@ -3831,7 +3840,7 @@ namespace Loci{
     // and we pre-balance the "emap" on every process before the
     // sorting
     if(GLOBAL_OR(emap.empty())) {
-      parallel_balance_pair_vector(emap, MPI_COMM_WORLD) ;
+      parallel_balance_pair_vector(emap, facts.get_comm()) ;
     }
     // Sort edges and remove duplicates
     sort(emap.begin(),emap.end()) ;
@@ -3847,12 +3856,13 @@ namespace Loci{
     if(GLOBAL_OR(emap.empty())) {
       MPI_Comm sub_comm ;
       int color = emap.empty() ;
-      MPI_Comm_split(MPI_COMM_WORLD, color, MPI_rank, &sub_comm) ;
+      MPI_Comm_split(facts.get_comm(), color, MPI_rank,
+                     &sub_comm) ;
       if(!emap.empty())
         par_sort(emap, sub_comm) ;
       MPI_Comm_free(&sub_comm) ;
     } else {
-      par_sort(emap, MPI_COMM_WORLD) ;
+      par_sort(emap, facts.get_comm()) ;
     }
     // remove duplicates again in the new sorted vector
     uend = unique(emap.begin(), emap.end()) ;
@@ -3887,17 +3897,20 @@ namespace Loci{
         // rank 0 only receives from 1, no sending needed
         MPI_Recv(recvbuf, 2, MPI_INT,
                  1/*source*/, 0/*msg tag*/,
-                 MPI_COMM_WORLD, &status) ;
+                 facts.get_comm(), &status) ;
       } else if(MPI_rank == MPI_processes-1) {
         // the last processes only sends to the second last processes,
         // no receiving is needed
         MPI_Send(sendbuf, 2, MPI_INT,
-                 MPI_rank-1/*dest*/, 0/*msg tag*/, MPI_COMM_WORLD) ;
+                 MPI_rank-1/*dest*/, 0/*msg tag*/,
+                 facts.get_comm()) ;
       } else {
         // others will send to MPI_rank-1 and receive from MPI_rank+1
-        MPI_Sendrecv(sendbuf, 2, MPI_INT, MPI_rank-1/*dest*/,0/*msg tag*/,
-                     recvbuf, 2, MPI_INT, MPI_rank+1/*source*/,0/*tag*/,
-                     MPI_COMM_WORLD, &status) ;
+        MPI_Sendrecv(sendbuf, 2, MPI_INT,
+                     MPI_rank-1/*dest*/, 0/*msg tag*/,
+                     recvbuf, 2, MPI_INT,
+                     MPI_rank+1/*source*/, 0/*tag*/,
+                     facts.get_comm(), &status) ;
       }
       // then compare the results with last element in local emap
       if( (MPI_rank != MPI_processes-1) && (!emap.empty())){
@@ -4153,7 +4166,8 @@ namespace Loci{
 
 
       if(GLOBAL_OR(edge2global.empty())) {
-        parallel_balance_pair2_vector(edge2global, MPI_COMM_WORLD) ;
+        parallel_balance_pair2_vector(edge2global,
+                                       facts.get_comm()) ;
       }
       // Sort edges and remove duplicates
       sort(edge2global.begin(),edge2global.end()) ;
@@ -4169,13 +4183,14 @@ namespace Loci{
       if(GLOBAL_OR(edge2global.empty())) {
         MPI_Comm sub_comm ;
         int color = edge2global.empty() ;
-        MPI_Comm_split(MPI_COMM_WORLD, color, MPI_rank, &sub_comm) ;
+        MPI_Comm_split(facts.get_comm(), color, MPI_rank,
+                       &sub_comm) ;
         if(!edge2global.empty()) {
           par_sort2(edge2global, sub_comm) ;
         }
         MPI_Comm_free(&sub_comm) ;
       } else {
-        par_sort2(edge2global, MPI_COMM_WORLD) ;
+        par_sort2(edge2global, facts.get_comm()) ;
       }
       // remove duplicates again in the new sorted vector
       uend2 = unique(edge2global.begin(), edge2global.end()) ;
@@ -4212,17 +4227,20 @@ namespace Loci{
           // rank 0 only receives from 1, no sending needed
           MPI_Recv(recvbuf, 3, MPI_INT,
                    1/*source*/, 0/*msg tag*/,
-                   MPI_COMM_WORLD, &status) ;
+                   facts.get_comm(), &status) ;
         } else if(MPI_rank == MPI_processes-1) {
           // the last processes only sends to the second last processes,
           // no receiving is needed
           MPI_Send(sendbuf, 3, MPI_INT,
-                   MPI_rank-1/*dest*/, 0/*msg tag*/, MPI_COMM_WORLD) ;
+                   MPI_rank-1/*dest*/, 0/*msg tag*/,
+                   facts.get_comm()) ;
         } else {
           // others will send to MPI_rank-1 and receive from MPI_rank+1
-          MPI_Sendrecv(sendbuf, 3, MPI_INT, MPI_rank-1/*dest*/,0/*msg tag*/,
-                       recvbuf, 3, MPI_INT, MPI_rank+1/*source*/,0/*tag*/,
-                       MPI_COMM_WORLD, &status) ;
+          MPI_Sendrecv(sendbuf, 3, MPI_INT,
+                       MPI_rank-1/*dest*/, 0/*msg tag*/,
+                       recvbuf, 3, MPI_INT,
+                       MPI_rank+1/*source*/, 0/*tag*/,
+                       facts.get_comm(), &status) ;
         }
         // then compare the results with last element in local emap
         if( (MPI_rank != MPI_processes-1) && (!edge2global.empty())) {
@@ -4239,7 +4257,9 @@ namespace Loci{
 
       int local_num_edge = edge2global.size() ;
       vector<int> edge_sizes(MPI_processes) ;
-      MPI_Allgather(&local_num_edge,1,MPI_INT,&edge_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      MPI_Allgather(&local_num_edge, 1, MPI_INT,
+                    &edge_sizes[0], 1, MPI_INT,
+                    facts.get_comm()) ;
 
       int file_num_offset = 0 ;
       for(int i = 0; i < MPI_rank; i++) {
@@ -4331,7 +4351,8 @@ namespace Loci{
 
     pos = facts.get_variable("pos") ;
     entitySet dom = pos.domain() ;
-    vector<entitySet> posptn = all_collect_vectors(dom,MPI_COMM_WORLD) ;
+    vector<entitySet> posptn =
+      all_collect_vectors(dom, facts.get_comm()) ;
     entitySet surfNodes = dist_collect_entitySet(nodeSet,posptn) ;
 
     // Now get volume tags
@@ -4423,8 +4444,9 @@ namespace Loci{
         cnt++ ;
       } ENDFORALL ;
 
-      Loci::parallelNearestNeighbors(bcnodes_pts,bcnodes_ids,node_pts,closest,
-                                     MPI_COMM_WORLD) ;
+      Loci::parallelNearestNeighbors(bcnodes_pts, bcnodes_ids,
+                                     node_pts, closest,
+                                     facts.get_comm()) ;
 
       cnt = 0 ;
       FORALL(nodeSet,nd) {

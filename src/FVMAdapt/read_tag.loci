@@ -338,7 +338,7 @@ public:
   }
   virtual void compute(const sequence &seq) {
     string filename = *tagfile_par;
-    MPI_Comm comm = MPI_COMM_WORLD ;    
+    MPI_Comm comm = Loci::get_exec_comm() ;
 
     size_t p = filename.find("ref_sca");
     if(p != string::npos){//read hdf5 file
@@ -365,7 +365,7 @@ public:
     disable_threading();
   }
   virtual void compute(const sequence &seq){
-    MPI_Comm comm = MPI_COMM_WORLD ;    
+    MPI_Comm comm = Loci::get_exec_comm() ;
     
     vector<char> filedata  = *inputTagsData ;
     
@@ -473,7 +473,7 @@ getNodeOffsets(store<int> &nodeloc, const_store<int> &numsplits,
     File2LocalOrder(localVar, locdom,
                     fo_numsplits.Rep(), offset,
                     dist,
-                    MPI_COMM_WORLD);
+                    comm);
   }
   return tnodes ;
 }
@@ -499,7 +499,7 @@ public:
   virtual void compute(const sequence &seq){
     vector<char> filedata  = *inputTagsData ;
 
-    MPI_Comm comm = MPI_COMM_WORLD ;    
+    MPI_Comm comm = Loci::get_exec_comm() ;
     
     // Now determine what data we need to collect from filedata
     fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
@@ -683,7 +683,7 @@ public:
   virtual void compute(const sequence &seq){
     vector<char> filedata  = *inputTagsData ;
 
-    MPI_Comm comm = MPI_COMM_WORLD ;    
+    MPI_Comm comm = Loci::get_exec_comm() ;
     
     // Now determine what data we need to collect from filedata
     fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
@@ -804,7 +804,7 @@ public:
   }
   virtual void compute(const sequence &seq) {
     string filename = *tagfile_par;
-    MPI_Comm comm = MPI_COMM_WORLD ;    
+    MPI_Comm comm = Loci::get_exec_comm() ;
 
     size_t p = filename.find("ref_sca");
     if(p != string::npos){//read hdf5 file
@@ -831,7 +831,7 @@ public:
     disable_threading();
   }
   virtual void compute(const sequence &seq){
-    MPI_Comm comm = MPI_COMM_WORLD ;    
+    MPI_Comm comm = Loci::get_exec_comm() ;
     
     vector<char> filedata  = *inputTagsData ;
     

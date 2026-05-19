@@ -391,7 +391,8 @@ namespace Loci
       // first we need to get the size of the iterate space
       int lsz = exec_set.size() ;
       int gsz = 0 ;
-      MPI_Allreduce(&lsz,&gsz,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&lsz, &gsz, 1, MPI_INT, MPI_SUM,
+                    facts.get_comm()) ;
       // Now compute chomp size
       int p = MPI_processes ;
       // Chunk size
@@ -473,7 +474,8 @@ namespace Loci
       yMapSave.swap(tmp) ;
     }
     
-    MPI_Allgather (i2, 2, MPI_INT, &yMapSave[0], 2, MPI_INT, MPI_COMM_WORLD);
+    MPI_Allgather (i2, 2, MPI_INT, &yMapSave[0], 2, MPI_INT,
+                   facts.get_comm()) ;
     allItems = 0;
     for (int proc = 0; proc < nProcs; proc++)
       allItems = allItems + yMapSave[2 * proc + 1];
@@ -540,7 +542,7 @@ namespace Loci
         debugout << "Sending data to " << dest << endl ;
 #endif
         MPI_Send (&buf[0], buf_size, MPI_PACKED, dest, TAG_INPUT,
-                  MPI_COMM_WORLD);
+                  facts1->get_comm()) ;
       }
     } else if(recvChunks.size() != 0) {
       // First post Irecvs
@@ -559,7 +561,7 @@ namespace Loci
         debugout << "recieving data from " << src << endl ;
 #endif
         MPI_Irecv (&buf[offset], buf_size, MPI_PACKED, src, TAG_INPUT,
-                    MPI_COMM_WORLD, &req_list[i]);
+                    facts1->get_comm(), &req_list[i]) ;
 	offset += buf_size ;
       }
 
@@ -670,11 +672,11 @@ namespace Loci
         debugout << "recieving computed data from " << dest << endl ;
 #endif
         MPI_Irecv (&buf[offset1], buf_size, MPI_PACKED, dest, TAG_OUTPUT,
-                    MPI_COMM_WORLD, &req_list[i*2]);
+                    facts1->get_comm(), &req_list[i*2]) ;
 	offset1 += buf_size ;
         int nchunks = sendChunks[i].chunkList.size() ;
-        MPI_Irecv(&times[offset2],nchunks,MPI_FLOAT,dest,TAG_TIMES,
-		  MPI_COMM_WORLD, &req_list[i*2+1]);
+        MPI_Irecv(&times[offset2], nchunks, MPI_FLOAT, dest, TAG_TIMES,
+		  facts1->get_comm(), &req_list[i*2+1]) ;
 	offset2 += nchunks ;
       }
 
@@ -730,11 +732,11 @@ namespace Loci
         debugout << "sending computed data to " << dest << endl ;
 #endif
         MPI_Send (&buf[0], buf_size, MPI_PACKED, dest, TAG_OUTPUT,
-                  MPI_COMM_WORLD);
+                  facts1->get_comm()) ;
         
         int nchunks = recvChunks[i].chunkList.size() ;
-        MPI_Send(&remote_times[cnt2],nchunks,MPI_FLOAT,dest,TAG_TIMES,
-                 MPI_COMM_WORLD) ;
+        MPI_Send(&remote_times[cnt2], nchunks, MPI_FLOAT, dest,
+                 TAG_TIMES, facts1->get_comm()) ;
         cnt2 += nchunks ;
       }
       // Release space for the remote computation
@@ -757,9 +759,11 @@ namespace Loci
     // Estimate parallel efficiency
     //=======================================================
     float total_time = 0 ;
-    MPI_Allreduce(&exec_time,&total_time,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&exec_time, &total_time, 1, MPI_FLOAT, MPI_SUM,
+                  facts1->get_comm()) ;
     float max_time = 0 ;
-    MPI_Allreduce(&exec_time,&max_time,1,MPI_FLOAT,MPI_MAX,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&exec_time, &max_time, 1, MPI_FLOAT, MPI_MAX,
+                  facts1->get_comm()) ;
     double ef = total_time/(max_time*float(MPI_processes)) ;
 
     if(MPI_rank == 0) 
@@ -780,7 +784,8 @@ namespace Loci
 #ifdef VERBOSE
       debugout << "reducing " << time << endl ;
 #endif
-      MPI_Allreduce(&time,&total_time,1,MPI_FLOAT,MPI_SUM,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&time, &total_time, 1, MPI_FLOAT, MPI_SUM,
+                    facts1->get_comm()) ;
       float mean_time = total_time/float(MPI_processes) ;
       float diff_time = time-mean_time ;
       if(fabs(diff_time) < mean_time*eff_tol) // If close to average time, zero
@@ -845,8 +850,8 @@ namespace Loci
 			chunkData[send_list[i]].chunkTime[1]) ;
       }
       vector<float> time_xfers(MPI_processes) ;
-      MPI_Allgather(&diff_time, 1, MPI_FLOAT, &time_xfers[0],1,MPI_FLOAT,
-		    MPI_COMM_WORLD) ;
+      MPI_Allgather(&diff_time, 1, MPI_FLOAT, &time_xfers[0], 1,
+		    MPI_FLOAT, facts1->get_comm()) ;
 #ifdef VERBOSE
       if(MPI_rank == 0) {
 	debugout << "mean_time = " << mean_time << endl ;
@@ -920,8 +925,8 @@ namespace Loci
       if(rebalance && sources) { // we have residual work to distribute
 	int nchunks = send_list.size() ;
 	vector<int> chunk_groups(MPI_processes) ;
-	MPI_Allgather(&nchunks, 1, MPI_INT, &chunk_groups[0],1,MPI_INT,
-		      MPI_COMM_WORLD) ;
+	MPI_Allgather(&nchunks, 1, MPI_INT, &chunk_groups[0], 1,
+		      MPI_INT, facts1->get_comm()) ;
 	vector<float> chunk_times(nchunks) ;
 	for(int i=0;i<nchunks;++i) {
 	  int ch = send_list[i] ;
@@ -938,12 +943,12 @@ namespace Loci
 
 	vector<float> chunk_time_gather(ntchunks) ;
 	
-	MPI_Allgatherv(&chunk_times[0],nchunks,MPI_FLOAT,
+	MPI_Allgatherv(&chunk_times[0], nchunks, MPI_FLOAT,
 		       &chunk_time_gather[0],
 		       &chunk_groups[0],
 		       &chunk_displ[0],
 		       MPI_FLOAT,
-		       MPI_COMM_WORLD) ;
+		       facts1->get_comm()) ;
 	vector<pair<float,pair<int,int> > > chunkQueue(ntchunks) ;
         int cnk = 0 ;
 	for(int i=0;i<MPI_processes;++i) {
@@ -1055,8 +1060,8 @@ namespace Loci
       int local_chk_info[2],global_chk_info[2] ;
       local_chk_info[0] = selfChunks.size() ;
       local_chk_info[1] = numChunks ;
-      MPI_Allreduce(&local_chk_info[0],&global_chk_info[0],2,MPI_INT,
-                    MPI_SUM, MPI_COMM_WORLD) ;
+      MPI_Allreduce(&local_chk_info[0], &global_chk_info[0], 2,
+                    MPI_INT, MPI_SUM, facts1->get_comm()) ;
       if(MPI_rank == 0) {
         debugout << "IWS Schedule: Communicating "
                  << global_chk_info[1]-global_chk_info[0]
@@ -1096,9 +1101,9 @@ namespace Loci
 	sendSizes[sendChunks[i].proc] = sendChunks[i].chunkList.size() ;
       
       vector<int> recvSizes(MPI_processes,0) ;
-      MPI_Alltoall(&sendSizes[0],1,MPI_INT,
-		   &recvSizes[0],1,MPI_INT,
-		   MPI_COMM_WORLD) ;
+      MPI_Alltoall(&sendSizes[0], 1, MPI_INT,
+		   &recvSizes[0], 1, MPI_INT,
+		   facts1->get_comm()) ;
       numRemoteChunks = 0 ;
 
       vector<chunkCommInfo> local_recv_list ;
@@ -1118,23 +1123,25 @@ namespace Loci
       }
       for(size_t i=0;i<local_recv_list.size();++i) {
         MPI_Status tStatus;
-	MPI_Recv(&local_recv_list[i].recv_size,1,MPI_INT,
-		 local_recv_list[i].proc,TAG_INFO,
-		 MPI_COMM_WORLD,&tStatus) ;
+	MPI_Recv(&local_recv_list[i].recv_size, 1, MPI_INT,
+		 local_recv_list[i].proc, TAG_INFO,
+		 facts1->get_comm(), &tStatus) ;
       }
       for(size_t i=0;i<sendChunks.size();++i) {
-	MPI_Send(&sendChunks[i].send_size,1,MPI_INT,
-		 sendChunks[i].proc,TAG_INFO,MPI_COMM_WORLD) ;
+	MPI_Send(&sendChunks[i].send_size, 1, MPI_INT,
+		 sendChunks[i].proc, TAG_INFO,
+		 facts1->get_comm()) ;
       }
       for(size_t i=0;i<local_recv_list.size();++i) {
         MPI_Status tStatus;
-	MPI_Recv(&local_recv_list[i].send_size,1,MPI_INT,
-		 local_recv_list[i].proc,TAG_INFO,
-		 MPI_COMM_WORLD,&tStatus) ;
+	MPI_Recv(&local_recv_list[i].send_size, 1, MPI_INT,
+		 local_recv_list[i].proc, TAG_INFO,
+		 facts1->get_comm(), &tStatus) ;
       }
       for(size_t i=0;i<sendChunks.size();++i) {
-	MPI_Send(&sendChunks[i].recv_size,1,MPI_INT,
-		 sendChunks[i].proc,TAG_INFO,MPI_COMM_WORLD) ;
+	MPI_Send(&sendChunks[i].recv_size, 1, MPI_INT,
+		 sendChunks[i].proc, TAG_INFO,
+		 facts1->get_comm()) ;
       }
       recvChunks.swap(local_recv_list) ;
 #ifdef VERBOSE
@@ -1152,8 +1159,10 @@ namespace Loci
       int nsendrecvl = recvChunks.size()+sendChunks.size() ;
       int nsendrecvg = 0 ;
       int nsendrecvs = 0 ;
-      MPI_Allreduce(&nsendrecvl,&nsendrecvg,1,MPI_INT,MPI_MAX, MPI_COMM_WORLD) ;
-      MPI_Allreduce(&nsendrecvl,&nsendrecvs,1,MPI_INT,MPI_SUM, MPI_COMM_WORLD) ;
+      MPI_Allreduce(&nsendrecvl, &nsendrecvg, 1, MPI_INT, MPI_MAX,
+                    facts1->get_comm()) ;
+      MPI_Allreduce(&nsendrecvl, &nsendrecvs, 1, MPI_INT, MPI_SUM,
+                    facts1->get_comm()) ;
       if(MPI_rank == 0) {
         debugout << "IWS Schedule: Each processor communicating with an average of "
                  << double(nsendrecvs)/double(MPI_processes)
@@ -1169,7 +1178,8 @@ namespace Loci
     double timesin[2] = {comm_time,sched_time} ;
     double timesmx[2] = {0,0} ;
 
-    MPI_Allreduce(&timesin[0],&timesmx[0],2,MPI_DOUBLE,MPI_MAX,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&timesin[0], &timesmx[0], 2, MPI_DOUBLE, MPI_MAX,
+                  facts1->get_comm()) ;
     if(MPI_rank == 0)
       Loci::debugout << "comm_time = " << timesmx[0] << ",sched_time=" << timesmx[1] << endl ;
 #endif
@@ -1197,9 +1207,10 @@ namespace Loci
                                         double mu) {
     int bufInfo[3], pSize, tPos;
     int size ;
-    MPI_Pack_size(3,MPI_INT,MPI_COMM_WORLD,&size) ;
+    MPI_Comm comm = facts1->get_comm() ;
+    MPI_Pack_size(3, MPI_INT, comm, &size) ;
     pSize = size ;
-    MPI_Pack_size(1,MPI_DOUBLE,MPI_COMM_WORLD,&size) ;
+    MPI_Pack_size(1, MPI_DOUBLE, comm, &size) ;
     pSize += size ;
 
     GetBuffer (pSize);
@@ -1207,9 +1218,9 @@ namespace Loci
     bufInfo[1] = chunkSize;
     bufInfo[2] = chunkDest;
     tPos = 0;
-    MPI_Pack (bufInfo, 3, MPI_INT, buf, pSize, &tPos, MPI_COMM_WORLD);
-    MPI_Pack (&mu, 1, MPI_DOUBLE, buf, pSize, &tPos, MPI_COMM_WORLD);
-    MPI_Send (buf, pSize, MPI_PACKED, dest, action, MPI_COMM_WORLD);
+    MPI_Pack (bufInfo, 3, MPI_INT, buf, pSize, &tPos, comm) ;
+    MPI_Pack (&mu, 1, MPI_DOUBLE, buf, pSize, &tPos, comm) ;
+    MPI_Send (buf, pSize, MPI_PACKED, dest, action, comm) ;
 #if DEBUGOUT
     //if (myRank == foreMan)
     Loci::debugout << "Info: action=" << action << ", " << myRank << "->"
@@ -1224,17 +1235,18 @@ namespace Loci
     int bufInfo[3], pSize, tPos;
     MPI_Status tStatus;
 
+    MPI_Comm comm = facts1->get_comm() ;
     int size ;
-    MPI_Pack_size(3,MPI_INT,MPI_COMM_WORLD,&size) ;
+    MPI_Pack_size(3, MPI_INT, comm, &size) ;
     pSize = size ;
-    MPI_Pack_size(1,MPI_DOUBLE,MPI_COMM_WORLD,&size) ;
+    MPI_Pack_size(1, MPI_DOUBLE, comm, &size) ;
     pSize += size ;
 
     GetBuffer (pSize);
-    MPI_Recv (buf, pSize, MPI_PACKED, src, action, MPI_COMM_WORLD, &tStatus);
+    MPI_Recv (buf, pSize, MPI_PACKED, src, action, comm, &tStatus) ;
     tPos = 0;
-    MPI_Unpack (buf, pSize, &tPos, bufInfo, 3, MPI_INT, MPI_COMM_WORLD);
-    MPI_Unpack (buf, pSize, &tPos, mu, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Unpack (buf, pSize, &tPos, bufInfo, 3, MPI_INT, comm) ;
+    MPI_Unpack (buf, pSize, &tPos, mu, 1, MPI_DOUBLE, comm) ;
     *chunkStart = bufInfo[0];
     *chunkSize = bufInfo[1];
     *chunkDest = bufInfo[2];
@@ -1245,8 +1257,9 @@ namespace Loci
     int position, pSize ;
     int bufInfo[3];
 
+    MPI_Comm comm = facts1->get_comm() ;
     int size ;
-    MPI_Pack_size(3,MPI_INT,MPI_COMM_WORLD,&size) ;
+    MPI_Pack_size(3, MPI_INT, comm, &size) ;
     pSize = size ;
     pSize += inputPackSize (tStart, tSize);
 
@@ -1256,14 +1269,14 @@ namespace Loci
     bufInfo[1] = tSize;
     bufInfo[2] = pSize;
     position = 0;
-    MPI_Pack (bufInfo, 3, MPI_INT, buf, pSize, &position, MPI_COMM_WORLD);
+    MPI_Pack (bufInfo, 3, MPI_INT, buf, pSize, &position, comm) ;
     entitySet myent = interval (tStart, tStart + tSize - 1);
     for (variableSet::const_iterator vi = inputs.begin ();
 	 vi != inputs.end (); ++vi) {
       storeRepP s_ptr = facts1->get_variable (*vi);
       s_ptr->pack (&buf[0], position, pSize, myent);
     }
-    MPI_Send (buf, pSize, MPI_PACKED, dest, WORK_REMOTE, MPI_COMM_WORLD);
+    MPI_Send (buf, pSize, MPI_PACKED, dest, WORK_REMOTE, comm) ;
 
 #if DEBUGOUT
     Loci::debugout << "SendInput " << myRank << "->" << dest << ", chunk="
@@ -1277,12 +1290,13 @@ namespace Loci
     MPI_Status tStatus;
     int bufInfo[3];
 
+    MPI_Comm comm = facts1->get_comm() ;
     GetBuffer (msgSize);
-    MPI_Recv (buf, msgSize, MPI_PACKED, src, WORK_REMOTE, MPI_COMM_WORLD,
-	      &tStatus);
+    MPI_Recv (buf, msgSize, MPI_PACKED, src, WORK_REMOTE, comm,
+	      &tStatus) ;
     //unpack chunk info
     position = 0;
-    MPI_Unpack (buf, msgSize, &position, bufInfo, 3, MPI_INT, MPI_COMM_WORLD);
+    MPI_Unpack (buf, msgSize, &position, bufInfo, 3, MPI_INT, comm) ;
     *tStart = bufInfo[0];
     *tSize = bufInfo[1];
     size = bufInfo[2];
@@ -1315,10 +1329,11 @@ namespace Loci
     //	size += s_ptr->pack_size (interval (0, tSize - 1));
     //      }
     //    pSize = size + 3 * sizeof (int) + sizeof (double);
+    MPI_Comm comm = facts1->get_comm() ;
     int size ;
-    MPI_Pack_size(3,MPI_INT,MPI_COMM_WORLD,&size) ;
+    MPI_Pack_size(3, MPI_INT, comm, &size) ;
     pSize = size ;
-    MPI_Pack_size(1,MPI_DOUBLE,MPI_COMM_WORLD,&size) ;
+    MPI_Pack_size(1, MPI_DOUBLE, comm, &size) ;
     pSize += size ;
     pSize += outputPackSize (0, tSize);
 
@@ -1328,8 +1343,8 @@ namespace Loci
     bufInfo[1] = tSize;
     bufInfo[2] = pSize;
     position = 0;
-    MPI_Pack (bufInfo, 3, MPI_INT, buf, pSize, &position, MPI_COMM_WORLD);
-    MPI_Pack (tTime, 1, MPI_DOUBLE, buf, pSize, &position, MPI_COMM_WORLD);
+    MPI_Pack (bufInfo, 3, MPI_INT, buf, pSize, &position, comm) ;
+    MPI_Pack (tTime, 1, MPI_DOUBLE, buf, pSize, &position, comm) ;
     //Pack outputs
     entitySet myent2 = interval (0, tSize - 1);
     for (variableSet::const_iterator vi = outputs.begin ();
@@ -1338,7 +1353,7 @@ namespace Loci
       s_ptr->pack (&buf[0], position, pSize, myent2);
     }
     //Send outputs
-    MPI_Send (buf, pSize, MPI_PACKED, dest, RECV_OUTPUT, MPI_COMM_WORLD);
+    MPI_Send (buf, pSize, MPI_PACKED, dest, RECV_OUTPUT, comm) ;
 
 #if DEBUGOUT
     Loci::debugout << "SendOutput " << myRank << "->" << dest << ", chunk="
@@ -1352,13 +1367,14 @@ namespace Loci
     int position, tStart, tSize, size;
     int bufInfo[3];
 
+    MPI_Comm comm = facts1->get_comm() ;
     GetBuffer (msgSize);
-    MPI_Recv (buf, msgSize, MPI_PACKED, src, RECV_OUTPUT, MPI_COMM_WORLD,
-	      &tStatus);
+    MPI_Recv (buf, msgSize, MPI_PACKED, src, RECV_OUTPUT, comm,
+	      &tStatus) ;
     //unpack chunk info
     position = 0;
-    MPI_Unpack (buf, msgSize, &position, bufInfo, 3, MPI_INT, MPI_COMM_WORLD);
-    MPI_Unpack (buf, msgSize, &position, tTime, 1, MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Unpack (buf, msgSize, &position, bufInfo, 3, MPI_INT, comm) ;
+    MPI_Unpack (buf, msgSize, &position, tTime, 1, MPI_DOUBLE, comm) ;
     tStart = bufInfo[0];
     tSize = bufInfo[1];
     size = bufInfo[2];
@@ -1573,7 +1589,8 @@ namespace Loci
 #if DEBUGOUT
         Loci::debugout << "MPI_Probe() ..." << endl;
 #endif
-        MPI_Probe (MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &mStatus);
+        MPI_Probe (MPI_ANY_SOURCE, MPI_ANY_TAG,
+                   facts1->get_comm(), &mStatus) ;
         //timerDiff = MPI_Wtime () - timerStart;
         //idleTime += timerDiff;
         action = RETRIEVE_MSG;
@@ -1588,8 +1605,8 @@ namespace Loci
         // =======================================================
 
       case TEST4_MSG:	// test for a message
-        MPI_Iprobe (MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD,
-                    &MsgInQueue, &mStatus);
+        MPI_Iprobe (MPI_ANY_SOURCE, MPI_ANY_TAG,
+                    facts1->get_comm(), &MsgInQueue, &mStatus) ;
         if (MsgInQueue)
           action = RETRIEVE_MSG;
         else
@@ -1949,7 +1966,7 @@ namespace Loci
 
   
     MPI_Allreduce (&workTime[0], &ewt[0], nProcs, MPI_DOUBLE, MPI_SUM,
-		   MPI_COMM_WORLD);
+		   facts1->get_comm()) ;
   
 
     // running average of work times
@@ -1967,7 +1984,7 @@ namespace Loci
     ideal1 /= nProcs;
 #else
     // simple BARRIER
-    MPI_Barrier (MPI_COMM_WORLD);
+    MPI_Barrier (facts1->get_comm()) ;
 #endif
   }
 

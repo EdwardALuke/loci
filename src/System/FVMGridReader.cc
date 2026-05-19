@@ -213,7 +213,8 @@ namespace Loci {
             H5Sclose(memspace) ;
           }
           // send to remote processor
-          MPI_Send(&tmp[0],sz*sizeof(T),MPI_BYTE,1,0,MPI_COMM_WORLD) ;
+          MPI_Send(&tmp[0],sz*sizeof(T),MPI_BYTE,1,0,
+                get_exec_comm()) ;
 
         }
         H5Dclose(dataset) ;
@@ -223,13 +224,16 @@ namespace Loci {
         long size = sizes[MPI_rank] ;
         //      if(size > 0) {
         MPI_Status status ;
-        MPI_Recv(&v[0],size*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+        MPI_Recv(&v[0],size*sizeof(T),MPI_BYTE,MPI_rank-1,0,
+              get_exec_comm(),&status) ;
         //      }
         for(int i=MPI_rank+1;i<MPI_processes;++i) {
           long lsz = sizes[i] ;
           vector<T> tmp(lsz) ;
-          MPI_Recv(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
-          MPI_Send(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank+1,0,MPI_COMM_WORLD) ;
+          MPI_Recv(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank-1,0,
+                get_exec_comm(),&status) ;
+          MPI_Send(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank+1,0,
+                get_exec_comm()) ;
         }
       }
     }
@@ -449,7 +453,8 @@ namespace Loci {
     }
     // Share boundary tag data with all other processors
     int bsz = boundary_ids.size() ;
-    MPI_Bcast(&bsz,1,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Comm comm = get_exec_comm() ;
+    MPI_Bcast(&bsz,1,MPI_INT,0,comm) ;
     if(bsz > 0) {
       string buf ;
       if(MPI_rank == 0) {
@@ -461,13 +466,13 @@ namespace Loci {
         buf = oss.str() ;
       }
       int bufsz = buf.size() ;
-      MPI_Bcast(&bufsz,1,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&bufsz,1,MPI_INT,0,comm) ;
       char *data = new char[bufsz+1] ;
       data[bufsz] = 0 ;
       if(MPI_rank == 0) {
         strcpy(data,buf.c_str()) ;
       }
-      MPI_Bcast(data,bufsz,MPI_CHAR,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(data,bufsz,MPI_CHAR,0,comm) ;
       buf = string(data) ;
       istringstream iss(buf) ;
       delete[] data ;
@@ -572,6 +577,7 @@ namespace Loci {
                    store<string> &boundary_tags,
                    vector<pair<string,entitySet> > &volTags,
                    int max_alloc, string filename) {
+    MPI_Comm comm = get_exec_comm() ;
 
     local_nodes.resize(Loci::MPI_processes);
     local_faces.resize(Loci::MPI_processes);
@@ -601,7 +607,7 @@ namespace Loci {
     }
 
     int fail_state = 0 ;
-    MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,comm) ;
     if(fail_state != 0) {
       return false ;
     }
@@ -639,7 +645,7 @@ namespace Loci {
       // In the serial I/O case we need to broadcast
       // Share boundary tag data with all other processors
       int bsz = boundary_ids.size() ;
-      MPI_Bcast(&bsz,1,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&bsz,1,MPI_INT,0,comm) ;
       if(bsz > 0) {
         string buf ;
         if(MPI_rank == 0) {
@@ -651,12 +657,12 @@ namespace Loci {
           buf = oss.str() ;
         }
         int bufsz = buf.size() ;
-        MPI_Bcast(&bufsz,1,MPI_INT,0,MPI_COMM_WORLD) ;
+        MPI_Bcast(&bufsz,1,MPI_INT,0,comm) ;
         char *data = new char[bufsz+1] ;
         if(MPI_rank == 0) {
           strcpy(data,buf.c_str()) ;
         }
-        MPI_Bcast(data,bufsz+1,MPI_CHAR,0,MPI_COMM_WORLD) ;
+        MPI_Bcast(data,bufsz+1,MPI_CHAR,0,comm) ;
         buf = string(data) ;
         istringstream iss(buf) ;
         delete[] data ;
@@ -687,7 +693,7 @@ namespace Loci {
 
       //make sure no process failed
       fail_state = 0 ;
-      MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,comm) ;
       if(fail_state != 0) {
 	      return false ;
       }
@@ -771,12 +777,12 @@ namespace Loci {
         nnodes = size ;
       }
 
-      MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,comm) ;
       if(fail_state != 0) {
 	      return false ;
       }
 
-      MPI_Bcast(&nnodes,1,MPI_LONG,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&nnodes,1,MPI_LONG,0,comm) ;
 
       // create node allocation
       long npnts = nnodes ;
@@ -856,7 +862,7 @@ namespace Loci {
           H5Sclose(memspace) ;
 
           // send to remote processor
-          MPI_Send(&tpos[0],sz*3,MPI_DOUBLE,1,0,MPI_COMM_WORLD) ;
+          MPI_Send(&tpos[0],sz*3,MPI_DOUBLE,1,0,comm) ;
         }
 
         H5Sclose(dspace) ;
@@ -868,7 +874,8 @@ namespace Loci {
         int start = local_nodes[MPI_rank].Min() ;
         int size = local_nodes[MPI_rank].size() ;
         MPI_Status status ;
-        MPI_Recv(&pos[start],size*3,MPI_DOUBLE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+        MPI_Recv(&pos[start],size*3,MPI_DOUBLE,MPI_rank-1,0,
+              comm,&status) ;
         int mxsz = 0 ;
         for(int i=MPI_rank+1;i<MPI_processes;++i) {
           int lsz = local_nodes[i].size() ;
@@ -879,14 +886,16 @@ namespace Loci {
         // Shift remaining ones into place
         for(int i=MPI_rank+1;i<MPI_processes;++i) {
           int lsz = local_nodes[i].size() ;
-          MPI_Recv(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+          MPI_Recv(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank-1,0,
+                comm,&status) ;
           int count = 0 ;
           MPI_Get_count(&status,MPI_DOUBLE,&count) ;
           if(count != lsz*3) {
             cerr << "processor" << MPI_rank << " recieved " << count <<
               " words but was expecting " << lsz*3 << endl ;
           }
-          MPI_Send(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank+1,0,MPI_COMM_WORLD) ;
+          MPI_Send(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank+1,0,
+                comm) ;
         }
       }
     }
@@ -906,13 +915,13 @@ namespace Loci {
       nclusters = size ;
     }
 
-    MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,comm) ;
     if(fail_state != 0) {
       return false ;
     }
 
     if(!use_parallel_io) {
-      MPI_Bcast(&nclusters,1,MPI_LONG,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&nclusters,1,MPI_LONG,0,comm) ;
     }
 
     vector<long> cluster_dist(MPI_processes,0) ;
@@ -938,7 +947,7 @@ namespace Loci {
 
     MPI_Allgather(&cluster_info_size,sizeof(long),MPI_BYTE,
                   &cluster_dist[0],sizeof(long),MPI_BYTE,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
     REPORTMEM() ;
     readVectorDist(face_g,"cluster_info",cluster_dist,cluster_info) ;
@@ -952,20 +961,20 @@ namespace Loci {
     }
     if(!use_parallel_io) {
       int nvtags = volDat.size() ;
-      MPI_Bcast(&nvtags,1,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&nvtags,1,MPI_INT,0,comm) ;
       for(int i=0;i<nvtags;++i) {
         int sz = 0 ;
         if(MPI_rank == 0) { sz = volDat[i].first.size() ; }
-        MPI_Bcast(&sz,1,MPI_INT,0,MPI_COMM_WORLD) ;
+        MPI_Bcast(&sz,1,MPI_INT,0,comm) ;
         char *buf = new char[sz+1] ;
         buf[sz] = '\0' ;
         if(MPI_rank == 0) { strcpy(buf,volDat[i].first.c_str()) ; }
-        MPI_Bcast(buf,sz,MPI_CHAR,0,MPI_COMM_WORLD) ;
+        MPI_Bcast(buf,sz,MPI_CHAR,0,comm) ;
         string name = string(buf) ;
         delete[] buf ;
         int nivals = 0 ;
         if(MPI_rank == 0) { nivals = volDat[i].second.num_intervals() ; }
-        MPI_Bcast(&nivals,1,MPI_INT,0,MPI_COMM_WORLD) ;
+        MPI_Bcast(&nivals,1,MPI_INT,0,comm) ;
 
         int *ibuf = new int[nivals*2] ;
         if(MPI_rank == 0) {
@@ -974,7 +983,7 @@ namespace Loci {
             ibuf[j*2+1]= volDat[i].second[j].second ;
           }
         }
-        MPI_Bcast(ibuf,nivals*2,MPI_INT,0,MPI_COMM_WORLD) ;
+        MPI_Bcast(ibuf,nivals*2,MPI_INT,0,comm) ;
         entitySet set ;
         for(int j=0;j<nivals;++j) {
           set += interval(ibuf[j*2],ibuf[j*2+1]) ;
@@ -994,7 +1003,7 @@ namespace Loci {
       H5Eset_auto(H5E_DEFAULT,old_func, old_client_data);
     }
 
-    MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,comm) ;
     if(fail_state != 0) {
       return false ;
     }
@@ -1015,7 +1024,7 @@ namespace Loci {
     // Now get a face allocation for each processor
     vector<int> faces_pp(MPI_processes,0) ;
     MPI_Allgather(&tot_faces,1,MPI_INT,&faces_pp[0],1,MPI_INT,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
     int face_accum = 0 ;
     int faces_base = max_alloc + nnodes ;
@@ -1078,7 +1087,7 @@ namespace Loci {
 
     int global_max_cell = max_cell ;
     MPI_Allreduce(&max_cell,&global_max_cell,1,MPI_INT,MPI_MAX,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
     int ncells = global_max_cell+1 ;
     int cell_ivl = ncells / MPI_processes;
@@ -1268,7 +1277,7 @@ namespace Loci {
       cerr << "adjacency list contains out of bounds reference" << endl ;
     }
 
-    MPI_Comm mc = MPI_COMM_WORLD ;
+    MPI_Comm mc = get_exec_comm() ;
     idx_t nparts = Loci::MPI_processes ; // number of partitions
     idx_t wgtflag = 0 ;
     idx_t numflag = 0 ;
@@ -1288,7 +1297,8 @@ namespace Loci {
           file_exists = 0 ;
         }
       }
-      MPI_Bcast(&file_exists,1,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&file_exists,1,MPI_INT,0,
+            get_exec_comm()) ;
 
       if(file_exists == 1) {
 
@@ -1309,7 +1319,7 @@ namespace Loci {
         entitySet dom = local_cells[Loci::MPI_rank] ;
 
         readContainerRAW(file_id,"cellweights", cell_weights.Rep(),
-                         MPI_COMM_WORLD) ;
+                         get_exec_comm()) ;
 
         Loci::hdf5CloseFile(file_id) ;
       } else if(cell_weight_store !=0) {
@@ -1459,10 +1469,11 @@ namespace Loci {
     }
     WARN(ei != new_alloc.end()) ;
 
+    MPI_Comm comm = get_exec_comm() ;
     vector<int> recv_sizes(MPI_processes) ;
     MPI_Alltoall(&send_sizes[0],1,MPI_INT,
                  &recv_sizes[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
     for(int i=0;i<MPI_processes;++i) {
@@ -1493,7 +1504,7 @@ namespace Loci {
                   MPI_PACKED,
 		              &recv_store[0], &recv_sizes[0], &recv_displacement[0],
                   MPI_PACKED,
-		              MPI_COMM_WORLD) ;
+		              comm) ;
     loc_pack = 0 ;
     for(int i = 0; i <  MPI_processes; ++i) {
       outRep->unpack(&recv_store[0], loc_pack, size_recv, rdom[i]) ;
@@ -1525,6 +1536,7 @@ namespace Loci {
                  store<string> &boundary_tags,
                  entitySet bcsurfset,
                  fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
 
     int faceKeySpace = tmp_face2node.Rep()->getDomainKeySpace() ;
     pos.allocate(nodes) ;
@@ -1626,7 +1638,7 @@ namespace Loci {
     vector<int> raddr(MPI_processes) ;
     MPI_Alltoall(&saddr[0],1,MPI_INT,
                  &raddr[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
     int b = *nodes.begin() ;
     int sum = 0 ;
     for(int i=0;i<MPI_processes;++i) {
@@ -1636,7 +1648,7 @@ namespace Loci {
     }
     MPI_Alltoall(&raddr[0],1,MPI_INT,
                  &saddr[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
 
     // Renumber maps (targets nodes and cells)
     dMap remap;
@@ -1655,7 +1667,7 @@ namespace Loci {
     }
     MPI_Alltoall(&saddr[0],1,MPI_INT,
                  &raddr[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
     b = *cells.begin() ;
     sum = 0 ;
     for(int i=0;i<MPI_processes;++i) {
@@ -1665,7 +1677,7 @@ namespace Loci {
     }
     MPI_Alltoall(&raddr[0],1,MPI_INT,
                  &saddr[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
 
     for(int i=0;i<MPI_processes;++i) {
       int k = 0 ;
@@ -1675,8 +1687,8 @@ namespace Loci {
       } ENDFORALL ;
     }
 
-    vector<entitySet> bcptn = all_collect_vectors(bcsurf_ptn[MPI_rank],MPI_COMM_WORLD) ;
-    vector<entitySet> bcalloc = all_collect_vectors(bcsurfset,MPI_COMM_WORLD) ;
+    vector<entitySet> bcptn = all_collect_vectors(bcsurf_ptn[MPI_rank],comm) ;
+    vector<entitySet> bcalloc = all_collect_vectors(bcsurfset,comm) ;
     for(int i=0;i<MPI_processes;++i) {
       if(bcptn[i].size() != bcalloc[i].size()) {
         cerr << "WARNING, boundary faces information inconsistent in remap"
@@ -1771,6 +1783,7 @@ namespace Loci {
 
   void fill_clone_proc(map<int,int> &mapdata, entitySet &out_of_dom,
                        std::vector<entitySet> &init_ptn) {
+    MPI_Comm comm = get_exec_comm() ;
 
     REPORTMEM() ;
     vector<entitySet> recv_req(MPI_processes) ;
@@ -1789,7 +1802,7 @@ namespace Loci {
     for(int i=0;i<MPI_processes;++i) {
       send_count[i] = recv_req[i].num_intervals() * 2 ;
     }
-    MPI_Alltoall(send_count,1,MPI_INT, recv_count, 1, MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(send_count,1,MPI_INT, recv_count, 1, MPI_INT,comm) ;
 
 
     send_displacement[0] = 0 ;
@@ -1814,7 +1827,7 @@ namespace Loci {
 
     MPI_Alltoallv(send_set_buf, send_count, send_displacement , MPI_INT,
 		  recv_set_buf, recv_count, recv_displacement, MPI_INT,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
 
     vector<entitySet> send_set(MPI_processes) ;
     for(int i=0;i<MPI_processes;++i) {
@@ -1848,7 +1861,7 @@ namespace Loci {
     }
 
     // Get sizes needed for receiving buffers
-    MPI_Alltoall(send_count,1,MPI_INT, recv_count, 1, MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(send_count,1,MPI_INT, recv_count, 1, MPI_INT,comm) ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
@@ -1880,7 +1893,7 @@ namespace Loci {
 
     MPI_Alltoallv(send_store, send_count, send_displacement, MPI_INT,
 		  recv_store, recv_count, recv_displacement, MPI_INT,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
 
     REPORTMEM() ;
     for(int i = 0; i <  MPI_processes; ++i) {
@@ -1902,6 +1915,7 @@ namespace Loci {
 
   vector<entitySet> partitionFaces(vector<entitySet> cell_ptn, const Map &cl,
         const Map &cr, const store<string> &boundary_tags) {
+    MPI_Comm comm = get_exec_comm() ;
     map<int,int> P ;
     entitySet cells ;
     for(int i=0;i<MPI_processes;++i) {
@@ -1951,7 +1965,7 @@ namespace Loci {
       }
 
       MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],MPI_processes,MPI_INT,MPI_SUM,
-                    MPI_COMM_WORLD) ;
+                    comm) ;
 
       if(MPI_rank%STEPS == s) { // My processors turn to assign faces
         FORALL(boundary_faces,fc) {
@@ -1973,7 +1987,7 @@ namespace Loci {
     }
 
     MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],MPI_processes,MPI_INT,MPI_SUM,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
     if(MPI_rank ==0) {
       debugout << "balanced face sizes:" ;
@@ -2021,6 +2035,7 @@ namespace Loci {
   }
 
   vector<entitySet> transposePtn(const vector<entitySet> &ptn) {
+    MPI_Comm comm = get_exec_comm() ;
     vector<int> send_sz(MPI_processes) ;
     for(int i=0;i<MPI_processes;++i) {
       send_sz[i] = ptn[i].num_intervals()*2 ;
@@ -2028,7 +2043,7 @@ namespace Loci {
     vector<int> recv_sz(MPI_processes) ;
     MPI_Alltoall(&send_sz[0],1,MPI_INT,
                  &recv_sz[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
     for(int i=0;i<MPI_processes;++i) {
@@ -2057,7 +2072,7 @@ namespace Loci {
 
     MPI_Alltoallv(send_store,&send_sz[0], send_displacement , MPI_INT,
 		  recv_store, &recv_sz[0], recv_displacement, MPI_INT,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
 
     vector<entitySet> ptn_t(MPI_processes) ;
     for(int i = 0; i <  MPI_processes; ++i) {
@@ -2113,7 +2128,8 @@ namespace Loci {
       nsplits[i-1].second.second = 0 ;
     }
 
-    parSplitSort(scratchPad,nsplits,sortFirstORB,MPI_COMM_WORLD) ;
+    parSplitSort(scratchPad,nsplits,sortFirstORB,
+                 get_exec_comm()) ;
 
     for(size_t x=0;x!=scratchPad.size();) {
       size_t y = x+1 ;
@@ -2341,6 +2357,7 @@ namespace Loci {
                           vector<entitySet> &cell_ptn,
                           vector<entitySet> &face_ptn,
                           vector<entitySet> &node_ptn) {
+    MPI_Comm comm = get_exec_comm() ;
 
     vector<entitySet> tmp(MPI_processes) ; // Initialize partition vectors
     cell_ptn = tmp ;
@@ -2397,9 +2414,9 @@ namespace Loci {
       }
       vector3d<float> pmax = pmaxl, pmin=pminl ;
       MPI_Allreduce(&(pmaxl.x),&(pmax.x),3,MPI_FLOAT,MPI_MAX,
-		    MPI_COMM_WORLD) ;
+		    comm) ;
       MPI_Allreduce(&(pminl.x),&(pmin.x),3,MPI_FLOAT,MPI_MIN,
-		    MPI_COMM_WORLD) ;
+		    comm) ;
       // compute scaling factor so that we can scale the floating
       // point numbers to cover the integers
       double s = 4e9/max(max(max(pmax.x-pmin.x,1e-3f),pmax.y-pmin.y),
@@ -2425,10 +2442,10 @@ namespace Loci {
       dstore<int> cell_weights_tmp ;
       int minc = cdom.Min();
       int mincg = minc ;
-      MPI_Allreduce(&minc,&mincg,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&minc,&mincg,1,MPI_INT,MPI_MIN,comm) ;
       int maxc = cdom.Max() ;
       int maxcg = maxc ;
-      MPI_Allreduce(&maxc,&maxcg,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&maxc,&maxcg,1,MPI_INT,MPI_MAX,comm) ;
       FORALL(cdom,pi) {
 	      cell_weights_tmp[pi] = cell_weights[pi] ;
       } ENDFORALL ;
@@ -2461,7 +2478,7 @@ namespace Loci {
       i++ ;
     } ENDFORALL ;
 
-    Loci::parSampleSort(key_list,MPI_COMM_WORLD) ;
+    Loci::parSampleSort(key_list,comm) ;
 
     // Now analyze weights to see if we need to do weighted partitions
     // If we have a large spread of weights, then divide into large and small
@@ -2474,10 +2491,10 @@ namespace Loci {
       wminl = min(wminl,double(key_list[ii].weight)) ;
     }
     double wsum=wsuml, usum=usuml, wmax=wmaxl, wmin=wminl ;
-    MPI_Allreduce(&wsuml,&wsum,1,MPI_DOUBLE,MPI_SUM, MPI_COMM_WORLD) ;
-    MPI_Allreduce(&usuml,&usum,1,MPI_DOUBLE,MPI_SUM, MPI_COMM_WORLD) ;
-    MPI_Allreduce(&wmaxl,&wmax,1,MPI_DOUBLE,MPI_MAX, MPI_COMM_WORLD) ;
-    MPI_Allreduce(&wminl,&wmin,1,MPI_DOUBLE,MPI_MIN, MPI_COMM_WORLD) ;
+    MPI_Allreduce(&wsuml,&wsum,1,MPI_DOUBLE,MPI_SUM, comm) ;
+    MPI_Allreduce(&usuml,&usum,1,MPI_DOUBLE,MPI_SUM, comm) ;
+    MPI_Allreduce(&wmaxl,&wmax,1,MPI_DOUBLE,MPI_MAX, comm) ;
+    MPI_Allreduce(&wminl,&wmin,1,MPI_DOUBLE,MPI_MIN, comm) ;
 
     double wavg = wsum/usum ;
 
@@ -2498,16 +2515,16 @@ namespace Loci {
     // Partition low processors
     vector<double> w_lowv(MPI_processes) ;
     MPI_Allgather(&w_low,1,MPI_DOUBLE,&w_lowv[0],1,MPI_DOUBLE,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
     vector<double> w_highv(MPI_processes) ;
     MPI_Allgather(&w_high,1,MPI_DOUBLE,&w_highv[0],1,MPI_DOUBLE,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
     vector<double> c_lowv(MPI_processes) ;
     MPI_Allgather(&c_low,1,MPI_DOUBLE,&c_lowv[0],1,MPI_DOUBLE,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
     vector<double> c_highv(MPI_processes) ;
     MPI_Allgather(&c_high,1,MPI_DOUBLE,&c_highv[0],1,MPI_DOUBLE,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
     double proc_sumw_low = 0 ;
     double tot_sumw_low = 0 ;
     double proc_sumw_high = 0 ;
@@ -2548,11 +2565,11 @@ namespace Loci {
     }
     vector<double> wsumr(MPI_processes,0) ;
     MPI_Allreduce(&wsump[0],&wsumr[0],MPI_processes,MPI_DOUBLE,
-		  MPI_SUM,MPI_COMM_WORLD) ;
+		  MPI_SUM,comm) ;
 
     vector<double> csumr(MPI_processes,0) ;
     MPI_Allreduce(&csump[0],&csumr[0],MPI_processes,MPI_DOUBLE,
-		  MPI_SUM,MPI_COMM_WORLD) ;
+		  MPI_SUM,comm) ;
 
     debugout << "processor weights =" ;
     for(int i=0;i<MPI_processes;++i) {
@@ -2575,11 +2592,11 @@ namespace Loci {
     // the corresponding face
     int fmin = fdom.Min() ;
     int fming = fmin ;
-    MPI_Allreduce(&fmin,&fming,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&fmin,&fming,1,MPI_INT,MPI_MIN,comm) ;
     int fsizes = fdom.size() ;
 
     vector<int> fsplits(MPI_processes) ;
-    MPI_Allgather(&fsizes,1,MPI_INT,&fsplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&fsizes,1,MPI_INT,&fsplits[0],1,MPI_INT,comm) ;
 
     for(int i=0;i<MPI_processes;++i) {
       int save = fsplits[i] ;
@@ -2596,7 +2613,7 @@ namespace Loci {
     }
 
     sort(proc_pairs.begin(),proc_pairs.end(),firstCompare) ;
-    parSplitSort(proc_pairs,splitters,firstCompare,MPI_COMM_WORLD) ;
+    parSplitSort(proc_pairs,splitters,firstCompare,comm) ;
 
     // We now have a partition of faces to processors for interior faces,
     // we use this to develop a cell partition through processor affinity
@@ -2624,6 +2641,7 @@ namespace Loci {
   }
 
   void randomPartition(vector<entitySet> &ptn, entitySet local_set) {
+    MPI_Comm comm = get_exec_comm() ;
     // Sort random keys
     vector<RND_Key> key_list(local_set.size()) ;
     int i=0;
@@ -2632,9 +2650,9 @@ namespace Loci {
       key_list[i].id = ii ;
       i++ ;
     } ENDFORALL ;
-    balanceDistribution(key_list,MPI_COMM_WORLD) ;
-    Loci::parSampleSort(key_list,MPI_COMM_WORLD) ;
-    balanceDistribution(key_list,MPI_COMM_WORLD) ;
+    balanceDistribution(key_list,comm) ;
+    Loci::parSampleSort(key_list,comm) ;
+    balanceDistribution(key_list,comm) ;
 
     // compute interior face to processor mapping
     vector<pair<int,int> > proc_pairs(key_list.size()) ;
@@ -2645,7 +2663,7 @@ namespace Loci {
     // the corresponding face
     int cmin = local_set.Min() ;
     vector<int> csplits(MPI_processes) ;
-    MPI_Allgather(&cmin,1,MPI_INT,&csplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&cmin,1,MPI_INT,&csplits[0],1,MPI_INT,comm) ;
     vector<pair<int,int> > splitters(MPI_processes-1) ;
     for(int i=0;i<MPI_processes-1;++i) {
       splitters[i].first  = csplits[i+1] ;
@@ -2653,7 +2671,7 @@ namespace Loci {
     }
 
     sort(proc_pairs.begin(),proc_pairs.end(),firstCompare) ;
-    parSplitSort(proc_pairs,splitters,firstCompare,MPI_COMM_WORLD) ;
+    parSplitSort(proc_pairs,splitters,firstCompare,comm) ;
     for(size_t i=0;i<proc_pairs.size();++i) {
       ptn[proc_pairs[i].second] += proc_pairs[i].first ;
     }
@@ -2719,7 +2737,8 @@ namespace Loci {
 
     // perform ORB partition of faces
     vector<int> fprocmap ;
-    ORBPartition(fcenter,fprocmap,MPI_COMM_WORLD) ;
+    ORBPartition(fcenter,fprocmap,
+                 get_exec_comm()) ;
     i=0 ;
     // Create face_ptn ;
     FORALL(fdom,fc) {
@@ -2756,6 +2775,7 @@ namespace Loci {
 
 
   bool readFVMGrid(fact_db &facts, string filename, storeRepP cellwts) {
+    MPI_Comm comm = facts.get_comm() ;
     double t1 = MPI_Wtime() ;
 
     REPORTMEM() ;
@@ -2862,7 +2882,7 @@ namespace Loci {
           file_exists = 0 ;
         }
       }
-      MPI_Bcast(&file_exists,1,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&file_exists,1,MPI_INT,0,comm) ;
 
       if(file_exists == 1) {
         debugout << "reading cell weights" << endl ;
@@ -2881,7 +2901,7 @@ namespace Loci {
 
         // read
         readContainerRAW(file_id,"cellweights", cell_weights.Rep(),
-            MPI_COMM_WORLD) ;
+            comm) ;
         Loci::hdf5CloseFile(file_id) ;
         cellwts = cell_weights.Rep() ;
       }
@@ -2891,7 +2911,7 @@ namespace Loci {
     if(partitioner_type == GRAPH) {
       int lcpp = local_cells[MPI_rank].size() ;
       int mincpp = lcpp ;
-      MPI_Allreduce(&lcpp,&mincpp,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&lcpp,&mincpp,1,MPI_INT,MPI_MIN,comm) ;
       if(mincpp < metis_cpp_threshold) {
         partitioner_type = SFC ; // Space filling curve partitioner
         debugout << "switching from metis to space filling curve partitioner"
@@ -3286,7 +3306,9 @@ namespace Loci {
     for(int i = 0; i < np; i++) {
       q_dom += ptn_cells[i];
     }
-    vector<entitySet> simple_ptn = Loci::simplePartition(q_dom.Min(),q_dom.Max(),MPI_COMM_WORLD) ;
+    vector<entitySet> simple_ptn =
+      Loci::simplePartition(q_dom.Min(),q_dom.Max(),
+                            get_exec_comm()) ;
     vector<entitySet> cell_ptn(np);
     for(int i = 0; i < np; i++) {
       cell_ptn[i] = cells&simple_ptn[i];
@@ -3298,6 +3320,7 @@ namespace Loci {
   }
 
   bool setupFVMGridWithWeightInFile(fact_db &facts, string filename, string weightfile) {
+    MPI_Comm comm = facts.get_comm() ;
     // if(MPI_rank==0) {std::cout<<" using setupFVMGridWithWeight" << std::endl ; }
     storeRepP cellwts = 0 ;
 
@@ -3310,7 +3333,7 @@ namespace Loci {
         file_exists = 0 ;
       }
     }
-    MPI_Bcast(&file_exists,1,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(&file_exists,1,MPI_INT,0,comm) ;
 
     if(file_exists == 1) {
       store<int> cell_weights ;
@@ -3328,7 +3351,7 @@ namespace Loci {
       }
 
       readContainerRAW(file_id,"cellweights", cell_weights.Rep(),
-		       MPI_COMM_WORLD) ;
+		       comm) ;
 
       Loci::hdf5CloseFile(file_id) ;
       cellwts = cell_weights.Rep() ;

@@ -183,18 +183,19 @@ namespace Loci {
     std::sort(in1.begin(),in1.end(),equiFF) ;
     std::sort(in2.begin(),in2.end(),equiFF) ;
     
+    MPI_Comm comm = get_exec_comm() ;
     int p = 0 ;
-    MPI_Comm_size(MPI_COMM_WORLD,&p) ;
+    MPI_Comm_size(comm,&p) ;
 
     // Sort inputs using same splitters (this will make sure that
     // data that needs to be on the same processor ends up on the
     // same processor
     if(p != 1) {
       std::vector<std::pair<int,int> > splitters ;
-      parGetSplitters(splitters,in1,equiFF,MPI_COMM_WORLD) ;
+      parGetSplitters(splitters,in1,equiFF,comm) ;
 
-      parSplitSort(in1,splitters,equiFF,MPI_COMM_WORLD) ;
-      parSplitSort(in2,splitters,equiFF,MPI_COMM_WORLD) ;
+      parSplitSort(in1,splitters,equiFF,comm) ;
+      parSplitSort(in2,splitters,equiFF,comm) ;
     }
 
     // Find pairs where first entry are the same and create joined protomap
@@ -211,7 +212,7 @@ namespace Loci {
     }
 
     // Remove duplicates from protomap
-    parSampleSort(out,equiFF,MPI_COMM_WORLD) ;
+    parSampleSort(out,equiFF,comm) ;
     std::sort(out.begin(),out.end()) ;
     out.erase(std::unique(out.begin(),out.end()),out.end()) ;
   }
@@ -284,8 +285,9 @@ namespace Loci {
     for(int i=0;i<p;++i)
       recv_sets[i] = get&ptn[i] ;
 
+    MPI_Comm comm = get_exec_comm() ;
     vector<entitySet> send_sets =
-      transpose_entitySet(recv_sets, MPI_COMM_WORLD) ;
+      transpose_entitySet(recv_sets, comm) ;
     int send_sz = 0 ;
     int reqs = 0 ;
     for(int i=0;i<p;++i) {
@@ -327,7 +329,7 @@ namespace Loci {
       if(i!=r && recv_sets[i] != EMPTY) {
         MPI_Irecv(&result[recv_offsets[i]],
                   recv_sets[i].size()*sizeof(T),
-                  MPI_BYTE,i,99,MPI_COMM_WORLD,&requests[cnt]) ;
+                  MPI_BYTE,i,99,comm,&requests[cnt]) ;
         cnt++ ;
       }
     for(int i=0;i<p;++i)
@@ -335,7 +337,7 @@ namespace Loci {
         // If I am not sending to myself and I have something to send
         MPI_Isend(&send_data[send_offsets[i]],
                   send_sets[i].size()*sizeof(T),
-                  MPI_BYTE,i,99,MPI_COMM_WORLD,&requests[cnt]) ;
+                  MPI_BYTE,i,99,comm,&requests[cnt]) ;
         cnt++ ;
       }
 

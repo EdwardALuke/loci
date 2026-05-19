@@ -291,7 +291,8 @@ namespace Loci {
         H5Awrite(att_id,H5T_NATIVE_INT,&num) ;
         H5Aclose(att_id) ;
         
-        Loci::HDF5_WriteDomain(vol_id,volTags[i].second, MPI_COMM_WORLD) ;
+        Loci::HDF5_WriteDomain(vol_id,volTags[i].second,
+                               get_exec_comm()) ;
         
       
         H5Gclose(vol_id) ;
@@ -326,7 +327,7 @@ namespace Loci {
     long long local_num_nodes = pos.domain().size() ;
     long long num_nodes = 0 ;
     MPI_Allreduce(&local_num_nodes,&num_nodes,1,MPI_LONG_LONG_INT,
-                  MPI_SUM,MPI_COMM_WORLD) ;
+                  MPI_SUM, get_exec_comm()) ;
 
     if(MPI_rank == 0 || use_parallel_io) {
       group_id = H5Gcreate(file_id,"file_info",
@@ -364,7 +365,7 @@ namespace Loci {
 
     // Reduce these variables
     MPI_Allreduce(&local_num_faces,&num_faces,1,MPI_LONG_LONG_INT,
-                  MPI_SUM,MPI_COMM_WORLD) ;
+                  MPI_SUM, get_exec_comm()) ;
 
     hid_t group_id = 0 ;
     if(MPI_rank == 0 || use_parallel_io) {

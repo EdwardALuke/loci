@@ -956,8 +956,9 @@ namespace Loci {
       MPI_Status *status = new MPI_Status[d->xmit.size()] ;
 
       for(size_t i=0;i<d->xmit.size();++i) {
-	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 2,
-                  MPI_COMM_WORLD, &recv_request[i] ) ;
+	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT,
+                  d->xmit[i].proc, 2,
+                  facts.get_comm(), &recv_request[i] ) ;
       }
       for(size_t i=0;i<d->copy.size();++i) {
         int j=sesz ;
@@ -979,8 +980,8 @@ namespace Loci {
 	  }
 	}
         int send_size = j ;
-        MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
-                 2,MPI_COMM_WORLD) ;
+        MPI_Send(send_buffer[i], send_size, MPI_INT,
+                 d->copy[i].proc, 2, facts.get_comm()) ;
       }
 
       if(d->xmit.size() > 0) {
@@ -1290,8 +1291,9 @@ namespace Loci {
       MPI_Status *status = new MPI_Status[d->xmit.size()] ;
 
       for(size_t i=0;i<d->xmit.size();++i) {
-	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 3,
-                  MPI_COMM_WORLD, &recv_request[i] ) ;
+	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT,
+                  d->xmit[i].proc, 3,
+                  facts.get_comm(), &recv_request[i] ) ;
       }
 
       for(size_t i=0;i<d->copy.size();++i) {
@@ -1309,8 +1311,8 @@ namespace Loci {
           send_buffer[i][j++] = l2g[*ei] ;
 	}
         int send_size = 2*temp.size() ;
-        MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
-                 3,MPI_COMM_WORLD) ;
+        MPI_Send(send_buffer[i], send_size, MPI_INT,
+                 d->copy[i].proc, 3, facts.get_comm()) ;
       }
 
       if(d->xmit.size() > 0) {
@@ -1523,8 +1525,9 @@ namespace Loci {
 
       // post the actual recv requests
       for(size_t i=0;i<recv_info.size();++i)
-        MPI_Irecv(recv_info[i].buf, recv_info[i].recv_size, MPI_PACKED,
-                  recv_info[i].proc, tag1, MPI_COMM_WORLD, &recv_req[i]) ;
+        MPI_Irecv(recv_info[i].buf, recv_info[i].recv_size,
+                  MPI_PACKED, recv_info[i].proc, tag1,
+                  facts.get_comm(), &recv_req[i]) ;
     }
 
     // now we need to setup the send size
@@ -1581,8 +1584,9 @@ namespace Loci {
         vector<send_unit>& units = send_info[i].units ;
         if(resend_flag[i])
           // pack the message size
-          MPI_Pack(&send_info[i].max_send_size,1,MPI_INT,send_info[i].buf,
-                   send_info[i].send_size,&pack_offset,MPI_COMM_WORLD) ;
+          MPI_Pack(&send_info[i].max_send_size, 1, MPI_INT,
+                   send_info[i].buf, send_info[i].send_size,
+                   &pack_offset, facts.get_comm()) ;
         else
           for(size_t k=0;k<units.size();++k) { // pack the actual message
             send_unit& su = units[k] ;
@@ -1591,8 +1595,9 @@ namespace Loci {
           }
       }
       for(size_t i=0;i<send_info.size();++i)
-        MPI_Isend(send_info[i].buf,send_info[i].send_size,MPI_PACKED,
-                  send_info[i].proc,tag1,MPI_COMM_WORLD,&send_req[i]) ;
+        MPI_Isend(send_info[i].buf, send_info[i].send_size,
+                  MPI_PACKED, send_info[i].proc, tag1,
+                  facts.get_comm(), &send_req[i]) ;
     }
     // wait for all messages to complete
     if(!send_info.empty())
@@ -1616,8 +1621,9 @@ namespace Loci {
         if(rerecv_flag[i]) {
           // update the recv size if necessary
           int rs ;
-          MPI_Unpack(recv_info[i].buf,recv_info[i].recv_size,
-                     &unpack_offset,&rs,1,MPI_INT,MPI_COMM_WORLD) ;
+          MPI_Unpack(recv_info[i].buf, recv_info[i].recv_size,
+                     &unpack_offset, &rs, 1, MPI_INT,
+                     facts.get_comm()) ;
           if(rs > recv_info[i].recv_size)
             recv_info[i].recv_size = rs ;
         } else
@@ -1638,8 +1644,9 @@ namespace Loci {
       int proc = rerecv[i].proc ;
       int idx = rerecv[i].idx ;
       recv_info[idx].buf = new unsigned char[recv_info[idx].recv_size] ;
-      MPI_Irecv(recv_info[idx].buf,recv_info[idx].recv_size,
-                MPI_PACKED,proc,tag2,MPI_COMM_WORLD,&recv_req[i]) ;
+      MPI_Irecv(recv_info[idx].buf, recv_info[idx].recv_size,
+                MPI_PACKED, proc, tag2,
+                facts.get_comm(), &recv_req[i]) ;
     }
 
     // do the repack/resend
@@ -1657,8 +1664,9 @@ namespace Loci {
     for(size_t i=0;i<resend.size();++i) {
       int proc = resend[i].proc ;
       int idx = resend[i].idx ;
-      MPI_Isend(send_info[idx].buf,send_info[idx].send_size,
-                MPI_PACKED,proc,tag2,MPI_COMM_WORLD,&send_req[i]) ;
+      MPI_Isend(send_info[idx].buf, send_info[idx].send_size,
+                MPI_PACKED, proc, tag2,
+                facts.get_comm(), &send_req[i]) ;
     }
 
     // wait for all send/recv to complete
@@ -1862,7 +1870,7 @@ namespace Loci {
     for(int i=0;i<nrecv;++i) {
       int proc = recv_info[i].first ;
       MPI_Irecv(recv_ptr[i], r_size[i], MPI_PACKED, proc, 1,
-                MPI_COMM_WORLD, &request[i]) ;
+                facts.get_comm(), &request[i]) ;
     }
 
     /*First we find out the size of the message we are trying to
@@ -1916,12 +1924,15 @@ namespace Loci {
 	}
       }
       else
-	MPI_Pack(&maxs_size[i], sizeof(int), MPI_BYTE, send_ptr[i], s_size[i], &loc_pack, MPI_COMM_WORLD) ;
+	MPI_Pack(&maxs_size[i], sizeof(int), MPI_BYTE,
+                send_ptr[i], s_size[i], &loc_pack,
+                facts.get_comm()) ;
     }
     // Send Buffer
     for(int i=0;i<nsend;++i) {
       int proc = send_info[i].first ;
-      MPI_Send(send_ptr[i],s_size[i],MPI_PACKED,proc,1,MPI_COMM_WORLD) ;
+      MPI_Send(send_ptr[i], s_size[i], MPI_PACKED, proc, 1,
+               facts.get_comm()) ;
     }
     /* We receive a message from all the processors in the
        neighbourhood. Whether the message needs to be received a second
@@ -1951,7 +1962,9 @@ namespace Loci {
 	  then we need to check whether it is greater than the maximum
 	  size received so far from that processor. If it is not then
 	  the maximum size is set to that value. */
-	MPI_Unpack(recv_ptr[i], r_size[i], &loc_unpack, &temp, sizeof(int), MPI_BYTE, MPI_COMM_WORLD) ;
+	MPI_Unpack(recv_ptr[i], r_size[i], &loc_unpack,
+                   &temp, sizeof(int), MPI_BYTE,
+                   facts.get_comm()) ;
 	if(temp > maxr_size[i])
 	  maxr_size[i] = temp ;
       }
@@ -1971,7 +1984,10 @@ namespace Loci {
     for(int i = 0; i < rerecv_size; i++) {
       int proc = recv_info[recv_index[i]].first ;
       recv_ptr[recv_index[i]] = new unsigned char[maxr_size[recv_index[i]]] ;
-      MPI_Irecv(recv_ptr[recv_index[i]], maxr_size[recv_index[i]], MPI_PACKED, proc, 2, MPI_COMM_WORLD, &re_request[i]) ;
+      MPI_Irecv(recv_ptr[recv_index[i]],
+                maxr_size[recv_index[i]], MPI_PACKED,
+                proc, 2, facts.get_comm(),
+                &re_request[i]) ;
     }
 
     for(int i=0;i<resend_size;++i) {
@@ -1985,7 +2001,9 @@ namespace Loci {
     // Send Buffer
     for(int i=0;i<resend_size;++i) {
       int proc = send_info[send_index[i]].first ;
-      MPI_Send(send_ptr[send_index[i]],maxs_size[send_index[i]],MPI_PACKED,proc,2,MPI_COMM_WORLD) ;
+      MPI_Send(send_ptr[send_index[i]],
+               maxs_size[send_index[i]], MPI_PACKED,
+               proc, 2, facts.get_comm()) ;
       delete [] send_ptr[send_index[i]] ;
     }
     if(rerecv_size > 0) {
@@ -2153,7 +2171,7 @@ namespace Loci {
     for(int i=0;i<nrecv;++i) {
       int proc = recv_info[i].first ;
       MPI_Irecv(recv_ptr[i], r_size[i], MPI_INT, proc, 1,
-                MPI_COMM_WORLD, &request[i]) ;
+                facts.get_comm(), &request[i]) ;
 
     }
 
@@ -2179,7 +2197,8 @@ namespace Loci {
     // Send Buffer
     for(int i=0;i<nsend;++i) {
       int proc = send_info[i].first ;
-      MPI_Send(send_ptr[i],s_size[i],MPI_INT,proc,1,MPI_COMM_WORLD) ;
+      MPI_Send(send_ptr[i], s_size[i], MPI_INT, proc, 1,
+               facts.get_comm()) ;
     }
 
     if(nrecv > 0) {
@@ -3029,7 +3048,8 @@ namespace Loci {
 	time[2] = duplication_comm_time;
 	time[3] = duplication_comp_time;
 
-	MPI_Allreduce(time, max_time, 4, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+	MPI_Allreduce(time, max_time, 4, MPI_DOUBLE,
+                      MPI_MAX, facts.get_comm()) ;
 	if((max_time[0] + max_time[1]) - (max_time[2] + max_time[3])
 	   > -0.000000000000000001)
 	  //scheds.set_duplicate_variable(v, true);
