@@ -29,6 +29,7 @@
 #include "comp_tools.h"
 #include <gpurep.h>
 #include "gpuMap.h"
+#include <fact_db.h>
 
 using std::bad_alloc ;
 using std::map ;
@@ -622,7 +623,7 @@ namespace Loci {
       //	cout << "COLLAPSE: " << *rsi << endl ;
       //      }      
     }
-    if(MPI_rank == 0 && loopVarBase!=EMPTY)
+    if(facts.get_comm_rank() == 0 && loopVarBase!=EMPTY)
       cout << "gpu looping vars = " << loopVarBase <<endl ;
     ruleSet processed ;
 
@@ -704,7 +705,7 @@ namespace Loci {
 
    
 
-    if(gpuMaps != EMPTY && MPI_rank==0)
+    if(gpuMaps != EMPTY && facts.get_comm_rank()==0)
       cout << "gpuMaps = " << gpuMaps << endl ;
     //    cout << "inputs = " << inputs << endl ;
     //    cout << "outputs = " << outputs << endl ;

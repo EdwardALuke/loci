@@ -50,9 +50,9 @@ namespace Loci {
 
     // Find distribution of file numbers to processors
     int nfilenums = fmax_global-fmin_global+1 ;
-    const int p = MPI_processes ;
-    delta = (nfilenums+p-1)/MPI_processes ;
-    const int r = MPI_rank ;
+    const int p = facts.get_comm_size() ;
+    delta = (nfilenums+p-1)/p ;
+    const int r = facts.get_comm_rank() ;
     fstart = delta*r ; // start of file number on this processor
     fsz = delta ; // size of file numbers on this processor
     if(delta*(r+1) > nfilenums)
@@ -71,7 +71,7 @@ namespace Loci {
     const_Map l2f ;
     l2f = df->l2f.Rep() ;
 
-    const int p = MPI_processes ;
+    const int p = facts.get_comm_size() ;
     // Collect information about mapping between file number and
     // global-processor numbering
     // Find file number to processor mapping
@@ -85,7 +85,7 @@ namespace Loci {
     std::vector<int> recvfrom(p,0) ;
     MPI_Alltoall(&sendto[0], 1, MPI_INT, &recvfrom[0], 1, MPI_INT,
 		 comm) ;
-    const int r = MPI_rank ;
+    const int r = facts.get_comm_rank() ;
 
     std::vector<int> sendbuf(read_set.size()*3) ;
     std::vector<int> offsets(p,0) ;
@@ -156,7 +156,7 @@ namespace Loci {
     }
 
     // Handle single processor case
-    const int p = MPI_processes ;
+    const int p = facts.get_comm_size() ;
     if(p == 1) {
       int imin = read_set.Min() ;
       for(int i=0;i<sz;++i) {
@@ -295,7 +295,7 @@ namespace Loci {
 			       const std::vector<int> &local_num,
 			       const std::vector<int> &procID) {
     MPI_Comm comm = get_exec_comm() ;
-    const int p = MPI_processes ;
+    const int p = get_exec_size() ;
     for(int i=0;i<p;++i)
       send_sz[i] = 0 ;
     for(size_t i=0;i<procID.size();++i)
@@ -349,7 +349,7 @@ namespace Loci {
 		  const std::vector<int> &counts,
 		  const std::vector<int> &procID) {
     MPI_Comm comm = get_exec_comm() ;
-    const int p = MPI_processes ;
+    const int p = get_exec_size() ;
     std::vector<int> soffsets(p+1,0) ;
     std::vector<int> roffsets(p+1,0) ;
     for(int i=0;i<p;++i) {

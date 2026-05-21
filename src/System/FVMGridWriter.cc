@@ -228,7 +228,7 @@ namespace Loci {
     */
     hid_t group_id = 0 ;
     if(surface_ids.size() == 0) return;
-    if(MPI_rank == 0 || use_parallel_io) {
+    if(get_exec_rank() == 0 || use_parallel_io) {
       
       vector<pair<int,string> > surface_ids_mod= surface_ids ; 
       for(size_t i=0;i<surface_ids.size();++i) {
@@ -272,7 +272,7 @@ namespace Loci {
   
   // originally, no MPI_rank ==0,  can not run in parallel. Modified so that writeVOG can run in parallel io
   void writeVOGTag(hid_t output_fid,  vector<pair<string,entitySet> >& volTags){
-    if(MPI_rank == 0 || (use_parallel_io && output_fid > 0)){
+    if(get_exec_rank() == 0 || (use_parallel_io && output_fid > 0)){
 
       hid_t cell_info = H5Gcreate(output_fid,"cell_info", 
                                   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
@@ -303,7 +303,7 @@ namespace Loci {
   
   void writeVOGNode(hid_t file_id, store<vector3d<double> > &pos) {//parallel io included
     hid_t group_id = 0 ;
-    if(MPI_rank == 0 || use_parallel_io){
+    if(get_exec_rank() == 0 || use_parallel_io){
 
       group_id = H5Gcreate(file_id,"node_info",H5P_DEFAULT,
                            H5P_DEFAULT,H5P_DEFAULT) ;
@@ -322,18 +322,18 @@ namespace Loci {
     // else
     writeUnorderedVector(group_id,"positions",vpos) ;
 
-    if(MPI_rank == 0 || use_parallel_io) H5Gclose(group_id) ;
+    if(get_exec_rank() == 0 || use_parallel_io) H5Gclose(group_id) ;
 
     long long local_num_nodes = pos.domain().size() ;
     long long num_nodes = 0 ;
     MPI_Allreduce(&local_num_nodes,&num_nodes,1,MPI_LONG_LONG_INT,
                   MPI_SUM, get_exec_comm()) ;
 
-    if(MPI_rank == 0 || use_parallel_io) {
+    if(get_exec_rank() == 0 || use_parallel_io) {
       group_id = H5Gcreate(file_id,"file_info",
 			   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
     
-      if(MPI_rank == 0) cerr << "num_nodes = " << num_nodes << endl ;
+      if(get_exec_rank() == 0) cerr << "num_nodes = " << num_nodes << endl ;
 
       hsize_t dims = 1 ;
       hid_t dataspace_id = H5Screate_simple(1,&dims,NULL) ;
@@ -368,10 +368,10 @@ namespace Loci {
                   MPI_SUM, get_exec_comm()) ;
 
     hid_t group_id = 0 ;
-    if(MPI_rank == 0 || use_parallel_io) {
+    if(get_exec_rank() == 0 || use_parallel_io) {
       group_id = H5Gopen(file_id,"file_info",H5P_DEFAULT) ;
 
-      if(MPI_rank == 0)cerr << "num_cells = " << num_cells << endl
+      if(get_exec_rank() == 0)cerr << "num_cells = " << num_cells << endl
                             << "num_faces = " << num_faces << endl ;
 
       hsize_t dims = 1 ;
@@ -455,13 +455,13 @@ namespace Loci {
     Loci::writeUnorderedVector(group_id,"cluster_info",cluster_info) ;
       
     
-    if(MPI_rank == 0 || use_parallel_io) {
+    if(get_exec_rank() == 0 || use_parallel_io) {
       H5Gclose(group_id) ;
     }
   }
 
   void writeVOGClose(hid_t file_id) {//parallel io included
-    if(MPI_rank == 0 || use_parallel_io) H5Fclose(file_id) ;
+    if(get_exec_rank() == 0 || use_parallel_io) H5Fclose(file_id) ;
   }
   
 

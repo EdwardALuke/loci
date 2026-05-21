@@ -56,7 +56,7 @@ namespace Loci{
   /// numbering.
   storeRepP get_node_remap(fact_db &facts, entitySet nodes, int keyspace) {
     REPORTMEM() ;
-    if(MPI_processes == 1) {
+    if(facts.get_comm_size() == 1) {
       int minNode = nodes.Min() ;
 
       Map nm ;
@@ -81,7 +81,7 @@ namespace Loci{
     newnum.allocate(nodes) ;
 
     // Expand g2f to include clone regions
-    entitySet out_of_dom = gnodes - init_ptn[MPI_rank] ;
+    entitySet out_of_dom = gnodes - init_ptn[facts.get_comm_rank()] ;
     g2f.setRep(MapRepP(g2f.Rep())->expand(out_of_dom, init_ptn)) ;
 
     entitySet fnodes = g2f.image(gnodes) ;
@@ -104,7 +104,7 @@ namespace Loci{
   /// @param[in] facts Fact database.
   /// @param[in] nodes The local store domain that needs to be output.
   storeRepP get_output_node_remap(fact_db &facts, entitySet nodes) {
-    int p = MPI_processes ;
+    int p = facts.get_comm_size() ;
     if(p == 1) {
       int index = 1;
 
@@ -730,7 +730,7 @@ namespace Loci{
     // write grid topology file
     hid_t file_id = 0, group_id = 0 ;
     file_id=writeVOGOpen(filename) ;
-    if(use_parallel_io ||MPI_rank == 0 ) {
+    if(use_parallel_io ||facts.get_comm_rank() == 0 ) {
       group_id = H5Gcreate(file_id, "elements", H5P_DEFAULT, H5P_DEFAULT,
                            H5P_DEFAULT) ;
     }
@@ -754,7 +754,7 @@ namespace Loci{
     writeUnorderedVector(group_id, "GeneralCell_ids", generalCell_ids) ;
 
 
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || facts.get_comm_rank() == 0) {
       H5Gclose(group_id) ;
       group_id = H5Gcreate(file_id, "boundaries", H5P_DEFAULT, H5P_DEFAULT,
                            H5P_DEFAULT) ;
@@ -763,7 +763,7 @@ namespace Loci{
     const_store<string> boundary_names(bnamesRep) ;
 
     entitySet boundaries = boundary_names.domain() ;
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       entitySet local_boundaries ;
       int bkeyspace = bnamesRep->getDomainKeySpace() ;
       std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ;
@@ -771,7 +771,7 @@ namespace Loci{
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
       FORALL(boundaries,bb) {
-        if(init_ptn[MPI_rank].inSet(l2g[bb])) {
+        if(init_ptn[facts.get_comm_rank()].inSet(l2g[bb])) {
           local_boundaries += bb ;
         }
       } ENDFORALL ;
@@ -805,7 +805,7 @@ namespace Loci{
                       MapRepP(upperRep)->image(localCells)) & ref.domain() ;
 
     Map l2f ;
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       int kd =  getKeyDomain(fset, df, facts.get_comm()) ;
 
@@ -827,7 +827,7 @@ namespace Loci{
     for(size_t i=0;i<bnamelist.size();++i) {
       hid_t bc_id = 0 ;
       string current_bc = bnamelist[i] ;
-      if(use_parallel_io || MPI_rank==0) {
+      if(use_parallel_io || facts.get_comm_rank()==0) {
         bc_id = H5Gcreate(group_id, current_bc.c_str(), H5P_DEFAULT,
                           H5P_DEFAULT,H5P_DEFAULT) ;
       }
@@ -906,12 +906,12 @@ namespace Loci{
       writeUnorderedVector(bc_id,"nside_nodes",nsidenodes) ;
       writeUnorderedVector(bc_id,"nside_id",genc_ids) ;
 
-      if(use_parallel_io || MPI_rank == 0) {
+      if(use_parallel_io || facts.get_comm_rank() == 0) {
         H5Gclose(bc_id) ;
       }
     }
 
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || facts.get_comm_rank() == 0) {
       H5Gclose(group_id) ;
       H5Fclose(file_id) ;
     }
@@ -926,7 +926,7 @@ namespace Loci{
 
     const_store<string> boundary_names(bnamesRep) ;
     entitySet boundaries = boundary_names.domain() ;
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       entitySet local_boundaries ;
       int bkeyspace = bnamesRep->getDomainKeySpace() ;
       std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ;
@@ -934,7 +934,7 @@ namespace Loci{
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
       FORALL(boundaries,bb) {
-        if(init_ptn[MPI_rank].inSet(l2g[bb])) {
+        if(init_ptn[facts.get_comm_rank()].inSet(l2g[bb])) {
           local_boundaries += bb ;
         }
       } ENDFORALL ;
@@ -992,7 +992,7 @@ namespace Loci{
   hid_t open_boundary_file(string bc_name, string file_name) {
     // open the file
     hid_t file_id = 0;
-    if(MPI_rank == 0) {
+    if(get_exec_rank() == 0) {
       get_bc_directory(bc_name);
     }
     string dirname = "output/" + bc_name + "/";
@@ -1052,7 +1052,7 @@ namespace Loci{
     //get all the local nodes on the boundary
     entitySet nodes_local = MapRepP(face2node)->image(bfaces) ;
     // get the nodes that belong to this processor
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       entitySet dom = nodes_local ;
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
       entitySet  my_entities = dist->my_entities ;
@@ -1695,7 +1695,7 @@ namespace Loci{
         }
       }
       if(GLOBAL_OR(periodic_problem)) {
-        if(MPI_rank == 0) {
+        if(facts.get_comm_rank() == 0) {
           cerr << "Periodic boundary did not connect properly, is boundary "
                << "point matched?" << endl ;
           Loci::Abort() ;
@@ -1904,9 +1904,9 @@ namespace Loci{
           std::string constraint_name = mi->first + std::string("_BC") ;
 	        bc_constraint.Rep()->setDomainKeySpace(fk) ;
           facts.create_fact(constraint_name,bc_constraint) ;
-          if(MPI_processes == 1) {
+          if(facts.get_comm_size() == 1) {
             std::cout << constraint_name << ' ' << mi->second << endl ;
-          } else if(MPI_rank == 0) {
+          } else if(facts.get_comm_rank() == 0) {
             std::cout << "setting boundary condition " << constraint_name
                       << endl ;
           }
@@ -1978,7 +1978,7 @@ namespace Loci{
           MPI_Allreduce(&p2inp, &p2size, 1, MPI_INT,
                        MPI_SUM, facts.get_comm()) ;
           if(p1size != p2size) {
-            if(MPI_rank == 0) {
+            if(facts.get_comm_rank() == 0) {
               cerr << "periodic boundaries " << p1.name
                    << " do not match in number of faces" << endl ;
               cerr << "master has " << p1size << " faces and slave has "
@@ -2276,7 +2276,7 @@ namespace Loci{
     WARN(tot_degen!=EMPTY) ;
     if(tot_degen != EMPTY) {
       debugout << "tot_degen=" << tot_degen << endl ;
-      if(MPI_rank==0)
+      if(facts.get_comm_rank()==0)
         cerr << "tot_degen = " << tot_degen << endl ;
     }
     FORALL(faces,fc) {
@@ -2497,7 +2497,7 @@ namespace Loci{
   /// @param[out] cellStencilSymm
   /// @param[in] facts
   void get_symm_cellStencil(multiMap &cellStencilSymm, fact_db & facts) {
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
       cout <<"Generating symm stencil" << endl ;
     }
     using std::vector ;
@@ -2719,7 +2719,7 @@ namespace Loci{
   }
 
   void get_symmF_cellStencil(multiMap &cellStencilSymmF, fact_db & facts) {
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
       cout << "Generating symmF stencil" << endl ;
     }
     using std::vector ;
@@ -3049,7 +3049,7 @@ namespace Loci{
   }
 
   void get_symmC_cellStencil(multiMap &cellStencilSymmC, fact_db & facts) {
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
       cout <<"Generating symmC stencil" << endl ;
     }
     using std::vector ;
@@ -3553,14 +3553,14 @@ namespace Loci{
       int local_size = eset.size() ;
       int global_size = global_sum(local_size) ;
       // compute receive counts from all processors
-      int* recv_counts = new int[MPI_processes] ;
+      int* recv_counts = new int[get_exec_size()] ;
       MPI_Allgather(&local_size, 1, MPI_INT,
                     recv_counts, 1, MPI_INT,
                     get_exec_comm()) ;
       // then compute receive displacement
-      int* recv_displs = new int[MPI_processes] ;
+      int* recv_displs = new int[get_exec_size()] ;
       recv_displs[0] = 0 ;
-      for(int i=1;i<MPI_processes;++i) {
+      for(int i=1;i<get_exec_size();++i) {
         recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
       }
       // pack the local eset into an array
@@ -3580,11 +3580,11 @@ namespace Loci{
       delete[] local_eset ;
       delete[] recv_counts ;
       // unpack the raw buffer into a vector<entitySet>
-      vector<entitySet> ret(MPI_processes) ;
+      vector<entitySet> ret(get_exec_size()) ;
       int k = 0 ;
-      for(int i=0;i<MPI_processes;++i) {
+      for(int i=0;i<get_exec_size();++i) {
         int limit ;
-        if(i == MPI_processes-1) {
+        if(i == get_exec_size()-1) {
           limit = global_size ;
         } else {
           limit = recv_displs[i+1] ;
@@ -3856,7 +3856,7 @@ namespace Loci{
     if(GLOBAL_OR(emap.empty())) {
       MPI_Comm sub_comm ;
       int color = emap.empty() ;
-      MPI_Comm_split(facts.get_comm(), color, MPI_rank,
+      MPI_Comm_split(facts.get_comm(), color, facts.get_comm_rank(),
                      &sub_comm) ;
       if(!emap.empty())
         par_sort(emap, sub_comm) ;
@@ -3868,7 +3868,7 @@ namespace Loci{
     uend = unique(emap.begin(), emap.end()) ;
     emap.erase(uend, emap.end()) ;
 #ifdef BOUNDARY_DUPLICATE_DETECT
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       // then we will need to remove duplicates along the boundaries
       // we send the first element in the vector to the left neighbor
       // processor (my_id - 1) and each processor compares its last
@@ -3893,27 +3893,27 @@ namespace Loci{
         sendbuf[1] = std::numeric_limits<int>::max() ;
       }
       MPI_Status status ;
-      if(MPI_rank == 0) {
+      if(facts.get_comm_rank() == 0) {
         // rank 0 only receives from 1, no sending needed
         MPI_Recv(recvbuf, 2, MPI_INT,
                  1/*source*/, 0/*msg tag*/,
                  facts.get_comm(), &status) ;
-      } else if(MPI_rank == MPI_processes-1) {
+      } else if(facts.get_comm_rank() == facts.get_comm_size()-1) {
         // the last processes only sends to the second last processes,
         // no receiving is needed
         MPI_Send(sendbuf, 2, MPI_INT,
-                 MPI_rank-1/*dest*/, 0/*msg tag*/,
+                 facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
                  facts.get_comm()) ;
       } else {
         // others will send to MPI_rank-1 and receive from MPI_rank+1
         MPI_Sendrecv(sendbuf, 2, MPI_INT,
-                     MPI_rank-1/*dest*/, 0/*msg tag*/,
+                     facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
                      recvbuf, 2, MPI_INT,
-                     MPI_rank+1/*source*/, 0/*tag*/,
+                     facts.get_comm_rank()+1/*source*/, 0/*tag*/,
                      facts.get_comm(), &status) ;
       }
       // then compare the results with last element in local emap
-      if( (MPI_rank != MPI_processes-1) && (!emap.empty())){
+      if( (facts.get_comm_rank() != facts.get_comm_size()-1) && (!emap.empty())){
         const pair<Entity,Entity>& last = emap.back() ;
         if( (recvbuf[0] == last.first) &&
             (recvbuf[1] == last.second)) {
@@ -4115,7 +4115,7 @@ namespace Loci{
 
 
     //sort edge2node according to fileNumbering
-    if(MPI_processes > 1){
+    if(facts.get_comm_size() > 1){
       //create Map node_l2f
       entitySet nodes ;
       Map node_l2f ;
@@ -4133,7 +4133,7 @@ namespace Loci{
       g2f = df->g2fv[nkeyspace].Rep() ;
       //don't use nodes & init_ptn to define local nodes,
       //because nodes may not cover all nodes in init_ptn
-      entitySet localNodes = pos->domain()&init_ptn[MPI_rank] ;
+      entitySet localNodes = pos->domain()&init_ptn[facts.get_comm_rank()] ;
       node_l2f.allocate(localNodes);
       FORALL(localNodes, d){
         node_l2f[d] = g2f[d] ;
@@ -4183,7 +4183,7 @@ namespace Loci{
       if(GLOBAL_OR(edge2global.empty())) {
         MPI_Comm sub_comm ;
         int color = edge2global.empty() ;
-        MPI_Comm_split(facts.get_comm(), color, MPI_rank,
+        MPI_Comm_split(facts.get_comm(), color, facts.get_comm_rank(),
                        &sub_comm) ;
         if(!edge2global.empty()) {
           par_sort2(edge2global, sub_comm) ;
@@ -4196,7 +4196,7 @@ namespace Loci{
       uend2 = unique(edge2global.begin(), edge2global.end()) ;
       edge2global.erase(uend2, edge2global.end()) ;
 #ifdef BOUNDARY_DUPLICATE_DETECT
-      if(MPI_processes > 1) {
+      if(facts.get_comm_size() > 1) {
         // then we will need to remove duplicates along the boundaries
         // we send the first element in the vector to the left neighbor
         // processor (my_id - 1) and each processor compares its last
@@ -4223,27 +4223,27 @@ namespace Loci{
           sendbuf[2] = std::numeric_limits<int>::max() ;
         }
         MPI_Status status ;
-        if(MPI_rank == 0) {
+        if(facts.get_comm_rank() == 0) {
           // rank 0 only receives from 1, no sending needed
           MPI_Recv(recvbuf, 3, MPI_INT,
                    1/*source*/, 0/*msg tag*/,
                    facts.get_comm(), &status) ;
-        } else if(MPI_rank == MPI_processes-1) {
+        } else if(facts.get_comm_rank() == facts.get_comm_size()-1) {
           // the last processes only sends to the second last processes,
           // no receiving is needed
           MPI_Send(sendbuf, 3, MPI_INT,
-                   MPI_rank-1/*dest*/, 0/*msg tag*/,
+                   facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
                    facts.get_comm()) ;
         } else {
           // others will send to MPI_rank-1 and receive from MPI_rank+1
           MPI_Sendrecv(sendbuf, 3, MPI_INT,
-                       MPI_rank-1/*dest*/, 0/*msg tag*/,
+                       facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
                        recvbuf, 3, MPI_INT,
-                       MPI_rank+1/*source*/, 0/*tag*/,
+                       facts.get_comm_rank()+1/*source*/, 0/*tag*/,
                        facts.get_comm(), &status) ;
         }
         // then compare the results with last element in local emap
-        if( (MPI_rank != MPI_processes-1) && (!edge2global.empty())) {
+        if( (facts.get_comm_rank() != facts.get_comm_size()-1) && (!edge2global.empty())) {
           const pair<pair<Entity,Entity>, Entity>& last = edge2global.back() ;
           if( (recvbuf[0] == last.first.first) &&
               (recvbuf[1] == last.first.second)&&
@@ -4256,13 +4256,13 @@ namespace Loci{
 
 
       int local_num_edge = edge2global.size() ;
-      vector<int> edge_sizes(MPI_processes) ;
+      vector<int> edge_sizes(facts.get_comm_size()) ;
       MPI_Allgather(&local_num_edge, 1, MPI_INT,
                     &edge_sizes[0], 1, MPI_INT,
                     facts.get_comm()) ;
 
       int file_num_offset = 0 ;
-      for(int i = 0; i < MPI_rank; i++) {
+      for(int i = 0; i < facts.get_comm_rank(); i++) {
         file_num_offset += edge_sizes[i] ;
       }
 

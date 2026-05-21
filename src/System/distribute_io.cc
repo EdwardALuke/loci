@@ -144,13 +144,13 @@ namespace Loci {
       file_id = H5Fcreate(filename.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,acc_plist) ;
       H5Pclose(acc_plist);
       if(file_id == 0) {
-        if(MPI_rank==0) cerr << "unable to open file " << filename << endl ;
+        if(get_exec_rank()==0) cerr << "unable to open file " << filename << endl ;
         Loci::Abort() ;
       }
       return file_id ;
     }else{
       hid_t file_id = 0 ;
-      if(MPI_rank==0) 
+      if(get_exec_rank()==0) 
         file_id = H5Fcreate(filename.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,H5P_DEFAULT) ;
       return file_id ;
     }
@@ -193,13 +193,13 @@ namespace Loci {
       file_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, acc_plist) ;
       H5Pclose(acc_plist);
       if(file_id < 0) {
-        if(MPI_rank==0) cerr << "unable to open file " << filename << endl ;
+        if(get_exec_rank()==0) cerr << "unable to open file " << filename << endl ;
         Loci::Abort() ;
       }
       return file_id ;
     }else{
       hid_t file_id = 0 ;
-      if(MPI_rank==0) 
+      if(get_exec_rank()==0) 
         file_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, H5P_DEFAULT) ;
       return file_id ;
     }
@@ -1330,7 +1330,7 @@ namespace Loci {
 
   vector<sequence> transposeSeq(const vector<sequence> sv) {
     MPI_Comm comm = get_exec_comm() ;
-    int np = MPI_processes ;
+    int np = get_exec_size() ;
     vector<int> send_sz(np) ;
     for(int i=0;i<np;++i)
       send_sz[i] = sv[i].num_intervals()*2 ;
@@ -1883,12 +1883,12 @@ namespace Loci {
 
     hid_t group_id = 0 ;
 
-    if(MPI_rank == 0||use_parallel_io)
+    if(facts.get_comm_rank() == 0||use_parallel_io)
       group_id = H5Gcreate(file_id, vname.c_str(),
 			   H5P_DEFAULT,H5P_DEFAULT, H5P_DEFAULT) ;
 
     // Redistribute container to map from local to global numbering
-    if(var->RepType() != PARAMETER && MPI_processes != 1) {
+    if(var->RepType() != PARAMETER && facts.get_comm_size() != 1) {
       int offset = 0 ;
       entitySet dom = var->domain() ;
       storeRepP vardist =
@@ -1908,7 +1908,7 @@ namespace Loci {
         pio::write_containerS(group_id, var) ;
     }
 
-    if(MPI_rank == 0||use_parallel_io)
+    if(facts.get_comm_rank() == 0||use_parallel_io)
       H5Gclose(group_id) ;
   }
 
@@ -1939,12 +1939,12 @@ namespace Loci {
                                    fact_db &facts) {
     MPI_Comm comm = facts.get_comm() ;
     hid_t group_id = 0;
-    if(use_parallel_io || MPI_rank == 0)
+    if(use_parallel_io || facts.get_comm_rank() == 0)
       group_id = H5Gopen(file_id, vname.c_str(),H5P_DEFAULT) ;
 
     if(var->RepType() == PARAMETER) {
       read_parameter(group_id, var, comm) ;
-      if(use_parallel_io || MPI_rank == 0)
+      if(use_parallel_io || facts.get_comm_rank() == 0)
         H5Gclose(group_id) ;
       return ;
     }
@@ -1957,7 +1957,7 @@ namespace Loci {
     else
       pio::read_storeS(group_id, new_store, offset, comm) ;
     
-    if(use_parallel_io || MPI_rank == 0)
+    if(use_parallel_io || facts.get_comm_rank() == 0)
       H5Gclose(group_id) ;
 
     fact_db::distribute_infoP dist = facts.get_distribute_info() ;
@@ -2000,7 +2000,7 @@ namespace Loci {
     vector<int> ids(local_set.size()) ;
 
     int c = 0 ;
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       int kd =  getKeyDomain(local_set, df, comm) ;
       if(kd < 0) {
@@ -2036,19 +2036,19 @@ namespace Loci {
     // file_id = H5Fcreate(filename,H5F_ACC_TRUNC,H5P_DEFAULT,H5P_DEFAULT) ;//error
 
     file_id = writeVOGOpen(filename);
-    if(MPI_rank == 0 || use_parallel_io) {
+    if(facts.get_comm_rank() == 0 || use_parallel_io) {
       group_id = H5Gcreate(file_id,"dataInfo",
 			   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
     }
     writeSetIds(group_id,set,facts) ;
-    if(MPI_rank == 0 || use_parallel_io)
+    if(facts.get_comm_rank() == 0 || use_parallel_io)
       H5Gclose(group_id) ;
     return file_id ;
   }
 
   
   void closeUnorderedFile(hid_t file_id) {
-    if(MPI_rank == 0 || use_parallel_io)
+    if(get_exec_rank() == 0 || use_parallel_io)
       H5Fclose(file_id) ;
   }
  

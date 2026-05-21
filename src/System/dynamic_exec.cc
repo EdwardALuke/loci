@@ -394,7 +394,7 @@ namespace Loci
       MPI_Allreduce(&lsz, &gsz, 1, MPI_INT, MPI_SUM,
                     facts.get_comm()) ;
       // Now compute chomp size
-      int p = MPI_processes ;
+      int p = facts.get_comm_size() ;
       // Chunk size
       int CHUNKING_FACTOR=256 ;
       int csz = max(gsz/(p*CHUNKING_FACTOR),10) ;
@@ -456,9 +456,9 @@ namespace Loci
     // ========================================================================
 
     // proc count, rank
-    nProcs = Loci::MPI_processes;
+    nProcs = facts.get_comm_size() ;
     
-    myRank = Loci::MPI_rank;
+    myRank = facts.get_comm_rank() ;
     foreMan = 0;
 
     // first items, item counts
@@ -764,9 +764,9 @@ namespace Loci
     float max_time = 0 ;
     MPI_Allreduce(&exec_time, &max_time, 1, MPI_FLOAT, MPI_MAX,
                   facts1->get_comm()) ;
-    double ef = total_time/(max_time*float(MPI_processes)) ;
+    double ef = total_time/(max_time*float(get_exec_size())) ;
 
-    if(MPI_rank == 0) 
+    if(get_exec_rank() == 0) 
       Loci::debugout << "parallel efficiency of IWS scheduled computation is "
                      << ef*100.0 << "%, time =" << max_time << endl ;
     //=======================================================
@@ -786,7 +786,7 @@ namespace Loci
 #endif
       MPI_Allreduce(&time, &total_time, 1, MPI_FLOAT, MPI_SUM,
                     facts1->get_comm()) ;
-      float mean_time = total_time/float(MPI_processes) ;
+      float mean_time = total_time/float(get_exec_size()) ;
       float diff_time = time-mean_time ;
       if(fabs(diff_time) < mean_time*eff_tol) // If close to average time, zero
 	diff_time = 0 ;
@@ -849,21 +849,21 @@ namespace Loci
 	  diff_time += (chunkData[send_list[i]].chunkTime[0]+
 			chunkData[send_list[i]].chunkTime[1]) ;
       }
-      vector<float> time_xfers(MPI_processes) ;
+      vector<float> time_xfers(get_exec_size()) ;
       MPI_Allgather(&diff_time, 1, MPI_FLOAT, &time_xfers[0], 1,
 		    MPI_FLOAT, facts1->get_comm()) ;
 #ifdef VERBOSE
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
 	debugout << "mean_time = " << mean_time << endl ;
 	debugout << "time xfers =";
-	for(int i=0;i<MPI_processes;++i)
+	for(int i=0;i<get_exec_size();++i)
 	  debugout << " " << time_xfers[i] ;
 	debugout << endl ;
       }
 #endif
       vector<pair<float,int> > send_chunks ;
       vector<pair<float,int> > recv_chunks ;
-      for(int i=0;i<MPI_processes;++i) {
+      for(int i=0;i<get_exec_size();++i) {
 	if(time_xfers[i] > 0.0) 
 	  send_chunks.push_back(pair<float,int>(time_xfers[i],i)) ;
 	if(time_xfers[i] < 0.0) 
@@ -882,7 +882,7 @@ namespace Loci
 	    if(ptime - send_chunks[j].first > -mean_time*eff_tol) {
 	      ptime -= send_chunks[j].first ;
 	      //assign all chunks from this processor
-	      if(send_chunks[j].second == MPI_rank) {
+	      if(send_chunks[j].second == get_exec_rank()) {
 #ifdef VERBOSE
                 debugout << "adding " << send_list.size() << "chunks to sendto"
                          << endl ;
@@ -906,25 +906,25 @@ namespace Loci
       }
       
 #ifdef VERBOSE
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
 	debugout << "time xfers2 =";
-	for(int i=0;i<MPI_processes;++i)
+	for(int i=0;i<get_exec_size();++i)
 	  debugout << " " << time_xfers[i] ;
 	debugout << endl ;
       }
 #endif
       
       bool rebalance = false ;
-      for(int i=0;i<MPI_processes;++i)
+      for(int i=0;i<get_exec_size();++i)
 	if(time_xfers[i] > 0)
 	  rebalance = true ;
       bool sources = false ;
-      for(int i=0;i<MPI_processes;++i)
+      for(int i=0;i<get_exec_size();++i)
 	if(time_xfers[i] < 0)
 	  sources = true ;
       if(rebalance && sources) { // we have residual work to distribute
 	int nchunks = send_list.size() ;
-	vector<int> chunk_groups(MPI_processes) ;
+	vector<int> chunk_groups(get_exec_size()) ;
 	MPI_Allgather(&nchunks, 1, MPI_INT, &chunk_groups[0], 1,
 		      MPI_INT, facts1->get_comm()) ;
 	vector<float> chunk_times(nchunks) ;
@@ -933,13 +933,13 @@ namespace Loci
 	  chunk_times[i] = (chunkData[ch].chunkTime[0]+
 			    chunkData[ch].chunkTime[1]) ;
 	}
-	vector<int> chunk_displ(MPI_processes) ;
+	vector<int> chunk_displ(get_exec_size()) ;
 	chunk_displ[0] = 0 ;
-	for(int i=1;i<MPI_processes;++i) 
+	for(int i=1;i<get_exec_size();++i) 
 	  chunk_displ[i] = chunk_displ[i-1]+chunk_groups[i-1] ;
 
-	int ntchunks = (chunk_displ[MPI_processes-1]+
-			chunk_groups[MPI_processes-1]) ;
+	int ntchunks = (chunk_displ[get_exec_size()-1]+
+			chunk_groups[get_exec_size()-1]) ;
 
 	vector<float> chunk_time_gather(ntchunks) ;
 	
@@ -951,7 +951,7 @@ namespace Loci
 		       facts1->get_comm()) ;
 	vector<pair<float,pair<int,int> > > chunkQueue(ntchunks) ;
         int cnk = 0 ;
-	for(int i=0;i<MPI_processes;++i) {
+	for(int i=0;i<get_exec_size();++i) {
 	  for(int j=0;j<chunk_groups[i];++j) {
 	    pair<int,int> chunk_info(i,j) ;
 	    float chunk_time = chunk_time_gather[chunk_displ[i]+j] ;
@@ -961,7 +961,7 @@ namespace Loci
 	  }
 	}
         cnk = 0 ;
-	for(int i=0;i<MPI_processes;++i) {
+	for(int i=0;i<get_exec_size();++i) {
           if(chunk_groups[i] > 1) {
             std::sort(&chunkQueue[cnk],&chunkQueue[cnk+chunk_groups[i]]) ;
           }
@@ -971,7 +971,7 @@ namespace Loci
             //	sort(chunkQueue.begin(),chunkQueue.end()) ;
         
 	int chunkQueueStart = chunkQueue.size()-1 ;
-	for(int i=MPI_processes-1;i>=0;--i) 
+	for(int i=get_exec_size()-1;i>=0;--i) 
 	  if(time_xfers[i] < 0) {
 	    vector<int> sendto_p ;
 	    float time_x = -time_xfers[i] ;
@@ -981,7 +981,7 @@ namespace Loci
 		// assign chunk 
 		time_x -= chunkQueue[j].first ;
 		const int cp = chunkQueue[j].second.first ;
-		if(cp == MPI_rank)
+		if(cp == get_exec_rank())
 		  sendto_p.push_back(send_list[chunkQueue[j].second.second]) ;
 		time_xfers[cp] -= chunkQueue[j].first ;
                 if(time_xfers[cp] < mean_time*eff_tol)
@@ -1004,7 +1004,7 @@ namespace Loci
 	  }
 
         
-        if(MPI_rank == 0) {
+        if(get_exec_rank() == 0) {
           bool found = false ;
           for(int j=chunkQueueStart;j >=0;--j) 
             if((chunkQueue[j].first > 0)) {
@@ -1023,9 +1023,9 @@ namespace Loci
                
       }
 #ifdef VERBOSE
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
 	debugout << "time xfers3 =";
-	for(int i=0;i<MPI_processes;++i)
+	for(int i=0;i<get_exec_size();++i)
 	  debugout << " " << time_xfers[i] ;
 	debugout << endl ;
       }
@@ -1062,7 +1062,7 @@ namespace Loci
       local_chk_info[1] = numChunks ;
       MPI_Allreduce(&local_chk_info[0], &global_chk_info[0], 2,
                     MPI_INT, MPI_SUM, facts1->get_comm()) ;
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
         debugout << "IWS Schedule: Communicating "
                  << global_chk_info[1]-global_chk_info[0]
                  << " chunks, "
@@ -1096,18 +1096,18 @@ namespace Loci
       sendChunks.swap(local_send_list) ;
 
       // now invert sendChunks
-      vector<int> sendSizes(MPI_processes,0) ;
+      vector<int> sendSizes(get_exec_size(),0) ;
       for(size_t i=0;i<sendChunks.size();++i)
 	sendSizes[sendChunks[i].proc] = sendChunks[i].chunkList.size() ;
       
-      vector<int> recvSizes(MPI_processes,0) ;
+      vector<int> recvSizes(get_exec_size(),0) ;
       MPI_Alltoall(&sendSizes[0], 1, MPI_INT,
 		   &recvSizes[0], 1, MPI_INT,
 		   facts1->get_comm()) ;
       numRemoteChunks = 0 ;
 
       vector<chunkCommInfo> local_recv_list ;
-      for(int i=0;i<MPI_processes;++i) {
+      for(int i=0;i<get_exec_size();++i) {
 	numRemoteChunks += recvSizes[i] ;
 	if(recvSizes[i]!=0) {
 	  chunkCommInfo tmp ;
@@ -1163,9 +1163,9 @@ namespace Loci
                     facts1->get_comm()) ;
       MPI_Allreduce(&nsendrecvl, &nsendrecvs, 1, MPI_INT, MPI_SUM,
                     facts1->get_comm()) ;
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
         debugout << "IWS Schedule: Each processor communicating with an average of "
-                 << double(nsendrecvs)/double(MPI_processes)
+                 << double(nsendrecvs)/double(get_exec_size())
                  << " processors." << endl
                  << "IWS Schedule: Maximum number of communicating partners: "
                  << nsendrecvg << " processors." << endl ;
@@ -1180,7 +1180,7 @@ namespace Loci
 
     MPI_Allreduce(&timesin[0], &timesmx[0], 2, MPI_DOUBLE, MPI_MAX,
                   facts1->get_comm()) ;
-    if(MPI_rank == 0)
+    if(get_exec_rank() == 0)
       Loci::debugout << "comm_time = " << timesmx[0] << ",sched_time=" << timesmx[1] << endl ;
 #endif
     //=======================================================

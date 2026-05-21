@@ -22,6 +22,7 @@
 #include "visit_tools.h"
 #include <sys/stat.h>
 #include "comp_tools.h"
+#include <fact_db.h>
 
 #include "dist_tools.h"
 
@@ -203,7 +204,7 @@ namespace Loci {
           writeContainer(file_id,v.get_info().name,st,facts) ;
           hdf5CloseFile(file_id) ;
         } else {
-          if(MPI_rank == 0) {
+          if(facts.get_comm_rank() == 0) {
             ostringstream oss ;
             oss << "dump_vars/"<<v ;
             if(dump_var_lookup.find(v) ==dump_var_lookup.end())
@@ -1426,7 +1427,7 @@ namespace Loci {
     //#define CHECK_TOPO
 #ifdef CHECK_TOPO
     if(!final.empty()) {
-      if(Loci::MPI_rank == 0)
+      if(Loci::get_exec_rank() == 0)
         cout << "Checking graph schedule consistency..." ;
       // first check if all vertices are scheduled and
       // if we included any vertices that are not in the graph
@@ -1484,7 +1485,7 @@ namespace Loci {
           }
         }
       }
-      if(Loci::MPI_rank == 0)
+      if(Loci::get_exec_rank() == 0)
         cout << " passed!" << endl ;
     }
 #endif

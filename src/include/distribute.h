@@ -48,7 +48,8 @@ namespace Loci {
   extern int MPI_processes;
   extern int MPI_rank ;
   
-  void Init(int* argc, char*** argv) ;
+  void Init(int* argc, char*** argv,
+            MPI_Comm comm = MPI_COMM_WORLD) ;
   void Finalize() ; 
   void Abort() ;
   size_t MPI_process_mem_avail() ;

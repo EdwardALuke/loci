@@ -78,7 +78,10 @@ In this phase the communicator stored in `fact_db` is passed down to
 internal subsystems.  Because these APIs already accept an optional
 `MPI_Comm` parameter with a default of `MPI_COMM_WORLD`, the changes
 are mechanical: pass `facts.get_comm()` instead of relying on the
-default.
+default.  Note to accomplish this when no fact_db is present create a
+get_exec_comm() function that returns the communicator from the
+exec_current_fact_db unless this pointer is null, then return
+MPI_COMM_WORLD.
 
 ### 1.1  Scheduler (`scheduler.cc`)
 

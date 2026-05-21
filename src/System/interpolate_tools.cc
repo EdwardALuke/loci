@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci>
 #include <interpolate.h>
+#include <fact_db.h>
 
 namespace Loci {
   using std::vector ;
@@ -528,7 +529,7 @@ namespace Loci {
     MEMORY_PROFILE(collectPointsBegin) ;
     // Communicate bounds request to other processors
     using namespace kdTree ;    
-    int p = MPI_processes ;
+    int p = get_exec_size() ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
     MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,comm) ;
 
@@ -703,7 +704,7 @@ namespace Loci {
     MEMORY_PROFILE(collectPointsBegin) ;
     // Communicate bounds request to other processors
     using namespace kdTree ;
-    int p = MPI_processes ;
+    int p = get_exec_size() ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
     MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,comm) ;
 
@@ -777,7 +778,7 @@ namespace Loci {
 
     WARN(access.size()>0 && access[0] < 0) ;
 
-    const int p = MPI_processes ;
+    const int p = get_exec_size() ;
     // Now communicate the accessed info
     vector<int> req_sizes(p,0) ;
     // Count accesses to each processor

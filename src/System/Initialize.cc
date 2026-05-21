@@ -441,7 +441,7 @@ namespace Loci {
 
   //This is the first call to be made for any Loci program be it
   //sequential or parallel.
-  void Init(int* argc, char*** argv)  {
+  void Init(int* argc, char*** argv, MPI_Comm comm)  {
     char *execname = (*argv)[0] ;
     const char *hostname = "localhost" ;
     const char *debug = "gdb" ;
@@ -568,8 +568,8 @@ namespace Loci {
     //    MPI_Errhandler_create(&MPI_errors_reporter,&err_handler) ;
     //    MPI_Errhandler_set(MPI_COMM_WORLD,err_handler) ;
 
-    MPI_Comm_size(MPI_COMM_WORLD, &MPI_processes) ;
-    MPI_Comm_rank(MPI_COMM_WORLD, &MPI_rank) ;
+    MPI_Comm_size(comm, &MPI_processes) ;
+    MPI_Comm_rank(comm, &MPI_rank) ;
 
 #ifdef USE_SCOTCH
     // Reset the random number seed so we can have consistent

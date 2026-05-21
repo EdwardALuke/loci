@@ -154,7 +154,7 @@ namespace Loci {
     }
     if(rinfo.constraints.begin() != rinfo.constraints.end())
       if((sources & constraints) != constraints) {
-        if(MPI_processes == 1) {
+        if(facts.get_comm_size() == 1) {
           cerr << "Warning, rule " << r <<
             " cannot supply all entities of constraint" << endl ;
           cerr << "constraints = " << constraints << endl ;
@@ -171,7 +171,7 @@ namespace Loci {
           entitySet sources = vmap_source_exist(*si,facts, scheds) ;
           sources &= my_entities ;
           if((sources & constraints) != constraints) {
-            if(MPI_processes == 1)
+            if(facts.get_comm_size() == 1)
               cerr << "sources & constraints != constraints for input"
                    << endl
                    << sources  << " -- " << *si << endl ;
@@ -194,7 +194,7 @@ namespace Loci {
                 entitySet exist = scheds.variable_existence(*vi) ;
                 entitySet fails = working & ~exist ;
                 if(fails != EMPTY) {
-                  if(MPI_processes == 1)
+                  if(facts.get_comm_size() == 1)
                     cerr  << "expecting to find variable " << *vi << " at entities " << fails << endl << *vi << " exists at entities " << exist << endl ;
                   else
                     debugout  << "expecting to find variable " << *vi << " at entities " << fails << endl << *vi << " exists at entities " << exist << endl ;
@@ -694,7 +694,7 @@ namespace Loci {
 
     if(rinfo.constraints.begin() != rinfo.constraints.end())
       if((srcs & cnstrnts & filter) != (cnstrnts & filter)) {
-        if(MPI_processes == 1) {
+        if(facts.get_comm_size() == 1) {
           cerr << "Warning, reduction rule:" << apply
                << "cannot supply all entities of constraint" << endl ;
           cerr << "constraints = " << (cnstrnts&filter) << endl ;
@@ -713,7 +713,7 @@ namespace Loci {
           entitySet sources = vmap_source_exist(*si,facts, scheds) ;
           sources &= filter;
           if((sources & cnstrnts & filter) != (cnstrnts&filter)) {
-            if(MPI_processes == 1)
+            if(facts.get_comm_size() == 1)
               cerr << "sources & constraints != constraints for input"
                    << endl
                    << (sources & filter) << " -- " << *si << endl ;
@@ -738,7 +738,7 @@ namespace Loci {
                 entitySet exist = scheds.variable_existence(*vi) ;
                 entitySet fails = working & ~exist ;
                 if(fails != EMPTY) {
-                  if(MPI_processes == 1)
+                  if(facts.get_comm_size() == 1)
                     cerr << "expecting to find variable " << *vi << " at entities " << fails << endl << *vi << " exists at entities " << exist << endl ;
                   else
                     debugout << "expecting to find variable " << *vi << " at entities " << fails << endl << *vi << " exists at entities " << exist << endl ;
@@ -807,7 +807,7 @@ namespace Loci {
     // if the constraints is not "~EMPTY"
     if(!rinfo.constraints.empty() && constraints != all_entities) {
       if((sources & constraints) != constraints) {
-        if(MPI_processes == 1) {
+        if(facts.get_comm_size() == 1) {
           cerr << "Warning, rule " << r <<
             " cannot supply all entities of constraint" << endl ;
           cerr << "constraints = " << constraints << endl ;
@@ -2336,7 +2336,7 @@ namespace Loci {
         el->append_list(tmp2) ;
       }
     }
-    if(MPI_processes==1 && !isGPUSync) {
+    if(facts.get_comm_size()==1 && !isGPUSync) {
       ostringstream oss ;
       oss << "Sync: " << barrier_vars << endl ;
       executeP exec_thrd_sync = new execute_msg(oss.str()) ;
@@ -2863,7 +2863,7 @@ namespace Loci {
 
 	entitySet duplication_clist_procs = sending_comm_processors(duplication_clist_entities, facts);
 	vector<entitySet> temp = send_entitySetv(original_clist_entities, facts);
-	for(int i = 0; i < Loci::MPI_processes; i++) {
+	for(int i = 0; i < facts.get_comm_size(); i++) {
 	  if(temp[i].size() > 0) {
 	    original_clist_procs += i;
 	    original_clist_entities += temp[i];
@@ -2871,7 +2871,7 @@ namespace Loci {
 	}
 
 	temp = send_entitySetv(duplication_clist_entities, facts);
-	for(int i = 0; i < Loci::MPI_processes; i++) {
+	for(int i = 0; i < facts.get_comm_size(); i++) {
 	  if(temp[i].size() > 0) {
 	    duplication_clist_procs += i;
 	    duplication_clist_entities += temp[i];
@@ -2906,7 +2906,7 @@ namespace Loci {
 	entitySet original_plist_procs = sending_comm_processors(original_plist_entities, facts);
 
 	temp = send_entitySetv(original_plist_entities, facts);
-	for(int i = 0; i < Loci::MPI_processes; i++) {
+	for(int i = 0; i < facts.get_comm_size(); i++) {
 	  if(temp[i].size() > 0) {
 	    original_plist_procs += i;
 	    original_plist_entities += temp[i];

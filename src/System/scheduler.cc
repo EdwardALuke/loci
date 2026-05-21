@@ -710,14 +710,14 @@ namespace Loci {
     //deco_depend_gr(gr,given) ;
     //////////////////////////////////////////////////////////////////
 #ifdef ENABLE_RELATION_GEN
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "Stationary Relation Generation..." << endl ;
     stationary_relation_gen(par_rdb, facts, target) ;
     exec_current_fact_db = &facts ;
 #endif
     // then we need to perform global -> local renumbering
     if(facts.is_distributed_start()) {
-      if((MPI_processes > 1))
+      if((facts.get_comm_size() > 1))
         get_clone(facts, par_rdb) ;
       else
         Loci::serial_freeze(facts) ;
@@ -727,7 +727,7 @@ namespace Loci {
 
     // then we can generate the dependency graph
     variableSet given = facts.get_typed_variables() ;
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "generating dependency graph..." << endl ;
 
     
@@ -742,13 +742,13 @@ namespace Loci {
 
     // If graph is empty, return a null schedule
     if(gr.get_target_vertices() == EMPTY) {
-      if(Loci::MPI_rank == 0)
+      if(facts.get_comm_rank() == 0)
         cerr << "Warning: empty dependency graph!" << endl ;
       return executeP(0) ;
     }
     ////////////////////////////////////////////////////////////////////////
     std::string dottycmd = "dotty " ;
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
       if(show_graphs) {
         cout << "creating visualization file for dependency graph..." << endl ;
         create_digraph_dot_file(gr,"dependgr.dot") ;
@@ -767,7 +767,7 @@ namespace Loci {
     ////////////////////
 
     scheds.init(facts) ;
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "setting up variable types..." << endl ;
     set_var_types(facts,gr,scheds) ;
 
@@ -775,12 +775,12 @@ namespace Loci {
     //scheds.print_summary(facts,cout) ;
     //////////////
 
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "decomposing graph..." << endl ;
     decomposed_graph decomp(gr,given,target) ;
 
     //////////////////////////////////////////////////////////////////
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
       if(show_graphs) {
         cout << "creating visualization file for decomposed graph..." << '\n' ;
         cout << "visualizing decomposed graph..." << '\n' ;
@@ -884,7 +884,7 @@ namespace Loci {
     Loci::debugout << "Time taken for graph processing  = "
                    << sw.stop() << "  seconds " << endl ;
 
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "existential analysis..." << endl ;
     sw.start() ;
       
@@ -901,7 +901,7 @@ namespace Loci {
       }
     */
     ///////////////////////////////////
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
 #ifdef PTHREADS
       if(threading_pointwise || threading_global_reduction
          || threading_local_reduction || threading_chomping 
@@ -933,17 +933,17 @@ namespace Loci {
                    << sw.stop() << " seconds " << endl ;
 
     if(GLOBAL_OR(scheds.errors_found())) {
-      if(MPI_rank == 0) {
+      if(facts.get_comm_rank() == 0) {
         cerr << "error in generating schedule, dumping schedule files" << endl ;
-        if(MPI_processes != 1)
+        if(facts.get_comm_size() != 1)
           cerr << "see debug files for more information" << endl ;
 
       }
       ostringstream oss ;
       oss << "debug/schedule" ;
 
-      if(MPI_processes > 1) {
-        oss << "-" << MPI_rank ;
+      if(facts.get_comm_size() > 1) {
+        oss << "-" << facts.get_comm_rank() ;
       }
 
       string sched_filename = oss.str() ;
@@ -1222,7 +1222,7 @@ bool operator <(const timingData &d) const {
         << ceil(1000.0*t/totTime)/10.0 << "% of total," 
         <<  " time per entity: " << t/max(e,1.0)
         << endl ;
-      double meanEvents = rti->totalEvents/double(MPI_processes) ;
+      double meanEvents = rti->totalEvents/double(get_exec_size()) ;
       s << " === max " << rti->maxTime << ", mean = " << rti->meanTime
 	<< ", imbalance = " << 100.0*(rti->maxTime-rti->meanTime)/max(rti->meanTime,1e-10)<<"%" << endl	 ;
       if(rti->eventType == EXEC_COMPUTATION) 
@@ -1501,7 +1501,7 @@ bool operator <(const timingData &d) const {
 
     variableSet given = facts.get_typed_variables() ;
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
       cout << "[Internal] generating dependency graph..." << endl ;
     }
 #endif
@@ -1509,7 +1509,7 @@ bool operator <(const timingData &d) const {
     // the dependency graph
     digraph gr ;
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "\t[Internal] (recursive backward searching version)" << endl ;
 #endif
     given -= variable("EMPTY") ;
@@ -1532,19 +1532,19 @@ bool operator <(const timingData &d) const {
 
     scheds.init(facts) ;
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "[Internal] setting up variable types..." << endl ;
 #endif
     set_var_types(facts,gr,scheds) ;
 
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "[Internal] decomposing graph..." << endl ;
 #endif
     decomposed_graph decomp(gr,given,target) ;
 
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0) {
+    if(facts.get_comm_rank()==0) {
       cerr << "[Internal] setting initial variables..." << endl ;
     }
 #endif
@@ -1588,29 +1588,29 @@ bool operator <(const timingData &d) const {
     //    Loci::debugout << " initial_vars = " << initial_vars << endl ;
 
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Internal] compiling graph..." << endl;
 #endif
     graph_compiler compile_graph(decomp, initial_vars) ;
     compile_graph.compile(facts,scheds,given,target) ;
 
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "[Internal] existential analysis..." << endl ;
 #endif
     compile_graph.existential_analysis(facts, scheds) ;
 
 #ifdef INTERNAL_VERBOSE
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cout << "[Internal] creating execution schedule..." << endl;
 #endif
     executeP sched =  compile_graph.execution_schedule
       (facts,scheds,initial_vars) ;
 
     if(GLOBAL_OR(scheds.errors_found())) {
-      if(MPI_rank == 0) {
+      if(facts.get_comm_rank() == 0) {
         cerr << "[Internal] error in generating schedule" << endl ;
-        if(MPI_processes != 1)
+        if(facts.get_comm_size() != 1)
           cerr << "[Internal] see debug files for more information" << endl ;
         cerr << "[Internal] Aborting..." << endl ;
 
@@ -1632,7 +1632,7 @@ bool operator <(const timingData &d) const {
     stopWatch sw ;
     sw.start() ;
     
-    if(MPI_rank == 0) {
+    if(facts.get_comm_rank() == 0) {
       cout << "[Internal] Quering facts: " << query << endl ;
     }
     // Here, we won't erase the intentional facts since
@@ -1653,7 +1653,7 @@ bool operator <(const timingData &d) const {
 
     // If a schedule was generated, execute it
 #ifdef INTERNAL_VERBOSE
-    if(MPI_rank == 0)
+    if(facts.get_comm_rank() == 0)
       cout << "[Internal] begin query execution" << endl ;
 #endif
     exec_current_fact_db = &local_facts ;
@@ -1694,7 +1694,7 @@ bool operator <(const timingData &d) const {
     sw.start() ;
 
     try {
-      if(MPI_rank == 0) {
+      if(facts.get_comm_rank() == 0) {
         cout << "Quering facts: " << query << endl ;
       }
 
@@ -1712,7 +1712,7 @@ bool operator <(const timingData &d) const {
       target -= remove_query ;
 
       if(remove_query != EMPTY)
-        if(MPI_rank == 0) {
+        if(facts.get_comm_rank() == 0) {
           cout << "Queried facts: \"" << remove_query << "\" are extensional" ;
           cout << " facts, action not performed on these facts!" << endl ;
         }
@@ -1793,10 +1793,10 @@ bool operator <(const timingData &d) const {
       debugout << "time to create schedule " << tglobal  << endl ;
       
       // If a schedule was generated, execute it
-      if(MPI_rank == 0)
+      if(local_facts.get_comm_rank() == 0)
         cout << "begin execution" << endl ;
 
-      if(MPI_rank == 0) {
+      if(local_facts.get_comm_rank() == 0) {
 	if (threading_pointwise)
 	  cout << "--threading " << num_threaded_pointwise
 	       << "/" << num_total_pointwise << " pointwise rules" << endl;
@@ -1821,8 +1821,8 @@ bool operator <(const timingData &d) const {
         ostringstream oss ;
         oss << "debug/schedule" ;
 
-        if(MPI_processes > 1) {
-          oss << "-" << MPI_rank ;
+        if(local_facts.get_comm_size() > 1) {
+          oss << "-" << local_facts.get_comm_rank() ;
         }
 
         string sched_filename = oss.str() ;
@@ -1945,7 +1945,7 @@ bool operator <(const timingData &d) const {
                        << LociInputVarsSize << " bytes ("
                        << LociInputVarsSize/(1024*1024) << "MB)"
                        << endl ;
-        if(MPI_processes > 1) {
+        if(local_facts.get_comm_size() > 1) {
           // code to find out the largest memory bounds on all processes
           double LargestPeakMemory = 0 ;
           MPI_Allreduce(&LociAppPeakMemory,
@@ -1960,7 +1960,7 @@ bool operator <(const timingData &d) const {
                         1, MPI_DOUBLE,
                         MPI_SUM,
                         local_facts.get_comm()) ;
-          double avgPeakMemory = totalPeakMemory/MPI_processes ;
+          double avgPeakMemory = totalPeakMemory/local_facts.get_comm_size() ;
 
           double LargestPeakMemoryBeanCounting = 0 ;
           MPI_Allreduce(&LociAppPeakMemoryBeanCounting,
@@ -1975,7 +1975,7 @@ bool operator <(const timingData &d) const {
                         1, MPI_DOUBLE,
                         MPI_SUM,
                         local_facts.get_comm()) ;
-          double avgPeakMemoryBeanCounting = totalPeakMemoryBeanCounting/MPI_processes ;
+          double avgPeakMemoryBeanCounting = totalPeakMemoryBeanCounting/local_facts.get_comm_size() ;
 
           Loci::debugout << endl ;
           Loci::debugout << "The global largest Peak Memory: "
@@ -2289,7 +2289,7 @@ bool operator <(const timingData &d) const {
       }
 #endif
       // communicate the execution time
-      if(MPI_processes > 1) {
+      if(local_facts.get_comm_size() > 1) {
         double mytime = exec_time ;
         double maxtime = 0 ;
         MPI_Allreduce(&mytime, &maxtime, 1,
@@ -2302,8 +2302,8 @@ bool operator <(const timingData &d) const {
         MPI_Allreduce(&mytime, &maxtime, 1,
                       MPI_DOUBLE, MPI_MAX,
                       local_facts.get_comm()) ;
-        if(MPI_rank == 0 ) {
-          double eff = compute_time_total/(double(MPI_processes)*maxtime) ;
+        if(local_facts.get_comm_rank() == 0 ) {
+          double eff = compute_time_total/(double(local_facts.get_comm_size())*maxtime) ;
           cout << "Schedule execution complete, estimated parallel efficiency = "
                << ceil(1000.0*eff)/10.0 << "%." << endl ;
         }

@@ -21,6 +21,7 @@
 #include <depend_graph.h>
 #include "dist_tools.h"
 #include "loci_globs.h"
+#include <fact_db.h>
 #include <unistd.h>
 #include <map>
 using std::map ;
@@ -869,7 +870,7 @@ namespace Loci {
   void clean_graph(digraph &gr, const variableSet& given,
                                       const variableSet& target) {
 
-    bool debugging = MPI_processes == 1 || verbose ;
+    bool debugging = get_exec_size() == 1 || verbose ;
     
     if(verbose) {
       debugout << "given = " << given << endl ;
@@ -1228,7 +1229,7 @@ namespace Loci {
 
     outrules += visited_rules ;
 
-    if(MPI_processes == 1 || verbose) {
+    if(get_exec_size() == 1 || verbose) {
       rin -= outrules ;
       if(rin != EMPTY) {
         debugout << "precleaning rules that cannot be scheduled based on given facts:" << endl ;

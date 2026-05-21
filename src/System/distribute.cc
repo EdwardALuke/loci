@@ -585,29 +585,31 @@ namespace Loci {
   using std::vector ;
   void fill_clone( storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
     MPI_Comm comm = get_exec_comm() ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int r = 0 ; MPI_Comm_rank(comm, &r) ;
 
-    vector<entitySet> recv_req(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
-      if(i!=MPI_rank) 
+    vector<entitySet> recv_req(p) ;
+    for(int i=0;i<p;++i)
+      if(i!=r) 
         recv_req[i] = out_of_dom & init_ptn[i] ;
 
     // send the recieve requests
-    vector<int> recv_count(MPI_processes,0) ;
-    vector<int> send_count(MPI_processes,0) ;
-    vector<int> send_displacement(MPI_processes,0) ;
-    vector<int> recv_displacement(MPI_processes,0) ;
-    for(int i=0;i<MPI_processes;++i)
+    vector<int> recv_count(p,0) ;
+    vector<int> send_count(p,0) ;
+    vector<int> send_displacement(p,0) ;
+    vector<int> recv_displacement(p,0) ;
+    for(int i=0;i<p;++i)
       send_count[i] = recv_req[i].num_intervals() * 2 ;
     MPI_Alltoall(&send_count[0],1,MPI_INT, &recv_count[0], 1, MPI_INT,comm) ;
 
     
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i=1;i<MPI_processes;++i) {
+    for(int i=1;i<p;++i) {
       send_displacement[i] = send_displacement[i-1]+send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1]+recv_count[i-1] ;
     }
-    int mp = MPI_processes-1 ;
+    int mp = p-1 ;
     int send_sizes = send_displacement[mp]+send_count[mp] ;
     int recv_sizes = recv_displacement[mp]+recv_count[mp] ;
 
@@ -615,7 +617,7 @@ namespace Loci {
     vector<int> send_set_alloc(send_sizes+recv_sizes,0) ;
     int * send_set_buf = &send_set_alloc[0] ; 
     int * recv_set_buf = &send_set_alloc[send_sizes] ; 
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<p;++i) {
       for(size_t j=0;j<recv_req[i].num_intervals();++j) {
         send_set_buf[send_displacement[i]+j*2  ] = recv_req[i][j].first ;
         send_set_buf[send_displacement[i]+j*2+1] = recv_req[i][j].second ;
@@ -626,8 +628,8 @@ namespace Loci {
 		  recv_set_buf, &recv_count[0], &recv_displacement[0], MPI_INT,
 		  comm) ;
 
-    vector<entitySet> send_set(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i) {
+    vector<entitySet> send_set(p) ;
+    for(int i=0;i<p;++i) {
       for(int j=0;j<recv_count[i]/2;++j) {
         int i1 = recv_set_buf[recv_displacement[i]+j*2  ] ;
         int i2 = recv_set_buf[recv_displacement[i]+j*2+1] ;
@@ -637,8 +639,8 @@ namespace Loci {
     
 #ifdef DEBUG
     // Sanity check, no send set should be outside of entities we own
-    entitySet mydom = init_ptn[MPI_rank] ;
-    for(int i=0;i<MPI_processes;++i) {
+    entitySet mydom = init_ptn[r] ;
+    for(int i=0;i<p;++i) {
       if((send_set[i] & mydom) != send_set[i]) {
         cerr << "problem with partitioning in fill_clone!" ;
         debugout << "send_set["<< i << "] = " << send_set[i]
@@ -651,7 +653,7 @@ namespace Loci {
     // send_set) we can communicate the actual information...
 
     // Compute sizes of sending buffers
-    for(int i=0;i<MPI_processes;++i) 
+    for(int i=0;i<p;++i) 
       send_count[i] =  sp->pack_size(send_set[i]) ;
 
     // Get sizes needed for receiving buffers
@@ -659,7 +661,7 @@ namespace Loci {
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i=1;i<MPI_processes;++i) {
+    for(int i=1;i<p;++i) {
       send_displacement[i] = send_displacement[i-1]+send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1]+recv_count[i-1] ;
     }
@@ -675,7 +677,7 @@ namespace Loci {
       send_store[i] = 0 ;
     
 
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       int loc_pack = 0 ;
       sp->pack(&send_store[send_displacement[i]], loc_pack, send_count[i],
                send_set[i]) ;
@@ -687,7 +689,7 @@ namespace Loci {
                   MPI_PACKED,
 		  comm) ;
 
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       int loc_pack = 0 ;
       sp->unpack(&recv_store[recv_displacement[i]], loc_pack,recv_count[i],
                  sequence(recv_req[i])) ; 
@@ -696,15 +698,16 @@ namespace Loci {
   
   storeRepP send_clone_non( storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
     MPI_Comm comm = get_exec_comm() ;
-    int *recv_count = new int[ MPI_processes] ;
-    int *send_count = new int[ MPI_processes] ;
-    int *send_displacement = new int[ MPI_processes] ;
-    int *recv_displacement = new int[ MPI_processes] ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int *recv_count = new int[p] ;
+    int *send_count = new int[p] ;
+    int *send_displacement = new int[p] ;
+    int *recv_displacement = new int[p] ;
     entitySet::const_iterator ei ;
     std::vector<int>::const_iterator vi ;
     int size_send = 0 ;
-    std::vector<std::vector<int> > copy( MPI_processes), send_clone( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    std::vector<std::vector<int> > copy(p), send_clone(p) ;
+    for(int i = 0; i <  p; ++i) {
       entitySet tmp = out_of_dom & init_ptn[i] ;
       for(ei = tmp.begin(); ei != tmp.end(); ++ei)
 	send_clone[i].push_back(*ei) ;
@@ -716,64 +719,64 @@ namespace Loci {
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
 		 comm) ; 
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       size_send += recv_count[i] ;
     
     int *recv_buf = new int[size_send] ;
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) {
 	send_buf[size_send] = *vi ;
 	++size_send ;
       }
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
     MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
 		  recv_buf, recv_count, recv_displacement, MPI_INT,
 		  comm) ;  
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       for(int j = recv_displacement[i]; j <
 	    recv_displacement[i]+recv_count[i]; ++j) 
 	copy[i].push_back(recv_buf[j]) ;
       sort(copy[i].begin(), copy[i].end()) ;
     }
-    std::vector< sequence> recv_dom( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    std::vector< sequence> recv_dom(p) ;
+    for(int i = 0; i <  p; ++i) 
       for(vi = copy[i].begin(); vi != copy[i].end(); ++vi) 
 	recv_dom[i] += *vi ;
-    std::vector<entitySet> send_dom( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    std::vector<entitySet> send_dom(p) ;
+    for(int i = 0; i <  p; ++i) 
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) 
 	send_dom[i] += *vi ;
     
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       send_count[i] =  sp->pack_size(send_dom[i]) ;
       size_send += send_count[i] ;
     } 
     unsigned char *send_store = new unsigned char[size_send] ;
     int size_recv = 0 ;
     entitySet tmp_dom ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       tmp_dom += entitySet(recv_dom[i]) ;
     storeRepP tmp_sp = sp->new_store(tmp_dom) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       recv_count[i] =  tmp_sp->pack_size(entitySet(recv_dom[i])) ;
       size_recv += recv_count[i] ;
     } 
     unsigned char *recv_store = new unsigned char[size_recv] ;
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
     int loc_pack = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       sp->pack(send_store, loc_pack, size_send, send_dom[i]) ;
     }
     
@@ -781,7 +784,7 @@ namespace Loci {
 		  recv_store, recv_count, recv_displacement, MPI_PACKED,
 		  comm) ;  
     loc_pack = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       tmp_sp->unpack(recv_store, loc_pack, size_recv, recv_dom[i]) ; 
     }
     
@@ -798,15 +801,16 @@ namespace Loci {
 
   std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn) {
     MPI_Comm comm = get_exec_comm() ;
-    int *recv_count = new int[ MPI_processes] ;
-    int *send_count = new int[ MPI_processes] ;
-    int *send_displacement = new int[ MPI_processes] ;
-    int *recv_displacement = new int[ MPI_processes] ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int *recv_count = new int[p] ;
+    int *send_count = new int[p] ;
+    int *send_displacement = new int[p] ;
+    int *recv_displacement = new int[p] ;
     entitySet::const_iterator ei ;
     std::vector<int>::const_iterator vi ;
     int size_send = 0 ;
-    std::vector<std::vector<int> > copy( MPI_processes), send_clone( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    std::vector<std::vector<int> > copy(p), send_clone(p) ;
+    for(int i = 0; i <  p; ++i) {
       entitySet tmp = out_of_dom & init_ptn[i] ;
       for(ei = tmp.begin(); ei != tmp.end(); ++ei)
 	send_clone[i].push_back(*ei) ;
@@ -818,51 +822,51 @@ namespace Loci {
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
 		 comm) ; 
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       size_send += recv_count[i] ;
     
     int *recv_buf = new int[size_send] ;
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) {
 	send_buf[size_send] = *vi ;
 	++size_send ;
       }
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
     MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
 		  recv_buf, recv_count, recv_displacement, MPI_INT,
 		  comm) ;  
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       for(int j = recv_displacement[i]; j <
 	    recv_displacement[i]+recv_count[i]; ++j) 
 	copy[i].push_back(recv_buf[j]) ;
       sort(copy[i].begin(), copy[i].end()) ;
     }
-    std::vector< sequence> recv_dom( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    std::vector< sequence> recv_dom(p) ;
+    for(int i = 0; i <  p; ++i) 
       for(vi = copy[i].begin(); vi != copy[i].end(); ++vi) 
 	recv_dom[i] += *vi ;
-    std::vector<entitySet> send_dom( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    std::vector<entitySet> send_dom(p) ;
+    for(int i = 0; i <  p; ++i) 
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) 
 	send_dom[i] += *vi ;
     
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       send_count[i] =  sp->pack_size(send_dom[i]) ;
       size_send += send_count[i] ;
     } 
     unsigned char *send_store = new unsigned char[size_send] ;
     int size_recv = 0 ;
     entitySet total_dom ;
-    std::vector<entitySet> e_vec( MPI_processes) ;
-    std::vector< storeRepP> tmp_sp( MPI_processes) ;  
-    for(int i = 0; i <  MPI_processes; ++i) {
+    std::vector<entitySet> e_vec(p) ;
+    std::vector< storeRepP> tmp_sp(p) ;  
+    for(int i = 0; i <  p; ++i) {
       e_vec[i] = entitySet(recv_dom[i]) ;
       tmp_sp[i] = sp->new_store(e_vec[i]) ;
       recv_count[i] =  tmp_sp[i]->pack_size(e_vec[i]) ;
@@ -872,12 +876,12 @@ namespace Loci {
     unsigned char *recv_store = new unsigned char[size_recv] ;
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
     int loc_pack = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       sp->pack(send_store, loc_pack, size_send, send_dom[i]) ;
     }
     MPI_Alltoallv(send_store,send_count, send_displacement , MPI_PACKED,
@@ -885,7 +889,7 @@ namespace Loci {
 		  comm) ;  
     
     loc_pack = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    for(int i = 0; i <  p; ++i) 
       tmp_sp[i]->unpack(recv_store, loc_pack, size_recv, recv_dom[i]) ; 
     delete [] send_buf ;
     delete [] recv_buf ;
@@ -905,10 +909,11 @@ namespace Loci {
   
   dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
     MPI_Comm comm = get_exec_comm() ;
-    int *recv_count = new int[ MPI_processes] ;
-    int *send_count = new int[ MPI_processes] ;
-    int *send_displacement = new int[ MPI_processes] ;
-    int *recv_displacement = new int[ MPI_processes] ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int *recv_count = new int[p] ;
+    int *send_count = new int[p] ;
+    int *send_displacement = new int[p] ;
+    int *recv_displacement = new int[p] ;
     entitySet::const_iterator ei ;
     HASH_MAP(int, int) attrib_data ;
     entitySet dm_dom = dm.domain() ;
@@ -916,8 +921,8 @@ namespace Loci {
       attrib_data[*ei] = dm[*ei] ;
     std::vector<int>::const_iterator vi ;
     int size_send = 0 ;
-    std::vector<std::vector<int> > copy( MPI_processes), send_clone( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    std::vector<std::vector<int> > copy(p), send_clone(p) ;
+    for(int i = 0; i <  p; ++i) {
       entitySet tmp = out_of_dom & init_ptn[i] ;
       for(ei = tmp.begin(); ei != tmp.end(); ++ei)
 	send_clone[i].push_back(*ei) ;
@@ -929,40 +934,40 @@ namespace Loci {
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
 		 comm) ; 
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       size_send += recv_count[i] ;
     
     int *recv_buf = new int[size_send] ;
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) {
 	send_buf[size_send] = *vi ;
 	++size_send ;
       }
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
     MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
 		  recv_buf, recv_count, recv_displacement, MPI_INT,
 		  comm) ;  
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       for(int j = recv_displacement[i]; j <
 	    recv_displacement[i]+recv_count[i]; ++j) 
 	copy[i].push_back(recv_buf[j]) ;
       sort(copy[i].begin(), copy[i].end()) ;
     }
     
-    std::vector<HASH_MAP(int, int) > map_entities( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    std::vector<HASH_MAP(int, int) > map_entities(p) ;
+    for(int i = 0; i <  p; ++i) 
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) 
 	if(attrib_data.find(*vi) != attrib_data.end())
 	  (map_entities[i])[*vi] = attrib_data[*vi] ;
     
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       send_count[i] = 2 * map_entities[i].size() ;
       size_send += send_count[i] ;
     }
@@ -970,11 +975,11 @@ namespace Loci {
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
 		 comm) ; 
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       size_send += recv_count[i] ;
     int *recv_map = new int[size_send] ;
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    for(int i = 0; i <  p; ++i) 
       for(HASH_MAP(int, int)::const_iterator miv = map_entities[i].begin(); miv != map_entities[i].end(); ++miv) {
 	send_map[size_send] = miv->first ;
 	++size_send ;
@@ -983,7 +988,7 @@ namespace Loci {
       }
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
@@ -991,7 +996,7 @@ namespace Loci {
 		  recv_map, recv_count, recv_displacement, MPI_INT,
 		  comm) ;  
     HASH_MAP(int, int) hm ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       for(int j = recv_displacement[i]; j <
 	    recv_displacement[i]+recv_count[i]-1; j+=2) {
 	hm[recv_map[j]] = recv_map[j+1];
@@ -1014,10 +1019,11 @@ namespace Loci {
   
   std::vector<dMap> send_global_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
     MPI_Comm comm = get_exec_comm() ;
-    int *recv_count = new int[ MPI_processes] ;
-    int *send_count = new int[ MPI_processes] ;
-    int *send_displacement = new int[ MPI_processes] ;
-    int *recv_displacement = new int[ MPI_processes] ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int *recv_count = new int[p] ;
+    int *send_count = new int[p] ;
+    int *send_displacement = new int[p] ;
+    int *recv_displacement = new int[p] ;
     entitySet::const_iterator ei ;
     HASH_MAP(int, int) attrib_data ;
     entitySet dm_dom = dm.domain() ;
@@ -1025,8 +1031,8 @@ namespace Loci {
       attrib_data[*ei] = dm[*ei] ;
     std::vector<int>::const_iterator vi ;
     int size_send = 0 ;
-    std::vector<std::vector<int> > copy( MPI_processes), send_clone( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    std::vector<std::vector<int> > copy(p), send_clone(p) ;
+    for(int i = 0; i <  p; ++i) {
       entitySet tmp = out_of_dom & init_ptn[i] ;
       for(ei = tmp.begin(); ei != tmp.end(); ++ei)
 	send_clone[i].push_back(*ei) ;
@@ -1038,40 +1044,40 @@ namespace Loci {
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
 		 comm) ; 
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       size_send += recv_count[i] ;
     
     int *recv_buf = new int[size_send] ;
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) {
 	send_buf[size_send] = *vi ;
 	++size_send ;
       }
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
     MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
 		  recv_buf, recv_count, recv_displacement, MPI_INT,
 		  comm) ;  
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       for(int j = recv_displacement[i]; j <
 	    recv_displacement[i]+recv_count[i]; ++j) 
 	copy[i].push_back(recv_buf[j]) ;
       sort(copy[i].begin(), copy[i].end()) ;
     }
     
-    std::vector<HASH_MAP(int, int) > map_entities( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    std::vector<HASH_MAP(int, int) > map_entities(p) ;
+    for(int i = 0; i <  p; ++i) 
       for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) 
 	if(attrib_data.find(*vi) != attrib_data.end())
 	  (map_entities[i])[*vi] = attrib_data[*vi] ;
     
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  p; ++i) {
       send_count[i] = 2 * map_entities[i].size() ;
       size_send += send_count[i] ;
     }
@@ -1079,11 +1085,11 @@ namespace Loci {
     MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
 		 comm) ; 
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i)
+    for(int i = 0; i <  p; ++i)
       size_send += recv_count[i] ;
     int *recv_map = new int[size_send] ;
     size_send = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) 
+    for(int i = 0; i <  p; ++i) 
       for(HASH_MAP(int, int)::const_iterator miv = map_entities[i].begin(); miv != map_entities[i].end(); ++miv) {
 	send_map[size_send] = miv->first ;
 	++size_send ;
@@ -1092,15 +1098,15 @@ namespace Loci {
       }
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
     MPI_Alltoallv(send_map,send_count, send_displacement , MPI_INT,
 		  recv_map, recv_count, recv_displacement, MPI_INT,
 		  comm) ;  
-    std::vector<HASH_MAP(int, int) > hm( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    std::vector<HASH_MAP(int, int) > hm(p) ;
+    for(int i = 0; i <  p; ++i) {
       HASH_MAP(int, int) tmp_hm ;
       for(int j = recv_displacement[i]; j <
 	    recv_displacement[i]+recv_count[i]-1; j+=2) {
@@ -1108,8 +1114,8 @@ namespace Loci {
       }
       hm[i] = tmp_hm ;
     }
-    std::vector<dMap> v_dm( MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    std::vector<dMap> v_dm(p) ;
+    for(int i = 0; i <  p; ++i) {
       HASH_MAP(int, int) tmp_hm = hm[i] ; 
       dMap tmp_dm ;
       for(HASH_MAP(int, int)::const_iterator hmi = tmp_hm.begin(); hmi != tmp_hm.end(); ++hmi) 
@@ -1132,8 +1138,8 @@ namespace Loci {
   // processors according to the partition ptn.
   entitySet dist_collect_entitySet(entitySet inSet, const vector<entitySet> &ptn) {
     MPI_Comm comm = get_exec_comm() ;
-    const int p = MPI_processes ;
-    const int r = MPI_rank ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int r = 0 ; MPI_Comm_rank(comm, &r) ;
 #ifdef DEBUG
     if(r == 0) 
       cerr << "dist_collect_entitySet is depreciated" << endl ;
@@ -1355,7 +1361,7 @@ namespace Loci {
   // Return union of all entitySets from all processors
   entitySet all_gather_entitySet(const entitySet &e) {
     MPI_Comm comm = get_exec_comm() ;
-    const int p = MPI_processes ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
     if(p == 1)
       return e ;
     
@@ -1394,8 +1400,7 @@ namespace Loci {
   /// which entities.
   entitySet distribute_entitySet(entitySet e,const vector<entitySet> &ptn) {
     MPI_Comm comm = get_exec_comm() ;
-
-    const int p = MPI_processes ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
     // Single processor, do nothing
     if(p == 1)
       return e ;
@@ -1405,12 +1410,10 @@ namespace Loci {
     if(GLOBAL_OR(e == ~EMPTY, comm)) 
       return ~EMPTY ;
 
+    int r = 0 ; MPI_Comm_rank(comm, &r) ;
     // if no communication need, then just return the input set
-    if(GLOBAL_AND((e & ptn[MPI_rank]) == e, comm)) 
+    if(GLOBAL_AND((e & ptn[r]) == e, comm)) 
       return e ;
-
-    // Use recursive splitting to get set to owning processor.
-    const int r = MPI_rank ;
 
 
     int nump = p ; // number of processors in the current group
@@ -1528,14 +1531,14 @@ namespace Loci {
       start = nstart ;
     }
 
-    return e & ptn[MPI_rank] ;
+    return e & ptn[r] ;
   }
 
 
   // Collect largest interval of entitySet from all processors
   entitySet collectLargest(const entitySet &e) {
     MPI_Comm comm = get_exec_comm() ;
-    const int p = MPI_processes ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
     // Else we compute set
     //First get largest interval
     interval ivl_large(1,-1) ;
@@ -1605,7 +1608,7 @@ namespace Loci {
   
   entitySet all_collect_entitySet(const entitySet &e) {
     MPI_Comm comm = get_exec_comm() ;
-    const int p = MPI_processes ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
     // no operation for single processor
     if(p == 1)
       return e ;

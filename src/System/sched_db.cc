@@ -24,6 +24,7 @@
 #include <fstream>
 
 #include <sched_db.h>
+#include <fact_db.h>
 using std::string ; 
 using std::map ;
 using std::make_pair ;
@@ -41,8 +42,6 @@ using std::ofstream ;
 //#define VERBOSE
 
 namespace Loci {
-  extern int MPI_processes ;
-  extern int MPI_rank ;
 
   extern ofstream debugout ;
   extern bool rule_has_mapping_in_output(rule r);
@@ -115,7 +114,7 @@ namespace Loci {
 
     if(all_vars.inSet(v)) {
       if(all_vars.inSet(alias)) {
-        if(MPI_processes == 1) {
+        if(get_exec_size() == 1) {
           cerr << "alias already in fact_db!" << endl ;
           cerr << "error found in alias_variable("<<v<<","<< alias<<")" << endl ;
         } else {
@@ -135,7 +134,7 @@ namespace Loci {
     } else if(all_vars.inSet(alias)) {
       alias_variable(alias,v) ;
     } else {
-      if(MPI_processes == 1)
+      if(get_exec_size() == 1)
         cerr << "neither variable " << v << ", nor " << alias << " exist in db, cannot create alias" << endl ;
       else
         debugout << "neither variable " << v << ", nor " << alias << " exist in db, cannot create alias" << endl ;
@@ -151,7 +150,7 @@ namespace Loci {
 
     if(all_vars.inSet(v)) {
       if(all_vars.inSet(alias)) {
-        if(MPI_processes == 1) {
+        if(facts.get_comm_size() == 1) {
           cerr << "alias already in fact_db!" << endl ;
           cerr << "error found in alias_variable("<<v<<","<< alias<<")" << endl ;
         } else {
@@ -171,7 +170,7 @@ namespace Loci {
     } else if(all_vars.inSet(alias)) {
       alias_variable(alias,v, facts) ;
     } else {
-      if(MPI_processes == 1)
+      if(facts.get_comm_size() == 1)
         cerr << "neither variable " << v << ", nor " << alias << " exist in db, cannot create alias" << endl ;
       else
         debugout << "neither variable " << v << ", nor " << alias << " exist in db, cannot create alias" << endl ;
@@ -185,7 +184,7 @@ namespace Loci {
     v = remove_synonym(v) ;
     vmap_type::iterator vmi ;
     if((vmi = vmap.find(synonym)) != vmap.end()) {
-      if(MPI_processes == 1) {
+      if(get_exec_size() == 1) {
         cerr << "synonym already in fact_db!" << endl ;
         cerr << "error found in synonym_variable("<<v<<","<<synonym<<")"<<endl;
       } else {
@@ -210,7 +209,7 @@ namespace Loci {
     v = remove_synonym(v) ;
     vmap_type::iterator vmi ;
     if((vmi = vmap.find(synonym)) != vmap.end()) {
-      if(MPI_processes == 1) {
+      if(facts.get_comm_size() == 1) {
         cerr << "synonym already in fact_db!" << endl ;
         cerr << "error found in synonym_variable("<<v<<","<<synonym<<")"<<endl;
       } else {
@@ -256,7 +255,7 @@ namespace Loci {
             
             if(p1[j] != p2[k]) {
               conflicts += mi->first ;
-              if(MPI_processes == 1)
+              if(get_exec_size() == 1)
                 cerr << "adding to conflicts because " << p1[i]
                      << "!=" << p2[i]<<endl ;
               else
@@ -277,7 +276,7 @@ namespace Loci {
         }
       }
       if(conflicts != EMPTY && v.get_info().name != string("OUTPUT")) {
-        if(MPI_processes == 1) {
+        if(get_exec_size() == 1) {
           cerr << "rule " << f << " conflicts with " << conflicts << endl ;
           cerr << "conflicting entities are " << (finfo.existence & x) << endl ;
         } else {

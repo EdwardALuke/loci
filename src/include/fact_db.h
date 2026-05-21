@@ -385,6 +385,16 @@ namespace Loci {
       exec_current_fact_db->get_comm() : MPI_COMM_WORLD ;
   }
 
+  inline int get_exec_rank() {
+    return (exec_current_fact_db != 0) ?
+      exec_current_fact_db->get_comm_rank() : MPI_rank ;
+  }
+
+  inline int get_exec_size() {
+    return (exec_current_fact_db != 0) ?
+      exec_current_fact_db->get_comm_size() : MPI_processes ;
+  }
+
   inline entitySet collect_entitySet(entitySet e)
   { return collect_entitySet(e,*exec_current_fact_db) ; }
 

@@ -325,22 +325,22 @@ namespace Loci {
 	for(int i = mv.size() -1; i >= 0; --i) {
 	  variableSet v = mv[i] ;
 	  v &= vars ;
-	  std::vector<entitySet>  tmp_preimage_vec(MPI_processes);
+	  std::vector<entitySet>  tmp_preimage_vec(facts.get_comm_size());
 	  for(variableSet::const_iterator vi = v.begin(); vi != v.end(); ++vi) {
 	    storeRepP p = facts.get_variable(*vi) ;
 	    if(isMAP(p)) {
 	      MapRepP mp =  MapRepP(p->getRep()) ;
-	      for(int j = 0; j < MPI_processes; j++) {
+	      for(int j = 0; j < facts.get_comm_size(); j++) {
 		tmp_preimage_vec[j] += mp->preimage(preimage_vec[j]).second;
 	      }
 	    }
 	  }
-	  for(int j = 0; j < MPI_processes; j++) {
+	  for(int j = 0; j < facts.get_comm_size(); j++) {
 	    preimage_vec[j] = all_collect_entitySet(tmp_preimage_vec[j]);
 	  }
 
 	  if(i == 0) {
-	    context += preimage_vec[MPI_rank];
+	    context += preimage_vec[facts.get_comm_rank()];
 	  }
 	}
       }
@@ -467,11 +467,11 @@ namespace Loci {
       context_maps = classify_moderate_maps(facts, context_maps);
 
       //Find out entities that can produce target variable entities owned by a processor
-      facts.global_comp_entities += context_for_map_output(ptn[MPI_rank], facts, context_maps);
+      facts.global_comp_entities += context_for_map_output(ptn[facts.get_comm_rank()], facts, context_maps);
 
       //Add entities so that maximum depth of duplication can be achieved
       if(multilevel_duplication) {
-	entitySet mySet = ptn[MPI_rank];
+	entitySet mySet = ptn[facts.get_comm_rank()];
 	bool continue_adding = true;
 #ifdef VERBOSE
 	int num_levels = 1;
@@ -500,7 +500,7 @@ namespace Loci {
     }
     else {
       for(int i=0;i<nkd;++i) {
-	tmp_set[i] = facts.get_init_ptn(i)[MPI_rank] ;
+	tmp_set[i] = facts.get_init_ptn(i)[facts.get_comm_rank()] ;
       }
     }
     //The clone region is the image and domain of each map in both input and output on comp_entities
@@ -523,7 +523,7 @@ namespace Loci {
       entitySet image = tmp_mp->image(tmp_mp->domain()) ;
       std::vector<entitySet> &ptn =
         facts.get_init_ptn(kd_range) ; 
-      keyspace_expand[kd_range]+=image-ptn[MPI_rank] ;
+      keyspace_expand[kd_range]+=image-ptn[facts.get_comm_rank()] ;
     }
 
     for(auto vi = constraintVars.begin();vi!=constraintVars.end();++vi) {
@@ -542,17 +542,17 @@ namespace Loci {
 
     vector<vector<entitySet> > copyv(nkd), send_clonev(nkd) ;
     for(int kd=0;kd<nkd;++kd) {
-      vector<entitySet>  copy(MPI_processes), send_clone(MPI_processes) ;
+      vector<entitySet>  copy(facts.get_comm_size()), send_clone(facts.get_comm_size()) ;
       entitySet tmp_copy ;
       std::vector<entitySet> &ptn = facts.get_init_ptn(kd) ; 
-      tmp_copy =  image[kd] - ptn[MPI_rank] ;
+      tmp_copy =  image[kd] - ptn[facts.get_comm_rank()] ;
       
-      int *recv_count = new int[MPI_processes] ;
-      int *send_count = new int[MPI_processes] ;
-      int *send_displacement = new int[MPI_processes];
-      int *recv_displacement = new int[MPI_processes];
+      int *recv_count = new int[facts.get_comm_size()] ;
+      int *send_count = new int[facts.get_comm_size()] ;
+      int *send_displacement = new int[facts.get_comm_size()];
+      int *recv_displacement = new int[facts.get_comm_size()];
       int size_send = 0 ;
-      for(int i = 0; i < MPI_processes; ++i) {
+      for(int i = 0; i < facts.get_comm_size(); ++i) {
 	copy[i] = tmp_copy & ptn[i] ;
 	send_count[i] = copy[i].size() ;
 	size_send += send_count[i] ;
@@ -562,28 +562,28 @@ namespace Loci {
       MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
 		   facts.get_comm()) ;
       size_send = 0 ;
-      for(int i = 0; i < MPI_processes; ++i) {
+      for(int i = 0; i < facts.get_comm_size(); ++i) {
 	size_send += recv_count[i] ;
       }
       int *recv_buf = new int[size_send] ;
       size_send = 0 ;
       entitySet::const_iterator ei ;
-      for(int i = 0; i < MPI_processes; ++i)
+      for(int i = 0; i < facts.get_comm_size(); ++i)
 	for(ei = copy[i].begin(); ei != copy[i].end(); ++ei) {
 	  send_buf[size_send] = *ei ;
 	  ++size_send ;
 	}
       send_displacement[0] = 0 ;
       recv_displacement[0] = 0 ;
-      for(int i = 1; i < MPI_processes; ++i) {
+      for(int i = 1; i < facts.get_comm_size(); ++i) {
 	send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
 	recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
       }
       MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
 		    recv_buf, recv_count, recv_displacement, MPI_INT,
 		    facts.get_comm()) ;
-      std::vector<entitySet> add(MPI_processes) ;
-      for(int i = 0; i < MPI_processes; ++i) {
+      std::vector<entitySet> add(facts.get_comm_size()) ;
+      for(int i = 0; i < facts.get_comm_size(); ++i) {
 	for(int j = recv_displacement[i]; j <
 	      recv_displacement[i]+recv_count[i]; ++j)
 	  send_clone[i] += recv_buf[j] ;
@@ -604,7 +604,7 @@ namespace Loci {
     variableSet vars = facts.get_typed_variables() ;
     double start = MPI_Wtime() ;
 
-    int myid = MPI_rank ;
+    int myid = facts.get_comm_rank() ;
     int size = 0 ;
     Map l2g ;
     Map l2f ;
@@ -619,13 +619,13 @@ namespace Loci {
       categories(facts,iv,kd) ; // FIX THIS
       std::vector<entitySet> &ptn = facts.get_init_ptn(kd) ; 
       for(size_t i=0;i<iv.size();++i) {
-        iv[i] &= ptn[MPI_rank] ;
+        iv[i] &= ptn[myid] ;
       }
       debugout << "finding categories time = " << s.stop() << endl ;
       s.start() ;
       for(size_t i=0;i < iv.size(); ++i) {
 	debugout << "iv["<< i << "] size before expand = " << iv[i].num_intervals()<< endl ;
-	entitySet tmp_copy =  image[kd] - ptn[MPI_rank] ;
+	entitySet tmp_copy =  image[kd] - ptn[myid] ;
         iv[i] = dist_expand_entitySet(iv[i],tmp_copy,ptn) ;
         debugout << "iv["<< i << "] size after expand = " << iv[i].num_intervals() <<endl;
       }
@@ -646,7 +646,7 @@ namespace Loci {
 	  size += e.size() ;
 	}
 	// 2) Number clone region entities next
-	for(int j = 0; j < MPI_processes; ++j)
+	for(int j = 0; j < facts.get_comm_size(); ++j)
 	  if(myid != j) {
 	    e = copyv[kd][j] & iv[i];
 	    if(e != EMPTY) {
@@ -718,13 +718,13 @@ namespace Loci {
     entitySet recv_neighbour ;
     store<entitySet> send_entities ;
     store<entitySet> recv_entities ;
-    for(int i = 0 ; i < MPI_processes; ++i)
+    for(int i = 0 ; i < facts.get_comm_size(); ++i)
       if(myid != i )
 	for(int kd=0;kd<nkd;++kd) 
 	  if(copyv[kd][i] != EMPTY)
 	    recv_neighbour += i ;
 
-    for(int i = 0; i < MPI_processes; ++i)
+    for(int i = 0; i < facts.get_comm_size(); ++i)
       if(myid != i)
 	for(int kd=0;kd<nkd;++kd) 
 	  if(send_clonev[kd][i] != EMPTY)
@@ -1136,7 +1136,7 @@ namespace Loci {
   //vector of entitySet describing exactly which entities
   //are received from which processor.
   vector<entitySet> send_entitySetv(const entitySet& e, fact_db &facts) {
-    vector<entitySet> re(MPI_processes);
+    vector<entitySet> re(facts.get_comm_size());
     if(facts.isDistributed()) {
       fact_db::distribute_infoP d = facts.get_distribute_info() ;
 

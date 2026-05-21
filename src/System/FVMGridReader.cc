@@ -120,7 +120,7 @@ namespace Loci {
     hid_t dataset = 0 ;
     hid_t dspace = 0 ;
 
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || get_exec_rank() == 0) {
       dataset = H5Dopen(group_id,vector_name,H5P_DEFAULT) ;
       if(dataset < 0) {
         cerr << "unable to open dataset" << endl ;
@@ -128,12 +128,12 @@ namespace Loci {
       }
       dspace = H5Dget_space(dataset) ;
     }
-    v.resize(sizes[MPI_rank]) ;
+    v.resize(sizes[get_exec_rank()]) ;
 
     if(use_parallel_io) {
       // each process read in vector
 
-      long lsz = sizes[MPI_rank] ;
+      long lsz = sizes[get_exec_rank()] ;
 
       hsize_t dimension = lsz ;
       hsize_t count = dimension ;
@@ -141,7 +141,7 @@ namespace Loci {
       hsize_t start = 0 ;
 
       //each process has different start
-      for(int i=0; i<MPI_rank; i++) { start +=  sizes[i] ; }
+      for(int i=0; i<get_exec_rank(); i++) { start +=  sizes[i] ; }
       H5Sselect_hyperslab(dspace,H5S_SELECT_SET,&start,&stride,&count, NULL) ;
 
 
@@ -163,7 +163,7 @@ namespace Loci {
       H5Sclose(dspace) ;
 
     } else {
-      if(MPI_rank == 0) { // read in vector from processor 0, send to other
+      if(get_exec_rank() == 0) { // read in vector from processor 0, send to other
         // processors
         long lsz = sizes[0] ;
 
@@ -192,7 +192,7 @@ namespace Loci {
 
         // now read in remaining processor segments and send to corresponding
         // processor
-        for(int i=1;i<MPI_processes;++i) {
+        for(int i=1;i<get_exec_size();++i) {
           // read in remote processor data
           long sz = sizes[i] ;
           vector<T> tmp(sz) ;
@@ -221,18 +221,18 @@ namespace Loci {
         H5Sclose(dspace) ;
 
       } else {
-        long size = sizes[MPI_rank] ;
+        long size = sizes[get_exec_rank()] ;
         //      if(size > 0) {
         MPI_Status status ;
-        MPI_Recv(&v[0],size*sizeof(T),MPI_BYTE,MPI_rank-1,0,
+        MPI_Recv(&v[0],size*sizeof(T),MPI_BYTE,get_exec_rank()-1,0,
               get_exec_comm(),&status) ;
         //      }
-        for(int i=MPI_rank+1;i<MPI_processes;++i) {
+        for(int i=get_exec_rank()+1;i<get_exec_size();++i) {
           long lsz = sizes[i] ;
           vector<T> tmp(lsz) ;
-          MPI_Recv(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank-1,0,
+          MPI_Recv(&tmp[0],lsz*sizeof(T),MPI_BYTE,get_exec_rank()-1,0,
                 get_exec_comm(),&status) ;
-          MPI_Send(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank+1,0,
+          MPI_Send(&tmp[0],lsz*sizeof(T),MPI_BYTE,get_exec_rank()+1,0,
                 get_exec_comm()) ;
         }
       }
@@ -410,7 +410,7 @@ namespace Loci {
     /* Save old error handler */
     H5E_auto_t old_func = 0 ;
     void *old_client_data = 0 ;
-    if(MPI_rank == 0) {
+    if(get_exec_rank() == 0) {
       H5Eget_auto(H5E_DEFAULT,&old_func, &old_client_data);
       /* Turn off error handling */
       H5Eset_auto(H5E_DEFAULT,NULL, NULL);
@@ -457,7 +457,7 @@ namespace Loci {
     MPI_Bcast(&bsz,1,MPI_INT,0,comm) ;
     if(bsz > 0) {
       string buf ;
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
         ostringstream oss ;
 
         for(int i=0;i<bsz;++i) {
@@ -469,7 +469,7 @@ namespace Loci {
       MPI_Bcast(&bufsz,1,MPI_INT,0,comm) ;
       char *data = new char[bufsz+1] ;
       data[bufsz] = 0 ;
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
         strcpy(data,buf.c_str()) ;
       }
       MPI_Bcast(data,bufsz,MPI_CHAR,0,comm) ;
@@ -579,9 +579,9 @@ namespace Loci {
                    int max_alloc, string filename) {
     MPI_Comm comm = get_exec_comm() ;
 
-    local_nodes.resize(Loci::MPI_processes);
-    local_faces.resize(Loci::MPI_processes);
-    local_cells.resize(Loci::MPI_processes);
+    local_nodes.resize(get_exec_size());
+    local_faces.resize(get_exec_size());
+    local_cells.resize(get_exec_size());
 
     hid_t file_id = 0 ;
     hid_t face_g = 0 ;
@@ -594,7 +594,7 @@ namespace Loci {
     H5E_auto_t old_func = 0 ;
     void *old_client_data = 0 ;
     vector<pair<int,string> > boundary_ids ;
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || get_exec_rank() == 0) {
       H5Eget_auto(H5E_DEFAULT,&old_func, &old_client_data);
       /* Turn off error handling */
       H5Eset_auto(H5E_DEFAULT,NULL, NULL);
@@ -602,7 +602,7 @@ namespace Loci {
 
     //    file_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT) ;
     file_id = readVOGOpen(filename) ;
-    if(MPI_rank == 0 && file_id <= 0) {
+    if(get_exec_rank() == 0 && file_id <= 0) {
       failure = 1 ;
     }
 
@@ -612,7 +612,7 @@ namespace Loci {
       return false ;
     }
 
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || get_exec_rank() == 0) {
       face_g = H5Gopen(file_id,"face_info",H5P_DEFAULT) ;
       node_g = H5Gopen(file_id,"node_info",H5P_DEFAULT) ;
       // Check to see if the file has surface info
@@ -648,7 +648,7 @@ namespace Loci {
       MPI_Bcast(&bsz,1,MPI_INT,0,comm) ;
       if(bsz > 0) {
         string buf ;
-        if(MPI_rank == 0) {
+        if(get_exec_rank() == 0) {
           ostringstream oss ;
 
           for(int i=0;i<bsz;++i) {
@@ -659,7 +659,7 @@ namespace Loci {
         int bufsz = buf.size() ;
         MPI_Bcast(&bufsz,1,MPI_INT,0,comm) ;
         char *data = new char[bufsz+1] ;
-        if(MPI_rank == 0) {
+        if(get_exec_rank() == 0) {
           strcpy(data,buf.c_str()) ;
         }
         MPI_Bcast(data,bufsz+1,MPI_CHAR,0,comm) ;
@@ -702,12 +702,12 @@ namespace Loci {
 
       // create node allocation
       long npnts = nnodes ;
-      int node_ivl = npnts / Loci::MPI_processes;
-      int node_ivl_rem = npnts % Loci::MPI_processes ;
+      int node_ivl = npnts / get_exec_size();
+      int node_ivl_rem = npnts % get_exec_size() ;
       int node_accum = 0 ;
-      for(int i=0; i<Loci::MPI_processes; ++i) {
+      for(int i=0; i<get_exec_size(); ++i) {
         int node_accum_update = node_accum + node_ivl + ((i<node_ivl_rem)?1:0) ;
-        if(i == Loci::MPI_processes-1) {
+        if(i == get_exec_size()-1) {
           local_nodes[i] = interval(nodes_base + node_accum,
                   nodes_base + npnts - 1) ;
         } else {
@@ -717,14 +717,14 @@ namespace Loci {
         node_accum = node_accum_update ;
       }
 
-      pos.allocate(local_nodes[MPI_rank]) ;
+      pos.allocate(local_nodes[get_exec_rank()]) ;
 
 
       { // each process read in node positions,
         REPORTMEM() ;
         // read processor zero section first
-        int lst = local_nodes[MPI_rank].Min() ;
-        int lsz = local_nodes[MPI_rank].size() ;
+        int lst = local_nodes[get_exec_rank()].Min() ;
+        int lsz = local_nodes[get_exec_rank()].size() ;
 
         hsize_t dimension = lsz ;
         hsize_t count = dimension ;
@@ -732,7 +732,7 @@ namespace Loci {
         hsize_t start = 0 ;
 
         //each process has different start
-        for(int i=0; i<MPI_rank; i++){
+        for(int i=0; i<get_exec_rank(); i++){
           start += local_nodes[i].size();
         }
         H5Sselect_hyperslab(dspace,H5S_SELECT_SET,&start,&stride,&count, NULL) ;
@@ -765,7 +765,7 @@ namespace Loci {
       }
     } else { //end of parallel io version
       // First read in and distribute node positions (serial case)
-      if(MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
         dataset = H5Dopen(node_g,"positions",H5P_DEFAULT) ;
         dspace = H5Dget_space(dataset) ;
         if(dataset <=0 || dspace <=0) {
@@ -786,13 +786,13 @@ namespace Loci {
 
       // create node allocation
       long npnts = nnodes ;
-      int node_ivl = npnts / Loci::MPI_processes;
-      int node_ivl_rem = npnts % Loci::MPI_processes ;
+      int node_ivl = npnts / get_exec_size();
+      int node_ivl_rem = npnts % get_exec_size() ;
       int node_accum = 0 ;
 
-      for(int i=0; i<Loci::MPI_processes; ++i) {
+      for(int i=0; i<get_exec_size(); ++i) {
         int node_accum_update = node_accum + node_ivl + ((i<node_ivl_rem)?1:0) ;
-        if(i == Loci::MPI_processes-1) {
+        if(i == get_exec_size()-1) {
           local_nodes[i] = interval(nodes_base + node_accum,
                   nodes_base + npnts - 1) ;
         } else {
@@ -802,11 +802,11 @@ namespace Loci {
         node_accum = node_accum_update ;
       }
 
-      pos.allocate(local_nodes[MPI_rank]) ;
-      if(MPI_rank == 0) { // read in node positions, send to other processors
+      pos.allocate(local_nodes[get_exec_rank()]) ;
+      if(get_exec_rank() == 0) { // read in node positions, send to other processors
         REPORTMEM() ;
         // read processor zero section first
-        int lst = local_nodes[MPI_rank].Min() ;
+        int lst = local_nodes[get_exec_rank()].Min() ;
         int lsz = local_nodes[0].size() ;
 
         hsize_t dimension = lsz ;
@@ -834,11 +834,11 @@ namespace Loci {
         // now read in remaining processor segments and send to corresponding
         // processor
         size_t mxsz = local_nodes[0].size() ;
-        for(int i=0;i<MPI_processes;++i) {
+        for(int i=0;i<get_exec_size();++i) {
           mxsz = max(size_t(local_nodes[i].size()),mxsz) ;
         }
 
-        for(int i=1;i<MPI_processes;++i) {
+        for(int i=1;i<get_exec_size();++i) {
           // read in remote processor data
           int sz = local_nodes[i].size() ;
           if(sz == 0) {
@@ -870,31 +870,31 @@ namespace Loci {
         H5Gclose(node_g) ;
       } else { // non-root nodes send receive each part from rank 0
         // Receive nodes from root processor
-        FATAL(local_nodes[MPI_rank].num_intervals()!=1) ;
-        int start = local_nodes[MPI_rank].Min() ;
-        int size = local_nodes[MPI_rank].size() ;
+        FATAL(local_nodes[get_exec_rank()].num_intervals()!=1) ;
+        int start = local_nodes[get_exec_rank()].Min() ;
+        int size = local_nodes[get_exec_rank()].size() ;
         MPI_Status status ;
-        MPI_Recv(&pos[start],size*3,MPI_DOUBLE,MPI_rank-1,0,
+        MPI_Recv(&pos[start],size*3,MPI_DOUBLE,get_exec_rank()-1,0,
               comm,&status) ;
         int mxsz = 0 ;
-        for(int i=MPI_rank+1;i<MPI_processes;++i) {
+        for(int i=get_exec_rank()+1;i<get_exec_size();++i) {
           int lsz = local_nodes[i].size() ;
           mxsz = max(mxsz,lsz) ;
         }
 
         vector<vector3d<double> > tpos(mxsz) ;
         // Shift remaining ones into place
-        for(int i=MPI_rank+1;i<MPI_processes;++i) {
+        for(int i=get_exec_rank()+1;i<get_exec_size();++i) {
           int lsz = local_nodes[i].size() ;
-          MPI_Recv(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank-1,0,
+          MPI_Recv(&tpos[0],lsz*3,MPI_DOUBLE,get_exec_rank()-1,0,
                 comm,&status) ;
           int count = 0 ;
           MPI_Get_count(&status,MPI_DOUBLE,&count) ;
           if(count != lsz*3) {
-            cerr << "processor" << MPI_rank << " recieved " << count <<
+            cerr << "processor" << get_exec_rank() << " recieved " << count <<
               " words but was expecting " << lsz*3 << endl ;
           }
-          MPI_Send(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank+1,0,
+          MPI_Send(&tpos[0],lsz*3,MPI_DOUBLE,get_exec_rank()+1,0,
                 comm) ;
         }
       }
@@ -904,7 +904,7 @@ namespace Loci {
     vector<unsigned short> cluster_sizes ;
     // Now read in face clusters
     long nclusters = 0 ;
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || get_exec_rank() == 0) {
       dataset = H5Dopen(face_g,"cluster_sizes",H5P_DEFAULT) ;
       dspace = H5Dget_space(dataset) ;
       if(dataset <=0 || dspace <=0)
@@ -924,13 +924,13 @@ namespace Loci {
       MPI_Bcast(&nclusters,1,MPI_LONG,0,comm) ;
     }
 
-    vector<long> cluster_dist(MPI_processes,0) ;
+    vector<long> cluster_dist(get_exec_size(),0) ;
 #ifdef DEBUG
     long sum = 0 ;
 #endif
-    for(int i=0;i<MPI_processes;++i) {
-      cluster_dist[i] = nclusters/MPI_processes +
-        ((nclusters%MPI_processes)>i?1:0);
+    for(int i=0;i<get_exec_size();++i) {
+      cluster_dist[i] = nclusters/get_exec_size() +
+        ((nclusters%get_exec_size())>i?1:0);
 #ifdef DEBUG
       sum += cluster_dist[i] ;
 #endif
@@ -956,7 +956,7 @@ namespace Loci {
 
     // Read in volume tag information
     vector<pair<string,Loci::entitySet> > volDat ;
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || get_exec_rank() == 0) {
       readVolTags(file_id,volDat) ;
     }
     if(!use_parallel_io) {
@@ -964,20 +964,20 @@ namespace Loci {
       MPI_Bcast(&nvtags,1,MPI_INT,0,comm) ;
       for(int i=0;i<nvtags;++i) {
         int sz = 0 ;
-        if(MPI_rank == 0) { sz = volDat[i].first.size() ; }
+        if(get_exec_rank() == 0) { sz = volDat[i].first.size() ; }
         MPI_Bcast(&sz,1,MPI_INT,0,comm) ;
         char *buf = new char[sz+1] ;
         buf[sz] = '\0' ;
-        if(MPI_rank == 0) { strcpy(buf,volDat[i].first.c_str()) ; }
+        if(get_exec_rank() == 0) { strcpy(buf,volDat[i].first.c_str()) ; }
         MPI_Bcast(buf,sz,MPI_CHAR,0,comm) ;
         string name = string(buf) ;
         delete[] buf ;
         int nivals = 0 ;
-        if(MPI_rank == 0) { nivals = volDat[i].second.num_intervals() ; }
+        if(get_exec_rank() == 0) { nivals = volDat[i].second.num_intervals() ; }
         MPI_Bcast(&nivals,1,MPI_INT,0,comm) ;
 
         int *ibuf = new int[nivals*2] ;
-        if(MPI_rank == 0) {
+        if(get_exec_rank() == 0) {
           for(int j=0;j<nivals;++j) {
             ibuf[j*2]= volDat[i].second[j].first ;
             ibuf[j*2+1]= volDat[i].second[j].second ;
@@ -988,7 +988,7 @@ namespace Loci {
         for(int j=0;j<nivals;++j) {
           set += interval(ibuf[j*2],ibuf[j*2+1]) ;
         }
-        if(MPI_rank != 0) {
+        if(get_exec_rank() != 0) {
           volDat.push_back(pair<string,entitySet>(name,set)) ;
         }
         delete[] ibuf ;
@@ -996,7 +996,7 @@ namespace Loci {
     }
     volTags.swap(volDat) ;
 
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || get_exec_rank() == 0) {
       H5Gclose(face_g) ;
       H5Fclose(file_id) ;
       /* Restore previous error handler */
@@ -1022,16 +1022,16 @@ namespace Loci {
     }
 
     // Now get a face allocation for each processor
-    vector<int> faces_pp(MPI_processes,0) ;
+    vector<int> faces_pp(get_exec_size(),0) ;
     MPI_Allgather(&tot_faces,1,MPI_INT,&faces_pp[0],1,MPI_INT,
                   comm) ;
 
     int face_accum = 0 ;
     int faces_base = max_alloc + nnodes ;
-    if(Loci::MPI_processes > 1) {
+    if(get_exec_size() > 1) {
       faces_base = max_alloc ;
     }
-    for(int i = 0; i < MPI_processes; ++i) {
+    for(int i = 0; i < get_exec_size(); ++i) {
       local_faces[i] = EMPTY ;
       if(faces_pp[i] > 0) {
         local_faces[i] = interval(faces_base + face_accum,
@@ -1040,23 +1040,23 @@ namespace Loci {
       face_accum += faces_pp[i] ;
     }
     int cells_base = faces_base + face_accum ;
-    if(Loci::MPI_processes > 1) {
+    if(get_exec_size() > 1) {
       cells_base = max_alloc+nnodes ;
     }
 
 
     store<int> counts ;
-    counts.allocate(local_faces[MPI_rank]) ;
-    tot_faces = local_faces[MPI_rank].Min() ;
+    counts.allocate(local_faces[get_exec_rank()]) ;
+    tot_faces = local_faces[get_exec_rank()].Min() ;
     for(size_t i=0;i<cluster_sizes.size();++i) {
       int nfaces = fillClusterFaceSizes(&cluster_info[cluster_offset[i]],
                                         &counts[tot_faces]) ;
       tot_faces += nfaces ;
     }
     face2node.allocate(counts) ;
-    cl.allocate(local_faces[MPI_rank]) ;
-    cr.allocate(local_faces[MPI_rank]) ;
-    int face_base = local_faces[MPI_rank].Min() ;
+    cl.allocate(local_faces[get_exec_rank()]) ;
+    cr.allocate(local_faces[get_exec_rank()]) ;
+    int face_base = local_faces[get_exec_rank()].Min() ;
     for(size_t i=0;i<cluster_sizes.size();++i) {
       int nfaces = fillFaceInfo(&cluster_info[cluster_offset[i]],
                                 face2node,cl,cr,face_base) ;
@@ -1069,7 +1069,7 @@ namespace Loci {
     entitySet boundary_faces ;
     entitySet boundary_taglist ;
     int max_cell = 0 ;
-    FORALL(local_faces[MPI_rank],fc) {
+    FORALL(local_faces[get_exec_rank()],fc) {
       int fsz = face2node[fc].size() ;
       for(int i=0;i<fsz;++i) {
         face2node[fc][i] += nodes_base ;
@@ -1090,14 +1090,14 @@ namespace Loci {
                   comm) ;
 
     int ncells = global_max_cell+1 ;
-    int cell_ivl = ncells / MPI_processes;
-    int cell_ivl_rem = ncells % MPI_processes ;
+    int cell_ivl = ncells / get_exec_size();
+    int cell_ivl_rem = ncells % get_exec_size() ;
     int cell_accum = 0 ;
 
-    for(int i = 0; i < Loci::MPI_processes; ++i) {
+    for(int i = 0; i < get_exec_size(); ++i) {
       int cell_accum_update = cell_accum + cell_ivl + ((i<cell_ivl_rem)?1:0) ;
 
-      if(i == MPI_processes-1) {
+      if(i == get_exec_size()-1) {
         local_cells[i] = interval(cells_base + cell_accum,
                 cells_base + ncells-1) ;
       } else {
@@ -1152,7 +1152,7 @@ namespace Loci {
     }
 
 
-    if(Loci::MPI_rank == 0) {
+    if(get_exec_rank() == 0) {
       Loci::debugout << " boundaries identified as:" ;
       FORALL(refSet, bc) {
 	      debugout << " " << boundary_names[bc] ;
@@ -1194,7 +1194,7 @@ namespace Loci {
 
     multiMap cell2cell ;
     entitySet all_cells ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       all_cells += local_cells[i] ;
     }
 
@@ -1202,11 +1202,11 @@ namespace Loci {
 
     vector<pair<int,int> >().swap(rawMap) ; // Free up memory from rawMap
     int count = 0 ;
-    idx_t size_map = local_cells[Loci::MPI_rank].size() ;
+    idx_t size_map = local_cells[get_exec_rank()].size() ;
     vector<idx_t> size_adj(size_map) ;
     count = 0 ;
-    for(entitySet::const_iterator ei=local_cells[Loci::MPI_rank].begin();
-        ei != local_cells[Loci::MPI_rank].end(); ++ei) {
+    for(entitySet::const_iterator ei=local_cells[get_exec_rank()].begin();
+        ei != local_cells[get_exec_rank()].end(); ++ei) {
       size_adj[count] = cell2cell[*ei].size() ;
       ++count ;
     }
@@ -1214,14 +1214,14 @@ namespace Loci {
     vector<idx_t> part(size_map) ;
     vector<idx_t> xadj(size_map+1) ;
     idx_t edgecut ;
-    vector<idx_t> vdist(Loci::MPI_processes + 1) ;
+    vector<idx_t> vdist(get_exec_size() + 1) ;
     int cmin = local_cells[0].Min();
-    for(int i=0; i<Loci::MPI_processes; i++) {
+    for(int i=0; i<get_exec_size(); i++) {
       cmin = min(local_cells[i].Min(), cmin);
     }
 
     // check local_cells to be consistent with parmetis partitioning
-    for(int i=0;i<Loci::MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       if(local_cells[i].size() == 0 ||
          (int)local_cells[i].size() != local_cells[i].Max()-local_cells[i].Min()+1) {
         cerr << "invalid local cell set, p=" << i
@@ -1251,8 +1251,8 @@ namespace Loci {
     idx_t tot = xadj[size_map] ;
     vector<idx_t> adjncy(tot) ;
     count = 0 ;
-    for(entitySet::const_iterator ei=local_cells[Loci::MPI_rank].begin();
-        ei != local_cells[Loci::MPI_rank].end(); ++ei) {
+    for(entitySet::const_iterator ei=local_cells[get_exec_rank()].begin();
+        ei != local_cells[get_exec_rank()].end(); ++ei) {
       size_t sz = cell2cell[*ei].size() ;
       for(size_t i = 0; i != sz; ++i) {
         adjncy[count] = cell2cell[*ei][i] - cmin ;
@@ -1262,10 +1262,10 @@ namespace Loci {
     cell2cell.setRep(multiMap().Rep()) ;// Free up memory from multiMap
 
     vdist[0] = 0 ;
-    for(int i = 1; i <= Loci::MPI_processes; ++i) {
+    for(int i = 1; i <= get_exec_size(); ++i) {
       vdist[i] = vdist[i-1] + local_cells[i-1].size() ;
     }
-    idx_t top = vdist[Loci::MPI_processes] ;
+    idx_t top = vdist[get_exec_size()] ;
 
     bool trouble = false ;
     for(idx_t i=0;i<tot;++i) {
@@ -1278,7 +1278,7 @@ namespace Loci {
     }
 
     MPI_Comm mc = get_exec_comm() ;
-    idx_t nparts = Loci::MPI_processes ; // number of partitions
+    idx_t nparts = get_exec_size() ; // number of partitions
     idx_t wgtflag = 0 ;
     idx_t numflag = 0 ;
     idx_t options = 0 ;
@@ -1290,7 +1290,7 @@ namespace Loci {
 
       // check if the file exists
       int file_exists = 1 ;
-      if(Loci::MPI_rank == 0) {
+      if(get_exec_rank() == 0) {
         struct stat buf ;
         if(stat(cell_weight_file.c_str(),&buf) == -1 ||
            !S_ISREG(buf.st_mode)) {
@@ -1302,7 +1302,7 @@ namespace Loci {
 
       if(file_exists == 1) {
 
-        if(Loci::MPI_rank == 0) {
+        if(get_exec_rank() == 0) {
           std::cout << "ParMETIS reading additional cell weights from: "
                     << cell_weight_file << std::endl ;
         }
@@ -1316,7 +1316,7 @@ namespace Loci {
         }
 
         // read
-        entitySet dom = local_cells[Loci::MPI_rank] ;
+        entitySet dom = local_cells[get_exec_rank()] ;
 
         readContainerRAW(file_id,"cellweights", cell_weights.Rep(),
                          get_exec_comm()) ;
@@ -1324,13 +1324,13 @@ namespace Loci {
         Loci::hdf5CloseFile(file_id) ;
       } else if(cell_weight_store !=0) {
 
-        entitySet dom = local_cells[Loci::MPI_rank] ;
+        entitySet dom = local_cells[get_exec_rank()] ;
         cell_weights.allocate(dom);
         redistribute_cell_weight(cell_weight_store,cell_weights.Rep());
       }
 
       if(file_exists || cell_weight_store != 0) {
-        if(cell_weights.domain() != local_cells[Loci::MPI_rank]) {
+        if(cell_weights.domain() != local_cells[get_exec_rank()]) {
           cerr << "cell weights partition inconsistent!" << endl ;
           Loci::Abort() ;
         }
@@ -1353,8 +1353,8 @@ namespace Loci {
         // now construct the vertex weights
         vector<idx_t> vwgt(ncon*size_map) ;
         int cnt = 0 ;
-        for(entitySet::const_iterator ei=local_cells[Loci::MPI_rank].begin();
-            ei!=local_cells[Loci::MPI_rank].end();++ei,cnt+=ncon) {
+        for(entitySet::const_iterator ei=local_cells[get_exec_rank()].begin();
+            ei!=local_cells[get_exec_rank()].end();++ei,cnt+=ncon) {
           // first weight for cell is 1 (the cell computation)
           vwgt[cnt] = 1 ;
           // the second weight is from the store cell_weights[*ei]
@@ -1429,17 +1429,17 @@ namespace Loci {
                            &part[0],&mc) ;
     }
 
-    if(Loci::MPI_rank == 0) {
+    if(get_exec_rank() == 0) {
       Loci::debugout << " Parmetis Edge cut   " <<  edgecut << endl ;
     }
 
     //find the partition ptn given by Metis
     vector<entitySet> ptn ;
 
-    for(int i = 0; i < Loci::MPI_processes; ++i) {
+    for(int i = 0; i < get_exec_size(); ++i) {
       ptn.push_back(EMPTY) ;
     }
-    cmin = local_cells[Loci::MPI_rank].Min() ;
+    cmin = local_cells[get_exec_rank()].Min() ;
     for(int i=0;i<size_map;++i) {
       ptn[part[i]] += i + cmin ;
     }
@@ -1453,12 +1453,12 @@ namespace Loci {
                               const vector<entitySet> &ptn_t,
                               entitySet new_alloc,
                               storeRepP inRep,storeRepP outRep) {
-    vector<sequence> rdom(MPI_processes) ;
-    vector<int> send_sizes(MPI_processes) ;
+    vector<sequence> rdom(get_exec_size()) ;
+    vector<int> send_sizes(get_exec_size()) ;
     // Determine how to redistribute current domain to new processors
 
     entitySet::const_iterator ei = new_alloc.begin() ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       send_sizes[i] = inRep->pack_size(ptn[i]) ;
       sequence s ;
       for(entitySet::const_iterator si=ptn_t[i].begin();si!=ptn_t[i].end();++si) {
@@ -1470,13 +1470,13 @@ namespace Loci {
     WARN(ei != new_alloc.end()) ;
 
     MPI_Comm comm = get_exec_comm() ;
-    vector<int> recv_sizes(MPI_processes) ;
+    vector<int> recv_sizes(get_exec_size()) ;
     MPI_Alltoall(&send_sizes[0],1,MPI_INT,
                  &recv_sizes[0],1,MPI_INT,
                  comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       size_send += send_sizes[i] ;
       size_recv += recv_sizes[i] ;
     }
@@ -1484,17 +1484,17 @@ namespace Loci {
     vector<unsigned char> memspace(size_send+size_recv,0) ;
     unsigned char *send_store = &memspace[0] ;
     unsigned char *recv_store = &memspace[size_send] ;
-    vector<int> send_displacement(MPI_processes,0) ;
-    vector<int> recv_displacement(MPI_processes,0) ;
+    vector<int> send_displacement(get_exec_size(),0) ;
+    vector<int> recv_displacement(get_exec_size(),0) ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  get_exec_size(); ++i) {
       send_displacement[i] = send_displacement[i-1] + send_sizes[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_sizes[i-1] ;
     }
     int loc_pack = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  get_exec_size(); ++i) {
       inRep->pack(&send_store[0], loc_pack, size_send, ptn[i]) ;
     }
 
@@ -1506,7 +1506,7 @@ namespace Loci {
                   MPI_PACKED,
 		              comm) ;
     loc_pack = 0 ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  get_exec_size(); ++i) {
       outRep->unpack(&recv_store[0], loc_pack, size_recv, rdom[i]) ;
     }
 
@@ -1631,17 +1631,17 @@ namespace Loci {
     using std::cout ;
     using std::endl ;
 
-    vector<int> saddr(MPI_processes)  ;
-    for(int i=0;i<MPI_processes;++i) {
+    vector<int> saddr(facts.get_comm_size())  ;
+    for(int i=0;i<facts.get_comm_size();++i) {
       saddr[i] = node_ptn[i].size() ;
     }
-    vector<int> raddr(MPI_processes) ;
+    vector<int> raddr(facts.get_comm_size()) ;
     MPI_Alltoall(&saddr[0],1,MPI_INT,
                  &raddr[0],1,MPI_INT,
                  comm) ;
     int b = *nodes.begin() ;
     int sum = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<facts.get_comm_size();++i) {
       int tmp = raddr[i] ;
       raddr[i] = b+sum ;
       sum += tmp ;
@@ -1652,7 +1652,7 @@ namespace Loci {
 
     // Renumber maps (targets nodes and cells)
     dMap remap;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<facts.get_comm_size();++i) {
       int k = 0 ;
       FORALL(node_ptn[i], li) {
         remap[li] = saddr[i]+k ;
@@ -1661,7 +1661,7 @@ namespace Loci {
     }
 
     entitySet orig_cells ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<facts.get_comm_size();++i) {
       saddr[i] = cell_ptn[i].size() ;
       orig_cells += cell_ptn[i] ;
     }
@@ -1670,7 +1670,7 @@ namespace Loci {
                  comm) ;
     b = *cells.begin() ;
     sum = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<facts.get_comm_size();++i) {
       int tmp = raddr[i] ;
       raddr[i] = b+sum ;
       sum += tmp ;
@@ -1679,7 +1679,7 @@ namespace Loci {
                  &saddr[0],1,MPI_INT,
                  comm) ;
 
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<facts.get_comm_size();++i) {
       int k = 0 ;
       FORALL(cell_ptn[i], li) {
         remap[li] = saddr[i]+k ;
@@ -1687,9 +1687,9 @@ namespace Loci {
       } ENDFORALL ;
     }
 
-    vector<entitySet> bcptn = all_collect_vectors(bcsurf_ptn[MPI_rank],comm) ;
+    vector<entitySet> bcptn = all_collect_vectors(bcsurf_ptn[facts.get_comm_rank()],comm) ;
     vector<entitySet> bcalloc = all_collect_vectors(bcsurfset,comm) ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<facts.get_comm_size();++i) {
       if(bcptn[i].size() != bcalloc[i].size()) {
         cerr << "WARNING, boundary faces information inconsistent in remap"
             << endl ;
@@ -1706,7 +1706,7 @@ namespace Loci {
     // subsequent steps rely on this but it isn't really conforming to
     // the way other data is handled.
     entitySet bcallalloc = bcalloc[0] ;
-    for(int i=1;i<MPI_processes;++i) {
+    for(int i=1;i<facts.get_comm_size();++i) {
       bcallalloc += bcalloc[i] ;
     }
 
@@ -1786,20 +1786,20 @@ namespace Loci {
     MPI_Comm comm = get_exec_comm() ;
 
     REPORTMEM() ;
-    vector<entitySet> recv_req(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i) {
-      if(i!=MPI_rank) {
+    vector<entitySet> recv_req(get_exec_size()) ;
+    for(int i=0;i<get_exec_size();++i) {
+      if(i!=get_exec_rank()) {
         recv_req[i] = out_of_dom & init_ptn[i] ;
       }
     }
 
     REPORTMEM() ;
     // send the recieve requests
-    int *recv_count = new int[ MPI_processes] ;
-    int *send_count = new int[ MPI_processes] ;
-    int *send_displacement = new int[ MPI_processes] ;
-    int *recv_displacement = new int[ MPI_processes] ;
-    for(int i=0;i<MPI_processes;++i) {
+    int *recv_count = new int[ get_exec_size()] ;
+    int *send_count = new int[ get_exec_size()] ;
+    int *send_displacement = new int[ get_exec_size()] ;
+    int *recv_displacement = new int[ get_exec_size()] ;
+    for(int i=0;i<get_exec_size();++i) {
       send_count[i] = recv_req[i].num_intervals() * 2 ;
     }
     MPI_Alltoall(send_count,1,MPI_INT, recv_count, 1, MPI_INT,comm) ;
@@ -1807,18 +1807,18 @@ namespace Loci {
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i=1;i<MPI_processes;++i) {
+    for(int i=1;i<get_exec_size();++i) {
       send_displacement[i] = send_displacement[i-1]+send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1]+recv_count[i-1] ;
     }
-    int mp = MPI_processes-1 ;
+    int mp = get_exec_size()-1 ;
     int send_sizes = send_displacement[mp]+send_count[mp] ;
     int recv_sizes = recv_displacement[mp]+recv_count[mp] ;
     REPORTMEM() ;
     int * send_set_buf = new int[send_sizes] ;
     int * recv_set_buf = new int[recv_sizes] ;
 
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       for(size_t j=0;j<recv_req[i].num_intervals();++j) {
         send_set_buf[send_displacement[i]+j*2  ] = recv_req[i][j].first ;
         send_set_buf[send_displacement[i]+j*2+1] = recv_req[i][j].second ;
@@ -1829,8 +1829,8 @@ namespace Loci {
 		  recv_set_buf, recv_count, recv_displacement, MPI_INT,
 		  comm) ;
 
-    vector<entitySet> send_set(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i) {
+    vector<entitySet> send_set(get_exec_size()) ;
+    for(int i=0;i<get_exec_size();++i) {
       for(int j=0;j<recv_count[i]/2;++j) {
         int i1 = recv_set_buf[recv_displacement[i]+j*2  ] ;
         int i2 = recv_set_buf[recv_displacement[i]+j*2+1] ;
@@ -1842,8 +1842,8 @@ namespace Loci {
 
 #ifdef DEBUG
     // Sanity check, no send set should be outside of entities we own
-    entitySet mydom = init_ptn[MPI_rank] ;
-    for(int i=0;i<MPI_processes;++i) {
+    entitySet mydom = init_ptn[get_exec_rank()] ;
+    for(int i=0;i<get_exec_size();++i) {
       if((send_set[i] & mydom) != send_set[i]) {
         cerr << "problem with partitioning in fill_clone!" ;
         debugout << "send_set["<< i << "] = " << send_set[i]
@@ -1856,7 +1856,7 @@ namespace Loci {
     // send_set) we can communicate the actual information...
 
     // Compute sizes of sending buffers
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       send_count[i] =  send_set[i].size() ;
     }
 
@@ -1865,7 +1865,7 @@ namespace Loci {
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i=1;i<MPI_processes;++i) {
+    for(int i=1;i<get_exec_size();++i) {
       send_displacement[i] = send_displacement[i-1]+send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1]+recv_count[i-1] ;
     }
@@ -1882,7 +1882,7 @@ namespace Loci {
     }
 
 
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  get_exec_size(); ++i) {
       int loc_pack = 0 ;
 
       FORALL(send_set[i],ii) {
@@ -1896,7 +1896,7 @@ namespace Loci {
 		  comm) ;
 
     REPORTMEM() ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  get_exec_size(); ++i) {
       int loc_pack = 0 ;
       FORALL(recv_req[i],ii) {
         mapdata[ii] = recv_store[recv_displacement[i]+loc_pack] ;
@@ -1918,7 +1918,7 @@ namespace Loci {
     MPI_Comm comm = get_exec_comm() ;
     map<int,int> P ;
     entitySet cells ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       FORALL(cell_ptn[i],cc) {
         P[cc] = i ;
       } ENDFORALL ;
@@ -1935,7 +1935,7 @@ namespace Loci {
 
     entitySet refset = boundary_tags.domain() ;
     entitySet bcfaces = cr.preimage(refset).first ;
-    vector<entitySet> face_ptn(MPI_processes) ;
+    vector<entitySet> face_ptn(get_exec_size()) ;
     FORALL(bcfaces,fc) {
       face_ptn[P[cl[fc]]] += fc ;
     } ENDFORALL ;
@@ -1950,24 +1950,24 @@ namespace Loci {
       }
     } ENDFORALL ;
     REPORTMEM() ;
-    vector<int> curr_sizes(MPI_processes),tot_sizes(MPI_processes) ;
+    vector<int> curr_sizes(get_exec_size()),tot_sizes(get_exec_size()) ;
 
 
     // Number of balancing steps.  In the balancing step, the faces that
     // share proceessors are allocated by selected processors, then all
     // processors share current face counts.
-    int STEPS = min(MPI_processes,13);
+    int STEPS = min(get_exec_size(),13);
     for(int s=0;s<STEPS;++s) {
 
       REPORTMEM() ;
-      for(int i=0;i<MPI_processes;++i) {
+      for(int i=0;i<get_exec_size();++i) {
         curr_sizes[i] = face_ptn[i].size() ;
       }
 
-      MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],MPI_processes,MPI_INT,MPI_SUM,
+      MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],get_exec_size(),MPI_INT,MPI_SUM,
                     comm) ;
 
-      if(MPI_rank%STEPS == s) { // My processors turn to assign faces
+      if(get_exec_rank()%STEPS == s) { // My processors turn to assign faces
         FORALL(boundary_faces,fc) {
           int Pl = P[cl[fc]] ;
           int Pr = P[cr[fc]] ;
@@ -1982,16 +1982,16 @@ namespace Loci {
       }
     }
 
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       curr_sizes[i] = face_ptn[i].size() ;
     }
 
-    MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],MPI_processes,MPI_INT,MPI_SUM,
+    MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],get_exec_size(),MPI_INT,MPI_SUM,
                   comm) ;
 
-    if(MPI_rank ==0) {
+    if(get_exec_rank() ==0) {
       debugout << "balanced face sizes:" ;
-      for(int i=0;i<MPI_processes;++i) {
+      for(int i=0;i<get_exec_size();++i) {
         debugout << ' ' << tot_sizes[i] ;
       }
       debugout << endl ;
@@ -2004,12 +2004,12 @@ namespace Loci {
 
     // find node_ptn that best matches the face partition.  Loop over faces
     entitySet fdom ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       fdom += face_ptn[i] ;
     }
     store<int> procmap ;
     procmap.allocate(fdom) ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       FORALL(face_ptn[i],fc) {
         procmap[fc] = i ;
       } ENDFORALL ;
@@ -2029,40 +2029,40 @@ namespace Loci {
     } ENDFORALL ;
 
     vector<entitySet> node_ptn_old = all_collect_vectors(old_node_dom) ;
-    vector<entitySet> node_ptn(MPI_processes) ;
+    vector<entitySet> node_ptn(get_exec_size()) ;
     assignOwner(scratchPad,node_ptn_old,node_ptn) ;
     return node_ptn ;
   }
 
   vector<entitySet> transposePtn(const vector<entitySet> &ptn) {
     MPI_Comm comm = get_exec_comm() ;
-    vector<int> send_sz(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i) {
+    vector<int> send_sz(get_exec_size()) ;
+    for(int i=0;i<get_exec_size();++i) {
       send_sz[i] = ptn[i].num_intervals()*2 ;
     }
-    vector<int> recv_sz(MPI_processes) ;
+    vector<int> recv_sz(get_exec_size()) ;
     MPI_Alltoall(&send_sz[0],1,MPI_INT,
                  &recv_sz[0],1,MPI_INT,
                  comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       size_send += send_sz[i] ;
       size_recv += recv_sz[i] ;
     }
     //    outRep->allocate(new_alloc) ;
     int *send_store = new int[size_send] ;
     int *recv_store = new int[size_recv] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    int *send_displacement = new int[get_exec_size()] ;
+    int *recv_displacement = new int[get_exec_size()] ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  get_exec_size(); ++i) {
       send_displacement[i] = send_displacement[i-1] + send_sz[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_sz[i-1] ;
     }
-    for(int i = 0; i <  MPI_processes; ++i) {
+    for(int i = 0; i <  get_exec_size(); ++i) {
       for(size_t j=0;j<ptn[i].num_intervals();++j) {
         send_store[send_displacement[i]+j*2] = ptn[i][j].first ;
         send_store[send_displacement[i]+j*2+1] = ptn[i][j].second ;
@@ -2074,8 +2074,8 @@ namespace Loci {
 		  recv_store, &recv_sz[0], recv_displacement, MPI_INT,
 		  comm) ;
 
-    vector<entitySet> ptn_t(MPI_processes) ;
-    for(int i = 0; i <  MPI_processes; ++i) {
+    vector<entitySet> ptn_t(get_exec_size()) ;
+    for(int i = 0; i <  get_exec_size(); ++i) {
       for(int j=0;j<recv_sz[i]/2;++j) {
         int i1 = recv_store[recv_displacement[i]+j*2]  ;
         int i2 = recv_store[recv_displacement[i]+j*2+1] ;
@@ -2121,8 +2121,8 @@ namespace Loci {
       scratchPad.erase(i1,scratchPad.end()) ;
     }
 
-    vector<pair<int,pair<int,int> > > nsplits(MPI_processes-1) ;
-    for(int i=1;i<MPI_processes;++i) {
+    vector<pair<int,pair<int,int> > > nsplits(get_exec_size()-1) ;
+    for(int i=1;i<get_exec_size();++i) {
       nsplits[i-1].first = ptn[i].Min() ;
       nsplits[i-1].second.first = 0 ;
       nsplits[i-1].second.second = 0 ;
@@ -2159,11 +2159,11 @@ namespace Loci {
     }
     // Check to see if any sets are left out.
     entitySet assigned ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       assigned += out_ptn[i] ;
     }
-    entitySet unassigned = ptn[MPI_rank] - assigned ;
-    out_ptn[MPI_rank] += unassigned ; // allocate unassigned entities to
+    entitySet unassigned = ptn[get_exec_rank()] - assigned ;
+    out_ptn[get_exec_rank()] += unassigned ; // allocate unassigned entities to
     // original processor
 
   }
@@ -2359,7 +2359,7 @@ namespace Loci {
                           vector<entitySet> &node_ptn) {
     MPI_Comm comm = get_exec_comm() ;
 
-    vector<entitySet> tmp(MPI_processes) ; // Initialize partition vectors
+    vector<entitySet> tmp(get_exec_size()) ; // Initialize partition vectors
     cell_ptn = tmp ;
     face_ptn = tmp ;
     node_ptn = tmp ;
@@ -2513,24 +2513,24 @@ namespace Loci {
 
 
     // Partition low processors
-    vector<double> w_lowv(MPI_processes) ;
+    vector<double> w_lowv(get_exec_size()) ;
     MPI_Allgather(&w_low,1,MPI_DOUBLE,&w_lowv[0],1,MPI_DOUBLE,
 		  comm) ;
-    vector<double> w_highv(MPI_processes) ;
+    vector<double> w_highv(get_exec_size()) ;
     MPI_Allgather(&w_high,1,MPI_DOUBLE,&w_highv[0],1,MPI_DOUBLE,
 		  comm) ;
-    vector<double> c_lowv(MPI_processes) ;
+    vector<double> c_lowv(get_exec_size()) ;
     MPI_Allgather(&c_low,1,MPI_DOUBLE,&c_lowv[0],1,MPI_DOUBLE,
 		  comm) ;
-    vector<double> c_highv(MPI_processes) ;
+    vector<double> c_highv(get_exec_size()) ;
     MPI_Allgather(&c_high,1,MPI_DOUBLE,&c_highv[0],1,MPI_DOUBLE,
 		  comm) ;
     double proc_sumw_low = 0 ;
     double tot_sumw_low = 0 ;
     double proc_sumw_high = 0 ;
     double tot_sumw_high = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
-      if(i<MPI_rank) {
+    for(int i=0;i<get_exec_size();++i) {
+      if(i<get_exec_rank()) {
         proc_sumw_low += w_lowv[i] ;
         proc_sumw_high += w_highv[i] ;
       }
@@ -2538,8 +2538,8 @@ namespace Loci {
       tot_sumw_high += w_highv[i] ;
     }
     // Now assign weights
-    double sumw_low_pp = tot_sumw_low/double(MPI_processes) ;
-    double sumw_high_pp = tot_sumw_high/double(MPI_processes) ;
+    double sumw_low_pp = tot_sumw_low/double(get_exec_size()) ;
+    double sumw_high_pp = tot_sumw_high/double(get_exec_size()) ;
 
     vector<int> procs(key_list.size()) ;
     // processors are assigned for the low and high groups by simple
@@ -2549,35 +2549,35 @@ namespace Loci {
     w_high = proc_sumw_high ;
     for(size_t ii=0;ii<key_list.size();++ii) {
       if(key_list[ii].weight<=wavg) {
-        procs[ii] = max(0,min(MPI_processes-1,int(floor(w_low/sumw_low_pp)))) ;
+        procs[ii] = max(0,min(get_exec_size()-1,int(floor(w_low/sumw_low_pp)))) ;
         w_low += key_list[ii].weight ;
       } else {
-        procs[ii] = max(0,min(MPI_processes-1,int(floor(w_high/sumw_high_pp)))) ;
+        procs[ii] = max(0,min(get_exec_size()-1,int(floor(w_high/sumw_high_pp)))) ;
         w_high += key_list[ii].weight ;
         //	c_high++ ;
       }
     }
-    vector<double> wsump(MPI_processes,0) ;
-    vector<double> csump(MPI_processes,0) ;
+    vector<double> wsump(get_exec_size(),0) ;
+    vector<double> csump(get_exec_size(),0) ;
     for(size_t ii=0;ii<key_list.size();++ii) {
       wsump[procs[ii]]+= key_list[ii].weight ;
       csump[procs[ii]]+= 1 ;
     }
-    vector<double> wsumr(MPI_processes,0) ;
-    MPI_Allreduce(&wsump[0],&wsumr[0],MPI_processes,MPI_DOUBLE,
+    vector<double> wsumr(get_exec_size(),0) ;
+    MPI_Allreduce(&wsump[0],&wsumr[0],get_exec_size(),MPI_DOUBLE,
 		  MPI_SUM,comm) ;
 
-    vector<double> csumr(MPI_processes,0) ;
-    MPI_Allreduce(&csump[0],&csumr[0],MPI_processes,MPI_DOUBLE,
+    vector<double> csumr(get_exec_size(),0) ;
+    MPI_Allreduce(&csump[0],&csumr[0],get_exec_size(),MPI_DOUBLE,
 		  MPI_SUM,comm) ;
 
     debugout << "processor weights =" ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       debugout << " " << wsumr[i] ;
     }
     debugout << endl ;
     debugout << "processor cells =" ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       debugout << " " << csumr[i] ;
     }
     debugout << endl ;
@@ -2595,10 +2595,10 @@ namespace Loci {
     MPI_Allreduce(&fmin,&fming,1,MPI_INT,MPI_MIN,comm) ;
     int fsizes = fdom.size() ;
 
-    vector<int> fsplits(MPI_processes) ;
+    vector<int> fsplits(get_exec_size()) ;
     MPI_Allgather(&fsizes,1,MPI_INT,&fsplits[0],1,MPI_INT,comm) ;
 
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<get_exec_size();++i) {
       int save = fsplits[i] ;
       fsplits[i] = fming ;
       fming += save ; ;
@@ -2606,8 +2606,8 @@ namespace Loci {
 
 
 
-    vector<pair<int,int> > splitters(MPI_processes-1) ;
-    for(int i=0;i<MPI_processes-1;++i) {
+    vector<pair<int,int> > splitters(get_exec_size()-1) ;
+    for(int i=0;i<get_exec_size()-1;++i) {
       splitters[i].first  = fsplits[i+1] ;
       splitters[i].second = -1 ;
     }
@@ -2657,15 +2657,15 @@ namespace Loci {
     // compute interior face to processor mapping
     vector<pair<int,int> > proc_pairs(key_list.size()) ;
     for(size_t ii=0;ii<key_list.size();++ii) {
-      proc_pairs[ii] = pair<int,int>(key_list[ii].id,MPI_rank) ;
+      proc_pairs[ii] = pair<int,int>(key_list[ii].id,get_exec_rank()) ;
     }
     // Now we need to sort the data back to the processor that owns
     // the corresponding face
     int cmin = local_set.Min() ;
-    vector<int> csplits(MPI_processes) ;
+    vector<int> csplits(get_exec_size()) ;
     MPI_Allgather(&cmin,1,MPI_INT,&csplits[0],1,MPI_INT,comm) ;
-    vector<pair<int,int> > splitters(MPI_processes-1) ;
-    for(int i=0;i<MPI_processes-1;++i) {
+    vector<pair<int,int> > splitters(get_exec_size()-1) ;
+    for(int i=0;i<get_exec_size()-1;++i) {
       splitters[i].first  = csplits[i+1] ;
       splitters[i].second = -1 ;
     }
@@ -2684,14 +2684,14 @@ namespace Loci {
                           vector<entitySet> &face_ptn,
                           vector<entitySet> &node_ptn) {
 
-    vector<entitySet> tmp(MPI_processes) ; // Initialize partition vectors
+    vector<entitySet> tmp(get_exec_size()) ; // Initialize partition vectors
     cell_ptn = tmp ;
     face_ptn = tmp ;
     node_ptn = tmp ;
 
-    randomPartition(cell_ptn,local_cells[MPI_rank]) ;
-    randomPartition(face_ptn,local_faces[MPI_rank]) ;
-    randomPartition(node_ptn,local_nodes[MPI_rank]) ;
+    randomPartition(cell_ptn,local_cells[get_exec_rank()]) ;
+    randomPartition(face_ptn,local_faces[get_exec_rank()]) ;
+    randomPartition(node_ptn,local_nodes[get_exec_rank()]) ;
   }
 
   void ORB_Partition_Mesh(const vector<entitySet> &local_nodes,
@@ -2705,7 +2705,7 @@ namespace Loci {
                           vector<entitySet> &face_ptn,
                           vector<entitySet> &node_ptn) {
 
-    vector<entitySet> tmp(MPI_processes) ; // Initialize partition vectors
+    vector<entitySet> tmp(get_exec_size()) ; // Initialize partition vectors
     cell_ptn = tmp ;
     face_ptn = tmp ;
     node_ptn = tmp ;
@@ -2823,7 +2823,7 @@ namespace Loci {
     entitySet global_boundary_cells = tmp_boundary_tags.domain() ;
     REPORTMEM() ;
 
-    if(MPI_processes == 1) {
+    if(facts.get_comm_size() == 1) {
 
       int npnts = local_nodes[0].size();
       int nfaces = local_faces[0].size();
@@ -2875,7 +2875,7 @@ namespace Loci {
       // check if the file exists
       store<int> cell_weights ;
       int file_exists = 1 ;
-      if(Loci::MPI_rank == 0) {
+      if(facts.get_comm_rank() == 0) {
         struct stat buf ;
         if(stat(cell_weight_file.c_str(),&buf) == -1 ||
           !S_ISREG(buf.st_mode)) {
@@ -2886,7 +2886,7 @@ namespace Loci {
 
       if(file_exists == 1) {
         debugout << "reading cell weights" << endl ;
-        if(Loci::MPI_rank == 0) {
+        if(facts.get_comm_rank() == 0) {
           std::cout << "Space Filling Curve partition reading additional "
                     << "cell weights from: " << cell_weight_file << std::endl ;
         }
@@ -2909,7 +2909,7 @@ namespace Loci {
 
     partitionerSelector partitioner_type = partitionerMethod ;
     if(partitioner_type == GRAPH) {
-      int lcpp = local_cells[MPI_rank].size() ;
+      int lcpp = local_cells[facts.get_comm_rank()].size() ;
       int mincpp = lcpp ;
       MPI_Allreduce(&lcpp,&mincpp,1,MPI_INT,MPI_MIN,comm) ;
       if(mincpp < metis_cpp_threshold) {
@@ -2946,20 +2946,20 @@ namespace Loci {
         // read in additional vertex weights if any
         if(cellwts != 0) {
           //debugout << "getting cell_weights_store" << endl ;
-          entitySet dom = local_cells[MPI_rank];
+          entitySet dom = local_cells[facts.get_comm_rank()];
           cell_weights.allocate(dom);
           redistribute_cell_weight(cellwts, cell_weights.Rep());
 
-          int offset = local_cells[Loci::MPI_rank].Min()
+          int offset = local_cells[facts.get_comm_rank()].Min()
                        - cell_weights.domain().Min() ;
 
           storeRepP sp = cell_weights.Rep();
           sp->shift(offset) ;
 
 
-          if(cell_weights.domain() != local_cells[Loci::MPI_rank]) {
+          if(cell_weights.domain() != local_cells[facts.get_comm_rank()]) {
             cerr << "cell_weights=" << cell_weights.domain()
-                 << ", local_cells = " << local_cells[Loci::MPI_rank] << endl ;
+                 << ", local_cells = " << local_cells[facts.get_comm_rank()] << endl ;
             cerr << "cell weights partition inconsistent!" << endl ;
             Loci::Abort() ;
           }
@@ -2972,8 +2972,8 @@ namespace Loci {
     case SIMPLE: // Simple partition
       {
         debugout << "Using simple partition method" << endl ;
-        cell_ptn = vector<entitySet>(MPI_processes) ;
-              cell_ptn[MPI_rank] = local_cells[MPI_rank] ;
+        cell_ptn = vector<entitySet>(facts.get_comm_size()) ;
+              cell_ptn[facts.get_comm_rank()] = local_cells[facts.get_comm_rank()] ;
         REPORTMEM() ;
         face_ptn = partitionFaces(cell_ptn,tmp_cl,tmp_cr,tmp_boundary_tags) ;
         REPORTMEM() ;
@@ -3012,7 +3012,7 @@ namespace Loci {
       break ;
     }
 
-    vector<entitySet> bcsurf_ptn(MPI_processes) ;
+    vector<entitySet> bcsurf_ptn(facts.get_comm_size()) ;
     entitySet refset = tmp_boundary_tags.domain() ;
 
     // round robin allocate boundary faces
@@ -3020,11 +3020,11 @@ namespace Loci {
     int cnt = 0 ;
     //int refsetsz = refset.size() ;
     FORALL(refset,ii) {
-      if(cnt == MPI_rank) {
+      if(cnt == facts.get_comm_rank()) {
 	      bcsurf_ptn[cnt] += ii ;
       }
       cnt++ ;
-      if(cnt == MPI_processes) {
+      if(cnt == facts.get_comm_size()) {
 	      cnt = 0 ;
       }
     } ENDFORALL ;
@@ -3036,13 +3036,13 @@ namespace Loci {
     vector<entitySet> node_ptn_t = transposePtn(node_ptn) ;
 
     int newnodes = 0 ;
-    for(int p=0;p<MPI_processes;++p) {
+    for(int p=0;p<facts.get_comm_size();++p) {
       newnodes += node_ptn_t[p].size() ;
     }
 
     vector<int> node_alloc(newnodes) ;
     int i=0;
-    for(int p=0;p<MPI_processes;++p) {
+    for(int p=0;p<facts.get_comm_size();++p) {
       FORALL(node_ptn_t[p], ni) {
         node_alloc[i++] = ni ;
       } ENDFORALL;
@@ -3052,13 +3052,13 @@ namespace Loci {
     node_alloc.resize(0) ;
 
     int newfaces = 0 ;
-    for(int p=0;p<MPI_processes;++p) {
+    for(int p=0;p<facts.get_comm_size();++p) {
       newfaces += face_ptn_t[p].size() ;
     }
 
     vector<int> face_alloc(newfaces) ;
     i = 0 ;
-    for(int p=0;p<MPI_processes;++p) {
+    for(int p=0;p<facts.get_comm_size();++p) {
       FORALL(face_ptn_t[p], ni) {
         face_alloc[i++] = ni ;
       }ENDFORALL;
@@ -3074,13 +3074,13 @@ namespace Loci {
     face_alloc.resize(0) ;
 
     int newcells = 0 ;
-    for(int p=0;p<MPI_processes;++p) {
+    for(int p=0;p<facts.get_comm_size();++p) {
       newcells += cell_ptn_t[p].size() ;
     }
 
     vector<int> cell_alloc(newcells) ;
     i = 0 ;
-    for(int p=0;p<MPI_processes;++p) {
+    for(int p=0;p<facts.get_comm_size();++p) {
       FORALL(cell_ptn_t[p], ni) {
         cell_alloc[i++] = ni ;
       }ENDFORALL;
@@ -3095,9 +3095,9 @@ namespace Loci {
     Loci::debugout << "cells = " << cells << ", size = "
                    << cells.size() << endl ;
 
-    vector<int> bcsurf_alloc(bcsurf_ptn[MPI_rank].size()) ;
+    vector<int> bcsurf_alloc(bcsurf_ptn[facts.get_comm_rank()].size()) ;
     i=0 ;
-    FORALL(bcsurf_ptn[MPI_rank],ii) {
+    FORALL(bcsurf_ptn[facts.get_comm_rank()],ii) {
       bcsurf_alloc[i++] = ii ;
     } ENDFORALL ;
 
@@ -3213,7 +3213,7 @@ namespace Loci {
     int fk = boundary_faces.Rep()->getDomainKeySpace()  ;
     std::vector<entitySet> initf_ptn = facts.get_init_ptn(fk) ;
 
-    *boundary_faces &= initf_ptn[ MPI_rank] ;
+    *boundary_faces &= initf_ptn[ facts.get_comm_rank()] ;
 
     std::pair<entitySet, entitySet> ghost_pair = facts.get_distributed_alloc((*boundary_faces).size(),0) ; // FIX THIS
     entitySet tmp_ghost = ghost_pair.first ;
@@ -3326,7 +3326,7 @@ namespace Loci {
 
     // check if the file exists
     int file_exists = 1 ;
-    if(Loci::MPI_rank == 0) {
+    if(facts.get_comm_rank() == 0) {
       struct stat buf ;
       if(stat(weightfile.c_str(),&buf) == -1 ||
         !S_ISREG(buf.st_mode)) {
@@ -3337,7 +3337,7 @@ namespace Loci {
 
     if(file_exists == 1) {
       store<int> cell_weights ;
-      if(Loci::MPI_rank == 0) {
+      if(facts.get_comm_rank() == 0) {
         std::cout << "setupFVMGridWithWeightInFile(): reading cell weights from: "
                   << weightfile << std::endl ;
       }

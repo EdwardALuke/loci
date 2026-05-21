@@ -275,7 +275,7 @@ namespace Loci {
                                const variableSet& given,
                                const variableSet& target) {
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Start!" << endl ;
 #endif
     /***********************************
@@ -335,21 +335,21 @@ namespace Loci {
     top_down_visit(reduceV) ;
 
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Passed Information Collection!" << endl ;
 #endif
 
     det1 = MPI_Wtime() ;
 
     if(use_dynamic_memory) {
-      if(Loci::MPI_rank == 0)
+      if(facts.get_comm_rank() == 0)
         if(!in_internal_query)
           cout << "USING DYNAMIC MEMORY MANAGEMENT" << endl ;
     }
 
     // chomping searching and graph editing
     if(use_chomp) {
-      if(Loci::MPI_rank == 0)
+      if(facts.get_comm_rank() == 0)
         if(!in_internal_query)
           cout << "USING CHOMPING"
                << " (chomping size: "
@@ -501,7 +501,7 @@ namespace Loci {
       det2 = MPI_Wtime() ;
 	  
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Passed Memory "
            << "Management Decoration!" << endl ;
 #endif
@@ -511,7 +511,7 @@ namespace Loci {
       top_down_visit(dagcV) ;
 
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Passed Graph Cycle Check!" << endl ;
 #endif
 
@@ -618,7 +618,7 @@ namespace Loci {
       compChompVisitor compchompv(reduceV.get_reduceInfo()) ;
       top_down_visit(compchompv) ;
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Passed Chomping Compilation!" << endl ;
 #endif    
     }
@@ -629,7 +629,7 @@ namespace Loci {
     schedst = MPI_Wtime() ;
    
     if(randomized_memory_greedy_schedule && (!in_internal_query)){ 
-      if(Loci::MPI_rank == 0)
+      if(facts.get_comm_rank() == 0)
         if(!in_internal_query)
           cout << "graph scheduling... (randomized memory greedy)" << endl ;
       
@@ -682,7 +682,7 @@ namespace Loci {
        top_down_visit(mgs) ;
       
     }else if(!memory_greedy_schedule) {
-      if(Loci::MPI_rank == 0)
+      if(facts.get_comm_rank() == 0)
         if(!in_internal_query)
           cout << "graph scheduling... (computation greedy)" << endl ;
       
@@ -692,7 +692,7 @@ namespace Loci {
       
       
     } else {
-      if(Loci::MPI_rank == 0)
+      if(facts.get_comm_rank() == 0)
         if(!in_internal_query)
           cout << "graph scheduling... (memory greedy)" << endl ;
       
@@ -701,7 +701,7 @@ namespace Loci {
       top_down_visit(gsv) ;
     }
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Passed Graph Scheduling!" << endl ;
 #endif
 
@@ -714,7 +714,7 @@ namespace Loci {
 
 
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Passed Schedule Assembly!" << endl ;
 #endif
 
@@ -733,7 +733,7 @@ namespace Loci {
       Loci::debugout << "Time taken for graph scheduling = "
                      << schedet-schedst << " sceonds " << endl ;
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
+    if(facts.get_comm_rank()==0)
       cerr << "[Graph Compile Phase] Graph Compile Phase End!" << endl ;
 #endif
   }
@@ -944,7 +944,7 @@ namespace Loci {
     }
     else
       if(facts.is_distributed_start())
-        if((MPI_processes > 1))
+        if((facts.get_comm_size() > 1))
           schedule->append_list(new allocate_all_vars(facts,scheds,alloc,false)) ;
 
     schedule->append_list(fact_db_comm->create_execution_schedule(facts, scheds));
@@ -1145,7 +1145,7 @@ namespace Loci {
       // since the fact_db facts is in global numbering state
 #ifdef RENUMBER
       if(clone.is_distributed_start()) {
-        if((MPI_processes > 1)) 
+        if((facts.get_comm_size() > 1)) 
           get_clone(clone, par_rdb) ;
         else
           Loci::serial_freeze(clone) ; 
@@ -1215,7 +1215,7 @@ namespace Loci {
         // since the fact_db facts is in global numbering state
 #ifdef RENUMBER
         if(clone.is_distributed_start()) {
-          if((MPI_processes > 1)) 
+          if((facts.get_comm_size() > 1)) 
             get_clone(clone, par_rdb) ;
           else
             Loci::serial_freeze(clone) ; 

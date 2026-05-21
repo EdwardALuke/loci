@@ -194,7 +194,7 @@ namespace Loci {
                << ", newdomain = " << newdomain << endl ;
 #endif
       if(domain == ~EMPTY) {
-        if(MPI_processes == 1)
+        if(facts.get_comm_size() == 1)
           cerr << "problem in recurse compiler for rule = "<< impl << endl ;
         else
           debugout << "problem in recurse compiler for rule = "<< impl << endl ;
@@ -575,7 +575,7 @@ namespace Loci {
         }
         if(fctrl.use_constraints) {
           if((srcs & fctrl.constraints) != fctrl.constraints) {
-            if(MPI_processes == 1) {
+            if(facts.get_comm_size() == 1) {
               cerr << "recursive rule: " << *fi
                    << " cannot supply all entitites in constraint" << endl ;
               cerr << "constraints = " << fctrl.constraints << endl ;
@@ -596,7 +596,7 @@ namespace Loci {
 
 
 
-            if(MPI_processes == 1) {
+            if(facts.get_comm_size() == 1) {
               cerr << "detailed report:" << endl ;
               cerr<< "fctrl.nr_sources = " << fctrl.nr_sources << endl ;
             } else {
@@ -608,7 +608,7 @@ namespace Loci {
               entitySet sources = vmap_source_exist(*si,facts, scheds) ;
               sources &= my_entities ;
               if((sources & constraints) != constraints) {
-                if(MPI_processes == 1) {
+                if(facts.get_comm_size() == 1) {
                   cerr << "sources & constraints != constraints for input"
                        << endl
                        << sources  << " -- " << *si << endl ;
@@ -632,7 +632,7 @@ namespace Loci {
                     entitySet exist = scheds.variable_existence(*vi) ;
                     entitySet fails = working & ~exist ;
                     if(fails != EMPTY) {
-                      if(MPI_processes == 1) {
+                      if(facts.get_comm_size() == 1) {
                         cerr << "expecting to find variable " << *vi
                              << " at entities " << fails << endl
                              << *vi << " exists at entities " << exist << endl ;

@@ -390,7 +390,7 @@ namespace Loci {
   }
 
   void execute_param_red::Print(ostream &s) const {
-    if(verbose || MPI_processes > 1)
+    if(verbose || get_exec_size() > 1)
       for(size_t i = 0 ; i < reduce_vars.size(); i++) {
         printIndent(s) ;
         s << "param reduction on " << reduce_vars[i] << endl ;
@@ -454,7 +454,7 @@ namespace Loci {
         return 0 ;
 
     }
-    if(verbose || MPI_processes > 1) {
+    if(verbose || facts.get_comm_size() > 1) {
       ostringstream oss ;
       for(size_t i = 0; i < reduce_vars.size(); i++)
         oss << "reduce param " << reduce_vars[i] << std::endl;
@@ -953,7 +953,7 @@ namespace Loci {
         el->append_list(exec_comm2) ;
         //el->append_list(exec_comm) ;
       }
-      if(verbose || MPI_processes > 1) {
+      if(verbose || facts.get_comm_size() > 1) {
         ostringstream oss ;
         oss << "reduce store " << reduce_var ;
         executeP exec_msg = new execute_msg(oss.str());
@@ -962,7 +962,7 @@ namespace Loci {
       return executeP(el) ;
     }
 
-    if(verbose || MPI_processes > 1) {
+    if(verbose || facts.get_comm_size() > 1) {
       ostringstream oss ;
       oss << "reduce store " << reduce_var ;
       executeP exec_msg2 = new execute_msg(oss.str());

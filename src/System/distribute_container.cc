@@ -41,12 +41,11 @@ namespace Loci {
   // to other processors.  Return with a vector of entitySets as sent to
   // you by each other processor.
   vector<entitySet> Alltoall_entitySet(vector<entitySet> v) {
-    WARN(int(v.size()) != MPI_processes) ;
+    int p = get_exec_size() ;
+    WARN(int(v.size()) != p) ;
 
-    if(MPI_processes == 1)
+    if(p == 1)
       return v ;
-
-    const int p = v.size() ;
     vector<int> ivals(p) ;
     for(int i=0;i<p;++i)
       ivals[i] = v[i].num_intervals() ;
@@ -86,10 +85,9 @@ namespace Loci {
   }
 
   dMap distribute_dMap(dMap m, const std::vector<entitySet> &init_ptn) {
-    if(MPI_processes == 1)
+    int p = get_exec_size() ;
+    if(p == 1)
       return m ;
-
-    const int p = MPI_processes ;
     entitySet dom = m.domain() ;
     std::vector<entitySet> send_slices(p) ;
     for(int i=0;i<p;++i) {
@@ -153,19 +151,22 @@ namespace Loci {
                               entitySet input_image,
                               entitySet input_preimage,
                               const std::vector<entitySet> &init_ptn) {
+    MPI_Comm comm = get_exec_comm() ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int r = 0 ; MPI_Comm_rank(comm, &r) ;
     // Sort input according to second field
     sort(input.begin(),input.end(),fieldSort2) ;
 
     // Now count what we will be sending
-    vector<int> send_sz(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
+    vector<int> send_sz(p) ;
+    for(int i=0;i<p;++i)
       send_sz[i] = 0 ;
     int current_p = 0 ;
     for(size_t i=0;i<input.size();++i) {
       int to = input[i].second ;
 
       if(!init_ptn[current_p].inSet(to))
-        for(int j=0;j<MPI_processes;++j)
+        for(int j=0;j<p;++j)
           if(init_ptn[j].inSet(to)) {
             current_p = j ;
             break ;
@@ -174,38 +175,37 @@ namespace Loci {
     }
 
     // transfer recv sizes
-    vector<int> recv_sz(MPI_processes) ;
-    MPI_Comm comm = get_exec_comm() ;
+    vector<int> recv_sz(p) ;
     MPI_Alltoall(&send_sz[0], 1, MPI_INT,
                  &recv_sz[0], 1, MPI_INT, comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<p;++i) {
       size_send += send_sz[i] ;
       size_recv += recv_sz[i] ;
     }
 
     int *send_store = new int[size_send] ;
     int *recv_store = new int[size_recv] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    int *send_displacement = new int[p] ;
+    int *recv_displacement = new int[p] ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_sz[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_sz[i-1] ;
     }
 
     current_p = 0 ;
-    vector<int> offsets(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
+    vector<int> offsets(p) ;
+    for(int i=0;i<p;++i)
       offsets[i] = 0 ;
     for(size_t i=0;i<input.size();++i) {
       int to = input[i].second ;
       int from = input[i].first ;
       if(!init_ptn[current_p].inSet(to))
-        for(int j=0;j<MPI_processes;++j)
+        for(int j=0;j<p;++j)
           if(init_ptn[j].inSet(to)) {
             current_p = j ;
             break ;
@@ -218,7 +218,7 @@ namespace Loci {
 		  recv_displacement, MPI_INT, comm) ;
 
     entitySet local_input_image = input_image ;
-    local_input_image &= init_ptn[MPI_rank] ;
+    local_input_image &= init_ptn[r] ;
     store<int> sizes ;
 
     sizes.allocate(local_input_image) ;
@@ -263,19 +263,22 @@ namespace Loci {
                               entitySet input_image,
                               entitySet input_preimage,
                               const std::vector<entitySet> &init_ptn) {
+    MPI_Comm comm = get_exec_comm() ;
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
+    int r = 0 ; MPI_Comm_rank(comm, &r) ;
     // Sort input according to second field
     sort(input.begin(),input.end(),fieldSort2) ;
 
     // Now count what we will be sending
-    vector<int> send_sz(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
+    vector<int> send_sz(p) ;
+    for(int i=0;i<p;++i)
       send_sz[i] = 0 ;
     int current_p = 0 ;
     for(size_t i=0;i<input.size();++i) {
       int to = input[i].second ;
 
       if(!init_ptn[current_p].inSet(to))
-        for(int j=0;j<MPI_processes;++j)
+        for(int j=0;j<p;++j)
           if(init_ptn[j].inSet(to)) {
             current_p = j ;
             break ;
@@ -284,38 +287,37 @@ namespace Loci {
     }
 
     // transfer recv sizes
-    MPI_Comm comm = get_exec_comm() ;
-    vector<int> recv_sz(MPI_processes) ;
+    vector<int> recv_sz(p) ;
     MPI_Alltoall(&send_sz[0], 1, MPI_INT,
                  &recv_sz[0], 1, MPI_INT, comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
-    for(int i=0;i<MPI_processes;++i) {
+    for(int i=0;i<p;++i) {
       size_send += send_sz[i] ;
       size_recv += recv_sz[i] ;
     }
 
     int *send_store = new int[size_send] ;
     int *recv_store = new int[size_recv] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    int *send_displacement = new int[p] ;
+    int *recv_displacement = new int[p] ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
-    for(int i = 1; i <  MPI_processes; ++i) {
+    for(int i = 1; i <  p; ++i) {
       send_displacement[i] = send_displacement[i-1] + send_sz[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_sz[i-1] ;
     }
 
     current_p = 0 ;
-    vector<int> offsets(MPI_processes) ;
-    for(int i=0;i<MPI_processes;++i)
+    vector<int> offsets(p) ;
+    for(int i=0;i<p;++i)
       offsets[i] = 0 ;
     for(size_t i=0;i<input.size();++i) {
       int to = input[i].second ;
       int from = input[i].first ;
       if(!init_ptn[current_p].inSet(to))
-        for(int j=0;j<MPI_processes;++j)
+        for(int j=0;j<p;++j)
           if(init_ptn[j].inSet(to)) {
             current_p = j ;
             break ;
@@ -328,7 +330,7 @@ namespace Loci {
 		  recv_displacement, MPI_INT, comm) ;
 
     entitySet local_input_image = input_image ;
-    local_input_image &= init_ptn[MPI_rank] ;
+    local_input_image &= init_ptn[r] ;
     store<int> sizes ;
     sizes.allocate(local_input_image) ;
     FORALL(local_input_image,i) {

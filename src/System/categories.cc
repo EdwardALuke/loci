@@ -22,6 +22,7 @@
 #include <Tools/debug.h>
 #include <entitySet.h>
 #include "Tools/debugger.h"
+#include <fact_db.h>
 
 #include <vector>
 using std::vector ;
@@ -69,7 +70,7 @@ namespace Loci {
     void getVariableAssociations(map<variable,entitySet> &vm, fact_db &facts, int kd) {
       vector<entitySet> ptn = facts.get_init_ptn(kd) ;
       entitySet total_entities ;
-      entitySet my_entities = ptn[MPI_rank] ;
+      entitySet my_entities = ptn[facts.get_comm_rank()] ;
       vm.clear() ;
       variableSet vars = facts.get_typed_variables() ;
       for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
@@ -119,7 +120,7 @@ namespace Loci {
         }
       }
       variable v_leftout("SENTINEL_LEFTOUT") ;
-      vm[v_leftout] = ptn[MPI_rank]-total_entities ;
+      vm[v_leftout] = ptn[facts.get_comm_rank()]-total_entities ;
     }
 
     // Compute the distict intervals that are required to describe all of
@@ -250,7 +251,7 @@ namespace Loci {
       int comm_root = 0 ;
       while(comm_root != -1) {
         vector<int> buffer ;
-        if(comm_root == MPI_rank) {
+        if(comm_root == get_exec_rank()) {
           set<entitySet>::const_iterator si ;
           for(si=cat_set.begin();si!=cat_set.end();++si) {
             entitySet s = *si ;
@@ -262,7 +263,7 @@ namespace Loci {
         int buf_size = buffer.size() ;
         MPI_Comm comm = get_exec_comm() ;
         MPI_Bcast(&buf_size, 1, MPI_INT, comm_root, comm) ;
-        if(comm_root != MPI_rank)
+        if(comm_root != get_exec_rank())
           buffer = vector<int>(buf_size) ;
         MPI_Bcast(&buffer[0], buf_size, MPI_INT, comm_root,
                   comm) ;
@@ -280,7 +281,7 @@ namespace Loci {
         }
         int r = -1 ;
         if(cat_set.size() != 0)
-          r = MPI_rank ;
+          r = get_exec_rank() ;
         MPI_Allreduce(&r, &comm_root, 1, MPI_INT, MPI_MAX,
                       comm) ;
       }
