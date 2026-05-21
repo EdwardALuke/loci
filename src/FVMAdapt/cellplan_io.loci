@@ -395,11 +395,11 @@ public:
     hid_t file_id;
     
     file_id = Loci::hdf5CreateFile((*outfile_par).c_str(),H5F_ACC_TRUNC,
-                                   H5P_DEFAULT, H5P_DEFAULT) ;
+                                   H5P_DEFAULT, H5P_DEFAULT, Loci::get_exec_comm()) ;
     
     if(Loci::MPI_rank == 0)cout << "writing cellplan into " << *outfile_par << endl;
     Loci::writeContainer(file_id,"cellPlan",tmpPlan.Rep()) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, Loci::get_exec_comm()) ;
     if(Loci::MPI_rank == 0) cout << "Finish writing cellPlan " << endl;
 
   

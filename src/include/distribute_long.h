@@ -53,14 +53,14 @@ namespace Loci {
     return false ;
   }
 
-  template<class T> T g_GLOBAL_MAX(T b, MPI_Comm comm=MPI_COMM_WORLD) {
+  template<class T> T g_GLOBAL_MAX(T b, MPI_Comm comm LOCI_DEFAULT_COMM) {
     T result ;
     MPI_Datatype MPI_T_type = MPI_traits<T>::get_MPI_type() ;
     MPI_Allreduce(&b, &result, 1, MPI_T_type, MPI_MAX, comm) ;
     return result ;
   }
   
-  template<class T> T g_GLOBAL_MIN(T b, MPI_Comm comm=MPI_COMM_WORLD) {
+  template<class T> T g_GLOBAL_MIN(T b, MPI_Comm comm LOCI_DEFAULT_COMM) {
     T result ;
     MPI_Datatype MPI_T_type = MPI_traits<T>::get_MPI_type() ;
     MPI_Allreduce(&b, &result, 1, MPI_T_type, MPI_MIN, comm) ;
@@ -68,7 +68,7 @@ namespace Loci {
   }
   
   // Collect largest interval of entitySet from all processors
-  template<class T> genIntervalSet<T>  g_collectLargest(const  genIntervalSet<T>&e,MPI_Comm comm=MPI_COMM_WORLD) {
+  template<class T> genIntervalSet<T>  g_collectLargest(const  genIntervalSet<T>&e,MPI_Comm comm LOCI_DEFAULT_COMM) {
     int p = 1;
     MPI_Comm_size(comm,&p) ;
     
@@ -94,7 +94,7 @@ namespace Loci {
   }
 
   // Return union of all entitySets from all processors, the actual user interface is g_all_collect_entitySet()
-  template<class T> genIntervalSet<T>  g_all_gather_entitySet(const  genIntervalSet<T> &e,MPI_Comm comm = MPI_COMM_WORLD ) {
+  template<class T> genIntervalSet<T>  g_all_gather_entitySet(const  genIntervalSet<T> &e,MPI_Comm comm LOCI_DEFAULT_COMM ) {
     int p = 1;
     MPI_Comm_size(comm,&p) ;
     if(p == 1)
@@ -129,7 +129,7 @@ namespace Loci {
   }
   
   //Return union of all entitySets from all processors,
-  template<class T> genIntervalSet<T>  g_all_collect_entitySet(const genIntervalSet<T> &e,MPI_Comm comm = MPI_COMM_WORLD ) {
+  template<class T> genIntervalSet<T>  g_all_collect_entitySet(const genIntervalSet<T> &e,MPI_Comm comm LOCI_DEFAULT_COMM ) {
     int p = 1 ;
     MPI_Comm_size(comm,&p) ;
     // no operation for single processor
@@ -192,7 +192,7 @@ namespace Loci {
   //Return union of all entitySets from all processors that belongs to this processor
   template<class T> genIntervalSet<T>  g_dist_collect_entitySet(const genIntervalSet<T> &inSet,
                                                                 const std::vector<genIntervalSet<T> > &ptn,
-                                                                MPI_Comm comm = MPI_COMM_WORLD ) {
+                                                                MPI_Comm comm LOCI_DEFAULT_COMM ) {
     const int r = MPI_rank ;
     genIntervalSet<T> retval = inSet & ptn[r] ; //set from me
     // Check for empty and universal set
@@ -257,9 +257,11 @@ namespace Loci {
   }
 
   
+#ifndef LOCI_STRICT_COMM
   template<class T>  std::vector<genIntervalSet<T> > g_all_collect_vectors(genIntervalSet<T> &e) {
     return g_all_collect_vectors<T>(e,MPI_COMM_WORLD) ;
   }
+#endif
  
 }
 

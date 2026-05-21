@@ -320,7 +320,7 @@ namespace Loci {
     // if(use_parallel_io)
     //   writeUnorderedVectorP(group_id,"positions",vpos) ;
     // else
-    writeUnorderedVector(group_id,"positions",vpos) ;
+    writeUnorderedVector(group_id,"positions",vpos, get_exec_comm()) ;
 
     if(get_exec_rank() == 0 || use_parallel_io) H5Gclose(group_id) ;
 
@@ -451,8 +451,8 @@ namespace Loci {
     }
     
     
-    Loci::writeUnorderedVector(group_id,"cluster_sizes",cluster_sizes) ;
-    Loci::writeUnorderedVector(group_id,"cluster_info",cluster_info) ;
+    Loci::writeUnorderedVector(group_id,"cluster_sizes",cluster_sizes, get_exec_comm()) ;
+    Loci::writeUnorderedVector(group_id,"cluster_info",cluster_info, get_exec_comm()) ;
       
     
     if(get_exec_rank() == 0 || use_parallel_io) {

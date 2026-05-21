@@ -480,7 +480,7 @@ void writeSurfaces(string filename,
 // int main(int ac, char *av[]) {
 //   using Loci::entitySet ;
 //   using Loci::vector3d ;
-//   Loci::Init(&ac, &av) ;
+//   Loci::Init(&ac, &av, MPI_COMM_WORLD) ;
 //   if(Loci::MPI_processes > 1) {
 //     cerr << "vog2surf is not parallel! Run on only one processor!" << endl ;
 //     Loci::Abort() ;

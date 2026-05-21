@@ -45,11 +45,14 @@ namespace Loci {
 
   hid_t hdf5PCreateFile(const char *name, unsigned flags, hid_t create_id, hid_t access_id, size_t file_size_estimate,MPI_Comm comm) ;//obselete
 
+#ifndef LOCI_STRICT_COMM
   inline hid_t hdf5PCreateFile(const char *name, unsigned flags, hid_t create_id, hid_t access_id,size_t file_size_estimate) { //obselete
     return hdf5PCreateFile(name,flags,create_id,access_id,file_size_estimate,
         		   MPI_COMM_WORLD) ;
   }
+#endif
 
+#ifndef LOCI_STRICT_COMM
   inline hid_t hdf5POpenFile(const char *name, unsigned flags, hid_t access_id) {//obselete
 #ifndef H5_HAVE_PARALLEL
     if(Loci::MPI_rank==0)
@@ -60,6 +63,7 @@ namespace Loci {
     return H5Fopen(name,flags,access_id) ;
 #endif    
   }
+#endif
 
   inline hid_t hdf5POpenFile(const char *name, unsigned flags, hid_t access_id,
                              MPI_Comm comm) { //obselete

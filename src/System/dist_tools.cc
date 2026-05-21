@@ -320,7 +320,7 @@ namespace Loci {
 
       std::set<std::vector<variableSet> >::const_iterator smi ;
       for(smi = maps.begin(); smi != maps.end(); ++smi) {
-	std::vector<entitySet>  preimage_vec = all_collect_vectors(domain);
+	std::vector<entitySet>  preimage_vec = all_collect_vectors(domain, facts.get_comm());
 	const vector<variableSet> &mv = *smi ;
 	for(int i = mv.size() -1; i >= 0; --i) {
 	  variableSet v = mv[i] ;
@@ -481,7 +481,7 @@ namespace Loci {
 					   facts, context_maps) ;
 	  entitySet added_entities = context_for_map_output(mySet,  facts, context_maps);
 	  added_entities -= facts.global_comp_entities;
-	  if(GLOBAL_AND(added_entities==EMPTY)) 
+	  if(GLOBAL_AND(added_entities==EMPTY, facts.get_comm())) 
 	    continue_adding = false;
 	  else {
 	    facts.global_comp_entities += added_entities;

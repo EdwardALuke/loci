@@ -65,9 +65,11 @@ namespace Loci {
   hid_t hdf5CreateFile(const char *name, unsigned flags, hid_t create_id, hid_t access_id, MPI_Comm comm, size_t file_size_estimate=0);
  
 
+#ifndef LOCI_STRICT_COMM
   inline hid_t hdf5CreateFile(const char *name, unsigned flags, hid_t create_id, hid_t access_id, size_t file_size_estimate = 0) {
     return hdf5CreateFile(name,flags,create_id,access_id, MPI_COMM_WORLD,file_size_estimate) ;
   }    
+#endif
 
   //-----------------------------------------------------------------------
   hid_t hdf5OpenFile(const char *name, unsigned flags, hid_t access_id,
@@ -75,17 +77,21 @@ namespace Loci {
 
 
   //-----------------------------------------------------------------------
+#ifndef LOCI_STRICT_COMM
   inline hid_t hdf5OpenFile(const char *name, unsigned flags, hid_t access_id) {
     return hdf5OpenFile(name,flags,access_id,MPI_COMM_WORLD) ;
   }
+#endif
 
   //-----------------------------------------------------------------------
+#ifndef LOCI_STRICT_COMM
   inline herr_t hdf5CloseFile(hid_t file_id) {
     if(use_parallel_io || Loci::MPI_rank==0)
       return H5Fclose(file_id) ;
     else
       return 0 ;
   }
+#endif
 
   //-----------------------------------------------------------------------
   inline herr_t hdf5CloseFile(hid_t file_id, MPI_Comm comm) {
@@ -461,11 +467,13 @@ namespace Loci {
     }
  
     //-----------------------------------------------------------------------  
+#ifndef LOCI_STRICT_COMM
     template<class T> void writeUnorderedVectorS(hid_t group_id,
                                                  const char *element_name,
                                                  std::vector<T> &v) {
       writeUnorderedVectorS(group_id,element_name,v,MPI_COMM_WORLD) ;
     }
+#endif
   
     //-----------------------------------------------------------------------  
     template<class T> void writeUnorderedVectorP(hid_t group_id,
@@ -576,6 +584,7 @@ namespace Loci {
     }
 
     //-----------------------------------------------------------------------  
+#ifndef LOCI_STRICT_COMM
     template<class T> void writeUnorderedVectorP(hid_t group_id,
                                                  const char *element_name,
                                                  std::vector<T> &v
@@ -585,6 +594,7 @@ namespace Loci {
                             v,
                             MPI_COMM_WORLD );
     }
+#endif
 
 
 
@@ -764,6 +774,7 @@ namespace Loci {
 
 
   //-----------------------------------------------------------------------  
+#ifndef LOCI_STRICT_COMM
   template<class T> void writeUnorderedVector(hid_t group_id,
                                               const char *element_name,
                                               std::vector<T> &v
@@ -773,17 +784,19 @@ namespace Loci {
                          v,
                          MPI_COMM_WORLD );
   }
+#endif
   
   //-----------------------------------------------------------------------  
   template<class T> void writeUnorderedStore(hid_t file_id,
                                              const_store<T> &s, entitySet set,
-                                             const char *name) {
+                                             const char *name,
+                                             MPI_Comm comm LOCI_DEFAULT_COMM) {
     std::vector<T> v(set.size()) ;
     size_t c = 0 ;
     FORALL(set,ii) {
       v[c++] = s[ii] ;
     } ENDFORALL ;
-    writeUnorderedVector(file_id,name,v) ;
+    writeUnorderedVector(file_id,name,v,comm) ;
   }
   
   //-----------------------------------------------------------------------  

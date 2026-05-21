@@ -42,7 +42,7 @@ using std::string;
 using std::ofstream;
 typedef Loci::vector3d<double> vect3d;
 namespace Loci{
-  std::vector<int> all_collect_sizes(int size);
+  std::vector<int> all_collect_sizes(int size, MPI_Comm comm);
   // Convert container from local numbering to file numbering
   // pass in store rep pointer: sp
   // entitySet to write: dom
@@ -142,7 +142,7 @@ public:
       FORALL(edge_num_inner_nodes.domain(), ee){
         num_local_nodes += edge_num_inner_nodes[ee];
       }ENDFORALL;
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes);
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::get_exec_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -190,7 +190,7 @@ public:
       FORALL(cell_num_inner_nodes.domain(), ei){
         num_local_nodes += cell_num_inner_nodes[ei];
       }ENDFORALL;
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes);
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::get_exec_comm());
       for(int i = 0; i < my_id; i++){
         noffset += local_nodes_sizes[i];
       }
@@ -233,7 +233,7 @@ public:
         num_local_nodes += face_num_inner_nodes[ei];
       }ENDFORALL;
       
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes);
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::get_exec_comm());
       for(int i = 0; i < my_id; i++){
         noffset += local_nodes_sizes[i];
       }
@@ -308,7 +308,7 @@ public:
       FORALL(file_num_fine_cells.domain(), ee){
         num_local_cells += file_num_fine_cells[ee];
       }ENDFORALL;
-      local_cells_sizes = Loci::all_collect_sizes(num_local_cells);
+      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::get_exec_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -390,7 +390,7 @@ public:
       FORALL(file_num_fine_cells.domain(), ee){
         num_local_cells += file_num_fine_cells[ee];
       }ENDFORALL;
-      local_cells_sizes = Loci::all_collect_sizes(num_local_cells);
+      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::get_exec_comm());
       
     
       for(int i = 0; i < my_id; i++){

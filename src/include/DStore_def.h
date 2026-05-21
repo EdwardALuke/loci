@@ -90,10 +90,10 @@ namespace Loci {
     virtual storeRepP remap(const dMap &m) const ;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) ;
+                 MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
+                 const dMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual storeRepP freeze() ;
     virtual storeRepP thaw() ;
     virtual void copy(storeRepP &st, const entitySet &context) ;

@@ -736,22 +736,22 @@ namespace Loci{
     }
 
 
-    writeUnorderedVector(group_id, "tetrahedra",tets) ;
-    writeUnorderedVector(group_id, "tetrahedra_ids",tets_ids) ;
+    writeUnorderedVector(group_id, "tetrahedra",tets, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "tetrahedra_ids",tets_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "hexahedra",hexs) ;
-    writeUnorderedVector(group_id, "hexahedra_ids",hexs_ids) ;
+    writeUnorderedVector(group_id, "hexahedra",hexs, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "hexahedra_ids",hexs_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "prism",prsm) ;
-    writeUnorderedVector(group_id, "prism_ids",prsm_ids) ;
+    writeUnorderedVector(group_id, "prism",prsm, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "prism_ids",prsm_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "pyramid",pyrm) ;
-    writeUnorderedVector(group_id, "pyramid_ids",pyrm_ids) ;
+    writeUnorderedVector(group_id, "pyramid",pyrm, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "pyramid_ids",pyrm_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "GeneralCellNfaces",generalCellNfaces) ;
-    writeUnorderedVector(group_id, "GeneralCellNsides",generalCellNsides) ;
-    writeUnorderedVector(group_id, "GeneralCellNodes", generalCellNodes) ;
-    writeUnorderedVector(group_id, "GeneralCell_ids", generalCell_ids) ;
+    writeUnorderedVector(group_id, "GeneralCellNfaces",generalCellNfaces, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "GeneralCellNsides",generalCellNsides, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "GeneralCellNodes", generalCellNodes, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "GeneralCell_ids", generalCell_ids, facts.get_comm()) ;
 
 
     if(use_parallel_io || facts.get_comm_rank() == 0) {
@@ -896,15 +896,15 @@ namespace Loci{
       } ENDFORALL ;
 
 
-      writeUnorderedVector(bc_id,"triangles",Trias) ;
-      writeUnorderedVector(bc_id,"triangles_id",tria_ids) ;
+      writeUnorderedVector(bc_id,"triangles",Trias, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"triangles_id",tria_ids, facts.get_comm()) ;
 
-      writeUnorderedVector(bc_id,"quads",Quads) ;
-      writeUnorderedVector(bc_id,"quads_id",quad_ids) ;
+      writeUnorderedVector(bc_id,"quads",Quads, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"quads_id",quad_ids, facts.get_comm()) ;
 
-      writeUnorderedVector(bc_id,"nside_sizes",nsizes) ;
-      writeUnorderedVector(bc_id,"nside_nodes",nsidenodes) ;
-      writeUnorderedVector(bc_id,"nside_id",genc_ids) ;
+      writeUnorderedVector(bc_id,"nside_sizes",nsizes, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"nside_nodes",nsidenodes, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"nside_id",genc_ids, facts.get_comm()) ;
 
       if(use_parallel_io || facts.get_comm_rank() == 0) {
         H5Gclose(bc_id) ;
@@ -1155,14 +1155,14 @@ namespace Loci{
 #endif
 
     //write out vectors
-    writeUnorderedVector(file_id,"triangles",Trias) ;
-    writeUnorderedVector(file_id,"triangles_ord",tria_ids) ;
-    writeUnorderedVector(file_id,"quads",Quads) ;
-    writeUnorderedVector(file_id,"quads_ord",quad_ids) ;
+    writeUnorderedVector(file_id,"triangles",Trias, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"triangles_ord",tria_ids, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"quads",Quads, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"quads_ord",quad_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(file_id,"nside_sizes",nsizes) ;
-    writeUnorderedVector(file_id,"nside_nodes",nsidenodes) ;
-    writeUnorderedVector(file_id,"nside_ord",genc_ids) ;
+    writeUnorderedVector(file_id,"nside_sizes",nsizes, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"nside_nodes",nsidenodes, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"nside_ord",genc_ids, facts.get_comm()) ;
 
 #ifdef VERBOSE
     debugout << "time to write unordered vectors = " << s.stop() << endl ;
@@ -1503,7 +1503,7 @@ namespace Loci{
       nsizes[i] = cp.faceLoops[i].size() ;
     }
 
-    writeUnorderedVector(bc_id,"nside_sizes",nsizes) ;
+    writeUnorderedVector(bc_id,"nside_sizes",nsizes, facts.get_comm()) ;
 
     //write out face nodes
     vector<int> nsidenodes ;
@@ -1516,7 +1516,7 @@ namespace Loci{
       }
     }
 
-    writeUnorderedVector(bc_id,"nside_nodes",nsidenodes) ;
+    writeUnorderedVector(bc_id,"nside_nodes",nsidenodes, facts.get_comm()) ;
 
 #ifdef VERBOSE
     debugout << "time to write cut plane topology=" << s.stop() << endl ;
@@ -1582,7 +1582,7 @@ namespace Loci{
     if(facts.is_distributed_start()) {
       int pk = pos.Rep()->getDomainKeySpace() ;
       init_ptn = facts.get_init_ptn(pk) ;
-      if(GLOBAL_OR(tmp_out)) {
+      if(GLOBAL_OR(tmp_out, facts.get_comm())) {
         fill_clone(sp, out_of_dom, init_ptn) ;
       }
     }
@@ -1694,7 +1694,7 @@ namespace Loci{
           periodic_problem = true ;
         }
       }
-      if(GLOBAL_OR(periodic_problem)) {
+      if(GLOBAL_OR(periodic_problem, facts.get_comm())) {
         if(facts.get_comm_rank() == 0) {
           cerr << "Periodic boundary did not connect properly, is boundary "
                << "point matched?" << endl ;
@@ -1898,7 +1898,7 @@ namespace Loci{
       // Create constraints for each
       std::map<std::string, entitySet>::const_iterator mi ;
       for(mi=BCsets.begin();mi!=BCsets.end();++mi) {
-        if(GLOBAL_OR(mi->second.size())) {
+        if(GLOBAL_OR(mi->second.size(), facts.get_comm())) {
           constraint bc_constraint ;
           bc_constraint = mi->second ;
           std::string constraint_name = mi->first + std::string("_BC") ;
@@ -3539,52 +3539,45 @@ namespace Loci{
 
   namespace {
 
-    /// A utility that returns the global sum.
-    int global_sum(int l) {
+    int global_sum(int l, MPI_Comm comm) {
       int g ;
-      MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM,
-                     get_exec_comm()) ;
+      MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM, comm) ;
       return g ;
     }
 
     /// A utility function that takes an entitySet from a processor and
     /// returns a vector of entitySet gathered from all processors.
-    vector<entitySet> gather_all_entitySet(const entitySet& eset) {
+    vector<entitySet> gather_all_entitySet(const entitySet& eset,
+                                            MPI_Comm comm) {
+      int np = 0 ;
+      MPI_Comm_size(comm, &np) ;
       int local_size = eset.size() ;
-      int global_size = global_sum(local_size) ;
-      // compute receive counts from all processors
-      int* recv_counts = new int[get_exec_size()] ;
+      int global_size = global_sum(local_size, comm) ;
+      int* recv_counts = new int[np] ;
       MPI_Allgather(&local_size, 1, MPI_INT,
-                    recv_counts, 1, MPI_INT,
-                    get_exec_comm()) ;
-      // then compute receive displacement
-      int* recv_displs = new int[get_exec_size()] ;
+                    recv_counts, 1, MPI_INT, comm) ;
+      int* recv_displs = new int[np] ;
       recv_displs[0] = 0 ;
-      for(int i=1;i<get_exec_size();++i) {
+      for(int i=1;i<np;++i) {
         recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
       }
-      // pack the local eset into an array
       int* local_eset = new int[local_size] ;
       int count = 0 ;
       for(entitySet::const_iterator ei=eset.begin();
           ei!=eset.end();++ei,++count) {
         local_eset[count] = *ei ;
       }
-      // allocate the entire array for all data from all processors
       int* global_eset = new int[global_size] ;
-      // communicate to obtain all esets from every processors
       MPI_Allgatherv(local_eset, local_size, MPI_INT,
                      global_eset, recv_counts, recv_displs,
-                     MPI_INT,
-                     get_exec_comm()) ;
+                     MPI_INT, comm) ;
       delete[] local_eset ;
       delete[] recv_counts ;
-      // unpack the raw buffer into a vector<entitySet>
-      vector<entitySet> ret(get_exec_size()) ;
+      vector<entitySet> ret(np) ;
       int k = 0 ;
-      for(int i=0;i<get_exec_size();++i) {
+      for(int i=0;i<np;++i) {
         int limit ;
-        if(i == get_exec_size()-1) {
+        if(i == np-1) {
           limit = global_size ;
         } else {
           limit = recv_displs[i+1] ;
@@ -3839,7 +3832,7 @@ namespace Loci{
     // the "emap", if not, then the parallel sample sort would fail
     // and we pre-balance the "emap" on every process before the
     // sorting
-    if(GLOBAL_OR(emap.empty())) {
+    if(GLOBAL_OR(emap.empty(), facts.get_comm())) {
       parallel_balance_pair_vector(emap, facts.get_comm()) ;
     }
     // Sort edges and remove duplicates
@@ -3853,7 +3846,7 @@ namespace Loci{
     // less than the total number of processes, we split the communicator
     // so that only those do have elements would participate in the
     // parallel sample sorting
-    if(GLOBAL_OR(emap.empty())) {
+    if(GLOBAL_OR(emap.empty(), facts.get_comm())) {
       MPI_Comm sub_comm ;
       int color = emap.empty() ;
       MPI_Comm_split(facts.get_comm(), color, facts.get_comm_rank(),
@@ -3975,7 +3968,7 @@ namespace Loci{
     // instead it is the el Map image distribution
     entitySet el_image = el.image(el.domain()) ;
     vector<entitySet> el_image_partitions =
-      gather_all_entitySet(el_image) ;
+      gather_all_entitySet(el_image, facts.get_comm()) ;
     distributed_inverseMap(n2e, el, el_image, edges, el_image_partitions) ;
 
     // Now create face2edge map with same size as face2node
@@ -4043,7 +4036,7 @@ namespace Loci{
         edges_accessed += e ;
       }
     }
-    vector<entitySet> edge_partitions = gather_all_entitySet(edge.domain()) ;
+    vector<entitySet> edge_partitions = gather_all_entitySet(edge.domain(), facts.get_comm()) ;
     entitySet edges_out_domain = edges_accessed - edge.domain() ;
     // but since there is no expand method implemented for
     // MapVec at this time, we will just do a hack to convert
@@ -4165,7 +4158,7 @@ namespace Loci{
       }ENDFORALL;
 
 
-      if(GLOBAL_OR(edge2global.empty())) {
+      if(GLOBAL_OR(edge2global.empty(), facts.get_comm())) {
         parallel_balance_pair2_vector(edge2global,
                                        facts.get_comm()) ;
       }
@@ -4180,7 +4173,7 @@ namespace Loci{
       // less than the total number of processes, we split the communicator
       // so that only those do have elements would participate in the
       // parallel sample sorting
-      if(GLOBAL_OR(edge2global.empty())) {
+      if(GLOBAL_OR(edge2global.empty(), facts.get_comm())) {
         MPI_Comm sub_comm ;
         int color = edge2global.empty() ;
         MPI_Comm_split(facts.get_comm(), color, facts.get_comm_rank(),
@@ -4420,7 +4413,7 @@ namespace Loci{
     for(int i=0;i<sz;++i) {
       entitySet nodeSet = nodesets[i] & pos.domain() ;
       entitySet nodeSetsurf = nodesets[i] & surfNodes ;
-      if(!GLOBAL_OR(nodeSetsurf.size()!=0)) {
+      if(!GLOBAL_OR(nodeSetsurf.size()!=0, facts.get_comm())) {
         excludeSet += nodeSet ;
         continue ;
       }

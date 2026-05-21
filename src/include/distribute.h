@@ -48,8 +48,8 @@ namespace Loci {
   extern int MPI_processes;
   extern int MPI_rank ;
   
-  void Init(int* argc, char*** argv,
-            MPI_Comm comm = MPI_COMM_WORLD) ;
+  void Init(int* argc, char*** argv) ;
+  void SetDefaultComm(MPI_Comm comm) ;
   void Finalize() ; 
   void Abort() ;
   size_t MPI_process_mem_avail() ;
@@ -586,7 +586,9 @@ namespace Loci {
   transpose_sequence(const std::vector<sequence>& in, MPI_Comm comm) ;
 
   std::vector<entitySet> all_collect_vectors(entitySet &e,MPI_Comm comm) ;
+#ifndef LOCI_STRICT_COMM
   std::vector<entitySet> all_collect_vectors(entitySet &e) ;
+#endif
 
   entitySet distribute_entitySet(entitySet e,const std::vector<entitySet> &ptn) ;
 
@@ -599,10 +601,10 @@ namespace Loci {
   entitySet collectSet(const entitySet iset, const entitySet domain,
 		       MPI_Comm comm) ;
   
-  int GLOBAL_OR(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
-  int GLOBAL_AND(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
-  int GLOBAL_MAX(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
-  int GLOBAL_MIN(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
+  int GLOBAL_OR(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  int GLOBAL_AND(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  int GLOBAL_MAX(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  int GLOBAL_MIN(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
   // We've added these back as they seem to be used
   // in the fuel cell program//from distribute.h //////

@@ -46,9 +46,11 @@ namespace Loci {
     void write_vector_intP(hid_t group_id, const char* name, std::vector<int>& vint, MPI_Comm comm) ;
   }
   std::vector<int> all_collect_sizes(int size,MPI_Comm comm) ;
+#ifndef LOCI_STRICT_COMM
   inline std::vector<int> all_collect_sizes(int size) {
     return all_collect_sizes(size,MPI_COMM_WORLD) ;
   }
+#endif
 
 }
 

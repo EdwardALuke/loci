@@ -50,14 +50,14 @@ namespace Loci {
       return gStoreRepP(0);
     }
     //this method remap the SECOND field of this using m
-    virtual void inplace_compose(const gMap &m, MPI_Comm comm=MPI_COMM_WORLD) = 0 ;
+    virtual void inplace_compose(const gMap &m, MPI_Comm comm LOCI_DEFAULT_COMM) = 0 ;
     //this method remap the SECOND field of this using m and return a new map
-    // virtual gStoreRepP  recompose(const gMap &m, MPI_Comm comm=MPI_COMM_WORLD) = 0 ;
+    // virtual gStoreRepP  recompose(const gMap &m, MPI_Comm comm LOCI_DEFAULT_COMM) = 0 ;
     virtual gstore_type RepType() const {return GMAP;}
 
     //different from traditional maps, this method is const method
     //dom is the domain after expansion, not out_of_dom
-    virtual gStoreRepP expand(gEntitySet &dom, std::vector<gEntitySet> &init_ptn,MPI_Comm comm=MPI_COMM_WORLD)const = 0 ;
+    virtual gStoreRepP expand(gEntitySet &dom, std::vector<gEntitySet> &init_ptn,MPI_Comm comm LOCI_DEFAULT_COMM)const = 0 ;
     virtual gStoreRepP local_inverse() const  = 0;
   } ;
 

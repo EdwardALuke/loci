@@ -81,7 +81,7 @@ void process_ascii_nodal(string casename, string iteration,
   string posname = getPosFile(output_dir,iteration,casename) ;
   hid_t file_id = Loci::hdf5OpenFile(posname.c_str(),
                                      H5F_ACC_RDONLY,
-                                     H5P_DEFAULT) ;
+                                     H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) {
     cerr << "unable to get grid positions for iteration " << iteration
          << endl ;
@@ -92,11 +92,11 @@ void process_ascii_nodal(string casename, string iteration,
 
   fact_db facts ;
   readData(file_id,"pos",pos.Rep(),EMPTY,facts) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   int npnts = pos.domain().size() ;
 
 
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   list<vector<float> > values ;
   for(size_t i=0;i<variables.size();++i) {
@@ -107,7 +107,7 @@ void process_ascii_nodal(string casename, string iteration,
       {
         hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                            H5F_ACC_RDONLY,
-                                           H5P_DEFAULT) ;
+                                           H5P_DEFAULT, MPI_COMM_WORLD) ;
         if(file_id < 0) {
           cerr << "unable to open file '" << filename << "'!" << endl ;
           return ;
@@ -117,7 +117,7 @@ void process_ascii_nodal(string casename, string iteration,
         store<float> scalar ;
         readData(file_id,var_name,scalar.Rep(),EMPTY,facts) ;
         entitySet dom = scalar.domain() ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         values.push_back(vector<float>(0)) ;
         vector<float> val(npnts) ;
@@ -141,7 +141,7 @@ void process_ascii_nodal(string casename, string iteration,
       {
         hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                            H5F_ACC_RDONLY,
-                                           H5P_DEFAULT) ;
+                                           H5P_DEFAULT, MPI_COMM_WORLD) ;
         if(file_id < 0) {
           cerr << "unable to open file '" << filename << "'!" << endl ;
           Loci::Abort() ;
@@ -152,7 +152,7 @@ void process_ascii_nodal(string casename, string iteration,
         store<vector3d<float> > vec ;
         readData(file_id,var_name,vec.Rep(),EMPTY,facts) ;
         entitySet dom = vec.domain() ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
         values.push_back(vector<float>(npnts)) ;
         int c = 0 ;
         FORALL(dom,nd) {
@@ -176,7 +176,7 @@ void process_ascii_nodal(string casename, string iteration,
     
         hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                            H5F_ACC_RDONLY,
-                                           H5P_DEFAULT) ;
+                                           H5P_DEFAULT, MPI_COMM_WORLD) ;
         if(file_id < 0) {
           cerr << "unable to open file '" << filename << "'!" << endl ;
           Loci::Abort() ;
@@ -188,7 +188,7 @@ void process_ascii_nodal(string casename, string iteration,
         readData(file_id,"mixture",mix.Rep(),EMPTY,facts) ;
         param<string> species_names ;
         readData(file_id,"species_names",species_names.Rep(),EMPTY,facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       
         map<string,int> smap ;
         std::istringstream iss(*species_names) ;
@@ -375,7 +375,7 @@ void process_ascii_bndry(string casename, string iteration,
         const string filename(variable_filenames[i]) ;
         hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                            H5F_ACC_RDONLY,
-                                           H5P_DEFAULT) ;
+                                           H5P_DEFAULT, MPI_COMM_WORLD) ;
         if(file_id < 0) {
           cerr << "unable to open file '" << filename << "'!" << endl ;
           continue ;
@@ -417,7 +417,7 @@ void process_ascii_bndry(string casename, string iteration,
         const string filename(variable_filenames[i]) ;
         hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                            H5F_ACC_RDONLY,
-                                           H5P_DEFAULT) ;
+                                           H5P_DEFAULT, MPI_COMM_WORLD) ;
         if(file_id < 0) {
           cerr << "unable to open file '" << filename << "'!" << endl ;
           continue ;

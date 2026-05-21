@@ -93,7 +93,7 @@ namespace Loci {
     //for example, pos.recompose(face2node) will producea  store
     //of the positions  for each face
     //For maps, in necessary, expanded map will be generated from m 
-    virtual gStoreRepP  recompose(gStoreRepP &m, MPI_Comm comm=MPI_COMM_WORLD)const{
+    virtual gStoreRepP  recompose(gStoreRepP &m, MPI_Comm comm LOCI_DEFAULT_COMM)const{
       std::cerr << "gStoreRep.recompose() is not implemented yet"
                 << std::endl ;
       abort() ;
@@ -109,7 +109,7 @@ namespace Loci {
     // containers will need to implement this method later.
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,//send split
-                 MPI_Comm comm=MPI_COMM_WORLD)const {
+                 MPI_Comm comm LOCI_DEFAULT_COMM)const {
       std::cerr << "gStoreRep.redistribute() is not implemented yet"
                 << std::endl ;
       abort() ;
@@ -121,7 +121,7 @@ namespace Loci {
     //first the local domain is splitted according to dom_ptn, then redistribute is performed
     virtual gStoreRepP
     split_redistribute(const std::vector<gEntitySet>& dom_ptn,
-                       MPI_Comm comm=MPI_COMM_WORLD)const {
+                       MPI_Comm comm LOCI_DEFAULT_COMM)const {
       std::cerr << "gStoreRep.split_redistribute() is not implemented yet"
                 << std::endl ;
       abort() ;
@@ -134,7 +134,7 @@ namespace Loci {
     // dom_split:  the send split of local domain
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,
-                 const gMap& remap, MPI_Comm comm=MPI_COMM_WORLD)const {
+                 const gMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM)const {
       std::cerr << "gStoreRep.redistribute() is not implemented yet"
                 << std::endl ;
       abort() ;

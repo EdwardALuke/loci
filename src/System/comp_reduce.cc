@@ -441,7 +441,7 @@ namespace Loci {
       vector<CPTR<joiner> > jop ;
 
       for(size_t i=0;i<reduce_vars.size();++i) {
-        if(GLOBAL_OR(scheds.get_variable_requests(reduce_vars[i])!=EMPTY)) {
+        if(GLOBAL_OR(scheds.get_variable_requests(reduce_vars[i])!=EMPTY, facts.get_comm())) {
           red.push_back(reduce_vars[i]) ;
           ulist.push_back(unit_rules[i]) ;
           jop.push_back(join_ops[i]) ;

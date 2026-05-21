@@ -200,9 +200,9 @@ namespace Loci {
           string filename = oss.str() ;
           hid_t file_id=0 ;
           file_id = hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                   H5P_DEFAULT, H5P_DEFAULT) ;
+                                   H5P_DEFAULT, H5P_DEFAULT, facts.get_comm()) ;
           writeContainer(file_id,v.get_info().name,st,facts) ;
-          hdf5CloseFile(file_id) ;
+          hdf5CloseFile(file_id, facts.get_comm()) ;
         } else {
           if(facts.get_comm_rank() == 0) {
             ostringstream oss ;

@@ -1174,7 +1174,7 @@ namespace Loci {
             vi2!=all_queries.end();++vi2) {
           storeRepP srp = clone.get_variable(*vi2) ;
           if(srp->RepType() == Loci::CONSTRAINT)
-            if(GLOBAL_AND(srp->domain()==EMPTY)) {
+            if(GLOBAL_AND(srp->domain()==EMPTY, facts.get_comm())) {
               empty_constraints += *vi2 ;
               // we don't create empty constraints in
               // the global fact database
@@ -1187,7 +1187,7 @@ namespace Loci {
             vi2!=all_queries.end();++vi2) {
           storeRepP srp = clone.get_variable(*vi2) ;
           if(srp->RepType() == Loci::CONSTRAINT)
-            if(GLOBAL_AND(srp->domain()==EMPTY)) {
+            if(GLOBAL_AND(srp->domain()==EMPTY, facts.get_comm())) {
               empty_constraints += *vi2 ;
               continue ;
             }
@@ -1247,7 +1247,7 @@ namespace Loci {
               vi2!=queries.end();++vi2) {
             storeRepP srp = clone.get_variable(*vi2) ;
             if(srp->RepType() == Loci::CONSTRAINT)
-              if(GLOBAL_AND(srp->domain()==EMPTY)) {
+              if(GLOBAL_AND(srp->domain()==EMPTY, facts.get_comm())) {
                 empty_constraints += *vi2 ;
                 // we don't create empty constraints in
                 // the global fact database
@@ -1265,7 +1265,7 @@ namespace Loci {
               vi2!=queries.end();++vi2) {
             storeRepP srp = clone.get_variable(*vi2) ;
             if(srp->RepType() == Loci::CONSTRAINT)
-              if(GLOBAL_AND(srp->domain()==EMPTY)) {
+              if(GLOBAL_AND(srp->domain()==EMPTY, facts.get_comm())) {
                 empty_constraints += *vi2 ;
                 continue ;
               }

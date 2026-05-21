@@ -1461,8 +1461,8 @@ namespace Loci {
     } ENDFORALL ;
 
     // Find overall bounds
-    imx = GLOBAL_MAX(imx) ;
-    imn = GLOBAL_MIN(imn) ;
+    imx = GLOBAL_MAX(imx, comm) ;
+    imn = GLOBAL_MIN(imn, comm) ;
 
     // Get number of processors
     int p = 0 ;
@@ -2022,7 +2022,7 @@ namespace Loci {
       } ENDFORALL ;
     }
         
-    writeUnorderedVector(file_id,"entityIds",ids) ;
+    writeUnorderedVector(file_id,"entityIds",ids, comm) ;
 
   }
   

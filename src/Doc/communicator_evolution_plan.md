@@ -178,18 +178,20 @@ will continue to exist and remain set to the `MPI_COMM_WORLD` values.
 A deprecation warning should be emitted (or documented) advising
 solvers to migrate to the `fact_db` accessors.
 
-### 2.2  `Loci::Init()` communicator parameter
+### 2.2  `Loci::SetDefaultComm()` post-initialization
 
-Extend `Loci::Init()` with an optional communicator parameter:
+Since `Loci::Init()` calls `MPI_Init()` internally, a communicator
+cannot be passed to it (MPI communicators are not valid before
+`MPI_Init`).  Instead, a separate function is provided:
 
 ```cpp
-void Init(int *argc, char ***argv,
-          MPI_Comm comm = MPI_COMM_WORLD) ;
+void SetDefaultComm(MPI_Comm comm) ;
 ```
 
-When a non-default communicator is provided, the global
-`MPI_processes` and `MPI_rank` are derived from that communicator
-instead of `MPI_COMM_WORLD`.
+This must be called **after** `Loci::Init()`.  It updates the global
+`MPI_processes` and `MPI_rank` to reflect the given communicator.
+Solvers that wish to run on a sub-communicator call this before
+setting up the `fact_db`.
 
 ### 2.3  `exec_current_fact_db` communicator forwarding
 
@@ -297,7 +299,7 @@ handle; no performance impact is expected.
 |--------|:--------------------:|:-----------------------:|
 | `fact_db::get_comm()` / `set_comm()` | Yes | No |
 | `fact_db::get_comm_rank()` / `get_comm_size()` | Yes | No |
-| `Loci::Init(argc, argv, comm)` | Yes (default `MPI_COMM_WORLD`) | No |
+| `Loci::SetDefaultComm(comm)` | Yes (new function) | No |
 | Internal call sites forwarding communicator | Yes | No |
 | `LOCI_STRICT_COMM` flag removing defaults | Opt-in | Only if flag is set |
 | Deprecation of `Loci::MPI_rank` / `MPI_processes` | Yes (still available) | Recommended migration |

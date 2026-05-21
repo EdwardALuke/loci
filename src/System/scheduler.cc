@@ -671,7 +671,7 @@ namespace Loci {
       storeRepP srp = facts.get_variable(*vi) ;
       if(srp->RepType() != Loci::CONSTRAINT)
         continue ;
-      if(GLOBAL_AND(srp->domain() == EMPTY))
+      if(GLOBAL_AND(srp->domain() == EMPTY, facts.get_comm()))
         empty_constraints += *vi ;
     }
     ruleSet del_rules ;
@@ -932,7 +932,7 @@ namespace Loci {
     Loci::debugout << "Time taken for create execution schedule = "
                    << sw.stop() << " seconds " << endl ;
 
-    if(GLOBAL_OR(scheds.errors_found())) {
+    if(GLOBAL_OR(scheds.errors_found(), facts.get_comm())) {
       if(facts.get_comm_rank() == 0) {
         cerr << "error in generating schedule, dumping schedule files" << endl ;
         if(facts.get_comm_size() != 1)
@@ -1607,7 +1607,7 @@ bool operator <(const timingData &d) const {
     executeP sched =  compile_graph.execution_schedule
       (facts,scheds,initial_vars) ;
 
-    if(GLOBAL_OR(scheds.errors_found())) {
+    if(GLOBAL_OR(scheds.errors_found(), facts.get_comm())) {
       if(facts.get_comm_rank() == 0) {
         cerr << "[Internal] error in generating schedule" << endl ;
         if(facts.get_comm_size() != 1)

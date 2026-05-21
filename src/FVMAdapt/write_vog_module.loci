@@ -140,7 +140,7 @@ public:
     if(MPI_rank==0 || Loci::use_parallel_io){   
       //read numNodes
       long long tmp_numNodes;  
-      file_id = Loci::hdf5OpenFile((*outfile_par).c_str(),H5F_ACC_RDWR,H5P_DEFAULT) ;
+      file_id = Loci::hdf5OpenFile((*outfile_par).c_str(),H5F_ACC_RDWR,H5P_DEFAULT, Loci::get_exec_comm()) ;
       
 #ifdef H5_USE_16_API
       hid_t    group_id = H5Gopen(file_id,"file_info");
@@ -183,7 +183,7 @@ public:
     //      local_num_face += fine_faces[*ei].size();
     //    }
 
-    std::vector<int> face_sizes= Loci::all_collect_sizes(local_num_face);
+    std::vector<int> face_sizes= Loci::all_collect_sizes(local_num_face, Loci::get_exec_comm());
 
 //    long long numFaces = 0;
 //    for(int i =0; i < MPI_processes; i++) numFaces += face_sizes[i];
@@ -301,7 +301,7 @@ $rule blackbox(volTagInput<-meshfile_par),prelude {
   string meshfile = *$meshfile_par ;
   if(MPI_rank==0 || Loci::use_parallel_io){   
     hid_t file_id = Loci::hdf5OpenFile(meshfile.c_str(),
-                                       H5F_ACC_RDONLY,H5P_DEFAULT) ;
+                                       H5F_ACC_RDONLY,H5P_DEFAULT, Loci::get_exec_comm()) ;
     
     Loci::readVolTags(file_id,
                       *$volTagInput);

@@ -43,7 +43,7 @@ using Loci::UNIVERSE_MIN;
 namespace Loci{
 
   
-  std::vector<int> all_collect_sizes(int size);
+  std::vector<int> all_collect_sizes(int size, MPI_Comm comm);
   // Convert container from local numbering to file numbering
   // pass in store rep pointer: sp
   // entitySet to write: dom

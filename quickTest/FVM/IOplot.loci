@@ -279,11 +279,12 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
 
    hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                        H5P_DEFAULT, H5P_DEFAULT) ;
+                                        H5P_DEFAULT, H5P_DEFAULT,
+                                        Loci::get_exec_comm()) ;
 
    Loci::writeContainer(file_id,sname,c2n.Rep()) ;
 
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, Loci::get_exec_comm()) ;
   }
 
   scalar_node_output::scalar_node_output(const char *vname,
@@ -359,11 +360,12 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
 
    hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                        H5P_DEFAULT, H5P_DEFAULT) ;
+                                        H5P_DEFAULT, H5P_DEFAULT,
+                                        Loci::get_exec_comm()) ;
 
    Loci::writeContainer(file_id,sname,c2n.Rep()) ;
 
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, Loci::get_exec_comm()) ;
   }
 
 
@@ -410,11 +412,12 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
 
    hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                        H5P_DEFAULT, H5P_DEFAULT) ;
+                                        H5P_DEFAULT, H5P_DEFAULT,
+                                        Loci::get_exec_comm()) ;
 
    Loci::writeContainer(file_id,sname,c2n.Rep()) ;
 
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, Loci::get_exec_comm()) ;
   }
 
   OUTPUT_SCALAR_ALWAYS("cell2nodeD(temperature)",t) ;
@@ -444,11 +447,12 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
 
 
    hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                        H5P_DEFAULT, H5P_DEFAULT) ;
+                                        H5P_DEFAULT, H5P_DEFAULT,
+                                        Loci::get_exec_comm()) ;
 
    Loci::writeContainer(file_id,sname,var) ;
 
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, Loci::get_exec_comm()) ;
   }
 
   $rule singleton(OUTPUT<-plot_postfix,modelName,Pambient),conditional(do_plot),
@@ -483,7 +487,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     //    cout << "opening file " << filename << endl ;
     entitySet set(seq) ;
     hid_t file_id = Loci::createUnorderedFile(filename.c_str(),set) ;
-    Loci::writeUnorderedStore(file_id,var,set,value_name.c_str()) ;
+    Loci::writeUnorderedStore(file_id,var,set,value_name.c_str(),Loci::get_exec_comm()) ;
     Loci::closeUnorderedFile(file_id) ;
   }
 
@@ -516,7 +520,7 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
     //    cout << "opening file " << filename << endl ;
     entitySet set(seq) ;
     hid_t file_id = Loci::createUnorderedFile(filename.c_str(),set) ;
-    Loci::writeUnorderedStore(file_id,var,set,value_name.c_str()) ;
+    Loci::writeUnorderedStore(file_id,var,set,value_name.c_str(),Loci::get_exec_comm()) ;
     Loci::closeUnorderedFile(file_id) ;
   }
 

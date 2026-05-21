@@ -441,7 +441,7 @@ namespace Loci {
 
   //This is the first call to be made for any Loci program be it
   //sequential or parallel.
-  void Init(int* argc, char*** argv, MPI_Comm comm)  {
+  void Init(int* argc, char*** argv)  {
     char *execname = (*argv)[0] ;
     const char *hostname = "localhost" ;
     const char *debug = "gdb" ;
@@ -568,8 +568,8 @@ namespace Loci {
     //    MPI_Errhandler_create(&MPI_errors_reporter,&err_handler) ;
     //    MPI_Errhandler_set(MPI_COMM_WORLD,err_handler) ;
 
-    MPI_Comm_size(comm, &MPI_processes) ;
-    MPI_Comm_rank(comm, &MPI_rank) ;
+    MPI_Comm_size(MPI_COMM_WORLD, &MPI_processes) ;
+    MPI_Comm_rank(MPI_COMM_WORLD, &MPI_rank) ;
 
 #ifdef USE_SCOTCH
     // Reset the random number seed so we can have consistent
@@ -928,11 +928,11 @@ namespace Loci {
         // if output directory doesn't exist, create one
         bool debug_is_directory = true ;
         struct stat statbuf ;
-        if(GLOBAL_OR(stat("debug",&statbuf)!=0)) {
+        if(GLOBAL_OR(stat("debug",&statbuf)!=0, MPI_COMM_WORLD)) {
           if(MPI_rank == 0)
             mkdir("debug",0755) ;
           for(int i=0;i<1000;++i) {
-            if(GLOBAL_AND(stat("debug",&statbuf)==0))
+            if(GLOBAL_AND(stat("debug",&statbuf)==0, MPI_COMM_WORLD))
               break ;
           }
         } else {
@@ -1041,6 +1041,11 @@ namespace Loci {
     // }
 #endif
   }
+  void SetDefaultComm(MPI_Comm comm) {
+    MPI_Comm_size(comm, &MPI_processes) ;
+    MPI_Comm_rank(comm, &MPI_rank) ;
+  }
+
   //All Loci programs must end with this call.
   extern void call_closing_functions(int code) ;
 

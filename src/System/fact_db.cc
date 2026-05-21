@@ -1042,7 +1042,7 @@ namespace Loci {
   void fact_db::write_hdf5(const char *filename, variableSet &vars) {
     hid_t  file_id=0 ;
     file_id = Loci::hdf5CreateFile(filename, H5F_ACC_TRUNC,
-                                   H5P_DEFAULT, H5P_DEFAULT) ;
+                                   H5P_DEFAULT, H5P_DEFAULT, comm_) ;
        
     for(variableSet::const_iterator vi = vars.begin(); vi != vars.end(); ++vi) {
       storeRepP  p = get_variable(*vi) ;
@@ -1050,7 +1050,7 @@ namespace Loci {
         writeContainer(file_id,variable(*vi).get_info().name,p,*this) ;
       }
     }
-    hdf5CloseFile(file_id);
+    hdf5CloseFile(file_id, comm_);
   }
   
   
@@ -1058,14 +1058,14 @@ namespace Loci {
 
   void fact_db::read_hdf5(const char *filename, variableSet &vars) {
     hid_t  file_id=0 ;
-    file_id =  hdf5OpenFile(filename,  H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id =  hdf5OpenFile(filename,  H5F_ACC_RDONLY, H5P_DEFAULT, comm_);
     for(variableSet::const_iterator vi = vars.begin(); vi != vars.end(); ++vi) {
       storeRepP  p = get_variable(*vi) ;
       if(isSTORE(p)) {
         readContainer(file_id,variable(*vi).get_info().name,p,EMPTY,*this) ;
       }
     }
-    hdf5CloseFile(file_id);
+    hdf5CloseFile(file_id, comm_);
   }
 
 
