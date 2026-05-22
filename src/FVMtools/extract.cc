@@ -95,7 +95,7 @@ void readData(hid_t file_id, std::string vname, Loci::storeRepP var, entitySet r
 void Usage(int ac, char *av[]) {
   cerr << av[0] << ": Incorrect Usage" << endl ;
   cout << "Usage:" << endl;
-  cout << av[0] << " <package> [package options] <case_name> <time_step> <variable(s)>" << endl ;
+  cout << av[0] << " <package> [package options] <case_name> <time_step> [variable(s)]" << endl ;
   cout << endl ;
   cout << "where <package> may be:" << endl
        << "-2d :  extract for the 2dgv plotting package" << endl
@@ -117,6 +117,8 @@ void Usage(int ac, char *av[]) {
        << "-combine: combine mean and variance from online averaging ouput" << endl 
        << "-fcombine: combine favre mean and variance from online averaging ouput" << endl 
        << endl ;
+  cout << "If no variables are specified, extract scans for all available variables"
+       << " for the requested case and time step." << endl ;
   cout << "Variables are defined by the solver, but typically include: " << endl
        << "r     - nodal density" << endl 
        << "p     - nodal log10 pressure" << endl
