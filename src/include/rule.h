@@ -213,8 +213,6 @@ namespace Loci {
     // to reflect the substitution of constraints for maps.
     void replace_map_constraints(fact_db& facts) ;
 
-    void split_constraints(const variableSet& dc) ;
-    
     void set_variable_times(time_ident tl) ;
     void copy_store_from(rule_impl &f) ;
     void Print(std::ostream &s) const ;
