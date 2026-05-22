@@ -2325,12 +2325,13 @@ namespace Loci {
       std::list<comm_info> plist = scheds.get_comm_info_list(barrier_vars, facts, sched_db::BARRIER_PLIST);
       
 
-      execute_comm2::inc_comm_step() ;
+      MPI_Comm comm = facts.get_comm() ;
+      execute_comm2::inc_comm_step(comm) ;
       if(!plist.empty()) {
         executeP tmp2 = new execute_comm2(plist, facts) ;
         el->append_list(tmp2) ;
       }
-      execute_comm2::inc_comm_step() ;
+      execute_comm2::inc_comm_step(comm) ;
       if(!clist.empty()) {
         executeP tmp2 = new execute_comm2(clist, facts) ;
         el->append_list(tmp2) ;

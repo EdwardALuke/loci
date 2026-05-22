@@ -46,7 +46,7 @@ namespace Loci {
   }
 
   void impl_recurse_compiler::set_var_existence(fact_db &facts, sched_db &scheds) {
-    
+
 #ifdef VERBOSE
     debugout << "set var existence for recursive impl rule " << impl << endl ;
 #endif
@@ -404,7 +404,7 @@ namespace Loci {
     create += send_entitySet(create,facts) ;
     create += fill_entitySet(create,facts) ;
     scheds.set_existential_info(rvar,impl,create) ;
-   
+
   }
 
   void impl_recurse_compiler::process_var_requests(fact_db &facts, sched_db &scheds) {
@@ -439,7 +439,7 @@ namespace Loci {
       // list<comm_info> clist = sort_comm(request_comm,facts) ;
       // scheds.update_comm_info_list(clist, sched_db::RECURSE_CLIST);
     }
-     
+
   }
 
   executeP impl_recurse_compiler::create_execution_schedule(fact_db &facts, sched_db &scheds) {
@@ -456,12 +456,12 @@ namespace Loci {
     entitySet my_entities = ~EMPTY ;
     if(facts.isDistributed()) {
       fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      
+
       std::vector<std::pair<variable,entitySet> > pre_send_entities
         = barrier_existential_rule_analysis(recurse_vars,facts, scheds) ;
       scheds.update_send_entities(pre_send_entities, sched_db::RECURSE_PRE);
       my_entities = d->my_entities ;
-      
+
     }
 
     control_set.clear() ;
@@ -741,7 +741,7 @@ namespace Loci {
           recurse_entities[*vi] += scheds.get_existential_info(*vi,*ri) ;
         }
       }
-      
+
       std::vector<std::pair<variable,entitySet> > pre_send_entities =
         scheds.get_send_entities(recurse_vars, sched_db::RECURSE_PRE);
       for(vi=pre_send_entities.begin();vi!=pre_send_entities.end();++vi) {
@@ -893,8 +893,8 @@ namespace Loci {
     if(facts.isDistributed()) {
       list<comm_info> pre_clist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_PRE_CLIST);
       list<comm_info> pre_plist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_PRE_PLIST);
-     
-      execute_comm2::inc_comm_step() ;
+      MPI_Comm comm = facts.get_comm() ;
+      execute_comm2::inc_comm_step(comm) ;
       if(!pre_plist.empty()) {
         //executeP exec_commp = new execute_comm(pre_plist, facts);
         executeP exec_commp2 = new execute_comm2(pre_plist, facts);
@@ -902,7 +902,7 @@ namespace Loci {
         //el->append_list(exec_commp) ;
       }
 
-      execute_comm2::inc_comm_step() ;
+      execute_comm2::inc_comm_step(comm) ;
       if(!pre_clist.empty()) {
         //executeP exec_commc = new execute_comm(pre_clist, facts);
         executeP exec_commc2 = new execute_comm2(pre_clist, facts);
@@ -926,7 +926,7 @@ namespace Loci {
           vi!=recurse_vars.end();
           ++vi) {
         vector<list<comm_info> > &commv = send_req_var[*vi] ;
-        execute_comm2::inc_comm_step() ;
+        execute_comm2::inc_comm_step(facts.get_comm()) ;
         if(idx<commv.size() && commv[idx].size() != 0) {
           //executeP exec_commv = new execute_comm(commv[idx],facts);
           executeP exec_commv2 = new execute_comm2(commv[idx],facts);
@@ -972,7 +972,7 @@ namespace Loci {
       if(!finished) {
         if(facts.isDistributed()) {
           list<comm_info> plist = put_precomm_info(*sei, facts) ;
-          execute_comm2::inc_comm_step() ;
+          execute_comm2::inc_comm_step(facts.get_comm()) ;
           if(!plist.empty()) {
             //executeP exec_comm = new execute_comm(plist,facts);
             executeP exec_comm2 = new execute_comm2(plist,facts);
@@ -997,12 +997,12 @@ namespace Loci {
     } while(!finished) ;
 
     if(facts.isDistributed()) {
-       list<comm_info> post_clist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_POST_CLIST);
-      
-      execute_comm2::inc_comm_step() ;
+      list<comm_info> post_clist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_POST_CLIST);
+
+      execute_comm2::inc_comm_step(facts.get_comm()) ;
       if(!post_clist.empty()) {
-        executeP exec_comm2 = new execute_comm2(post_clist, facts);
-        el->append_list(exec_comm2) ;
+	executeP exec_comm2 = new execute_comm2(post_clist, facts);
+	el->append_list(exec_comm2) ;
       }
       // Make sure to request any variables communicated so that
       // the space is allocated.  This is a hack that should be

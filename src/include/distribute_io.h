@@ -693,7 +693,7 @@ namespace Loci {
       readUnorderedVectorS(group_id,element_name,v,prime_comm) ;
 #else
       int procs = 1 ;
-      MPI_Comm_size(MPI_COMM_WORLD,&procs) ;
+      MPI_Comm_size(prime_comm,&procs) ;
 
       if(procs == 1)
         return readVectorSerial(group_id,element_name,v) ;
@@ -939,7 +939,7 @@ namespace Loci {
   // fact_db pointer  (facts)
   // MPI Communicator
   storeRepP Local2FileOrder_output(storeRepP sp, entitySet dom,
-                                   fact_db& facts, MPI_Comm comm);
+                                   fact_db& facts);
 
   //serial/parallel io
   template<class T>   void writeCutPlaneNodalVal(hid_t file_id,
@@ -978,7 +978,7 @@ namespace Loci {
     //transform the store into output order
     store<T> gedge_pos;
     storeRepP geposRep =  Local2FileOrder_output(edge_pos.Rep(),  edgesCut, 
-                                                 facts, MPI_COMM_WORLD);
+                                                 facts);
        
     if(geposRep == NULL){
       gedge_pos .allocate(EMPTY);

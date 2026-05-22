@@ -1566,8 +1566,9 @@ namespace Loci {
   // fact_db pointer  (facts)
   // MPI Communicator
   storeRepP Local2FileOrder_output(storeRepP sp, entitySet dom,
-                                   fact_db& facts, MPI_Comm comm) {
+                                   fact_db& facts) {
 
+    MPI_Comm comm = facts.get_comm() ;
     // Get number of processors
     int p = 0 ;
     MPI_Comm_size(comm,&p) ;

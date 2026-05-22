@@ -946,7 +946,8 @@ namespace Loci {
         executeP exec_comm_reduce = new execute_comm_reduce(rlist, facts, join_op);
         el->append_list(exec_comm_reduce);
       }
-      execute_comm2::inc_comm_step() ;
+      MPI_Comm comm = facts.get_comm() ;
+      execute_comm2::inc_comm_step(comm) ;
       if(!clist.empty()) {
         //executeP exec_comm = new execute_comm(clist, facts);
         executeP exec_comm2 = new execute_comm2(clist, facts);

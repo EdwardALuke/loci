@@ -2663,16 +2663,16 @@ namespace Loci {
     // We then use this to assign processors to cells (cells will go to the
     // processor with the most faces belonging to a particular processor with
     // tie breaking to try to balance load)
-    assignOwner(scratchPad,local_cells,cell_ptn) ;
+    assignOwner(scratchPad,local_cells,cell_ptn,comm) ;
 
     // We now have a partition of cells, use this to obtain the
     // face and node partitions
 
-    face_ptn = partitionFaces(cell_ptn,cl,cr,boundary_tags) ;
+    face_ptn = partitionFaces(cell_ptn,cl,cr,boundary_tags,comm) ;
 
     node_ptn = partitionNodes(face_ptn,
 			      MapRepP(face2node.Rep()),
-			      pos.domain()) ;
+			      pos.domain(),comm) ;
   }
 
   void randomPartition(vector<entitySet> &ptn, entitySet local_set,
@@ -3025,11 +3025,11 @@ namespace Loci {
         cell_ptn = vector<entitySet>(facts.get_comm_size()) ;
               cell_ptn[facts.get_comm_rank()] = local_cells[facts.get_comm_rank()] ;
         REPORTMEM() ;
-        face_ptn = partitionFaces(cell_ptn,tmp_cl,tmp_cr,tmp_boundary_tags) ;
+        face_ptn = partitionFaces(cell_ptn,tmp_cl,tmp_cr,tmp_boundary_tags,comm) ;
         REPORTMEM() ;
 
         node_ptn = partitionNodes(face_ptn, MapRepP(tmp_face2node.Rep()),
-                                  t_pos.domain()) ;
+                                  t_pos.domain(),comm) ;
       }
       break ;
 #ifdef LOCI_USE_METIS
@@ -3042,11 +3042,11 @@ namespace Loci {
 #endif
         cell_ptn = newMetisPartitionOfCells(local_cells,tmp_cl,tmp_cr,tmp_boundary_tags,cellwts,facts.get_comm()) ;
         REPORTMEM() ;
-        face_ptn = partitionFaces(cell_ptn,tmp_cl,tmp_cr,tmp_boundary_tags) ;
+        face_ptn = partitionFaces(cell_ptn,tmp_cl,tmp_cr,tmp_boundary_tags,comm) ;
         REPORTMEM() ;
 
         node_ptn = partitionNodes(face_ptn, MapRepP(tmp_face2node.Rep()),
-                                  t_pos.domain()) ;
+                                  t_pos.domain(),comm) ;
       }
       break ;
 #endif
@@ -3082,9 +3082,9 @@ namespace Loci {
 
     REPORTMEM() ;
 
-    vector<entitySet> cell_ptn_t = transposePtn(cell_ptn) ;
-    vector<entitySet> face_ptn_t = transposePtn(face_ptn) ;
-    vector<entitySet> node_ptn_t = transposePtn(node_ptn) ;
+    vector<entitySet> cell_ptn_t = transposePtn(cell_ptn,comm) ;
+    vector<entitySet> face_ptn_t = transposePtn(face_ptn,comm) ;
+    vector<entitySet> node_ptn_t = transposePtn(node_ptn,comm) ;
 
     int newnodes = 0 ;
     for(int p=0;p<facts.get_comm_size();++p) {
@@ -3364,8 +3364,8 @@ namespace Loci {
     for(int i = 0; i < np; i++) {
       cell_ptn[i] = cells&simple_ptn[i];
     }
-    vector<entitySet> cell_ptn_t = transposePtn(cell_ptn);
-    redistribute_container(cell_ptn,cell_ptn_t,cells,old_store,new_store) ;
+    vector<entitySet> cell_ptn_t = transposePtn(cell_ptn,comm);
+    redistribute_container(cell_ptn,cell_ptn_t,cells,old_store,new_store,comm) ;
     old_store->allocate(EMPTY) ;
     return true;
   }

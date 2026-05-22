@@ -2268,7 +2268,7 @@ namespace Loci{
     Loci::removeIdentity(c2c) ;
 
     // Create cell stencil map from protoMap
-    distributed_inverseMap(cellStencil,c2c,geom_cells,geom_cells,ptn) ;
+    distributed_inverseMap(cellStencil,c2c,geom_cells,geom_cells,ptn,comm) ;
 
 #ifdef DEBUG
     entitySet degen_cells ;
@@ -2494,10 +2494,10 @@ namespace Loci{
     Loci::protoMap f2f ;
     Loci::equiJoinFF(f2cell,f2celll,f2f,comm) ;
     Loci::removeIdentity(f2f) ;
-    Loci::balanceDistribution(f2f, facts.get_comm()) ;
+    Loci::balanceDistribution(f2f, comm) ;
 
     // Create cell stencil map from protoMap
-    distributed_inverseMap(cellStencil,f2f,geom_cells,geom_cells,ptn) ;
+    distributed_inverseMap(cellStencil,f2f,geom_cells,geom_cells,ptn,comm) ;
 
   }
 
@@ -3292,7 +3292,7 @@ namespace Loci{
     // but not in the present case.  These low level utilities need to be
     // rethought.
     entitySet global_geom_cells = all_collect_entitySet(*geom_cells,
-							facts.get_comm()) ;
+							comm) ;
     multiMap lower,upper,boundary_map ;
     distributed_inverseMap(upper, cl, global_geom_cells, global_interior_faces,
                            facts,ckeyspace) ;
@@ -3982,8 +3982,8 @@ namespace Loci{
     // instead it is the el Map image distribution
     entitySet el_image = el.image(el.domain()) ;
     vector<entitySet> el_image_partitions =
-      gather_all_entitySet(el_image, facts.get_comm()) ;
-    distributed_inverseMap(n2e, el, el_image, edges, el_image_partitions) ;
+      gather_all_entitySet(el_image, comm) ;
+    distributed_inverseMap(n2e, el, el_image, edges, el_image_partitions,comm) ;
 
     // Now create face2edge map with same size as face2node
     multiMap face2edge ;
@@ -4295,7 +4295,7 @@ namespace Loci{
                                    file2global,
                                    input_image,
                                    input_preimage,
-                                   init_ptne);
+                                   init_ptne,facts.get_comm());
 
 
       if(global2file.domain() != edges){
