@@ -100,6 +100,8 @@ TEST_CASE("image_section returns unique mapped values") {
   const int dense_values[] = {3, 5, 4, 5};
   const int sparse_values[] = {-10, 100, -10};
 
+  // Map images are entity sets: duplicate mapped values collapse, sparse entity
+  // labels are ordinary values, and an empty section has no image.
   CHECK(image_section(dense_values, dense_values + 4) == set_of({3, 4, 5}));
   CHECK(image_section(sparse_values, sparse_values + 3) == set_of({-10, 100}));
   CHECK(image_section(dense_values, dense_values) == EMPTY);
@@ -109,15 +111,20 @@ TEST_CASE("Map image, preimage, inverse, and compose use the active domains") {
   Map map;
   fill_map(map, {{0, 10}, {1, 11}, {2, 10}});
 
+  // A queried image should only follow active source entities, ignoring labels
+  // outside the map domain.
   CHECK(map.image(set_of({0, 1, 99})) == set_of({10, 11}));
 
   std::pair<entitySet, entitySet> preimage = map.preimage(set_of({10}));
+  // For one-to-one maps the contained and overlapping preimages match.
   CHECK(preimage.first == set_of({0, 2}));
   CHECK(preimage.second == set_of({0, 2}));
 
   multiMap inverse;
   inverseMap(inverse, map, set_of({10, 11}), map.domain());
 
+  // Inverting turns range entities into rows and groups every active source
+  // entity that reaches that range value.
   CHECK(inverse.domain() == set_of({10, 11}));
   check_row_unordered(inverse, 10, {0, 2});
   check_row_unordered(inverse, 11, {1});
@@ -126,6 +133,8 @@ TEST_CASE("Map image, preimage, inverse, and compose use the active domains") {
   codomain_remap[10] = 100;
   codomain_remap[11] = 101;
 
+  // Composition rewrites reached range values without changing the active
+  // source entities that define the map.
   MapRepP(map.Rep())->compose(codomain_remap, map.domain());
 
   CHECK(map[0] == 100);
@@ -137,6 +146,8 @@ TEST_CASE("Map and multiMap image handle sparse multi-interval domains") {
   Map map;
   fill_map(map, {{0, 10}, {2, 20}, {4, 10}, {6, 30}, {8, 20}});
 
+  // Entity labels are not dense array positions; discontiguous domains should
+  // produce the same image semantics as contiguous domains.
   CHECK(map.image(set_of({0, 2, 4, 6, 8})) == set_of({10, 20, 30}));
 
   store<int> sizes;
@@ -161,6 +172,8 @@ TEST_CASE("inverseMap keeps requested image rows and filters preimage rows") {
   multiMap inverse;
   inverseMap(inverse, map, set_of({10, 11, 12}), set_of({0, 2, 99}));
 
+  // Requested image rows are part of the inverse topology even when no active
+  // source maps to them; inactive preimage rows do not contribute.
   CHECK(inverse.domain() == set_of({10, 11, 12}));
   check_row_unordered(inverse, 10, {0});
   check_row_unordered(inverse, 11, {2});
@@ -172,6 +185,7 @@ TEST_CASE("inverseMap keeps requested image rows and filters preimage rows") {
   multiMap row_inverse;
   inverseMap(row_inverse, row_map, set_of({10, 11, 12}), set_of({0}));
 
+  // The same active-image rule applies to one-to-many rows.
   CHECK(row_inverse.domain() == set_of({10, 11, 12}));
   check_row_unordered(row_inverse, 10, {0});
   check_row_unordered(row_inverse, 11, {0});
@@ -182,6 +196,8 @@ TEST_CASE("Map stream round trip preserves sparse domains and values") {
   Map map;
   fill_map(map, {{-2, 20}, {0, 30}, {3, 20}});
 
+  // Serialized maps are used as data, so round trips must preserve the actual
+  // sparse entity domain and not just the value sequence.
   std::stringstream stream;
   stream << map;
 
@@ -211,6 +227,8 @@ TEST_CASE("MapRemap moves a Map through separate domain and range remaps") {
     MapRepP(map.Rep())->MapRemap(domain_remap, range_remap);
   Map remapped(remapped_rep);
 
+  // Domain and range labels are remapped independently; duplicate old range
+  // values should remain duplicate new range values.
   CHECK(remapped.domain() == set_of({20, 21, 22}));
   CHECK(remapped[20] == 7);
   CHECK(remapped[21] == 8);
@@ -234,6 +252,8 @@ TEST_CASE("MapRemap drops Map entries without a range remap") {
     MapRepP(map.Rep())->MapRemap(domain_remap, range_remap);
   Map remapped(remapped_rep);
 
+  // A scalar map row with no valid range remap is dropped rather than inventing
+  // a destination entity.
   CHECK(remapped.domain() == set_of({20, 22}));
   CHECK(remapped[20] == 7);
   CHECK(remapped[22] == 8);
@@ -243,6 +263,8 @@ TEST_CASE("multiMap image, preimage, inverse, and compose handle row values") {
   multiMap map;
   fill_sample_multimap(map);
 
+  // Multi-map image follows every value in every active row and still collapses
+  // duplicate destinations into an entity set.
   CHECK(MapRepP(map.Rep())->image(interval(0, 2)) == set_of({10, 11}));
 
   std::pair<entitySet, entitySet> preimage =
@@ -262,6 +284,7 @@ TEST_CASE("multiMap image, preimage, inverse, and compose handle row values") {
   codomain_remap[10] = 100;
   codomain_remap[11] = 101;
 
+  // Composition rewrites each row value while preserving row shape.
   MapRepP(map.Rep())->compose(codomain_remap, set_of({0, 1}));
   check_row(map, 0, {100, 101});
   check_row(map, 1, {100});
@@ -270,6 +293,8 @@ TEST_CASE("multiMap image, preimage, inverse, and compose handle row values") {
   dMap partial_remap;
   partial_remap[100] = 1000;
 
+  // Partial composition marks missing range remaps in-place, which is different
+  // from scalar MapRemap dropping invalid rows.
   MapRepP(map.Rep())->compose(partial_remap, set_of({0}));
   check_row(map, 0, {1000, -1});
 }
@@ -278,6 +303,7 @@ TEST_CASE("multiMap stream round trip preserves row sizes and values") {
   multiMap map;
   fill_sample_multimap(map);
 
+  // Empty rows are part of the topology and need to survive serialization.
   std::stringstream stream;
   stream << map;
 
@@ -307,6 +333,8 @@ TEST_CASE("multiMap MapRemap preserves row sizes while remapping keys") {
     MapRepP(map.Rep())->MapRemap(domain_remap, range_remap);
   multiMap remapped(remapped_rep);
 
+  // Remapping a one-to-many topology changes labels but keeps each row's
+  // contribution count.
   CHECK(remapped.domain() == set_of({20, 21, 22}));
   check_row(remapped, 20, {100, 101});
   check_row(remapped, 21, {100});
@@ -329,6 +357,8 @@ TEST_CASE("multiMap MapRemap marks row values missing from the range remap") {
     MapRepP(map.Rep())->MapRemap(domain_remap, range_remap);
   multiMap remapped(remapped_rep);
 
+  // Multi-map remap preserves row shape, marking missing destinations so callers
+  // can still reason about the original one-to-many structure.
   CHECK(remapped.domain() == set_of({20, 21, 22}));
   check_row(remapped, 20, {100, -1});
   check_row(remapped, 21, {100});
