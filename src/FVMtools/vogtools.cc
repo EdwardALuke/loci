@@ -40,12 +40,6 @@ using std::ios ;
 using Loci::debugout ;
 
 namespace Loci {
-
-  extern void distributed_inverseMap(multiMap &result,
-                                     vector<pair<Entity,Entity> > &input,
-                                     entitySet input_image,
-                                     entitySet input_preimage,
-                                     const std::vector<entitySet> &init_ptn) ;
 }
 namespace VOG {
 
@@ -282,7 +276,7 @@ namespace VOG {
     vector<entitySet> ptn(MPI_processes) ; // entity Partition
     // Get entity distributions
     nodes = pos.domain() ;
-    entitySet allNodes = Loci::all_collect_entitySet(nodes) ;
+    entitySet allNodes = Loci::all_collect_entitySet(nodes, MPI_COMM_WORLD) ;
     vector<int> nodesizes(MPI_processes) ;
     int size = nodes.size() ;
     MPI_Allgather(&size,1,MPI_INT,&nodesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -300,7 +294,7 @@ namespace VOG {
     vector<entitySet> ptn(MPI_processes) ; // entity Partition
 
     faces = face2node.domain() ;
-    entitySet allFaces = Loci::all_collect_entitySet(faces) ;
+    entitySet allFaces = Loci::all_collect_entitySet(faces, MPI_COMM_WORLD) ;
     vector<int> facesizes(MPI_processes) ;
     int size = faces.size() ;
     MPI_Allgather(&size,1,MPI_INT,&facesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -319,7 +313,7 @@ namespace VOG {
 
     entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
     entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
+    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells, MPI_COMM_WORLD) ;
     int mn = geom_cells.Min() ;
     int mx = geom_cells.Max() ;
     vector<int> pl = simplePartitionVec(mn,mx,MPI_processes) ;
@@ -339,7 +333,7 @@ namespace VOG {
 
     // Get entity distributions
     nodes = pos.domain() ;
-    entitySet allNodes = Loci::all_collect_entitySet(nodes) ;
+    entitySet allNodes = Loci::all_collect_entitySet(nodes, MPI_COMM_WORLD) ;
     vector<int> nodesizes(MPI_processes) ;
     int size = nodes.size() ;
     MPI_Allgather(&size,1,MPI_INT,&nodesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -350,7 +344,7 @@ namespace VOG {
     }
 
     faces = face2node.domain() ;
-    entitySet allFaces = Loci::all_collect_entitySet(faces) ;
+    entitySet allFaces = Loci::all_collect_entitySet(faces, MPI_COMM_WORLD) ;
     vector<int> facesizes(MPI_processes) ;
     size = faces.size() ;
     MPI_Allgather(&size,1,MPI_INT,&facesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -362,7 +356,7 @@ namespace VOG {
 
     entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
     entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
+    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells, MPI_COMM_WORLD) ;
     int mn = geom_cells.Min() ;
     int mx = geom_cells.Max() ;
     vector<int> pl = simplePartitionVec(mn,mx,MPI_processes) ;
@@ -403,7 +397,7 @@ namespace VOG {
 
     if(MPI_processes > 1) {
       Loci::storeRepP sp = tmp_pos.Rep() ;
-      Loci::fill_clone(sp, total_dom, init_ptn) ;
+      Loci::fill_clone(sp, total_dom, init_ptn, MPI_COMM_WORLD) ;
     }
 
     entitySet face_dom = face2node.domain() ;
@@ -459,8 +453,8 @@ namespace VOG {
     Loci::storeRepP cp_sp = cpos.Rep() ;
     Loci::storeRepP cn_sp = cnum.Rep() ;
     entitySet clone_cells = tmp_cells - (cells&init_ptn[MPI_rank]) ;
-    std::vector<Loci::storeRepP> v_cpos = Loci::send_global_clone_non(cp_sp, clone_cells, init_ptn) ;
-    std::vector<Loci::storeRepP> v_cnum = Loci::send_global_clone_non(cn_sp, clone_cells, init_ptn) ;
+    std::vector<Loci::storeRepP> v_cpos = Loci::send_global_clone_non(cp_sp, clone_cells, init_ptn, MPI_COMM_WORLD) ;
+    std::vector<Loci::storeRepP> v_cnum = Loci::send_global_clone_non(cn_sp, clone_cells, init_ptn, MPI_COMM_WORLD) ;
     for(int i = 0; i < Loci::MPI_processes; ++i) {
       entitySet dom = v_cpos[i]->domain() & cpos.domain() ;
       dstore<vector3d<double> > tmp_cpos(v_cpos[i]) ;
@@ -470,8 +464,8 @@ namespace VOG {
         cnum[di] += tmp_cnum[di] ;
       } ENDFORALL ;
     }
-    Loci::fill_clone(cp_sp, clone_cells, init_ptn) ;
-    Loci::fill_clone(cn_sp, clone_cells, init_ptn) ;
+    Loci::fill_clone(cp_sp, clone_cells, init_ptn, MPI_COMM_WORLD) ;
+    Loci::fill_clone(cn_sp, clone_cells, init_ptn, MPI_COMM_WORLD) ;
     FORALL(tmp_cells,cc) {
       cpos[cc] = cpos[cc]/cnum[cc] ;
     } ENDFORALL ;
@@ -615,7 +609,7 @@ namespace VOG {
       + cr.image(interior_faces) ;
     clone_cells -= geom_cells ;
     Loci::storeRepP cp_sp = color.Rep() ;
-    Loci::fill_clone(cp_sp, clone_cells, cptn) ;
+    Loci::fill_clone(cp_sp, clone_cells, cptn, MPI_COMM_WORLD) ;
 
     FORALL(interior_faces,fc) {
       int color_l = color[cl[fc]] ;
@@ -755,7 +749,7 @@ namespace VOG {
     entitySet faces = face2node.domain() ;
     entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
     entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
+    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells, MPI_COMM_WORLD) ;
 
     // create splits for sorting cell data
     const int p = Loci::MPI_processes ;
@@ -974,7 +968,7 @@ namespace VOG {
 
     // Get entity distributions
     entitySet nodes = pos.domain() ;
-    entitySet allNodes = Loci::all_collect_entitySet(nodes) ;
+    entitySet allNodes = Loci::all_collect_entitySet(nodes, MPI_COMM_WORLD) ;
     vector<int> nodesizes(MPI_processes) ;
     int size = nodes.size() ;
     MPI_Allgather(&size,1,MPI_INT,&nodesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -985,7 +979,7 @@ namespace VOG {
     }
 
     entitySet faces = face2node.domain() ;
-    entitySet allFaces = Loci::all_collect_entitySet(faces) ;
+    entitySet allFaces = Loci::all_collect_entitySet(faces, MPI_COMM_WORLD) ;
     vector<int> facesizes(MPI_processes) ;
     size = faces.size() ;
     MPI_Allgather(&size,1,MPI_INT,&facesizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -997,7 +991,7 @@ namespace VOG {
 
     entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
     entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
+    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells, MPI_COMM_WORLD) ;
     int mn = geom_cells.Min() ;
     int mx = geom_cells.Max() ;
     vector<int> pl = simplePartitionVec(mn,mx,MPI_processes) ;
@@ -1085,7 +1079,7 @@ namespace VOG {
 
       entitySet cimage = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
 
-      cell2cell.setRep(MapRepP(cell2cell.Rep())->expand(cimage,cptn)) ;
+      cell2cell.setRep(MapRepP(cell2cell.Rep())->expand(cimage,cptn, MPI_COMM_WORLD)) ;
 
       REPORTMEM() ;
       FORALL(faces,fc) {
@@ -1259,7 +1253,7 @@ namespace VOG {
     entitySet clone_nodes = node_access - pos.domain() ;
     Loci::storeRepP nk_sp = node_key.Rep() ;
     std::vector<Loci::storeRepP> v_nk =
-      Loci::send_global_clone_non(nk_sp,clone_nodes,nptn) ;
+      Loci::send_global_clone_non(nk_sp,clone_nodes,nptn, MPI_COMM_WORLD) ;
     for(int i=0;i<MPI_processes;++i) {
       entitySet dom = v_nk[i]->domain() & pos.domain() ;
       dstore<int> tmp_nk(v_nk[i]) ;
@@ -1318,7 +1312,7 @@ namespace VOG {
       node2node[nd] = nmapping[nd][0] ;
     } ENDFORALL ;
 
-    node2node.setRep(MapRepP(node2node.Rep())->expand(node_access,nptn)) ;
+    node2node.setRep(MapRepP(node2node.Rep())->expand(node_access,nptn, MPI_COMM_WORLD)) ;
     REPORTMEM() ;
     FORALL(face2node.domain(),fc) {
       for(int i=0;i<face2node[fc].size();++i)

@@ -53,10 +53,13 @@ namespace Loci {
   int factdb_allocated_base = 0 ;
 
   fact_db::fact_db() {
+    comm_ = MPI_COMM_WORLD ;
+    comm_rank_ = MPI_rank ;
+    comm_size_ = MPI_processes ;
     distributed_info = 0 ;
     maximum_allocated = factdb_allocated_base+0 ;
     vector<entitySet> baseline_ptn ;
-    for(int i = 0; i < MPI_processes; ++i) {
+    for(int i = 0; i < comm_size_; ++i) {
       baseline_ptn.push_back(EMPTY) ;
     }
     init_ptn.push_back(baseline_ptn) ;
@@ -72,8 +75,17 @@ namespace Loci {
 
   fact_db::~fact_db() {}
 
+  void fact_db::set_comm(MPI_Comm c) {
+    comm_ = c ;
+    MPI_Comm_rank(c, &comm_rank_) ;
+    MPI_Comm_size(c, &comm_size_) ;
+  }
+
   void
   fact_db::copy_all_from(const fact_db& f) {
+    comm_ = f.comm_ ;
+    comm_rank_ = f.comm_rank_ ;
+    comm_size_ = f.comm_size_ ;
     init_ptn = f.init_ptn ;
     gmax_alloc = f.gmax_alloc ;
     keyDomainName = f.keyDomainName ;
@@ -101,6 +113,7 @@ namespace Loci {
     df = new distribute_info ;
     df->myid = fdf->myid ;
     df->isDistributed = fdf->isDistributed ;
+    df->comm = fdf->comm ;
     // we make a deep copy of the maps
     entitySet l2g_alloc = fdf->l2g.domain() ;
     df->l2g.allocate(l2g_alloc) ;
@@ -158,7 +171,7 @@ namespace Loci {
 	distributed_info->g2lv.push_back(dMap()) ;
     }
     vector<entitySet> baseline_ptn ;
-    for(int i = 0; i < MPI_processes; ++i) {
+    for(int i = 0; i < comm_size_; ++i) {
       baseline_ptn.push_back(EMPTY) ;
     }
     while(init_ptn.size() < keyDomainName.size())
@@ -353,10 +366,11 @@ namespace Loci {
     if(gmax_alloc.size() == 0) {
       getKeyDomain("Main") ;
     }
-    if(MPI_processes > 1) {
+    if(comm_size_ > 1) {
       if(!dist_from_start) {
 	dist_from_start = 1 ;
 	distributed_info = new distribute_info;
+	distributed_info->comm = comm_ ;
 	int num_keyspace = gmax_alloc.size() ;
 	for(int i=0;i<num_keyspace;++i) {
 	  distributed_info->g2fv.push_back(dMap()) ;
@@ -369,26 +383,26 @@ namespace Loci {
       }
 
 
-      int* send_buf = new int[MPI_processes] ;
-      int* size_send = new int[MPI_processes] ;
-      int* size_recv = new int[MPI_processes] ;
-      int* recv_buf = new int[MPI_processes] ;
-      for(int i = 0; i < MPI_processes; ++i) {
+      int* send_buf = new int[comm_size_] ;
+      int* size_send = new int[comm_size_] ;
+      int* size_recv = new int[comm_size_] ;
+      int* recv_buf = new int[comm_size_] ;
+      for(int i = 0; i < comm_size_; ++i) {
 	send_buf[i] = gmax_alloc[kd] ;
 	size_send[i] = size ;
       } 
-      MPI_Alltoall(send_buf, 1, MPI_INT, recv_buf, 1, MPI_INT, MPI_COMM_WORLD) ;
-      MPI_Alltoall(size_send, 1, MPI_INT, size_recv, 1, MPI_INT, MPI_COMM_WORLD) ;
-      std::sort(recv_buf, recv_buf+MPI_processes) ;
-      gmax_alloc[kd] = recv_buf[MPI_processes-1] ;
+      MPI_Alltoall(send_buf, 1, MPI_INT, recv_buf, 1, MPI_INT, comm_) ;
+      MPI_Alltoall(size_send, 1, MPI_INT, size_recv, 1, MPI_INT, comm_) ;
+      std::sort(recv_buf, recv_buf+comm_size_) ;
+      gmax_alloc[kd] = recv_buf[comm_size_-1] ;
       int local_max = gmax_alloc[kd] ;
       int global_max = 0 ;
-      for(int i = 0; i < MPI_rank; ++i)
+      for(int i = 0; i < comm_rank_; ++i)
 	local_max += size_recv[i] ;
-      for(int i = 0; i < MPI_processes; ++i) 
+      for(int i = 0; i < comm_size_; ++i) 
 	global_max += size_recv[i] ;
       
-      for(int i = 0 ; i < MPI_processes; ++i) {
+      for(int i = 0 ; i < comm_size_; ++i) {
 	int local = gmax_alloc[kd] ;
 	for(int j = 0; j < i; ++j)
 	  local += size_recv[j] ;
@@ -422,7 +436,7 @@ namespace Loci {
   }
     
   void fact_db::update_remap(const std::vector<std::pair<int, int> > &remap_update, size_t kd) {
-    if(Loci::MPI_processes > 1) {
+    if(comm_size_ > 1) {
       warn(!dist_from_start);
       fatal(distributed_info == NULL);
       
@@ -971,6 +985,7 @@ namespace Loci {
     fact_db::distribute_infoP df = new fact_db::distribute_info;
     df->myid = 0 ;
     df->isDistributed = 0 ;
+    df->comm = facts.get_comm() ;
     entitySet dom ;
     for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
       storeRepP p = facts.get_variable(*vi) ;
@@ -1027,7 +1042,7 @@ namespace Loci {
   void fact_db::write_hdf5(const char *filename, variableSet &vars) {
     hid_t  file_id=0 ;
     file_id = Loci::hdf5CreateFile(filename, H5F_ACC_TRUNC,
-                                   H5P_DEFAULT, H5P_DEFAULT) ;
+                                   H5P_DEFAULT, H5P_DEFAULT, comm_) ;
        
     for(variableSet::const_iterator vi = vars.begin(); vi != vars.end(); ++vi) {
       storeRepP  p = get_variable(*vi) ;
@@ -1035,7 +1050,7 @@ namespace Loci {
         writeContainer(file_id,variable(*vi).get_info().name,p,*this) ;
       }
     }
-    hdf5CloseFile(file_id);
+    hdf5CloseFile(file_id, comm_);
   }
   
   
@@ -1043,14 +1058,14 @@ namespace Loci {
 
   void fact_db::read_hdf5(const char *filename, variableSet &vars) {
     hid_t  file_id=0 ;
-    file_id =  hdf5OpenFile(filename,  H5F_ACC_RDONLY, H5P_DEFAULT);
+    file_id =  hdf5OpenFile(filename,  H5F_ACC_RDONLY, H5P_DEFAULT, comm_);
     for(variableSet::const_iterator vi = vars.begin(); vi != vars.end(); ++vi) {
       storeRepP  p = get_variable(*vi) ;
       if(isSTORE(p)) {
         readContainer(file_id,variable(*vi).get_info().name,p,EMPTY,*this) ;
       }
     }
-    hdf5CloseFile(file_id);
+    hdf5CloseFile(file_id, comm_);
   }
 
 

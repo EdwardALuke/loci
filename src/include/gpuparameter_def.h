@@ -93,10 +93,10 @@ namespace Loci {
     //    virtual gStoreRepP copy2gstore()const;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) ;
+                 MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
+                 const dMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual void shift(int_type offset) ;
     virtual ~gpuparamRepI() ;
     virtual store_type RepType() const ;

@@ -22,6 +22,7 @@
 #include "loci_globs.h"
 #include <iostream>
 #include <distribute.h>
+#include <fact_db.h>
 #include <vector>
 #include <string>
 //#define VERBOSE
@@ -139,15 +140,15 @@ namespace Loci {
              << endl ;
 #endif
     if((msi = mod_map.find(tmp_str)) == mod_map.end()) {
-      if(Loci::MPI_rank == 0)
+      if(facts.get_comm_rank() == 0)
 	cout << "Loading  in rules from  " << tmp_str << endl ;
       md.m_library = dlopen_helper(tmp_str) ;
       if(md.m_library == 0) {
-	if(Loci::MPI_rank == 0)
+	if(facts.get_comm_rank() == 0)
 	  cerr << "unable to open " << tmp_str.c_str() << endl ;
 	const char *error = dlerror() ;
 	if(error)
-	  if(Loci::MPI_rank == 0)
+	  if(facts.get_comm_rank() == 0)
 	    cerr << "reason for failure is " << error << endl ;
 	Loci::Abort() ;
       }
@@ -323,7 +324,7 @@ namespace Loci {
       parse_str(load, str_vec) ;
       for(size_t i = 0; i < str_vec.size(); ++i) 
 	if(str_set.find(str_vec[i]) == str_set.end()) {
-	  if(Loci::MPI_rank == 0)
+	if(Loci::MPI_rank == 0)
 	    cout << "loading in rules from " << str_vec[i] <<"  for module " << to_str << endl ; 
 	  load_module(str_vec[i], to_str, rdb, str_set) ;
 	}
@@ -381,7 +382,7 @@ namespace Loci {
         unnamedVarList.push_back(nonameset) ;
         for(size_t i = 0; i < str_vec.size(); ++i) 
           if(str_set.find(str_vec[i]) == str_set.end()) {
-            if(Loci::MPI_rank == 0)
+            if(facts.get_comm_rank() == 0)
               cout << "loading in rules from " << str_vec[i] <<"  for module " << to_str << endl ; 
             load_module(str_vec[i], to_str, problem_name, facts, rdb, str_set) ;
           }

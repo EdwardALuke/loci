@@ -56,7 +56,7 @@ namespace Loci{
   /// numbering.
   storeRepP get_node_remap(fact_db &facts, entitySet nodes, int keyspace) {
     REPORTMEM() ;
-    if(MPI_processes == 1) {
+    if(facts.get_comm_size() == 1) {
       int minNode = nodes.Min() ;
 
       Map nm ;
@@ -81,13 +81,15 @@ namespace Loci{
     newnum.allocate(nodes) ;
 
     // Expand g2f to include clone regions
-    entitySet out_of_dom = gnodes - init_ptn[MPI_rank] ;
-    g2f.setRep(MapRepP(g2f.Rep())->expand(out_of_dom, init_ptn)) ;
+    entitySet out_of_dom = gnodes - init_ptn[facts.get_comm_rank()] ;
+    g2f.setRep(MapRepP(g2f.Rep())->expand(out_of_dom, init_ptn,
+					  facts.get_comm())) ;
 
     entitySet fnodes = g2f.image(gnodes) ;
     int minNode_local = fnodes.Min() ;
     int minNode = minNode_local ;
-    MPI_Allreduce(&minNode_local,&minNode,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&minNode_local, &minNode, 1, MPI_INT,
+                   MPI_MIN, facts.get_comm()) ;
 
     FORALL(nodes,i) {
       newnum[i] = g2f[l2g[i]]-minNode+1 ;
@@ -103,7 +105,7 @@ namespace Loci{
   /// @param[in] facts Fact database.
   /// @param[in] nodes The local store domain that needs to be output.
   storeRepP get_output_node_remap(fact_db &facts, entitySet nodes) {
-    int p = MPI_processes ;
+    int p = facts.get_comm_size() ;
     if(p == 1) {
       int index = 1;
 
@@ -143,7 +145,7 @@ namespace Loci{
     int gsz = gnodes.size() ;
     int color = (gsz>0)?1:0 ;
     MPI_Comm groupcomm ;
-    MPI_Comm_split(MPI_COMM_WORLD,color,p,&groupcomm) ;
+    MPI_Comm_split(facts.get_comm(), color, p, &groupcomm) ;
     if(color==0) {
       MPI_Comm_free(&groupcomm) ;
 #ifdef VERBOSE
@@ -728,32 +730,33 @@ namespace Loci{
 
     // write grid topology file
     hid_t file_id = 0, group_id = 0 ;
-    file_id=writeVOGOpen(filename) ;
-    if(use_parallel_io ||MPI_rank == 0 ) {
+    MPI_Comm comm = facts.get_comm() ;
+    file_id=writeVOGOpen(filename,comm) ;
+    if(use_parallel_io ||facts.get_comm_rank() == 0 ) {
       group_id = H5Gcreate(file_id, "elements", H5P_DEFAULT, H5P_DEFAULT,
                            H5P_DEFAULT) ;
     }
 
 
-    writeUnorderedVector(group_id, "tetrahedra",tets) ;
-    writeUnorderedVector(group_id, "tetrahedra_ids",tets_ids) ;
+    writeUnorderedVector(group_id, "tetrahedra",tets, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "tetrahedra_ids",tets_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "hexahedra",hexs) ;
-    writeUnorderedVector(group_id, "hexahedra_ids",hexs_ids) ;
+    writeUnorderedVector(group_id, "hexahedra",hexs, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "hexahedra_ids",hexs_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "prism",prsm) ;
-    writeUnorderedVector(group_id, "prism_ids",prsm_ids) ;
+    writeUnorderedVector(group_id, "prism",prsm, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "prism_ids",prsm_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "pyramid",pyrm) ;
-    writeUnorderedVector(group_id, "pyramid_ids",pyrm_ids) ;
+    writeUnorderedVector(group_id, "pyramid",pyrm, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "pyramid_ids",pyrm_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(group_id, "GeneralCellNfaces",generalCellNfaces) ;
-    writeUnorderedVector(group_id, "GeneralCellNsides",generalCellNsides) ;
-    writeUnorderedVector(group_id, "GeneralCellNodes", generalCellNodes) ;
-    writeUnorderedVector(group_id, "GeneralCell_ids", generalCell_ids) ;
+    writeUnorderedVector(group_id, "GeneralCellNfaces",generalCellNfaces, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "GeneralCellNsides",generalCellNsides, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "GeneralCellNodes", generalCellNodes, facts.get_comm()) ;
+    writeUnorderedVector(group_id, "GeneralCell_ids", generalCell_ids, facts.get_comm()) ;
 
 
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || facts.get_comm_rank() == 0) {
       H5Gclose(group_id) ;
       group_id = H5Gcreate(file_id, "boundaries", H5P_DEFAULT, H5P_DEFAULT,
                            H5P_DEFAULT) ;
@@ -762,7 +765,7 @@ namespace Loci{
     const_store<string> boundary_names(bnamesRep) ;
 
     entitySet boundaries = boundary_names.domain() ;
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       entitySet local_boundaries ;
       int bkeyspace = bnamesRep->getDomainKeySpace() ;
       std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ;
@@ -770,7 +773,7 @@ namespace Loci{
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
       FORALL(boundaries,bb) {
-        if(init_ptn[MPI_rank].inSet(l2g[bb])) {
+        if(init_ptn[facts.get_comm_rank()].inSet(l2g[bb])) {
           local_boundaries += bb ;
         }
       } ENDFORALL ;
@@ -782,7 +785,7 @@ namespace Loci{
     } ENDFORALL ;
 
 
-    bnames = MPIConcatStrings(bnames,MPI_COMM_WORLD) ;
+    bnames = MPIConcatStrings(bnames, facts.get_comm()) ;
 
     vector<string> bnamelist ;
     for(size_t i=0;i<bnames.size();++i) {
@@ -804,9 +807,9 @@ namespace Loci{
                       MapRepP(upperRep)->image(localCells)) & ref.domain() ;
 
     Map l2f ;
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
-      int kd =  getKeyDomain(fset, df, MPI_COMM_WORLD) ;
+      int kd =  getKeyDomain(fset, df, facts.get_comm()) ;
 
       if(kd < 0) {
         cerr << "gridTopology, boundary faces not in single keyspace!"
@@ -826,7 +829,7 @@ namespace Loci{
     for(size_t i=0;i<bnamelist.size();++i) {
       hid_t bc_id = 0 ;
       string current_bc = bnamelist[i] ;
-      if(use_parallel_io || MPI_rank==0) {
+      if(use_parallel_io || facts.get_comm_rank()==0) {
         bc_id = H5Gcreate(group_id, current_bc.c_str(), H5P_DEFAULT,
                           H5P_DEFAULT,H5P_DEFAULT) ;
       }
@@ -895,22 +898,22 @@ namespace Loci{
       } ENDFORALL ;
 
 
-      writeUnorderedVector(bc_id,"triangles",Trias) ;
-      writeUnorderedVector(bc_id,"triangles_id",tria_ids) ;
+      writeUnorderedVector(bc_id,"triangles",Trias, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"triangles_id",tria_ids, facts.get_comm()) ;
 
-      writeUnorderedVector(bc_id,"quads",Quads) ;
-      writeUnorderedVector(bc_id,"quads_id",quad_ids) ;
+      writeUnorderedVector(bc_id,"quads",Quads, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"quads_id",quad_ids, facts.get_comm()) ;
 
-      writeUnorderedVector(bc_id,"nside_sizes",nsizes) ;
-      writeUnorderedVector(bc_id,"nside_nodes",nsidenodes) ;
-      writeUnorderedVector(bc_id,"nside_id",genc_ids) ;
+      writeUnorderedVector(bc_id,"nside_sizes",nsizes, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"nside_nodes",nsidenodes, facts.get_comm()) ;
+      writeUnorderedVector(bc_id,"nside_id",genc_ids, facts.get_comm()) ;
 
-      if(use_parallel_io || MPI_rank == 0) {
+      if(use_parallel_io || facts.get_comm_rank() == 0) {
         H5Gclose(bc_id) ;
       }
     }
 
-    if(use_parallel_io || MPI_rank == 0) {
+    if(use_parallel_io || facts.get_comm_rank() == 0) {
       H5Gclose(group_id) ;
       H5Fclose(file_id) ;
     }
@@ -925,7 +928,7 @@ namespace Loci{
 
     const_store<string> boundary_names(bnamesRep) ;
     entitySet boundaries = boundary_names.domain() ;
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       entitySet local_boundaries ;
       int bkeyspace = bnamesRep->getDomainKeySpace() ;
       std::vector<entitySet> init_ptn = facts.get_init_ptn(bkeyspace) ;
@@ -933,7 +936,7 @@ namespace Loci{
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       l2g = df->l2g.Rep() ;
       FORALL(boundaries,bb) {
-        if(init_ptn[MPI_rank].inSet(l2g[bb])) {
+        if(init_ptn[facts.get_comm_rank()].inSet(l2g[bb])) {
           local_boundaries += bb ;
         }
       } ENDFORALL ;
@@ -946,7 +949,7 @@ namespace Loci{
     } ENDFORALL ;
 
 
-    bnames = MPIConcatStrings(bnames,MPI_COMM_WORLD) ;
+    bnames = MPIConcatStrings(bnames, facts.get_comm()) ;
 
     vector<string> bnamelist ;
     for(size_t i=0;i<bnames.size();++i) {
@@ -988,15 +991,18 @@ namespace Loci{
   /// @param[in] bc_name The name of the boundary.
   /// @param[in] file_name The name of the file to open.
   /// @return An HDF5 file ID (hid_t) to the file.
-  hid_t open_boundary_file(string bc_name, string file_name) {
+  hid_t open_boundary_file(string bc_name, string file_name,
+			   MPI_Comm comm) {
+    int r = 0 ;
+    MPI_Comm_rank(comm,&r) ;
     // open the file
     hid_t file_id = 0;
-    if(MPI_rank == 0) {
+    if(r == 0) {
       get_bc_directory(bc_name);
     }
     string dirname = "output/" + bc_name + "/";
     string filename = dirname+file_name;
-    file_id=writeVOGOpen(filename.c_str()) ;
+    file_id=writeVOGOpen(filename.c_str(),comm) ;
     return file_id;
   }
 
@@ -1051,7 +1057,7 @@ namespace Loci{
     //get all the local nodes on the boundary
     entitySet nodes_local = MapRepP(face2node)->image(bfaces) ;
     // get the nodes that belong to this processor
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       entitySet dom = nodes_local ;
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
       entitySet  my_entities = dist->my_entities ;
@@ -1091,7 +1097,8 @@ namespace Loci{
     faceorder.allocate(bfaces) ;
     int sz = bfaces.size() ;
     int off = 0 ;
-    MPI_Scan(&sz,&off,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Scan(&sz, &off, 1, MPI_INT, MPI_SUM,
+             facts.get_comm()) ;
     off -= sz ;
     FORALL(bfaces,fc) {
       faceorder[fc] = off ;
@@ -1153,14 +1160,14 @@ namespace Loci{
 #endif
 
     //write out vectors
-    writeUnorderedVector(file_id,"triangles",Trias) ;
-    writeUnorderedVector(file_id,"triangles_ord",tria_ids) ;
-    writeUnorderedVector(file_id,"quads",Quads) ;
-    writeUnorderedVector(file_id,"quads_ord",quad_ids) ;
+    writeUnorderedVector(file_id,"triangles",Trias, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"triangles_ord",tria_ids, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"quads",Quads, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"quads_ord",quad_ids, facts.get_comm()) ;
 
-    writeUnorderedVector(file_id,"nside_sizes",nsizes) ;
-    writeUnorderedVector(file_id,"nside_nodes",nsidenodes) ;
-    writeUnorderedVector(file_id,"nside_ord",genc_ids) ;
+    writeUnorderedVector(file_id,"nside_sizes",nsizes, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"nside_nodes",nsidenodes, facts.get_comm()) ;
+    writeUnorderedVector(file_id,"nside_ord",genc_ids, facts.get_comm()) ;
 
 #ifdef VERBOSE
     debugout << "time to write unordered vectors = " << s.stop() << endl ;
@@ -1501,7 +1508,7 @@ namespace Loci{
       nsizes[i] = cp.faceLoops[i].size() ;
     }
 
-    writeUnorderedVector(bc_id,"nside_sizes",nsizes) ;
+    writeUnorderedVector(bc_id,"nside_sizes",nsizes, facts.get_comm()) ;
 
     //write out face nodes
     vector<int> nsidenodes ;
@@ -1514,7 +1521,7 @@ namespace Loci{
       }
     }
 
-    writeUnorderedVector(bc_id,"nside_nodes",nsidenodes) ;
+    writeUnorderedVector(bc_id,"nside_nodes",nsidenodes, facts.get_comm()) ;
 
 #ifdef VERBOSE
     debugout << "time to write cut plane topology=" << s.stop() << endl ;
@@ -1580,8 +1587,8 @@ namespace Loci{
     if(facts.is_distributed_start()) {
       int pk = pos.Rep()->getDomainKeySpace() ;
       init_ptn = facts.get_init_ptn(pk) ;
-      if(GLOBAL_OR(tmp_out)) {
-        fill_clone(sp, out_of_dom, init_ptn) ;
+      if(GLOBAL_OR(tmp_out, facts.get_comm())) {
+        fill_clone(sp, out_of_dom, init_ptn,facts.get_comm()) ;
       }
     }
 
@@ -1659,10 +1666,12 @@ namespace Loci{
 
       vector<int> p1closest(p1.size()) ;
 
-      parallelNearestNeighbors(p2,p2id,p1,p1closest,MPI_COMM_WORLD) ;
+      parallelNearestNeighbors(p2, p2id, p1, p1closest,
+                               facts.get_comm()) ;
 
       vector<int> p2closest(p2.size()) ;
-      parallelNearestNeighbors(p1,p1id,p2,p2closest,MPI_COMM_WORLD) ;
+      parallelNearestNeighbors(p1, p1id, p2, p2closest,
+                               facts.get_comm()) ;
 
       for(size_t i=0;i<p1.size();++i) {
         pmap[p1id[i]] = p1closest[i] ;
@@ -1682,7 +1691,7 @@ namespace Loci{
       std::vector<entitySet> init_ptn ;
       if(facts.is_distributed_start()) {
         init_ptn = facts.get_init_ptn(fk) ;
-        fill_clone(sp, p1map, init_ptn) ;
+        fill_clone(sp, p1map, init_ptn,facts.get_comm()) ;
       }
       bool periodic_problem = false ;
       for(size_t i=0;i<p1id.size();++i) {
@@ -1690,8 +1699,8 @@ namespace Loci{
           periodic_problem = true ;
         }
       }
-      if(GLOBAL_OR(periodic_problem)) {
-        if(MPI_rank == 0) {
+      if(GLOBAL_OR(periodic_problem, facts.get_comm())) {
+        if(facts.get_comm_rank() == 0) {
           cerr << "Periodic boundary did not connect properly, is boundary "
                << "point matched?" << endl ;
           Loci::Abort() ;
@@ -1768,7 +1777,7 @@ namespace Loci{
     Map ref ;
     ref = facts.get_variable("ref") ;
     entitySet dom = boundary_names.domain() ;
-    dom = all_collect_entitySet(dom) ;// gather the boundary surface ids
+    dom = all_collect_entitySet(dom,facts.get_comm()) ;// gather the boundary surface ids
 
     int fk = ref.Rep()->getDomainKeySpace() ;
 
@@ -1894,15 +1903,15 @@ namespace Loci{
       // Create constraints for each
       std::map<std::string, entitySet>::const_iterator mi ;
       for(mi=BCsets.begin();mi!=BCsets.end();++mi) {
-        if(GLOBAL_OR(mi->second.size())) {
+        if(GLOBAL_OR(mi->second.size(), facts.get_comm())) {
           constraint bc_constraint ;
           bc_constraint = mi->second ;
           std::string constraint_name = mi->first + std::string("_BC") ;
 	        bc_constraint.Rep()->setDomainKeySpace(fk) ;
           facts.create_fact(constraint_name,bc_constraint) ;
-          if(MPI_processes == 1) {
+          if(facts.get_comm_size() == 1) {
             std::cout << constraint_name << ' ' << mi->second << endl ;
-          } else if(MPI_rank == 0) {
+          } else if(facts.get_comm_rank() == 0) {
             std::cout << "setting boundary condition " << constraint_name
                       << endl ;
           }
@@ -1969,10 +1978,12 @@ namespace Loci{
           int p2inp = p2.bset.size() ;
           int p1size ;
           int p2size ;
-          MPI_Allreduce(&p1inp,&p1size,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
-          MPI_Allreduce(&p2inp,&p2size,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+          MPI_Allreduce(&p1inp, &p1size, 1, MPI_INT,
+                       MPI_SUM, facts.get_comm()) ;
+          MPI_Allreduce(&p2inp, &p2size, 1, MPI_INT,
+                       MPI_SUM, facts.get_comm()) ;
           if(p1size != p2size) {
-            if(MPI_rank == 0) {
+            if(facts.get_comm_rank() == 0) {
               cerr << "periodic boundaries " << p1.name
                    << " do not match in number of faces" << endl ;
               cerr << "master has " << p1size << " faces and slave has "
@@ -2031,6 +2042,7 @@ namespace Loci{
   /// @param[out] normal Face normals.
   void getFaceCenter(fact_db &facts, store<vector3d<double> > &fcenter,
                      store<double> &area, store<vector3d<double> > &normal) {
+    MPI_Comm comm = facts.get_comm() ;
     // Compute face centers
     store<vector3d<double> > pos ;
     pos = facts.get_variable("pos") ;
@@ -2049,7 +2061,7 @@ namespace Loci{
     // gather nodal data needed for the computation.
     std::map<int,int> g2l ;
     getLocalContextMap(g2l,node_access) ;
-    gatherData(posdata,pos,node_access,node_ptn) ;
+    gatherData(posdata,pos,node_access,node_ptn,comm) ;
     fcenter.allocate(fdom) ;
     area.allocate(fdom) ;
     normal.allocate(fdom) ;
@@ -2135,7 +2147,7 @@ namespace Loci{
   /// @param[in] area Face areas.
   void getCellCenter(fact_db &facts, store<vector3d<double> > &ccenter,
                      store<vector3d<double> > &fcenter, store<double> &area) {
-
+    MPI_Comm comm = facts.get_comm() ;
     multiMap upper,lower,boundary_map ;
     upper = facts.get_variable("upper") ;
     lower = facts.get_variable("lower") ;
@@ -2153,8 +2165,8 @@ namespace Loci{
     std::vector<entitySet> face_ptn = facts.get_init_ptn(fkeyspace) ;
     std::map<int,int> g2l ;
     getLocalContextMap(g2l,faceimage) ;
-    gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
-    gatherData(areadata,area,faceimage,face_ptn) ;
+    gatherData(fcenterdata,fcenter,faceimage,face_ptn,comm) ;
+    gatherData(areadata,area,faceimage,face_ptn,comm) ;
     // compute wireframe centroid
     FORALL(cells,cc) {
       vector3d<double>  csum = vector3d<double> (0,0,0) ;
@@ -2197,6 +2209,7 @@ namespace Loci{
   }
 
   void get_full_cellStencil(multiMap &cellStencil,fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     using std::vector ;
     using std::pair ;
     Map cl,cr ;
@@ -2215,14 +2228,14 @@ namespace Loci{
     // loop before, so gather with clone cells
     int gkeyspace = geom_cells_c.getDomainKeySpace() ;
     std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
-    geom_cells = distribute_entitySet(geom_cells,ptn) ;
+    geom_cells = distribute_entitySet(geom_cells,ptn,comm) ;
     entitySet geom_cell_expand =
-      dist_expand_entitySet(geom_cells,cellmask,ptn) ;
+      dist_expand_entitySet(geom_cells,cellmask,ptn,comm) ;
     Loci::protoMap f2cell ;
 
 #ifdef DEBUG
     // Check to see if there are any ORPHAN cells in geom_cells.
-    entitySet accessedSet = distribute_entitySet(cellmask,ptn) ;
+    entitySet accessedSet = distribute_entitySet(cellmask,ptn,comm) ;
     WARN(GLOBAL_OR((geom_cells-accessedSet) != EMPTY))
 #endif
     // Get mapping from face to geometric cells
@@ -2240,22 +2253,22 @@ namespace Loci{
     // Equijoin on first of pairs to get node to neighboring cell mapping
     // This will give us a mapping from nodes to neighboring cells
     Loci::protoMap n2c ;
-    Loci::equiJoinFF(f2node,f2cell,n2c) ;
+    Loci::equiJoinFF(f2node,f2cell,n2c,comm) ;
 
     // In case there are processors that have no n2c's allocated to them
     // re-balance map distribution
-    Loci::balanceDistribution(n2c,MPI_COMM_WORLD) ;
+    Loci::balanceDistribution(n2c, facts.get_comm()) ;
     // Equijoin node2cell with itself to get cell to cell map of
     // all cells that share one or more nodes
     Loci::protoMap n2cc = n2c ;
     Loci::protoMap c2c ;
-    Loci::equiJoinFF(n2c,n2cc,c2c) ;
+    Loci::equiJoinFF(n2c,n2cc,c2c,comm) ;
 
     // Remove self references
     Loci::removeIdentity(c2c) ;
 
     // Create cell stencil map from protoMap
-    distributed_inverseMap(cellStencil,c2c,geom_cells,geom_cells,ptn) ;
+    distributed_inverseMap(cellStencil,c2c,geom_cells,geom_cells,ptn,comm) ;
 
 #ifdef DEBUG
     entitySet degen_cells ;
@@ -2266,11 +2279,11 @@ namespace Loci{
         degen_cells += ii ;
       }
     } ENDFORALL ;
-    entitySet tot_degen = all_collect_entitySet(degen_cells) ;
+    entitySet tot_degen = all_collect_entitySet(degen_cells,facts.get_comm()) ;
     WARN(tot_degen!=EMPTY) ;
     if(tot_degen != EMPTY) {
       debugout << "tot_degen=" << tot_degen << endl ;
-      if(MPI_rank==0)
+      if(facts.get_comm_rank()==0)
         cerr << "tot_degen = " << tot_degen << endl ;
     }
     FORALL(faces,fc) {
@@ -2311,7 +2324,7 @@ namespace Loci{
   }
 
   void get_stable_cellStencil(multiMap &cellStencilFiltered, fact_db & facts) {
-
+    MPI_Comm comm = facts.get_comm() ;
     // get full stencil
     multiMap cellStencil ;
     get_full_cellStencil(cellStencil,facts) ;
@@ -2339,8 +2352,8 @@ namespace Loci{
     getLocalContextMap(fg2l,faceimage) ;
     std::vector<vector3d<double> > fcenterdata ;
     std::vector<vector3d<double> > fnormaldata ;
-    gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
-    gatherData(fnormaldata,normal,faceimage,face_ptn) ;
+    gatherData(fcenterdata,fcenter,faceimage,face_ptn,comm) ;
+    gatherData(fnormaldata,normal,faceimage,face_ptn,comm) ;
 
     int ckeyspace = upper.getDomainKeySpace() ;
     std::vector<entitySet> cell_ptn = facts.get_init_ptn(ckeyspace) ;
@@ -2350,7 +2363,7 @@ namespace Loci{
     std::vector<vector3d<double> > ccenterdata ;
     std::map<int,int> cg2l ;
     getLocalContextMap(cg2l,cellImage) ;
-    gatherData(ccenterdata,ccenter,cellImage,cell_ptn) ;
+    gatherData(ccenterdata,ccenter,cellImage,cell_ptn,comm) ;
 
     store<int> sizes ;
     sizes.allocate(cells) ;
@@ -2439,6 +2452,7 @@ namespace Loci{
   }
 
   void get_neigh_cellStencil(multiMap &cellStencil,fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     using std::vector ;
     using std::pair ;
     Map cl,cr ;
@@ -2455,14 +2469,14 @@ namespace Loci{
 
     int gkeyspace = geom_cells_c.getDomainKeySpace() ;
     std::vector<entitySet> ptn = facts.get_init_ptn(gkeyspace) ;
-    geom_cells = distribute_entitySet(geom_cells,ptn) ;
+    geom_cells = distribute_entitySet(geom_cells,ptn,comm) ;
     entitySet geom_cell_expand =
-      dist_expand_entitySet(geom_cells,cellmask,ptn) ;
+      dist_expand_entitySet(geom_cells,cellmask,ptn,comm) ;
     Loci::protoMap f2cell ;
 
 #ifdef DEBUG
     // Check to see if there are any ORPHAN cells in geom_cells.
-    entitySet accessedSet = distribute_entitySet(cellmask,ptn) ;
+    entitySet accessedSet = distribute_entitySet(cellmask,ptn,comm) ;
     WARN(GLOBAL_OR((geom_cells-accessedSet) != EMPTY))
 #endif
 
@@ -2478,12 +2492,12 @@ namespace Loci{
     // join f2cell to get f
     Loci::protoMap f2celll = f2cell ;
     Loci::protoMap f2f ;
-    Loci::equiJoinFF(f2cell,f2celll,f2f) ;
+    Loci::equiJoinFF(f2cell,f2celll,f2f,comm) ;
     Loci::removeIdentity(f2f) ;
-    Loci::balanceDistribution(f2f,MPI_COMM_WORLD) ;
+    Loci::balanceDistribution(f2f, comm) ;
 
     // Create cell stencil map from protoMap
-    distributed_inverseMap(cellStencil,f2f,geom_cells,geom_cells,ptn) ;
+    distributed_inverseMap(cellStencil,f2f,geom_cells,geom_cells,ptn,comm) ;
 
   }
 
@@ -2491,7 +2505,8 @@ namespace Loci{
   /// @param[out] cellStencilSymm
   /// @param[in] facts
   void get_symm_cellStencil(multiMap &cellStencilSymm, fact_db & facts) {
-    if(Loci::MPI_rank==0) {
+    MPI_Comm comm = facts.get_comm() ;
+    if(facts.get_comm_rank()==0) {
       cout <<"Generating symm stencil" << endl ;
     }
     using std::vector ;
@@ -2521,8 +2536,8 @@ namespace Loci{
     std::map<int,int> fg2l ; // face global to local
     getLocalContextMap(fg2l,faceimage) ;
     vector<vector3d<double> > fcenterdata, fnormaldata ;
-    gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
-    gatherData(fnormaldata,normal,faceimage,face_ptn) ;
+    gatherData(fcenterdata,fcenter,faceimage,face_ptn,comm) ;
+    gatherData(fnormaldata,normal,faceimage,face_ptn,comm) ;
 
     int ckeyspace = upper.getDomainKeySpace() ;
     std::vector<entitySet> cell_ptn = facts.get_init_ptn(ckeyspace) ;
@@ -2532,7 +2547,7 @@ namespace Loci{
     vector<vector3d<double> > ccenterdata ;
     std::map<int,int> cg2l ;
     getLocalContextMap(cg2l,cellImage) ;
-    gatherData(ccenterdata,ccenter,cellImage,cell_ptn) ;
+    gatherData(ccenterdata,ccenter,cellImage,cell_ptn,comm) ;
 
     multiMap neighStencil;
     get_neigh_cellStencil(neighStencil,facts);
@@ -2540,7 +2555,7 @@ namespace Loci{
     vector<vector3d<double> > ncenterdata ;
     std::map<int,int> ncg2l ;
     getLocalContextMap(ncg2l,neighCellImage) ;
-    gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn) ;
+    gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn,comm) ;
 
     store<int> sizes ;
     sizes.allocate(cells) ;
@@ -2713,7 +2728,8 @@ namespace Loci{
   }
 
   void get_symmF_cellStencil(multiMap &cellStencilSymmF, fact_db & facts) {
-    if(Loci::MPI_rank==0) {
+    MPI_Comm comm = facts.get_comm() ;
+    if(facts.get_comm_rank()==0) {
       cout << "Generating symmF stencil" << endl ;
     }
     using std::vector ;
@@ -2744,8 +2760,8 @@ namespace Loci{
     getLocalContextMap(fg2l,faceimage) ;
     vector<vector3d<double> > fcenterdata ;
     vector<vector3d<double> > fnormaldata ;
-    gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
-    gatherData(fnormaldata,normal,faceimage,face_ptn) ;
+    gatherData(fcenterdata,fcenter,faceimage,face_ptn,comm) ;
+    gatherData(fnormaldata,normal,faceimage,face_ptn,comm) ;
 
     int ckeyspace = upper.getDomainKeySpace() ;
     std::vector<entitySet> cell_ptn = facts.get_init_ptn(ckeyspace) ;
@@ -2755,7 +2771,7 @@ namespace Loci{
     vector<vector3d<double> > ccenterdata ;
     std::map<int,int> cg2l ;
     getLocalContextMap(cg2l,cellImage) ;
-    gatherData(ccenterdata,ccenter,cellImage,cell_ptn) ;
+    gatherData(ccenterdata,ccenter,cellImage,cell_ptn,comm) ;
 
     multiMap neighStencil;
     get_neigh_cellStencil(neighStencil,facts);
@@ -2763,7 +2779,7 @@ namespace Loci{
     vector<vector3d<double> > ncenterdata ;
     std::map<int,int> ncg2l ;
     getLocalContextMap(ncg2l,neighCellImage) ;
-    gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn) ;
+    gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn,comm) ;
 
     store<int> sizes ;
     sizes.allocate(cells) ;
@@ -3043,7 +3059,8 @@ namespace Loci{
   }
 
   void get_symmC_cellStencil(multiMap &cellStencilSymmC, fact_db & facts) {
-    if(Loci::MPI_rank==0) {
+    MPI_Comm comm = facts.get_comm() ;
+    if(facts.get_comm_rank()==0) {
       cout <<"Generating symmC stencil" << endl ;
     }
     using std::vector ;
@@ -3074,8 +3091,8 @@ namespace Loci{
     getLocalContextMap(fg2l,faceimage) ;
     vector<vector3d<double> > fcenterdata ;
     vector<vector3d<double> > fnormaldata ;
-    gatherData(fcenterdata,fcenter,faceimage,face_ptn) ;
-    gatherData(fnormaldata,normal,faceimage,face_ptn) ;
+    gatherData(fcenterdata,fcenter,faceimage,face_ptn,comm) ;
+    gatherData(fnormaldata,normal,faceimage,face_ptn,comm) ;
 
     int ckeyspace = upper.getDomainKeySpace() ;
     std::vector<entitySet> cell_ptn = facts.get_init_ptn(ckeyspace) ;
@@ -3085,7 +3102,7 @@ namespace Loci{
     vector<vector3d<double> > ccenterdata ;
     std::map<int,int> cg2l ;
     getLocalContextMap(cg2l,cellImage) ;
-    gatherData(ccenterdata,ccenter,cellImage,cell_ptn) ;
+    gatherData(ccenterdata,ccenter,cellImage,cell_ptn,comm) ;
 
     multiMap neighStencil;
     get_neigh_cellStencil(neighStencil,facts);
@@ -3093,7 +3110,7 @@ namespace Loci{
     vector<vector3d<double> > ncenterdata ;
     std::map<int,int> ncg2l ;
     getLocalContextMap(ncg2l,neighCellImage) ;
-    gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn) ;
+    gatherData(ncenterdata,ccenter,neighCellImage,cell_ptn,comm) ;
 
     store<int> sizes ;
     sizes.allocate(cells) ;
@@ -3241,6 +3258,7 @@ namespace Loci{
 
 
   void createLowerUpper(fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     constraint geom_cells,interior_faces,boundary_faces;
     constraint faces = facts.get_variable("faces") ;
     geom_cells = facts.get_variable("geom_cells") ;
@@ -3262,10 +3280,10 @@ namespace Loci{
 
     std::vector<entitySet> fptn = facts.get_init_ptn(fkeyspace) ;
     entitySet
-      global_interior_faces = (distribute_entitySet(ifaces,fptn) & (*faces)) ;
+      global_interior_faces = (distribute_entitySet(ifaces,fptn,comm) & (*faces)) ;
 
     entitySet
-      global_boundary_faces = (distribute_entitySet(bfaces,fptn) & (*faces)) ;
+      global_boundary_faces = (distribute_entitySet(bfaces,fptn,comm) & (*faces)) ;
 
     Map cl,cr ;
     cl = facts.get_variable("cl") ;
@@ -3273,7 +3291,8 @@ namespace Loci{
     // Note, all_collect_entitySet has the potential to be inefficient,
     // but not in the present case.  These low level utilities need to be
     // rethought.
-    entitySet global_geom_cells = all_collect_entitySet(*geom_cells) ;
+    entitySet global_geom_cells = all_collect_entitySet(*geom_cells,
+							comm) ;
     multiMap lower,upper,boundary_map ;
     distributed_inverseMap(upper, cl, global_geom_cells, global_interior_faces,
                            facts,ckeyspace) ;
@@ -3533,49 +3552,45 @@ namespace Loci{
 
   namespace {
 
-    /// A utility that returns the global sum.
-    int global_sum(int l) {
+    int global_sum(int l, MPI_Comm comm) {
       int g ;
-      MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD) ;
+      MPI_Allreduce(&l, &g, 1, MPI_INT, MPI_SUM, comm) ;
       return g ;
     }
 
     /// A utility function that takes an entitySet from a processor and
     /// returns a vector of entitySet gathered from all processors.
-    vector<entitySet> gather_all_entitySet(const entitySet& eset) {
+    vector<entitySet> gather_all_entitySet(const entitySet& eset,
+                                            MPI_Comm comm) {
+      int np = 0 ;
+      MPI_Comm_size(comm, &np) ;
       int local_size = eset.size() ;
-      int global_size = global_sum(local_size) ;
-      // compute receive counts from all processors
-      int* recv_counts = new int[MPI_processes] ;
+      int global_size = global_sum(local_size, comm) ;
+      int* recv_counts = new int[np] ;
       MPI_Allgather(&local_size, 1, MPI_INT,
-                    recv_counts, 1, MPI_INT, MPI_COMM_WORLD) ;
-      // then compute receive displacement
-      int* recv_displs = new int[MPI_processes] ;
+                    recv_counts, 1, MPI_INT, comm) ;
+      int* recv_displs = new int[np] ;
       recv_displs[0] = 0 ;
-      for(int i=1;i<MPI_processes;++i) {
+      for(int i=1;i<np;++i) {
         recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
       }
-      // pack the local eset into an array
       int* local_eset = new int[local_size] ;
       int count = 0 ;
       for(entitySet::const_iterator ei=eset.begin();
           ei!=eset.end();++ei,++count) {
         local_eset[count] = *ei ;
       }
-      // allocate the entire array for all data from all processors
       int* global_eset = new int[global_size] ;
-      // communicate to obtain all esets from every processors
       MPI_Allgatherv(local_eset, local_size, MPI_INT,
                      global_eset, recv_counts, recv_displs,
-                     MPI_INT, MPI_COMM_WORLD) ;
+                     MPI_INT, comm) ;
       delete[] local_eset ;
       delete[] recv_counts ;
-      // unpack the raw buffer into a vector<entitySet>
-      vector<entitySet> ret(MPI_processes) ;
+      vector<entitySet> ret(np) ;
       int k = 0 ;
-      for(int i=0;i<MPI_processes;++i) {
+      for(int i=0;i<np;++i) {
         int limit ;
-        if(i == MPI_processes-1) {
+        if(i == np-1) {
           limit = global_size ;
         } else {
           limit = recv_displs[i+1] ;
@@ -3806,6 +3821,7 @@ namespace Loci{
   }
 
   void createEdgesPar(fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     multiMap face2node ;
     face2node = facts.get_variable("face2node") ;
     entitySet faces = face2node.domain() ;
@@ -3830,8 +3846,8 @@ namespace Loci{
     // the "emap", if not, then the parallel sample sort would fail
     // and we pre-balance the "emap" on every process before the
     // sorting
-    if(GLOBAL_OR(emap.empty())) {
-      parallel_balance_pair_vector(emap, MPI_COMM_WORLD) ;
+    if(GLOBAL_OR(emap.empty(), facts.get_comm())) {
+      parallel_balance_pair_vector(emap, facts.get_comm()) ;
     }
     // Sort edges and remove duplicates
     sort(emap.begin(),emap.end()) ;
@@ -3844,21 +3860,22 @@ namespace Loci{
     // less than the total number of processes, we split the communicator
     // so that only those do have elements would participate in the
     // parallel sample sorting
-    if(GLOBAL_OR(emap.empty())) {
+    if(GLOBAL_OR(emap.empty(), facts.get_comm())) {
       MPI_Comm sub_comm ;
       int color = emap.empty() ;
-      MPI_Comm_split(MPI_COMM_WORLD, color, MPI_rank, &sub_comm) ;
+      MPI_Comm_split(facts.get_comm(), color, facts.get_comm_rank(),
+                     &sub_comm) ;
       if(!emap.empty())
         par_sort(emap, sub_comm) ;
       MPI_Comm_free(&sub_comm) ;
     } else {
-      par_sort(emap, MPI_COMM_WORLD) ;
+      par_sort(emap, facts.get_comm()) ;
     }
     // remove duplicates again in the new sorted vector
     uend = unique(emap.begin(), emap.end()) ;
     emap.erase(uend, emap.end()) ;
 #ifdef BOUNDARY_DUPLICATE_DETECT
-    if(MPI_processes > 1) {
+    if(facts.get_comm_size() > 1) {
       // then we will need to remove duplicates along the boundaries
       // we send the first element in the vector to the left neighbor
       // processor (my_id - 1) and each processor compares its last
@@ -3883,24 +3900,27 @@ namespace Loci{
         sendbuf[1] = std::numeric_limits<int>::max() ;
       }
       MPI_Status status ;
-      if(MPI_rank == 0) {
+      if(facts.get_comm_rank() == 0) {
         // rank 0 only receives from 1, no sending needed
         MPI_Recv(recvbuf, 2, MPI_INT,
                  1/*source*/, 0/*msg tag*/,
-                 MPI_COMM_WORLD, &status) ;
-      } else if(MPI_rank == MPI_processes-1) {
+                 facts.get_comm(), &status) ;
+      } else if(facts.get_comm_rank() == facts.get_comm_size()-1) {
         // the last processes only sends to the second last processes,
         // no receiving is needed
         MPI_Send(sendbuf, 2, MPI_INT,
-                 MPI_rank-1/*dest*/, 0/*msg tag*/, MPI_COMM_WORLD) ;
+                 facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
+                 facts.get_comm()) ;
       } else {
         // others will send to MPI_rank-1 and receive from MPI_rank+1
-        MPI_Sendrecv(sendbuf, 2, MPI_INT, MPI_rank-1/*dest*/,0/*msg tag*/,
-                     recvbuf, 2, MPI_INT, MPI_rank+1/*source*/,0/*tag*/,
-                     MPI_COMM_WORLD, &status) ;
+        MPI_Sendrecv(sendbuf, 2, MPI_INT,
+                     facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
+                     recvbuf, 2, MPI_INT,
+                     facts.get_comm_rank()+1/*source*/, 0/*tag*/,
+                     facts.get_comm(), &status) ;
       }
       // then compare the results with last element in local emap
-      if( (MPI_rank != MPI_processes-1) && (!emap.empty())){
+      if( (facts.get_comm_rank() != facts.get_comm_size()-1) && (!emap.empty())){
         const pair<Entity,Entity>& last = emap.back() ;
         if( (recvbuf[0] == last.first) &&
             (recvbuf[1] == last.second)) {
@@ -3962,8 +3982,8 @@ namespace Loci{
     // instead it is the el Map image distribution
     entitySet el_image = el.image(el.domain()) ;
     vector<entitySet> el_image_partitions =
-      gather_all_entitySet(el_image) ;
-    distributed_inverseMap(n2e, el, el_image, edges, el_image_partitions) ;
+      gather_all_entitySet(el_image, comm) ;
+    distributed_inverseMap(n2e, el, el_image, edges, el_image_partitions,comm) ;
 
     // Now create face2edge map with same size as face2node
     multiMap face2edge ;
@@ -4005,7 +4025,7 @@ namespace Loci{
     // we then expand the n2e map
     entitySet nodes_out_domain = nodes_accessed - n2e.domain() ;
     n2e.setRep(MapRepP(n2e.Rep())->expand(nodes_out_domain,
-                                          el_image_partitions)) ;
+                                          el_image_partitions,comm)) ;
     // okay, then we are going to expand the edge map
     // first count all the edges we need
     entitySet edges_accessed ;
@@ -4030,7 +4050,7 @@ namespace Loci{
         edges_accessed += e ;
       }
     }
-    vector<entitySet> edge_partitions = gather_all_entitySet(edge.domain()) ;
+    vector<entitySet> edge_partitions = gather_all_entitySet(edge.domain(), facts.get_comm()) ;
     entitySet edges_out_domain = edges_accessed - edge.domain() ;
     // but since there is no expand method implemented for
     // MapVec at this time, we will just do a hack to convert
@@ -4050,7 +4070,7 @@ namespace Loci{
       edge2[*ei][1] = edge[*ei][1] ;
     }
     edge2.setRep(MapRepP(edge2.Rep())->expand(edges_out_domain,
-                                              edge_partitions)) ;
+                                              edge_partitions,comm)) ;
     // we are now ready for the face2edge map
 
     // Now loop over faces, for each face search for matching edge and
@@ -4102,7 +4122,7 @@ namespace Loci{
 
 
     //sort edge2node according to fileNumbering
-    if(MPI_processes > 1){
+    if(facts.get_comm_size() > 1){
       //create Map node_l2f
       entitySet nodes ;
       Map node_l2f ;
@@ -4120,7 +4140,7 @@ namespace Loci{
       g2f = df->g2fv[nkeyspace].Rep() ;
       //don't use nodes & init_ptn to define local nodes,
       //because nodes may not cover all nodes in init_ptn
-      entitySet localNodes = pos->domain()&init_ptn[MPI_rank] ;
+      entitySet localNodes = pos->domain()&init_ptn[facts.get_comm_rank()] ;
       node_l2f.allocate(localNodes);
       FORALL(localNodes, d){
         node_l2f[d] = g2f[d] ;
@@ -4128,7 +4148,7 @@ namespace Loci{
 
       entitySet out_of_dom = nodes - localNodes ;
       // vector<entitySet> tmp_ptn = gather_all_entitySet(localNodes) ;
-      node_l2f.setRep(MapRepP(node_l2f.Rep())->expand(out_of_dom, init_ptn)) ;
+      node_l2f.setRep(MapRepP(node_l2f.Rep())->expand(out_of_dom, init_ptn, comm)) ;
 
 
       //end of create Map
@@ -4152,8 +4172,9 @@ namespace Loci{
       }ENDFORALL;
 
 
-      if(GLOBAL_OR(edge2global.empty())) {
-        parallel_balance_pair2_vector(edge2global, MPI_COMM_WORLD) ;
+      if(GLOBAL_OR(edge2global.empty(), facts.get_comm())) {
+        parallel_balance_pair2_vector(edge2global,
+                                       facts.get_comm()) ;
       }
       // Sort edges and remove duplicates
       sort(edge2global.begin(),edge2global.end()) ;
@@ -4166,22 +4187,23 @@ namespace Loci{
       // less than the total number of processes, we split the communicator
       // so that only those do have elements would participate in the
       // parallel sample sorting
-      if(GLOBAL_OR(edge2global.empty())) {
+      if(GLOBAL_OR(edge2global.empty(), facts.get_comm())) {
         MPI_Comm sub_comm ;
         int color = edge2global.empty() ;
-        MPI_Comm_split(MPI_COMM_WORLD, color, MPI_rank, &sub_comm) ;
+        MPI_Comm_split(facts.get_comm(), color, facts.get_comm_rank(),
+                       &sub_comm) ;
         if(!edge2global.empty()) {
           par_sort2(edge2global, sub_comm) ;
         }
         MPI_Comm_free(&sub_comm) ;
       } else {
-        par_sort2(edge2global, MPI_COMM_WORLD) ;
+        par_sort2(edge2global, facts.get_comm()) ;
       }
       // remove duplicates again in the new sorted vector
       uend2 = unique(edge2global.begin(), edge2global.end()) ;
       edge2global.erase(uend2, edge2global.end()) ;
 #ifdef BOUNDARY_DUPLICATE_DETECT
-      if(MPI_processes > 1) {
+      if(facts.get_comm_size() > 1) {
         // then we will need to remove duplicates along the boundaries
         // we send the first element in the vector to the left neighbor
         // processor (my_id - 1) and each processor compares its last
@@ -4208,24 +4230,27 @@ namespace Loci{
           sendbuf[2] = std::numeric_limits<int>::max() ;
         }
         MPI_Status status ;
-        if(MPI_rank == 0) {
+        if(facts.get_comm_rank() == 0) {
           // rank 0 only receives from 1, no sending needed
           MPI_Recv(recvbuf, 3, MPI_INT,
                    1/*source*/, 0/*msg tag*/,
-                   MPI_COMM_WORLD, &status) ;
-        } else if(MPI_rank == MPI_processes-1) {
+                   facts.get_comm(), &status) ;
+        } else if(facts.get_comm_rank() == facts.get_comm_size()-1) {
           // the last processes only sends to the second last processes,
           // no receiving is needed
           MPI_Send(sendbuf, 3, MPI_INT,
-                   MPI_rank-1/*dest*/, 0/*msg tag*/, MPI_COMM_WORLD) ;
+                   facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
+                   facts.get_comm()) ;
         } else {
           // others will send to MPI_rank-1 and receive from MPI_rank+1
-          MPI_Sendrecv(sendbuf, 3, MPI_INT, MPI_rank-1/*dest*/,0/*msg tag*/,
-                       recvbuf, 3, MPI_INT, MPI_rank+1/*source*/,0/*tag*/,
-                       MPI_COMM_WORLD, &status) ;
+          MPI_Sendrecv(sendbuf, 3, MPI_INT,
+                       facts.get_comm_rank()-1/*dest*/, 0/*msg tag*/,
+                       recvbuf, 3, MPI_INT,
+                       facts.get_comm_rank()+1/*source*/, 0/*tag*/,
+                       facts.get_comm(), &status) ;
         }
         // then compare the results with last element in local emap
-        if( (MPI_rank != MPI_processes-1) && (!edge2global.empty())) {
+        if( (facts.get_comm_rank() != facts.get_comm_size()-1) && (!edge2global.empty())) {
           const pair<pair<Entity,Entity>, Entity>& last = edge2global.back() ;
           if( (recvbuf[0] == last.first.first) &&
               (recvbuf[1] == last.first.second)&&
@@ -4238,11 +4263,13 @@ namespace Loci{
 
 
       int local_num_edge = edge2global.size() ;
-      vector<int> edge_sizes(MPI_processes) ;
-      MPI_Allgather(&local_num_edge,1,MPI_INT,&edge_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      vector<int> edge_sizes(facts.get_comm_size()) ;
+      MPI_Allgather(&local_num_edge, 1, MPI_INT,
+                    &edge_sizes[0], 1, MPI_INT,
+                    facts.get_comm()) ;
 
       int file_num_offset = 0 ;
-      for(int i = 0; i < MPI_rank; i++) {
+      for(int i = 0; i < facts.get_comm_rank(); i++) {
         file_num_offset += edge_sizes[i] ;
       }
 
@@ -4268,7 +4295,7 @@ namespace Loci{
                                    file2global,
                                    input_image,
                                    input_preimage,
-                                   init_ptne);
+                                   init_ptne,facts.get_comm());
 
 
       if(global2file.domain() != edges){
@@ -4301,6 +4328,7 @@ namespace Loci{
 
 
   void setupOverset(fact_db &facts) {
+    MPI_Comm comm = facts.get_comm() ;
     storeRepP sp = facts.get_variable("componentGeometry") ;
     if(sp == 0) {
       return ;
@@ -4331,8 +4359,9 @@ namespace Loci{
 
     pos = facts.get_variable("pos") ;
     entitySet dom = pos.domain() ;
-    vector<entitySet> posptn = all_collect_vectors(dom,MPI_COMM_WORLD) ;
-    entitySet surfNodes = dist_collect_entitySet(nodeSet,posptn) ;
+    vector<entitySet> posptn =
+      all_collect_vectors(dom, facts.get_comm()) ;
+    entitySet surfNodes = dist_collect_entitySet(nodeSet,posptn,comm) ;
 
     // Now get volume tags
     variableSet vars = facts.get_extensional_facts() ;
@@ -4364,8 +4393,8 @@ namespace Loci{
     for(mi=volMap.begin();mi!=volMap.end();++mi) {
       int ckeyspace = cl.getRangeKeySpace() ;
       std::vector<entitySet> cptn = facts.get_init_ptn(ckeyspace) ;
-      entitySet volgather = distribute_entitySet(mi->second,cptn) ;
-      volgather = dist_expand_entitySet(volgather,domc,cptn) ;
+      entitySet volgather = distribute_entitySet(mi->second,cptn,comm) ;
+      volgather = dist_expand_entitySet(volgather,domc,cptn,comm) ;
       volSets.push_back(volgather) ;
     }
 
@@ -4386,7 +4415,7 @@ namespace Loci{
       int nkeyspace = pos.getDomainKeySpace() ;
       std::vector<entitySet> nptn = facts.get_init_ptn(nkeyspace) ;
 
-      nodes = distribute_entitySet(nodes,nptn) ;
+      nodes = distribute_entitySet(nodes,nptn,comm) ;
       nodesets.push_back(nodes) ;
     }
 
@@ -4399,7 +4428,7 @@ namespace Loci{
     for(int i=0;i<sz;++i) {
       entitySet nodeSet = nodesets[i] & pos.domain() ;
       entitySet nodeSetsurf = nodesets[i] & surfNodes ;
-      if(!GLOBAL_OR(nodeSetsurf.size()!=0)) {
+      if(!GLOBAL_OR(nodeSetsurf.size()!=0, facts.get_comm())) {
         excludeSet += nodeSet ;
         continue ;
       }
@@ -4423,8 +4452,9 @@ namespace Loci{
         cnt++ ;
       } ENDFORALL ;
 
-      Loci::parallelNearestNeighbors(bcnodes_pts,bcnodes_ids,node_pts,closest,
-                                     MPI_COMM_WORLD) ;
+      Loci::parallelNearestNeighbors(bcnodes_pts, bcnodes_ids,
+                                     node_pts, closest,
+                                     facts.get_comm()) ;
 
       cnt = 0 ;
       FORALL(nodeSet,nd) {

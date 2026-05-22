@@ -144,12 +144,6 @@ namespace Loci {
   //--------------------------------------------------------------------------
 
   $type stencilSize2 param<double> ;
-  $type crossComponentDist_node store<float> ;
-  $type crossComponentDistGrad_node store<vector3d<float> > ;
-  $type crossComponentID_node store<int> ;
-
-  $type distanceFieldGradient store<vector3d<float> > ;
-
   $type surfaceNodeNormal store<vector3d<float> > ;
 
   $rule unit(surfaceNodeNormal<-pos) {
@@ -187,6 +181,7 @@ namespace Loci {
   componentID_node,componentPriorityList,holeCuttingTolerance,
   componentNameList,componentGeometryList,stencilSize2),
   option(disable_threading), prelude {
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     entitySet dom = entitySet(seq) ;
     int nc = (*$componentNameList).size() ;
     float delta = realToFloat(sqrt(*$stencilSize2)) ;
@@ -228,7 +223,7 @@ namespace Loci {
     // Exchange request bounding boxes
     MPI_Allgather(&bbox_set[0],sizeof(Array<float,6>)*nc,MPI_BYTE,
                   &bbox_all[0],sizeof(Array<float,6>)*nc,MPI_BYTE,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
     vector<vector<int> > send_sets ;
     vector<int> component_search ;
@@ -306,7 +301,7 @@ namespace Loci {
     }
     vector<int> recv_sz(p) ;
     MPI_Alltoall(&send_sz[0],1,MPI_INT,&recv_sz[0],1,MPI_INT,
-		 MPI_COMM_WORLD) ;
+		 comm) ;
 
     vector<int> recv_off(p+1) ;
     recv_off[0] = 0 ;
@@ -323,10 +318,10 @@ namespace Loci {
         if(i != Loci::MPI_rank) {
           MPI_Request tmp ;
           MPI_Irecv(&recv_pnts[recv_off[i]],7*recv_sz[i],MPI_FLOAT,i,10,
-              MPI_COMM_WORLD,&tmp) ;
+              comm,&tmp) ;
           req_queue.push_back(tmp) ;
           MPI_Irecv(&recv_ids[recv_off[i]],recv_sz[i],MPI_INT,i,11,
-              MPI_COMM_WORLD,&tmp) ;
+              comm,&tmp) ;
           req_queue.push_back(tmp) ;
         }
       }
@@ -376,8 +371,8 @@ namespace Loci {
               cerr << "Something wrong with componentID" << endl ;
             }
           }
-          MPI_Send(&send_buf[0],7*sz,MPI_FLOAT,i,10,MPI_COMM_WORLD) ;
-          MPI_Send(&send_id[0],sz,MPI_INT,i,11,MPI_COMM_WORLD) ;
+          MPI_Send(&send_buf[0],7*sz,MPI_FLOAT,i,10,comm) ;
+          MPI_Send(&send_id[0],sz,MPI_INT,i,11,comm) ;
         }
       }
     }

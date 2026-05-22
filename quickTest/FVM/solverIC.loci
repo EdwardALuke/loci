@@ -579,7 +579,7 @@ namespace flowPsi {
 	  has_file = 2 ;
       }
     }
-    MPI_Bcast(&has_file,1,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(&has_file,1,MPI_INT,0,Loci::exec_current_fact_db->get_comm()) ;
     if(has_file == 2)  {
       $[Once] {
 	cerr << "unable to find file '" << filename << "'" << endl ;
@@ -587,7 +587,8 @@ namespace flowPsi {
       Loci::Abort() ;
     }
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
-					 H5F_ACC_RDONLY, H5P_DEFAULT);
+					 H5F_ACC_RDONLY, H5P_DEFAULT,
+					 Loci::exec_current_fact_db->get_comm());
     entitySet read_set = entitySet(seq) ;
     Loci::readContainer(file_id,"temperature",$temperature_ic.Rep(),read_set) ;
     Loci::readContainer(file_id,"gagePressure",$gagePressure_ic.Rep(),read_set) ;
@@ -598,7 +599,7 @@ namespace flowPsi {
     FORALL(read_set,ii) {
       $gagePressure_ic[ii] += dp ;
     } ENDFORALL ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, Loci::exec_current_fact_db->get_comm()) ;
   } ;
 
 

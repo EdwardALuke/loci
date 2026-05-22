@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci>
 #include <interpolate.h>
+#include <fact_db.h>
 
 namespace Loci {
   using std::vector ;
@@ -524,12 +525,13 @@ namespace Loci {
   
   int collectPointsSizes(const kdTree::KDTree<float> &kd,
 			 kdTree::KDTree<float>::bounds bnd) {
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     MEMORY_PROFILE(collectPointsBegin) ;
     // Communicate bounds request to other processors
     using namespace kdTree ;    
-    int p = MPI_processes ;
+    int p = exec_current_fact_db->get_comm_size() ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
-    MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,comm) ;
 
 
     // Now communicate points that processors need to build stencil
@@ -540,7 +542,7 @@ namespace Loci {
       scounts[i] = kd.count_box(bnd_req[i]) ;
     }
     vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
     int cnt = rcounts[0] ;
     for(int i=1;i<p;++i)
       cnt += rcounts[i] ;
@@ -644,6 +646,7 @@ namespace Loci {
                              double &delta,
                              const const_store<vector3d<double> > &pnts,
                              entitySet dom) {
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     //    MEMORY_PROFILE(getStencilBoundingBoxBegin) ;
     for(int d=0;d<3;++d) {
       bnd.minc[d] = .25*std::numeric_limits<float>::max() ;
@@ -660,12 +663,12 @@ namespace Loci {
 
     kdTree::KDTree<float>::bounds bndall ;
     MPI_Allreduce(&bnd.maxc[0],&bndall.maxc[0],3,MPI_FLOAT,MPI_MAX,
-                  MPI_COMM_WORLD);
+                  comm) ;
     MPI_Allreduce(&bnd.minc[0],&bndall.minc[0],3,MPI_FLOAT,MPI_MIN,
-                  MPI_COMM_WORLD);
+                  comm) ;
     int domsize = dom.size() ;
     int npnts = 0 ;
-    MPI_Allreduce(&domsize,&npnts,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+    MPI_Allreduce(&domsize,&npnts,1,MPI_INT,MPI_SUM,comm) ;
     // Compute a delta to expand the bounding box
     double d1 = bndall.maxc[0]-bndall.minc[0] ;
     double d2 = bndall.maxc[1]-bndall.minc[1] ;
@@ -697,12 +700,13 @@ namespace Loci {
   void collectPoints(vector<kdTree::KDTree<float>::coord_info> &pout,
                      const kdTree::KDTree<float> &kd,
                      kdTree::KDTree<float>::bounds bnd) {
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     MEMORY_PROFILE(collectPointsBegin) ;
     // Communicate bounds request to other processors
     using namespace kdTree ;
-    int p = MPI_processes ;
+    int p = exec_current_fact_db->get_comm_size() ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
-    MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,comm) ;
 
 
     // Now communicate points that processors need to build stencil
@@ -724,7 +728,7 @@ namespace Loci {
       sdispls[i] = sdispls[i-1]+scounts[i-1] ;
 
     vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
 
     vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
@@ -740,7 +744,7 @@ namespace Loci {
 
     MPI_Alltoallv(&pntlist[0],&scounts[0],&sdispls[0],MPI_BYTE,
                   &pcollect[0],&rcounts[0],&rdispls[0],MPI_BYTE,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
     MEMORY_PROFILE(collectPointsEnd) ;
     pout.swap(pcollect) ;
   }
@@ -752,6 +756,7 @@ namespace Loci {
                                const vector<Array<int,4> > &stencil,
                                const store<int> &ids,
                                const vector<int> &distribution) {
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     MEMORY_PROFILE("pre_get_comm_sched") ;
     vector<int> stmp(stencil.size()*4) ;
     for(size_t i=0;i<stencil.size();++i)
@@ -773,7 +778,7 @@ namespace Loci {
 
     WARN(access.size()>0 && access[0] < 0) ;
 
-    const int p = MPI_processes ;
+    const int p = exec_current_fact_db->get_comm_size() ;
     // Now communicate the accessed info
     vector<int> req_sizes(p,0) ;
     // Count accesses to each processor
@@ -786,7 +791,7 @@ namespace Loci {
 
     vector<int> snd_sizes(p,0) ;
     MPI_Alltoall(&req_sizes[0],1,MPI_INT,&snd_sizes[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
 
     int snd_tot_size = 0 ;
     for(int i=0;i<p;++i)
@@ -805,7 +810,7 @@ namespace Loci {
     }
     MPI_Alltoallv(&access[0],&req_sizes[0],&sdispls[0],MPI_INT,
                   &send_info[0],&snd_sizes[0],&rdispls[0],MPI_INT,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
     MEMORY_PROFILE(recv_access) ;
     send_info_out.swap(send_info) ;
@@ -1253,7 +1258,7 @@ namespace Loci {
     int bsize = boxes.size() ;
     
     tmp_array<int> bsize_list(p)  ;
-    MPI_Allgather(&bsize,1,MPI_INT,&bsize_list[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&bsize,1,MPI_INT,&bsize_list[0],1,MPI_INT,comm) ;
 
 #ifdef VERBOSE
     debugout << "bsizes = " << endl ;
@@ -1267,7 +1272,7 @@ namespace Loci {
       lb_sizes[i] = boxes[i].stop-boxes[i].start+1 ;
     }
 
-    allGatherVec(b_sizes,lb_sizes,MPI_COMM_WORLD) ;
+    allGatherVec(b_sizes,lb_sizes,comm) ;
 
     vector<int> box_sp_tmp(b_sizes.size()) ; // source processor of block
     box_sp.swap(box_sp_tmp) ;

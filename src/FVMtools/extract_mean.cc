@@ -84,7 +84,7 @@ void process_mean(string casename, string iteration,
 
           hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                              H5F_ACC_RDONLY,
-                                             H5P_DEFAULT) ;
+                                             H5P_DEFAULT, MPI_COMM_WORLD) ;
           if(file_id < 0) {
             cerr << "unable to open file '" << filename << "'!" << endl ;
             continue ;
@@ -94,7 +94,7 @@ void process_mean(string casename, string iteration,
           store<float> scalar ;
           readData(file_id,var_name,scalar.Rep(),EMPTY,facts) ;
           entitySet dom = scalar.domain() ;
-          Loci::hdf5CloseFile(file_id) ;
+          Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
           if(it == start_iter) {
             mean.allocate(dom) ;
             M2.allocate(dom) ;
@@ -122,22 +122,22 @@ void process_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "Mean_sca."
           + iteration + "_" + casename ;
         hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"Mean" ;
 	cout << "Writing Variables: " << sname ;
         fact_db facts ;
         Loci::writeContainer(file_id,sname,m.Rep(),facts) ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "Var_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Var" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,v.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	cout << endl ;
       }
       break;
@@ -147,7 +147,7 @@ void process_mean(string casename, string iteration,
         string posname = getPosFile(output_dir,iteration,casename) ;
         hid_t file_id = Loci::hdf5OpenFile(posname.c_str(),
                                            H5F_ACC_RDONLY,
-                                           H5P_DEFAULT) ;
+                                           H5P_DEFAULT, MPI_COMM_WORLD) ;
         if(file_id < 0) {
           cerr << "unable to get grid positions for iteration " << iteration
                << endl ;
@@ -158,11 +158,11 @@ void process_mean(string casename, string iteration,
 
         fact_db facts ;
         readData(file_id,"pos",pos.Rep(),EMPTY,facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
         int npnts = pos.domain().size() ;
         entitySet dom = pos.domain() ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         store<double> mean ;
         store<double> M2 ;
@@ -181,7 +181,7 @@ void process_mean(string casename, string iteration,
           string iter_it = string(buf)+postfix ;
           vector<float> dval(npnts) ;
           getDerivedVar(dval,var_name,casename,iter_it) ;
-          Loci::hdf5CloseFile(file_id) ;
+          Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
           if(it == start_iter) {
             mean.allocate(dom) ;
             M2.allocate(dom) ;
@@ -210,21 +210,21 @@ void process_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "Mean_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"Mean" ;
 	cout << "Writing Variables: " << sname ;
         Loci::writeContainer(file_id,sname,m.Rep(),facts) ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "Var_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Var" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,v.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	cout << endl ;
       }
       break;
@@ -248,7 +248,7 @@ void process_mean(string casename, string iteration,
 
           hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                              H5F_ACC_RDONLY,
-                                             H5P_DEFAULT) ;
+                                             H5P_DEFAULT, MPI_COMM_WORLD) ;
           if(file_id < 0) {
             cerr << "unable to open file '" << filename << "'!" << endl ;
             continue ;
@@ -258,7 +258,7 @@ void process_mean(string casename, string iteration,
           store<vector3d<float> > vect ;
           readData(file_id,var_name,vect.Rep(),EMPTY,facts) ;
           entitySet dom = vect.domain() ;
-          Loci::hdf5CloseFile(file_id) ;
+          Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
           if(it == start_iter) {
             mean.allocate(dom) ;
             M2.allocate(dom) ;
@@ -323,51 +323,51 @@ void process_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "Mean_vec."
           + iteration + "_" + casename ;
         hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"Mean" ;
 	cout << "Writing Variables: " << sname ;
         fact_db facts ;
         Loci::writeContainer(file_id,sname,m.Rep(),facts) ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "Var_vec."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Var" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,v.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "Cuv_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Cuv" ;
 	cout << ", " << sname ;
 
         Loci::writeContainer(file_id,sname,cuv.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
         filename = output_dir+'/' + var + "Cuw_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Cuw" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,cuw.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
         Loci::writeContainer(file_id,sname,cuv.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "Cvw_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Cvw" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,cvw.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	cout << endl ;
       }
       break;
@@ -390,7 +390,7 @@ void process_mean(string casename, string iteration,
     
           hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                              H5F_ACC_RDONLY,
-                                             H5P_DEFAULT) ;
+                                             H5P_DEFAULT, MPI_COMM_WORLD) ;
           if(file_id < 0) {
             cerr << "unable to open file '" << filename << "'!" << endl ;
             Loci::Abort() ;
@@ -402,7 +402,7 @@ void process_mean(string casename, string iteration,
           readData(file_id,"mixture",mix.Rep(),EMPTY,facts) ;
           param<string> species_names ;
           readData(file_id,"species_names",species_names.Rep(),EMPTY,facts) ;
-          Loci::hdf5CloseFile(file_id) ;
+          Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       
           map<string,int> smap ;
           std::istringstream iss(*species_names) ;
@@ -455,22 +455,22 @@ void process_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "Mean_sca."
           + iteration + "_" + casename ;
         hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"Mean" ;
 	cout << "Writing Variables: " << sname ;
         fact_db facts ;
         Loci::writeContainer(file_id,sname,m.Rep(),facts) ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "Var_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Var" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,v.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	cout << endl ;
       }
       break ;
@@ -493,7 +493,7 @@ void process_mean(string casename, string iteration,
             string(buf) + postfix + "_" + casename ;
           hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                              H5F_ACC_RDONLY,
-                                             H5P_DEFAULT) ;
+                                             H5P_DEFAULT, MPI_COMM_WORLD) ;
           if(file_id < 0) {
             cerr << "unable to open file '" << filename << "'!" << endl ;
             continue ;
@@ -552,7 +552,7 @@ void process_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "Mean_bnd."
           + iteration + "_" + casename ;
         hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"Mean" ;
 	cout << "Writing Variables: " << sname ;
 #ifdef H5_USE_16_API
@@ -569,7 +569,7 @@ void process_mean(string casename, string iteration,
         filename = output_dir+'/' + var + "Var_bnd."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Var" ;
 	cout << ", " << sname ;
 #ifdef H5_USE_16_API
@@ -604,7 +604,7 @@ void process_mean(string casename, string iteration,
             string(buf) + postfix + "_" + casename ;
           hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                              H5F_ACC_RDONLY,
-                                             H5P_DEFAULT) ;
+                                             H5P_DEFAULT, MPI_COMM_WORLD) ;
           if(file_id < 0) {
             cerr << "unable to open file '" << filename << "'!" << endl ;
             continue ;
@@ -667,7 +667,7 @@ void process_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "Mean_bndvec."
           + iteration + "_" + casename ;
         hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"Mean" ;
 	cout << "Writing Variables: " << sname ;
 #ifdef H5_USE_16_API
@@ -684,7 +684,7 @@ void process_mean(string casename, string iteration,
         filename = output_dir+'/' + var + "Var_bndvec."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"Var" ;
 	cout << ", " << sname ;
 
@@ -773,9 +773,9 @@ void combine_mean(string casename, string iteration,
 	      string(buf) + postfix + "_" + casename ;
 	    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 						H5F_ACC_RDONLY,
-						H5P_DEFAULT) ;
+						H5P_DEFAULT, MPI_COMM_WORLD) ;
 	    readData(file_id,vname,scalar_mean.Rep(),EMPTY,facts) ;
-	    Loci::hdf5CloseFile(file_id) ;
+	    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	  }
 	  entitySet dom = scalar_mean.domain() ;
 
@@ -786,9 +786,9 @@ void combine_mean(string casename, string iteration,
 	      string(buf) + postfix + "_" + casename ;
 	    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 						H5F_ACC_RDONLY,
-						H5P_DEFAULT) ;
+						H5P_DEFAULT, MPI_COMM_WORLD) ;
 	    readData(file_id,vname,scalar_var.Rep(),EMPTY,facts) ;
-	    Loci::hdf5CloseFile(file_id) ;
+	    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	  }
 
 	  store<float> rentry ;
@@ -798,9 +798,9 @@ void combine_mean(string casename, string iteration,
 	      string(buf) + postfix + "_" + casename ;
 	    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 						H5F_ACC_RDONLY,
-						H5P_DEFAULT) ;
+						H5P_DEFAULT, MPI_COMM_WORLD) ;
 	    readData(file_id,vname,rentry.Rep(),EMPTY,facts) ;
-	    Loci::hdf5CloseFile(file_id) ;
+	    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	  } else {
 	    rentry.allocate(dom) ;
 	    FORALL(dom,ii) {
@@ -853,22 +853,22 @@ void combine_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "CMean_sca."
           + iteration + "_" + casename ;
         hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"CMean" ;
 	cout << "Writing Variables: " << sname ;
         fact_db facts ;
         Loci::writeContainer(file_id,sname,m.Rep(),facts) ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "CVar_sca."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"CVar" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,v.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	cout << endl ;
       }
       break;
@@ -896,9 +896,9 @@ void combine_mean(string casename, string iteration,
 	      string(buf) + postfix + "_" + casename ;
 	    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 						H5F_ACC_RDONLY,
-						H5P_DEFAULT) ;
+						H5P_DEFAULT, MPI_COMM_WORLD) ;
 	    readData(file_id,vname,vect_mean.Rep(),EMPTY,facts) ;
-	    Loci::hdf5CloseFile(file_id) ;
+	    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	  }
 	  entitySet dom = vect_mean.domain() ;
 
@@ -909,9 +909,9 @@ void combine_mean(string casename, string iteration,
 	      string(buf) + postfix + "_" + casename ;
 	    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 						H5F_ACC_RDONLY,
-						H5P_DEFAULT) ;
+						H5P_DEFAULT, MPI_COMM_WORLD) ;
 	    readData(file_id,vname,vect_var.Rep(),EMPTY,facts) ;
-	    Loci::hdf5CloseFile(file_id) ;
+	    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	  }
 
 	  store<float> rentry ;
@@ -921,9 +921,9 @@ void combine_mean(string casename, string iteration,
 	      string(buf) + postfix + "_" + casename ;
 	    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 						H5F_ACC_RDONLY,
-						H5P_DEFAULT) ;
+						H5P_DEFAULT, MPI_COMM_WORLD) ;
 	    readData(file_id,vname,rentry.Rep(),EMPTY,facts) ;
-	    Loci::hdf5CloseFile(file_id) ;
+	    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	  } else {
 	    rentry.allocate(dom) ;
 	    FORALL(dom,ii) {
@@ -981,22 +981,22 @@ void combine_mean(string casename, string iteration,
         string filename = output_dir+'/' + var + "CMean_vec."
           + iteration + "_" + casename ;
         hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         string sname = var+"CMean" ;
 	cout << "Writing Variables: " << sname ;
         fact_db facts ;
         Loci::writeContainer(file_id,sname,m.Rep(),facts) ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
         filename = output_dir+'/' + var + "CVar_vec."
           + iteration + "_" + casename ;
         file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT, MPI_COMM_WORLD) ;
         sname = var+"CVar" ;
 	cout << ", " << sname ;
         Loci::writeContainer(file_id,sname,v.Rep(),facts) ;
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 	cout << endl ;
       }
       break;

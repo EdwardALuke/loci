@@ -23,6 +23,7 @@
 using std::string ;
 using std::ostringstream ;
 #include <distribute.h>
+#include <fact_db.h>
 
 //#define VERBOSE
 

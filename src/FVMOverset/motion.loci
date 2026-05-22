@@ -525,6 +525,7 @@ namespace Loci {
   } ;
 
   prescribedMotion::prescribedMotion(std::string name, options_list &ol) {
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     // Rank 0 reads in the motion data and broadcasts to all other ranks
     if(Loci::MPI_rank==0) {
       string filename = "motion_" + name + ".dat" ;
@@ -557,29 +558,29 @@ namespace Loci {
           Loci::Abort() ;
         }
       }
-      MPI_Bcast(&npnts,1,MPI_INT,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&t[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&x[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&y[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&z[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q0[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q1[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q2[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q3[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&npnts,1,MPI_INT,0,comm) ;
+      MPI_Bcast(&t[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&x[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&y[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&z[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q0[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q1[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q2[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q3[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
       motion.initialize(t,x,y,z,q0,q1,q2,q3) ;
     } else {
       int npnts ;
-      MPI_Bcast(&npnts,1,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&npnts,1,MPI_INT,0,comm) ;
       vector<real_t> t(npnts),x(npnts),y(npnts),z(npnts) ;
       vector<real_t> q0(npnts),q1(npnts),q2(npnts),q3(npnts) ;
-      MPI_Bcast(&t[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&x[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&y[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&z[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q0[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q1[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q2[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&q3[0],npnts*sizeof(real_t),MPI_BYTE,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(&t[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&x[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&y[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&z[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q0[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q1[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q2[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
+      MPI_Bcast(&q3[0],npnts*sizeof(real_t),MPI_BYTE,0,comm) ;
       motion.initialize(t,x,y,z,q0,q1,q2,q3) ;
     }
   }

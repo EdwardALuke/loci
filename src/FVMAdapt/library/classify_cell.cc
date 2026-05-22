@@ -55,7 +55,7 @@ namespace Loci{
       int fkeyspace = upper.getRangeKeySpace() ;
       vector<entitySet> init_ptn = facts.get_init_ptn(fkeyspace) ; 
       entitySet out_of_dom = face_dom - face2node.domain();
-      face2node.setRep(MapRepP(face2node.Rep())->expand(out_of_dom, init_ptn));
+      face2node.setRep(MapRepP(face2node.Rep())->expand(out_of_dom, init_ptn, facts.get_comm()));
     }
 
     entitySet hexcell;

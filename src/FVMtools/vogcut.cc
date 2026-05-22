@@ -977,7 +977,7 @@ int main(int ac, char *av[]) {
   }
   //read in boundary names 
   vector<pair<int,string> > boundary_ids;
-  Loci::readBCfromVOG(input_file,boundary_ids) ;
+  Loci::readBCfromVOG(input_file,boundary_ids,MPI_COMM_WORLD) ;
   std::map<int,string> bc_map;
   for(unsigned int i = 0; i < boundary_ids.size(); i++){
     bc_map[boundary_ids[i].first] = boundary_ids[i].second;
@@ -1020,7 +1020,7 @@ int main(int ac, char *av[]) {
     string bcstr(bcname) ;
     surf_ids.push_back(pair<int,string>(new_bc_id, bcstr)) ; 
   }
-  Loci::writeVOG(output_file, act_pos_dat, cl, cr, face2node,surf_ids, volTags) ;
+  Loci::writeVOG(output_file, act_pos_dat, cl, cr, face2node,surf_ids, volTags, MPI_COMM_WORLD) ;
   // Close everything up
   H5Fclose(input_fid) ;
   Loci::Finalize() ;

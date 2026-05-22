@@ -222,7 +222,8 @@ namespace Loci {
   /// @param[out] boundary_ids Vector of pairs of BC ID and name.
   /// @return true if success
   bool readBCfromVOG(std::string filename,
-                     std::vector<std::pair<int,std::string> > &boundary_ids) ;
+                     std::vector<std::pair<int,std::string> > &boundary_ids,
+                     MPI_Comm comm LOCI_DEFAULT_COMM) ;
 
   /// Sets up facts related to grid boundary conditions.
   /// @param[in,out] facts Fact database to set up grid into.
@@ -239,11 +240,13 @@ namespace Loci {
 
   extern void writeVOG(std::string filename,store<vector3d<double> > &pos,
                        Map &cl, Map &cr, multiMap &face2node,
-                       std::vector<std::pair<int,std::string> > surfaceids) ;
+                       std::vector<std::pair<int,std::string> > surfaceids,
+                       MPI_Comm comm LOCI_DEFAULT_COMM) ;
   extern void writeVOG(std::string filename,store<vector3d<double> > &pos,
                        Map &cl, Map &cr, multiMap &face2node,
                        std::vector<std::pair<int,std::string> >& surfaceids,
-                       std::vector<std::pair<std::string,entitySet> >& volTags) ;
+                       std::vector<std::pair<std::string,entitySet> >& volTags,
+                       MPI_Comm comm LOCI_DEFAULT_COMM) ;
 
   /// Reads grid structures from grid file in the .vog format.
   /// @param[out] local_nodes Partition of nodes

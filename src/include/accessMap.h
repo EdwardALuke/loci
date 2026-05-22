@@ -82,7 +82,7 @@ namespace Loci {
     virtual void readhdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, frame_info &fi, entitySet &en, hid_t xfer_plist_id) {}
     virtual void writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet& en, hid_t xfer_plist_id) const {}
 #endif
-    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {return new_store(EMPTY); }
+    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) {return new_store(EMPTY); }
     virtual storeRepP freeze() {return getRep() ; }
     virtual storeRepP thaw() {return getRep() ; }
     virtual DatatypeP getType() { return DatatypeP(new AtomicType(INT)) ; }

@@ -59,7 +59,8 @@ namespace Loci {
                               MPI_Comm comm) ;
 
   extern int getMinFileNumberFromLocal(entitySet read_set,
-                                       fact_db::distribute_infoP dist ) ;
+                                       fact_db::distribute_infoP dist,
+                                       MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
   //only process 0 will call this function to write header, if ordered, also write domain eset
   void pmpi_WriteHeader(MPI_File fh, const entitySet &eset, const store_header& header );
@@ -105,7 +106,7 @@ namespace Loci {
     /*
       write out the store that already in file numbering
     */
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -178,7 +179,7 @@ namespace Loci {
     /*
       write out the storeVec that already in file numbering
     */
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -250,7 +251,7 @@ namespace Loci {
                                const const_store<T> &var,
                                const entitySet& write_set, fact_db &facts, int xfer_type, bool ordered) {
 #ifndef MPI_STUBB
-    MPI_Comm comm = MPI_COMM_WORLD ;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -375,7 +376,7 @@ namespace Loci {
                                    const entitySet& write_set, fact_db &facts, int xfer_type, bool ordered) {
 #ifndef MPI_STUBB
 
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -503,7 +504,7 @@ namespace Loci {
                        entitySet read_set,
                        fact_db &facts, int xfer_type) {
 #ifndef MPI_STUBB
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -549,10 +550,10 @@ namespace Loci {
       std::vector<int> send_sz(np,0) ;
       std::vector<int> recv_sz(np,0) ;
       std::vector<int> recv_local_num ;
-      distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID) ;
+      distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID,comm) ;
      
       std::vector<T> recv_data ;
-      sendData(recv_data,send_sz,recv_sz,recv_local_num,data,procID) ;
+      sendData(recv_data,send_sz,recv_sz,recv_local_num,data,procID,comm) ;
   
      
       std::vector<int> alloc_set = recv_local_num ;
@@ -621,7 +622,7 @@ namespace Loci {
         // read in over the same set
         int minID = offset ;
         MPI_Bcast(&minID,1,MPI_INT,0,comm) ;
-        const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
+        const int minIDf = getMinFileNumberFromLocal(read_set,dist,comm) ;
         const int correct = minIDf - minID ;
         offset += correct  ;
 
@@ -662,7 +663,7 @@ namespace Loci {
                           entitySet read_set,
                           fact_db &facts, int xfer_type) {
 #ifndef MPI_STUBB
-    MPI_Comm comm = MPI_COMM_WORLD;
+    MPI_Comm comm = facts.get_comm() ;
     int prank = 0 ;
     int np = 0 ;
     MPI_Comm_rank(comm,&prank) ;
@@ -713,10 +714,10 @@ namespace Loci {
       std::vector<int> send_sz(np,0) ;
       std::vector<int> recv_sz(np,0) ;
       std::vector<int> recv_local_num ;
-      distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID) ;
+      distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID,comm) ;
     
       std::vector<T> recv_data ;
-      sendMultiData(recv_data,send_sz,recv_sz,recv_local_num,data,procID, vec_size) ;
+      sendMultiData(recv_data,send_sz,recv_sz,recv_local_num,data,procID, vec_size,comm) ;
 
    
       std::vector<int> alloc_set = recv_local_num ;
@@ -785,7 +786,7 @@ namespace Loci {
         // read in over the same set
         int minID = offset ;
         MPI_Bcast(&minID,1,MPI_INT,0,comm) ;
-        const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
+        const int minIDf = getMinFileNumberFromLocal(read_set,dist,comm) ;
         const int correct = minIDf - minID ;
         offset += correct  ;
 

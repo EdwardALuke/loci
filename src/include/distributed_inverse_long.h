@@ -35,11 +35,13 @@
 #include <string>
 #include <mpi.h>
 #include <field_sort.h>
+#include <fact_db.h>
 namespace Loci {
   
-  template<class T> void distributed_inverse_map(std::vector<T> &recv_store, //<the place to store result, initially empty, can be cleared after value has been copied
+  template<class T> void distributed_inverse_map(std::vector<T> &recv_store,
                                                  std::vector<std::pair<T,T> > &input, 
-                                                 const std::vector<genIntervalSet<T> > &init_ptn){
+                                                 const std::vector<genIntervalSet<T> > &init_ptn,
+                                                 MPI_Comm comm LOCI_DEFAULT_COMM){
    
     // Sort input according to second field
     sort(input.begin(),input.end(),field_sort2<T>) ;
@@ -66,7 +68,7 @@ namespace Loci {
     vector<int> recv_sz(MPI_processes) ;
     MPI_Alltoall(&send_sz[0],1,MPI_INT,
                  &recv_sz[0],1,MPI_INT,
-                 MPI_COMM_WORLD) ;
+                 comm) ;
     int size_send = 0 ;
     int size_recv = 0 ;
     for(int i=0;i<MPI_processes;++i) {
@@ -106,7 +108,7 @@ namespace Loci {
     MPI_Datatype MPI_T_type = MPI_traits<T>::get_MPI_type() ;
     MPI_Alltoallv(&send_store[0], &send_sz[0], send_displacement, MPI_T_type,
 		  &recv_store[0], &recv_sz[0], recv_displacement, MPI_T_type,
-		  MPI_COMM_WORLD) ;
+		  comm) ;
  
     delete[] recv_displacement ;
     delete[] send_displacement ;

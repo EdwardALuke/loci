@@ -57,10 +57,10 @@ namespace Loci {
     virtual storeRepP MapRemap(const dMap &dm, const dMap &rm) const ;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) ;
+                 MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
+                 const dMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual void compose(const dMap &m, const entitySet &context) ;
     virtual void copy(storeRepP &st, const entitySet &context) ;
     virtual void gather(const dMap &m, storeRepP &st,
@@ -91,7 +91,7 @@ namespace Loci {
     virtual void writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet& en, hid_t xfer_plist_id) const ;
 #endif
     
-    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual storeRepP freeze() ;
     virtual storeRepP thaw() ;
     virtual block_hash<int> *get_attrib_data() { return &attrib_data; }

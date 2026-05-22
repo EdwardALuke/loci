@@ -1268,7 +1268,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (Loci::MPI_rank == 0) cout << "writing VOG file" << endl;
-  Loci::writeVOG(outfile, pos, cl, cr, face2node, surf_ids);
+  Loci::writeVOG(outfile, pos, cl, cr, face2node, surf_ids, MPI_COMM_WORLD);
 
   Loci::Finalize();
   return 0;

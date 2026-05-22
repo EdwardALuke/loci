@@ -140,4 +140,10 @@
 #define MPI_NO_CPPBIND
 #endif
 
+#ifdef LOCI_STRICT_COMM
+#define LOCI_DEFAULT_COMM
+#else
+#define LOCI_DEFAULT_COMM = MPI_COMM_WORLD
+#endif
+
 #endif

@@ -20,6 +20,7 @@
 //#############################################################################
 #include <hdf5_readwrite.h>
 #include <distribute_io.h>
+#include <fact_db.h>
 #include <string>
 using std::string;
 namespace Loci {

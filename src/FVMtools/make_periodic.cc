@@ -7180,7 +7180,7 @@ namespace Loci {
 		   store<string> &boundary_names,
 		   store<string> &boundary_tags,
                    vector<pair<string,entitySet> > &volTags,
-		   int max_alloc, string filename) ;
+		   int max_alloc, string filename, MPI_Comm &comm) ;
 }
 ///////////////////////////////////////////////////////////
 //                      The Main                         //
@@ -7485,7 +7485,7 @@ int main(int ac, char* av[]) {
   fact_db facts ;
   string gridfile = problem_name + string(".vog") ;
   vector<pair<int,string> > boundary_ids ;
-  if(!Loci::readBCfromVOG(gridfile,boundary_ids)) {
+  if(!Loci::readBCfromVOG(gridfile,boundary_ids,MPI_COMM_WORLD)) {
     cerr << "unable to open grid file '" << gridfile << "'" << endl ;
     exit(-1) ;
   }
@@ -7526,10 +7526,11 @@ int main(int ac, char* av[]) {
   store<string> boundary_names ;
   store<string> boundary_tags ;
 
+  MPI_Comm comm = facts.get_comm() ;
   if(!Loci::readGridVOG(local_nodes,local_faces,local_cells,
                         pos,cl,cr,face2node,
 			boundary_names,boundary_tags,volTags,
-			max_alloc,gridfile)) {
+			max_alloc,gridfile,comm)) {
                         
     if(Loci::MPI_rank == 0) {
       cerr << endl
@@ -8421,7 +8422,7 @@ int main(int ac, char* av[]) {
   
   //get boundary names
   vector<pair<int,string> > surf_ids = boundary_ids ;
-  Loci::writeVOG(output_name, newPos, newCl, newCr, newFace2node,surf_ids) ;
+  Loci::writeVOG(output_name, newPos, newCl, newCr, newFace2node,surf_ids, MPI_COMM_WORLD) ;
 
   gettimeofday(&time_new_grid_write_end,NULL) ;
   gettimeofday(&time_prog_end,NULL) ;

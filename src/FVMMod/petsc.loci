@@ -276,8 +276,8 @@ namespace Loci {
                   char const * options_prefix
                   ) {
       if(created) return 0;
-
-      LociPetscCall(VecCreate(MPI_COMM_WORLD, &v));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
       } else {
@@ -311,8 +311,8 @@ namespace Loci {
                char const * options_prefix
                ) {
       if(created) return 0;
-
-      LociPetscCall(VecCreate(MPI_COMM_WORLD, &v));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
       } else {
@@ -373,8 +373,9 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
+      MPI_Comm comm = get_exec_comm() ;
       PetscViewer viewer;
-      LociPetscCall(PetscViewerASCIIOpen(MPI_COMM_WORLD, filename, &viewer));
+      LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(VecView(v, viewer));
       LociPetscCall(PetscViewerDestroy(&viewer));
       return 0;
@@ -428,8 +429,8 @@ namespace Loci {
                   char const * options_prefix
                   ) {
       if(created) return 0;
-
-      LociPetscCall(VecCreate(MPI_COMM_WORLD, &v));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
       } else {
@@ -464,8 +465,8 @@ namespace Loci {
                char const * options_prefix
                ) {
       if(created) return 0;
-
-      LociPetscCall(VecCreate(MPI_COMM_WORLD, &v));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
       } else {
@@ -527,8 +528,9 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
+      MPI_Comm comm = get_exec_comm() ;
       PetscViewer viewer;
-      LociPetscCall(PetscViewerASCIIOpen(MPI_COMM_WORLD, filename, &viewer));
+      LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(VecView(v, viewer));
       LociPetscCall(PetscViewerDestroy(&viewer));
       return 0;
@@ -582,8 +584,8 @@ namespace Loci {
                   char const * system_name, char const * options_prefix
                   ) {
       if(created) return 0;
-
-      LociPetscCall(MatCreate(MPI_COMM_WORLD, &m));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIAIJ));
       } else {
@@ -634,8 +636,8 @@ namespace Loci {
                char const * system_name, char const * options_prefix
                ) {
       if(created) return 0;
-
-      LociPetscCall(MatCreate(MPI_COMM_WORLD, &m));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIAIJ));
       } else {
@@ -713,8 +715,9 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
+      MPI_Comm comm = get_exec_comm() ;
       PetscViewer viewer;
-      LociPetscCall(PetscViewerASCIIOpen(MPI_COMM_WORLD, filename, &viewer));
+      LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(MatView(m, viewer));
       LociPetscCall(PetscViewerDestroy(&viewer));
       return 0;
@@ -768,8 +771,8 @@ namespace Loci {
                   char const * system_name, char const * options_prefix
                   ) {
       if(created) return 0;
-
-      LociPetscCall(MatCreate(MPI_COMM_WORLD, &m));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIBAIJ));
       } else {
@@ -823,8 +826,8 @@ namespace Loci {
                char const * system_name, char const * options_prefix
                ) {
       if(created) return 0;
-
-      LociPetscCall(MatCreate(MPI_COMM_WORLD, &m));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIBAIJ));
       } else {
@@ -954,8 +957,9 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
+      MPI_Comm comm = get_exec_comm() ;
       PetscViewer viewer;
-      LociPetscCall(PetscViewerASCIIOpen(MPI_COMM_WORLD, filename, &viewer));
+      LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(MatView(m, viewer));
       LociPetscCall(PetscViewerDestroy(&viewer));
       return 0;
@@ -997,8 +1001,8 @@ namespace Loci {
                char const * options_prefix
                ) {
       if(created) return 0;
-
-      LociPetscCall(KSPCreate(MPI_COMM_WORLD, &ksp));
+      MPI_Comm comm = get_exec_comm() ;
+      LociPetscCall(KSPCreate(comm, &ksp));
       LociPetscCall(KSPSetTolerances(
                                      ksp, reltol, abstol, PETSC_CURRENT, maxit
                                      ));
@@ -1150,12 +1154,13 @@ namespace Loci {
       Loci::debugout << "CUDA: device=" << int(dev_id)
                      << ", type=" << int(dev_type)
                      << endl ;
+      MPI_Comm comm = get_exec_comm() ;
       PetscSynchronizedPrintf(
-                              MPI_COMM_WORLD,
+                              comm,
                               "MPI rank %d: device=%d, type=%d\n",
                               Loci::MPI_rank, (int)dev_id, (int)dev_type
                               );
-      PetscSynchronizedFlush(MPI_COMM_WORLD, PETSC_STDOUT);
+      PetscSynchronizedFlush(comm, PETSC_STDOUT);
     }
 #endif
 

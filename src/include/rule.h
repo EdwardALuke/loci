@@ -213,9 +213,6 @@ namespace Loci {
     // to reflect the substitution of constraints for maps.
     void replace_map_constraints(fact_db& facts) ;
 
-    void split_constraints(const variableSet& dc) ;
-    
-    void set_variable_times(time_ident tl) ;
     void copy_store_from(rule_impl &f) ;
     void Print(std::ostream &s) const ;
    
@@ -235,7 +232,6 @@ namespace Loci {
     // the postlude is similarly defined as the prelude method
     virtual void postlude(const sequence&) {}
     virtual CPTR<joiner> get_joiner() = 0 ;
-    virtual rule_implP add_namespace(const std::string& n) const ;
     std::string get_comments() const {return rule_comments ;}
     std::string get_fileloc() const { return fileloc; }
   } ;
@@ -722,10 +718,6 @@ namespace Loci {
       int ident() const { return rule::rdb->get_id(*this) ; }
       
       rule_implP get_rule_implP() const ;
-      // SH - namespace support
-      rule_implP add_namespace(const std::string& n) const { 
-	return rule_impl->add_namespace(n) ;
-      }
     } ;
   private:
     friend struct rule::info ;
@@ -789,12 +781,6 @@ namespace Loci {
     rule(const std::string &s)
       { create_rdb(); id = rdb->get_id(info(s)) ; }
       
-    // SH - Namespace support
-    // We use a new rule_implP identical to the original but with namespace'd variables to construct a new rule (rule(rule_implP&))
-    // get_rule_implP() gives us our rule_implP for this rule, the rule_implP adds the namespace to a copy of itself
-    rule add_namespace(const std::string& n) const { 
-      return rule(get_rule_implP()->add_namespace(n));
-    } 
     rule parent() const { return rule(*this,time().parent()) ; }
 
     /* 

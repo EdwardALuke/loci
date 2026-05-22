@@ -211,19 +211,6 @@ namespace Loci {
     space_dist = false ;
   }
 
-  rule_implP rule_impl::add_namespace(const string& n) const {
-    rule_implP with_namespace = new_rule_impl();
-
-    variableSet vars = with_namespace->get_var_list() ;
-    std::map<variable,variable> new_vars;
-    for(variableSet::variableSetIterator i=vars.begin();i!=vars.end();++i) {
-      new_vars[*i] = i->add_namespace(n);
-    }
-
-    with_namespace->rename_vars(new_vars);
-    return with_namespace ;
-  }
-
   namespace {
     inline void fill_descriptors(set<vmap_info> &v, const exprList &in) {
 
@@ -693,58 +680,6 @@ namespace Loci {
 
   }
 
-  void
-  rule_impl::split_constraints(const variableSet& dc) {
-
-    vector<vmap_info> new_constraints ;
-
-    set<vmap_info>::iterator si=rule_info.constraints.begin() ;
-    set<vmap_info>::iterator si_bak ;
-
-    // split the constraints field into static & dynamic ones
-    while(si != rule_info.constraints.end()) {
-      variableSet local_dc ;
-      // get the constraints variables
-      for(variableSet::const_iterator vi=si->var.begin();
-          vi!=si->var.end();++vi) {
-        // since a constraints variables may appear in other forms
-        // e.g., having an offset, or an assign operator, e.g.,
-        // if we have a dynamic constraints A{n}, it may appear in
-        // a rule as "A{n=0}" or "A{n+1}". therefore, we need to
-        // drop possible assigns and offsets.
-        variable nv = (vi->new_offset(0)).drop_assign() ;
-        if(dc.inSet(nv))
-          local_dc += *vi ;
-      }
-      if(local_dc != EMPTY) {
-        // make a copy of vmap_info
-        vmap_info dc_copy(*si) ;
-        // modify its var field
-        dc_copy.var = local_dc ;
-        // insert it into the dynamic_constraints set
-        rule_info.dynamic_constraints.insert(dc_copy) ;
-
-        // construct a new copy of static constraints
-        variableSet local_sc = variableSet(si->var - local_dc) ;
-        if(local_sc != EMPTY) {
-          vmap_info sc_copy(*si) ;
-          sc_copy.var = local_sc ;
-          new_constraints.push_back(sc_copy) ;
-        }
-        // then erase original copy in constraints set
-        si_bak = si ;
-        ++si_bak ;
-        rule_info.constraints.erase(si) ;
-        si = si_bak ;
-      } else
-        ++si ;
-    }
-    // finally push the new static constraints ones to the set
-    rule_info.constraints.insert(new_constraints.begin(),
-                                 new_constraints.end()) ;
-  }
-
-
   variableSet rule_impl::get_var_list() {
     storeIMap::iterator sp ;
     set<vmap_info>::const_iterator i ;
@@ -791,33 +726,6 @@ namespace Loci {
     return vset ;
   }
 
-  void rule_impl::set_variable_times(time_ident tl) {
-    set<vmap_info>::const_iterator i ;
-    set<vmap_info> tmp ;
-    for(i=rule_info.sources.begin();i!=rule_info.sources.end();++i)
-      tmp.insert(convert_vmap_info(*i,tl)) ;
-    rule_info.sources.swap(tmp) ;
-    tmp.clear() ;
-    for(i=rule_info.targets.begin();i!=rule_info.targets.end();++i)
-      tmp.insert(convert_vmap_info(*i,tl)) ;
-    rule_info.targets.swap(tmp) ;
-    tmp.clear() ;
-    for(i=rule_info.constraints.begin();
-        i!=rule_info.constraints.end();++i)
-      tmp.insert(convert_vmap_info(*i,tl)) ;
-    rule_info.constraints.swap(tmp) ;
-    tmp.clear() ;
-    rule_info.conditionals = convert_set(rule_info.conditionals,tl) ;
-    storeIMap tmp2 ;
-    storeIMap::iterator j ;
-    for(j=var_table.begin();j!=var_table.end();++j) {
-      variable v(j->first,tl) ;
-      //      std::pair<variable, store_instance*>  vsp = make_pair(v, j->second) ;
-      //      tmp2.insert(vsp) ;
-      tmp2.insert(std::pair<const variable, store_instance*>(v,j->second)) ;
-    }
-    var_table.swap(tmp2) ;
-  }
 
   void rule_impl::copy_store_from(rule_impl &f) {
     storeIMap::iterator sp ;
@@ -1122,7 +1030,6 @@ namespace Loci {
       return ;
     }
     rule_impl = fi.rule_impl->new_rule_impl() ;
-    //rule_impl->set_variable_times(tl) ;
     variableSet vset = rule_impl->get_var_list() ;
     std::map<variable, variable> rm ;
     for(variableSet::const_iterator vsi = vset.begin(); vsi != vset.end(); ++vsi) {
@@ -1260,7 +1167,6 @@ namespace Loci {
       return ;
     }
     rule_impl = fi.rule_impl->new_rule_impl() ;
-    //rule_impl->set_variable_times(tl) ;
     variableSet vset = rule_impl->get_var_list() ;
     std::map<variable, variable> rm ;
     for(variableSet::const_iterator vsi = vset.begin();

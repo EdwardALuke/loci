@@ -359,7 +359,7 @@ namespace Loci {
     // containers will need to implement this method later.
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) {
+                 MPI_Comm comm LOCI_DEFAULT_COMM) {
       std::cerr << "storeRep.redistribute() is not implemented yet"
                 << std::endl ;
       abort() ;
@@ -369,7 +369,7 @@ namespace Loci {
     // argument, upon redistribution, the new store is remapped
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) {
+                 const dMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM) {
       std::cerr << "storeRep.redistribute() is not implemented yet"
                 << std::endl ;
       abort() ;
@@ -502,10 +502,10 @@ namespace Loci {
     virtual void guarantee_domain(const entitySet& include) ;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) ;
+                 MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
+                 const dMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual int getDomainKeySpace() const { return Rep()->getDomainKeySpace() ; }
     virtual void setDomainKeySpace(int v) { Rep()->setDomainKeySpace(v) ; }
     

@@ -42,7 +42,7 @@ using std::string;
 using std::ofstream;
 typedef Loci::vector3d<double> vect3d;
 namespace Loci{
-  std::vector<int> all_collect_sizes(int size);
+  std::vector<int> all_collect_sizes(int size, MPI_Comm comm);
   // Convert container from local numbering to file numbering
   // pass in store rep pointer: sp
   // entitySet to write: dom
@@ -83,6 +83,7 @@ public:
 
     int num_procs = Loci::MPI_processes;
     int my_id = Loci::MPI_rank;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
    
   
@@ -137,11 +138,11 @@ public:
     //put into block to make the memory for store<int> freeed after it's used 
     {
       store<int> edge_num_inner_nodes;
-      edge_num_inner_nodes = Loci::Local2FileOrder(num_inner_nodes.Rep(),local_edges,offset,dist,MPI_COMM_WORLD) ;
+      edge_num_inner_nodes = Loci::Local2FileOrder(num_inner_nodes.Rep(),local_edges,offset,dist,comm) ;
       FORALL(edge_num_inner_nodes.domain(), ee){
         num_local_nodes += edge_num_inner_nodes[ee];
       }ENDFORALL;
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes);
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::exec_current_fact_db->get_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -158,7 +159,7 @@ public:
       Loci::File2LocalOrder(localVar, local_edges,
                             edge_file_offset.Rep(), offset,
                             dist,
-                            MPI_COMM_WORLD);
+                            comm);
       
     }
     //finish with edge nodes
@@ -183,13 +184,13 @@ public:
     // is the actual file numbering.
     {
       store<int> cell_num_inner_nodes;
-      cell_num_inner_nodes = Loci::Local2FileOrder(num_inner_nodes.Rep(),local_geom_cells,offset,dist,MPI_COMM_WORLD) ;
+      cell_num_inner_nodes = Loci::Local2FileOrder(num_inner_nodes.Rep(),local_geom_cells,offset,dist,comm) ;
    
       num_local_nodes = 0;
       FORALL(cell_num_inner_nodes.domain(), ei){
         num_local_nodes += cell_num_inner_nodes[ei];
       }ENDFORALL;
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes);
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::exec_current_fact_db->get_comm());
       for(int i = 0; i < my_id; i++){
         noffset += local_nodes_sizes[i];
       }
@@ -205,7 +206,7 @@ public:
       Loci::File2LocalOrder(localVar, local_geom_cells,
                             cell_file_offset.Rep(), offset,
                             dist,
-                            MPI_COMM_WORLD);
+                            comm);
       //finish with cell nodes
     }
     //update noffset
@@ -225,14 +226,14 @@ public:
     // is the actual file numbering.
     {
       store<int> face_num_inner_nodes;
-      face_num_inner_nodes = Loci::Local2FileOrder(num_inner_nodes.Rep(),local_faces, offset,dist,MPI_COMM_WORLD) ;
+      face_num_inner_nodes = Loci::Local2FileOrder(num_inner_nodes.Rep(),local_faces, offset,dist,comm) ;
           
       num_local_nodes = 0;
       FORALL(face_num_inner_nodes.domain(), ei){
         num_local_nodes += face_num_inner_nodes[ei];
       }ENDFORALL;
       
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes);
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::exec_current_fact_db->get_comm());
       for(int i = 0; i < my_id; i++){
         noffset += local_nodes_sizes[i];
       }
@@ -248,7 +249,7 @@ public:
       Loci::File2LocalOrder(localVar, local_faces,
                             face_file_offset.Rep(), offset,
                             dist,
-                            MPI_COMM_WORLD);
+                            comm);
       
     } 
   }
@@ -271,6 +272,7 @@ public:
   virtual void compute(const sequence &seq) {
     int num_procs = Loci::MPI_processes;
     int my_id = Loci::MPI_rank;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
     
     Loci::constraint  geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells");
@@ -302,11 +304,11 @@ public:
     //put into block to make the memory for store<int> freeed after it's used 
     {
       store<int> file_num_fine_cells;
-      file_num_fine_cells = Loci::Local2FileOrder(num_fine_cells.Rep(),local_geom_cells,offset,dist,MPI_COMM_WORLD) ;
+      file_num_fine_cells = Loci::Local2FileOrder(num_fine_cells.Rep(),local_geom_cells,offset,dist,comm) ;
       FORALL(file_num_fine_cells.domain(), ee){
         num_local_cells += file_num_fine_cells[ee];
       }ENDFORALL;
-      local_cells_sizes = Loci::all_collect_sizes(num_local_cells);
+      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::exec_current_fact_db->get_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -323,7 +325,7 @@ public:
       Loci::File2LocalOrder(localVar, local_geom_cells,
                             cell_file_offset.Rep(), offset,
                             dist,
-                            MPI_COMM_WORLD);
+                            comm);
       
     }
     
@@ -352,6 +354,7 @@ public:
   virtual void compute(const sequence &seq) {
     int num_procs = Loci::MPI_processes;
     int my_id = Loci::MPI_rank;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
     
     Loci::constraint  geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells");
@@ -383,11 +386,11 @@ public:
     //put into block to make the memory for store<int> freeed after it's used 
     {
       store<int> file_num_fine_cells;
-      file_num_fine_cells = Loci::Local2FileOrder(num_fine_cells.Rep(),local_geom_cells,offset,dist,MPI_COMM_WORLD) ;
+      file_num_fine_cells = Loci::Local2FileOrder(num_fine_cells.Rep(),local_geom_cells,offset,dist,comm) ;
       FORALL(file_num_fine_cells.domain(), ee){
         num_local_cells += file_num_fine_cells[ee];
       }ENDFORALL;
-      local_cells_sizes = Loci::all_collect_sizes(num_local_cells);
+      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::exec_current_fact_db->get_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -404,7 +407,7 @@ public:
       Loci::File2LocalOrder(localVar, local_geom_cells,
                             cell_file_offset.Rep(), offset,
                             dist,
-                            MPI_COMM_WORLD);
+                            comm);
       
    
     }
@@ -553,6 +556,7 @@ public:
     disable_threading();
   }
   virtual void compute(const sequence &seq){
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     std::ofstream outFile;
     int nprocs = Loci::MPI_processes;
     
@@ -595,10 +599,10 @@ public:
     //compute buf_size on each process
     unsigned int  buf_size = 0;
     MPI_Allreduce(&my_size, &buf_size, 1, MPI_INT,
-                  MPI_MAX, MPI_COMM_WORLD);
+                  MPI_MAX, comm);
     //process 0 find out size of buffer for each process
      
-    MPI_Gather(&my_size, 1, MPI_INT, size_buf, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Gather(&my_size, 1, MPI_INT, size_buf, 1, MPI_INT, 0, comm);
       
     int32 *buf = new int32[buf_size]; 
     
@@ -614,7 +618,7 @@ public:
       //process 0 recv the buf and write it out
       for(int i = 1; i < nprocs; i++){
         MPI_Status status;
-        MPI_Recv(buf, buf_size, MPI_INT, i, 20, MPI_COMM_WORLD, &status);
+        MPI_Recv(buf, buf_size, MPI_INT, i, 20, comm, &status);
         int recv_size = size_buf[i]/2; 
         for(int j = 0; j < recv_size; j++)  
           {
@@ -633,7 +637,7 @@ public:
         }
       }ENDFORALL;
       int send_size = ptr;
-      MPI_Send(buf, send_size, MPI_INT, 0, 20, MPI_COMM_WORLD);
+      MPI_Send(buf, send_size, MPI_INT, 0, 20, comm);
     }
     
    

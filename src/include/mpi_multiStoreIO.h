@@ -306,10 +306,12 @@ namespace Loci {
   void pmpi_writeMultiStoreP(std::string filename,
                              const const_multiStore<T> &var,
                              entitySet write_set, fact_db &facts, int xfer_type) {
+    MPI_Comm comm = facts.get_comm() ;
     MPI_File fh = 0;
     MPI_Offset moffset = 0;
-    MPI_File_open( MPI_COMM_WORLD, filename.c_str(),
-                   MPI_MODE_WRONLY | MPI_MODE_CREATE, PHDF5_MPI_Info, &fh) ; 
+    MPI_File_open( comm, filename.c_str(),
+                   MPI_MODE_WRONLY | MPI_MODE_CREATE,
+                   PHDF5_MPI_Info, &fh) ; 
       
     std::vector<int> sizes_local ;//unique sizes on this process, such as 0, 35, 105,...
       
@@ -354,8 +356,10 @@ namespace Loci {
 
       
       //no groups, write out two vectors counts and fileids
-      pmpi_writeUnorderedVectorP(fh, moffset, counts, MPI_COMM_WORLD, xfer_type) ;
-      pmpi_writeUnorderedVectorP(fh, moffset, fileids, MPI_COMM_WORLD, xfer_type) ;
+      pmpi_writeUnorderedVectorP(fh, moffset, counts, comm,
+                                 xfer_type) ;
+      pmpi_writeUnorderedVectorP(fh, moffset, fileids, comm,
+                                 xfer_type) ;
             
       std::sort(counts.begin(),counts.end()) ;
       std::vector<int>::const_iterator lu = std::unique(counts.begin(),counts.end()) ;
@@ -374,7 +378,8 @@ namespace Loci {
     std::vector<int> sizes ; //unique sizes for all processors
     int cmin = -1 ;
     do {
-      MPI_Allreduce(&sizes_local[iloc],&cmin,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+      MPI_Allreduce(&sizes_local[iloc],&cmin,1,MPI_INT,
+                    MPI_MIN,comm) ;
       if(cmin != std::numeric_limits<int>::max())
         sizes.push_back(cmin) ;
       if(sizes_local[iloc] == cmin)
@@ -413,12 +418,13 @@ namespace Loci {
 
     std::vector<int> block_data_elems(block_sizes.size(),0) ;//global::for each block, how many elements need xfer
     MPI_Allreduce(&num_local_xfers[0],&block_data_elems[0],block_sizes.size(),
-                  MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+                  MPI_INT,MPI_SUM,comm) ;
 
     // write out write schedule information
    
-    pmpi_writeVectorSerialP(fh, moffset, block_sizes, MPI_COMM_WORLD) ;
-    pmpi_writeVectorSerialP(fh, moffset, block_data_elems, MPI_COMM_WORLD) ;
+    pmpi_writeVectorSerialP(fh, moffset, block_sizes, comm) ;
+    pmpi_writeVectorSerialP(fh, moffset,
+                            block_data_elems, comm) ;
    
     //    pre_time += sp.stop() ;
     // Now write out the main data block
@@ -432,8 +438,8 @@ namespace Loci {
     int p = 0;
     int r = 0;
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &r);
-    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    MPI_Comm_rank(comm, &r);
+    MPI_Comm_size(comm, &p);
     if(r == 0)MPI_File_write_at(fh, moffset, &total_size, sizeof(unsigned long), MPI_BYTE, MPI_STATUS_IGNORE);
     moffset += (MPI_Offset)sizeof(unsigned long);
     
@@ -449,7 +455,7 @@ namespace Loci {
     std::vector<int> all_local_sizes(block_sizes.size()*p) ;
     MPI_Allgather(&num_local_xfers[0],block_sizes.size(),MPI_INT,
                   &all_local_sizes[0],block_sizes.size(),MPI_INT,
-                  MPI_COMM_WORLD) ;
+                  comm) ;
 
  
     /* Create a large dataset for all processes  */
@@ -502,7 +508,7 @@ namespace Loci {
           int lsz = (count==0)?0:1 ;
           int gsz  = lsz ;
 
-          MPI_Allreduce(&lsz,&gsz,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+          MPI_Allreduce(&lsz,&gsz,1,MPI_INT,MPI_MAX,comm) ;
           if(gsz != 0) {
 
             if(xfer_type == DXFER_COLLECTIVE_IO)
@@ -530,19 +536,22 @@ namespace Loci {
                             fact_db &facts, int xfer_type) {
 
     //group_id is known to the world
+    MPI_Comm comm = facts.get_comm() ;
     MPI_File fh = 0;
     MPI_Offset moffset = 0;
-    MPI_File_open( MPI_COMM_WORLD, filename.c_str(),
+    MPI_File_open( comm, filename.c_str(),
                    MPI_MODE_RDONLY, PHDF5_MPI_Info, &fh) ; 
     int mpi_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &mpi_size);
+    MPI_Comm_size(comm, &mpi_size);
     int r = MPI_rank ;
     
    
     std::vector<int> counts ;
     std::vector<int> fileID ;
-    pmpi_readUnorderedVectorP(fh, moffset, counts, MPI_COMM_WORLD, xfer_type) ;
-    pmpi_readUnorderedVectorP(fh, moffset, fileID, MPI_COMM_WORLD, xfer_type) ;
+    pmpi_readUnorderedVectorP(fh, moffset, counts, comm,
+                              xfer_type) ;
+    pmpi_readUnorderedVectorP(fh, moffset, fileID, comm,
+                              xfer_type) ;
    
     // Now we need to create a mapping from fileID to local and processor
     // number
@@ -554,9 +563,9 @@ namespace Loci {
     std::vector<int> send_sz(p,0) ;
     std::vector<int> recv_sz(p,0) ;
     std::vector<int> recv_local_num ;
-    distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID) ;
+    distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID,comm) ;
     std::vector<int> recv_count ;
-    sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID) ;
+    sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID,comm) ;
   
 
     std::vector<int> alloc_set = recv_local_num ;
@@ -580,25 +589,27 @@ namespace Loci {
     std::vector<int> block_sets ;
 
 
-    pmpi_readVectorSerialP(fh, moffset, block_schedule, MPI_COMM_WORLD) ;
-    pmpi_readVectorSerialP(fh, moffset, block_sets, MPI_COMM_WORLD) ;
+    pmpi_readVectorSerialP(fh, moffset, block_schedule,
+                           comm) ;
+    pmpi_readVectorSerialP(fh, moffset, block_sets, comm) ;
     int bsize = block_schedule.size() ;
-    MPI_Bcast(&bsize,1,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(&bsize,1,MPI_INT,0,comm) ;
     if(0 != r) {
       std::vector<int> bsched(bsize) ;
       block_schedule.swap(bsched) ;
       std::vector<int> bsets(bsize) ;
       block_sets.swap(bsets) ;
     }
-    MPI_Bcast(&block_schedule[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
-    MPI_Bcast(&block_sets[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(&block_schedule[0],bsize,MPI_INT,0,comm) ;
+    MPI_Bcast(&block_sets[0],bsize,MPI_INT,0,comm) ;
 
     //prime processes Open data array
   
     unsigned long dimension = 0 ;
     //read in dimension here
     if(r == 0) MPI_File_read_at(fh, moffset, &dimension, sizeof(unsigned long), MPI_BYTE, MPI_STATUS_IGNORE);
-    MPI_Bcast(&dimension,sizeof(unsigned long), MPI_BYTE,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(&dimension,sizeof(unsigned long),
+              MPI_BYTE,0,comm) ;
     moffset += (MPI_Offset)sizeof(unsigned long);
 
     
@@ -621,7 +632,8 @@ namespace Loci {
           send_sz_blk[procID[j]]++ ;
         }
 
-      MPI_Allgather(&lbsz,1,MPI_INT,&file_read_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      MPI_Allgather(&lbsz,1,MPI_INT,&file_read_sizes[0],
+                    1,MPI_INT,comm) ;
 
       int tot = 0 ;
       for(int j=0;j<p;++j)
@@ -714,7 +726,7 @@ namespace Loci {
           MPI_Irecv(&rdata[roffset[j]*block_schedule[i]],
                     recv_sz_blk[j]*block_schedule[i]*sizeof(T),
                     MPI_BYTE,j,3,
-                    MPI_COMM_WORLD,&recv_Requests[req]) ;
+                    comm,&recv_Requests[req]) ;
           req++ ;
         }
       for(int j=0;j<p;++j)
@@ -722,7 +734,7 @@ namespace Loci {
           MPI_Isend(&xmit_buffer[xoffset[j]*block_schedule[i]],
                     send_sz_blk[j]*block_schedule[i]*sizeof(T),
                     MPI_BYTE,j,3,
-                    MPI_COMM_WORLD,&recv_Requests[req]) ;
+                    comm,&recv_Requests[req]) ;
           req++ ;
         }
       std::vector<MPI_Status> statuslist(nreq) ;

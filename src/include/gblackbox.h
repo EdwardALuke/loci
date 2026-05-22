@@ -55,21 +55,21 @@ namespace Loci {
     //dom_split: the send split of local domain
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,
-                 MPI_Comm comm=MPI_COMM_WORLD)const;
+                 MPI_Comm comm LOCI_DEFAULT_COMM)const;
 
     // the redistribute takes a vector of gEntitySets as domain
     // distribution over a group of processes and
     // redistributes the container according to the domain partition
     virtual gStoreRepP
     split_redistribute(const std::vector<gEntitySet>& dom_ptn,
-                       MPI_Comm comm=MPI_COMM_WORLD)const;
+                       MPI_Comm comm LOCI_DEFAULT_COMM)const;
 
     // this redistribute version takes an additional remap
     // argument, after redistribution, the new container is remapped
     // dom_split:  the send split of local domain
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,
-                 const gMap& remap, MPI_Comm comm=MPI_COMM_WORLD)const;
+                 const gMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM)const;
     virtual gstore_type RepType() const;
     virtual gEntitySet domain() const;
     virtual gStoreRepP remap(const gMap &m) const;

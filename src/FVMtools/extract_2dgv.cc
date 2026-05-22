@@ -55,7 +55,7 @@ void get_2dgv(string casename, string iteration,
   string posname = getPosFile(output_dir,iteration,casename) ;
   hid_t file_id = Loci::hdf5OpenFile(posname.c_str(),
                                      H5F_ACC_RDONLY,
-                                     H5P_DEFAULT) ;
+                                     H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) {
     cerr << "unable to get grid positions for iteration " << iteration
          << endl ;
@@ -66,7 +66,7 @@ void get_2dgv(string casename, string iteration,
 
   fact_db facts ;
   readData(file_id,"pos",pos.Rep(),EMPTY,facts) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   int npnts = pos.domain().size() ;
 
@@ -79,7 +79,7 @@ void get_2dgv(string casename, string iteration,
   if(stat(iblankname.c_str(),&tmpstat)== 0) {
     hid_t file_id = Loci::hdf5OpenFile(iblankname.c_str(),
                                        H5F_ACC_RDONLY,
-                                       H5P_DEFAULT) ;
+                                       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to get iblank info for iteration " << iteration
            << endl ;
@@ -90,7 +90,7 @@ void get_2dgv(string casename, string iteration,
 
     store<unsigned char> iblank_tmp ;
     readData(file_id,"iblank",iblank_tmp.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     entitySet dom = iblank_tmp.domain() ;
     int cnt = 1 ;
     FORALL(dom,nd) {
@@ -318,7 +318,7 @@ void get_2dgv(string casename, string iteration,
     {
       hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                          H5F_ACC_RDONLY,
-                                         H5P_DEFAULT) ;
+                                         H5P_DEFAULT, MPI_COMM_WORLD) ;
       if(file_id < 0) {
         cerr << "unable to open file '" << filename << "'!" << endl ;
         return ;
@@ -334,7 +334,7 @@ void get_2dgv(string casename, string iteration,
         int nd = node_set[i]-1+min_val ;
         out << scalar[nd] << endl ;
       }
-      Loci::hdf5CloseFile(file_id) ;
+      Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     }
     break;
   case NODAL_DERIVED:
@@ -352,7 +352,7 @@ void get_2dgv(string casename, string iteration,
     {
       hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                          H5F_ACC_RDONLY,
-                                         H5P_DEFAULT) ;
+                                         H5P_DEFAULT, MPI_COMM_WORLD) ;
       if(file_id < 0) {
         cerr << "unable to open file '" << filename << "'!" << endl ;
         Loci::Abort() ;
@@ -369,7 +369,7 @@ void get_2dgv(string casename, string iteration,
         int nd = node_set[i]-1+min_val ;
         out << norm(vec[nd]) << endl ;
       }
-      Loci::hdf5CloseFile(file_id) ;
+      Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     }
     break;
   case NODAL_MASSFRACTION:
@@ -378,7 +378,7 @@ void get_2dgv(string casename, string iteration,
     
       hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                          H5F_ACC_RDONLY,
-                                         H5P_DEFAULT) ;
+                                         H5P_DEFAULT, MPI_COMM_WORLD) ;
       if(file_id < 0) {
         cerr << "unable to open file '" << filename << "'!" << endl ;
         Loci::Abort() ;
@@ -390,7 +390,7 @@ void get_2dgv(string casename, string iteration,
       readData(file_id,"mixture",mix.Rep(),EMPTY,facts) ;
       param<string> species_names ;
       readData(file_id,"species_names",species_names.Rep(),EMPTY,facts) ;
-      Loci::hdf5CloseFile(file_id) ;
+      Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       
       map<string,int> smap ;
       std::istringstream iss(*species_names) ;

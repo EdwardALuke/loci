@@ -928,11 +928,11 @@ namespace Loci {
         // if output directory doesn't exist, create one
         bool debug_is_directory = true ;
         struct stat statbuf ;
-        if(GLOBAL_OR(stat("debug",&statbuf)!=0)) {
+        if(GLOBAL_OR(stat("debug",&statbuf)!=0, MPI_COMM_WORLD)) {
           if(MPI_rank == 0)
             mkdir("debug",0755) ;
           for(int i=0;i<1000;++i) {
-            if(GLOBAL_AND(stat("debug",&statbuf)==0))
+            if(GLOBAL_AND(stat("debug",&statbuf)==0, MPI_COMM_WORLD))
               break ;
           }
         } else {
@@ -1041,6 +1041,11 @@ namespace Loci {
     // }
 #endif
   }
+  void SetDefaultComm(MPI_Comm comm) {
+    MPI_Comm_size(comm, &MPI_processes) ;
+    MPI_Comm_rank(comm, &MPI_rank) ;
+  }
+
   //All Loci programs must end with this call.
   extern void call_closing_functions(int code) ;
 
