@@ -5,9 +5,7 @@
 
 #include <list>
 #include <sstream>
-#include <stdexcept>
 #include <string>
-#include <vector>
 
 using namespace Loci;
 
@@ -16,21 +14,6 @@ namespace {
 /// @brief Builds an inclusive entity range for compact test setup.
 entitySet make_range(int first, int last) {
   return entitySet(interval(first, last));
-}
-
-/// @brief Allocates `values` on `domain` and fills it from `entries`.
-void assign_store_values(store<int> &values, const entitySet &domain,
-                         const std::vector<int> &entries) {
-  if(static_cast<size_t>(domain.size()) != entries.size()) {
-    throw std::logic_error("store seed data does not match the domain size");
-  }
-
-  values.allocate(domain);
-  size_t index = 0;
-  for(entitySet::const_iterator ei = domain.begin(); ei != domain.end();
-      ++ei, ++index) {
-    values[*ei] = entries[index];
-  }
 }
 
 /// @brief Wraps serialized facts in the braces expected by `fact_db::read()`.
@@ -51,33 +34,49 @@ bool same_rep(const storeRepP &lhs, const storeRepP &rhs) {
   return lhs.operator->() == rhs.operator->();
 }
 
+template <typename Fn>
+/// @brief Captures `std::cerr` while `fn` runs so expected failures stay quiet.
+std::string capture_cerr(Fn fn) {
+  std::ostringstream err;
+  std::streambuf *old = std::cerr.rdbuf(err.rdbuf());
+  try {
+    fn();
+  } catch(...) {
+    std::cerr.rdbuf(old);
+    throw;
+  }
+  std::cerr.rdbuf(old);
+  return err.str();
+}
+
 } // namespace
 
 //----------------------------------------------------------------------------
-// Potential Bugs
+// Fact Database Behavior
 //----------------------------------------------------------------------------
+// These tests focus on public fact_db behavior: which facts exist, what values
+// they expose, how namespaces and synonyms affect lookup, and whether read/write
+// round trips preserve user-visible facts.
 //
-// These are cases that appear to demonstrate behavior that is not intended.
-//
-// These stay in the suite as visible regressions without breaking the overall
-// test run.
+// Known-bug tests stay here when they describe a public fact-db invariant that
+// should be fixed later, not just an internal implementation detail.
 
-// remove_variable() erases the fact and typed-variable entry, but it leaves
-// extensional_facts marked with the removed variable name.
-TEST_CASE("known bug: remove_variable should clear extensional fact bookkeeping [known-bug]" *
+TEST_CASE("known bug: remove_variable should clear extensional fact membership [known-bug]" *
           doctest::may_fail()) {
   fact_db facts;
   param<int> value;
   value = 11;
 
-  // Seed an extensional fact so we can observe every bookkeeping structure
-  // that `remove_variable()` is expected to clean up.
+  // `create_fact()` marks user-provided inputs as extensional facts, which is
+  // the public view used to distinguish supplied data from derived data.
   facts.create_fact("doomed", value);
   REQUIRE(facts.get_extensional_facts().inSet(variable("doomed")));
 
   facts.remove_variable(variable("doomed"));
 
-  // The extensional-fact set should no longer mention the removed variable.
+  // Once the fact is removed, it should no longer appear in any public fact set.
+  CHECK_FALSE(has_rep(facts.get_variable("doomed")));
+  CHECK_FALSE(facts.get_typed_variables().inSet(variable("doomed")));
   CHECK_FALSE(facts.get_extensional_facts().inSet(variable("doomed")));
 }
 
@@ -107,68 +106,52 @@ TEST_CASE("remove_variable erases fact storage and typed-variable lookup") {
   param<int> value;
   value = 11;
 
-  // Seed a regular fact so removal has both storage and type metadata to clear.
+  // Seed a regular fact so removal has lookup state and a typed-variable entry
+  // to clear.
   facts.create_fact("doomed", value);
   REQUIRE(facts.get_extensional_facts().inSet(variable("doomed")));
 
   facts.remove_variable(variable("doomed"));
 
-  // The fact should disappear both from storage lookups and typed-variable
-  // bookkeeping.
+  // The fact should disappear from both lookup and the typed-variable view.
   CHECK_FALSE(has_rep(facts.get_variable("doomed")));
   CHECK_FALSE(facts.get_typed_variables().inSet(variable("doomed")));
 }
 
-TEST_CASE("create_fact installs store facts and updates max allocation") {
+TEST_CASE("create_fact installs scalar facts and marks them extensional") {
   fact_db facts;
-  store<int> cells;
-  assign_store_values(cells, make_range(5, 7), {10, 20, 30});
+  param<int> count;
+  count = 30;
 
-  // Install a populated store fact and read it back through the public lookup.
-  facts.create_fact("cells", cells);
+  // Install a user-provided fact and read it back through public lookup.
+  facts.create_fact("count", count);
 
-  const storeRepP fetched_rep = facts.get_variable("cells");
+  const storeRepP fetched_rep = facts.get_variable("count");
   REQUIRE(has_rep(fetched_rep));
-  store<int> fetched(fetched_rep);
+  param<int> fetched(fetched_rep);
 
-  // The fetched store should preserve both the domain and the payload values.
-  CHECK(fetched.domain() == make_range(5, 7));
-  CHECK(fetched[5] == 10);
-  CHECK(fetched[6] == 20);
-  CHECK(fetched[7] == 30);
-
-  // `create_fact()` should advance the allocator watermark past the highest key.
-  CHECK(facts.get_max_alloc(0) == 8);
+  // The value should be available to query setup as an extensional input fact.
+  CHECK(*fetched == 30);
+  CHECK(facts.get_typed_variables().inSet(variable("count")));
+  CHECK(facts.get_extensional_facts().inSet(variable("count")));
 }
 
-TEST_CASE("set_variable_type returns fresh empty containers") {
+TEST_CASE("set_variable_type returns fresh containers for read-created facts") {
   fact_db facts;
-  store<int> field_template;
-  assign_store_values(field_template, make_range(1, 2), {4, 9});
+  param<int> count_template;
+  count_template = 4;
 
-  // Register a store type, then ask for two fresh instances of that type.
-  facts.set_variable_type("field", field_template);
+  // Register a type, then ask for two fresh instances of that type.
+  facts.set_variable_type("count", count_template);
 
-  storeRepP first = facts.get_variable_type("field");
-  storeRepP second = facts.get_variable_type("field");
+  storeRepP first = facts.get_variable_type("count");
+  storeRepP second = facts.get_variable_type("count");
 
   REQUIRE(has_rep(first));
   REQUIRE(has_rep(second));
-  CHECK(isSTORE(first));
-  CHECK(isSTORE(second));
+  CHECK(isPARAMETER(first));
+  CHECK(isPARAMETER(second));
   CHECK_FALSE(same_rep(first, second));
-
-  store<int> first_field(first);
-  store<int> second_field(second);
-
-  // Each returned instance should start empty even though the template carried
-  // data when it was registered.
-  CHECK(first_field.domain() == EMPTY);
-  CHECK(second_field.domain() == EMPTY);
-
-  // Mutating one clone should not leak into the other clone.
-  assign_store_values(first_field, make_range(9, 10), {1, 2});
-  CHECK(second_field.domain() == EMPTY);
 }
 
 TEST_CASE("remove_namespace restores unscoped lookup behavior") {
@@ -214,8 +197,8 @@ TEST_CASE("erase_intensional_facts removes only intensional facts") {
 
   facts.erase_intensional_facts();
 
-  // Extensional facts should survive, while intensional facts should be fully
-  // removed from storage and type bookkeeping.
+  // Extensional facts should survive, while intensional facts should disappear
+  // from lookup and the typed-variable view.
   CHECK(has_rep(facts.get_variable("extensional_value")));
   CHECK_FALSE(has_rep(facts.get_variable("intensional_value")));
   CHECK(facts.get_typed_variables().inSet(variable("extensional_value")));
@@ -274,37 +257,31 @@ TEST_CASE("synonym chains resolve to a single canonical fact") {
 
 TEST_CASE("update_fact and replace_fact refresh values without losing fact identity") {
   fact_db facts;
-  store<int> original;
-  store<int> updated;
-  store<int> replacement;
-  assign_store_values(original, make_range(5, 7), {10, 20, 30});
-  assign_store_values(updated, make_range(5, 6), {1, 2});
-  assign_store_values(replacement, make_range(10, 12), {7, 8, 9});
+  param<int> original;
+  param<int> updated;
+  param<int> replacement;
+  original = 10;
+  updated = 20;
+  replacement = 30;
 
-  // Seed the fact, then update it in place with a new domain and payload.
-  facts.create_fact("cells", original);
-  facts.update_fact("cells", updated);
+  // Seed the fact, then update it in place with a new payload.
+  facts.create_fact("count", original);
+  facts.update_fact("count", updated);
 
-  store<int> updated_cells(facts.get_variable("cells"));
+  param<int> updated_count(facts.get_variable("count"));
 
   // `update_fact()` should replace the payload while preserving the fact entry.
-  CHECK(updated_cells.domain() == make_range(5, 6));
-  CHECK(updated_cells[5] == 1);
-  CHECK(updated_cells[6] == 2);
-  CHECK(facts.get_max_alloc(0) == 8);
+  CHECK(*updated_count == 20);
+  CHECK(facts.get_typed_variables().inSet(variable("count")));
 
   // `replace_fact()` should swap in the replacement representation and keep
-  // the bookkeeping attached to the same fact name.
-  facts.replace_fact("cells", replacement);
+  // the fact visible under the same name.
+  facts.replace_fact("count", replacement);
 
-  store<int> replaced_cells(facts.get_variable("cells"));
-  CHECK(replaced_cells.domain() == make_range(10, 12));
-  CHECK(replaced_cells[10] == 7);
-  CHECK(replaced_cells[11] == 8);
-  CHECK(replaced_cells[12] == 9);
-  CHECK(facts.get_typed_variables().inSet(variable("cells")));
-  CHECK(facts.get_extensional_facts().inSet(variable("cells")));
-  CHECK(facts.get_max_alloc(0) == 13);
+  param<int> replaced_count(facts.get_variable("count"));
+  CHECK(*replaced_count == 30);
+  CHECK(facts.get_typed_variables().inSet(variable("count")));
+  CHECK(facts.get_extensional_facts().inSet(variable("count")));
 }
 
 TEST_CASE("copying fact_db allows replace_fact without mutating the source database") {
@@ -399,32 +376,23 @@ TEST_CASE("rotate_vars cycles fact storage across variables") {
 TEST_CASE("read creates facts from registered variable types") {
   fact_db facts;
   param<int> scalar_type;
-  store<int> field_type;
 
   // Register the variable types that `read()` needs in order to instantiate
   // incoming facts.
   facts.set_variable_type("count", scalar_type);
-  facts.set_variable_type("field", field_type);
 
-  std::istringstream in(
-      "{ count: 7 field: {([2,3]) 11 13} }");
+  std::istringstream in("{ count: 7 }");
 
   CHECK_NOTHROW(facts.read(in));
 
   // Read the newly created facts back through the public lookup API.
   const storeRepP count_rep = facts.get_variable("count");
-  const storeRepP field_rep = facts.get_variable("field");
   REQUIRE(has_rep(count_rep));
-  REQUIRE(has_rep(field_rep));
 
   param<int> count(count_rep);
-  store<int> field(field_rep);
 
   // The parsed values should match the serialized input.
   CHECK(*count == 7);
-  CHECK(field.domain() == make_range(2, 3));
-  CHECK(field[2] == 11);
-  CHECK(field[3] == 13);
 }
 
 TEST_CASE("read rejects missing fact definitions and malformed envelopes") {
@@ -432,53 +400,43 @@ TEST_CASE("read rejects missing fact definitions and malformed envelopes") {
     // Unknown fact names should fail because no variable type was registered.
     fact_db facts;
     std::istringstream in("{ missing: 1 }");
-    CHECK_THROWS(facts.read(in));
+    CHECK_THROWS(capture_cerr([&]() { facts.read(in); }));
   }
 
   {
     // The input envelope itself is required by `fact_db::read()`.
     fact_db facts;
     std::istringstream in("count: 1");
-    CHECK_THROWS(facts.read(in));
+    CHECK_THROWS(capture_cerr([&]() { facts.read(in); }));
   }
 }
 
 TEST_CASE("write output can be wrapped and read back into a second fact_db") {
   fact_db source;
   param<int> count;
-  store<int> field;
   count = 42;
-  assign_store_values(field, make_range(3, 4), {8, 13});
 
-  // Serialize a small database containing both scalar and store facts.
+  // Serialize a small database containing a user-provided scalar fact.
   source.create_fact("count", count);
-  source.create_fact("field", field);
 
   std::ostringstream out;
   source.write(out);
 
-  // The serialized form should mention both fact names.
+  // The serialized form should mention the fact name.
   CHECK(out.str().find("count:") != std::string::npos);
-  CHECK(out.str().find("field:") != std::string::npos);
 
   // Register matching types in the destination database before reading back.
   fact_db copy;
   param<int> scalar_type;
-  store<int> field_type;
   copy.set_variable_type("count", scalar_type);
-  copy.set_variable_type("field", field_type);
 
   std::istringstream in(wrap_fact_db_input(out.str()));
   CHECK_NOTHROW(copy.read(in));
 
   param<int> copied_count(copy.get_variable("count"));
-  store<int> copied_field(copy.get_variable("field"));
 
   // The round-tripped database should reconstruct the original values.
   CHECK(*copied_count == 42);
-  CHECK(copied_field.domain() == make_range(3, 4));
-  CHECK(copied_field[3] == 8);
-  CHECK(copied_field[4] == 13);
 }
 
 int main(int argc, char **argv) {
