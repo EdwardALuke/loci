@@ -360,7 +360,7 @@ namespace Loci {
 #endif
       cnt++ ;
       if(cnt == 100) {
-        if(get_exec_rank() == 0) 
+        if(MPI_rank == 0) 
           cerr << "Warning, parametric rule instatiation 100 levels deep!" << endl
                << "Probably this is caused by a recursive parametric rule" << endl
                << "currently working on the parametric variables:" << endl

@@ -380,6 +380,7 @@ namespace Loci {
 
   extern fact_db *exec_current_fact_db ;
 
+#ifndef LOCI_STRICT_COMM
   inline MPI_Comm get_exec_comm() {
     return (exec_current_fact_db != 0) ?
       exec_current_fact_db->get_comm() : MPI_COMM_WORLD ;
@@ -394,15 +395,14 @@ namespace Loci {
     return (exec_current_fact_db != 0) ?
       exec_current_fact_db->get_comm_size() : MPI_processes ;
   }
+#endif
 
   inline entitySet collect_entitySet(entitySet e)
   { return collect_entitySet(e,*exec_current_fact_db) ; }
 
-  entitySet all_collect_entitySet(const entitySet &e) ;
-
   inline entitySet all_collect_entitySet(entitySet localset,fact_db &facts) {
     if(facts.is_distributed_start())
-      return Loci::all_collect_entitySet(localset) ;
+      return Loci::all_collect_entitySet(localset, facts.get_comm()) ;
     return localset ;
   }
 }

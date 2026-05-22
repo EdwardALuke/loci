@@ -132,8 +132,8 @@ namespace Loci {
   
  
 
-  hid_t writeVOGOpen(string filename) {
-    MPI_Comm comm = get_exec_comm() ;
+  hid_t writeVOGOpen(string filename, MPI_Comm comm) {
+    int r ; MPI_Comm_rank(comm, &r) ;
     if(use_parallel_io){    
       hid_t file_id = 0;
       hid_t  acc_plist;
@@ -144,13 +144,13 @@ namespace Loci {
       file_id = H5Fcreate(filename.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,acc_plist) ;
       H5Pclose(acc_plist);
       if(file_id == 0) {
-        if(get_exec_rank()==0) cerr << "unable to open file " << filename << endl ;
+        if(r==0) cerr << "unable to open file " << filename << endl ;
         Loci::Abort() ;
       }
       return file_id ;
     }else{
       hid_t file_id = 0 ;
-      if(get_exec_rank()==0) 
+      if(r==0) 
         file_id = H5Fcreate(filename.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,H5P_DEFAULT) ;
       return file_id ;
     }
@@ -180,8 +180,8 @@ namespace Loci {
     
   }
 
-  hid_t readVOGOpen(string filename) {
-    MPI_Comm comm = get_exec_comm() ;
+  hid_t readVOGOpen(string filename, MPI_Comm comm) {
+    int r ; MPI_Comm_rank(comm, &r) ;
     if(use_parallel_io){
     
       hid_t file_id = -1;
@@ -193,13 +193,13 @@ namespace Loci {
       file_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, acc_plist) ;
       H5Pclose(acc_plist);
       if(file_id < 0) {
-        if(get_exec_rank()==0) cerr << "unable to open file " << filename << endl ;
+        if(r==0) cerr << "unable to open file " << filename << endl ;
         Loci::Abort() ;
       }
       return file_id ;
     }else{
       hid_t file_id = 0 ;
-      if(get_exec_rank()==0) 
+      if(r==0) 
         file_id = H5Fopen(filename.c_str(),H5F_ACC_RDONLY, H5P_DEFAULT) ;
       return file_id ;
     }
@@ -885,8 +885,7 @@ namespace Loci {
 #endif
     }
 
-    void write_containerS(hid_t group_id, storeRepP qrep) {
-      MPI_Comm comm = get_exec_comm() ;
+    void write_containerS(hid_t group_id, storeRepP qrep, MPI_Comm comm) {
       int offset = 0 ;
       if(qrep->RepType() == PARAMETER)
         write_parameterS(group_id,qrep,comm) ;
@@ -894,11 +893,10 @@ namespace Loci {
         write_storeS(group_id,qrep,qrep->domain(),offset,comm) ;
     }
   
-    void write_containerP(hid_t group_id, storeRepP qrep) {
+    void write_containerP(hid_t group_id, storeRepP qrep, MPI_Comm comm) {
 #ifndef H5_HAVE_PARALLEL
-      write_containerS(group_id, qrep);
+      write_containerS(group_id, qrep, comm);
 #else
-      MPI_Comm comm = get_exec_comm() ;
       int offset = 0 ;
       if(qrep->RepType() == PARAMETER)
         write_parameterP(group_id,qrep,comm) ;
@@ -1314,8 +1312,7 @@ namespace Loci {
 
 
  
-  entitySet findBoundingSet(entitySet in) {
-    MPI_Comm comm = get_exec_comm() ;
+  entitySet findBoundingSet(entitySet in, MPI_Comm comm) {
     Entity max_val = in.Max() ;
     Entity min_val = in.Min() ;
     Entity gmin_val = min_val;
@@ -1328,9 +1325,8 @@ namespace Loci {
     return entitySet(interval(gmin_val,gmax_val)) ;
   }
 
-  vector<sequence> transposeSeq(const vector<sequence> sv) {
-    MPI_Comm comm = get_exec_comm() ;
-    int np = get_exec_size() ;
+  vector<sequence> transposeSeq(const vector<sequence> sv, MPI_Comm comm) {
+    int np ; MPI_Comm_size(comm, &np) ;
     vector<int> send_sz(np) ;
     for(int i=0;i<np;++i)
       send_sz[i] = sv[i].num_intervals()*2 ;
@@ -1505,7 +1501,7 @@ namespace Loci {
     }
 
     //Get the sequences of where we place the data when we receive it
-    vector<sequence> recv_seqs = transposeSeq(send_seqs) ;
+    vector<sequence> recv_seqs = transposeSeq(send_seqs, comm) ;
 
 
     // shift by the offset
@@ -1632,7 +1628,7 @@ namespace Loci {
     }
 
     //Get the sequences of where we place the data when we receive it
-    vector<sequence> recv_seqs = transposeSeq(send_seqs) ;
+    vector<sequence> recv_seqs = transposeSeq(send_seqs, comm) ;
 
     // don't need shift by the offset because global number is unique
     int offset = out_ptn[prank].Min() ;
@@ -1774,7 +1770,7 @@ namespace Loci {
 
     // Transpose the send requests to get the sending sequences
     // from this processor
-    vector<sequence> send_seq = transposeSeq(send_req) ;
+    vector<sequence> send_seq = transposeSeq(send_req, comm) ;
     vector<entitySet> send_sets(p) ;
     for(int i=0;i<p;++i) {
       send_seq[i] <<= offset ;
@@ -1903,9 +1899,9 @@ namespace Loci {
       // No need to reorder container if parameter or only one
       // processor, so just write out the container.
       if(use_parallel_io)
-        pio::write_containerP(group_id, var) ;
+        pio::write_containerP(group_id, var, comm) ;
       else
-        pio::write_containerS(group_id, var) ;
+        pio::write_containerS(group_id, var, comm) ;
     }
 
     if(facts.get_comm_rank() == 0||use_parallel_io)
@@ -1914,8 +1910,8 @@ namespace Loci {
 
 
   int getMinFileNumberFromLocal(entitySet read_set,
-                                fact_db::distribute_infoP dist ) {
-    MPI_Comm comm = get_exec_comm() ;
+                                fact_db::distribute_infoP dist,
+                                MPI_Comm comm) {
     int minIDfl = std::numeric_limits<int>::max() ;
     int kd =  getKeyDomain(read_set, dist, comm) ;
     if(kd< 0) {
@@ -1964,7 +1960,7 @@ namespace Loci {
     if(dist != 0) {
       int minID = offset ;
       MPI_Bcast(&minID, 1, MPI_INT, 0, comm) ;
-      const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
+      const int minIDf = getMinFileNumberFromLocal(read_set,dist,comm) ;
       const int correct = minIDf - minID ;
       offset += correct  ;
 
@@ -2035,7 +2031,7 @@ namespace Loci {
    
     // file_id = H5Fcreate(filename,H5F_ACC_TRUNC,H5P_DEFAULT,H5P_DEFAULT) ;//error
 
-    file_id = writeVOGOpen(filename);
+    file_id = writeVOGOpen(filename, facts.get_comm());
     if(facts.get_comm_rank() == 0 || use_parallel_io) {
       group_id = H5Gcreate(file_id,"dataInfo",
 			   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
@@ -2047,8 +2043,9 @@ namespace Loci {
   }
 
   
-  void closeUnorderedFile(hid_t file_id) {
-    if(get_exec_rank() == 0 || use_parallel_io)
+  void closeUnorderedFile(hid_t file_id, MPI_Comm comm) {
+    int r ; MPI_Comm_rank(comm, &r) ;
+    if(r == 0 || use_parallel_io)
       H5Fclose(file_id) ;
   }
  
@@ -2162,7 +2159,7 @@ namespace Loci {
       offsets[i+1] = offsets[i]+skipsz[i] ;
 
     //Get the sequences of where we place the data when we receive it
-    vector<sequence> recv_seqs = transposeSeq(send_seqs) ;
+    vector<sequence> recv_seqs = transposeSeq(send_seqs, comm) ;
 
     if(global2local.size() > 0) { // now map the recv seqs to local ordering
       int Imn = 0 ;
@@ -2525,7 +2522,8 @@ namespace Loci {
   }
 
 
-  void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist) {
+  void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist,
+                 MPI_Comm comm) {
     if(dist == 0) {
       l2f.allocate(dom) ;
       FORALL(dom,ii) {
@@ -2534,7 +2532,6 @@ namespace Loci {
     } else {
       l2f.allocate(dom) ;
 
-      MPI_Comm comm = get_exec_comm() ;
       int mnl = std::numeric_limits<int>::max() ;
       FORALL(dom,ii) {
         l2f[ii] = dist->l2f[ii] ; 
@@ -2696,7 +2693,7 @@ namespace Loci {
     }
 
     //Get the sequences of where we place the data when we receive it
-    vector<sequence> send_seqs = transposeSeq(recv_seqs) ;
+    vector<sequence> send_seqs = transposeSeq(recv_seqs, comm) ;
 
 
     // Compute allocation domain
@@ -2799,7 +2796,7 @@ namespace Loci {
     }
 
     //Get the sequences of where we place the data when we receive it
-    vector<sequence> send_seqs = transposeSeq(recv_seqs) ;
+    vector<sequence> send_seqs = transposeSeq(recv_seqs, comm) ;
 
 
     // Compute allocation domain

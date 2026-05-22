@@ -225,7 +225,7 @@ namespace Loci {
 	      entitySet glob_dom = collectSet(tmp_dom,
 	        locdom[kd], facts.get_comm()) ;
 	      entitySet tmp_out = (glob_dom & locdom[kd]) - tmp_dom ;
-	      storeRepP sp = mp->expand(tmp_out, ptn) ;
+	      storeRepP sp = mp->expand(tmp_out, ptn, facts.get_comm()) ;
 	      if(sp->domain() != tmp_dom) {
 		//facts.update_fact(variable(*vi), sp) ;
 		sp->setDomainKeySpace(kd) ;
@@ -278,7 +278,7 @@ namespace Loci {
 		domain += mp->domain();
 	      }
 	    }
-	    domain = all_collect_entitySet(domain);
+	    domain = all_collect_entitySet(domain,facts.get_comm());
 	    tmp = domain;
 	  }
 
@@ -289,7 +289,7 @@ namespace Loci {
 	      image += mp->image(tmp);
 	    }
 	  }
-	  tmp = all_collect_entitySet(image);
+	  tmp = all_collect_entitySet(image,facts.get_comm());
 	  image = EMPTY;
 	}
 
@@ -336,7 +336,8 @@ namespace Loci {
 	    }
 	  }
 	  for(int j = 0; j < facts.get_comm_size(); j++) {
-	    preimage_vec[j] = all_collect_entitySet(tmp_preimage_vec[j]);
+	    preimage_vec[j] = all_collect_entitySet(tmp_preimage_vec[j],
+						    facts.get_comm());
 	  }
 
 	  if(i == 0) {
@@ -376,7 +377,7 @@ namespace Loci {
 	      entitySet glob_dom = collectSet(tmp_dom,
 	        locdom, facts.get_comm()) ;
 	      entitySet tmp_out = (glob_dom & locdom) - tmp_dom ;
-	      storeRepP sp = mp->expand(tmp_out, ptn) ;
+	      storeRepP sp = mp->expand(tmp_out, ptn,facts.get_comm()) ;
 	      if(sp->domain() != tmp_dom) {
 		//facts.update_fact(variable(*vi), sp) ;
 		facts.replace_fact(*vi,sp) ;
@@ -419,7 +420,8 @@ namespace Loci {
         if(GLOBAL_OR(tmp_dom != ~EMPTY, facts.get_comm())) {
           std::vector<entitySet> &ptn =
             facts.get_init_ptn(tmp_sp->getDomainKeySpace()) ; 
-	  entitySet global_tmp_dom = distribute_entitySet(tmp_dom,ptn) ;
+	  entitySet global_tmp_dom = distribute_entitySet(tmp_dom,ptn,
+							  facts.get_comm()) ;
           //global_tmp_dom = all_collect_entitySet(tmp_dom) ;
 
           constraint tmp ;
@@ -531,7 +533,8 @@ namespace Loci {
       int kd = tmp_sp->getDomainKeySpace() ;
       std::vector<entitySet> &ptn = facts.get_init_ptn(kd) ;
       entitySet dom = tmp_sp->domain() ;
-      dom = dist_expand_entitySet(dom,keyspace_expand[kd],ptn) ;
+      dom = dist_expand_entitySet(dom,keyspace_expand[kd],ptn,
+				  facts.get_comm()) ;
       constraint tmp ;
       *tmp = dom ;
       tmp.Rep()->setDomainKeySpace(kd) ;
@@ -626,7 +629,8 @@ namespace Loci {
       for(size_t i=0;i < iv.size(); ++i) {
 	debugout << "iv["<< i << "] size before expand = " << iv[i].num_intervals()<< endl ;
 	entitySet tmp_copy =  image[kd] - ptn[myid] ;
-        iv[i] = dist_expand_entitySet(iv[i],tmp_copy,ptn) ;
+        iv[i] = dist_expand_entitySet(iv[i],tmp_copy,ptn,
+				      facts.get_comm()) ;
         debugout << "iv["<< i << "] size after expand = " << iv[i].num_intervals() <<endl;
       }
       debugout << "time expanding categories = " << s.stop() << endl ;

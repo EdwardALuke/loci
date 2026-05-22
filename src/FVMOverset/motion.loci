@@ -525,7 +525,7 @@ namespace Loci {
   } ;
 
   prescribedMotion::prescribedMotion(std::string name, options_list &ol) {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     // Rank 0 reads in the motion data and broadcasts to all other ranks
     if(Loci::MPI_rank==0) {
       string filename = "motion_" + name + ".dat" ;

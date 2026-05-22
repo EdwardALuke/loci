@@ -1297,7 +1297,7 @@ int main(int ac, char *av[]) {
   
   vector<vector<pair<int,string> > > boundary_ids(num_inputs);
   for(int i=0;i<num_inputs;++i) {
-    Loci::readBCfromVOG(input_files[i],boundary_ids[i]) ;
+    Loci::readBCfromVOG(input_files[i],boundary_ids[i],MPI_COMM_WORLD) ;
     int sz = boundary_ids[i].size() ;
 
    

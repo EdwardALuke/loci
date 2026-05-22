@@ -83,7 +83,7 @@ public:
 
     int num_procs = Loci::MPI_processes;
     int my_id = Loci::MPI_rank;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
    
   
@@ -142,7 +142,7 @@ public:
       FORALL(edge_num_inner_nodes.domain(), ee){
         num_local_nodes += edge_num_inner_nodes[ee];
       }ENDFORALL;
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::get_exec_comm());
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::exec_current_fact_db->get_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -190,7 +190,7 @@ public:
       FORALL(cell_num_inner_nodes.domain(), ei){
         num_local_nodes += cell_num_inner_nodes[ei];
       }ENDFORALL;
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::get_exec_comm());
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::exec_current_fact_db->get_comm());
       for(int i = 0; i < my_id; i++){
         noffset += local_nodes_sizes[i];
       }
@@ -233,7 +233,7 @@ public:
         num_local_nodes += face_num_inner_nodes[ei];
       }ENDFORALL;
       
-      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::get_exec_comm());
+      local_nodes_sizes = Loci::all_collect_sizes(num_local_nodes, Loci::exec_current_fact_db->get_comm());
       for(int i = 0; i < my_id; i++){
         noffset += local_nodes_sizes[i];
       }
@@ -272,7 +272,7 @@ public:
   virtual void compute(const sequence &seq) {
     int num_procs = Loci::MPI_processes;
     int my_id = Loci::MPI_rank;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
     
     Loci::constraint  geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells");
@@ -308,7 +308,7 @@ public:
       FORALL(file_num_fine_cells.domain(), ee){
         num_local_cells += file_num_fine_cells[ee];
       }ENDFORALL;
-      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::get_exec_comm());
+      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::exec_current_fact_db->get_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -354,7 +354,7 @@ public:
   virtual void compute(const sequence &seq) {
     int num_procs = Loci::MPI_processes;
     int my_id = Loci::MPI_rank;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
     
     Loci::constraint  geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells");
@@ -390,7 +390,7 @@ public:
       FORALL(file_num_fine_cells.domain(), ee){
         num_local_cells += file_num_fine_cells[ee];
       }ENDFORALL;
-      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::get_exec_comm());
+      local_cells_sizes = Loci::all_collect_sizes(num_local_cells, Loci::exec_current_fact_db->get_comm());
       
     
       for(int i = 0; i < my_id; i++){
@@ -556,7 +556,7 @@ public:
     disable_threading();
   }
   virtual void compute(const sequence &seq){
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     std::ofstream outFile;
     int nprocs = Loci::MPI_processes;
     

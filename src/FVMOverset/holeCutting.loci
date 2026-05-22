@@ -181,7 +181,7 @@ namespace Loci {
   componentID_node,componentPriorityList,holeCuttingTolerance,
   componentNameList,componentGeometryList,stencilSize2),
   option(disable_threading), prelude {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     entitySet dom = entitySet(seq) ;
     int nc = (*$componentNameList).size() ;
     float delta = realToFloat(sqrt(*$stencilSize2)) ;

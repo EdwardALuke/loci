@@ -54,7 +54,7 @@ namespace {
   void memSpace(string s) {
     using Loci::debugout ;
     debugout << s <<":" << endl;
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
 
     struct mallinfo info = mallinfo() ;
     int mem_alloc_local
@@ -113,7 +113,7 @@ namespace Loci {
     int r = Loci::MPI_rank ;
     int p = Loci::MPI_processes ;
     int num_entities = dom.size() ;
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
 
     // Store the distribution of entity across MPI ranks
     vector<int> dist_sizes(p,0) ; // number of entities per MPI rank
@@ -291,7 +291,7 @@ namespace Loci {
   /// donor cells to estimate stencil extents during interpolation.
   $rule blackbox(stencilSizer<-cellcenter,cellSize2,donorCell,stencilSize2),
   option(disable_threading),prelude {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
 
 #ifdef REPORT_TIMES
     Loci::stopWatch s ;
@@ -406,7 +406,7 @@ namespace Loci {
   $rule apply(interpolateFaceStencil<-interpolatePoints(cellcenter,iblank),
   stencilSize2,interpolateMinStencilSize,stencilSizer,facecenter,area,
   ci->cellcenter,ci->iblank)[Loci::NullOp], option(disable_threading), prelude {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
 
     MEMORY_PROFILE(compute_start) ;
 
@@ -1250,7 +1250,7 @@ namespace Loci {
   $rule apply(interpolateCellStencil<-interpolatePoints(cellcenter,iblank),
   stencilSize2,cellcenter,iblank,stencilSizer,interpolateMinStencilSize)
   [Loci::NullOp],option(disable_threading), prelude {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
 
     MEMORY_PROFILE(compute_start) ;
     MEMORY_PROFILE(buildcellstencil) ;

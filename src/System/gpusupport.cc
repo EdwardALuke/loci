@@ -298,7 +298,7 @@ namespace Loci {
     return defermap->preimage(codomain) ;
   }
   
-  storeRepP gpuMapRepI::expand(entitySet &out_of_dom, std::vector<entitySet> &ptn) {
+  storeRepP gpuMapRepI::expand(entitySet &out_of_dom, std::vector<entitySet> &ptn, MPI_Comm comm) {
     cerr << "expand should not be called for gpuMap" << endl ;
     debugger_() ;
     return getRep() ;

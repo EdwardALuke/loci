@@ -525,11 +525,11 @@ namespace Loci {
   
   int collectPointsSizes(const kdTree::KDTree<float> &kd,
 			 kdTree::KDTree<float>::bounds bnd) {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     MEMORY_PROFILE(collectPointsBegin) ;
     // Communicate bounds request to other processors
     using namespace kdTree ;    
-    int p = get_exec_size() ;
+    int p = exec_current_fact_db->get_comm_size() ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
     MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,comm) ;
 
@@ -646,7 +646,7 @@ namespace Loci {
                              double &delta,
                              const const_store<vector3d<double> > &pnts,
                              entitySet dom) {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     //    MEMORY_PROFILE(getStencilBoundingBoxBegin) ;
     for(int d=0;d<3;++d) {
       bnd.minc[d] = .25*std::numeric_limits<float>::max() ;
@@ -700,11 +700,11 @@ namespace Loci {
   void collectPoints(vector<kdTree::KDTree<float>::coord_info> &pout,
                      const kdTree::KDTree<float> &kd,
                      kdTree::KDTree<float>::bounds bnd) {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     MEMORY_PROFILE(collectPointsBegin) ;
     // Communicate bounds request to other processors
     using namespace kdTree ;
-    int p = get_exec_size() ;
+    int p = exec_current_fact_db->get_comm_size() ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
     MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,comm) ;
 
@@ -756,7 +756,7 @@ namespace Loci {
                                const vector<Array<int,4> > &stencil,
                                const store<int> &ids,
                                const vector<int> &distribution) {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     MEMORY_PROFILE("pre_get_comm_sched") ;
     vector<int> stmp(stencil.size()*4) ;
     for(size_t i=0;i<stencil.size();++i)
@@ -778,7 +778,7 @@ namespace Loci {
 
     WARN(access.size()>0 && access[0] < 0) ;
 
-    const int p = get_exec_size() ;
+    const int p = exec_current_fact_db->get_comm_size() ;
     // Now communicate the accessed info
     vector<int> req_sizes(p,0) ;
     // Count accesses to each processor

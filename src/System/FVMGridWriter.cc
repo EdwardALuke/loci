@@ -222,13 +222,16 @@ namespace Loci {
 
 
   
-  void writeVOGSurf(hid_t file_id, vector<pair<int,string> > surface_ids) {
+  void writeVOGSurf(hid_t file_id, vector<pair<int,string> > surface_ids,
+		    MPI_Comm comm) {
     /*
       parallel io included, all attribute and group creations need to be called collectively by all ranks, including H5Awrite
     */
+    int r = 0;
+    MPI_Comm_rank(comm,&r) ;
     hid_t group_id = 0 ;
     if(surface_ids.size() == 0) return;
-    if(get_exec_rank() == 0 || use_parallel_io) {
+    if(r == 0 || use_parallel_io) {
       
       vector<pair<int,string> > surface_ids_mod= surface_ids ; 
       for(size_t i=0;i<surface_ids.size();++i) {
@@ -271,8 +274,12 @@ namespace Loci {
   }
   
   // originally, no MPI_rank ==0,  can not run in parallel. Modified so that writeVOG can run in parallel io
-  void writeVOGTag(hid_t output_fid,  vector<pair<string,entitySet> >& volTags){
-    if(get_exec_rank() == 0 || (use_parallel_io && output_fid > 0)){
+  void writeVOGTag(hid_t output_fid,
+		   vector<pair<string,entitySet> >& volTags,
+		   MPI_Comm comm){
+    int r = 0;
+    MPI_Comm_rank(comm,&r) ;
+    if(r == 0 || (use_parallel_io && output_fid > 0)){
 
       hid_t cell_info = H5Gcreate(output_fid,"cell_info", 
                                   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
@@ -292,7 +299,7 @@ namespace Loci {
         H5Aclose(att_id) ;
         
         Loci::HDF5_WriteDomain(vol_id,volTags[i].second,
-                               get_exec_comm()) ;
+                               comm) ;
         
       
         H5Gclose(vol_id) ;
@@ -301,9 +308,14 @@ namespace Loci {
     }
   }
   
-  void writeVOGNode(hid_t file_id, store<vector3d<double> > &pos) {//parallel io included
+  void writeVOGNode(hid_t file_id, store<vector3d<double> > &pos,
+		    MPI_Comm comm)
+  { //parallel io included
+
+    int r = 0 ;
+    MPI_Comm_size(comm,&r) ;
     hid_t group_id = 0 ;
-    if(get_exec_rank() == 0 || use_parallel_io){
+    if(r == 0 || use_parallel_io){
 
       group_id = H5Gcreate(file_id,"node_info",H5P_DEFAULT,
                            H5P_DEFAULT,H5P_DEFAULT) ;
@@ -320,20 +332,20 @@ namespace Loci {
     // if(use_parallel_io)
     //   writeUnorderedVectorP(group_id,"positions",vpos) ;
     // else
-    writeUnorderedVector(group_id,"positions",vpos, get_exec_comm()) ;
+    writeUnorderedVector(group_id,"positions",vpos, comm) ;
 
-    if(get_exec_rank() == 0 || use_parallel_io) H5Gclose(group_id) ;
+    if(r == 0 || use_parallel_io) H5Gclose(group_id) ;
 
     long long local_num_nodes = pos.domain().size() ;
     long long num_nodes = 0 ;
     MPI_Allreduce(&local_num_nodes,&num_nodes,1,MPI_LONG_LONG_INT,
-                  MPI_SUM, get_exec_comm()) ;
+                  MPI_SUM, comm) ;
 
-    if(get_exec_rank() == 0 || use_parallel_io) {
+    if(r == 0 || use_parallel_io) {
       group_id = H5Gcreate(file_id,"file_info",
 			   H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ;
     
-      if(get_exec_rank() == 0) cerr << "num_nodes = " << num_nodes << endl ;
+      if(r == 0) cerr << "num_nodes = " << num_nodes << endl ;
 
       hsize_t dims = 1 ;
       hid_t dataspace_id = H5Screate_simple(1,&dims,NULL) ;
@@ -347,11 +359,12 @@ namespace Loci {
     }
   }
 
-  void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
+  void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node,
+		    MPI_Comm comm) {
     // Compute cell set
     entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
     entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
+    entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells,comm) ;
   
     Map tmp_cl, tmp_cr;
     multiMap tmp_face2node;
@@ -365,13 +378,15 @@ namespace Loci {
 
     // Reduce these variables
     MPI_Allreduce(&local_num_faces,&num_faces,1,MPI_LONG_LONG_INT,
-                  MPI_SUM, get_exec_comm()) ;
+                  MPI_SUM, comm) ;
 
     hid_t group_id = 0 ;
-    if(get_exec_rank() == 0 || use_parallel_io) {
+    int r = 0 ;
+    MPI_Comm_rank(comm,&r) ;
+    if(r == 0 || use_parallel_io) {
       group_id = H5Gopen(file_id,"file_info",H5P_DEFAULT) ;
 
-      if(get_exec_rank() == 0)cerr << "num_cells = " << num_cells << endl
+      if(r == 0)cerr << "num_cells = " << num_cells << endl
                             << "num_faces = " << num_faces << endl ;
 
       hsize_t dims = 1 ;
@@ -451,17 +466,20 @@ namespace Loci {
     }
     
     
-    Loci::writeUnorderedVector(group_id,"cluster_sizes",cluster_sizes, get_exec_comm()) ;
-    Loci::writeUnorderedVector(group_id,"cluster_info",cluster_info, get_exec_comm()) ;
+    Loci::writeUnorderedVector(group_id,"cluster_sizes",cluster_sizes, comm) ;
+    Loci::writeUnorderedVector(group_id,"cluster_info",cluster_info, comm) ;
       
     
-    if(get_exec_rank() == 0 || use_parallel_io) {
+    if(r == 0 || use_parallel_io) {
       H5Gclose(group_id) ;
     }
   }
 
-  void writeVOGClose(hid_t file_id) {//parallel io included
-    if(get_exec_rank() == 0 || use_parallel_io) H5Fclose(file_id) ;
+  void writeVOGClose(hid_t file_id,
+		     MPI_Comm &comm) {//parallel io included
+    int r = 0 ;
+    MPI_Comm_rank(comm,&r) ;
+    if(r == 0 || use_parallel_io) H5Fclose(file_id) ;
   }
   
 
@@ -469,30 +487,32 @@ namespace Loci {
 
   void writeVOG(string filename,store<vector3d<double> > &pos,
                 Map &cl, Map &cr, multiMap &face2node,
-                vector<pair<int,string> > surface_ids) {
+                vector<pair<int,string> > surface_ids,
+		MPI_Comm comm) {
     // write grid file
     hid_t file_id = 0;
    
-    file_id = writeVOGOpen(filename) ;
+    file_id = writeVOGOpen(filename,comm) ;
     
-    writeVOGSurf(file_id,surface_ids) ;
-    writeVOGNode(file_id,pos) ;
-    writeVOGFace(file_id,cl,cr,face2node) ;
-    writeVOGClose(file_id) ; //parallel io included
+    writeVOGSurf(file_id,surface_ids,comm) ;
+    writeVOGNode(file_id,pos,comm) ;
+    writeVOGFace(file_id,cl,cr,face2node,comm) ;
+    writeVOGClose(file_id,comm) ; //parallel io included
   }
 
   void writeVOG(string filename,store<vector3d<double> > &pos,
                 Map &cl, Map &cr, multiMap &face2node,
                 vector<pair<int,string> >& surface_ids,
-                vector<pair<string,entitySet> >& volTags ) {
+                vector<pair<string,entitySet> >& volTags,
+		MPI_Comm comm) {
     // write grid file
-    hid_t file_id = writeVOGOpen(filename) ;
+    hid_t file_id = writeVOGOpen(filename,comm) ;
    
-    writeVOGTag(file_id, volTags) ;
-    writeVOGSurf(file_id,surface_ids) ;
-    writeVOGNode(file_id,pos) ;
-    writeVOGFace(file_id,cl,cr,face2node) ;
-    writeVOGClose(file_id) ; //parallel io included
+    writeVOGTag(file_id, volTags,comm) ;
+    writeVOGSurf(file_id,surface_ids,comm) ;
+    writeVOGNode(file_id,pos,comm) ;
+    writeVOGFace(file_id,cl,cr,face2node,comm) ;
+    writeVOGClose(file_id,comm) ; //parallel io included
   }
   
 

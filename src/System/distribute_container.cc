@@ -40,8 +40,8 @@ namespace Loci {
   // Pass in a set of entitySets one for each processor to broadcast
   // to other processors.  Return with a vector of entitySets as sent to
   // you by each other processor.
-  vector<entitySet> Alltoall_entitySet(vector<entitySet> v) {
-    int p = get_exec_size() ;
+  vector<entitySet> Alltoall_entitySet(vector<entitySet> v, MPI_Comm comm) {
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
     WARN(int(v.size()) != p) ;
 
     if(p == 1)
@@ -50,7 +50,6 @@ namespace Loci {
     for(int i=0;i<p;++i)
       ivals[i] = v[i].num_intervals() ;
     vector<int> ivalr(p) ;
-    MPI_Comm comm = get_exec_comm() ;
     MPI_Alltoall(&(ivals[0]), 1, MPI_INT,
                  &(ivalr[0]), 1, MPI_INT, comm) ;
     vector<int> sdispls(p),rdispls(p) ;
@@ -84,8 +83,8 @@ namespace Loci {
     return retv ;
   }
 
-  dMap distribute_dMap(dMap m, const std::vector<entitySet> &init_ptn) {
-    int p = get_exec_size() ;
+  dMap distribute_dMap(dMap m, const std::vector<entitySet> &init_ptn, MPI_Comm comm) {
+    int p = 0 ; MPI_Comm_size(comm, &p) ;
     if(p == 1)
       return m ;
     entitySet dom = m.domain() ;
@@ -96,7 +95,7 @@ namespace Loci {
     }
     WARN(dom != EMPTY) ;
 
-    vector<entitySet> recv_slices = Alltoall_entitySet(send_slices) ;
+    vector<entitySet> recv_slices = Alltoall_entitySet(send_slices, comm) ;
 
     vector<int> scounts(p),rcounts(p), sdispls(p),rdispls(p) ;
     for(int i=0;i<p;++i) {
@@ -120,7 +119,6 @@ namespace Loci {
       }
     }
 
-    MPI_Comm comm = get_exec_comm() ;
     MPI_Alltoallv(&(sbuf[0]), &(scounts[0]), &(sdispls[0]), MPI_INT,
                   &(rbuf[0]), &(rcounts[0]), &(rdispls[0]), MPI_INT,
                   comm) ;
@@ -150,8 +148,8 @@ namespace Loci {
                               vector<pair<Entity,Entity> > &input,
                               entitySet input_image,
                               entitySet input_preimage,
-                              const std::vector<entitySet> &init_ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+                              const std::vector<entitySet> &init_ptn,
+                              MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int r = 0 ; MPI_Comm_rank(comm, &r) ;
     // Sort input according to second field
@@ -262,8 +260,8 @@ namespace Loci {
                               vector<pair<Entity,Entity> > &input,
                               entitySet input_image,
                               entitySet input_preimage,
-                              const std::vector<entitySet> &init_ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+                              const std::vector<entitySet> &init_ptn,
+                              MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int r = 0 ; MPI_Comm_rank(comm, &r) ;
     // Sort input according to second field
@@ -365,7 +363,7 @@ namespace Loci {
     delete[] send_store ;
   }
  
-  void distributed_inverseMap(dmultiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(dmultiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
 
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
@@ -375,10 +373,10 @@ namespace Loci {
       if(input_image.inSet(elem)) 
         inlist.push_back(pair<int,int>(i,elem)) ;
     } ENDFORALL ;
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
 
-  void distributed_inverseMap(dmultiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(dmultiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
 
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
@@ -388,10 +386,10 @@ namespace Loci {
       if(input_image.inSet(elem)) 
         inlist.push_back(pair<int,int>(i,elem)) ;
     } ENDFORALL ;
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
 
-  void distributed_inverseMap(dmultiMap &result, const dmultiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(dmultiMap &result, const dmultiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
     inlist.reserve(preloop.size()) ;
@@ -403,12 +401,12 @@ namespace Loci {
       }
     } ENDFORALL ;
 
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
 
   
   
-  void distributed_inverseMap(dmultiMap &result, const multiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(dmultiMap &result, const multiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
     inlist.reserve(preloop.size()) ;
@@ -421,10 +419,10 @@ namespace Loci {
       }
     } ENDFORALL ;
 
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
   // non dynamic multiMap
-  void distributed_inverseMap(multiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(multiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
 
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
@@ -434,10 +432,10 @@ namespace Loci {
       if(input_image.inSet(elem)) 
         inlist.push_back(pair<int,int>(i,elem)) ;
     } ENDFORALL ;
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
 
-  void distributed_inverseMap(multiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(multiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
 
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
@@ -448,10 +446,10 @@ namespace Loci {
       if(input_image.inSet(elem)) 
         inlist.push_back(pair<int,int>(i,elem)) ;
     } ENDFORALL ;
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
 
-  void distributed_inverseMap(multiMap &result, const dmultiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(multiMap &result, const dmultiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
     inlist.reserve(preloop.size()) ;
@@ -463,12 +461,12 @@ namespace Loci {
       }
     } ENDFORALL ;
 
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
 
   
   
-  void distributed_inverseMap(multiMap &result, const multiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
+  void distributed_inverseMap(multiMap &result, const multiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     vector<pair<int,int> > inlist ;
     entitySet preloop = input_preimage & input_map.domain() ;
     inlist.reserve(preloop.size()) ;
@@ -481,7 +479,7 @@ namespace Loci {
       }
     } ENDFORALL ;
 
-    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
+    distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn,comm) ;
   }
   
 

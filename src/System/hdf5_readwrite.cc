@@ -40,14 +40,14 @@ namespace Loci {
   void set_parallel_io(bool io_type){
     if(io_type){
 #ifdef H5_HAVE_PARALLEL
-      if(get_exec_size() > 1){ 
+      if(MPI_processes > 1){ 
 	use_parallel_io = true ;
       }else {
 	use_parallel_io = false ;
-	if(get_exec_rank() == 0) cerr << "Parallel I/O not used when running on a single CPU!" << endl ;
+	if(MPI_rank == 0) cerr << "Parallel I/O not used when running on a single CPU!" << endl ;
       }
 #else
-      if(get_exec_rank() == 0)cerr << "Cannot enable parallel I/O, Loci linked with serial HDF5 library!" << endl ;
+      if(MPI_rank == 0)cerr << "Cannot enable parallel I/O, Loci linked with serial HDF5 library!" << endl ;
       use_parallel_io = false ;     
 #endif
     }else{

@@ -40,8 +40,8 @@ namespace Loci {
   
   template<class T> void distributed_inverse_map(std::vector<T> &recv_store,
                                                  std::vector<std::pair<T,T> > &input, 
-                                                 const std::vector<genIntervalSet<T> > &init_ptn){
-    MPI_Comm comm = get_exec_comm() ;
+                                                 const std::vector<genIntervalSet<T> > &init_ptn,
+                                                 MPI_Comm comm LOCI_DEFAULT_COMM){
    
     // Sort input according to second field
     sort(input.begin(),input.end(),field_sort2<T>) ;

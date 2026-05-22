@@ -91,7 +91,7 @@ namespace Loci {
     virtual void writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet& en, hid_t xfer_plist_id) const ;
 #endif
     
-    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual storeRepP freeze() ;
     virtual storeRepP thaw() ;
     virtual block_hash<int> *get_attrib_data() { return &attrib_data; }

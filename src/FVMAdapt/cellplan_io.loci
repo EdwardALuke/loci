@@ -130,7 +130,7 @@ class get_DBcellPlan : public pointwise_rule{
     readPlan = Loci::DataXFER_DB.getItem((*planDB_par).c_str()) ;
        
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     if(dist==0) {
       FORALL(dom,ii) {
 	cellPlan[ii] = readPlan[ii] ;
@@ -176,7 +176,7 @@ class get_balanced_cellPlanDB : public pointwise_rule{
     readPlan = Loci::DataXFER_DB.getItem((*planDB_par).c_str()) ;
        
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     if(dist==0) {
       FORALL(dom,ii) {
 	cellPlan[ii] = readPlan[ii] ;
@@ -298,7 +298,7 @@ class get_parentPlanDB : public pointwise_rule{
     readPlan = Loci::DataXFER_DB.getItem((*parent_planDB_par).c_str()) ;
        
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     if(dist==0) {
       FORALL(dom,ii) {
 	parentPlan[ii]= readPlan[ii] ;
@@ -395,11 +395,11 @@ public:
     hid_t file_id;
     
     file_id = Loci::hdf5CreateFile((*outfile_par).c_str(),H5F_ACC_TRUNC,
-                                   H5P_DEFAULT, H5P_DEFAULT, Loci::get_exec_comm()) ;
+                                   H5P_DEFAULT, H5P_DEFAULT, Loci::exec_current_fact_db->get_comm()) ;
     
     if(Loci::MPI_rank == 0)cout << "writing cellplan into " << *outfile_par << endl;
     Loci::writeContainer(file_id,"cellPlan",tmpPlan.Rep()) ;
-    Loci::hdf5CloseFile(file_id, Loci::get_exec_comm()) ;
+    Loci::hdf5CloseFile(file_id, Loci::exec_current_fact_db->get_comm()) ;
     if(Loci::MPI_rank == 0) cout << "Finish writing cellPlan " << endl;
 
   
@@ -428,7 +428,7 @@ public:
     entitySet dom = entitySet(seq);
     
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     if(dist==0) {
       store<std::vector<char> > pcopy ;
       pcopy.allocate(dom) ;
@@ -500,7 +500,7 @@ public:
     entitySet dom = entitySet(seq);
     
     fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-    MPI_Comm comm = Loci::get_exec_comm() ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
     if(dist==0) {
       store<int> pcopy ;
       pcopy.allocate(dom) ;

@@ -31,9 +31,12 @@ namespace Loci {
   extern bool use_dynamic_scheduling ;
   void get_clone(fact_db &facts, const rule_db &rdb) ;
   void categories(fact_db &facts,std::vector<entitySet> &pvec, int kd) ;
-  entitySet dist_collect_entitySet(entitySet inSet, const std::vector<entitySet> &ptn) ;
   entitySet dist_expand_entitySet(entitySet inSet, entitySet copy,
-                                  const std::vector<entitySet> &ptn) ;
+                                  const std::vector<entitySet> &ptn, MPI_Comm comm ) ;
+#ifndef LOCI_STRICT_COMM
+  entitySet dist_expand_entitySet(entitySet inSet, entitySet copy,
+                                  const std::vector<entitySet> &ptn ) ;
+#endif
   entitySet fill_entitySet(const entitySet& e, fact_db &facts) ;
   std::vector<entitySet> fill_entitySet(const std::vector<entitySet>& e,
                                         fact_db &facts) ;
@@ -41,7 +44,7 @@ namespace Loci {
   std::vector<entitySet> send_entitySetv(const entitySet& e, fact_db &facts) ;
   std::vector<entitySet> send_entitySet(const std::vector<entitySet>& e,
                                         fact_db &facts) ;
-  entitySet findBoundingSet(entitySet in) ;
+  entitySet findBoundingSet(entitySet in, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   rule_db replace_map_constraints(fact_db& facts, const rule_db& rdb) ;
 }
 

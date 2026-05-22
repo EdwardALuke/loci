@@ -563,9 +563,9 @@ namespace Loci {
     std::vector<int> send_sz(p,0) ;
     std::vector<int> recv_sz(p,0) ;
     std::vector<int> recv_local_num ;
-    distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID) ;
+    distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID,comm) ;
     std::vector<int> recv_count ;
-    sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID) ;
+    sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID,comm) ;
   
 
     std::vector<int> alloc_set = recv_local_num ;

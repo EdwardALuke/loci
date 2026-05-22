@@ -870,7 +870,7 @@ namespace Loci {
   void clean_graph(digraph &gr, const variableSet& given,
                                       const variableSet& target) {
 
-    bool debugging = get_exec_size() == 1 || verbose ;
+    bool debugging = MPI_processes == 1 || verbose ;
     
     if(verbose) {
       debugout << "given = " << given << endl ;
@@ -1229,7 +1229,7 @@ namespace Loci {
 
     outrules += visited_rules ;
 
-    if(get_exec_size() == 1 || verbose) {
+    if(MPI_processes == 1 || verbose) {
       rin -= outrules ;
       if(rin != EMPTY) {
         debugout << "precleaning rules that cannot be scheduled based on given facts:" << endl ;

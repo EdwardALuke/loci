@@ -390,7 +390,7 @@ namespace Loci {
   }
 
   void execute_param_red::Print(ostream &s) const {
-    if(verbose || get_exec_size() > 1)
+    if(verbose || MPI_processes > 1)
       for(size_t i = 0 ; i < reduce_vars.size(); i++) {
         printIndent(s) ;
         s << "param reduction on " << reduce_vars[i] << endl ;

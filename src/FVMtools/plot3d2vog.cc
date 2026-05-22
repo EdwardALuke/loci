@@ -2056,7 +2056,7 @@ if(Lref == "")
     }
   } ENDFORALL ;
 
-  Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids) ;
+  Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids, MPI_COMM_WORLD) ;
 
   Loci::Finalize() ;
   return 0 ;

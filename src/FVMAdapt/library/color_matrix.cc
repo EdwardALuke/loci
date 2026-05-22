@@ -188,7 +188,7 @@ namespace Loci{
   
       //reorder store first, from local to io entities
       fact_db::distribute_infoP dist =  Loci::exec_current_fact_db->get_distribute_info() ;
-      MPI_Comm comm = Loci::get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
       constraint  my_faces, my_geom_cells; 
       entitySet my_entities = dist->my_entities ;
       my_faces = Loci::exec_current_fact_db->get_variable("faces");
@@ -562,7 +562,7 @@ namespace Loci{
       hid_t group_id = 0 ;  
       //reorder store first, from local to io entities
       fact_db::distribute_infoP dist =  Loci::exec_current_fact_db->get_distribute_info() ;
-      MPI_Comm comm = Loci::get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
       constraint  my_faces, my_geom_cells; 
       entitySet my_entities = dist->my_entities ;
       my_faces = Loci::exec_current_fact_db->get_variable("faces");
@@ -847,7 +847,7 @@ void getDist( Loci::entitySet &faces, Loci::entitySet &cells,
               vector<entitySet> &fptn, vector<entitySet> &cptn,
               Map &cl, Map &cr, multiMap &face2node) {
   // Get entity distributions
-  MPI_Comm comm = Loci::get_exec_comm() ;
+  MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
   
   faces = face2node.domain() ;
   FATAL(cl.domain() != faces) ;
@@ -943,11 +943,12 @@ void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
     color[cc] = ctmp[cc];
   } ENDFORALL ;
 
+  MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
   entitySet clone_cells = cl.image(interior_faces)
     + cr.image(interior_faces) ;
   clone_cells -= geom_cells ;
   Loci::storeRepP cp_sp = color.Rep() ;
-  Loci::fill_clone(cp_sp, clone_cells, cptn) ;
+  Loci::fill_clone(cp_sp, clone_cells, cptn, comm) ;
 
   FORALL(interior_faces,fc) {
     int color_l = color[cl[fc]] ;

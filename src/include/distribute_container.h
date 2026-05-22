@@ -44,31 +44,36 @@ namespace Loci {
                               std::vector<std::pair<Entity,Entity> > &input,
                               entitySet input_image,
                               entitySet input_preimage,
-                              const std::vector<entitySet> &init_ptn) ;
+                              const std::vector<entitySet> &init_ptn,
+                              MPI_Comm comm = MPI_COMM_WORLD) ;
 
-  dMap distribute_dMap(dMap m, const std::vector<entitySet> &init_ptn) ;
+  dMap distribute_dMap(dMap m, const std::vector<entitySet> &init_ptn, MPI_Comm comm = MPI_COMM_WORLD) ;
 
   void distributed_inverseMap(dmultiMap &result, const dMap &input_map,
                               const entitySet &input_image,
                               const entitySet &input_preimage,
-                              std::vector<entitySet> &init_ptn) ;
+                              std::vector<entitySet> &init_ptn,
+                              MPI_Comm comm = MPI_COMM_WORLD) ;
   
   void distributed_inverseMap(dmultiMap &result, const Map &input_map,
                               const entitySet &input_image,
                               const entitySet &input_preimage,
-                              std::vector<entitySet> &init_ptn) ;
+                              std::vector<entitySet> &init_ptn,
+                              MPI_Comm comm = MPI_COMM_WORLD) ;
   
   void distributed_inverseMap(dmultiMap &result,
                               const dmultiMap &input_map,
                               const entitySet &input_image,
                               const entitySet &input_preimage,
-                              std::vector<entitySet> &init_ptn) ;
+                              std::vector<entitySet> &init_ptn,
+                              MPI_Comm comm = MPI_COMM_WORLD) ;
   
   void distributed_inverseMap(dmultiMap &result,
                               const multiMap &input_map,
                               const entitySet &input_image,
                               const entitySet &input_preimage,
-                              std::vector<entitySet> &init_ptn); 
+                              std::vector<entitySet> &init_ptn,
+                              MPI_Comm comm = MPI_COMM_WORLD); 
 
   void distributed_inverseMap(dmultiMap &result,
                               const const_dMap &input_map,
@@ -135,13 +140,13 @@ namespace Loci {
     }
   }
 
-  void distributed_inverseMap(multiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) ;
+  void distributed_inverseMap(multiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm = MPI_COMM_WORLD) ;
   
-  void distributed_inverseMap(multiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) ;
+  void distributed_inverseMap(multiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm = MPI_COMM_WORLD) ;
   
-  void distributed_inverseMap(multiMap &result, const dmultiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) ;
+  void distributed_inverseMap(multiMap &result, const dmultiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm = MPI_COMM_WORLD) ;
   
-  void distributed_inverseMap(multiMap &result, const multiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn);
+  void distributed_inverseMap(multiMap &result, const multiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn, MPI_Comm comm = MPI_COMM_WORLD);
   
 
   inline void distributed_inverseMap(multiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, fact_db &facts, size_t kd) {
@@ -179,11 +184,11 @@ namespace Loci {
     return v1.first < v2.first ;
   }
 
-  inline void equiJoinFF(protoMap &in1, protoMap &in2, protoMap &out) {
+  inline void equiJoinFF(protoMap &in1, protoMap &in2, protoMap &out,
+                         MPI_Comm comm LOCI_DEFAULT_COMM) {
     std::sort(in1.begin(),in1.end(),equiFF) ;
     std::sort(in2.begin(),in2.end(),equiFF) ;
     
-    MPI_Comm comm = get_exec_comm() ;
     int p = 0 ;
     MPI_Comm_size(comm,&p) ;
 
@@ -273,7 +278,8 @@ namespace Loci {
   template <class T>  void gatherData(std::vector<T> &result,
                                       store<T> &data,
                                       entitySet get,
-                                      std::vector<entitySet> &ptn) {
+                                      std::vector<entitySet> &ptn,
+                                      MPI_Comm comm LOCI_DEFAULT_COMM) {
     using std::vector ;
     { vector<T> tmp(get.size()) ; result.swap(tmp) ;}
 
@@ -285,7 +291,6 @@ namespace Loci {
     for(int i=0;i<p;++i)
       recv_sets[i] = get&ptn[i] ;
 
-    MPI_Comm comm = get_exec_comm() ;
     vector<entitySet> send_sets =
       transpose_entitySet(recv_sets, comm) ;
     int send_sz = 0 ;

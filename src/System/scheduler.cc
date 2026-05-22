@@ -1222,7 +1222,7 @@ bool operator <(const timingData &d) const {
         << ceil(1000.0*t/totTime)/10.0 << "% of total," 
         <<  " time per entity: " << t/max(e,1.0)
         << endl ;
-      double meanEvents = rti->totalEvents/double(get_exec_size()) ;
+      double meanEvents = rti->totalEvents/double(MPI_processes) ;
       s << " === max " << rti->maxTime << ", mean = " << rti->meanTime
 	<< ", imbalance = " << 100.0*(rti->maxTime-rti->meanTime)/max(rti->meanTime,1e-10)<<"%" << endl	 ;
       if(rti->eventType == EXEC_COMPUTATION) 

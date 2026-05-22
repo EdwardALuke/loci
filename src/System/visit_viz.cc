@@ -133,7 +133,7 @@ namespace Loci {
   // graphVisualizeVisitor
   /////////////////////////////////////////////////////////////
   void graphVisualizeVisitor::visit(loop_compiler& lc) {
-    if(Loci::get_exec_rank()==0) {
+    if(Loci::MPI_rank==0) {
       cerr << "the looping part graph (collapse and advance), id: "
            << lc.cid << endl ;
       create_digraph_dot_file(lc.loop_gr,"visual_graph.dot") ;
@@ -172,7 +172,7 @@ namespace Loci {
   }
 
   void graphVisualizeVisitor::visit(dag_compiler& dc) {
-    if(Loci::get_exec_rank()==0) {
+    if(Loci::MPI_rank==0) {
       cerr << "the dag graph, id: " << dc.cid << endl ;
       create_digraph_dot_file(dc.dag_gr,"visual_graph.dot") ;
       int err = system("dotty visual_graph.dot") ;
@@ -188,7 +188,7 @@ namespace Loci {
   }
 
   void graphVisualizeVisitor::visit(conditional_compiler& cc) {
-    if(Loci::get_exec_rank()==0) {
+    if(Loci::MPI_rank==0) {
       cerr << "the conditional graph, id: " << cc.cid << endl ;
       create_digraph_dot_file(cc.cond_gr,"visual_graph.dot") ;
       int err = system("dotty visual_graph.dot") ;
@@ -207,7 +207,7 @@ namespace Loci {
   // dagCheckVisitor
   ///////////////////////////////////////////////////////////////
   ostream& dagCheckVisitor::visualize(ostream& s) const {
-    if(Loci::get_exec_rank() == 0) {
+    if(Loci::MPI_rank == 0) {
       s << "visualizing detected cycle..." << endl ;
       create_digraph_dot_file(cycle,"cycle_in_dag.dot") ;
       int err = system("dotty cycle_in_dag.dot") ;
@@ -228,7 +228,7 @@ namespace Loci {
   // chompRuleVisitor
   ///////////////////////////////////////////////////////////////
   ostream& chompRuleVisitor::visualize(ostream& s) const {
-    if(Loci::get_exec_rank() == 0) {
+    if(Loci::MPI_rank == 0) {
       if(all_chains.empty()) {
         s << "NO chomping chains found!" << endl ;
         return s ;
@@ -272,7 +272,7 @@ namespace Loci {
   }
 
   ostream& chompRuleVisitor::summary(ostream& s) const {
-    if(Loci::get_exec_rank() == 0) {
+    if(Loci::MPI_rank == 0) {
       s << "--------------begin chomping summary--------------" << endl ;
       s << "Theoretically there are: " << good_vars.size()
         << " variables that can be chomped in"

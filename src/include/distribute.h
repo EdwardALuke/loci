@@ -568,13 +568,13 @@ namespace Loci {
   } ;
 
 
-  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
 
-  std::vector<dMap> send_global_map(Map &attrib_data, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
-  void fill_clone(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+  std::vector<dMap> send_global_map(Map &attrib_data, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  void fill_clone(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
-  storeRepP send_clone_non(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
-  std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn) ;
+  storeRepP send_clone_non(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
   std::vector<std::pair<int, entitySet> >
   transpose_entitySet(const std::vector<std::pair<int,entitySet> > &in,
@@ -590,9 +590,14 @@ namespace Loci {
   std::vector<entitySet> all_collect_vectors(entitySet &e) ;
 #endif
 
-  entitySet distribute_entitySet(entitySet e,const std::vector<entitySet> &ptn) ;
+  entitySet dist_collect_entitySet(entitySet inSet, const std::vector<entitySet> &ptn, MPI_Comm comm ) ;
+#ifndef LOCI_STRICT_COMM
+  entitySet dist_collect_entitySet(entitySet inSet, const std::vector<entitySet> &ptn) ;
+#endif
 
-  entitySet all_collect_entitySet(const entitySet &e) ;
+  entitySet distribute_entitySet(entitySet e,const std::vector<entitySet> &ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+
+  entitySet all_collect_entitySet(const entitySet &e, MPI_Comm comm LOCI_DEFAULT_COMM) ;
 
   // This is equivalent to but more efficient than
   // collectSet(entitySet iset) {

@@ -1427,7 +1427,7 @@ namespace Loci {
     //#define CHECK_TOPO
 #ifdef CHECK_TOPO
     if(!final.empty()) {
-      if(Loci::get_exec_rank() == 0)
+      if(facts.get_comm_rank() == 0)
         cout << "Checking graph schedule consistency..." ;
       // first check if all vertices are scheduled and
       // if we included any vertices that are not in the graph
@@ -1485,7 +1485,7 @@ namespace Loci {
           }
         }
       }
-      if(Loci::get_exec_rank() == 0)
+      if(facts.get_comm_rank() == 0)
         cout << " passed!" << endl ;
     }
 #endif

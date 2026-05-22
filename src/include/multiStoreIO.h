@@ -114,7 +114,8 @@ namespace Loci {
                                std::vector<int> &recv_sz,
                                std::vector<int> &recv_local_num,
                                const std::vector<int> &local_num,
-                               const std::vector<int> &procID) ;
+                               const std::vector<int> &procID,
+                               MPI_Comm comm LOCI_DEFAULT_COMM) ;
 
   
   template< class T >
@@ -123,7 +124,8 @@ namespace Loci {
                 const std::vector<int> &recv_sz,
                 const std::vector<int> &recv_local_num,
                 const std::vector<T> &counts,
-                const std::vector<int> &procID) {
+                const std::vector<int> &procID,
+                MPI_Comm comm LOCI_DEFAULT_COMM) {
     const int p = MPI_processes ;
     std::vector<int> soffsets(p+1,0) ;
     std::vector<int> roffsets(p+1,0) ;
@@ -147,7 +149,6 @@ namespace Loci {
       if(recv_sz[i] > 0)
 	nreq++ ;
     }
-    MPI_Comm comm = get_exec_comm() ;
     std::vector<MPI_Request> recv_Requests(nreq) ;
     int req = 0 ;
     for(int i=0;i<p;++i)
@@ -175,7 +176,8 @@ namespace Loci {
                      const std::vector<int> &recv_local_num,
                      const std::vector<T> &counts,
                      const std::vector<int> &procID,
-                     int vec_size) {
+                     int vec_size,
+                     MPI_Comm comm LOCI_DEFAULT_COMM) {
     const int p = MPI_processes ;
     std::vector<int> soffsets(p+1,0) ;
     std::vector<int> roffsets(p+1,0) ;
@@ -202,7 +204,6 @@ namespace Loci {
       if(recv_sz[i] > 0)
 	nreq++ ;
     }
-    MPI_Comm comm = get_exec_comm() ;
     std::vector<MPI_Request> recv_Requests(nreq) ;
     int req = 0 ;
     for(int i=0;i<p;++i)
@@ -224,7 +225,7 @@ namespace Loci {
   }
 
   
-  inline size_t containerSizeEstimateKb(storeRepP p) {
+  inline size_t containerSizeEstimateKb(storeRepP p, MPI_Comm comm LOCI_DEFAULT_COMM) {
     entitySet dom = p->domain() ;
     int szkb = 0 ;
     for(size_t i=0;i<dom.num_intervals();++i) {
@@ -244,7 +245,7 @@ namespace Loci {
     }
     int szkbtot = szkb ;
     MPI_Allreduce(&szkb,&szkbtot,1,MPI_INT,MPI_SUM,
-                  get_exec_comm()) ;
+                  comm) ;
     return szkbtot ;
   }
 
@@ -886,9 +887,10 @@ namespace Loci {
       std::vector<int> send_sz(p,0) ;
       std::vector<int> recv_sz(p,0) ;
       std::vector<int> recv_local_num ;
-      distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID) ;
+      distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID,
+			      comm) ;
       std::vector<int> recv_count ;
-      sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID) ;
+      sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID,comm) ;
       //    distributeMapMultiStore(send_sz,recv_sz,recv_count,counts,procID) ;
 
       std::vector<int> alloc_set = recv_local_num ;
@@ -1127,7 +1129,7 @@ namespace Loci {
     std::vector<int> recv_local_num ;
     distributeMapMultiStore(send_sz,recv_sz,recv_local_num,local_num,procID) ;
     std::vector<int> recv_count ;
-    sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID) ;
+    sendData(recv_count,send_sz,recv_sz,recv_local_num,counts,procID,comm) ;
     //    distributeMapMultiStore(send_sz,recv_sz,recv_count,counts,procID) ;
 
     std::vector<int> alloc_set = recv_local_num ;

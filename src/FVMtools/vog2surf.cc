@@ -101,7 +101,7 @@ void readSurfaces(string filename,
 
   // read in boundary names.
   vector<pair<int,string> > boundary_ids ;
-  Loci::readBCfromVOG(filename,boundary_ids) ;
+  Loci::readBCfromVOG(filename,boundary_ids,MPI_COMM_WORLD) ;
   map<int,string> surf_id ;
   for(size_t i=0;i<boundary_ids.size();++i)
     surf_id[boundary_ids[i].first] = boundary_ids[i].second ;

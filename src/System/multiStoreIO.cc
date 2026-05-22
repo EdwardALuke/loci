@@ -293,9 +293,10 @@ namespace Loci {
 			       std::vector<int> &recv_sz,
 			       std::vector<int> &recv_local_num,
 			       const std::vector<int> &local_num,
-			       const std::vector<int> &procID) {
-    MPI_Comm comm = get_exec_comm() ;
-    const int p = get_exec_size() ;
+			       const std::vector<int> &procID,
+			       MPI_Comm comm) {
+    int p = 0 ;
+    MPI_Comm_size(comm, &p) ;
     for(int i=0;i<p;++i)
       send_sz[i] = 0 ;
     for(size_t i=0;i<procID.size();++i)
@@ -347,9 +348,10 @@ namespace Loci {
 		  const std::vector<int> &recv_sz,
 		  const std::vector<int> &recv_local_num,
 		  const std::vector<int> &counts,
-		  const std::vector<int> &procID) {
-    MPI_Comm comm = get_exec_comm() ;
-    const int p = get_exec_size() ;
+		  const std::vector<int> &procID,
+		  MPI_Comm comm) {
+    int p = 0 ;
+    MPI_Comm_size(comm, &p) ;
     std::vector<int> soffsets(p+1,0) ;
     std::vector<int> roffsets(p+1,0) ;
     for(int i=0;i<p;++i) {

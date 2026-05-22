@@ -73,11 +73,11 @@ namespace Loci {
     }
     tmp = dlopen(module.c_str(),RTLD_GLOBAL|RTLD_NOW) ;
     if(tmp == 0) {
-      if(Loci::get_exec_rank() == 0)
+      if(Loci::MPI_rank == 0)
         cerr << "unable to open " << module << endl ;
       const char *error = dlerror() ;
       if(error)
-        if(Loci::get_exec_rank() == 0)
+        if(Loci::MPI_rank == 0)
           cerr << "reason for failure is " << error << endl ;
       Loci::Abort() ;
     }
@@ -99,15 +99,15 @@ namespace Loci {
     tmp_str.append("_m.so") ;
     
     if((msi = mod_map.find(tmp_str)) == mod_map.end()) {
-      if(Loci::get_exec_rank() == 0)
+      if(Loci::MPI_rank == 0)
 	cout << "Loading  in rules from  " << tmp_str << endl ;
       md.m_library = dlopen_helper(tmp_str) ;
       if(md.m_library == 0) {
-	if(Loci::get_exec_rank() == 0)
+	if(Loci::MPI_rank == 0)
 	  cerr << "unable to open " << tmp_str.c_str() << endl ;
 	const char *error = dlerror() ;
 	if(error)
-	  if(Loci::get_exec_rank() == 0)
+	  if(Loci::MPI_rank == 0)
 	    cerr << "reason for failure is " << error << endl ;
 	Loci::Abort() ;
       }
@@ -140,15 +140,15 @@ namespace Loci {
              << endl ;
 #endif
     if((msi = mod_map.find(tmp_str)) == mod_map.end()) {
-      if(Loci::get_exec_rank() == 0)
+      if(facts.get_comm_rank() == 0)
 	cout << "Loading  in rules from  " << tmp_str << endl ;
       md.m_library = dlopen_helper(tmp_str) ;
       if(md.m_library == 0) {
-	if(Loci::get_exec_rank() == 0)
+	if(facts.get_comm_rank() == 0)
 	  cerr << "unable to open " << tmp_str.c_str() << endl ;
 	const char *error = dlerror() ;
 	if(error)
-	  if(Loci::get_exec_rank() == 0)
+	  if(facts.get_comm_rank() == 0)
 	    cerr << "reason for failure is " << error << endl ;
 	Loci::Abort() ;
       }
@@ -220,14 +220,14 @@ namespace Loci {
     
     for(rule_impl_list::iterator gi = m.loaded_rule_list.begin(); gi !=m.loaded_rule_list.end(); ++gi) {
       if((gi.get_p())->rr->is_module_rule()) {
-	if(Loci::get_exec_rank() == 0)
+	if(Loci::MPI_rank == 0)
 	  cerr << "Module rule found in " << mod_name << endl ;
 	module_rule = (Loci::register_module*)(gi.get_p()->rr) ;
 	mcnt++ ;
       }
     }
 
-    if(mcnt > 1 && Loci::get_exec_rank() == 0) {
+    if(mcnt > 1 && Loci::MPI_rank == 0) {
       cerr << "module " << mod_name <<  "should have no more than one module rule!" << endl ;
     }
     return module_rule ;
@@ -324,7 +324,7 @@ namespace Loci {
       parse_str(load, str_vec) ;
       for(size_t i = 0; i < str_vec.size(); ++i) 
 	if(str_set.find(str_vec[i]) == str_set.end()) {
-	  if(Loci::get_exec_rank() == 0)
+	if(Loci::MPI_rank == 0)
 	    cout << "loading in rules from " << str_vec[i] <<"  for module " << to_str << endl ; 
 	  load_module(str_vec[i], to_str, rdb, str_set) ;
 	}
@@ -382,7 +382,7 @@ namespace Loci {
         unnamedVarList.push_back(nonameset) ;
         for(size_t i = 0; i < str_vec.size(); ++i) 
           if(str_set.find(str_vec[i]) == str_set.end()) {
-            if(Loci::get_exec_rank() == 0)
+            if(facts.get_comm_rank() == 0)
               cout << "loading in rules from " << str_vec[i] <<"  for module " << to_str << endl ; 
             load_module(str_vec[i], to_str, problem_name, facts, rdb, str_set) ;
           }

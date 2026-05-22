@@ -65,9 +65,9 @@ namespace Loci
     return static_map.Rep() ;
   }
   
-  storeRepP dmultiMapRepI::expand(entitySet &out_of_dom, std::vector<entitySet> &ptn) {
-    MPI_Comm comm = get_exec_comm() ;
-    const int np = get_exec_size() ;
+  storeRepP dmultiMapRepI::expand(entitySet &out_of_dom, std::vector<entitySet> &ptn, MPI_Comm comm) {
+    int np ;
+    MPI_Comm_size(comm, &np) ;
     int *recv_count = new int[np] ;
     int *send_count = new int[np] ;
     int *send_displacement = new int[np] ;

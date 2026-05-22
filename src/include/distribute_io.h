@@ -105,8 +105,8 @@ namespace Loci {
 
   //-----------------------------------------------------------------------
   //general way to open a file for writing
-  hid_t writeVOGOpen(std::string filename) ;
-  hid_t readVOGOpen(std::string filename) ;
+  hid_t writeVOGOpen(std::string filename, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  hid_t readVOGOpen(std::string filename, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   void writeVOGClose(hid_t file_id) ;
   //-----------------------------------------------------------------------  
   hid_t createUnorderedFile(const char * filename, entitySet set,
@@ -124,7 +124,7 @@ namespace Loci {
   }
   
   //-----------------------------------------------------------------------  
-  void closeUnorderedFile(hid_t file_id) ;
+  void closeUnorderedFile(hid_t file_id, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
 
 
@@ -1164,7 +1164,7 @@ namespace Loci {
                               storeRepP input, int offset,
                               fact_db::distribute_infoP dist,
                               MPI_Comm comm) ;
-  void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist) ;
+  void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   void FindSimpleDistribution(entitySet dom, const Map &l2f,
                               std::vector<int> &splits, MPI_Comm comm) ;
   void memoryBalancedDistribution(std::vector<int> &splits_out,

@@ -583,8 +583,7 @@ namespace Loci {
   }
 
   using std::vector ;
-  void fill_clone( storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+  void fill_clone( storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int r = 0 ; MPI_Comm_rank(comm, &r) ;
 
@@ -696,8 +695,7 @@ namespace Loci {
     }
   }
   
-  storeRepP send_clone_non( storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+  storeRepP send_clone_non( storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int *recv_count = new int[p] ;
     int *send_count = new int[p] ;
@@ -799,8 +797,7 @@ namespace Loci {
     return tmp_sp ;
   }
 
-  std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+  std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int *recv_count = new int[p] ;
     int *send_count = new int[p] ;
@@ -907,8 +904,7 @@ namespace Loci {
 #define MINNOSLIP
 #ifdef MINNOSLIP
   
-  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int *recv_count = new int[p] ;
     int *send_count = new int[p] ;
@@ -1017,8 +1013,7 @@ namespace Loci {
     return tmp_dm ;
   }
   
-  std::vector<dMap> send_global_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+  std::vector<dMap> send_global_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int *recv_count = new int[p] ;
     int *send_count = new int[p] ;
@@ -1136,8 +1131,7 @@ namespace Loci {
 
   // Collect entitities to a unified entitySet that is distributed across
   // processors according to the partition ptn.
-  entitySet dist_collect_entitySet(entitySet inSet, const vector<entitySet> &ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+  entitySet dist_collect_entitySet(entitySet inSet, const vector<entitySet> &ptn, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     int r = 0 ; MPI_Comm_rank(comm, &r) ;
 #ifdef DEBUG
@@ -1250,7 +1244,11 @@ namespace Loci {
     
     return retval ;
   }
-
+#ifndef LOCI_STRICT_COMM
+  entitySet dist_collect_entitySet(entitySet inSet, const vector<entitySet> &ptn) {
+    dist_collect_entitySet(inSet,ptn,MPI_COMM_WORLD) ;
+  }
+#endif
   // -----------------------------------------------------------------------
   /// @brief dist_expand_entitySet() is given an input set and a set of
   /// entities that are in the clone region.  The ownership of entities
@@ -1265,8 +1263,7 @@ namespace Loci {
   /// @param [ptn]   partition function that describes which processor owns
   /// which entities.
   entitySet dist_expand_entitySet(entitySet inSet, entitySet clone,
-                                  const vector<entitySet> &ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+                                  const vector<entitySet> &ptn, MPI_Comm comm) {
     // We don't need to send data to ourselves
     clone -= inSet ;
 
@@ -1348,7 +1345,12 @@ namespace Loci {
     return inSet ;
   }
 
-  
+#ifndef LOCI_STRICT_COMM
+  entitySet dist_expand_entitySet(entitySet inSet, entitySet clone,
+                                  const vector<entitySet> &ptn) {
+    dist_expand_entitySet(inSet,clone,ptn,MPI_COMM_WORLD) ;
+  }
+#endif
   inline bool spec_ival_compare(const interval &i1,
                             const interval &i2) {
     if(i1.first < i2.first)
@@ -1359,8 +1361,7 @@ namespace Loci {
   }
       
   // Return union of all entitySets from all processors
-  entitySet all_gather_entitySet(const entitySet &e) {
-    MPI_Comm comm = get_exec_comm() ;
+  entitySet all_gather_entitySet(const entitySet &e, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     if(p == 1)
       return e ;
@@ -1398,8 +1399,7 @@ namespace Loci {
   /// @param [e]  input set that needs to be distributed to owning processor
   /// @param [ptn]   partition function that describes which processor owns
   /// which entities.
-  entitySet distribute_entitySet(entitySet e,const vector<entitySet> &ptn) {
-    MPI_Comm comm = get_exec_comm() ;
+  entitySet distribute_entitySet(entitySet e,const vector<entitySet> &ptn, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     // Single processor, do nothing
     if(p == 1)
@@ -1536,8 +1536,7 @@ namespace Loci {
 
 
   // Collect largest interval of entitySet from all processors
-  entitySet collectLargest(const entitySet &e) {
-    MPI_Comm comm = get_exec_comm() ;
+  entitySet collectLargest(const entitySet &e, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     // Else we compute set
     //First get largest interval
@@ -1606,8 +1605,7 @@ namespace Loci {
   }
   
   
-  entitySet all_collect_entitySet(const entitySet &e) {
-    MPI_Comm comm = get_exec_comm() ;
+  entitySet all_collect_entitySet(const entitySet &e, MPI_Comm comm) {
     int p = 0 ; MPI_Comm_size(comm, &p) ;
     // no operation for single processor
     if(p == 1)
@@ -1635,7 +1633,7 @@ namespace Loci {
     stopWatch s ;
     s.start() ;
 #endif
-    entitySet lset = collectLargest(e) ;
+    entitySet lset = collectLargest(e, comm) ;
     entitySet rem = e-lset ;
     for(int i=0;i<4;++i) {
       int remsz = rem.num_intervals() ;
@@ -1646,7 +1644,7 @@ namespace Loci {
 #endif
         return lset ;
       }
-      lset += collectLargest(rem) ;
+      lset += collectLargest(rem, comm) ;
       rem -= lset ;
     }
 #ifdef VERBOSE
@@ -1656,7 +1654,7 @@ namespace Loci {
     debugout << "e="<< e.num_intervals() << ",rem=" << rem.num_intervals()
              << ",lset=" << lset.num_intervals() << endl ;
 #endif
-    entitySet remtot = all_gather_entitySet(rem) ;
+    entitySet remtot = all_gather_entitySet(rem, comm) ;
 #ifdef VERBOSE
     debugout << "time to gather rem = " << s.stop() << endl ;
 #endif
@@ -1704,9 +1702,9 @@ namespace Loci {
     }
     return vset ;
   }
-  std::vector<entitySet> all_collect_vectors(entitySet &e) {
-    return all_collect_vectors(e,get_exec_comm()) ;
-  }
+  //  std::vector<entitySet> all_collect_vectors(entitySet &e) {
+  //    return all_collect_vectors(e,get_exec_comm()) ;
+  //  }
 
   int GLOBAL_OR(int b, MPI_Comm comm) {
     int result ;

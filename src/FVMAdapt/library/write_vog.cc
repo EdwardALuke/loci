@@ -176,7 +176,7 @@ namespace Loci {
     // Use the equijoin of file-to-global map and file-to-parent map to get
     // global-to-parent map
     protoMap v ;
-    equiJoinFF(f2g,c2p,v) ;
+    equiJoinFF(f2g,c2p,v,comm) ;
 
     // convert protoMap into a store to be stored in XFER DB
     entitySet c2pgset = interval(0,v.size()-1) ;
@@ -755,7 +755,7 @@ namespace Loci {
 				    entitySet localcelldom) {
     if(wptr == 0)
       return wptr ;
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     store<int> cell_weights_parent ;
     cell_weights_parent = wptr ;
 
@@ -939,7 +939,7 @@ namespace Loci {
     }
 
     gridDataP->boundary_ids.clear();
-    Loci::readBCfromVOG(meshFile, gridDataP->boundary_ids);
+    Loci::readBCfromVOG(meshFile, gridDataP->boundary_ids, Loci::exec_current_fact_db->get_comm());
 
 
 
@@ -1123,7 +1123,7 @@ namespace Loci {
 
     gridDataP = new(refinedGridData) ;
     gridDataP->boundary_ids.clear();
-    Loci::readBCfromVOG(meshFile, gridDataP->boundary_ids);
+    Loci::readBCfromVOG(meshFile, gridDataP->boundary_ids, Loci::exec_current_fact_db->get_comm());
 
     int num_nodes;
     createVOGNode(gridDataP->new_pos,
@@ -1191,15 +1191,17 @@ namespace Loci {
 			  const store<int> &cell_weights,
                           vector<entitySet> &cell_ptn,
                           vector<entitySet> &face_ptn,
-                          vector<entitySet> &node_ptn) ;
+                          vector<entitySet> &node_ptn,
+			  MPI_Comm comm = MPI_COMM_WORLD) ;
   void RND_Partition_Mesh(const vector<entitySet> &local_nodes,
                           const vector<entitySet> &local_faces,
                           const vector<entitySet> &local_cells,
                           vector<entitySet> &cell_ptn,
                           vector<entitySet> &face_ptn,
-                          vector<entitySet> &node_ptn) ;
+                          vector<entitySet> &node_ptn,
+			  MPI_Comm comm = MPI_COMM_WORLD) ;
   Loci::storeRepP getCellPartitionWeights(entitySet localcelldom) {
-    MPI_Comm comm = get_exec_comm() ;
+    MPI_Comm comm = exec_current_fact_db->get_comm() ;
     Loci::storeRepP wptr = Loci::DataXFER_DB.getItem("cellPartitionWeights") ;
     if(wptr == 0)
       return wptr ;
@@ -1399,7 +1401,7 @@ namespace Loci {
     if(trouble)
       cerr << "adjacency list contains out of bounds reference" << endl ;
 
-    MPI_Comm mc = get_exec_comm() ;
+    MPI_Comm mc = exec_current_fact_db->get_comm() ;
     idx_t nparts = Loci::MPI_processes ; // number of partitions
     idx_t wgtflag = 0 ;
     idx_t numflag = 0 ;
@@ -1500,10 +1502,12 @@ namespace Loci {
 			  const store<string> &boundary_tags,
                           vector<entitySet> &cell_ptn,
                           vector<entitySet> &face_ptn,
-                          vector<entitySet> &node_ptn) ;
+                          vector<entitySet> &node_ptn,
+			  MPI_Comm comm = MPI_COMM_WORLD) ;
   vector<entitySet> partitionFaces(vector<entitySet> cell_ptn, const Map &cl,
                                    const Map &cr,
-				   const store<string> &boundary_tags) ;
+				   const store<string> &boundary_tags,
+				   MPI_Comm comm = MPI_COMM_WORLD) ;
 
   //Input: Mapping from faces to its right cells.
   //Output: Entities of boundary cells.
@@ -1543,8 +1547,8 @@ namespace Loci {
   }
 
 
-  vector<entitySet> transposePtn(const vector<entitySet> &ptn);
-  vector<entitySet> partitionNodes(vector<entitySet> face_ptn, MapRepP face2node,entitySet old_node_dom);
+  vector<entitySet> transposePtn(const vector<entitySet> &ptn, MPI_Comm comm = MPI_COMM_WORLD);
+  vector<entitySet> partitionNodes(vector<entitySet> face_ptn, MapRepP face2node,entitySet old_node_dom, MPI_Comm comm = MPI_COMM_WORLD);
   inline bool fieldSort(const std::pair<Entity,Entity> &p1,
                         const std::pair<Entity,Entity> &p2) {
     return p1.first < p2.first ;
@@ -1557,7 +1561,7 @@ namespace Loci {
 
   std::vector<int> simplePartitionVec(int mn, int mx, int p);
   vector<entitySet> simplePartition(int mn, int mx, MPI_Comm comm);
-  vector<sequence> transposeSeq(const vector<sequence> sv);
+  vector<sequence> transposeSeq(const vector<sequence> sv, MPI_Comm comm = MPI_COMM_WORLD);
 }
 void colorMatrix(Map &cl, Map &cr, multiMap &face2node) ;
 
@@ -1733,7 +1737,7 @@ namespace Loci{
     // Identify boundary tags
     if(Loci::MPI_processes == 1) {
       entitySet local_boundary_cells = getBoundaryCells(MapRepP(tmp_cr.Rep()));
-      entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells) ;
+      entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells,comm) ;
 
       int npnts = local_nodes[0].size();
       int nfaces = local_faces[0].size();
@@ -1797,7 +1801,7 @@ namespace Loci{
     }
 
     entitySet local_boundary_cells = getBoundaryCells(MapRepP(tmp_cr.Rep()));
-    entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells) ;
+    entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells,comm) ;
     int maxc = 0 ;
     entitySet dom = tmp_cr.domain()&tmp_cl.domain() ;
     FORALL(dom,ii) {
@@ -2628,14 +2632,15 @@ namespace Loci{
                         vector<unsigned char> &cluster_info,
                         vector<unsigned short> &cluster_sizes) ;
   bool readBCfromVOG(string filename,
-                     vector<pair<int,string> > &boundary_ids);
+                     vector<pair<int,string> > &boundary_ids,
+                     MPI_Comm comm);
   bool readVolTags(hid_t input_fid,
                    vector<pair<string,Loci::entitySet> > &volDat);
 
-  hid_t writeVOGOpen(string filename);
-  void writeVOGSurf(hid_t file_id, std::vector<pair<int,string> > surface_ids);
-  void writeVOGTag(hid_t output_fid,  vector<pair<string,entitySet> >& volTags);
-  void writeVOGClose(hid_t file_id) ;
+  hid_t writeVOGOpen(string filename, MPI_Comm comm);
+  void writeVOGSurf(hid_t file_id, std::vector<pair<int,string> > surface_ids, MPI_Comm comm);
+  void writeVOGTag(hid_t output_fid,  vector<pair<string,entitySet> >& volTags, MPI_Comm comm);
+  void writeVOGClose(hid_t file_id, MPI_Comm comm) ;
 
 }
 
@@ -2645,8 +2650,7 @@ void colorMatrix(Map &cl, Map &cr, multiMap &face2node);
 namespace Loci{
 
   //copied from ditribute_io.cc
-  hid_t writeVOGOpen(string filename) {
-    MPI_Comm comm = get_exec_comm() ;
+  hid_t writeVOGOpen(string filename, MPI_Comm comm) {
     if(use_parallel_io){
       hid_t file_id = 0;
       hid_t  acc_plist;
@@ -2671,12 +2675,12 @@ namespace Loci{
 
 
   //copied from FVMGridWriter.cc
-  void writeVOGClose(hid_t file_id) {//parallel io included
+  void writeVOGClose(hid_t file_id, MPI_Comm comm) {//parallel io included
     if(MPI_rank == 0 || use_parallel_io) H5Fclose(file_id) ;
   }
 
   //similar to the one in FVMGridWriter.cc, but no modofication to surface_ids
-  void writeVOGSurf(hid_t file_id, std::vector<pair<int,string> > surface_ids) {
+  void writeVOGSurf(hid_t file_id, std::vector<pair<int,string> > surface_ids, MPI_Comm comm) {
     hid_t group_id = 0 ;
     if(MPI_rank == 0 || use_parallel_io) {
       if(surface_ids.size() != 0) {
@@ -2806,14 +2810,14 @@ namespace Loci{
     return true ;
   }
 
-}
+} // namespace Loci
+
 //same as the function in FVMGridWriter.cc
-void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
-  MPI_Comm comm = Loci::get_exec_comm() ;
+void Loci::writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node, MPI_Comm comm) {
   // Compute cell set
   entitySet tmp_cells = cl.image(cl.domain())+cr.image(cr.domain()) ;
   entitySet loc_geom_cells = tmp_cells & interval(0,Loci::UNIVERSE_MAX) ;
-  entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells) ;
+  entitySet geom_cells = Loci::all_collect_entitySet(loc_geom_cells,comm) ;
 
   Map tmp_cl, tmp_cr;
   multiMap tmp_face2node;
@@ -2830,14 +2834,14 @@ void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
                 MPI_SUM,comm) ;
 
   hid_t group_id = 0 ;
-  if(MPI_rank == 0 || Loci::use_parallel_io) {
+  if(Loci::MPI_rank == 0 || Loci::use_parallel_io) {
 #ifdef H5_USE_16_API
     group_id = H5Gopen(file_id,"file_info") ;
 #else
     group_id = H5Gopen(file_id,"file_info",H5P_DEFAULT) ;
 #endif
 
-    if(MPI_rank == 0) std::cerr<< "num_cells = " << num_cells << endl
+    if(Loci::MPI_rank == 0) std::cerr<< "num_cells = " << num_cells << endl
                                << "num_faces = " << num_faces << endl ;
 
     hsize_t dims = 1 ;
@@ -2929,7 +2933,7 @@ void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
   Loci::writeUnorderedVector(group_id,"cluster_info",cluster_info, comm) ;
 
 
-  if(MPI_rank == 0 || Loci::use_parallel_io) {
+  if(Loci::MPI_rank == 0 || Loci::use_parallel_io) {
     H5Gclose(group_id) ;
   }
 }
@@ -2941,7 +2945,7 @@ vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,enti
                                                    const_store<int> & num_fine_cells,
                                                    int num_original_nodes,
                                                    int num_original_faces) {
-  MPI_Comm comm = Loci::get_exec_comm() ;
+  MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
 
 
   vector<pair<string,entitySet> > volTags(origVolTags.size());

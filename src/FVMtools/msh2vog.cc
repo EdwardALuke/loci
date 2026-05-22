@@ -1000,7 +1000,7 @@ int main(int ac, char *av[]) {
 
   if(MPI_rank == 0)
     cerr << "writing VOG file" << endl ;
-  Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids) ;
+  Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids, MPI_COMM_WORLD) ;
   Loci::Finalize() ;
   return 0 ;
 }
