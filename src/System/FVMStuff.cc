@@ -3918,11 +3918,7 @@ namespace Loci{
     }
     int fk = face2node.Rep()->getDomainKeySpace() ;
 
-    debugout << "ek = " << ek << endl ;
     entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
-    debugout << "edges =" << edges << endl ;
-    //    return ;
-
 
     //create constraint edges
     constraint edges_tag;
