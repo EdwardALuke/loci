@@ -134,7 +134,9 @@ namespace Loci {
     }
     // Now get the maps needed to translate from global to file
     dMap g2f ;
-    g2f = dist->g2f.Rep() ;
+    //g2f = dist->g2f.Rep() ;
+    // Hardwired, 0 is the cell key space
+    g2f = dist->g2fv[0].Rep() ;
     Map l2g ;
     l2g = dist->l2g.Rep() ;
     constraint geom_cells ;
