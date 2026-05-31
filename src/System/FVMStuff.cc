@@ -3918,7 +3918,10 @@ namespace Loci{
     }
     int fk = face2node.Rep()->getDomainKeySpace() ;
 
+    debugout << "ek = " << ek << endl ;
     entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
+    debugout << "edges =" << edges << endl ;
+    //    return ;
 
 
     //create constraint edges
@@ -4280,7 +4283,7 @@ namespace Loci{
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
 
       FORALL(global2file.domain(), ei){
-        dist->g2fv[0][ei] = global2file[ei][0] ;
+        dist->g2fv[ek][ei] = global2file[ei][0] ;
       }ENDFORALL;
 
     }
