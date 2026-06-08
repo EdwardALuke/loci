@@ -3022,12 +3022,20 @@ namespace Loci {
 
     vector<int> node_alloc(newnodes) ;
     int i=0;
+    int minNode = std::numeric_limits<int>::max() ;
+    for(int p=0;p<MPI_processes;++p) {
+      if(node_ptn_t[p] != EMPTY)
+        minNode = min(minNode,node_ptn_t[p].Min()) ;
+    }
+    int nodeOffset = minNode ;
+    MPI_Allreduce(&minNode,&nodeOffset,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
     for(int p=0;p<MPI_processes;++p) {
       FORALL(node_ptn_t[p], ni) {
-        node_alloc[i++] = ni ;
+        node_alloc[i++] = ni-nodeOffset ;
       } ENDFORALL;
     }
 
+    
     entitySet nodes = facts.get_distributed_alloc(node_alloc,0).first ;// FIX THIS
     node_alloc.resize(0) ;
 
