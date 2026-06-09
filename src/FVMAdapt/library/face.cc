@@ -554,7 +554,7 @@ void Face::resplit(const std::vector<char>& facePlan,
         
       default:
         cerr <<"WARNING: illegal splitcode in function Face::resplit()" << endl;
-     
+        fatal(currentCode>1) ;
         break;
       }
     
@@ -612,7 +612,7 @@ void Face::resplit(const std::vector<char>& facePlan,
         
       default:
         cerr <<"WARNING: illegal splitcode in function Face::resplit()" << endl;
-     
+        fatal(currentCode>1) ;
         break;
       }
     
@@ -670,6 +670,7 @@ void Face::resplit(const std::vector<char>& facePlan,
         
       default:
         cerr <<"WARNING: illegal splitcode in function Face::reSplit(char orientCode)" << endl;
+        fatal(currentCode>1) ;
         break;
       }
     
@@ -726,6 +727,7 @@ void  Face::empty_resplit(const std::vector<char>& facePlan,
         
       default:
         cerr <<"WARNING: illegal splitcode in function Face::empty_resplit()" << endl;
+        fatal(currentCode>1) ;
         break;
       }
     
@@ -784,6 +786,7 @@ int  Face::empty_resplit(const std::vector<char>& facePlan){
         
       default:
         cerr <<"WARNING: illegal splitcode in function Face::empty_resplit()" << endl;
+        fatal(currentCode>1) ;
       
         break;
       }
