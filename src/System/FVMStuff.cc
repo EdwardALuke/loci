@@ -3913,9 +3913,9 @@ namespace Loci{
     // Allocate entities for new edges
     int num_edges = emap.size() ;
     int ek = facts.getKeyDomain("Edges") ;
-    if(!useDomainKeySpaces) {
-      ek = 0 ;
-    }
+    //    if(!useDomainKeySpaces) {
+    //      ek = 0 ;
+    //    }
     int fk = face2node.Rep()->getDomainKeySpace() ;
 
     entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
