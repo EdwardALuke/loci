@@ -25,12 +25,16 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include "distribute_io.h"
 #include "docreport.h"
 
 $include "FVM.lh"
 
 namespace Loci {
   void create_ci_map(fact_db &facts) ;
+  extern int factdb_allocated_base ;
+  extern bool useDomainKeySpaces ;
+  extern unsigned long readAttributeLong(hid_t group, const char *name) ;
 }
 
 using Loci::real_t ;
@@ -43,6 +47,42 @@ using std::ostringstream ;
 using std::vector ;
 using Loci::variable ;
 using Loci::variableSet ;
+bool checkVOGFileSize(string filename) {
+  hid_t file_id = 0 ;
+  file_id = Loci::readVOGOpen(filename.c_str()) ;
+  int failure = 0 ;
+  if(Loci::MPI_rank == 0 && file_id <= 0) {
+    failure = 1 ;
+  }
+  int fail_state = 0 ;
+  MPI_Allreduce(&failure,&fail_state,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+  if(fail_state != 0) {
+    return false ;
+  }
+  bool bigfile = false ;
+  if(Loci::use_parallel_io || Loci::MPI_rank == 0) {
+    hid_t file_info = H5Gopen(file_id,"file_info",H5P_DEFAULT) ;
+    long long numCells = Loci::readAttributeLong(file_info,"numCells") ;
+    long long numFaces = Loci::readAttributeLong(file_info,"numFaces") ;
+    long long numNodes = Loci::readAttributeLong(file_info,"numNodes") ;
+
+    if(Loci::MPI_rank == 0) {
+      long long totalSize = numCells+numNodes+numFaces ;
+
+      cout << "File: " << filename << " reading " << totalSize << " entities."
+           << endl ;
+      if(totalSize+2048 > std::numeric_limits<int>::max()) {
+        bigfile = true ;
+        cout << "WARNING:: Grid file will need --big flag to process." << endl ;
+      }
+    }
+    
+    H5Gclose(file_info) ;
+  }
+  Loci::hdf5CloseFile(file_id) ;
+  return bigfile ;
+}
+
 int main(int ac, char *av[]) {
   Loci::Init(&ac, &av) ;
   // default query 
@@ -120,6 +160,7 @@ int main(int ac, char *av[]) {
     exit(0) ;
   }
 
+  bool bigfile = false ;
   if(ac > 1) {
     string tmp = av[1] ;
     
@@ -135,6 +176,11 @@ int main(int ac, char *av[]) {
     string filename = string(av[1]) ;
     if(!has_dot)
       filename += ".vog" ;
+
+    Loci::factdb_allocated_base = std::numeric_limits<int>::min()+2048 ;
+    Loci::useDomainKeySpaces = true ;
+
+      
     param<std::string> modelName ;
     
     *modelName = basename ;
@@ -142,6 +188,7 @@ int main(int ac, char *av[]) {
     if(Loci::MPI_rank==0) {
       cout << "Reading: '" << filename <<"' ..." <<  endl  ;
     }
+    bigfile = checkVOGFileSize(filename);
     if(!Loci::setupFVMGrid(facts,filename)) {
       if(Loci::MPI_rank==0) {
         cerr << "Reading grid file '" << filename <<"' failed in grid reader!"
@@ -171,6 +218,9 @@ int main(int ac, char *av[]) {
       Loci::Abort() ;
     }
     
+  }
+  if(Loci::MPI_rank == 0 && bigfile) {
+    cout << "-- NOTE: This is a large mesh, use --big to process." << endl;
   }
   Loci::Finalize() ;
 }
