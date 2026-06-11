@@ -1396,7 +1396,7 @@ namespace Loci{
 
     double a = val[edge2node[e][0]] ;
     double b = val[edge2node[e][1]] ;
-    return ((b)/(b - a)) ;
+    return ((b)/(b - a + 1e-30)) ;
   }
 
 
