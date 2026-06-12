@@ -133,6 +133,31 @@ namespace Loci {
     real_t distToSurface(vector3d<real_t> pt) const ;
   } ;
 
+  /// Cone geometry type specification
+  class cone_type : public geometry_type {
+    vector3d<real_t> pt1,pt2 ; // note: p1 is the base center, p2 is the apex/tip
+    real_t radius ;
+    real_t radius2 ; // radius squared
+    real_t rlen2 ; // reciprocal of len(pt1-pt2)^2
+  public:
+    cone_type() {
+      pt1=vector3d<real_t>(0,0,0) ;
+      pt2=vector3d<real_t>(0,0,1) ;
+      radius = 0 ;
+      radius2 = 0 ;
+      rlen2 = 1 ;
+    }
+    cone_type(vector3d<real_t> p1, vector3d<real_t> p2, real_t r) :
+      pt1(p1),pt2(p2),radius(r) {
+
+      rlen2 = 1./dot(pt2-pt1,pt2-pt1) ;
+      radius2 = r*r ;
+    }
+    geometry_type *applyXform(componentXform xform) const ;
+    bool inGeometry(vector3d<real_t> pt) const ;
+    real_t distToSurface(vector3d<real_t> pt) const ;
+  } ;
+  
   geometry_type *cylinder_type::applyXform(componentXform xform) const {
     vector3d<real_t> p1 = xform.applyXform(pt1) ;
     vector3d<real_t> p2 = xform.applyXform(pt2) ;
@@ -285,6 +310,52 @@ namespace Loci {
       return 0 ;
     return sqrt(r2axis)-r ;
   }
+
+ geometry_type *cone_type::applyXform(componentXform xform) const {
+    vector3d<real_t> p1 = xform.applyXform(pt1) ;
+    vector3d<real_t> p2 = xform.applyXform(pt2) ;
+    return new cone_type(p1,p2,radius) ;
+  }
+
+  bool cone_type::inGeometry(vector3d<real_t> pt) const {
+    vector3d<real_t> v = pt-pt2 ;
+    vector3d<real_t> h = pt2-pt1;
+    real_t t = dot(p,h)*rlen2 ;
+    real_t t2 = t*t;
+    if(t < 0 || t > 1)
+      return false ;
+    real_t r2 = t2/dot(h,h)*radius2;
+    real_t d2 = dot(v,v) - t2;
+    if(d2 <= r2)
+      return true ;
+    return false ;
+  }
+
+  real_t cone_type::distToSurface(vector3d<real_t> pt) const {
+    vector3d<real_t> v = pt-pt2 ;
+    vector3d<real_t> h = pt2-pt1;
+    real_t t = dot(p,h)*rlen2 ;
+    real_t hn = norm(h);
+    real_t rad = sqrt(radius*radius + hn*hn);
+    real_t orad = rad;
+    real_t sint = radius*orad;
+    real_t cost = hn*orad;
+
+    real_t dperp = norm(v - (t * h));
+    real_t d2side = dperp * cost - t * sint;
+    real_t daside = dperp * sint + t * cost;
+    real_t dbase = hn - t;
+    // outside the body
+    if (t < 0) { // below the base
+        return sqrt(dperp*dperp + t*t);
+    }  else if (dperp*hn > t*radius) { // outside
+      if (d2side < 0) return sqrt(dperp*dperp + t*t);
+      if (daside > rad) return sqrt(pow(dperp-radius,2) + pow(t-hn,2));
+    } else { // inside
+      return max(d2side,t-h);
+    }
+  }
+
 
 
   /// Unit/apply rules to parse the componentGeometry options_list and fill the

@@ -38,11 +38,13 @@
 inline Loci::CPTR<geomTest> geomTestFactory(string name, const options_list ol)
 {
   Loci::CPTR<geomTest> gp = 0;
-  if(     name == "inSphere")   gp = new inSphere(ol);
-  else if(name == "inBox")      gp = new inBox(ol);
-  else if(name == "inCylinder") gp = new inCylinder(ol);
-  else if(name == "inCone")     gp = new inCone(ol);
+  if(     name == "sphere")     gp = new inSphere(ol);
+  else if(name == "box")        gp = new inBox(ol);
+  else if(name == "cylinder")   gp = new inCylinder(ol);
+  else if(name == "cone")       gp = new inCone(ol);
   else if(name == "leftPlane")  gp = new leftPlane(ol);
+  else if(name == "hex")        gp = new hex(ol);
+  else if(name == "") 
   else
     printf("ERROR::geomTestFactory: Don't know what to do with '%s'\n", name.c_str());
 
