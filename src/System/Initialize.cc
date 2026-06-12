@@ -456,7 +456,11 @@ namespace Loci {
 #endif
     PetscPopErrorHandler() ;
 #ifdef PETSC_317_API
+#if PETSC_VERSION_GE(3,23,6)
+    PetscPushErrorHandler(PetscReturnErrorHandler,PETSC_NULLPTR) ;
+#else
     PetscPushErrorHandler(PetscIgnoreErrorHandler,PETSC_NULLPTR) ;
+#endif
 #else
     PetscPushErrorHandler(PetscIgnoreErrorHandler,PETSC_NULL) ;
 #endif
