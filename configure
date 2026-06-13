@@ -1053,6 +1053,8 @@ fi
 ################################################################################
 echo "include ${OBJDIR}/version.conf"        >  Makefile
 echo                                         >> Makefile
+echo ".PHONY: default install install_minimal test docs clean uninstall distclean tarball" >> Makefile
+echo                                         >> Makefile
 echo "default:"                              >> Makefile
 echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
 echo "install:"                              >> Makefile

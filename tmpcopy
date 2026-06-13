@@ -32,7 +32,6 @@ set -u
 copy_with_symlinks() {
     local src=$1
     local dst=$2
-    echo symlink_copy "${src#${PWD}}" > /dev/tty 2>/dev/null || true
     if [ ! -d "$src" ]; then
         echo "Error: $src is not a directory."
         return 1
@@ -53,13 +52,19 @@ copy_with_symlinks() {
             fi
             ln -s "$file" "$target_path"
         fi
-    done < <(find "$src" -type f \( -name '*.cc' -o -name '*.cpp' \
+    done < <(find "$src" \( -path "$src/doxygen/html" \
+                         -o -path "$src/doxygen/latex" \) -prune \
+                  -o -type f \( -name '*.cc' -o -name '*.cpp' \
                   -o -name '*.c' -o -name '*.loci' -o -name '*.sh' \
                   -o -name '*.h' -o -name '*.hh' -o -name '*.lh' \
-                  -o -name '*.hpp'\
+                  -o -name '*.hpp' -o -name '*.md' \
+                  -o -name '*.tex' -o -name '*.eps' -o -name '*.pdf' \
+                  -o -name '*.png' -o -name '*.svg' -o -name '*.html' \
+                  -o -name '*.css' -o -name '*.obj' -o -name '*.sty' \
                   -o -name '*.txt' -o -name '*.dat' -o -name '*.vog'\
                   -o -name '*.vars' -o -name Makefile \
-                  -o -name Loci -o -name overset \) -print0)
+                  -o -name Doxyfile -o -name clean \
+                  -o -name example_grid -o -name Loci -o -name overset \) -print0)
 }
 
 source=`pwd`
@@ -126,9 +131,9 @@ fi
 mkdir -p $fulltarget/lib
 mkdir -p $fulltarget/bin
 
-if [ ! -h $fulltarget/Tutorial ]; then
-    ln -s $source/Tutorial $fulltarget/Tutorial
-fi
+rm -f $fulltarget/Tutorial
+echo "Making symlink copy of directory $source/docs"
+copy_with_symlinks $source/docs $fulltarget/docs
 
 for dir in $TARGET_DIRS; do
     echo "Making symlink copy of directory $source/src/$dir"
@@ -171,6 +176,10 @@ fi
 if [ ! -h Install.bash ]; then
   echo ln -s $source/src/Install.bash Install.bash
   ln -s $source/src/Install.bash Install.bash
+fi
+if [ ! -e README.md ] && [ ! -h README.md ]; then
+  echo ln -s $source/README.md README.md
+  ln -s $source/README.md README.md
 fi
 
 if [ ! -e comp.conf ]; then

@@ -27,16 +27,26 @@ include version.conf
 
 DEFINES = $(DEBUG) $(SYSTEM_DEFINES) $(MACHINE_SPECIFIC)
 
-.PHONEY: default library docs install lpp FVMtools FVMMod FVMAdapt FVMOverset
-.PHONEY: METIS SPRNG
+.PHONY: default library docs tutorial-docs doxygen-docs install lpp FVMtools FVMMod FVMAdapt FVMOverset
+.PHONY: METIS SPRNG
 default: library lpp FVMtools FVMMod FVMAdapt FVMOverset METIS SPRNG
 
 library: Tools/libTools.$(LIB_SUFFIX) System/libLoci.$(LIB_SUFFIX)
 
-docs:
-	$(MAKE) -C Tutorial/docs LOCI_BASE="$(LOCI_BASE)"
+docs: tutorial-docs doxygen-docs
 
-install: default docs
+tutorial-docs:
+	$(MAKE) -C docs/tutorial/docs LOCI_BASE="$(LOCI_BASE)"
+
+doxygen-docs:
+	@if command -v doxygen >/dev/null 2>&1; then \
+		cd docs/doxygen && rm -rf html latex && doxygen Doxyfile; \
+	else \
+		echo "Skipping Doxygen API docs: doxygen not found."; \
+	fi
+
+install: default
+	$(MAKE) docs
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
 	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
@@ -155,6 +165,8 @@ endif
 # remove documentation
 	rm -fr $(LOCI_INSTALL_PATH)/docs/1D-Diffusion
 	rm -fr $(LOCI_INSTALL_PATH)/docs/Datatypes
+	rm -fr $(LOCI_INSTALL_PATH)/docs/developer
+	rm -fr $(LOCI_INSTALL_PATH)/docs/doxygen
 	rm -fr $(LOCI_INSTALL_PATH)/docs/heat
 	rm -f $(LOCI_INSTALL_PATH)/docs/tutorial.pdf
 

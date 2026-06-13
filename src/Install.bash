@@ -159,23 +159,32 @@ mkdir -p $INSTALL_PATH/docs
 mkdir -p $INSTALL_PATH/docs/1D-Diffusion
 mkdir -p $INSTALL_PATH/docs/heat
 mkdir -p $INSTALL_PATH/docs/Datatypes
+mkdir -p $INSTALL_PATH/docs/developer
 
-if [ -e Tutorial/docs/tutorial.pdf ] ; then
-    soft_copy_dir Tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
+if [ -e docs/tutorial/docs/tutorial.pdf ] ; then
+    soft_copy_dir docs/tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
 fi
-soft_copy_dir Tutorial/1D-Diffusion/Makefile $INSTALL_PATH/docs/1D-Diffusion
-glob_soft_copy "Tutorial/1D-Diffusion/*.loci" $INSTALL_PATH/docs/1D-Diffusion
-glob_soft_copy "Tutorial/1D-Diffusion/*.lh" $INSTALL_PATH/docs/1D-Diffusion
-glob_soft_copy "Tutorial/1D-Diffusion/*.cc" $INSTALL_PATH/docs/1D-Diffusion
-glob_soft_copy "Tutorial/1D-Diffusion/*.vars" $INSTALL_PATH/docs/1D-Diffusion
+soft_copy_dir docs/tutorial/1D-Diffusion/Makefile $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "docs/tutorial/1D-Diffusion/*.loci" $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "docs/tutorial/1D-Diffusion/*.lh" $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "docs/tutorial/1D-Diffusion/*.cc" $INSTALL_PATH/docs/1D-Diffusion
+glob_soft_copy "docs/tutorial/1D-Diffusion/*.vars" $INSTALL_PATH/docs/1D-Diffusion
 
-soft_copy_dir Tutorial/heat/Makefile $INSTALL_PATH/docs/heat
-glob_soft_copy "Tutorial/heat/*.loci" $INSTALL_PATH/docs/heat
-glob_soft_copy "Tutorial/heat/*.lh" $INSTALL_PATH/docs/heat
-glob_soft_copy "Tutorial/heat/*.vog" $INSTALL_PATH/docs/heat
-glob_soft_copy "Tutorial/heat/*.vars" $INSTALL_PATH/docs/heat
+soft_copy_dir docs/tutorial/heat/Makefile $INSTALL_PATH/docs/heat
+glob_soft_copy "docs/tutorial/heat/*.loci" $INSTALL_PATH/docs/heat
+glob_soft_copy "docs/tutorial/heat/*.lh" $INSTALL_PATH/docs/heat
+glob_soft_copy "docs/tutorial/heat/*.vog" $INSTALL_PATH/docs/heat
+glob_soft_copy "docs/tutorial/heat/*.vars" $INSTALL_PATH/docs/heat
 
-soft_copy_dir Tutorial/Datatypes/Makefile $INSTALL_PATH/docs/Datatypes
-glob_soft_copy "Tutorial/Datatypes/*.cc" $INSTALL_PATH/docs/Datatypes
+soft_copy_dir docs/tutorial/Datatypes/Makefile $INSTALL_PATH/docs/Datatypes
+glob_soft_copy "docs/tutorial/Datatypes/*.cc" $INSTALL_PATH/docs/Datatypes
+
+soft_copy_dir docs/developer/loci_style_guide.md $INSTALL_PATH/docs/developer
+
+if [ -d docs/doxygen/html ] ; then
+    mkdir -p $INSTALL_PATH/docs/doxygen
+    rm -rf $INSTALL_PATH/docs/doxygen/html
+    cp -a docs/doxygen/html $INSTALL_PATH/docs/doxygen/
+fi
 
 chmod -R a+rX $INSTALL_PATH

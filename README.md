@@ -177,7 +177,7 @@ When Loci is installed these configuration files are copied to the
 installed directory allowing application programs to be compiled with
 the same setup as the Loci framework.  To take the greatest advantage
 of these features, base your application makefile on the generic
-Makefile provided in the `Tutorial/heat/Makefile` directory.  This
+Makefile provided in the `docs/tutorial/heat/Makefile` directory.  This
 Makefile is setup such that by editing the target executable name and
 specifying the `LOCI_BASE` environment variable to point to the Loci
 installed directory one can easily compile Loci applications.
@@ -193,9 +193,14 @@ The following make commands are provided after successfully executing `./configu
 | `make install_minimal`        | Minimal compile and install Loci sans pdf documentation      |
 | `make uninstall`              | Undo the install (remove Loci from the install directory)    |
 | `make test`                   | Run unit and regression tests                                |
-| `make docs`                   | Compile latex documentation to PDF files                     |
+| `make docs`                   | Compile tutorial PDF files and generated Doxygen HTML        |
 | `make clean`                  | Clean compiled files from OBJ directory                      |
 | `make distclean`              | Remove all configuration and compilation artifacts           |
+
+The `make docs` target writes generated documentation under `OBJ/docs/`.
+When browsing `OBJ/docs/doxygen/html/index.html`, useful developer entry
+points include \ref fvmadapt_developer_reference "FVMAdapt Developer Reference"
+and \ref fvmadapt "FVMAdapt mesh adaptation".
 
 To contribute to Loci, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
