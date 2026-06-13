@@ -27,6 +27,7 @@ Related pages:
 - \ref fvmadapt_refinement_plans
 - \ref fvmadapt_diagram_requests
 - \ref fvmadapt_testing
+- \ref fvmadapt_refactor_ledger
 
 ## Loci Rule Styles In FVMAdapt
 
@@ -95,27 +96,56 @@ class members.
 For small conversions, start locally and keep the translated rule beside the
 old rule until lpp accepts it:
 
-1. Copy the class member types into nearby `$type` declarations. It is fine to
-   place these just above the rule at first. Move them into an `.lh` file later
-   if another file or external module needs to know the same fact types.
-2. Use the exact fact names from `name_store(...)`, not necessarily the C++
+1. Check for existing `$type` declarations in shared `.lh` files before adding
+   local declarations. Standard mesh facts such as `lower`, `upper`,
+   `boundary_map`, `face2node`, `pos`, `geom_cells`, and `fileNumber(X)` come
+   from `FVM.lh`; FVMAdapt-specific facts should live in
+   `FVMAdapt/fvmadapt.lh` once the translation is stable. Facts such as
+   `face2edge` and `edge2node` are created and consumed by shared FVM
+   infrastructure, but until their intended declaration owner is clarified,
+   keep the FVMAdapt conversions that need them declared in
+   `FVMAdapt/fvmadapt.lh`.
+2. If a conversion is still experimental, it is fine to start with nearby
+   `$type` declarations. Move them into an `.lh` file before finishing if
+   another rule file or external module needs the same fact types.
+3. Use the exact fact names from `name_store(...)`, not necessarily the C++
    member names. Preserve time and priority labels such as `{n=0}`, `{n+1}`,
-   and `priority::...`.
-3. Convert constructor declarations into the `$rule` signature:
+   and `priority::...`. For example,
+   `name_store("tmpCellPlan{n+1}", tmpCellPlann1)` means the `$rule`
+   signature and body should use `tmpCellPlan{n+1}`; occurrences of the C++
+   member `tmpCellPlann1` in `compute(...)` or `calculate(...)` become
+   `$tmpCellPlan{n+1}`.
+4. Convert constructor declarations into the `$rule` signature:
    `input(...)` becomes the source side, `output(...)` becomes the target side,
    and `constraint(...)` stays a rule modifier.
-4. For a pointwise class whose `compute(seq)` only calls `do_loop(seq, this)`,
+5. For a pointwise class whose `compute(seq)` only calls `do_loop(seq, this)`,
    drop the wrapper and translate `calculate(Entity e)` into the `$rule` body.
-5. Replace array-style member access with `$` variables. For example,
+   A guard such as `if (seq.size() != 0)` around only `do_loop(seq, this)` is
+   still just a no-op wrapper around the loop.
+6. Replace array-style member access with `$` variables. For example,
    `cellUnchanged[cc] = ...` becomes `$cellUnchanged = ...`, and
    `tmpCellPlan[cc]` becomes `$tmpCellPlan`.
-6. If the class `compute(seq)` does real work before or after `do_loop`, that
+7. Preserve comments from the C++ `compute(...)` or `calculate(...)` body during
+   the first transcription when they still describe the algorithm. Rewrite or
+   remove only comments that become stale under the `$rule` form.
+8. Use `$*fact` when the old C++ body passed the whole store or map container to
+   a helper function. Plain `$fact` means the value at the current rule entity.
+9. For a multimap row such as `lower[cc]`, `$lower` is already the current row;
+   use `$lower.begin()` and `$lower.size()` instead of the old
+   `lower[cc].begin()` and `lower.num_elems(cc)` pair.
+10. If the class `compute(seq)` does real work before or after `do_loop`, that
    work may belong in `prelude { ... }`, `postlude { ... }`, or may mean the
    rule is not a simple pointwise conversion.
-7. Be cautious with `disable_threading()`, direct `fact_db` access, file IO,
+11. For `apply_rule<Container, Op>` classes, put the reduction operator in the
+   `$rule apply(...)[OpTemplate]` brackets and keep the body as the per-entity
+   `join(...)` call. lpp instantiates bracketed apply operators with the output
+   value type. Prefer an existing templated Loci reducer when one matches, such
+   as `Loci::LogicalAnd`, `Loci::LogicalOr`, `Loci::Maximum`, or
+   `Loci::Summation`.
+12. Be cautious with `disable_threading()`, direct `fact_db` access, file IO,
    MPI/distribution work, and module databases. Those rules often rely on
    sequence-level side effects and should not be mechanically rewritten.
-8. Run lpp on the file before trusting the translation. A warning about a
+13. Run lpp on the file before trusting the translation. A warning about a
    runtime-created constraint can be acceptable in existing FVMAdapt code, but
    an unknown fact type usually means a missing `$type`.
 
