@@ -24,10 +24,28 @@
 #include <vector>
 #include "node_edge.h"
 
+/**
+ * @file node_edge.cc
+ * @brief Edge-tree operations used by FVMAdapt refinement plans.
+ *
+ * Edges are represented as binary trees. A split creates two child edges and a
+ * midpoint node; resplitting replays a stored edge plan in breadth-first order.
+ */
 
-//split theEdge according to the edgePlan, all created inner nodes are put into node_list 
-   void Edge::resplit(const std::vector<char>& edgePlan, bool needReverse,
-                      std::list<Node*>& node_list){
+/**
+ * Replays an edge refinement plan with optional reversed child traversal.
+ *
+ * Code `1` splits the current edge and queues its children. Code `0`, or a
+ * missing trailing code after the plan vector is exhausted, leaves the current
+ * edge as a leaf. When @p needReverse is true, children are queued tail-to-head
+ * so the caller can match the owning face orientation.
+ *
+ * @param edgePlan    Breadth-first edge refinement plan.
+ * @param needReverse Whether to queue children in reverse edge order.
+ * @param node_list   Receives midpoint nodes created by split().
+ */
+void Edge::resplit(const std::vector<char>& edgePlan, bool needReverse,
+                   std::list<Node*>& node_list){
      if(edgePlan.size() == 0) {
       return;
     }
@@ -74,6 +92,15 @@
     }
 }
 
+/**
+ * Replays an edge refinement plan in head-to-tail child order.
+ *
+ * This overload is used when the edge orientation already matches the caller's
+ * local ordering.
+ *
+ * @param edgePlan  Breadth-first edge refinement plan.
+ * @param node_list Receives midpoint nodes created by split().
+ */
 void Edge::resplit(const std::vector<char>& edgePlan,
                    std::list<Node*>& node_list){
   
@@ -127,17 +154,23 @@ void Edge::resplit(const std::vector<char>& edgePlan,
   
 }
   
-  //put all the leaves of this into a list, sort it in the order from head to tail
-  //it's used to get all the sorted points on this edge 
-  void Edge::sort_leaves(std::list<Edge*>& leaves){
-    if(child != 0){
-      child[0]->sort_leaves(leaves);
-      child[1]->sort_leaves(leaves);
-    }
-    else{
-      leaves.push_back(this);
-    }
+/**
+ * Appends leaf edges in head-to-tail tree order.
+ *
+ * The existing contents of @p leaves are preserved; this function only appends
+ * leaves from the receiver.
+ *
+ * @param leaves Output list receiving leaf edges.
+ */
+void Edge::sort_leaves(std::list<Edge*>& leaves){
+  if(child != 0){
+    child[0]->sort_leaves(leaves);
+    child[1]->sort_leaves(leaves);
   }
+  else{
+    leaves.push_back(this);
+  }
+}
   
  
 

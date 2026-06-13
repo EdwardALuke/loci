@@ -33,6 +33,30 @@ using std::queue;
 using std::cerr;
 using std::endl;
 using std::cout;
+
+/**
+ * @file transfer_plan.cc
+ * @brief Converts refinement plans between general-face and quad-face child
+ *        ordering conventions.
+ *
+ * FVMAdapt uses different child orderings for polygonal Face trees and
+ * QuadFace trees. These helpers rebuild an empty tree from one representation,
+ * traverse it breadth-first, and emit the corresponding plan for the other
+ * representation.
+ */
+
+/**
+ * Converts a general-face refinement plan to a quad-face plan.
+ *
+ * The input is first replayed into a temporary Face tree. The output plan is
+ * then written in breadth-first order using QuadFace child ordering. Trailing
+ * no-split entries are removed before the result is returned.
+ *
+ * @param facePlan General-face plan to convert. The function does not modify
+ *        the plan contents, but the parameter is non-const for compatibility
+ *        with existing callers.
+ * @return Equivalent plan using the quad-face convention.
+ */
 std::vector<char> transfer_plan_g2q(std::vector<char>& facePlan){
   //first built a tree, empty split it
   Face* aFace = new Face();
@@ -70,7 +94,17 @@ std::vector<char> transfer_plan_g2q(std::vector<char>& facePlan){
 }
 
 
-
+/**
+ * Converts a quad-face refinement plan to a general-face plan.
+ *
+ * The input is replayed into a temporary QuadFace tree with orientation code
+ * zero. The output plan is then written in breadth-first order using the
+ * general Face child ordering. Trailing no-split entries are removed before the
+ * result is returned.
+ *
+ * @param facePlan Quad-face plan to convert.
+ * @return Equivalent plan using the general-face convention.
+ */
 std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan){
   
 
