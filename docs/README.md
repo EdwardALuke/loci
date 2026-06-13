@@ -18,3 +18,14 @@ make docs
 
 The tutorial PDF is built under `OBJ/docs/tutorial/docs/`, and the Doxygen API
 reference is built under `OBJ/docs/doxygen/html/` when Doxygen is available.
+
+Release builders can include prebuilt documentation in a source archive with:
+
+```bash
+make tarball-with-docs
+```
+
+That target builds the docs in the configured `OBJ` tree, stages a temporary
+copy of the source archive, overlays `tutorial.pdf` and the Doxygen HTML output
+under `docs/`, and writes `docs/generated-docs-manifest.txt` into the archive.
+The ordinary `make tarball` target remains source-only.

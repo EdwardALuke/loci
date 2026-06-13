@@ -27,7 +27,7 @@ include version.conf
 
 DEFINES = $(DEBUG) $(SYSTEM_DEFINES) $(MACHINE_SPECIFIC)
 
-.PHONY: default library docs tutorial-docs doxygen-docs install lpp FVMtools FVMMod FVMAdapt FVMOverset
+.PHONY: default library docs tutorial-docs doxygen-docs docs-for-install install lpp FVMtools FVMMod FVMAdapt FVMOverset
 .PHONY: METIS SPRNG
 default: library lpp FVMtools FVMMod FVMAdapt FVMOverset METIS SPRNG
 
@@ -45,16 +45,33 @@ doxygen-docs:
 		echo "Skipping Doxygen API docs: doxygen not found."; \
 	fi
 
-install: default
-	$(MAKE) docs
+docs-for-install:
+	@if [ -e docs/tutorial/docs/tutorial.pdf ]; then \
+		echo "Using existing tutorial PDF."; \
+	elif command -v pdflatex >/dev/null 2>&1; then \
+		$(MAKE) tutorial-docs; \
+	else \
+		echo "Skipping tutorial PDF: docs/tutorial/docs/tutorial.pdf not found and pdflatex not found."; \
+		echo "Run 'make docs' after installing pdflatex to rebuild the tutorial PDF."; \
+	fi
+	@if [ -f docs/doxygen/html/index.html ]; then \
+		echo "Using existing Doxygen API docs."; \
+	elif command -v doxygen >/dev/null 2>&1; then \
+		$(MAKE) doxygen-docs; \
+	else \
+		echo "Skipping Doxygen API docs: docs/doxygen/html/index.html not found and doxygen not found."; \
+		echo "Run 'make docs' after installing doxygen to rebuild the API docs."; \
+	fi
+
+install: default docs-for-install
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
-	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
+	GIT_BRANCH=$(GIT_BRANCH) bash scripts/Install.bash
 
 install_minimal: default
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
-	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
+	GIT_BRANCH=$(GIT_BRANCH) bash scripts/Install.bash
 
 .PHONY: METIS
 METIS :

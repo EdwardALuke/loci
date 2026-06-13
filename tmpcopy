@@ -52,15 +52,15 @@ copy_with_symlinks() {
             fi
             ln -s "$file" "$target_path"
         fi
-    done < <(find "$src" \( -path "$src/doxygen/html" \
-                         -o -path "$src/doxygen/latex" \) -prune \
+    done < <(find "$src" -path "$src/doxygen/latex" -prune \
                   -o -type f \( -name '*.cc' -o -name '*.cpp' \
                   -o -name '*.c' -o -name '*.loci' -o -name '*.sh' \
+                  -o -name '*.bash' \
                   -o -name '*.h' -o -name '*.hh' -o -name '*.lh' \
                   -o -name '*.hpp' -o -name '*.md' \
                   -o -name '*.tex' -o -name '*.eps' -o -name '*.pdf' \
                   -o -name '*.png' -o -name '*.svg' -o -name '*.html' \
-                  -o -name '*.css' -o -name '*.obj' -o -name '*.sty' \
+                  -o -name '*.css' -o -name '*.js' -o -name '*.obj' -o -name '*.sty' \
                   -o -name '*.txt' -o -name '*.dat' -o -name '*.vog'\
                   -o -name '*.vars' -o -name Makefile \
                   -o -name Doxyfile -o -name clean \
@@ -117,7 +117,7 @@ if [ ${target:0:1} != "/" ]; then
    echo setting target to \'$target\'
 fi
 
-TARGET_DIRS="Tools System lpp FVMtools FVMMod FVMAdapt FVMOverset sprng include"
+TARGET_DIRS="Tools System lpp FVMtools FVMMod FVMAdapt FVMOverset sprng include scripts"
 echo -n "Making Directory Structure: "
 mkdir -p $target
 
@@ -172,10 +172,6 @@ fi
 if [ ! -h Loci.conf ]; then
   echo ln -s $source/src/conf/Loci.conf Loci.conf
   ln -s $source/src/conf/Loci.conf Loci.conf
-fi
-if [ ! -h Install.bash ]; then
-  echo ln -s $source/src/Install.bash Install.bash
-  ln -s $source/src/Install.bash Install.bash
 fi
 if [ ! -e README.md ] && [ ! -h README.md ]; then
   echo ln -s $source/README.md README.md
