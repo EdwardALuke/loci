@@ -649,6 +649,20 @@ namespace Loci {
 
   } ;
 
+  template <class T> struct LogicalAnd {
+    void operator()(T &res, const T &arg)
+    { res = res && arg ; }
+    template <class U> void operator()(T &res, const U &arg)
+    { res = res && arg ; }
+  } ;
+
+  template <class T> struct LogicalOr {
+    void operator()(T &res, const T &arg)
+    { res = res || arg ; }
+    template <class U> void operator()(T &res, const U &arg)
+    { res = res || arg ; }
+  } ;
+
   template <class T> struct Maximum {
     void operator()(T &res ,const T &arg)
     { res = max(res,arg) ; }
