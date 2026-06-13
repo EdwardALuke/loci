@@ -28,6 +28,97 @@ Related pages:
 - \ref fvmadapt_diagram_requests
 - \ref fvmadapt_testing
 
+## Loci Rule Styles In FVMAdapt
+
+FVMAdapt uses two rule-writing styles in `.loci` files:
+
+- hand-written C++ classes derived from rule base classes such as
+  `pointwise_rule`, `unit_rule`, and `apply_rule`
+- newer `$rule ...` syntax that the Loci preprocessor lowers into generated
+  C++ rule classes
+
+These two styles are closer than they first look. For a typical store-valued
+pointwise rule, lpp generates the same broad shape as the hand-written class:
+
+- `$type name store<T>;` supplies the store type that a hand-written class would
+  otherwise declare with a member such as `store<T>` or `const_store<T>`.
+- The `$rule` signature supplies the constructor-level `input(...)`,
+  `output(...)`, and `constraint(...)` declarations.
+- The ordinary `$rule` body becomes a generated `calculate(Entity _e_)` method.
+- The generated `compute(const sequence &seq)` wrapper calls
+  `do_loop(seq, this)`.
+- lpp also emits the `register_rule<...>` call.
+
+For example, the pointwise rule
+
+```cpp
+$type newCellPlan store<std::vector<char> >;
+$type cellUnchanged store<bool>;
+$type tmpCellPlan store<std::vector<char> >;
+
+$rule pointwise(cellUnchanged{n=0}, tmpCellPlan{n=0} <- newCellPlan),
+  constraint(gnrlcells) {
+  $cellUnchanged{n=0} = ($newCellPlan.size() == 0);
+  $tmpCellPlan{n=0} = $newCellPlan;
+  reduce_vector($tmpCellPlan{n=0});
+}
+```
+
+is lowered into a generated `pointwise_rule` class with `name_store(...)` calls
+for `newCellPlan`, `cellUnchanged{n=0}`, and `tmpCellPlan{n=0}`; constructor
+calls for `input("newCellPlan")`, `output(...)`, and `constraint("gnrlcells")`;
+a generated `calculate(Entity)` containing the assignments; and a generated
+`compute(seq)` that loops over the scheduled sequence.
+
+The word `compute` is therefore overloaded:
+
+- In hand-written C++ rules, `compute(const sequence &seq)` is the sequence-level
+  virtual method called by the runtime. If it calls `do_loop(seq, this)`, the
+  per-entity work is in `calculate(Entity)`.
+- In `$rule pointwise`, `$rule unit`, and `$rule apply` syntax, the body after
+  `compute { ... }` is normally transformed into `calculate(Entity)`, while lpp
+  still emits the sequence-level `compute(seq)` wrapper.
+- A `$rule prelude { ... }` block becomes `prelude(seq)`. It runs once for the
+  scheduled sequence before the kernel loop, so it is the right place for
+  output sizing and setup that should not be repeated per entity.
+- Singleton, constraint, optional, default, and some parameter-output rules are
+  different: their rule body is emitted as sequence-level `compute(seq)` rather
+  than per-entity `calculate(Entity)`.
+
+When translating a hand-written FVMAdapt class rule to `$rule` syntax, first
+move any C++ member type information into `$type` declarations. Without those
+types, lpp cannot resolve variables that were previously known only through the
+class members.
+
+### C++ Class To `$rule` Conversion Checklist
+
+For small conversions, start locally and keep the translated rule beside the
+old rule until lpp accepts it:
+
+1. Copy the class member types into nearby `$type` declarations. It is fine to
+   place these just above the rule at first. Move them into an `.lh` file later
+   if another file or external module needs to know the same fact types.
+2. Use the exact fact names from `name_store(...)`, not necessarily the C++
+   member names. Preserve time and priority labels such as `{n=0}`, `{n+1}`,
+   and `priority::...`.
+3. Convert constructor declarations into the `$rule` signature:
+   `input(...)` becomes the source side, `output(...)` becomes the target side,
+   and `constraint(...)` stays a rule modifier.
+4. For a pointwise class whose `compute(seq)` only calls `do_loop(seq, this)`,
+   drop the wrapper and translate `calculate(Entity e)` into the `$rule` body.
+5. Replace array-style member access with `$` variables. For example,
+   `cellUnchanged[cc] = ...` becomes `$cellUnchanged = ...`, and
+   `tmpCellPlan[cc]` becomes `$tmpCellPlan`.
+6. If the class `compute(seq)` does real work before or after `do_loop`, that
+   work may belong in `prelude { ... }`, `postlude { ... }`, or may mean the
+   rule is not a simple pointwise conversion.
+7. Be cautious with `disable_threading()`, direct `fact_db` access, file IO,
+   MPI/distribution work, and module databases. Those rules often rely on
+   sequence-level side effects and should not be mechanically rewritten.
+8. Run lpp on the file before trusting the translation. A warning about a
+   runtime-created constraint can be acceptable in existing FVMAdapt code, but
+   an unknown fact type usually means a missing `$type`.
+
 ## Core Formalism
 
 The existing implementation is easiest to read if refinement is treated as a
