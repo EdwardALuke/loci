@@ -22,6 +22,15 @@
 /** Geometric Cells of the Mesh (not including ghost cells) */
 $type geom_cells Constraint ;
 
+/** Ghost cells created for boundary faces */
+$type ghost_cells Constraint ;
+
+/** Geometric and ghost cells of the mesh */
+$type cells Constraint ;
+
+/** All mesh faces */
+$type faces Constraint ;
+
 /** Nodal Positions */
 $type pos store<Loci::vector3d<Loci::real_t> > ;
 
@@ -45,6 +54,12 @@ $type periodicTransform store<Loci::rigid_transform> ;
 
 /** Mapping from face to nodes that define the face */
 $type face2node multiMap ;
+
+/** Mapping from face to edges in face-local order */
+$type face2edge multiMap ;
+
+/** Mapping from edge to its two endpoint nodes */
+$type edge2node MapVec<2> ;
 
 /** Mapping from cell to faces that form upper matrix entries */
 $type upper multiMap ;
@@ -191,6 +206,9 @@ $type no_symmetry_BC Constraint ;
 
 /** All boundary faces */
 $type boundary_faces Constraint ;
+
+/** All non-boundary faces */
+$type interior_faces Constraint ;
 
 /**
  * boundary reference surfaces that are marked as utilizing
