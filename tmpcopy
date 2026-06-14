@@ -52,7 +52,8 @@ copy_with_symlinks() {
             fi
             ln -s "$file" "$target_path"
         fi
-    done < <(find "$src" -path "$src/doxygen/latex" -prune \
+    done < <(find "$src" \( -path "$src/doxygen/html" \
+                  -o -path "$src/doxygen/latex" \) -prune \
                   -o -type f \( -name '*.cc' -o -name '*.cpp' \
                   -o -name '*.c' -o -name '*.loci' -o -name '*.sh' \
                   -o -name '*.bash' \
@@ -134,6 +135,10 @@ mkdir -p $fulltarget/bin
 rm -f $fulltarget/Tutorial
 echo "Making symlink copy of directory $source/docs"
 copy_with_symlinks $source/docs $fulltarget/docs
+if [ -d "$source/docs/doxygen/html" ] && [ ! -e "$fulltarget/docs/doxygen/html" ]; then
+    mkdir -p "$fulltarget/docs/doxygen"
+    ln -s "$source/docs/doxygen/html" "$fulltarget/docs/doxygen/html"
+fi
 
 for dir in $TARGET_DIRS; do
     echo "Making symlink copy of directory $source/src/$dir"

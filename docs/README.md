@@ -29,3 +29,10 @@ That target builds the docs in the configured `OBJ` tree, stages a temporary
 copy of the source archive, overlays `tutorial.pdf` and the Doxygen HTML output
 under `docs/`, and writes `docs/generated-docs-manifest.txt` into the archive.
 The ordinary `make tarball` target remains source-only.
+
+## Cleaning Generated Documentation
+
+The repository `make clean` target removes tutorial build intermediates while
+preserving final generated documentation such as `tutorial.pdf` and Doxygen
+HTML. Use `make distclean` to remove all generated documentation products,
+including prebuilt documentation included by a `tarball-with-docs` archive.

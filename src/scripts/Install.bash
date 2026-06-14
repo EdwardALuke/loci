@@ -184,7 +184,7 @@ soft_copy_dir docs/developer/loci_style_guide.md $INSTALL_PATH/docs/developer
 if [ -d docs/doxygen/html ] ; then
     mkdir -p $INSTALL_PATH/docs/doxygen
     rm -rf $INSTALL_PATH/docs/doxygen/html
-    cp -a docs/doxygen/html $INSTALL_PATH/docs/doxygen/
+    cp -aL docs/doxygen/html $INSTALL_PATH/docs/doxygen/
 fi
 
 chmod -R a+rX $INSTALL_PATH

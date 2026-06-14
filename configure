@@ -1070,6 +1070,7 @@ echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
 echo "uninstall:"                            >> Makefile
 echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
 echo "distclean:"                            >> Makefile
+echo "	@if [ -f ${OBJDIR}/docs/Makefile ]; then \$(MAKE) -C ${OBJDIR}/docs distclean; fi" >> Makefile
 echo "	rm -fr ${OBJDIR} copy.out Makefile config.log"  >> Makefile
 echo "tarball:"                                                                        >> Makefile
 echo "	version_string=\$\$(sed -e \"s:^GIT_INFO.*:GIT_INFO = \$(GIT_INFO):g\" \\"      >> Makefile

@@ -36,8 +36,12 @@ That writes ignored preview output to `docs/doxygen/html/`.
 ### Cleaning the output
 
 ```bash
-rm -rf OBJ/docs/doxygen/html
+make distclean
 ```
+
+`make clean` preserves Doxygen HTML as a final documentation product.
+`make distclean` removes generated Doxygen output from both the configured
+`OBJ` tree and from a source tree unpacked from a `tarball-with-docs` archive.
 
 # Build Configuration
 

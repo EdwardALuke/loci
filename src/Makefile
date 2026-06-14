@@ -27,7 +27,7 @@ include version.conf
 
 DEFINES = $(DEBUG) $(SYSTEM_DEFINES) $(MACHINE_SPECIFIC)
 
-.PHONY: default library docs tutorial-docs doxygen-docs docs-for-install install lpp FVMtools FVMMod FVMAdapt FVMOverset
+.PHONY: default library docs tutorial-docs doxygen-docs docs-for-install docs-clean docs-distclean install lpp FVMtools FVMMod FVMAdapt FVMOverset
 .PHONY: METIS SPRNG
 default: library lpp FVMtools FVMMod FVMAdapt FVMOverset METIS SPRNG
 
@@ -62,6 +62,12 @@ docs-for-install:
 		echo "Skipping Doxygen API docs: docs/doxygen/html/index.html not found and doxygen not found."; \
 		echo "Run 'make docs' after installing doxygen to rebuild the API docs."; \
 	fi
+
+docs-clean:
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs clean; fi
+
+docs-distclean:
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs distclean; fi
 
 install: default docs-for-install
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
@@ -141,6 +147,7 @@ testclean:
 
 clean:
 	rm -f $(JUNK)
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs clean; fi
 	$(MAKE) -C Tools clean LOCI_BASE="$(LOCI_BASE)"
 	$(MAKE) -C System clean LOCI_BASE="$(LOCI_BASE)"
 ifeq ($(INSTALL_METIS),1)
@@ -190,6 +197,7 @@ endif
 .PHONY: distclean
 distclean:
 	rm -f $(JUNK)
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs distclean; fi
 ifeq ($(INSTALL_METIS),1)
 	$(MAKE) -C ParMetis-4.0 distclean LOCI_BASE="$(LOCI_BASE)"
 endif
