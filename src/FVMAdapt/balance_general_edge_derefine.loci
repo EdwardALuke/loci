@@ -37,7 +37,7 @@ using std::endl;
 using namespace Loci;
 
 $include "FVM.lh"
-$include "FVMAdapt/fvmadapt.lh"
+$include "fvmadapt_internal.lh"
 
 /// Intermediate set of integer edge split coordinates implied by balancedFacePlan1.
 /// Multiple faces can contribute to the same edge; apply rules merge these sets.

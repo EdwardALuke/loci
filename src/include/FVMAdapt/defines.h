@@ -396,10 +396,15 @@ namespace Loci {
 }
 
 
+template <class T>
 struct logicalAnd {
-  void operator()(bool &f1, const bool &f2) {
+  void operator()(T &f1, const T &f2) {
     f1 = f1 && f2;
+  }
 
+  template <class U>
+  void operator()(T &f1, const U &f2) {
+    f1 = f1 && f2;
   }
 } ;
 

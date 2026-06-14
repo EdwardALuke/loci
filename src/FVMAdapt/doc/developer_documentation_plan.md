@@ -46,7 +46,20 @@ behavior, or introduce design requirements for a separate AMR module.
    - Add a short Doxygen page that links the Markdown guide, code groups, and
      existing XML region documentation.
 
-3. Improve in-code comments and docstrings.
+3. Improve in-code comments and docstrings incrementally.
+   - Treat existing broad AI-generated comments as draft material, not as
+     trusted documentation.
+   - Add or keep a Doxygen comment only when its claims have been checked
+     against the relevant implementation path.
+   - Do not use Doxygen comments on raw Loci `$type` declarations until the
+     docs build has a Loci-aware filter. The current Doxygen setup maps `.loci`
+     and `.lh` files through the C++ parser, and template-valued `$type`
+     declarations such as `store<std::vector<char> >` produce misleading
+     "documented symbol" warnings.
+   - Prefer a short verified comment plus a documentation question over a
+     longer explanation that names concepts nobody has audited yet.
+   - Start from low-level elements and build upward only after someone can
+     explain and review the lower-level contract.
    - Document class responsibilities for `Node`, `Edge`, `Face`, `QuadFace`,
      `HexCell`, `Prism`, `DiamondCell`, and general-cell helpers.
    - Document ownership expectations for tree nodes, faces, edges, child
@@ -63,8 +76,10 @@ behavior, or introduce design requirements for a separate AMR module.
    - Empty plan vectors versus explicit no-split codes.
    - Hex split codes `0..7` as local-direction bit codes, as currently
      described in `HexCell::mySplitCode`.
-   - Prism split codes `0..3`, including the role of `nfold` for generated
-     prism children.
+   - Prism split codes `0..3`, including the source-backed role of `nfold` for
+     generated prism children. Avoid broader direction names or element
+     terminology until the prism split, extraction, and merge paths have been
+     audited together.
    - Quad-face split codes `0..3`, including x-only, y-only, and x/y split
      behavior.
    - Special propagation code `8` in `tables.h`, currently used for face/edge
@@ -95,6 +110,10 @@ behavior, or introduce design requirements for a separate AMR module.
 - `src/FVMAdapt/doc/doxygen_groups.md`
   Doxygen landing page for the FVMAdapt groups and higher-level guide links.
 
+- `src/FVMAdapt/doc/doxygen_status.md`
+  Current Doxygen wiring, validation command, and known `.loci` parser
+  limitations.
+
 - `src/FVMAdapt/doc/testing.md`
   Existing quick-test coverage and how to run the current smoke test.
 
@@ -105,6 +124,11 @@ The files should be Markdown so Doxygen includes them in generated HTML.
 Keep the first PR easy to review:
 
 - No behavior changes.
+- No general framework additions, such as reusable logical apply reducers; split
+  those into a separate PR if they are useful beyond FVMAdapt.
+- No solver-facing FVMAdapt interface files. Internal declarations used only by
+  the FVMAdapt rule database should live beside the `.loci` files instead of
+  under `src/include/FVMAdapt`.
 - No generated Doxygen output committed unless the project explicitly wants
   generated API-reference artifacts in version control.
 - No new AMR-module requirements or API-design use cases in this PR.
@@ -113,6 +137,9 @@ Keep the first PR easy to review:
 - Ambiguous behavior should be marked as an open question, not guessed.
 - Use small Doxygen comments near dense code as signposts, but put longer
   explanations in Markdown pages.
+- Validate Markdown pages with a temporary-output Doxygen run. If the run emits
+  only parser warnings for raw `$type` declarations, record that as a Doxygen
+  limitation rather than treating those declarations as reviewed API docs.
 
 ## Follow-Up PRs
 

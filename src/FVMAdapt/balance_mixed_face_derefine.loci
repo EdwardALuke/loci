@@ -35,7 +35,7 @@ using std::endl;
 using std::cout;
 
 $include "FVM.lh"
-$include "FVMAdapt/fvmadapt.lh"
+$include "fvmadapt_internal.lh"
 
 /// Constraint for cells handled by the hexahedral adaptation path.
 $type hexcells Constraint ;

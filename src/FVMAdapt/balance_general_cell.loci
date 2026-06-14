@@ -32,7 +32,7 @@ using std::endl;
 using std::cout;
 
 $include "FVM.lh"
-$include "FVMAdapt/fvmadapt.lh"
+$include "fvmadapt_internal.lh"
 
 //----------------------------------------------------------------------------
 //
@@ -119,7 +119,7 @@ $rule unit(finishBalancing),constraint(geom_cells) {
 }
 
 /// Applies each cellUnchanged value to finishBalancing using logical and.
-$rule apply(finishBalancing<-cellUnchanged, finishBalancing)[Loci::LogicalAnd],
+$rule apply(finishBalancing<-cellUnchanged, finishBalancing)[logicalAnd],
 constraint(geom_cells) {
   join($finishBalancing, $cellUnchanged) ;
 }

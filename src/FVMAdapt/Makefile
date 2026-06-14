@@ -38,7 +38,7 @@ JUNK =		*~  core
 LIB_OBJS1=$(MODULE_OBJS:.o=_lo.o)
 LIB_OBJS2=$(LIB_OBJS:.o=_lo.o)
 
-INCLUDES=	-I$(LOCI_BASE)/include/FVMAdapt $(LIBXML2_INCLUDE) $(LIBXML2_DEFINE)
+INCLUDES=	-I../../src/FVMAdapt -I$(LOCI_BASE)/include/FVMAdapt $(LIBXML2_INCLUDE) $(LIBXML2_DEFINE)
 
 all: $(MODULE_NAME)_m.so lib$(LIB_NAME).$(LIB_SUFFIX) 
 

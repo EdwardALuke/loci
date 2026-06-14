@@ -60,16 +60,15 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
                                 int faceID);
 
 /**
- * @brief Prism refinement tree used by FVMAdapt.
+ * @brief Prism-family cell tree used by the existing FVMAdapt implementation.
  * @ingroup fvmadapt_elements
  *
- * A prism has two general polygonal end faces and `nfold` quadrilateral side
- * faces. Current split codes create zero, two, `nfold`, or `2*nfold` children
- * according to `numChildren()`.
- *
- * @warning Side-face orientation for child prisms is tracked through
- * `faceOrient`. It is part of the neighbor/face-ordering contract and should
- * be changed only with matching updates to prism extraction and merge helpers.
+ * Verified from the current code: `nfold` sizes the side-face array and the
+ * two end-face loops. The default root uses `nfold == 3`; split paths that
+ * create children around the side-face ring construct those children with
+ * `nfold == 4`. The terminology and child-ordering contract for those
+ * `nfold == 4` children still need a focused audit before this comment is
+ * expanded.
  */
 class Prism
 {
@@ -309,9 +308,9 @@ private:
   // 3 for normal prism, 4 for the children of prism when quadface is split.
   char nfold;
 
-  /// Two-bit prism split mask. Code `0` means no split, `1` splits only the
-  /// axial/z direction, `2` splits only the polygonal xy cross-section, and `3`
-  /// splits both. Unlike HexCell, this is not a three-bit xyz mask.
+  /// Prism-specific split code consumed by split() and empty_split().
+  /// numChildren() maps codes 0..3 to 0, 2, nfold, and 2*nfold children.
+  /// Do not read this as HexCell's three-bit xyz mask.
   char mySplitCode;
 
   Face** gnrlface;

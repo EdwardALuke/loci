@@ -37,16 +37,16 @@ using std::endl;
 using namespace Loci;
 
 $include "FVM.lh"
-$include "FVMAdapt/fvmadapt.lh"
+$include "fvmadapt_internal.lh"
 
-/// Balanced face refinement plan after cell/face balancing.
+// Balanced face refinement plan after cell/face balancing.
 $type balancedFacePlan store<std::vector<char> > ;
 
-/// Intermediate set of integer edge split coordinates implied by balancedFacePlan.
-/// Multiple faces can contribute to the same edge; apply rules merge these sets.
+// Intermediate set of integer edge split coordinates implied by balancedFacePlan.
+// Multiple faces can contribute to the same edge; apply rules merge these sets.
 $type balancedPointSet store<SetLong> ;
 
-/// Balanced edge refinement plan derived from balancedPointSet.
+// Balanced edge refinement plan derived from balancedPointSet.
 $type balancedEdgePlan store<std::vector<char> > ;
 
 $rule unit(balancedPointSet), constraint(edge2node->pos) {

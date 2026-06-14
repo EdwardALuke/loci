@@ -34,7 +34,7 @@ using std::endl;
 using std::cout;
 
 $include "FVM.lh"
-$include "FVMAdapt/fvmadapt.lh"
+$include "fvmadapt_internal.lh"
 
 $rule pointwise(balancedFacePlan1 <- (cl, cr)->balancedCellPlan1, face2node,
 (cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),

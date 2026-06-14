@@ -33,7 +33,7 @@ using std::endl;
 using Loci::storeRepP;
 
 $include "FVM.lh"
-$include "FVMAdapt/fvmadapt.lh"
+$include "fvmadapt_internal.lh"
 
 //-----------------------------------------------------------------------------
 //
@@ -309,4 +309,3 @@ public:
 
 register_rule<advance_hex_cell_updated> register_advance_hex_cell_updated;
 */
-

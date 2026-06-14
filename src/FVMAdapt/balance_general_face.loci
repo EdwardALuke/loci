@@ -34,12 +34,12 @@ using std::endl;
 using std::cout;
 
 $include "FVM.lh"
-$include "FVMAdapt/fvmadapt.lh"
+$include "fvmadapt_internal.lh"
 
-/// Balanced general-cell plan after cell balancing.
+// Balanced general-cell plan after cell balancing.
 $type balancedCellPlan store<std::vector<char> > ;
 
-/// Balanced general-face plan derived from neighboring balancedCellPlan facts.
+// Balanced general-face plan derived from neighboring balancedCellPlan facts.
 $type balancedFacePlan store<std::vector<char> > ;
 
 $rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan, face2node,

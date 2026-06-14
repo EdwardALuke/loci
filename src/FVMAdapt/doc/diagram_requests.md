@@ -132,23 +132,24 @@ direction mask.
 
 Suggested file: `src/FVMAdapt/doc/figures/fvmadapt_prism_split_modes.svg`
 
-Draw a triangular prism and show the two split families.
+Draw a triangular prism and show only source-backed split facts unless the
+prism split/extraction/merge paths have been audited further.
 
 Required labels:
 
-- polygonal xy cross-section
-- axial/z direction
-- code `1` = axial/z split into two children
-- code `2` = xy cross-section split into `nfold` children
-- code `3` = both, producing `2*nfold` children
-- `nfold = 3` for the original triangular prism
-- optional note that `nfold` can become `4` for child prisms after side-face
-  splitting
+- code `1` = two children
+- code `2` = `nfold` children
+- code `3` = `2*nfold` children
+- `nfold = 3` for the default/root triangular prism
+- split paths that create children around the side-face ring construct child
+  `Prism` objects with `nfold = 4`
+- open question: best terminology for the `nfold = 4` children
 
 Purpose:
 
 This figure should make clear that prism codes are not the same as the hex
-`xyz` bit mask.
+`xyz` bit mask without prematurely naming geometric directions that still need
+review.
 
 ## Figure 7: General Cell To Diamond Cells
 

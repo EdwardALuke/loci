@@ -19,38 +19,42 @@
 //#
 //#############################################################################
 
-/// Constraint for cells handled by the general-cell adaptation path.
+// Internal FVMAdapt rule declarations shared by converted `.loci` files.
+// This file is part of the FVMAdapt rule database, not a solver-facing
+// module interface.
+
+// Constraint for cells handled by the general-cell adaptation path.
 $type gnrlcells Constraint ;
 
-/// Planned cell refinement before cell-plan balancing.
+// Planned cell refinement before cell-plan balancing.
 $type newCellPlan store<std::vector<char> > ;
 
-/// True when this cell's refinement plan is stable under cell balancing.
+// True when this cell's refinement plan is stable under cell balancing.
 $type cellUnchanged store<bool> ;
 
-/// Temporary cell refinement plan used while balancing cell, face, and edge plans.
+// Temporary cell refinement plan used while balancing cell, face, and edge plans.
 $type tmpCellPlan store<std::vector<char> > ;
 
-/// Balanced general-cell plan used by derefinement/restart reprocessing.
+// Balanced general-cell plan used by derefinement/restart reprocessing.
 $type balancedCellPlan1 store<std::vector<char> > ;
 
-/// Balanced face plan derived from balancedCellPlan1 for derefinement/restart reprocessing.
+// Balanced face plan derived from balancedCellPlan1 for derefinement/restart reprocessing.
 $type balancedFacePlan1 store<std::vector<char> > ;
 
-/// Balanced edge plan derived from balancedFacePlan1 for derefinement/restart reprocessing.
+// Balanced edge plan derived from balancedFacePlan1 for derefinement/restart reprocessing.
 $type balancedEdgePlan1 store<std::vector<char> > ;
 
-/// True when all cells are stable under the current balancing iteration.
+// True when all cells are stable under the current balancing iteration.
 $type finishBalancing param<bool> ;
 
-/// Temporary face refinement plan used while balancing cell plans.
+// Temporary face refinement plan used while balancing cell plans.
 $type tmpFacePlan store<std::vector<char> > ;
 
-/// Temporary edge refinement plan used while balancing cell plans.
+// Temporary edge refinement plan used while balancing cell plans.
 $type tmpEdgePlan store<std::vector<char> > ;
 
-/// True when this cell topology cannot be split further during balancing.
+// True when this cell topology cannot be split further during balancing.
 $type isIndivisible store<bool> ;
 
-/// True when this face has quadrilateral topology.
+// True when this face has quadrilateral topology.
 $type is_quadface store<bool> ;
