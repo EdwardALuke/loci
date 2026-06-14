@@ -27,19 +27,20 @@ relevant smoke tests have been run.
 
 3. Finish the `.lh` declaration split.
    - Standard mesh facts should come from `FVM.lh`; do not redeclare
-     `lower`, `upper`, `boundary_map`, `face2node`, `pos`, `geom_cells`, or
-     `fileNumber(X)` in converted FVMAdapt rule files.
-   - `face2edge` and `edge2node` are currently declared in
-     `src/include/FVMAdapt/fvmadapt.lh` because FVMAdapt rules need them, but
-     their long-term ownership should be clarified with a core developer
-     before promoting them into `FVM.lh`.
+     `lower`, `upper`, `boundary_map`, `face2node`, `face2edge`, `edge2node`,
+     `pos`, `geom_cells`, `faces`, `interior_faces`, or `fileNumber(X)` in
+     converted FVMAdapt rule files.
+   - `face2edge`, `edge2node`, `faces`, `interior_faces`, `cells`, and
+     `ghost_cells` have been promoted to `FVM.lh` because they are generated
+     and consumed by shared FVM grid/setup infrastructure.
    - FVMAdapt-specific facts used by converted rules should live in
      `src/include/FVMAdapt/fvmadapt.lh`.
    - Existing configured `OBJ` trees may need a reconfigure or a manual
      `OBJ/include/FVMAdapt/fvmadapt.lh` symlink after adding the new file; fresh
      `tmpcopy` runs should mirror it with the rest of `src/include/FVMAdapt`.
    - Before finishing, scan converted files for leftover local `$type`
-     declarations that should be promoted or removed.
+     declarations that should be promoted or removed, including temporary
+     FVMAdapt-only facts such as `balancedPointSet1`.
 
 4. Run final verification from a clean configured tree.
    - At minimum, run `OBJ/lpp/lpp` on translated files and a targeted

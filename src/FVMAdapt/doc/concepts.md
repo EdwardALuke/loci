@@ -97,14 +97,11 @@ For small conversions, start locally and keep the translated rule beside the
 old rule until lpp accepts it:
 
 1. Check for existing `$type` declarations in shared `.lh` files before adding
-   local declarations. Standard mesh facts such as `lower`, `upper`,
-   `boundary_map`, `face2node`, `pos`, `geom_cells`, and `fileNumber(X)` come
-   from `FVM.lh`; FVMAdapt-specific facts should live in
-   `FVMAdapt/fvmadapt.lh` once the translation is stable. Facts such as
-   `face2edge` and `edge2node` are created and consumed by shared FVM
-   infrastructure, but until their intended declaration owner is clarified,
-   keep the FVMAdapt conversions that need them declared in
-   `FVMAdapt/fvmadapt.lh`.
+   local declarations. Standard mesh and topology facts such as `lower`,
+   `upper`, `boundary_map`, `face2node`, `face2edge`, `edge2node`, `pos`,
+   `geom_cells`, `faces`, `interior_faces`, and `fileNumber(X)` come from
+   `FVM.lh`; FVMAdapt-specific facts should live in `FVMAdapt/fvmadapt.lh`
+   once the translation is stable.
 2. If a conversion is still experimental, it is fine to start with nearby
    `$type` declarations. Move them into an `.lh` file before finishing if
    another rule file or external module needs the same fact types.
@@ -125,6 +122,10 @@ old rule until lpp accepts it:
 6. Replace array-style member access with `$` variables. For example,
    `cellUnchanged[cc] = ...` becomes `$cellUnchanged = ...`, and
    `tmpCellPlan[cc]` becomes `$tmpCellPlan`.
+   When the old body passed the current `Entity` itself to a helper, use `_e_`
+   in the `$rule` body; lpp emits the body inside `calculate(Entity _e_)`.
+   For pointwise parameter inputs, a hand-written dereference such as
+   `*split_mode_par` becomes `$split_mode_par`, not `$*split_mode_par`.
 7. Preserve comments from the C++ `compute(...)` or `calculate(...)` body during
    the first transcription when they still describe the algorithm. Rewrite or
    remove only comments that become stale under the `$rule` form.
@@ -133,19 +134,29 @@ old rule until lpp accepts it:
 9. For a multimap row such as `lower[cc]`, `$lower` is already the current row;
    use `$lower.begin()` and `$lower.size()` instead of the old
    `lower[cc].begin()` and `lower.num_elems(cc)` pair.
-10. If the class `compute(seq)` does real work before or after `do_loop`, that
+10. Translate chained map access one hop at a time. The `$rule` signature
+   declares the traversal path, and the body uses `->$fact` to read the next
+   fact at the entity reached by the previous hop. For a rule over faces,
+   `face2node[f][i]` becomes `$face2node[i]`, and
+   `pos[face2node[f][i]]` becomes `$face2node[i]->$pos`. A deeper C++ access
+   such as `edge2node[face2edge[f][i]][0]` becomes
+   `$face2edge[i]->$edge2node[0]`; adding the endpoint position gives
+   `$face2edge[i]->$edge2node[0]->$pos`. Likewise, when a cell rule loops over
+   face rows, `pos[face2node[lower[cc][fi]][j]]` becomes
+   `$lower[fi]->$face2node[j]->$pos`.
+11. If the class `compute(seq)` does real work before or after `do_loop`, that
    work may belong in `prelude { ... }`, `postlude { ... }`, or may mean the
    rule is not a simple pointwise conversion.
-11. For `apply_rule<Container, Op>` classes, put the reduction operator in the
+12. For `apply_rule<Container, Op>` classes, put the reduction operator in the
    `$rule apply(...)[OpTemplate]` brackets and keep the body as the per-entity
    `join(...)` call. lpp instantiates bracketed apply operators with the output
    value type. Prefer an existing templated Loci reducer when one matches, such
-   as `Loci::LogicalAnd`, `Loci::LogicalOr`, `Loci::Maximum`, or
-   `Loci::Summation`.
-12. Be cautious with `disable_threading()`, direct `fact_db` access, file IO,
+   as `Loci::LogicalAnd`, `Loci::LogicalOr`, `Loci::SetUnion`,
+   `Loci::Maximum`, or `Loci::Summation`.
+13. Be cautious with `disable_threading()`, direct `fact_db` access, file IO,
    MPI/distribution work, and module databases. Those rules often rely on
    sequence-level side effects and should not be mechanically rewritten.
-13. Run lpp on the file before trusting the translation. A warning about a
+14. Run lpp on the file before trusting the translation. A warning about a
    runtime-created constraint can be acceptable in existing FVMAdapt code, but
    an unknown fact type usually means a missing `$type`.
 
@@ -286,7 +297,8 @@ The detailed split-code tables and examples are in
   and edge plans compatible.
 
 `balancedCellPlan1`, `balancedFacePlan1`, `balancedEdgePlan1`
-: Related fact names used in derefinement paths.
+: Related fact names used in derefinement and restart reprocessing paths. These
+  are not a separate split-code formalism from the unsuffixed balanced plans.
 
 `nodeTag`, `cellNodeTag`, `fineCellTag`
 : Tag vectors used by selected resplit and derefinement paths. These are not
@@ -426,6 +438,11 @@ which object owns each pointer before moving allocation or deletion.
 
 ## Balancing And Consistency
 
+In FVMAdapt, balancing means expanding a requested plan until adjacent cells,
+faces, and edges can be replayed consistently. Balancing does not directly
+build the fine mesh; it produces compatible plan facts that later construction,
+numbering, transfer, and restart rules consume.
+
 Plan consistency is maintained across dimensions:
 
 - Cell plans imply face plans on each cell face.
@@ -434,9 +451,27 @@ Plan consistency is maintained across dimensions:
 - Later rules generate fine nodes, fine faces, cell numbering, and transfer
   data from the balanced plans.
 
+Plan derivation is the lower-dimensional part of that process. Cell plans are
+used to derive face plans, and face plans are used to derive edge plans or
+intermediate edge split-coordinate sets. Existing source names usually say
+`extract`, `merge`, or `make_*plan`; use "derive" or "project" only as
+explanatory prose, not as a separate API term.
+
 The difficult part is not only whether an entity is split, but whether the
 ordering of generated children, faces, and nodes remains consistent between
 neighboring cells and across restart or derefinement paths.
+
+`balancedCellPlan`, `balancedFacePlan`, and `balancedEdgePlan` are the ordinary
+post-balancing plan facts used by fine-grid generation and numbering rules.
+`balancedCellPlan1`, `balancedFacePlan1`, and `balancedEdgePlan1` are the
+corresponding derefinement/restart-side plan facts used while building
+`priority::restart::balancedCellPlan`. The suffix `1` is historical; do not
+infer a time level from the name without checking the rule path.
+
+General derefinement edge balancing may use an intermediate set of edge split
+coordinates rather than an edge plan vector directly. For example,
+`balancedPointSet1` accumulates split coordinates contributed by faces and is
+then serialized into `balancedEdgePlan1`.
 
 ## Documentation Practice
 

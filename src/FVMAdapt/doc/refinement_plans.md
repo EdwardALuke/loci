@@ -91,10 +91,19 @@ plan", not as a normal split code in the refinement tree.
 : Edge-tree plan. Edge plans are commonly extracted from face plans.
 
 `balancedCellPlan`, `balancedFacePlan`, `balancedEdgePlan`
-: Post-balancing facts used by fine-grid generation and numbering rules.
+: Post-balancing facts used by fine-grid generation and numbering rules after
+  neighboring cell, face, and edge plans have been made compatible.
 
 `balancedCellPlan1`, `balancedFacePlan1`, `balancedEdgePlan1`
-: Related post-balancing facts used by selected derefinement paths.
+: Related derefinement/restart-side facts used while building
+  `priority::restart::balancedCellPlan`. The suffix `1` is historical; check
+  the rule path before treating it as a time level.
+
+`balancedPointSet1`
+: Intermediate edge split-coordinate set used inside the general derefinement
+  edge path. It is built from `balancedFacePlan1` and serialized into
+  `balancedEdgePlan1`; multiple faces can contribute to the same edge, so the
+  apply rule merges contributions with `Loci::SetUnion`.
 
 `nodeTag`, `cellNodeTag`, `fineCellTag`
 : Tag vectors used by resplit/derefinement paths. These tags are not
@@ -243,7 +252,8 @@ directly from the implementation:
 
 - Complete numeric meaning of each `orientCode`.
 - Exact child ordering for all mixed prism/general-cell cases.
-- Which plan vectors are serialized across restart boundaries versus only used
-  as temporary Loci facts.
+- Which intermediate plan facts should be considered stable restart-facing
+  facts rather than temporary Loci facts. Current restart builders publish
+  `priority::restart::balancedCellPlan`.
 - Which derefinement tag values are local implementation details versus stable
   file or fact semantics.
