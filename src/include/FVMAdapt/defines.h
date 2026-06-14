@@ -21,8 +21,10 @@
 #ifndef DEFINES_H
 #define DEFINES_H
 #include <Loci.h>
+#include <algorithm>
 #include <vector>
 #include <functional>
+#include <set>
 #include <string>
 #include <fstream>
 #include <iostream>
@@ -192,14 +194,20 @@ namespace Loci {
     return s;
   }
 
-  struct SetLongUnion {
-    void operator()(SetLong &f1, const SetLong &f2) {
-      SetLong result;
+  /// Reducer for merging set-like values with an `aset` member.
+  /// Use this templated form with newer `$rule apply(...)[Loci::SetUnion]`.
+  template<class T>
+  struct SetUnion {
+    void operator()(T &f1, const T &f2) {
+      T result;
       std::set_union(f1.aset.begin(), f1.aset.end(), f2.aset.begin(), f2.aset.end(),
-                std::inserter(result.aset, result.aset.begin()));
+                     std::inserter(result.aset, result.aset.begin()));
       f1 = result;
     }
   };
+
+  /// Concrete SetLong reducer kept for older hand-written apply_rule classes.
+  typedef SetUnion<SetLong> SetLongUnion;
 }
 
 namespace Loci {
