@@ -100,8 +100,9 @@ old rule until lpp accepts it:
    local declarations. Standard mesh and topology facts such as `lower`,
    `upper`, `boundary_map`, `face2node`, `face2edge`, `edge2node`, `pos`,
    `geom_cells`, `faces`, `interior_faces`, and `fileNumber(X)` come from
-   `FVM.lh`; FVMAdapt-specific facts should live in `FVMAdapt/fvmadapt.lh`
-   once the translation is stable.
+   `FVM.lh`; FVMAdapt-specific facts used only by this rule database should
+   live beside the `.loci` files in `fvmadapt_internal.lh` once the translation
+   is stable.
 2. If a conversion is still experimental, it is fine to start with nearby
    `$type` declarations. Move them into an `.lh` file before finishing if
    another rule file or external module needs the same fact types.
@@ -150,9 +151,10 @@ old rule until lpp accepts it:
 12. For `apply_rule<Container, Op>` classes, put the reduction operator in the
    `$rule apply(...)[OpTemplate]` brackets and keep the body as the per-entity
    `join(...)` call. lpp instantiates bracketed apply operators with the output
-   value type. Prefer an existing templated Loci reducer when one matches, such
-   as `Loci::LogicalAnd`, `Loci::LogicalOr`, `Loci::SetUnion`,
-   `Loci::Maximum`, or `Loci::Summation`.
+   value type. Prefer an existing reducer when one matches, such as
+   `Loci::SetUnion`, `Loci::Maximum`, or `Loci::Summation`. New reusable
+   framework reducers, including generic logical reducers, should be split into
+   their own PR instead of being hidden inside this documentation/update branch.
 13. Be cautious with `disable_threading()`, direct `fact_db` access, file IO,
    MPI/distribution work, and module databases. Those rules often rely on
    sequence-level side effects and should not be mechanically rewritten.
@@ -368,10 +370,16 @@ tables. The current `Prism::numChildren()` implementation uses:
 - `2`: `nfold` children.
 - `3`: `2 * nfold` children.
 
-Prism faces need separate handling for triangular end faces and quadrilateral
+In this code, `nfold` sizes the side-face ring and the end-face loops. A root
+prism starts with `nfold == 3`; some split paths construct child `Prism`
+objects with `nfold == 4`. The current documentation should not attach broader
+direction names or element terminology to those codes until the split,
+extraction, and merge paths have been reviewed together.
+
+Prism faces need separate handling for polygonal end faces and quadrilateral
 side faces. In current code, `get_c1_prism()` handles side faces with 2D
-integer ranges when `faceID >= 2`, and triangular faces with `Face` tree
-traversal when `faceID < 2`.
+integer ranges when `faceID >= 2`, and end faces with `Face` tree traversal
+when `faceID < 2`.
 
 ### Special Propagation Code `8`
 

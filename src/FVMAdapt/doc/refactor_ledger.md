@@ -7,17 +7,15 @@ relevant smoke tests have been run.
 
 ## Open Items
 
-1. Replace local boolean reducer structs with core Loci reducers.
-   - `src/include/rule.h` now defines `Loci::LogicalAnd` and
-     `Loci::LogicalOr` for `$rule apply(...)` reductions.
-   - Convert any remaining hand-written boolean reduction rules to newer
-     `$rule` syntax where practical, using `Loci::LogicalAnd` or
-     `Loci::LogicalOr`.
-   - Known remaining local reducers:
+1. Keep reusable apply-rule reducers out of the FVMAdapt documentation PR.
+   - Boolean reducers such as generic logical-and/logical-or operators are
+     useful beyond FVMAdapt and should be proposed in a separate framework PR
+     if they are still wanted.
+   - This branch should keep translated FVMAdapt rules on existing local
+     reducers unless that separate PR is already merged.
+   - Known local reducers:
      `src/include/FVMAdapt/defines.h` defines `logicalAnd`, and
      `src/FVMAdapt/check_folded_face.loci` defines `logicalOr`.
-   - After all uses are migrated and the module builds, remove the old local
-     structs if they are no longer referenced.
 
 2. Finish the temporary side-by-side rule translations.
    - `src/FVMAdapt/balance_general_cell.loci` currently preserves old C++ rule
@@ -33,11 +31,12 @@ relevant smoke tests have been run.
    - `face2edge`, `edge2node`, `faces`, `interior_faces`, `cells`, and
      `ghost_cells` have been promoted to `FVM.lh` because they are generated
      and consumed by shared FVM grid/setup infrastructure.
-   - FVMAdapt-specific facts used by converted rules should live in
-     `src/include/FVMAdapt/fvmadapt.lh`.
-   - Existing configured `OBJ` trees may need a reconfigure or a manual
-     `OBJ/include/FVMAdapt/fvmadapt.lh` symlink after adding the new file; fresh
-     `tmpcopy` runs should mirror it with the rest of `src/include/FVMAdapt`.
+   - FVMAdapt-specific facts used only by converted internal rules should live
+     beside those rules in `src/FVMAdapt/fvmadapt_internal.lh`, not under
+     `src/include/FVMAdapt`.
+   - `src/FVMAdapt/Makefile` adds the source directory to `INCLUDES` so
+     configured `OBJ/FVMAdapt` builds can resolve this private include through
+     the symlinked Makefile.
    - Before finishing, scan converted files for leftover local `$type`
      declarations that should be promoted or removed, including temporary
      FVMAdapt-only facts such as `balancedPointSet1`.

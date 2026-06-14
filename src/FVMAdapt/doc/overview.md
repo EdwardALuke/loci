@@ -1,0 +1,210 @@
+# FVMAdapt Mesh Adaptation Overview {#fvmadapt_overview}
+
+This page is the intended entry point for understanding the existing
+`FVMAdapt` implementation. It is written for people who need the governing
+ideas before they dive into the headers, helper library, or Loci rule database.
+
+The page is deliberately careful about scope. `FVMAdapt` today is an adaptation
+subsystem and helper library. It is not the future solver-facing `FVMAMR`
+module. The files described here are the current rule database, C++ helper
+library, plan encodings, and command-line remeshing path.
+
+## Reference Context
+
+Two local reference papers are especially useful background:
+
+- `docs/reference/1826CNME_final.pdf`, "On the use of general elements in
+  fluid dynamics simulations".
+- `docs/reference/Solution Adaptive Isotropic And Anisotropic Mesh Refinement
+  Using.pdf`, "Solution Adaptive Isotropic And Anisotropic Mesh Refinement
+  Using General Elements".
+
+The shared idea is that general polyhedral elements can localize the effects of
+mesh refinement. A refined cell can leave a nonconforming face or hanging node
+on a neighboring cell; instead of forcing refinement to propagate until the
+entire mesh is conforming in a small set of element templates, the mesh can
+represent the resulting local topology with general faces and general cells.
+
+The papers also separate two concepts that are easy to blur:
+
+- The mesh topology operation: how edges, faces, and cells are subdivided.
+- The solver operation: how the flow solver integrates, reconstructs, and
+  computes fluxes on the resulting general elements.
+
+`FVMAdapt` mostly lives on the first side of that boundary. It builds and
+balances refinement plans, replays those plans into refined topology, and writes
+VOG data and transfer/restart facts. Solver-facing policy and field ownership
+should stay out of this page until a separate `FVMAMR` module defines that
+contract.
+
+## Guiding Principles
+
+Read the current module with four principles in mind:
+
+- Refinement is represented as topology first. The central operations split
+  edges, faces, and cells and then rebuild connectivity for the refined mesh.
+- General elements make local refinement easier to represent. They reduce the
+  need for template-driven propagation, but they do not remove the need for
+  balancing shared faces and edges.
+- Plans are compact replay data. A plan says how to rebuild a refinement tree;
+  it is not itself the refined mesh.
+- Split-code meanings are local. General faces, quadrilateral faces,
+  hexahedra, prisms, and general cells do not all share one universal code
+  vocabulary.
+
+Suggested figure: `src/FVMAdapt/doc/figures/fvmadapt_locality.svg` should show
+one refined cell beside an unrefined neighbor, a hanging node on the shared
+face, and the resulting general face/cell that lets the mismatch remain local
+before balancing decisions are applied.
+
+## Paper To Implementation Crosswalk
+
+The papers are useful background, but the implementation is not a line-by-line
+copy of either paper. This crosswalk lists the safest correspondences to use
+when reading the code.
+
+| Paper idea | Closest FVMAdapt implementation | Caution |
+| --- | --- | --- |
+| General elements allow faces and cells with non-template topology. | `Face`, `Cell`, and `DiamondCell` in `src/include/FVMAdapt` and `src/FVMAdapt/library`. | The code still has specialized `QuadFace`, `HexCell`, and `Prism` paths. Do not treat every path as a generic polyhedron path. |
+| Face-based isotropic refinement splits an n-sided face through edge midpoints and a face centroid. | `Face::split()` splits parent edges, creates a face-center node, and builds one quadrilateral child face per parent edge. | Orientation and child ordering are implementation contracts and should be checked against extraction and output helpers before changing comments. |
+| Cell subdivision inserts an element center and connects it with face and edge centers. | `Cell::split()` splits all faces, creates a cell-center node, builds interior faces, and creates `DiamondCell` children. | `DiamondCell` is the implementation vehicle for general-cell leaves; its child ordering is not explained by the paper alone. |
+| Refinement state must survive across cycles. | `cellPlan`, `facePlan`, and `edgePlan` store breadth-first `std::vector<char>` replay recipes. | These vectors are Loci facts and library inputs. They are not the same thing as a full mesh-state file. |
+| Local refinement still needs consistency checks. | `balance_general_cell.loci`, `balance_general_face.loci`, and `balance_general_edge.loci` update and merge plans across cells, faces, and edges. | "General elements localize refinement" should not be read as "no balancing is needed." |
+| Anisotropic refinement can be driven by edge or direction choices. | Directional concepts appear in `QuadFace`, `HexCell`, `Prism`, and transfer/extraction helpers. | The mapping to the thesis' anisotropic formalism is only partially audited. Keep those code paths documented separately. |
+| Solvers can integrate fluxes on general elements. | Outside the current FVMAdapt documentation scope. | This page documents remeshing/adaptation mechanics, not a solver-facing AMR contract. |
+
+## Source Layout
+
+The implementation is split into three practical layers:
+
+- `src/FVMAdapt/library/*.cc` and `src/include/FVMAdapt/*.h` contain the C++
+  helper library. This layer owns the tree objects for nodes, edges, faces, and
+  cells; split and replay helpers; plan extraction and merging; and VOG helper
+  routines. The FVMAdapt makefile builds this as `libfvmadaptfunc`.
+- `src/FVMAdapt/*.loci` contains the Loci rule database. These rules create
+  plans, balance them, derive lower-dimensional plans, generate fine-grid
+  numbering, and drive the output path. The makefile builds these rules as
+  `fvmadapt_m.so`.
+- The command-line path exercises the module through tools such as `marker`,
+  `refmesh`, `vogcheck`, and `extract`. The existing smoke test is documented
+  in \ref fvmadapt_testing.
+
+The internal declaration file `src/FVMAdapt/fvmadapt_internal.lh` is for the
+FVMAdapt rule database. It is not a solver-facing include file.
+
+## The Central Model
+
+The current implementation is easiest to read as a set of replayable refinement
+trees.
+
+An edge tree has a root edge. A split inserts a midpoint and creates two child
+edges. A face tree has a root face. For a general polygonal `Face`,
+`Face::split()` first splits the parent edges, then inserts a face-center node
+and creates one quadrilateral child face per parent edge. A general cell uses
+the same pattern one dimension higher: `Cell::split()` splits its faces,
+inserts a cell-center node, creates interior faces from edge/face/cell centers,
+and creates one child `DiamondCell` associated with each original cell node.
+
+This is the closest match between the papers and the code: the paper-level
+face-based isotropic refinement description appears in the library-level
+midpoint/centroid construction used by `Face`, `Cell`, and `DiamondCell`.
+
+The tree is not kept as a permanent object between every rule. Instead, rules
+pass compact plans:
+
+- `cellPlan` describes the cell refinement tree.
+- `facePlan` describes the face refinement tree.
+- `edgePlan` describes the edge refinement tree.
+
+Most plans are `std::vector<char>` values consumed in breadth-first order.
+Those vectors are recipes for replaying a tree, not the refined mesh itself.
+See \ref fvmadapt_refinement_plans for the current source-backed code tables.
+
+Suggested figure: `src/FVMAdapt/doc/figures/fvmadapt_plan_tree.svg` should show
+one small tree, its breadth-first queue order, and the matching plan vector.
+
+## General Elements And Locality
+
+The general-element idea matters because it changes what adaptation has to
+force. If every face mismatch must be removed immediately, refinement in one
+cell can trigger a cascade of neighboring refinements. General elements allow
+the code to represent a more local topology after refinement.
+
+That does not mean the implementation ignores consistency. FVMAdapt still has
+balancing rules and helper checks. For example, the general-cell balancing path
+checks whether edge refinement depth differs by more than one level and can
+split the cell to restore compatibility. Face and edge plans are also extracted
+and merged so neighboring cells agree on the topology of a shared face or edge.
+
+A useful way to read the rule database is:
+
+1. Tags or region inputs mark where refinement is requested.
+2. Cell plans are created or updated.
+3. Cell plans are balanced.
+4. Face plans are extracted from neighboring cell plans and merged on shared
+   faces.
+5. Edge plans are extracted from face plans and merged on shared edges.
+6. Balanced plans are replayed to generate fine nodes, fine faces, fine cells,
+   transfer data, and VOG output.
+
+Suggested figure: `src/FVMAdapt/doc/figures/fvmadapt_plan_flow.svg` should show
+this path from refinement request to balanced plans to generated VOG topology.
+
+## Isotropic And Directional Paths
+
+The papers discuss both isotropic and anisotropic refinement. The current code
+contains several related, but not identical, formalisms:
+
+- General cells use a face-based, centroid-style isotropic construction through
+  `Face`, `Cell`, and `DiamondCell`.
+- `QuadFace` has face-local directional split codes.
+- `HexCell` has a three-bit local-direction split mask.
+- `Prism` has prism-specific split codes and an `nfold` convention that still
+  needs a focused documentation audit before the terminology is broadened.
+
+Do not assume these code paths share one universal split-code meaning. A code
+value that is directional for a `HexCell` is not automatically directional for
+a general face or prism. The current documentation should keep those meanings
+separate until each path has been checked against its split, extraction, merge,
+and output helpers.
+
+## What Is Stable Enough To Rely On
+
+These concepts are stable enough to use as reading guides:
+
+- Plans are replay recipes for refinement trees.
+- General faces and general cells are first-class in the helper library.
+- Balancing and lower-dimensional plan merging are central to preserving shared
+  topology.
+- The rule layer carries facts through the Loci scheduler; the library layer
+  implements the geometry/tree mechanics.
+- The smoke-test path exercises marker, remeshing, VOG validation, and sorted
+  coordinate comparison.
+
+These concepts should still be treated as open or partially documented:
+
+- Exact orientation-code meanings across every helper.
+- Exact child ordering for every prism and mixed general/prism/hex case.
+- Which restart and transfer facts are stable external semantics rather than
+  current internal plumbing.
+- Which broad header comments are validated source documentation and which are
+  still draft signposts.
+
+## Where To Go Next
+
+Read these pages in this order:
+
+1. \ref fvmadapt_refinement_plans for the current plan-vector vocabulary.
+2. \ref fvmadapt_concepts for rule translation notes and implementation terms.
+3. \ref fvmadapt_testing for the current smoke-test path.
+4. \ref fvmadapt_diagram_requests for figures that would make the tree and
+   orientation conventions reviewable.
+5. \ref fvmadapt_doxygen_status for the current generated-documentation status
+   and known `.loci` parser limitations.
+6. \ref fvmadapt_developer_reference for generated Doxygen groups and API
+   browsing.
+
+The development notes are useful, but they are not all user-facing
+documentation. When a statement matters to users of this module, prefer to
+promote it into this overview or \ref fvmadapt_refinement_plans after checking
+it against the implementation.

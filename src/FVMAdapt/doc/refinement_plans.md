@@ -200,17 +200,19 @@ Defined by `Prism` in `prism.h` and implemented in `library/prism.cc`.
 | Code | Split mode | Children |
 | ---- | ---------- | -------- |
 | `0`  | none | `0` |
-| `1`  | axial/z direction only | `2` |
-| `2`  | polygonal xy cross-section only | `nfold` |
-| `3`  | axial/z and polygonal xy cross-section | `2 * nfold` |
+| `1`  | two-child split; `split()` calls `QuadFace::split(1)` on each side face and creates one new end face | `2` |
+| `2`  | ring split; `split()` calls `QuadFace::split(2)` on each side face and splits the two end faces | `nfold` |
+| `3`  | combined split; `split()` calls `QuadFace::split(3)`, splits the two end faces, and creates center topology | `2 * nfold` |
 
-`nfold` is `3` for a normal triangular prism. It can be `4` for child prisms
-created when a quadrilateral side face is split, as documented by the `nfold`
-field comment in `prism.h`.
+In this implementation, `nfold` is used as the count for the side-face array
+and for loops over the vertices/edges of the two end faces. The default/root
+construction uses `nfold == 3`. Split paths that create children around the
+side-face ring construct those child `Prism` objects with `nfold == 4`.
 
-This is not the same formalism as `HexCell::mySplitCode`. Prism code `2` means
-the whole polygonal cross-section is split into `nfold` children, not "split
-local y only."
+This is not the same formalism as `HexCell::mySplitCode`. Do not describe
+prism codes as the hex `xyz` bit mask. The geometric direction names and the
+best terminology for `nfold == 4` children remain documentation questions until
+the prism split, extraction, and merge paths are audited together.
 
 Prism face handling is split between triangular end faces (`Face`) and
 quadrilateral side faces (`QuadFace`). `get_c1_prism()` uses different
@@ -252,6 +254,9 @@ directly from the implementation:
 
 - Complete numeric meaning of each `orientCode`.
 - Exact child ordering for all mixed prism/general-cell cases.
+- Best terminology for prism `nfold == 4` children: the code still represents
+  them with `Prism` objects, but the intended mesh-element description should
+  be verified with the split/extraction/merge paths before documenting it.
 - Which intermediate plan facts should be considered stable restart-facing
   facts rather than temporary Loci facts. Current restart builders publish
   `priority::restart::balancedCellPlan`.

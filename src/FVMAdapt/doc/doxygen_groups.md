@@ -4,26 +4,6 @@ This page is the generated-reference landing page for the existing
 `FVMAdapt` implementation. It links the higher-level developer notes to the
 Doxygen topic groups used for classes, helper functions, and `.loci` rules.
 
-`FVMAdapt` is an implementation-facing adaptation subsystem. It combines Loci
-rules, compiled helper classes, compact plan vectors, and VOG output utilities.
-These pages document the current implementation; they are not a proposed new
-AMR API.
-
-Start with:
-
-- \ref fvmadapt_concepts for terminology and the high-level data flow.
-- \ref fvmadapt_refinement_plans for byte-code plan conventions.
-- \ref fvmadapt_diagram_requests for figures that would clarify numbering,
-  splitting, and orientation conventions.
-- \ref fvmadapt_testing for the existing smoke-test path.
-- \ref fvmadapt for the generated FVMAdapt topic index.
-- `src/FVMAdapt/doc/README_xml` for XML region input accepted by selected
-  marker workflows.
-
-The generated topic groups are intentionally broad. They are meant to make the
-legacy implementation easier to browse while more precise comments are added
-to individual rules, classes, and helper functions.
-
 \defgroup fvmadapt FVMAdapt mesh adaptation
 \brief Existing Loci module and helper library for mesh refinement and
 coarsening.
@@ -35,13 +15,21 @@ AMR API.
 
 Start with:
 
+- \ref fvmadapt_overview for the user-facing entry point and guiding
+  principles.
 - \ref fvmadapt_concepts for terminology and the high-level data flow.
 - \ref fvmadapt_refinement_plans for byte-code plan conventions.
 - \ref fvmadapt_diagram_requests for figures that would clarify numbering,
   splitting, and orientation conventions.
 - \ref fvmadapt_testing for the existing smoke-test path.
+- \ref fvmadapt_doxygen_status for the current generated-documentation wiring
+  and known `.loci` parser limitations.
 - `src/FVMAdapt/doc/README_xml` for XML region input accepted by selected
   marker workflows.
+
+The generated topic groups are intentionally broad. They are meant to make the
+legacy implementation easier to browse while more precise comments are added
+to individual rules, classes, and helper functions.
 
 \defgroup fvmadapt_plans Refinement plan representation
 \ingroup fvmadapt
