@@ -159,7 +159,6 @@ mkdir -p $INSTALL_PATH/docs
 mkdir -p $INSTALL_PATH/docs/1D-Diffusion
 mkdir -p $INSTALL_PATH/docs/heat
 mkdir -p $INSTALL_PATH/docs/Datatypes
-mkdir -p $INSTALL_PATH/docs/developer
 
 if [ -e docs/tutorial/docs/tutorial.pdf ] ; then
     soft_copy_dir docs/tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
@@ -178,8 +177,6 @@ glob_soft_copy "docs/tutorial/heat/*.vars" $INSTALL_PATH/docs/heat
 
 soft_copy_dir docs/tutorial/Datatypes/Makefile $INSTALL_PATH/docs/Datatypes
 glob_soft_copy "docs/tutorial/Datatypes/*.cc" $INSTALL_PATH/docs/Datatypes
-
-soft_copy_dir docs/developer/loci_style_guide.md $INSTALL_PATH/docs/developer
 
 if [ -d docs/doxygen/html ] ; then
     mkdir -p $INSTALL_PATH/docs/doxygen
