@@ -189,7 +189,6 @@ endif
 # remove documentation
 	rm -fr $(LOCI_INSTALL_PATH)/docs/1D-Diffusion
 	rm -fr $(LOCI_INSTALL_PATH)/docs/Datatypes
-	rm -fr $(LOCI_INSTALL_PATH)/docs/developer
 	rm -fr $(LOCI_INSTALL_PATH)/docs/doxygen
 	rm -fr $(LOCI_INSTALL_PATH)/docs/heat
 	rm -f $(LOCI_INSTALL_PATH)/docs/tutorial.pdf
