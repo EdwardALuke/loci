@@ -33,7 +33,52 @@ using std::cerr;
 using std::endl;
 using std::cout;
 
+$include "FVM.lh"
+$include "FVMAdapt/fvmadapt.lh"
 
+/// Balanced general-cell plan after cell balancing.
+$type balancedCellPlan store<std::vector<char> > ;
+
+/// Balanced general-face plan derived from neighboring balancedCellPlan facts.
+$type balancedFacePlan store<std::vector<char> > ;
+
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan, face2node,
+(cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(interior_faces, (cl, cr)->gnrlcells) {
+  $balancedFacePlan.clear() ;
+
+  std::vector<char> facePlanL = extract_general_face($cl->$lower.begin(),
+                                                     $cl->$lower.size(),
+                                                     $cl->$upper.begin(),
+                                                     $cl->$upper.size(),
+                                                     $cl->$boundary_map.begin(),
+                                                     $cl->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cl->$balancedCellPlan,
+                                                     _e_,
+                                                     $*fileNumber(pos)) ;
+
+  std::vector<char> facePlanR = extract_general_face($cr->$lower.begin(),
+                                                     $cr->$lower.size(),
+                                                     $cr->$upper.begin(),
+                                                     $cr->$upper.size(),
+                                                     $cr->$boundary_map.begin(),
+                                                     $cr->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cr->$balancedCellPlan,
+                                                     _e_,
+                                                     $*fileNumber(pos)) ;
+
+  $balancedFacePlan = merge_faceplan(facePlanL, facePlanR, $face2node.size()) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+/*
 class merge_general_interior_balancedface:public pointwise_rule{
   const_Map cl;
   const_Map cr;
@@ -111,9 +156,29 @@ public:
 };
 
 register_rule<merge_general_interior_balancedface> register_merge_general_interior_balancedface;
+*/
 
 
+$rule pointwise(balancedFacePlan <- cl->balancedCellPlan,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(boundary_faces, cl->gnrlcells) {
+  $balancedFacePlan = extract_general_face($cl->$lower.begin(),
+                                           $cl->$lower.size(),
+                                           $cl->$upper.begin(),
+                                           $cl->$upper.size(),
+                                           $cl->$boundary_map.begin(),
+                                           $cl->$boundary_map.size(),
+                                           $*face2node,
+                                           $*face2edge,
+                                           $*edge2node,
+                                           $cl->$balancedCellPlan,
+                                           _e_,
+                                           $*fileNumber(pos)) ;
+  reduce_vector($balancedFacePlan) ;
+}
 
+/*
 class merge_general_boundary_balancedface:public pointwise_rule{
   const_Map cl;
   const_multiMap lower;
@@ -175,3 +240,4 @@ public:
 };
 
 register_rule<merge_general_boundary_balancedface> register_merge_general_boundary_balancedface;
+*/
