@@ -18,8 +18,11 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
+
 #include "lpp.h"
 #include "parseAST.h"
+#include "template.h"
+
 #include <ctype.h>
 #include <set>
 #include <iostream>
@@ -1672,6 +1675,174 @@ void AST_printTree::visit(AST_controlStatement &s) {
   popindent() ;
 }
 
+/// Visitor that prints an AST using a simple substitution map
+class AST_printObjectTree : public AST_visitor {
+public:
+  ostream & out ;
+  int indent_level ;
+
+  void indent() {
+    for(int i = 0; i < indent_level; ++i)
+      out << "  " ;
+  }
+
+  void pushindent() {
+    indent_level++ ;
+  }
+
+  void popindent() {
+    indent_level-- ;
+  }
+
+  AST_printObjectTree(ostream & s): out(s), indent_level(0) {}
+
+  virtual void visit(AST_exprOper &)  ;
+  virtual void visit(AST_Token &) ;
+  virtual void visit(AST_Block &) ;
+  virtual void visit(AST_typeSpec &) ;
+  virtual void visit(AST_declaration &) ;
+  virtual void visit(AST_SimpleStatement &) ;
+  virtual void visit(AST_controlStatement &) ;
+} ;
+
+void AST_printObjectTree::visit(AST_exprOper &s) {
+  indent() ;
+  out << "AST_exprOper(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "terms" << endl ;
+
+  pushindent() ;
+  for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+    }
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_Token & s) {
+  indent() ;
+  out << "AST_Token(" << NTtoString(s.nodeType) << ", \"" << s.text << "\")" << endl ;
+}
+
+void AST_printObjectTree::visit(AST_Block & s) {
+  indent() ;
+  out << "AST_Block(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "elements" << endl ;
+
+  pushindent() ;
+  for(auto ii = s.elements.begin(); ii != s.elements.end(); ++ii)
+    if(*ii!=0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_typeSpec &s) {
+  indent() ;
+  out << "AST_typeSpec(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "type_spec" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.type_spec.begin();ii!=s.type_spec.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_declaration &s) {
+  indent() ;
+  out << "AST_declaration(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "type_decl" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.type_decl.begin();ii!=s.type_decl.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  indent() ;
+  out << "decls" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.decls.begin();ii!=s.decls.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_SimpleStatement &s) {
+  indent() ;
+  out << "AST_SimpleStatement(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "exp" << endl ;
+
+  pushindent() ;
+  if(s.exp!=0)
+    s.exp->accept(*this) ;
+  popindent() ;
+
+  indent() ;
+  out << "terminal" << endl ;
+
+  pushindent() ;
+  if(s.Terminal!=0) 
+    s.Terminal->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_controlStatement &s) {
+  indent() ;
+  out << "AST_controlStatement(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "controlType" << endl ;
+
+  pushindent() ;
+  s.controlType->accept(*this) ;
+  popindent() ;
+
+  indent() ;
+  out << "parts" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.parts.begin();ii!=s.parts.end();++ii) {
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  }
+  popindent() ;
+
+  popindent() ;
+}
+
 class AST_editLociMapArrayAccess : public AST_visitor {
 public:
   virtual void visit(AST_exprOper &) ;
@@ -2164,28 +2335,471 @@ std::vector<list<variable> > expand_mapping(std::vector<variableSet> vset) {
   return tmp2 ;
 }
 
+static char const * cuda_rule_template = "\
+$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+class $$rule.class$$ : public Loci::$$rule.type$$_rule\
+$$#if rule.is_apply$$<\
+Loci::gpu$$rule.apply.container$$\
+$$#if rule.apply.container_args$$<$$rule.apply.container_args$$>$$/if$$, \
+$$rule.apply.operator$$<$$rule.apply.container_args$$> >\
+$$/if$$\
+{\n\
+$$#each rule.input_stores$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+  Loci::const_gpu$$ctype$$$$#if carg$$<$$carg$$>$$/if$$ $$vname$$ ;\n\
+$$/each$$\
+$$#each rule.output_stores$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+  Loci::gpu$$ctype$$$$#if carg$$<$$carg$$>$$/if$$ $$vname$$ ;\n\
+$$/each$$\
+\n\
+public:\n\
+$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$() {\n\
+$$#each rule.name_stores$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    name_store(\"$$name$$\", $$vname$$) ;\n\
+$$#if has_info_id$$\
+    store_info_id(\"$$name$$\", $$info_id$$) ;\n\
+$$/if$$\
+$$/each$$\
+$$#each rule.inputs$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    input(\"$$str$$\") ;\n\
+$$/each$$\
+$$#each rule.outputs$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    output(\"$$str$$\") ;\n\
+$$/each$$\
+$$#each rule.constraints.spec$$\
+$$#if ::pln$$#line $$::rule.constraints.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    constraint(\"$$str$$\") ;\n\
+$$/each$$\
+    disable_threading() ;\n\
+$$#if rule.is_parametric$$\
+$$#if pln$$#line $$rule.parametric.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    set_parametric_variable(\"$$rule.parametric.spec$$\") ;\n\
+$$/if$$\
+$$#if rule.is_specialized$$\
+$$#if pln$$#line $$rule.specialized.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    set_specialized() ;\n\
+$$/if$$\
+$$#if rule.is_conditional$$\
+$$#if pln$$#line $$rule.conditional.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    conditional(\"$$rule.conditional.spec$$\") ;\n\
+$$/if$$\
+$$#each rule.comments$$\
+$$#if ::pln$$#line $$line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    comments(\"$$str$$\") ;\n\
+$$/each$$\
+$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    set_file(\"$$rule.file$$:$$rule.line_number$$\") ;\n\
+  }\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  void compute(const Loci::sequence &seq) override ;\n\
+$$#if rule.is_pointwise$$\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  typedef struct {\n\
+$$#each rule.input_stores$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    $$vtype$$ const * $$vname$$ ;\n\
+$$/each$$\
+$$#each rule.output_stores$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    $$vtype$$ * $$vname$$ ;\n\
+$$/each$$\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    GPU_DECL\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    void operator()(Entity _e_) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$rule.compute.spec$$\n\
+    }\n\
+  } compute_t ;\n\
+$$/if$$\
+$$#if rule.is_unit$$\
+\n\
+$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  typedef $$rule.unit.container_args$$ value_t ;\n\
+$$/if$$\
+$$#if rule.is_apply$$\
+\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  typedef $$rule.apply.container_args$$ value_t ;\n\
+\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  typedef $$rule.apply.operator$$<value_t> loci_reduction_t ;\n\
+\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  typedef struct {\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    GPU_DECL\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    value_t operator()(value_t const & lhs, value_t const & rhs) {\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+      value_t tmp = lhs ;\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+      loci_reduction_t op ;\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+      op(tmp, rhs) ;\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+      return tmp ;\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    }\n\
+\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    GPU_DECL\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    value_t identity() const {\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+      loci_reduction_t tmp ;\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+      return tmp.identity() ;\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    }\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  } reduction_t ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  typedef struct {\n\
+$$#each rule.input_stores$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    $$vtype$$ const * $$vname$$ ;\n\
+$$/each$$\
+$$#each rule.output_stores$$\
+$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+    $$vtype$$ * $$vname$$ ;\n\
+$$/each$$\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    GPU_DECL\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    value_t operator()(Entity _e_) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$rule.compute.spec$$\n\
+    }\n\
+  } compute_t ;\n\
+$$/if$$\
+} ;\n\
+\n\
+$$#if rule.is_unit$$\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+__global__\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+void $$rule.class$$_kernel($$rule.class$$::value_t * $$rule.unit.target_vname$$) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$rule.compute.spec$$\n\
+}\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$#if debug_info$$nvtxRangePush(\"$$rule.debug_name$$\") ;\n$$/if$$\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$_kernel<<<1, 1>>>($$rule.unit.target_vname$$.ptr()) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$#if debug_info$$nvtxRangePop(\"$$rule.debug_name$$\") ;\n$$/if$$\
+}\n\
+$$/if$$\
+$$#if rule.is_apply$$\
+$$#if rule.apply.is_singleton$$\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+__global__\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+void $$rule.class$$_computevar_kernel(\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$::value_t * res,\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$::compute_t compute_op\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+) {\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  if(threadIdx.x == 0)\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    *res = compute_op(0) ;\n\
+}\n\
+$$/if$$\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+__global__\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+void $$rule.class$$_reducevar_kernel(\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$::value_t * res,\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$::value_t const * part\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+) {\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$::loci_reduction_t op ;\n\
+$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  op(*res, *part) ;\n\
+}\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$#if debug_info$$nvtxRangePush(\"$$rule.debug_name$$\") ;\n$$/if$$\
+$$#if rule.apply.is_singleton$$\
+  compute_t compute_op ;\n\
+$$#each rule.input_stores$$\
+$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  thrust::device_vector<value_t> d_result(1) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  value_t * d_result_ptr  = thrust::raw_pointer_cast(d_result.data()) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$_computevar_kernel<<<1, 1>>>(d_result_ptr, compute_op) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$_reducevar_kernel<<<1, 1>>>(\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    $$rule.apply.target_vname$$.ptr(),\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_result_ptr\n\
+  ) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  cudaDeviceSynchronize() ;\n\
+\n\
+$$#else$$\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  size_t num_intervals = seq.num_intervals() ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  thrust::device_vector<value_t> d_interval_result(num_intervals+1) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  value_t * d_interval_result_ptr = thrust::raw_pointer_cast(d_interval_result.data()) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  thrust::host_vector<Entity> h_interval_offsets(num_intervals*2) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  for(size_t i = 0; i < num_intervals; ++i) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    h_interval_offsets[i] = seq[i].first ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    h_interval_offsets[i+num_intervals] = seq[i].second+1 ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  }\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  thrust::device_vector<Entity> d_interval_offsets(h_interval_offsets) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  compute_t compute_op ;\n\
+$$#each rule.input_stores$$\
+$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  reduction_t reduce_op ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  value_t const unit_value = reduce_op.identity() ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  thrust::counting_iterator entity_iter = thrust::make_counting_iterator(0) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  thrust::transform_iterator transform_iter = thrust::make_transform_iterator(entity_iter, compute_op) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  void * d_temp_storage = nullptr ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  size_t temp_storage_bytes = 0 ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  cub::DeviceSegmentedReduce::Reduce(\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_temp_storage,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    temp_storage_bytes,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    transform_iter,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_result_ptr,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_offsets.begin(),\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_offsets.begin()+num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    reduce_op,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    unit_value\n\
+  ) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  thrust::device_vector<std::uint8_t> temp_storage(temp_storage_bytes) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  d_temp_storage = thrust::raw_pointer_cast(temp_storage.data()) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  cub::DeviceSegmentedReduce::Reduce(\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_temp_storage,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    temp_storage_bytes,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    transform_iter,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_result_ptr,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_offsets.begin(),\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_offsets.begin()+num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    reduce_op,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    unit_value\n\
+  ) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  d_temp_storage = nullptr ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  temp_storage_bytes = 0 ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  cub::DeviceReduce::Reduce(\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_temp_storage,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    temp_storage_bytes,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_result_ptr,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_result_ptr+num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    reduce_op,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    unit_value\n\
+  ) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  temp_storage.resize(temp_storage_bytes) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  d_temp_storage = thrust::raw_pointer_cast(temp_storage.data()) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  cub::DeviceReduce::Reduce(\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_temp_storage,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    temp_storage_bytes,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_result_ptr,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_result_ptr+num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    num_intervals,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    reduce_op,\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    unit_value\n\
+  ) ;\n\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$_reducevar_kernel<<<1, 1>>>(\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    $$rule.apply.target_vname$$.ptr(),\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    d_interval_result_ptr+num_intervals\n\
+  ) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  cudaDeviceSynchronize() ;\n\
+$$/if$$\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$#if debug_info$$nvtxRangePop() ;\n$$/if$$\
+}\n\
+\n\
+$$/if$$\
+$$#if rule.is_pointwise$$\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$#if debug_info$$nvtxRangePush(\"$$rule.debug_name$$\") ;\n$$/if$$\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  compute_t compute_op ;\n\
+$$#each rule.input_stores$$\
+$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+$$#each rule.output_stores$$\
+$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  const int ni = seq.num_intervals() ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  for(int i = 0; i < ni; ++i) {\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    thrust::counting_iterator start_iter = thrust::make_counting_iterator(seq[i].first) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    thrust::counting_iterator end_iter = thrust::make_counting_iterator(seq[i].second+1) ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+    thrust::for_each(thrust::cuda::par.on(Loci::getGPUStream()), start_iter, end_iter, compute_op) ;\n\
+  }\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  cudaDeviceSynchronize() ;\n\
+$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+$$#if debug_info$$nvtxRangePop() ;\n$$/if$$\
+\n\
+}\n\
+$$/if$$\
+\n\
+Loci::register_rule<$$rule.class$$> register_$$rule.class$$ ;\n\
+" ;
 
 void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
                                const parseSharedInfo &parseInfo) {
+  int rule_type_line_no = 0 ;
+  int signature_line_no = 0 ;
+  int apply_op_line_no = 0 ;
+  int constraint_line_no = 0 ;
+  int parametric_line_no = 0 ;
+  int conditional_line_no = 0 ;
+  int specialized_line_no = 0 ;
+  vector<int> comments_line_no ;
+  int compute_line_no = 0 ;
+
   killsp() ;
   string rule_type ;
   if(is_name(is)) {
+    rule_type_line_no = line_no ;
     rule_type = get_name(is) ;
   } else 
     throw parseError("syntax error") ;
-  if(rule_type != "pointwise")
-    throw parseError("cudaRule only valid for pointwise") ;
-  nestedparenstuff signature ;
 
+  nestedparenstuff signature ;
   signature.get(is) ;
+  signature_line_no = line_no ;
   line_no += signature.num_lines() ;
+
   nestedbracketstuff apply_op ;
   killsp() ;
+  if(rule_type == "apply") {
+    if(is.peek() != '[')
+      throw parseError("apply rule missing '[operator]'") ;
+    apply_op.get(is) ;
+    apply_op_line_no = line_no ;
+    line_no += apply_op.num_lines() ;
+    killsp() ;
+  }
 
   string constraint, conditional ;
   string parametric_var ;
   list<string> options ;
-  list<string> comments ;
+  vector<string> comments ;
   list<pair<variable,variable> > inplace ;
   
   bool use_prelude = false ;
@@ -2205,30 +2819,35 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
         constraint = con.str() ;
       else 
         constraint += "," + con.str() ;
+      constraint_line_no = line_no ;
       line_no += con.num_lines() ;
     } else if(s == "parametric") {
       nestedparenstuff con ;
       con.get(is) ;
       if(parametric_var != "") {
-        throw parseError("syntax error: canot specify more than one parametric variable") ;
+        throw parseError("syntax error: cannot specify more than one parametric variable") ;
       }
-        
+
       parametric_var = con.str() ;
+      parametric_line_no = line_no ;
       line_no += con.num_lines() ;
     } else if(s == "conditional") {
       nestedparenstuff con ;
       con.get(is) ;
       if(conditional != "") {
-        throw parseError("syntax error: canot specify more than one conditional variable") ;
+        throw parseError("syntax error: cannot specify more than one conditional variable") ;
       }
       conditional = con.str() ;
+      conditional_line_no = line_no ;
       line_no += con.num_lines() ;
       // Check variable
       variable cond(conditional) ;
       auto mi  = lookupVarType(cond) ;
 
       if(!checkTypeValid(mi)) {
-        cerr << filename << ':' << line_no << ":0: warning: type of conditional variable '" << cond << "' not found!"  << endl  ;
+        cerr << filename << ':' << line_no
+             << ":0: warning: type of conditional variable '"
+             << cond << "' not found!"  << endl  ;
       } else {
         // clean up type string
         string val = mi->second.container + mi->second.container_args ;
@@ -2266,17 +2885,23 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     } else if(s == "option") {
       nestedparenstuff ip ;
       ip.get(is) ;
+      specialized_line_no = line_no ;
       line_no += ip.num_lines() ;
       options.push_back(ip.str()) ;
     } else if(s == "comments") {
       nestedparenstuff ip ;
       ip.get(is) ;
+      comments_line_no.push_back(line_no) ;
       line_no += ip.num_lines() ;
       comments.push_back(ip.str()) ;
     } else {
       throw parseError("unknown rule modifier") ;
     }
     killsp() ;
+  }
+
+  if(use_prelude) {
+    throw parseError("prelude not compatible with cuda rules") ;
   }
 
   string sig = signature.str() ;
@@ -2297,7 +2922,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       throw parseError("rules without bodies should have a defined constraint as input!") ;
     }
   }
-  
+
   string class_name = "file_" ;
   for(size_t i=0;i<filename.size();++i) {
     char c = filename[i] ;
@@ -2314,14 +2939,13 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   //  ftime(&tdata) ;
   timespec tdata ;
   clock_gettime(CLOCK_MONOTONIC,&tdata) ;
-  
-  
+
   ostringstream tss ;
   tss << '_' << tdata.tv_sec << 'm' << tdata.tv_nsec/1000000 ;
-  
+
   class_name += tss.str() ;
   cnt++ ;
-  
+
   set<vmap_info> sources ;
   set<vmap_info> targets ;
   if(body != 0)
@@ -2346,7 +2970,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     if(i->mapping.size() == 0) {
       for(auto vi=i->var.begin();vi!=i->var.end();++vi) {
         std::list<variable> vbasic ;
-      
+
         vbasic.push_back(*vi) ;
         validate_set.insert(vbasic) ;
       }
@@ -2403,12 +3027,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     }
   }
 
-  
-
-  map<variable,string> vnames ;
-  variableSet all_vars = input;
-  all_vars += output ;
-
+  // Inputs cannot have priority.
   for(auto vi=input.begin();vi!=input.end();++vi) {
     if(vi->get_info().priority.size() != 0) {
       ostringstream oss ;
@@ -2417,6 +3036,34 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     }
   }
 
+  // Only pointwise rules can have priority over output variables.
+  if(rule_type != "pointwise" && rule_type != "default") {
+    for(auto vi = output.begin(); vi != output.end(); ++vi) {
+      if(vi->get_info().priority.size() != 0) {
+        ostringstream oss ;
+        oss << "only pointwise rules can use priority annotation, var=" << *vi << endl ;
+        throw parseError(oss.str()) ;
+      }
+    }
+  }
+
+  // Set of inputs + outputs.
+  variableSet all_vars = input;
+  all_vars += output ;
+
+  // Catch undeclared Loci variable.
+  for(auto vi=all_vars.begin();vi!=all_vars.end();++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      string s ;
+      s = "unable to determine type of variable " ;
+      s += (*vi).str() ;
+      throw parseError(s) ;
+    }
+  }
+
+  // Create C++ variable names for Loci variables.
+  map<variable,string> vnames ;
   for(auto vi=all_vars.begin();vi!=all_vars.end();++vi) {
     vnames[*vi] = var2name(*vi) ;
     if(vi->get_info().priority.size() != 0) {
@@ -2426,8 +3073,12 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       vnames[v] = vnames[*vi] ;
     }
   }
+  for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
+    vnames[ipi->first] = vnames[ipi->second] ;
+  }
 
-
+  // Check if variables paired by inplace specification are specified as either
+  // input or output to the rule.
   variableSet checkset ;
   for(auto vi=all_vars.begin();vi!=all_vars.end();++vi) {
     variable v = *vi ;
@@ -2436,7 +3087,6 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     checkset += v ;
   }
   for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
-    vnames[ipi->first] = vnames[ipi->second] ;
     variable v = ipi->first ;
     while(v.get_info().priority.size() != 0)
       v = v.drop_priority() ;
@@ -2453,23 +3103,8 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       oss << "inplace variable '"<< ipi->second << "' not input or output variable!" ;
       throw parseError(oss.str()) ;
     }
-    
-  }
-  
-  for(auto vi=all_vars.begin();vi!=all_vars.end();++vi) {
-    auto mi = lookupVarType(*vi) ;
-    if(!checkTypeValid(mi)) {
-      string s ;
-      s = "unable to determine type of variable " ;
-      s += (*vi).str() ;
-      throw parseError(s) ;
-    }
   }
 
-
-  //  if(!prettyOutput)
-  //    outputFile << "namespace {" ;
-  outputFile << "class " << class_name << " : public Loci::" << rule_type << "_rule" ;
   if(rule_type == "pointwise") {
     for(auto vi=output.begin();vi!=output.end();++vi) {
       auto mi = lookupVarType(*vi) ;
@@ -2479,250 +3114,84 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     }
   }
 
-  outputFile << " {" << endl ;
-  syncFile(outputFile) ;
-
-  variableSet outs = output ;
-  for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
-    outs -= ipi->first ;
-    outs += ipi->second ;
-  }
-  variableSet ins = input ;
-  ins -= outs ;
-  map<variable,string> typetable ;
-  map<variable,string> ctypetable ;
-  for(auto vi=ins.begin();vi!=ins.end();++vi) {
-    auto mi = lookupVarType(*vi) ;
-    if(!checkTypeValid(mi)) {
-      cerr << "unknown type for variable " << *vi << endl ;
-      throw parseError("untyped Loci variable") ;
+  bool paramUnit = 0 ;
+  if(rule_type == "unit") {
+    if(output.size() != 1) {
+      throw parseError("unit rule should have only one output variable") ;
     }
-    ctypetable[*vi] = mi->second.container ;
-    if(mi->second.container == "Map") {
-      typetable[*vi] = "int" ;
-    } else if(mi->second.container == "MapVec") {
-      string scratch = mi->second.container_args ;
-      if(scratch.size() > 2) {
-        typetable[*vi] = string("Array<Entity,") + scratch.substr(1,scratch.size()-3) + ">" ;
-      } else {
-        cerr << "unexpected loci variable type!" << endl ;
-      }
-    } else {
-      string scratch = mi->second.container_args ;
-      if(scratch.size() > 2) {
-        typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
-      } else {
-        cerr << "unexpected loci variable type!" << endl ;
+
+    variable v = *(output.begin()) ;
+    typedoc tinfo = lookupVarType(v)->second ;
+    if(tinfo.container != "param") {
+      throw parseError("unit rule should have only param output variable") ;
+    }
+
+    paramUnit = 1 ;
+  }
+
+  int singletonApply = 0 ;
+  if(rule_type == "apply") {
+    if(output.size() != 1) {
+      throw parseError("apply rule should have only one output variable") ;
+    }
+
+    variable v = *(output.begin()) ;
+    typedoc tinfo = lookupVarType(v)->second ;
+    if(tinfo.container != "param") {
+      throw parseError("apply rule should have param as output variable") ;
+    }
+
+    bool allparam = true ;
+    for(auto vi = input.begin(); vi != input.end(); ++vi) {
+      typedoc tinfo2 = lookupVarType(*vi)->second ;
+      if(tinfo2.container != "param") {
+        allparam = false ;
       }
     }
 
-    if(!prettyOutput) {
-      outputFile << "    Loci::const_gpu" << mi->second.container
-                 <<  mi->second.container_args ;
-    } else {
-      outputFile << "    const_gpu" << mi->second.container
-                 <<  mi->second.container_args ;
+    if(allparam) {
+      singletonApply = 1 ;
     }
-
-    outputFile << " " << vnames[*vi] << " ; " << endl ;
-    syncFile(outputFile) ;
   }
 
-  for(auto vi=outs.begin();vi!=outs.end();++vi) {
-    auto mi = lookupVarType(*vi) ;
-    if(!checkTypeValid(mi)) {
-      cerr << "unknown type for variable " << *vi << endl ;
-      throw parseError("untyped Loci variable") ;
-    }
-    ctypetable[*vi] = mi->second.container ;
-    if(mi->second.container == "Map") {
-      typetable[*vi] = "int" ;
-    } else if(mi->second.container == "MapVec") {
-      string scratch = mi->second.container_args ;
-      if(scratch.size() > 2) {
-        typetable[*vi] = string("Array<Entity,") + scratch.substr(1,scratch.size()-3) + ">" ;
-      } else {
-        cerr << "unexpected loci variable type!" << endl ;
-      }
-    } else {
-      string scratch = mi->second.container_args ;
-      if(scratch.size() > 2) {
-        typetable[*vi] = scratch.substr(1,scratch.size()-3) ;
-      } else {
-        cerr << "unexpected loci variable type!" << endl ;
-      }
-    }
-    if(!prettyOutput)
-      outputFile << "    Loci::gpu" << mi->second.container
-		 <<  mi->second.container_args ;
-    else
-      outputFile << "    gpu" << mi->second.container <<
-	mi->second.container_args ;
-    outputFile << " " << vnames[*vi] << " ; " << endl ;
-    syncFile(outputFile) ;
-  }
-  outputFile << "public:" << endl ;
-  syncFile(outputFile) ;
-  outputFile <<   "    " << class_name << "() {" << endl ;
-  syncFile(outputFile) ;
-  for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
-    all_vars -= ipi->first ;
+  if(singletonApply) {
+    cerr << "NOTE: parameter only apply rule on '"
+         << *(output.begin()) << "' now executes single instance." << endl ;
   }
 
-  for(auto vi=all_vars.begin();vi!=all_vars.end();++vi) {
-    outputFile << "       name_store(\"" << *vi << "\","
-               << vnames[*vi] << ") ;" << endl ;
-    syncFile(outputFile) ;
-  }
-  if(bodys != "") {
-    outputFile <<   "       input(\"" << bodys << "\") ;" << endl ;
-    syncFile(outputFile) ;
-  }
-
-  for(auto i=targets.begin();i!=targets.end();++i) {
-    outputFile <<   "       output(\"" ;
-    for(size_t j=0;j<i->mapping.size();++j)
-      outputFile << i->mapping[j] << "->" ;
-
-    // Output target variables, adding inplace notation if needed
-    if(i->var.size() > 1)
-      outputFile << '(' ;
-    for(auto vi=i->var.begin();vi!=i->var.end();++vi) {
-      if(vi != i->var.begin())
-        outputFile << ',' ;
-      auto ipi = inplace.begin() ;
-      for(;ipi!=inplace.end();++ipi) {
-        if((ipi->first) == *vi)
-          break ;
-      }
-      if(ipi!=inplace.end()) {
-        if(i->mapping.size() == 0 || i->var.size() > 1)
-          outputFile << ipi->first << "=" << ipi->second ;
-        else
-          outputFile << '('<<ipi->first << "=" << ipi->second <<')';
-      } else
-        outputFile << *vi ;
-    }
-    if(i->var.size() > 1)
-      outputFile << ')' ;
-
-    outputFile <<  "\") ;" << endl ;
-    syncFile(outputFile) ;
-  }
-  outputFile << "disable_threading() ;" << endl ;
-  syncFile(outputFile) ;
-  //  outputFile <<   "       output(\"" << heads << "\") ;" << endl ;
-  //  syncFile(outputFile) ;
-
-  if(constraint!="") {
-    // Check to see that the constraint is typed
+  // Extract constraint variables and check if they are typed.
+  variableSet constraint_vars ;
+  set<vmap_info> constraints ;
+  if(constraint != "") {
     exprP C = expression::create(constraint) ;
-    set<vmap_info> Cdigest ;
-    fill_descriptors(Cdigest,collect_associative_op(C,OP_COMMA)) ;
-    variableSet constraint_vars ;
-    for(auto i=Cdigest.begin();i!=Cdigest.end();++i) {
-      for(size_t j=0;j<i->mapping.size();++j)
-	constraint_vars += i->mapping[j] ;
+    fill_descriptors(constraints, collect_associative_op(C,OP_COMMA)) ;
+
+    for(auto i = constraints.begin(); i != constraints.end(); ++i) {
+      for(size_t j = 0; j < i->mapping.size(); ++j)
+        constraint_vars += i->mapping[j] ;
       constraint_vars += i->var ;
     }
 
-    for(auto vi=constraint_vars.begin();vi!=constraint_vars.end();++vi) {
+    for(auto vi = constraint_vars.begin(); vi!=constraint_vars.end(); ++vi) {
       auto mi = lookupVarType(*vi) ;
 
       if(!checkTypeValid(mi)) {
-
-        cerr << filename << ':' << line_no << ":0: warning: type of constraint variable '" << *vi << "' not found!"  << endl  ;
-
+        cerr << filename << ':' << constraint_line_no
+             << ":0: warning: type of constraint variable '"
+             << *vi << "' not found!"  << endl  ;
       }
     }
-
-    outputFile <<   "       constraint(\"" << constraint << "\") ;" << endl ;
-    syncFile(outputFile) ;
   }
 
-  if(parametric_var != "") {
-    outputFile <<   "       set_parametric_variable(\""
-               << parametric_var << "\") ;" << endl ;
-    syncFile(outputFile) ;
-  }
-  if(is_specialized) {
-    outputFile <<   "       set_specialized() ; " << endl ;
-    syncFile(outputFile) ;
-  }
-  if(conditional!="") {
-    outputFile <<   "       conditional(\"" << conditional << "\") ;" << endl ;
-    syncFile(outputFile) ;
-  }
-  for(auto lsi=options.begin();lsi!=options.end();++lsi) {
-    string s = *lsi ;
-    bool has_paren = false ;
-    for(size_t i = 0;i<s.size();++i)
-      if(s[i] == '(')
-        has_paren = true ;
-    outputFile <<   "       " << s ;
-    if(!has_paren)
-      outputFile << "()" ;
-    outputFile << " ;" << endl;
-    syncFile(outputFile) ;
-  }
-  if(comments.size() == 0) {
-    // check to see if there is a javadoc compatible comment before
-    if(comment.size() > 0)
-      comments.push_back(comment) ;
-    else if(rule_type=="optional" || rule_type=="default") {
-      auto mi = lookupVarType(*output.begin()) ;
-      comments.push_back(mi->second.comment) ;
-    }
-  }
-  for(auto lsi=comments.begin();lsi!=comments.end();++lsi) {
-    outputFile <<   "       comments(" << *lsi << ") ;" << endl ;
-    syncFile(outputFile) ;
-  }
-  // document file location of rule
-  outputFile << "       set_file(\"" << filename << ":" << line_no << "\") ;" << endl ;
-  syncFile(outputFile) ;
-  outputFile <<   "    }" << endl ;
-  syncFile(outputFile) ;
-
-  //  bool use_compute = true ;
-
-  if(use_prelude) {
-    throw parseError("prelude not compatible with cuda rules") ;
-  }
-
-  //  if(use_compute && is.peek() != '{')
-  //    throw parseError("syntax error, expecting '{'") ;
-
-  bool sized_outputs = false;
-  variableSet outsmi = outs ;
-  outsmi -= input ;
-  for(auto vi=outsmi.begin();vi!=outsmi.end();++vi) {
-    auto mi = lookupVarType(*vi) ;
-    const string &ot  = mi->second.container ;
-    if(ot == "storeVec" || ot == "storeMat" || ot == "multiStore")
-      sized_outputs = true ;
-  }
-  if(sized_outputs)
-    throw parseError("cuda rules currently incompatible with storeVec, storemat or multiStore types") ;
-
-  //  if(use_compute)
-  //    process_Calculate(outputFile,vnames,validate_set) ;
-
-  outputFile <<   "    void compute(const Loci::sequence &seq) ;" << endl ;
-  syncFile(outputFile) ;
-  outputFile <<   "} ;" << endl ;
-  syncFile(outputFile) ;
-
-  //  process_Calculate(outputFile,vnames,validate_set) ;
   varmap typemap ;
 
-  if(is.peek() != '{')
+  if(is.peek() != '{') {
     throw parseError("syntax error, expecting '{'") ;
+  }
 
-  int startline = line_no ;
+  compute_line_no = line_no ;
 
-  CPTR<AST_type> ap = parseBlock(is,line_no,filename,typemap) ;
-  //    outputFile << "Parsed TEST:" << endl ;
+  CPTR<AST_type> ap = parseBlock(is, line_no, filename, typemap) ;
 
   AST_condenseLeftAssociative condenseOps ;
   ap->accept(condenseOps) ;
@@ -2739,12 +3208,12 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   ap->accept(syntaxChecker) ;
   if(syntaxChecker.hasErrors()) {
 #ifdef VERBOSE
-    AST_simplePrint printer(cerr,-1,false) ;
+    AST_simplePrint printer(cerr, -1, false) ;
     ap->accept(printer) ;
 #endif
     throw parseError("syntax error") ;
   }
-  
+
   AST_collectAccessInfo varaccess ;
   ap->accept(varaccess) ;
   //cerr << "variables = " << varaccess.accessed << endl ;
@@ -2758,93 +3227,234 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
 
   variableSet readvars ;
   variableSet writevars ;
-  
-  for(auto i=varaccess.accessed.begin();i!=varaccess.accessed.end();++i) {
+
+  for(auto i = varaccess.accessed.begin(); i != varaccess.accessed.end(); ++i) {
     readvars += i->var ;
-    for(size_t j=0;j<i->mapping.size();++j)
+    for(size_t j = 0; j < i->mapping.size(); ++j) {
       readvars += i->mapping[j] ;
+    }
   }
-  for(auto i=varaccess.writes.begin();i!=varaccess.writes.end();++i) {
+  for(auto i = varaccess.writes.begin(); i != varaccess.writes.end(); ++i) {
     writevars += i->var ;
-    for(size_t j=0;j<i->mapping.size();++j)
+    for(size_t j = 0; j < i->mapping.size(); ++j) {
       readvars += i->mapping[j] ;
+    }
   }
 
   readvars -= writevars ;
-  
+
   // Now remove and save the open and close braces in the parseBlock
   CPTR<AST_Block> bigblock = CPTR<AST_Block>(ap) ;
   CPTR<AST_type> open = bigblock->elements[0] ;
   int bsz = bigblock->elements.size() ;
   CPTR<AST_type> close = bigblock->elements[bsz-1] ;
-  for(int i=0;i<bsz-1;++i)
+  for(int i = 0; i < bsz-1; ++i) {
     bigblock->elements[i] = bigblock->elements[i+1] ;
+  }
   bigblock->elements.pop_back() ;
   bigblock->elements.pop_back() ;
-  
-  AST_simplePrint printer(outputFile,-1,prettyOutput) ;
 
-  if(!prettyOutput)
-    outputFile << "#line " << startline << endl ;
-  outputFile << "__global__" << endl ;
-  if(!prettyOutput)
-    outputFile << "#line " << startline << endl ;
-  outputFile << "void "<< class_name << "_kernel(" ;
-  for(auto i=writevars.begin();i!=writevars.end();) {
-    outputFile << typetable[*i]<< " *" << vnames[*i] ;
-    ++i ;
-    if(i!=writevars.end())
-      outputFile << "," ;
+  if(rule_type == "apply") {
+    std::stringstream ss ;
+    int linecount = compute_line_no ;
+
+    ss << "loci_reduction_t _reduce_op_ ;" ;
+    linecount = compute_line_no ;
+    AST_type::ASTP reduce_op_decl = parseDeclaration(
+      ss, linecount, filename, typemap
+    ) ;
+
+    ss.str("") ;
+    ss.clear() ;
+    ss << "value_t _local_ = _reduce_op_.identity() ;" ;
+    linecount = compute_line_no ;
+    AST_type::ASTP local_value_decl = parseDeclaration(
+      ss, linecount, filename, typemap
+    ) ;
+
+    ss.str("") ;
+    ss.clear() ;
+    ss << "return _local_ ;" ;
+    linecount = compute_line_no ;
+    AST_type::ASTP return_local_value = parseSpecialControlStatement(
+      ss, linecount, filename, typemap
+    ) ;
+
+    bigblock->elements.insert(bigblock->elements.begin(), local_value_decl) ;
+    bigblock->elements.insert(bigblock->elements.begin(), reduce_op_decl) ;
+    bigblock->elements.insert(bigblock->elements.end(), return_local_value) ;
+
+    AST_editJoin edit_join ;
+    ap->accept(edit_join) ;
   }
-  if(readvars!=EMPTY)
-    outputFile << "," ;
-  for(auto i=readvars.begin();i!=readvars.end();) {
-    outputFile << "const " << typetable[*i] << " *" << vnames[*i] ;
-    ++i ;
-    if(i!=readvars.end())
-      outputFile << "," ;
+
+  //AST_printObjectTree treeout(cerr) ;
+  //ap->accept(treeout) ;
+
+  variableSet outs = output ;
+  for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
+    outs -= ipi->first ;
+    outs += ipi->second ;
   }
-  outputFile << ", int _start_, int _end_, int _blksz_)" << endl ;
+  variableSet ins = input ;
+  ins -= outs ;
 
-  open->accept(printer) ;
+  map<variable,string> typetable ;
+  map<variable,string> ctypetable ;
+  map<variable,string> cargtable ;
+  for(auto vi=ins.begin();vi!=ins.end();++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      cerr << "unknown type for variable " << *vi << endl ;
+      throw parseError("untyped Loci variable") ;
+    }
 
-  if(!prettyOutput)
-    outputFile << endl << "#line " << printer.lineno  << endl ;
-  outputFile << "   int _e_ = _start_+blockIdx.x*_blksz_+threadIdx.x ;" <<endl;
-  if(!prettyOutput)
-    outputFile << "#line " << printer.lineno  << endl ;
-  outputFile << "   if(_e_ <= _end_) {" << endl ;
-  if(!prettyOutput)
-    outputFile <<  "#line " << printer.lineno << endl  ;
+    if(mi->second.container != "param" &&
+       mi->second.container != "Map" &&
+       mi->second.container != "MapVec" &&
+       mi->second.container != "store" &&
+       mi->second.container != "storeVec" &&
+       mi->second.container != "storeMat" &&
+       mi->second.container != "multiStore") {
+       cerr << "unknown container type '" << mi->second.container
+            << "' for variable " << *vi << endl ;
+       throw parseError("unsupported Loci container") ;
+    }
+
+    ctypetable[*vi] = mi->second.container ;
+
+    if(mi->second.container == "Map") {
+      typetable[*vi] = "int" ;
+      cargtable[*vi] = "" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = string("Array<Entity,") + arg + ">" ;
+        cargtable[*vi] = arg ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
+    } else {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = arg ;
+        cargtable[*vi] = arg ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
+    }
+  }
+
+  for(auto vi=outs.begin();vi!=outs.end();++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      cerr << "unknown type for variable " << *vi << endl ;
+      throw parseError("untyped Loci variable") ;
+    }
+
+    if(mi->second.container != "param" &&
+       mi->second.container != "Map" &&
+       mi->second.container != "MapVec" &&
+       mi->second.container != "store" &&
+       mi->second.container != "storeVec" &&
+       mi->second.container != "storeMat" &&
+       mi->second.container != "multiStore") {
+       cerr << "unknown container type '" << mi->second.container
+            << "' for variable " << *vi << endl ;
+       throw parseError("unsupported Loci container") ;
+    }
+
+    ctypetable[*vi] = mi->second.container ;
+
+    if(mi->second.container == "Map") {
+      typetable[*vi] = "int" ;
+      cargtable[*vi] = "" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = string("Array<Entity,") + arg + ">" ;
+        cargtable[*vi] = arg ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
+    } else {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = arg ;
+        cargtable[*vi] = arg ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
+    }
+  }
+
+  for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
+    all_vars -= ipi->first ;
+  }
+
+  if(constraint != "") {
+    // Check to see that the constraint is typed
+    exprP C = expression::create(constraint) ;
+    set<vmap_info> Cdigest ;
+    fill_descriptors(Cdigest,collect_associative_op(C,OP_COMMA)) ;
+    variableSet constraint_vars ;
+    for(auto i=Cdigest.begin();i!=Cdigest.end();++i) {
+      for(size_t j=0;j<i->mapping.size();++j)
+	constraint_vars += i->mapping[j] ;
+      constraint_vars += i->var ;
+    }
+
+    for(auto vi=constraint_vars.begin();vi!=constraint_vars.end();++vi) {
+      auto mi = lookupVarType(*vi) ;
+
+      if(!checkTypeValid(mi)) {
+        cerr << filename << ':' << line_no
+             << ":0: warning: type of constraint variable '"
+             << *vi << "' not found!"  << endl  ;
+      }
+    }
+  }
+
+  if(comments.size() == 0) {
+    // check to see if there is a javadoc compatible comment before
+    if(comment.size() > 0) {
+      comments.push_back(comment) ;
+      comments_line_no.push_back(rule_type_line_no) ;
+    } else if(rule_type=="optional" || rule_type=="default") {
+      auto mi = lookupVarType(*output.begin()) ;
+      comments.push_back(mi->second.comment) ;
+      comments_line_no.push_back(mi->second.lineno) ;
+    }
+  }
+
+  bool sized_outputs = false;
+  variableSet outsmi = outs ;
+  outsmi -= input ;
+  for(auto vi=outsmi.begin();vi!=outsmi.end();++vi) {
+    auto mi = lookupVarType(*vi) ;
+    const string &ot  = mi->second.container ;
+    if(ot == "storeVec" || ot == "storeMat" || ot == "multiStore")
+      sized_outputs = true ;
+  }
+  if(sized_outputs)
+    throw parseError("cuda rules currently incompatible with storeVec, storeMat or multiStore types") ;
 
   AST_editLociVariableAccess2 AST_editor(vnames, ctypetable) ;
   ap->accept(AST_editor) ;
 
-  ap->accept(printer) ;
-
-  close->accept(printer) ;
-  close->accept(printer) ;
-  outputFile << endl ;
-  syncFile(outputFile) ;
-  outputFile << "void " << class_name << "::compute(const Loci::sequence &seq) {" << endl ;
-  syncFile(outputFile) ;
-  outputFile << "  const int NTHREADS=64 ;" << endl ;
-  syncFile(outputFile) ;
-  outputFile << "  const int ni = seq.num_intervals() ;"<< endl ;
-  syncFile(outputFile) ;
-  outputFile << "  for(int i=0;i<ni;++i) {" << endl ;
-  syncFile(outputFile) ;
-  outputFile << "    const Loci::int_type i1 = seq[i].first ;" << endl ;
-  syncFile(outputFile) ;
-  outputFile << "    const Loci::int_type i2 = seq[i].second  ;" << endl ; 
-  syncFile(outputFile) ;
-  outputFile << "    const Loci::int_type start = min(i1,i2) ;" << endl ;
-  syncFile(outputFile) ;
-  outputFile << "    const Loci::int_type stop = max(i1,i2) ;" << endl ;
-  syncFile(outputFile) ;
-  outputFile << "    const int nblks = (stop-start+NTHREADS)/NTHREADS ;" << endl ;
-  syncFile(outputFile) ;
-
+  string rule_debug_name ;
   if(parseInfo.debug_info > 0) {
     ostringstream oss ;
     for(auto i=targets.begin();i!=targets.end();) {
@@ -2868,50 +3478,323 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     oss << bodys ;
     if(constraint!="")
       oss << ",constraint(" << constraint<<")" ;
-    outputFile << "nvtxRangePush(\"" << oss.str() << "\");" << endl ;
-    syncFile(outputFile) ;
-  }
-  outputFile <<"    " <<class_name << "_kernel<<<nblks,NTHREADS,0,Loci::getGPUStream()>>>(";
-  for(auto i=writevars.begin();i!=writevars.end();) {
-    outputFile << vnames[*i] << ".ptr()";
-    ++i ;
-    if(i!=writevars.end())
-      outputFile << "," ;
-  }
-  if(readvars!=EMPTY)
-    outputFile << "," ;
-  for(auto i=readvars.begin();i!=readvars.end();) {
-    outputFile <<vnames[*i]<< ".ptr()" ;
-    ++i ;
-    if(i!=readvars.end())
-      outputFile << "," ;
-  }
-  outputFile << ",start, stop, NTHREADS) ;"  ;
-  if(parseInfo.debug_info > 0) {
-    outputFile << "nvtxRangePop();" ;
-  }
-  outputFile<<endl ;
-  syncFile(outputFile) ;
-  syncFile(outputFile) ;
-  outputFile << "}" << endl; // end of for loop
-  syncFile(outputFile) ;
-  outputFile << "}" << endl; // end of compute method
-  syncFile(outputFile) ;
-  
-  if(!prettyOutput)
-    outputFile << "Loci::register_rule<"<<class_name<<"> register_"<<class_name
-               << " ;" << endl ;
-  else
-    outputFile << "register_rule<"<<class_name<<"> register_"<<class_name
-               << " ;" << endl ;
-  syncFile(outputFile) ;
 
-  //  if(!prettyOutput) {
-  //    outputFile << "}" << endl ;
-  //    syncFile(outputFile) ;
-  //  }
+    rule_debug_name = oss.str() ;
+  }
 
-  
+  TemplateContext rule_ctx ;
+
+  rule_ctx.set("type", rule_type) ;
+  rule_ctx.set("class", class_name) ;
+  rule_ctx.set("file", filename) ;
+  rule_ctx.set("line_number", rule_type_line_no) ;
+  rule_ctx.set("debug_name", rule_debug_name) ;
+
+  {
+    TemplateContext signature_ctx ;
+    signature_ctx.set("line_number", signature_line_no) ;
+    rule_ctx.set_object("signature", signature_ctx) ;
+  }
+
+  {
+    vector<TemplateContext> input_stores_ctx ;
+    for(auto vi = ins.begin(); vi != ins.end(); ++vi) {
+      TemplateContext ctx ;
+      ctx.set("name", (*vi).str()) ;
+      ctx.set("vname", vnames[*vi]) ;
+      ctx.set("ctype", ctypetable[*vi]) ;
+      ctx.set("vtype", typetable[*vi]) ;
+      ctx.set("carg", cargtable[*vi]) ;
+      input_stores_ctx.push_back(ctx) ;
+    }
+    rule_ctx.set_array("input_stores", input_stores_ctx) ;
+  }
+
+  {
+    vector<TemplateContext> output_stores_ctx ;
+    for(auto vi = outs.begin(); vi != outs.end(); ++vi) {
+      TemplateContext ctx ;
+      ctx.set("name", (*vi).str()) ;
+      ctx.set("vname", vnames[*vi]) ;
+      ctx.set("ctype", ctypetable[*vi]) ;
+      ctx.set("vtype", typetable[*vi]) ;
+      ctx.set("carg", cargtable[*vi]) ;
+      output_stores_ctx.push_back(ctx) ;
+    }
+    rule_ctx.set_array("output_stores", output_stores_ctx) ;
+  }
+
+  {
+    vector<TemplateContext> name_stores_ctx ;
+    for(auto vi = all_vars.begin(); vi != all_vars.end(); ++vi) {
+      TemplateContext ctx ;
+      ctx.set("name", (*vi).str()) ;
+      ctx.set("vname", vnames[*vi]) ;
+
+      auto mi = access_map.find(lookupVarType(*vi)->second.getFileLoc()) ;
+      if(mi != access_map.end()) {
+        ctx.set("has_info_id", 1) ;
+        ctx.set("info_id", mi->second) ;
+      } else {
+        ctx.set("has_info_id", 0) ;
+      }
+
+      name_stores_ctx.push_back(ctx) ;
+    }
+    rule_ctx.set_array("name_stores", name_stores_ctx) ;
+  }
+
+  {
+    vector<TemplateContext> inputs_ctx ;
+    for(auto i = sources.begin(); i != sources.end(); ++i) {
+      ostringstream ss ;
+      if(i->mapping.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->mapping.begin(); vi != i->mapping.end(); ++vi) {
+        if(vi != i->mapping.begin()) {
+          ss << ',' ;
+        }
+        ss << *vi ;
+      }
+      if(i->mapping.size() > 1) {
+        ss << ')' ;
+      }
+      if(i->mapping.size() > 0) {
+        ss << "->" ;
+      }
+
+      if(i->var.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        if(vi != i->var.begin()) {
+          ss << ',' ;
+        }
+        ss << *vi ;
+      }
+      if(i->var.size() > 1) {
+        ss << ')' ;
+      }
+      TemplateContext ctx ;
+      ctx.set("str", ss.str()) ;
+      inputs_ctx.push_back(ctx) ;
+    }
+    rule_ctx.set_array("inputs", inputs_ctx) ;
+  }
+
+  {
+    vector<TemplateContext> outputs_ctx ;
+    for(auto i = targets.begin(); i != targets.end(); ++i) {
+      ostringstream ss ;
+      if(i->mapping.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->mapping.begin(); vi != i->mapping.end(); ++vi) {
+        if(vi != i->mapping.begin()) {
+          ss << ',' ;
+        }
+        ss << *vi ;
+      }
+      if(i->mapping.size() > 1) {
+        ss << ')' ;
+      }
+      if(i->mapping.size() > 0) {
+        ss << "->" ;
+      }
+
+      if(i->var.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        if(vi != i->var.begin()) {
+          ss << ',' ;
+        }
+
+        auto ipi = inplace.begin() ;
+        while(ipi != inplace.end()) {
+          if(ipi->first == *vi) break ;
+          ++ipi ;
+        }
+        if(ipi != inplace.end()) {
+          if(i->mapping.size() == 0 || i->var.size() > 1) {
+            ss << ipi->first << '=' << ipi->second ;
+          } else {
+            ss << '(' << ipi->first << '=' << ipi->second << ')' ;
+          }
+        } else {
+          ss << *vi ;
+        }
+      }
+      if(i->var.size() > 1) {
+        ss << ')' ;
+      }
+
+      TemplateContext ctx ;
+      ctx.set("str", ss.str()) ;
+      outputs_ctx.push_back(ctx) ;
+    }
+
+    rule_ctx.set_array("outputs", outputs_ctx) ;
+  }
+
+  {
+    vector<TemplateContext> constraint_spec_ctx ;
+    for(auto i = constraints.begin(); i != constraints.end(); ++i) {
+      ostringstream ss ;
+      if(i->mapping.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->mapping.begin(); vi != i->mapping.end(); ++vi) {
+        if(vi != i->mapping.begin()) {
+          ss << ',' ;
+        }
+        ss << *vi ;
+      }
+      if(i->mapping.size() > 1) {
+        ss << ')' ;
+      }
+      if(i->mapping.size() > 0) {
+        ss << "->" ;
+      }
+
+      if(i->var.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        if(vi != i->var.begin()) {
+          ss << "," ;
+        }
+        ss << *vi ;
+      }
+      if(i->var.size() > 1) {
+        ss << ')' ;
+      }
+
+      TemplateContext ctx ;
+      ctx.set("str", ss.str()) ;
+      constraint_spec_ctx.push_back(ctx) ;
+    }
+
+    TemplateContext constraints_ctx ;
+    constraints_ctx.set_array("spec", constraint_spec_ctx) ;
+    constraints_ctx.set("line_number", constraint_line_no) ;
+    rule_ctx.set_object("constraints", constraints_ctx) ;
+  }
+
+  {
+    TemplateContext parametric_ctx ;
+    if(parametric_var != "") {
+      rule_ctx.set("is_parametric", 1) ;
+      parametric_ctx.set("spec", parametric_var) ;
+      parametric_ctx.set("line_number", parametric_line_no) ;
+    } else {
+      rule_ctx.set("is_parametric", 0) ;
+    }
+    rule_ctx.set_object("parametric", parametric_ctx) ;
+  }
+
+  {
+    TemplateContext specialized_ctx ;
+    if(is_specialized) {
+      specialized_ctx.set("line_number", specialized_line_no) ;
+    }
+    rule_ctx.set("is_specialized", is_specialized) ;
+    rule_ctx.set_object("specialized", specialized_ctx) ;
+  }
+
+  {
+    TemplateContext conditional_ctx ;
+
+    if(conditional != "") {
+      rule_ctx.set("is_conditional", 1) ;
+      conditional_ctx.set("spec", conditional) ;
+      conditional_ctx.set("line_number", conditional_line_no) ;
+    } else {
+      rule_ctx.set("is_conditional", 0) ;
+    }
+
+    rule_ctx.set_object("conditional", conditional_ctx) ;
+  }
+
+  {
+    vector<TemplateContext> comments_ctx ;
+
+    size_t size = comments.size() ;
+    for(size_t i = 0; i < size; ++i) {
+      TemplateContext ctx ;
+      ctx.set("str", comments[i]) ;
+      ctx.set("line_number", comments_line_no[i]) ;
+      comments_ctx.push_back(ctx) ;
+    }
+
+    rule_ctx.set_array("comments", comments_ctx) ;
+  }
+
+  if(rule_type == "pointwise") {
+    rule_ctx.set("is_pointwise", 1) ;
+    rule_ctx.set("is_unit", 0) ;
+    rule_ctx.set("is_apply", 0) ;
+  } else if(rule_type == "unit") {
+    variable unit_var = *(output.begin()) ;
+
+    TemplateContext unit_ctx ;
+    unit_ctx.set("target_name", unit_var.str()) ;
+    unit_ctx.set("target_vname", vnames[unit_var]) ;
+    unit_ctx.set("container", ctypetable[unit_var]) ;
+    unit_ctx.set("container_args", cargtable[unit_var]) ;
+    unit_ctx.set("is_param", paramUnit) ;
+
+    rule_ctx.set("is_pointwise", 0) ;
+    rule_ctx.set("is_unit", 1) ;
+    rule_ctx.set("is_apply", 0) ;
+    rule_ctx.set_object("unit", unit_ctx) ;
+  } else if(rule_type == "apply") {
+    variable apply_var = *(output.begin()) ;
+
+    TemplateContext apply_ctx ;
+    apply_ctx.set("target_name", apply_var.str()) ;
+    apply_ctx.set("target_vname", vnames[apply_var]) ;
+    apply_ctx.set("container", ctypetable[apply_var]) ;
+    apply_ctx.set("container_args", cargtable[apply_var]) ;
+    apply_ctx.set("operator", apply_op.str()) ;
+    apply_ctx.set("line_number", apply_op_line_no) ;
+    apply_ctx.set("is_singleton", singletonApply) ;
+
+    rule_ctx.set("is_pointwise", 0) ;
+    rule_ctx.set("is_unit", 0) ;
+    rule_ctx.set("is_apply", 1) ;
+    rule_ctx.set_object("apply", apply_ctx) ;
+  }
+
+  {
+    ostringstream compute_ss ;
+    AST_simplePrint printer(compute_ss, -1, prettyOutput) ;
+    ap->accept(printer) ;
+
+    TemplateContext compute_ctx ;
+    compute_ctx.set("line_number", compute_line_no) ;
+    compute_ctx.set("spec", compute_ss.str()) ;
+    rule_ctx.set_object("compute", compute_ctx) ;
+  }
+
+  TemplateContext root_ctx ;
+  root_ctx.set("pln", !prettyOutput) ;
+  root_ctx.set("debug_info", parseInfo.debug_info) ;
+  root_ctx.set_object("rule", rule_ctx) ;
+
+  TemplateEngine engine ;
+  std::string rule_text = "" ;
+  try {
+    rule_text = engine.render(cuda_rule_template, root_ctx) ;
+  } catch(std::runtime_error const & error) {
+    ostringstream ss ;
+    string const message = error.what() ;
+    ss << "error rendering rule: " << error.what() ;
+    throw parseError(ss.str()) ;
+  }
+  outputFile << rule_text << endl ;
+
   if(!use_prelude && sized_outputs && (rule_type != "apply")) 
     throw parseError("need prelude to size output type!") ;
 }
@@ -2966,7 +3849,7 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
       nestedparenstuff con ;
       con.get(is) ;
       if(parametric_var != "") {
-        throw parseError("syntax error: canot specify more than one parametric variable") ;
+        throw parseError("syntax error: cannot specify more than one parametric variable") ;
       }
         
       parametric_var = con.str() ;
@@ -2975,7 +3858,7 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
       nestedparenstuff con ;
       con.get(is) ;
       if(conditional != "") {
-        throw parseError("syntax error: canot specify more than one conditional variable") ;
+        throw parseError("syntax error: cannot specify more than one conditional variable") ;
       }
       conditional = con.str() ;
       line_no += con.num_lines() ;

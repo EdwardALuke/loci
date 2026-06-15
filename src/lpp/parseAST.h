@@ -707,6 +707,8 @@ namespace nodeTypes {
 
 extern std::string OPtoString(AST_type::elementType val) ;
 
+extern std::string NTtoString(AST_type::elementType val) ;
+
 class AST_syntaxError: public AST_type {
 public:
   string error ;
@@ -850,6 +852,12 @@ public:
   AST_simplePrint(ostream &s, int line=-1,bool pp=true): out(s),lineno(line),prettyPrint(pp) {}
   virtual void visit(AST_exprOper &)  ;
   virtual void visit(AST_Token &) ;
+} ;
+
+class AST_editJoin : public AST_visitor {
+public:
+  AST_editJoin() { } ;
+  virtual void visit(AST_SimpleStatement &) ;
 } ;
 
 class AST_collectAccessInfo: public AST_visitor {

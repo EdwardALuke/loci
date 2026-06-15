@@ -23,3 +23,11 @@
 #include <gpustore.h>
 #include <gpuMap.h>
 #include <gpuMapVec.h>
+
+#ifdef USE_CUDA_RT
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
+#include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/transform_iterator.h>
+#include <cub/cub.cuh>
+#endif

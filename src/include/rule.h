@@ -29,6 +29,8 @@
 #include <Tools/debug.h>
 #include <entitySet.h>
 #include <store_rep.h>
+#include <Tools/gpu_attr.h>
+#include <Tools/basic_types.h>
 
 #include <iostream>
 #include <string>
@@ -626,7 +628,11 @@ namespace Loci {
     }
 
   } ;
-  
+
+  template<typename Op, typename T>
+  struct ReductionIdentity {
+  } ;
+
   template <class T> struct NullOp {
     void operator()(T &res, const T &arg)
     { std::cerr << "join should not be called for NullOp" << std::endl; }
@@ -634,27 +640,139 @@ namespace Loci {
     { std::cerr << "join should not be called for NullOp" << std::endl; }
   } ;
 
-  template <class T> struct Summation {
-    void operator()(T &res, const T &arg)
-    { res += arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res += arg ; }
+  template<typename T> struct Summation {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res += arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res += arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Summation<T>, T>::get_value() ;
+    }
   } ;
 
-  template <class T> struct Product {
-    void operator()(T &res, const T &arg)
-    { res *= arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res *= arg ; }
-
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+    > {
+    GPU_DECL
+    static T get_value() {
+      return 0 ;
+    }
   } ;
 
-  template <class T> struct Maximum {
-    void operator()(T &res ,const T &arg)
-    { res = max(res,arg) ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = max(res,arg) ; }
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<vector3d<T>>,
+    typename std::enable_if<std::is_arithmetic_v<T>, vector3d<T>>::type
+    > {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(0, 0, 0) ;
+    }
   } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<vector2d<T>>,
+    typename std::enable_if<std::is_arithmetic_v<T>, vector2d<T>>::type
+    > {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(0, 0) ;
+    }
+  } ;
+
+  template<typename T>
+  struct Product {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res *= arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res *= arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Product<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Product<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+    > {
+    GPU_DECL
+    static T get_value() {
+      return 1.0 ;
+    }
+  } ;
+
+  template<typename T> struct Maximum {
+    GPU_DECL
+    void operator()(T &res ,const T &arg) {
+      res = max(res,arg) ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = max(res,arg) ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Maximum<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Maximum<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return std::numeric_limits<T>::lowest() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Maximum<vector3d<T>>, vector3d<T>> {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Maximum<vector2d<T>>, vector2d<T>> {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
   template <class T> struct Maximum<Vect<T> > {
     template <class U> void operator()(Vect<T> &res ,const U &arg)
     {
@@ -664,12 +782,59 @@ namespace Loci {
     }
   } ;  
 
-  template <class T> struct Minimum {
-    void operator()(T &res, const T &arg)
-    { res = min(res,arg) ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = min(res,arg) ; }
+  template<typename T>
+  struct Minimum {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = min(res,arg) ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = min(res,arg) ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Minimum<T>, T>::get_value() ;
+    }
   } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Minimum<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return std::numeric_limits<T>::max() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Minimum<vector3d<T>>, vector3d<T>> {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Minimum<vector2d<T>>, vector2d<T>> {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
   template <class T> struct Minimum<Vect<T> > {
     template <class U> void operator()(Vect<T> &res ,const U &arg)
     {

@@ -163,6 +163,230 @@ string OPtoString(AST_type::elementType val) {
   return string("/*error*/") ;
 }
 
+std::string NTtoString(AST_type::elementType val) {
+  switch(val) {
+  case OP_SCOPE: return "OP_SCOPE" ;
+  case OP_AT: return "OP_AT" ;
+  case OP_DOT: return "OP_DOT" ;
+  case OP_ARROW: return "OP_ARROW" ;
+  case OP_ARRAY: return "OP_ARRAY" ;
+  case OP_TIMES: return "OP_TIMES" ;
+  case OP_DIVIDE: return "OP_DIVIDE" ;
+  case OP_MODULUS: return "OP_MODULUS" ;
+  case OP_PLUS: return "OP_PLUS" ;
+  case OP_MINUS: return "OP_MINUS" ;
+  case OP_SHIFT_RIGHT: return "OP_SHIFT_RIGHT" ;
+  case OP_SHIFT_LEFT: return "OP_SHIFT_LEFT" ;
+  case OP_LT: return "OP_LT" ;
+  case OP_GT: return "OP_GT" ;
+  case OP_GE: return "OP_GE" ;
+  case OP_LE: return "OP_LE" ;
+  case OP_EQUAL: return "OP_EQUAL" ;
+  case OP_NOT_EQUAL: return "OP_NOT_EQUAL" ;
+  case OP_AND: return "OP_AND" ;
+  case OP_EXOR: return "OP_EXOR" ;
+  case OP_OR: return "OP_OR" ;
+  case OP_LOGICAL_AND: return "OP_LOGICAL_AND" ;
+  case OP_LOGICAL_OR: return "OP_LOGICAL_OR" ;
+  case OP_TERNARY: return "OP_TERNARY" ;
+  case OP_ASSIGN: return "OP_ASSIGN" ;
+  case OP_TIMES_ASSIGN: return "OP_TIMES_ASSIGN" ;
+  case OP_DIVIDE_ASSIGN: return "OP_DIVIDE_ASSIGN" ;
+  case OP_MODULUS_ASSIGN: return "OP_MODULUS_ASSIGN" ;
+  case OP_PLUS_ASSIGN: return "OP_PLUS_ASSIGN" ;
+  case OP_MINUS_ASSIGN: return "OP_MINUS_ASSIGN" ;
+  case OP_SHIFT_LEFT_ASSIGN: return "OP_SHIFT_LEFT_ASSIGN" ;
+  case OP_SHIFT_RIGHT_ASSIGN: return "OP_SHIFT_RIGHT_ASSIGN" ;
+  case OP_AND_ASSIGN: return "OP_AND_ASSIGN" ;
+  case OP_OR_ASSIGN: return "OP_OR_ASSIGN" ;
+  case OP_EXOR_ASSIGN: return "OP_EXOR_ASSIGN" ;
+  case OP_COMMA: return "OP_COMMA" ;
+  case OP_COLON: return "OP_COLON" ;
+  case OP_SEMICOLON: return "OP_SEMICOLON" ;
+  case OP_NIL: return "OP_NIL" ;
+  case OP_INCREMENT: return "OP_INCREMENT" ;
+  case OP_DECREMENT: return "OP_DECREMENT" ;
+  case OP_POSTINCREMENT: return "OP_POSTINCREMENT" ;
+  case OP_POSTDECREMENT: return "OP_POSTDECREMENT" ;
+  case OP_COMMENT: return "OP_COMMENT" ;
+  case OP_BRACEBLOCK: return "OP_BRACEBLOCK" ;
+  case OP_NAME: return "OP_NAME" ;
+  case OP_FUNC: return "OP_FUNC" ;
+  case OP_NAME_BRACE: return "OP_NAME_BRACE" ;
+  case OP_FUNC_BRACE: return "OP_FUNC_BRACE" ;
+  case OP_TEMPLATE: return "OP_TEMPLATE" ;
+  case OP_TEMPLATE_FUNC: return "OP_TEMPLATE_FUNC" ;
+  case OP_STRING: return "OP_STRING" ;
+  case OP_NUMBER: return "OP_NUMBER" ;
+  case OP_ERROR: return "OP_ERROR" ;
+  case OP_UNARY_PLUS: return "OP_UNARY_PLUS" ;
+  case OP_UNARY_MINUS: return "OP_UNARY_MINUS" ;
+  case OP_NOT: return "OP_NOT" ;
+  case OP_TILDE: return "OP_TILDE" ;
+  case OP_AMPERSAND: return "OP_AMPERSAND" ;
+  case OP_DOLLAR: return "OP_DOLLAR" ;
+  case OP_STAR: return "OP_STAR" ;
+  case OP_CAST: return "OP_CAST" ;
+  case OP_TEMPLATE_CAST: return "OP_TEMPLATE_CAST" ;
+  case OP_GROUP: return "OP_GROUP" ;
+  case OP_GROUP_ERROR: return "OP_GROUP_ERROR";
+  case OP_OPENPAREN: return "OP_OPENPAREN" ;
+  case OP_CLOSEPAREN: return "OP_CLOSEPAREN" ;
+  case OP_OPENBRACKET: return "OP_OPENBRACKET" ;
+  case OP_CLOSEBRACKET: return "OP_CLOSEBRACKET" ;
+  case OP_OPENBRACE: return "OP_OPENBRACE" ;
+  case OP_CLOSEBRACE: return "OP_CLOSEBRACE" ;
+  case OP_LOCI_DIRECTIVE: return "OP_LOCI_DIRECTIVE" ;
+  case OP_LOCI_VARIABLE: return "OP_LOCI_VARIABLE" ;
+  case OP_LOCI_CONTAINER: return "OP_LOCI_CONTAINER" ;
+  case OP_TERM: return "OP_TERM" ;
+  case OP_SPECIAL: return "OP_SPECIAL" ;
+  case TK_BRACEBLOCK: return "TK_BRACEBLOCK" ;
+  case TK_SCOPE: return "TK_SCOPE" ;
+  case TK_AT: return "TK_AT" ;
+  case TK_ARROW: return "TK_ARROW" ;
+  case TK_TIMES: return "TK_TIMES" ;
+  case TK_DIVIDE: return "TK_DIVIDE" ;
+  case TK_MODULUS: return "TK_MODULUS" ;
+  case TK_PLUS: return "TK_PLUS" ;
+  case TK_MINUS: return "TK_MINUS" ;
+  case TK_SHIFT_RIGHT: return "TK_SHIFT_RIGHT" ;
+  case TK_SHIFT_LEFT: return "TK_SHIFT_LEFT" ;
+  case TK_LT: return "TK_LT" ;
+  case TK_GT: return "TK_GT" ;
+  case TK_GE: return "TK_GE" ;
+  case TK_LE: return "TK_LE" ;
+  case TK_EQUAL: return "TK_EQUAL" ;
+  case TK_NOT_EQUAL: return "TK_NOT_EQUAL" ;
+  case TK_AND: return "TK_AND" ;
+  case TK_EXOR: return "TK_EXOR" ;
+  case TK_OR: return "TK_OR" ;
+  case TK_LOGICAL_AND: return "TK_LOGICAL_AND" ;
+  case TK_LOGICAL_OR: return "TK_LOGICAL_OR" ;
+  case TK_ASSIGN: return "TK_ASSIGN" ;
+  case TK_TIMES_ASSIGN: return "TK_TIMES_ASSIGN" ;
+  case TK_DIVIDE_ASSIGN: return "TK_DIVIDE_ASSIGN" ;
+  case TK_MODULUS_ASSIGN: return "TK_MODULUS_ASSIGN" ;
+  case TK_PLUS_ASSIGN: return "TK_PLUS_ASSIGN" ;
+  case TK_MINUS_ASSIGN: return "TK_MINUS_ASSIGN" ;
+  case TK_SHIFT_LEFT_ASSIGN: return "TK_SHIFT_LEFT_ASSIGN" ;
+  case TK_SHIFT_RIGHT_ASSIGN: return "TK_SHIFT_RIGHT_ASSIGN" ;
+  case TK_AND_ASSIGN: return "TK_AND_ASSIGN" ;
+  case TK_OR_ASSIGN: return "TK_OR_ASSIGN" ;
+  case TK_EXOR_ASSIGN: return "TK_EXOR_ASSIGN" ;
+  case TK_COMMA: return "TK_COMMA" ;
+  case TK_DOT: return "TK_DOT" ;
+  case TK_COLON: return "TK_COLON" ;
+  case TK_SEMICOLON: return "TK_SEMICOLON" ;
+  case TK_NIL: return "TK_NIL" ;
+  case TK_INCREMENT: return "TK_INCREMENT" ;
+  case TK_DECREMENT: return "TK_DECREMENT" ;
+  case TK_COMMENT: return "TK_COMMENT" ;
+  case TK_MACRO: return "TK_MACRO" ;
+  case TK_NAME: return "TK_NAME" ;
+  case TK_STRING: return "TK_STRING" ;
+  case TK_NUMBER: return "TK_NUMBER" ;
+  case TK_ERROR: return "TK_ERROR" ;
+  case TK_UNARY_PLUS: return "TK_UNARY_PLUS" ;
+  case TK_UNARY_MINUS: return "TK_UNARY_MINUS" ;
+  case TK_NOT: return "TK_NOT" ;
+  case TK_TILDE: return "TK_TILDE" ;
+  case TK_QUESTION: return "TK_QUESTION" ;
+  case TK_AMPERSAND: return "TK_AMPERSAND" ;
+  case TK_STAR: return "TK_STAR" ;
+  case TK_OPENPAREN: return "TK_OPENPAREN" ;
+  case TK_CLOSEPAREN: return "TK_CLOSEPAREN" ;
+  case TK_OPENBRACKET: return "TK_OPENBRACKET" ;
+  case TK_CLOSEBRACKET: return "TK_CLOSEBRACKET" ;
+  case TK_OPENBRACE: return "TK_OPENBRACE" ;
+  case TK_CLOSEBRACE: return "TK_CLOSEBRACE" ;
+  case TK_OPENTEMPLATE: return "TK_OPENTEMPLATE" ;
+  case TK_CLOSETEMPLATE: return "TK_CLOSETEMPLATE" ;
+  case TK_LOCI_DIRECTIVE: return "TK_LOCI_DIRECTIVE" ;
+  case TK_LOCI_VARIABLE: return "TK_LOCI_VARIABLE" ;
+  case TK_LOCI_CONTAINER: return "TK_LOCI_CONTAINER" ;
+  case TK_ALIGNAS: return "TK_ALIGNAS" ;
+  case TK_ALIGNOF: return "TK_ALIGNOF" ;
+  case TK_ASM: return "TK_ASM" ;
+  case TK_BOOL: return "TK_BOOL" ;
+  case TK_FALSE: return "TK_FALSE" ;
+  case TK_TRUE: return "TK_TRUE" ;
+  case TK_CHAR: return "TK_CHAR" ;
+  case TK_INT: return "TK_INT" ;
+  case TK_LONG: return "TK_LONG" ;
+  case TK_SHORT: return "TK_SHORT" ;
+  case TK_SIGNED: return "TK_SIGNED" ;
+  case TK_UNSIGNED: return "TK_UNSIGNED" ;
+  case TK_DOUBLE: return "TK_DOUBLE" ;
+  case TK_FLOAT: return "TK_FLOAT" ;
+  case TK_ENUM: return "TK_ENUM" ;
+  case TK_MUTABLE: return "TK_MUTABLE" ;
+  case TK_CONST: return "TK_CONST" ;
+  case TK_STATIC: return "TK_STATIC" ;
+  case TK_VOLATILE: return "TK_VOLATILE" ;
+  case TK_AUTO: return "TK_AUTO" ;
+  case TK_REGISTER: return "TK_REGISTER" ;
+  case TK_EXPORT: return "TK_EXPORT" ;
+  case TK_EXTERN: return "TK_EXTERN" ;
+  case TK_INLINE: return "TK_INLINE" ;
+  case TK_NAMESPACE: return "TK_NAMESPACE" ;
+  case TK_USING: return "TK_USING" ;
+  case TK_EXPLICIT: return "TK_EXPLICIT" ;
+  case TK_CONST_CAST: return "TK_CONST_CAST" ;
+  case TK_DYNAMIC_CAST: return "TK_DYNAMIC_CAST" ;
+  case TK_STATIC_CAST: return "TK_STATIC_CAST" ;
+  case TK_REINTERPRET_CAST: return "TK_REINTERPRET_CAST" ;
+  case TK_OPERATOR: return "TK_OPERATOR" ;
+  case TK_PROTECTED: return "TK_PROTECTED" ;
+  case TK_NOEXCEPT: return "TK_NOEXCEPT" ;
+  case TK_NULLPTR: return "TK_NULLPTR" ;
+  case TK_RETURN: return "TK_RETURN" ;
+  case TK_SIZEOF: return "TK_SIZEOF" ;
+  case TK_THIS: return "TK_THIS" ;
+  case TK_TYPEID: return "TK_TYPEID" ;
+  case TK_SWITCH: return "TK_SWITCH" ;
+  case TK_CASE: return "TK_CASE" ;
+  case TK_BREAK: return "TK_BREAK" ;
+  case TK_DEFAULT: return "TK_DEFAULT" ;
+  case TK_FOR: return "TK_FOR" ;
+  case TK_DO: return "TK_DO" ;
+  case TK_WHILE: return "TK_WHILE" ;
+  case TK_CONTINUE: return "TK_CONTINUE" ;
+  case TK_CLASS: return "TK_CLASS" ;
+  case TK_STRUCT: return "TK_STRUCT" ;
+  case TK_PUBLIC: return "TK_PUBLIC" ;
+  case TK_PRIVATE: return "TK_PRIVATE" ;
+  case TK_FRIEND: return "TK_FRIEND" ;
+  case TK_UNION: return "TK_UNION" ;
+  case TK_TYPENAME: return "TK_TYPENAME" ;
+  case TK_TEMPLATE: return "TK_TEMPLATE" ;
+  case TK_TYPEDEF: return "TK_TYPEDEF" ;
+  case TK_VIRTUAL: return "TK_VIRTUAL" ;
+  case TK_VOID: return "TK_VOID" ;
+  case TK_TRY: return "TK_TRY" ;
+  case TK_CATCH: return "TK_CATCH" ;
+  case TK_THROW: return "TK_THROW" ;
+  case TK_IF: return "TK_IF" ;
+  case TK_ELSE: return "TK_ELSE" ;
+  case TK_GOTO: return "TK_GOTO" ;
+  case TK_NEW: return "TK_NEW" ;
+  case TK_DELETE: return "TK_DELETE" ;
+  case ND_SYNTAXERR: return "ND_SYNTAXERR" ;
+  case ND_CTRL_IF: return "ND_CTRL_IF" ;
+  case ND_CTRL_FOR: return "ND_CTRL_FOR" ;
+  case ND_CTRL_WHILE: return "ND_CTRL_WHILE" ;
+  case ND_CTRL_DO: return "ND_CTRL_DO" ;
+  case ND_CTRL_SWITCH: return "ND_CTRL_SWITCH" ;
+  case ND_SIMPLE_STATEMENT: return "ND_SIMPLE_STATEMENT" ;
+  case ND_BLOCK: return "ND_BLOCK" ;
+  case ND_DECL: return "ND_DECL" ;
+  case ND_TYPE_SPEC: return "ND_TYPE_SPEC" ;
+  case ND_TERMINAL: return "ND_TERMINAL" ;
+  case TK_SENTINEL: return "TK_SENTINEL" ;
+  }
+  return "UNKNOWN" ;
+}
+
 // Parse a type specification used in either a type declaration statement
 // or a template argument.
 AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
@@ -2754,6 +2978,30 @@ void AST_simplePrint::visit(AST_Token &s) {
       out << endl << '#' << s.text << endl ;
     } else
       out <<s.text << ' ' ;
+  }
+}
+
+void AST_editJoin::visit(AST_SimpleStatement & s) {
+  if(ASTEqual(s.exp, OP_FUNC)) {
+    CPTR<AST_exprOper> func(s.exp) ;
+    if(func->terms.size() == 2) {
+      if(ASTEqual(func->terms[0], TK_NAME)) {
+        CPTR<AST_Token> func_name(func->terms[0]) ;
+        if(func_name->text == "join") {
+          if(ASTEqual(func->terms[1], OP_COMMA)) {
+            CPTR<AST_exprOper> comma(func->terms[1]) ;
+            if(comma->terms.size() == 2) {
+              if(ASTEqual(comma->terms[0], TK_LOCI_VARIABLE)) {
+                CPTR<AST_Token> var(comma->terms[0]) ;
+                func_name->text = "_reduce_op_" ;
+                var->text = "_local_" ;
+                var->nodeType = TK_NAME ;
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }
 
