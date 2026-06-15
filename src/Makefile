@@ -27,24 +27,57 @@ include version.conf
 
 DEFINES = $(DEBUG) $(SYSTEM_DEFINES) $(MACHINE_SPECIFIC)
 
-.PHONEY: default library docs install lpp FVMtools FVMMod FVMAdapt FVMOverset
-.PHONEY: METIS SPRNG
+.PHONY: default library docs tutorial-docs doxygen-docs docs-for-install docs-clean docs-distclean install lpp FVMtools FVMMod FVMAdapt FVMOverset
+.PHONY: METIS SPRNG
 default: library lpp FVMtools FVMMod FVMAdapt FVMOverset METIS SPRNG
 
 library: Tools/libTools.$(LIB_SUFFIX) System/libLoci.$(LIB_SUFFIX)
 
-docs:
-	$(MAKE) -C Tutorial/docs LOCI_BASE="$(LOCI_BASE)"
+docs: tutorial-docs doxygen-docs
 
-install: default docs
+tutorial-docs:
+	$(MAKE) -C docs/tutorial/docs LOCI_BASE="$(LOCI_BASE)"
+
+doxygen-docs:
+	@if command -v doxygen >/dev/null 2>&1; then \
+		cd docs/doxygen && rm -rf html latex && doxygen Doxyfile; \
+	else \
+		echo "Skipping Doxygen API docs: doxygen not found."; \
+	fi
+
+docs-for-install:
+	@if [ -e docs/tutorial/docs/tutorial.pdf ]; then \
+		echo "Using existing tutorial PDF."; \
+	elif command -v pdflatex >/dev/null 2>&1; then \
+		$(MAKE) tutorial-docs; \
+	else \
+		echo "Skipping tutorial PDF: docs/tutorial/docs/tutorial.pdf not found and pdflatex not found."; \
+		echo "Run 'make docs' after installing pdflatex to rebuild the tutorial PDF."; \
+	fi
+	@if [ -f docs/doxygen/html/index.html ]; then \
+		echo "Using existing Doxygen API docs."; \
+	elif command -v doxygen >/dev/null 2>&1; then \
+		$(MAKE) doxygen-docs; \
+	else \
+		echo "Skipping Doxygen API docs: docs/doxygen/html/index.html not found and doxygen not found."; \
+		echo "Run 'make docs' after installing doxygen to rebuild the API docs."; \
+	fi
+
+docs-clean:
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs clean; fi
+
+docs-distclean:
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs distclean; fi
+
+install: default docs-for-install
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
-	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
+	GIT_BRANCH=$(GIT_BRANCH) bash scripts/Install.bash
 
 install_minimal: default
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
-	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
+	GIT_BRANCH=$(GIT_BRANCH) bash scripts/Install.bash
 
 .PHONY: METIS
 METIS :
@@ -114,6 +147,7 @@ testclean:
 
 clean:
 	rm -f $(JUNK)
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs clean; fi
 	$(MAKE) -C Tools clean LOCI_BASE="$(LOCI_BASE)"
 	$(MAKE) -C System clean LOCI_BASE="$(LOCI_BASE)"
 ifeq ($(INSTALL_METIS),1)
@@ -155,12 +189,14 @@ endif
 # remove documentation
 	rm -fr $(LOCI_INSTALL_PATH)/docs/1D-Diffusion
 	rm -fr $(LOCI_INSTALL_PATH)/docs/Datatypes
+	rm -fr $(LOCI_INSTALL_PATH)/docs/doxygen
 	rm -fr $(LOCI_INSTALL_PATH)/docs/heat
 	rm -f $(LOCI_INSTALL_PATH)/docs/tutorial.pdf
 
 .PHONY: distclean
 distclean:
 	rm -f $(JUNK)
+	@if [ -f docs/Makefile ]; then $(MAKE) -C docs distclean; fi
 ifeq ($(INSTALL_METIS),1)
 	$(MAKE) -C ParMetis-4.0 distclean LOCI_BASE="$(LOCI_BASE)"
 endif

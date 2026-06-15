@@ -1,33 +1,48 @@
 # Doxygen-based documentation
 
 This directory contains the Doxygen configuration and HTML theme files for the
-Loci API reference documentation.
+Loci API reference documentation. The files here are source files; generated
+HTML is written into the configured `OBJ` build tree.
 
 ## Building the documentation
 
 ### Prerequisites
 
 - Doxygen 1.9.8 or later
-- Graphviz (`dot` command) — required for collaboration and include graphs
+- Graphviz (`dot` command), optional. Enable `HAVE_DOT` in `Doxyfile` if you
+  want Doxygen's Graphviz-backed include, inheritance, or collaboration graphs.
 
 ### Steps
 
-Run Doxygen from **this directory** so that relative paths in the `Doxyfile`
-resolve correctly:
+Run the repository docs target after configuring Loci:
 
 ```bash
-cd doxygen
+make docs
+```
+
+The generated API reference lands in `OBJ/docs/doxygen/html/`. Open
+`OBJ/docs/doxygen/html/index.html` in a browser to browse the output.
+
+For a quick source-tree preview without using `OBJ`, run Doxygen from this
+directory:
+
+```bash
+cd docs/doxygen
 doxygen Doxyfile
 ```
 
-The generated HTML lands in `docs/html/`. Open `docs/html/index.html`
-in a browser to browse the output.
+That writes ignored preview output to `docs/doxygen/html/`.
 
 ### Cleaning the output
 
 ```bash
-rm -rf ../docs/html
+make distclean
 ```
+
+`make clean` preserves Doxygen HTML as a final documentation product.
+From the repository top level, `make distclean` removes generated Doxygen output
+from both the configured `OBJ` tree and from a source tree unpacked from a
+`tarball-with-docs` archive.
 
 # Build Configuration
 
@@ -36,21 +51,21 @@ rm -rf ../docs/html
 | File             | Purpose                                               |
 |------------------|-------------------------------------------------------|
 | `Doxyfile`       | Main Doxygen configuration                            |
-| `header.html`    | Custom HTML header injected into every generated page |
-| `footer.html`    | Custom HTML footer injected into every generated page |
-| `stylesheet.css` | Extra CSS applied on top of the Doxygen default theme |
+| `theme/header.html`    | Custom HTML header injected into every generated page |
+| `theme/footer.html`    | Custom HTML footer injected into every generated page |
+| `theme/stylesheet.css` | Extra CSS applied on top of the Doxygen default theme |
 
 ## Build configuration summary
 
 | Setting                  | Value                                                                    |
 |--------------------------|--------------------------------------------------------------------------|
 | Project                  | Loci                                                                     |
-| Input root               | `..` (repository root)                                                   |
+| Input root               | `../..` from `OBJ/docs/doxygen`, i.e. the configured build tree           |
 | File patterns            | `*.cc`, `*.h`, `*.loci`, `*.lh`, `*.md`                                  |
 | Recursive                | Yes                                                                      |
-| Excluded directories     | `ext`, `contrib`, `docs`, `tmpcopy`                                       |
-| Output directory         | `../docs`                                                                |
-| HTML output subdirectory | `../docs/html`                                                           |
+| Excluded directories     | `OBJ`, `ext`, `contrib`, `tmpcopy`, and generated Doxygen output          |
+| Output directory         | `.` from `OBJ/docs/doxygen`                                               |
+| HTML output subdirectory | `OBJ/docs/doxygen/html`                                                   |
 | Formats generated        | HTML only (LaTeX, Man, XML disabled)                                     |
 | Search engine            | Enabled (client-side)                                                    |
 | Extract private members  | Yes                                                                      |
