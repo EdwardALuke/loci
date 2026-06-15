@@ -1,0 +1,33 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+
+% Plain pyramid-like general polyhedron.
+% The apex has four incident edges, unlike the tetrahedron, hexahedron, or prism vertices.
+\begin{document}
+\begin{tikzpicture}[
+  x={(18mm,0mm)},
+  y={(7mm,4mm)},
+  z={(0mm,18mm)},
+  line join=round,
+  line cap=round,
+  edge/.style={draw=black,line width=0.65mm}
+]
+  % Irregular quadrilateral base and a raised apex.
+  \coordinate (v0) at (0,0,0);
+  \coordinate (v1) at (2.4,0,0);
+  \coordinate (v2) at (2.1,1.8,0);
+  \coordinate (v3) at (0.2,1.55,0);
+  \coordinate (apex) at (1.05,0.8,2.2);
+
+  % Wireframe edges.
+  \draw[edge] (v0) -- (v1) -- (v2) -- (v3) -- cycle;
+  \draw[edge] (apex) -- (v0);
+  \draw[edge] (apex) -- (v1);
+  \draw[edge] (apex) -- (v2);
+  \draw[edge] (apex) -- (v3);
+
+  % Original vertices are black.
+  \foreach \p in {v0,v1,v2,v3,apex} {
+    \fill[black] (\p) circle[radius=0.85mm];
+  }
+\end{tikzpicture}
+\end{document}

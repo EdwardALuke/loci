@@ -1,7 +1,7 @@
 # FVMAdapt Mesh Adaptation Overview {#fvmadapt_overview}
 
-This page is intended to be an entry point for understanding the existing
-details of that governing the principles and implementation around the mesh adaptation library.
+This page is intended to be an entry point for understanding the existing details of that governing the principles and implementation around the mesh adaptation library. The principle here is that general polyhedral elements can localize the effects of
+mesh refinement.
 
 
 
@@ -12,8 +12,19 @@ hexahedra, prisms, and general polyhedral cells. At the highest level, the coner
 how to break apart and recombine these shapes. These shapes are of course related to the mesh cell shapes
 that occur in a general mesh.
 
+The breakdown of the heirarchy that is at play in this module is:
+  - element contains faces → face contains edges → edge contains nodes
+
 One principle of splitting cells is that hanging nodes are not allowed. That is, if a edge is split for example,
-then there must a another edge that issues forth from whereever the split point is along that edge.
+then there must a another edge that issues forth from whereever the split point is along that edge. For a mesh where there is only 1 type of cell, then a refinement essentially causes all cells to be refined due to hanging nodes on faces forcing adjacent cells to refine. But in the formalism here, general polyhedral cells are supported, and thus adjacent cells can transform from a standard shape into a general polyhedral shape in order to satisfy a refinement that occured on a shared face between it and its neighbor cell.
+
+You can ask the following questions:
+ - How are edges divided?
+ - How are faces divided?
+ - How are volumes divided?
+
+And a natural question after that is "what combinations of these different approaches are there?".
+
 
 ## Mesh Quality Concepts
 
@@ -24,7 +35,7 @@ can be broken down into tetrahedra and then a standard metric for quality tetrah
 Another approach is one where there is an assumption that a volume element is a good quality if the faces are of good quality.
 This isn't always true though.
 
-## Isotropic Refinement Strategy
+## Face-Based Isotropic Refinement Strategy
 
 For an isotropic face-based refinement strategy, the refinement of the faces determines how the volume elements are refined.
 A n-sided face is split into n faces by insering a node a the centroid location of the face, and then connecting that node to the midpoints of the n edges of the face.
@@ -40,7 +51,53 @@ marking of an element for refinment can also be done by a solver for any reason.
 
 Below is a diagram showing this process on a set of simple faces.
 
+** One picture of an equiliaterial triangle with round circles at the vertices
 
+** Another picture of the same triangle, but with red dots at the midpoints of the edges and a red dot at the centroid.
+
+
+## Cell-Based Isotropic Refinement Strategy
+
+For an isotropic cell-based refinement strategy, faces are not altered as the volume is subdivided.
+
+1. A node is inserted at the centroid of the volume
+2. An edge is connected from every node of the cell to the newly inerted centroid node.
+
+
+## Edge-Based Anisotropic Refinement Strategy
+
+TODO: The primary question here is how do we go from a refined edge to a final state of a cell?
+
+
+
+## Various Refinement Criteria
+
+
+
+
+## General Flow
+
+Baseline mesh:
+  elements are standard or general polyhedra
+
+Sensor step:
+  mark nodes/faces/elements based on solution features or error
+
+Refinement decision:
+  choose which elements to refine
+
+Subdivision step:
+  split selected elements using isotropic, centroidal, or anisotropic rules
+
+Hanging-node handling:
+  store parent/child edge and face relationships
+
+Final topology update:
+  replace parent faces/edges with child faces/edges
+  unrefined neighbors become general elements if necessary
+
+Solver:
+  finite-volume fluxes are computed over the resulting set of faces
 
 
 ## Glossary of Terms
@@ -49,57 +106,37 @@ Below is a diagram showing this process on a set of simple faces.
 * Concave
 * Divergence Angle
 * Isotropic
+* Hanging Node
+
+* Folded Face
+  - A face is called a folded face if it is non-planar in 3D. Folded can cause issues with solvers, and as such care needs to be taken to not generate any folded faces during a refinement. A metric for marking if a face is a folded face is if the angle between the normals of two triangles on it is larger than a specified threshold. Folded faces often have small edge lengths, so a threshold on the minimum length edge that can be refined also serves to remedy the issue of folded faces.
+
+* Refinement Level
+  - A history of an element's refinement state. If an element has been refined many times, that information can be used by the refinement algorithm to refine its neighbors to prevent large cell size variations in a region where refinement is occuring.
+
+* Element Neighbor
+  - For an element, a neighbor is defined as two elements that share one or more nodes.
+
+* Plan
+  - A plan is a compact replay of data. It tells how to rebuild a refinement tree. It is not a mesh. It is a way to replay recipes for refinement trees.
+
+* Cell Plan
+
+* Edge Plan
+
+* Face Plan
+
+* Balancing
+
+* Split Codes
+  - A specific vocabulary used to describe the types of splitting to be used. This is not universal.
 
 
 
 
-## Reference Context
 
-Two local reference papers are especially useful background:
 
-- `docs/reference/1826CNME_final.pdf`, "On the use of general elements in
-  fluid dynamics simulations".
-- `docs/reference/Solution Adaptive Isotropic And Anisotropic Mesh Refinement
-  Using.pdf`, "Solution Adaptive Isotropic And Anisotropic Mesh Refinement
-  Using General Elements".
 
-The shared idea is that general polyhedral elements can localize the effects of
-mesh refinement. A refined cell can leave a nonconforming face or hanging node
-on a neighboring cell; instead of forcing refinement to propagate until the
-entire mesh is conforming in a small set of element templates, the mesh can
-represent the resulting local topology with general faces and general cells.
-
-The papers also separate two concepts that are easy to blur:
-
-- The mesh topology operation: how edges, faces, and cells are subdivided.
-- The solver operation: how the flow solver integrates, reconstructs, and
-  computes fluxes on the resulting general elements.
-
-`FVMAdapt` mostly lives on the first side of that boundary. It builds and
-balances refinement plans, replays those plans into refined topology, and writes
-VOG data and transfer/restart facts. Solver-facing policy and field ownership
-should stay out of this page until a separate `FVMAMR` module defines that
-contract.
-
-## Guiding Principles
-
-Read the current module with four principles in mind:
-
-- Refinement is represented as topology first. The central operations split
-  edges, faces, and cells and then rebuild connectivity for the refined mesh.
-- General elements make local refinement easier to represent. They reduce the
-  need for template-driven propagation, but they do not remove the need for
-  balancing shared faces and edges.
-- Plans are compact replay data. A plan says how to rebuild a refinement tree;
-  it is not itself the refined mesh.
-- Split-code meanings are local. General faces, quadrilateral faces,
-  hexahedra, prisms, and general cells do not all share one universal code
-  vocabulary.
-
-Suggested figure: `src/FVMAdapt/doc/figures/fvmadapt_locality.svg` should show
-one refined cell beside an unrefined neighbor, a hanging node on the shared
-face, and the resulting general face/cell that lets the mismatch remain local
-before balancing decisions are applied.
 
 ## Paper To Implementation Crosswalk
 
@@ -117,24 +154,7 @@ when reading the code.
 | Anisotropic refinement can be driven by edge or direction choices. | Directional concepts appear in `QuadFace`, `HexCell`, `Prism`, and transfer/extraction helpers. | The mapping to the thesis' anisotropic formalism is only partially audited. Keep those code paths documented separately. |
 | Solvers can integrate fluxes on general elements. | Outside the current FVMAdapt documentation scope. | This page documents remeshing/adaptation mechanics, not a solver-facing AMR contract. |
 
-## Source Layout
 
-The implementation is split into three practical layers:
-
-- `src/FVMAdapt/library/*.cc` and `src/include/FVMAdapt/*.h` contain the C++
-  helper library. This layer owns the tree objects for nodes, edges, faces, and
-  cells; split and replay helpers; plan extraction and merging; and VOG helper
-  routines. The FVMAdapt makefile builds this as `libfvmadaptfunc`.
-- `src/FVMAdapt/*.loci` contains the Loci rule database. These rules create
-  plans, balance them, derive lower-dimensional plans, generate fine-grid
-  numbering, and drive the output path. The makefile builds these rules as
-  `fvmadapt_m.so`.
-- The command-line path exercises the module through tools such as `marker`,
-  `refmesh`, `vogcheck`, and `extract`. The existing smoke test is documented
-  in \ref fvmadapt_testing.
-
-The internal declaration file `src/FVMAdapt/fvmadapt_internal.lh` is for the
-FVMAdapt rule database. It is not a solver-facing include file.
 
 ## The Central Model
 
