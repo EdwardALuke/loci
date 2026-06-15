@@ -197,10 +197,6 @@ The following make commands are provided after successfully executing `./configu
 | `make clean`                  | Clean compiled files from OBJ directory                      |
 | `make distclean`              | Remove all configuration and compilation artifacts           |
 
-The `make docs` target writes generated documentation under `OBJ/docs/`.
-When browsing `OBJ/docs/doxygen/html/index.html`, useful developer entry
-points include \ref fvmadapt_developer_reference "FVMAdapt Developer Reference"
-and \ref fvmadapt "FVMAdapt mesh adaptation".
 
 To contribute to Loci, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
