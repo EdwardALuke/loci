@@ -1,13 +1,57 @@
 # FVMAdapt Mesh Adaptation Overview {#fvmadapt_overview}
 
-This page is the intended entry point for understanding the existing
-`FVMAdapt` implementation. It is written for people who need the governing
-ideas before they dive into the headers, helper library, or Loci rule database.
+This page is intended to be an entry point for understanding the existing
+details of that governing the principles and implementation around the mesh adaptation library.
 
-The page is deliberately careful about scope. `FVMAdapt` today is an adaptation
-subsystem and helper library. It is not the future solver-facing `FVMAMR`
-module. The files described here are the current rule database, C++ helper
-library, plan encodings, and command-line remeshing path.
+
+
+## Geometric Concepts
+
+The mesh adaptation library concerns itself with various types of geometric entities, such as
+hexahedra, prisms, and general polyhedral cells. At the highest level, the conerns center around
+how to break apart and recombine these shapes. These shapes are of course related to the mesh cell shapes
+that occur in a general mesh.
+
+One principle of splitting cells is that hanging nodes are not allowed. That is, if a edge is split for example,
+then there must a another edge that issues forth from whereever the split point is along that edge.
+
+## Mesh Quality Concepts
+
+The idea of the quality of a mesh cell is somewhat subjective as the quality of the cell depends on
+where that cell is in a domain and the physics that is being solved on that cell. You can a pyramidal element that
+can be broken down into tetrahedra and then a standard metric for quality tetrahedra can be applied to the resulting tets.
+
+Another approach is one where there is an assumption that a volume element is a good quality if the faces are of good quality.
+This isn't always true though.
+
+## Isotropic Refinement Strategy
+
+For an isotropic face-based refinement strategy, the refinement of the faces determines how the volume elements are refined.
+A n-sided face is split into n faces by insering a node a the centroid location of the face, and then connecting that node to the midpoints of the n edges of the face.
+
+A neighborhood heuristic for if an element should be refined is if a neighboring element is two or more levels of refinement. Also, generic
+marking of an element for refinment can also be done by a solver for any reason. For an element marked for refinement:
+
+1. Each edge of the element is split by insering a node at the midpoint.
+2. For each N-sided face of the element:
+   - A node is inerted at the centroid of the face.
+   - A node at the midpoint of each edge is connected to the node at the face centroid. This forms N new edges.
+   - Each node on the face lies exactly on two edges and forms a four-sided face with the midpoints of the two edges and the centroid of the face so that N four-sided faces are formed.
+
+Below is a diagram showing this process on a set of simple faces.
+
+
+
+
+## Glossary of Terms
+
+* Convex
+* Concave
+* Divergence Angle
+* Isotropic
+
+
+
 
 ## Reference Context
 
