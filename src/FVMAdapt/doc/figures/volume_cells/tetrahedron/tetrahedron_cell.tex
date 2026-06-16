@@ -1,31 +1,52 @@
 \documentclass[tikz,border=1.35mm]{standalone}
+\usetikzlibrary{arrows.meta}
 
-% Plain tetrahedral cell.
-% The x/y/z vectors below define a fixed oblique projection for the 3D wireframe.
+\definecolor{externalface}{HTML}{8FB9E8}
+
+% Colored tetrahedral cell figure.
+% The cell is drawn as the reference tetrahedron in computational coordinates.
 \begin{document}
 \begin{tikzpicture}[
-  x={(19mm,0mm)},
-  y={(7mm,4mm)},
-  z={(0mm,18mm)},
+  x={(20.3mm,-8.5mm)},
+  y={(15.3mm,11.3mm)},
+  z={(0mm,20mm)},
   line join=round,
   line cap=round,
-  edge/.style={draw=black,line width=0.65mm}
+  outer/.style={draw=black,line width=0.62mm},
+  hidden/.style={draw=black!65,line width=0.48mm,loosely dotted},
+  face/.style={fill=externalface,fill opacity=0.32,draw=none},
+  axis/.style={draw=black!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
 ]
-  % Tetrahedron vertices.
-  \coordinate (v0) at (0,0,0);
-  \coordinate (v1) at (2.4,0,0);
-  \coordinate (v2) at (0.55,1.45,0.15);
-  \coordinate (v3) at (0.95,0.55,2.1);
+  % Reference tetrahedron vertices. The xi direction is stretched to match the
+  % prism and hexahedron figures.
+  \coordinate (A) at (0,0,0);
+  \coordinate (B) at (1.45,0,0);
+  \coordinate (C) at (0,1,0);
+  \coordinate (D) at (0,0,1);
 
-  % Wireframe edges.
-  \draw[edge] (v0) -- (v1) -- (v2) -- cycle;
-  \draw[edge] (v3) -- (v0);
-  \draw[edge] (v3) -- (v1);
-  \draw[edge] (v3) -- (v2);
+  % Offset computational-coordinate axes.
+  \coordinate (Oaxis) at (-1.20,-0.42,-0.18);
+  \draw[axis] (Oaxis) -- (1.60,-0.42,-0.18) node[below right,font=\scriptsize] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.20,1.12,-0.18) node[above left,font=\scriptsize] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.20,-0.42,1.12) node[above,font=\scriptsize] {$\zeta$};
+
+  % Exterior faces share the same translucent shade.
+  \path[face] (A) -- (B) -- (C) -- cycle;
+  \path[face] (A) -- (B) -- (D) -- cycle;
+  \path[face] (A) -- (C) -- (D) -- cycle;
+  \path[face] (B) -- (C) -- (D) -- cycle;
+
+  % Hidden-line convention: only the pure eta edge is dotted.
+  \draw[hidden] (A) -- (C);
+
+  % Visible exterior wireframe.
+  \draw[outer] (A) -- (B);
+  \draw[outer] (A) -- (D) -- (B);
+  \draw[outer] (B) -- (C) -- (D);
 
   % Original vertices are black.
-  \foreach \p in {v0,v1,v2,v3} {
-    \fill[black] (\p) circle[radius=0.85mm];
+  \foreach \p in {A,B,C,D} {
+    \fill[black] (\p) circle[radius=0.75mm];
   }
 \end{tikzpicture}
 \end{document}

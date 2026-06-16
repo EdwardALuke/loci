@@ -1,0 +1,161 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{splitred}{HTML}{AF2525}
+\definecolor{centroidgreen}{HTML}{0E8814}
+
+% Wireframe exploded view of the vertex cells produced by diamond refinement.
+% The six separated vertex cells duplicate shared edge-midpoint, face-centroid,
+% and volume-centroid vertices so each child can be read independently.
+\providecommand{\fvmadaptYawAngle}{8}
+\providecommand{\fvmadaptExplodeAmount}{1}
+\providecommand{\fvmadaptExplodeScale}{1.3}
+\pgfmathsetmacro{\yawcos}{cos(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\yawsin}{sin(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\xbasisx}{20.3*\yawcos + 15.3*\yawsin}
+\pgfmathsetmacro{\xbasisy}{-8.5*\yawcos + 11.3*\yawsin}
+\pgfmathsetmacro{\ybasisx}{-20.3*\yawsin + 15.3*\yawcos}
+\pgfmathsetmacro{\ybasisy}{8.5*\yawsin + 11.3*\yawcos}
+\pgfmathsetmacro{\explodeXi}{0.46*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeEta}{0.36*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeZeta}{0.62*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+
+\begin{document}
+\begin{tikzpicture}[
+  x={(\xbasisx mm,\xbasisy mm)},
+  y={(\ybasisx mm,\ybasisy mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=black,line width=0.54mm},
+  split/.style={draw=splitred,line width=0.42mm},
+  centroidedge/.style={draw=centroidgreen,line width=0.48mm},
+  axis/.style={draw=black!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Fixed canvas for static and animated renders.
+  \path[use as bounding box]
+    (canvas cs:x=-58mm,y=-60mm) rectangle (canvas cs:x=69mm,y=67mm);
+
+  \newcommand{\drawpolyvertexcell}[9]{%
+    \draw[outer] (#1) -- (#2);
+    \draw[outer] (#1) -- (#3);
+    \draw[outer] (#1) -- (#4);
+    \draw[outer] (#1) -- (#5);
+    \draw[split] (#2) -- (#6);
+    \draw[split] (#3) -- (#6);
+    \draw[split] (#3) -- (#7);
+    \draw[split] (#4) -- (#7);
+    \draw[split] (#4) -- (#8);
+    \draw[split] (#5) -- (#8);
+    \draw[split] (#5) -- (#9);
+    \draw[split] (#2) -- (#9);
+    \foreach \p in {#6,#7,#8,#9} {
+      \draw[centroidedge] (\p) -- (CV);
+    }
+    \fill[black] (#1) circle[radius=0.58mm];
+    \foreach \p in {#2,#3,#4,#5,#6,#7,#8,#9} {
+      \fill[splitred] (\p) circle[radius=0.50mm];
+    }
+    \fill[centroidgreen] (CV) circle[radius=0.66mm];
+  }
+
+  % Compact orientation axes near the lower-apex child.
+  \coordinate (Oaxis) at (-1.28,-0.55,-0.72);
+  \draw[axis] (Oaxis) -- (-0.32,-0.55,-0.72) node[below right,font=\scriptsize] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.28,0.39,-0.72) node[above left,font=\scriptsize] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.28,-0.55,0.24) node[above,font=\scriptsize] {$\zeta$};
+
+  % Explosion heuristic: keep the lower-apex child fixed, slide the four
+  % equator children outward in the xi/eta plane, and lift the upper-apex child.
+
+  % Child near lower apex S: edges SL, SF, SR, and SB.
+  \begin{scope}[shift={(0,0,0)}]
+    \coordinate (O) at (0.725,0.5,0);
+    \coordinate (E1) at (0.3625,0.5,0.275);
+    \coordinate (E2) at (0.725,0.25,0.275);
+    \coordinate (E3) at (1.0875,0.5,0.275);
+    \coordinate (E4) at (0.725,0.75,0.275);
+    \coordinate (F12) at (0.4833,0.3333,0.3667);
+    \coordinate (F23) at (0.9667,0.3333,0.3667);
+    \coordinate (F34) at (0.9667,0.6667,0.3667);
+    \coordinate (F41) at (0.4833,0.6667,0.3667);
+    \coordinate (CV) at (0.725,0.5,0.55);
+    \drawpolyvertexcell{O}{E1}{E2}{E3}{E4}{F12}{F23}{F34}{F41}
+  \end{scope}
+
+  % Child near front equator vertex F.
+  \begin{scope}[shift={(0,-\explodeEta,0.22*\explodeZeta)}]
+    \coordinate (O) at (0.725,0,0.55);
+    \coordinate (E1) at (0.3625,0.25,0.55);
+    \coordinate (E2) at (0.725,0.25,0.825);
+    \coordinate (E3) at (1.0875,0.25,0.55);
+    \coordinate (E4) at (0.725,0.25,0.275);
+    \coordinate (F12) at (0.4833,0.3333,0.7333);
+    \coordinate (F23) at (0.9667,0.3333,0.7333);
+    \coordinate (F34) at (0.9667,0.3333,0.3667);
+    \coordinate (F41) at (0.4833,0.3333,0.3667);
+    \coordinate (CV) at (0.725,0.5,0.55);
+    \drawpolyvertexcell{O}{E1}{E2}{E3}{E4}{F12}{F23}{F34}{F41}
+  \end{scope}
+
+  % Child near right equator vertex R.
+  \begin{scope}[shift={(\explodeXi,0,0.22*\explodeZeta)}]
+    \coordinate (O) at (1.45,0.5,0.55);
+    \coordinate (E1) at (1.0875,0.25,0.55);
+    \coordinate (E2) at (1.0875,0.5,0.825);
+    \coordinate (E3) at (1.0875,0.75,0.55);
+    \coordinate (E4) at (1.0875,0.5,0.275);
+    \coordinate (F12) at (0.9667,0.3333,0.7333);
+    \coordinate (F23) at (0.9667,0.6667,0.7333);
+    \coordinate (F34) at (0.9667,0.6667,0.3667);
+    \coordinate (F41) at (0.9667,0.3333,0.3667);
+    \coordinate (CV) at (0.725,0.5,0.55);
+    \drawpolyvertexcell{O}{E1}{E2}{E3}{E4}{F12}{F23}{F34}{F41}
+  \end{scope}
+
+  % Child near back equator vertex B.
+  \begin{scope}[shift={(0,\explodeEta,0.22*\explodeZeta)}]
+    \coordinate (O) at (0.725,1,0.55);
+    \coordinate (E1) at (1.0875,0.75,0.55);
+    \coordinate (E2) at (0.725,0.75,0.825);
+    \coordinate (E3) at (0.3625,0.75,0.55);
+    \coordinate (E4) at (0.725,0.75,0.275);
+    \coordinate (F12) at (0.9667,0.6667,0.7333);
+    \coordinate (F23) at (0.4833,0.6667,0.7333);
+    \coordinate (F34) at (0.4833,0.6667,0.3667);
+    \coordinate (F41) at (0.9667,0.6667,0.3667);
+    \coordinate (CV) at (0.725,0.5,0.55);
+    \drawpolyvertexcell{O}{E1}{E2}{E3}{E4}{F12}{F23}{F34}{F41}
+  \end{scope}
+
+  % Child near left equator vertex L.
+  \begin{scope}[shift={(-\explodeXi,0,0.22*\explodeZeta)}]
+    \coordinate (O) at (0,0.5,0.55);
+    \coordinate (E1) at (0.3625,0.75,0.55);
+    \coordinate (E2) at (0.3625,0.5,0.825);
+    \coordinate (E3) at (0.3625,0.25,0.55);
+    \coordinate (E4) at (0.3625,0.5,0.275);
+    \coordinate (F12) at (0.4833,0.6667,0.7333);
+    \coordinate (F23) at (0.4833,0.3333,0.7333);
+    \coordinate (F34) at (0.4833,0.3333,0.3667);
+    \coordinate (F41) at (0.4833,0.6667,0.3667);
+    \coordinate (CV) at (0.725,0.5,0.55);
+    \drawpolyvertexcell{O}{E1}{E2}{E3}{E4}{F12}{F23}{F34}{F41}
+  \end{scope}
+
+  % Child near upper apex T.
+  \begin{scope}[shift={(0,0,\explodeZeta)}]
+    \coordinate (O) at (0.725,0.5,1.10);
+    \coordinate (E1) at (0.3625,0.5,0.825);
+    \coordinate (E2) at (0.725,0.25,0.825);
+    \coordinate (E3) at (1.0875,0.5,0.825);
+    \coordinate (E4) at (0.725,0.75,0.825);
+    \coordinate (F12) at (0.4833,0.3333,0.7333);
+    \coordinate (F23) at (0.9667,0.3333,0.7333);
+    \coordinate (F34) at (0.9667,0.6667,0.7333);
+    \coordinate (F41) at (0.4833,0.6667,0.7333);
+    \coordinate (CV) at (0.725,0.5,0.55);
+    \drawpolyvertexcell{O}{E1}{E2}{E3}{E4}{F12}{F23}{F34}{F41}
+  \end{scope}
+\end{tikzpicture}
+\end{document}

@@ -1,0 +1,121 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{splitred}{HTML}{AF2525}
+\definecolor{centroidgreen}{HTML}{0E8814}
+
+% Wireframe exploded view of the vertex cells produced by tetrahedron refinement.
+% Each separated child duplicates shared edge-midpoint, face-centroid, and
+% volume-centroid vertices so the local topology can be read independently.
+\providecommand{\fvmadaptYawAngle}{8}
+\providecommand{\fvmadaptExplodeAmount}{1}
+\providecommand{\fvmadaptExplodeScale}{1.3}
+\pgfmathsetmacro{\yawcos}{cos(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\yawsin}{sin(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\xbasisx}{20.3*\yawcos + 15.3*\yawsin}
+\pgfmathsetmacro{\xbasisy}{-8.5*\yawcos + 11.3*\yawsin}
+\pgfmathsetmacro{\ybasisx}{-20.3*\yawsin + 15.3*\yawcos}
+\pgfmathsetmacro{\ybasisy}{8.5*\yawsin + 11.3*\yawcos}
+\pgfmathsetmacro{\explodeBxi}{0.50*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeCeta}{0.36*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeDzeta}{0.58*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\begin{document}
+\begin{tikzpicture}[
+  x={(\xbasisx mm,\xbasisy mm)},
+  y={(\ybasisx mm,\ybasisy mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=black,line width=0.54mm},
+  split/.style={draw=splitred,line width=0.42mm},
+  centroidedge/.style={draw=centroidgreen,line width=0.48mm},
+  axis/.style={draw=black!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Fixed canvas for static and animated renders. The yaw sweep changes the
+  % projected x/y basis, so a stable canvas avoids per-frame cropping.
+  \path[use as bounding box]
+    (canvas cs:x=-54mm,y=-51mm) rectangle (canvas cs:x=63mm,y=64mm);
+
+  \newcommand{\drawtetvertexcell}[8]{%
+    \draw[outer] (#1) -- (#2);
+    \draw[outer] (#1) -- (#3);
+    \draw[outer] (#1) -- (#4);
+    \draw[split] (#2) -- (#5);
+    \draw[split] (#3) -- (#5);
+    \draw[split] (#2) -- (#6);
+    \draw[split] (#4) -- (#6);
+    \draw[split] (#3) -- (#7);
+    \draw[split] (#4) -- (#7);
+    \draw[centroidedge] (#5) -- (#8);
+    \draw[centroidedge] (#6) -- (#8);
+    \draw[centroidedge] (#7) -- (#8);
+    \fill[black] (#1) circle[radius=0.58mm];
+    \foreach \p in {#2,#3,#4,#5,#6,#7} {
+      \fill[splitred] (\p) circle[radius=0.50mm];
+    }
+    \fill[centroidgreen] (#8) circle[radius=0.66mm];
+  }
+
+  % Compact orientation axes, tucked away from the exploded cells.
+  \coordinate (Oaxis) at (-1.38,-0.65,-0.55);
+  \draw[axis] (Oaxis) -- (-0.28,-0.65,-0.55) node[below right,font=\scriptsize] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.38,0.43,-0.55) node[above left,font=\scriptsize] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.38,-0.65,0.55) node[above,font=\scriptsize] {$\zeta$};
+
+  % Explosion heuristic: keep the vertex cell at the xi/eta/zeta minimum corner
+  % fixed, then slide the other cells mostly along the dominant coordinate
+  % direction of their parent vertices.
+
+  % Child near vertex A: edges AB, AC, and AD.
+  \begin{scope}[shift={(0,0,0)}]
+    \coordinate (O) at (0,0,0);
+    \coordinate (P) at (0.725,0,0);
+    \coordinate (Q) at (0,0.5,0);
+    \coordinate (R) at (0,0,0.5);
+    \coordinate (FPQ) at (0.483,0.333,0);
+    \coordinate (FPR) at (0.483,0,0.333);
+    \coordinate (FQR) at (0,0.333,0.333);
+    \coordinate (CV) at (0.3625,0.25,0.25);
+    \drawtetvertexcell{O}{P}{Q}{R}{FPQ}{FPR}{FQR}{CV}
+  \end{scope}
+
+  % Child near vertex B: edges BA, BC, and BD; shift mostly along +xi.
+  \begin{scope}[shift={(\explodeBxi,0,0)}]
+    \coordinate (O) at (1.45,0,0);
+    \coordinate (P) at (0.725,0,0);
+    \coordinate (Q) at (0.725,0.5,0);
+    \coordinate (R) at (0.725,0,0.5);
+    \coordinate (FPQ) at (0.483,0.333,0);
+    \coordinate (FPR) at (0.483,0,0.333);
+    \coordinate (FQR) at (0.483,0.333,0.333);
+    \coordinate (CV) at (0.3625,0.25,0.25);
+    \drawtetvertexcell{O}{P}{Q}{R}{FPQ}{FPR}{FQR}{CV}
+  \end{scope}
+
+  % Child near vertex C: edges CA, CB, and CD; shift mostly along +eta.
+  \begin{scope}[shift={(0,\explodeCeta,0)}]
+    \coordinate (O) at (0,1,0);
+    \coordinate (P) at (0,0.5,0);
+    \coordinate (Q) at (0.725,0.5,0);
+    \coordinate (R) at (0,0.5,0.5);
+    \coordinate (FPQ) at (0.483,0.333,0);
+    \coordinate (FPR) at (0,0.333,0.333);
+    \coordinate (FQR) at (0.483,0.333,0.333);
+    \coordinate (CV) at (0.3625,0.25,0.25);
+    \drawtetvertexcell{O}{P}{Q}{R}{FPQ}{FPR}{FQR}{CV}
+  \end{scope}
+
+  % Child near vertex D: edges DA, DB, and DC; shift mostly along +zeta.
+  \begin{scope}[shift={(0,0,\explodeDzeta)}]
+    \coordinate (O) at (0,0,1);
+    \coordinate (P) at (0,0,0.5);
+    \coordinate (Q) at (0.725,0,0.5);
+    \coordinate (R) at (0,0.5,0.5);
+    \coordinate (FPQ) at (0.483,0,0.333);
+    \coordinate (FPR) at (0,0.333,0.333);
+    \coordinate (FQR) at (0.483,0.333,0.333);
+    \coordinate (CV) at (0.3625,0.25,0.25);
+    \drawtetvertexcell{O}{P}{Q}{R}{FPQ}{FPR}{FQR}{CV}
+  \end{scope}
+\end{tikzpicture}
+\end{document}

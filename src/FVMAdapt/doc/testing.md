@@ -43,6 +43,43 @@ For direct inspection, the relevant file is:
 quickTest/FVMAdaptTest/Makefile
 ```
 
+## C++ Core Harness
+
+`quickTest/FVMAdaptCore` is a narrower C++ harness for the helper library. It
+constructs single-cell hexahedron, prism, and generic tetrahedron/pyramid
+fixtures, applies the no-split case, each supported root split code, and a few
+nested breadth-first plans for those paths. It checks the leaf counts reported
+by the relevant replay/count helpers, verifies plan canonicalization through
+`make_cellplan()`, and exercises face-plan transfer round trips.
+
+Run the assertions with:
+
+```bash
+make -C quickTest/FVMAdaptCore LOCI_BASE=../../OBJ
+```
+
+For visual inspection, generate legacy VTK files that can be opened in
+ParaView:
+
+```bash
+make -C quickTest/FVMAdaptCore LOCI_BASE=../../OBJ examples
+```
+
+The example target writes `output/hex_split_0.vtk` through
+`output/hex_split_7.vtk`, selected nested-plan VTK/wireframe examples, prism
+wireframes, generic tetra/pyramid wireframes, `output/core_split_summary.dat`,
+`output/core_plan_audit.dat`, and `output/core_plan_replay.dat`.
+
+`core_split_summary.dat` is the compact matrix of input plan, canonical plan,
+leaf counts, and output file. `core_plan_audit.dat` is more descriptive: for
+hex and prism cases it records derived face plans, hex face edge plans, fine
+face leaf counts, and the `c1` owner-cell mapping returned by the C++ helpers.
+`core_plan_replay.dat` focuses on plan semantics: it traces each cell plan as a
+breadth-first tree replay and records the node id, parent id, child slot, path,
+plan-vector index, whether the code was explicit or defaulted after the vector
+ended, local fold, child count, leaf id, and a short split-code meaning. These
+files are generated artifacts and are removed by `make clean`.
+
 ## Coverage Notes
 
 This smoke test is useful because it exercises the public command-line route

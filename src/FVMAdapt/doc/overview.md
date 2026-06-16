@@ -1,39 +1,39 @@
 # FVMAdapt Mesh Adaptation Overview {#fvmadapt_overview}
 
-This page is intended to be an entry point for understanding the existing details of that governing the principles and implementation around the mesh adaptation library. The principle here is that general polyhedral elements can localize the effects of
-mesh refinement.
+This page is intended to be an entry point for understanding the existing details of that governing the principles and implementation around the mesh adaptation library.
 
-
+The principle here is that general polyhedral elements can localize the effects of mesh refinement.
 
 ## Geometric Concepts
 
 The mesh adaptation library concerns itself with various types of geometric entities, such as
-hexahedra, prisms, and general polyhedral cells. At the highest level, the conerns center around
+hexahedra, prisms, pyramids, diamonds, and general polyhedral cells. At the highest level, the concerns center around
 how to break apart and recombine these shapes. These shapes are of course related to the mesh cell shapes
 that occur in a general mesh.
 
 The breakdown of the heirarchy that is at play in this module is:
   - element contains faces → face contains edges → edge contains nodes
 
-One principle of splitting cells is that hanging nodes are not allowed. That is, if a edge is split for example,
-then there must a another edge that issues forth from whereever the split point is along that edge. For a mesh where there is only 1 type of cell, then a refinement essentially causes all cells to be refined due to hanging nodes on faces forcing adjacent cells to refine. But in the formalism here, general polyhedral cells are supported, and thus adjacent cells can transform from a standard shape into a general polyhedral shape in order to satisfy a refinement that occured on a shared face between it and its neighbor cell.
+A principle here is that cells are the entities that drive the refinement behaviors. The refinement algorithm utilizes a midpoint-based refinement strategy where edges are split by putting a node at the center of the edge, faces are split by putting a node at the middle of the face, and cells are split by putting a node at the center of the cell.
 
-You can ask the following questions:
- - How are edges divided?
- - How are faces divided?
- - How are volumes divided?
-
-And a natural question after that is "what combinations of these different approaches are there?".
+But in the formalism here, general polyhedral cells are supported, and thus adjacent cells can transform from a standard shape into a general polyhedral shape in order to satisfy a refinement that occured on a shared face between it and its neighbor cell. This general cell allows for refinements to be locally limited and not propagate widely throughout a mesh.
 
 
-## Mesh Quality Concepts
+For standard canonical cell shapes, if they are split using the face-based isotropic strategy, they break into:
 
-The idea of the quality of a mesh cell is somewhat subjective as the quality of the cell depends on
-where that cell is in a domain and the physics that is being solved on that cell. You can a pyramidal element that
-can be broken down into tetrahedra and then a standard metric for quality tetrahedra can be applied to the resulting tets.
+ - Hexahedra -> 8 smaller hexahedral cells
 
-Another approach is one where there is an assumption that a volume element is a good quality if the faces are of good quality.
-This isn't always true though.
+TODO: Place image here
+
+ - Tetrahedra -> 4 hexahedral cells
+
+TODO: Place image here
+
+ - Prism cell -> 6 hexahedral cells
+
+ - Pyriamid cell -> 4 hexahedral cells + 1 diamond cell
+
+With this splitting behavior, there is a tendency towards hexahedral cells as isotropic refinement is applied.
 
 ## Face-Based Isotropic Refinement Strategy
 
@@ -49,30 +49,40 @@ marking of an element for refinment can also be done by a solver for any reason.
    - A node at the midpoint of each edge is connected to the node at the face centroid. This forms N new edges.
    - Each node on the face lies exactly on two edges and forms a four-sided face with the midpoints of the two edges and the centroid of the face so that N four-sided faces are formed.
 
-Below is a diagram showing this process on a set of simple faces.
-
-** One picture of an equiliaterial triangle with round circles at the vertices
-
-** Another picture of the same triangle, but with red dots at the midpoints of the edges and a red dot at the centroid.
+Below are some diagrams showing this process on a set of simple faces.
 
 
-## Cell-Based Isotropic Refinement Strategy
+** Pictures of the different splitting cases on the 2d faces. **
 
-For an isotropic cell-based refinement strategy, faces are not altered as the volume is subdivided.
 
-1. A node is inserted at the centroid of the volume
-2. An edge is connected from every node of the cell to the newly inerted centroid node.
+3. For the N-faced element, that has E edges and V nodes:
+  - Inert a new node at the centroid of the element
+  - Connect that node to the centroid nodes of all the faces of the element.
+  - This will create V new elements from the original element
 
 
 ## Edge-Based Anisotropic Refinement Strategy
 
-TODO: The primary question here is how do we go from a refined edge to a final state of a cell?
+Edge-based refinement strategies are called this because the element type *and* the division of the edges determines how an element is split. This is still technically a face-based splitting strategy like the ones discussed above, with the exception that the way that the faces are split isn't a simple centroid approach.
 
+The cell types that can be anisotropically refined are the prism and hexahedral type.
+
+
+## What is Balancing?
+
+As part of the refinement process, cells are initially marked to be refined, and once they are refined in the plan, there still remains an accounting that must be done to take into account several factors such as face and edge consistency between neighbor cells, and also other heuristic rules such as a neighbor not being permitted to be more than 1 level refined than its neighbors.
 
 
 ## Various Refinement Criteria
 
+## Mesh Quality Concepts
 
+The idea of the quality of a mesh cell is somewhat subjective as the quality of the cell depends on
+where that cell is in a domain and the physics that is being solved on that cell. You can a pyramidal element that
+can be broken down into tetrahedra and then a standard metric for quality tetrahedra can be applied to the resulting tets.
+
+Another approach is one where there is an assumption that a volume element is a good quality if the faces are of good quality.
+This isn't always true though.
 
 
 ## General Flow
@@ -131,7 +141,8 @@ Solver:
 * Split Codes
   - A specific vocabulary used to describe the types of splitting to be used. This is not universal.
 
-
+* Template
+  - A specific approach to splitting cells that is determined by the cell type that is being split.
 
 
 

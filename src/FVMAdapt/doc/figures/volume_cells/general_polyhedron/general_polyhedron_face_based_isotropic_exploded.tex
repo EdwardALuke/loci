@@ -1,0 +1,226 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{splitred}{HTML}{AF2525}
+\definecolor{centroidgreen}{HTML}{0E8814}
+
+% Wireframe exploded view of the vertex cells produced by face-based isotropic
+% refinement of a generic eight-faced polyhedron. The original cell is a
+% clipped, skewed hexahedron: two triangular cut faces and six pentagonal faces.
+\providecommand{\fvmadaptYawAngle}{8}
+\providecommand{\fvmadaptExplodeAmount}{1}
+\providecommand{\fvmadaptExplodeScale}{2.7}
+\pgfmathsetmacro{\yawcos}{cos(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\yawsin}{sin(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\xbasisx}{20.3*\yawcos + 15.3*\yawsin}
+\pgfmathsetmacro{\xbasisy}{-8.5*\yawcos + 11.3*\yawsin}
+\pgfmathsetmacro{\ybasisx}{-20.3*\yawsin + 15.3*\yawcos}
+\pgfmathsetmacro{\ybasisy}{8.5*\yawsin + 11.3*\yawcos}
+\pgfmathsetmacro{\explodeXi}{0.38*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeEta}{0.30*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeZeta}{0.44*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+
+\begin{document}
+\begin{tikzpicture}[
+  x={(\xbasisx mm,\xbasisy mm)},
+  y={(\ybasisx mm,\ybasisy mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=black,line width=0.54mm},
+  split/.style={draw=splitred,line width=0.42mm},
+  centroidedge/.style={draw=centroidgreen,line width=0.48mm},
+  axis/.style={draw=black!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Fixed canvas for static and animated renders. The yaw sweep changes the
+  % projected x/y basis, so a stable canvas avoids per-frame cropping.
+  \path[use as bounding box]
+    (canvas cs:x=-96mm,y=-88mm) rectangle (canvas cs:x=124mm,y=108mm);
+
+  \newcommand{\drawtrivalentcell}[8]{%
+    \draw[outer] (#1) -- (#2);
+    \draw[outer] (#1) -- (#3);
+    \draw[outer] (#1) -- (#4);
+    \draw[split] (#2) -- (#5);
+    \draw[split] (#3) -- (#5);
+    \draw[split] (#3) -- (#6);
+    \draw[split] (#4) -- (#6);
+    \draw[split] (#4) -- (#7);
+    \draw[split] (#2) -- (#7);
+    \draw[centroidedge] (#5) -- (#8);
+    \draw[centroidedge] (#6) -- (#8);
+    \draw[centroidedge] (#7) -- (#8);
+    \fill[black] (#1) circle[radius=0.58mm];
+    \foreach \p in {#2,#3,#4,#5,#6,#7} {
+      \fill[splitred] (\p) circle[radius=0.50mm];
+    }
+    \fill[centroidgreen] (#8) circle[radius=0.66mm];
+  }
+
+  % Compact orientation axes, tucked below the fixed vertex cell.
+  \coordinate (Oaxis) at (-1.36,-0.62,-0.76);
+  \draw[axis] (Oaxis) -- (-0.28,-0.62,-0.76) node[below right,font=\scriptsize] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.36,0.44,-0.76) node[above left,font=\scriptsize] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.36,-0.62,0.32) node[above,font=\scriptsize] {$\zeta$};
+
+  % Explosion heuristic: keep the vertex cell at the low clipped corner fixed.
+  % Each other child slides away in the coordinate directions suggested by its
+  % parent vertex, with a slightly larger lift for high-zeta vertices.
+
+  % Child at Oxi: incident to bottom, front, and lower cut faces.
+  \begin{scope}[shift={(0,0,0)}]
+    \coordinate (O) at (0.3400,0.0204,0.0238);
+    \coordinate (E1) at (0.1910,0.1602,0.0059);
+    \coordinate (E2) at (0.9450,0.0567,0.0662);
+    \coordinate (E3) at (0.1600,0.0262,0.2119);
+    \coordinate (F12) at (0.8718,0.5865,0.0342);
+    \coordinate (F23) at (0.7741,0.0935,0.6235);
+    \coordinate (F31) at (0.1207,0.1175,0.1373);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at Oeta: incident to lower cut, left, and bottom faces.
+  \begin{scope}[shift={(0,0.95*\explodeEta,0)}]
+    \coordinate (O) at (0.0420,0.3000,-0.0120);
+    \coordinate (E1) at (0.1910,0.1602,0.0059);
+    \coordinate (E2) at (0.0110,0.1660,0.1940);
+    \coordinate (E3) at (0.0945,0.6750,-0.0270);
+    \coordinate (F12) at (0.1207,0.1175,0.1373);
+    \coordinate (F23) at (0.0481,0.5941,0.5509);
+    \coordinate (F31) at (0.8718,0.5865,0.0342);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at Ozeta: incident to lower cut, front, and left faces.
+  \begin{scope}[shift={(0,-0.16*\explodeEta,0.95*\explodeZeta)}]
+    \coordinate (O) at (-0.0200,0.0320,0.4000);
+    \coordinate (E1) at (0.0110,0.1660,0.1940);
+    \coordinate (E2) at (0.1600,0.0262,0.2119);
+    \coordinate (E3) at (-0.0375,0.0600,0.7500);
+    \coordinate (F12) at (0.1207,0.1175,0.1373);
+    \coordinate (F23) at (0.7741,0.0935,0.6235);
+    \coordinate (F31) at (0.0481,0.5941,0.5509);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at B: incident to bottom, right, and front faces.
+  \begin{scope}[shift={(0.95*\explodeXi,0,0)}]
+    \coordinate (O) at (1.5500,0.0930,0.1085);
+    \coordinate (E1) at (0.9450,0.0567,0.0662);
+    \coordinate (E2) at (1.6235,0.6180,0.0875);
+    \coordinate (E3) at (1.5225,0.1370,0.6585);
+    \coordinate (F12) at (0.8718,0.5865,0.0342);
+    \coordinate (F23) at (1.5936,0.6334,0.6124);
+    \coordinate (F31) at (0.7741,0.0935,0.6235);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at C: incident to right, back, and bottom faces.
+  \begin{scope}[shift={(1.05*\explodeXi,0.95*\explodeEta,0)}]
+    \coordinate (O) at (1.6970,1.1430,0.0665);
+    \coordinate (E1) at (1.6235,0.6180,0.0875);
+    \coordinate (E2) at (1.6800,1.1702,0.4065);
+    \coordinate (E3) at (0.9220,1.0965,0.0123);
+    \coordinate (F12) at (1.5936,0.6334,0.6124);
+    \coordinate (F23) at (0.8644,1.1371,0.5405);
+    \coordinate (F31) at (0.8718,0.5865,0.0342);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at D: incident to back, left, and bottom faces.
+  \begin{scope}[shift={(-0.08*\explodeXi,1.15*\explodeEta,0)}]
+    \coordinate (O) at (0.1470,1.0500,-0.0420);
+    \coordinate (E1) at (0.9220,1.0965,0.0123);
+    \coordinate (E2) at (0.1195,1.0940,0.5080);
+    \coordinate (E3) at (0.0945,0.6750,-0.0270);
+    \coordinate (F12) at (0.8644,1.1371,0.5405);
+    \coordinate (F23) at (0.0481,0.5941,0.5509);
+    \coordinate (F31) at (0.8718,0.5865,0.0342);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at E: incident to front, top, and left faces.
+  \begin{scope}[shift={(-0.10*\explodeXi,-0.08*\explodeEta,1.18*\explodeZeta)}]
+    \coordinate (O) at (-0.0550,0.0880,1.1000);
+    \coordinate (E1) at (-0.0375,0.0600,0.7500);
+    \coordinate (E2) at (0.7200,0.1345,1.1542);
+    \coordinate (E3) at (0.0185,0.6130,1.0790);
+    \coordinate (F12) at (0.7741,0.0935,0.6235);
+    \coordinate (F23) at (0.7658,0.6418,1.1321);
+    \coordinate (F31) at (0.0481,0.5941,0.5509);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at F: incident to top, right, and front faces.
+  \begin{scope}[shift={(0.95*\explodeXi,-0.04*\explodeEta,1.16*\explodeZeta)}]
+    \coordinate (O) at (1.4950,0.1810,1.2085);
+    \coordinate (E1) at (0.7200,0.1345,1.1542);
+    \coordinate (E2) at (1.5454,0.5410,1.1941);
+    \coordinate (E3) at (1.5225,0.1370,0.6585);
+    \coordinate (F12) at (0.7658,0.6418,1.1321);
+    \coordinate (F23) at (1.5936,0.6334,0.6124);
+    \coordinate (F31) at (0.7741,0.0935,0.6235);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at H: incident to back, top, and left faces.
+  \begin{scope}[shift={(-0.08*\explodeXi,1.05*\explodeEta,1.12*\explodeZeta)}]
+    \coordinate (O) at (0.0920,1.1380,1.0580);
+    \coordinate (E1) at (0.1195,1.0940,0.5080);
+    \coordinate (E2) at (0.6820,1.1734,1.0993);
+    \coordinate (E3) at (0.0185,0.6130,1.0790);
+    \coordinate (F12) at (0.8644,1.1371,0.5405);
+    \coordinate (F23) at (0.7658,0.6418,1.1321);
+    \coordinate (F31) at (0.0481,0.5941,0.5509);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at Gxi: incident to top, upper cut, and back faces.
+  \begin{scope}[shift={(0.62*\explodeXi,1.18*\explodeEta,1.16*\explodeZeta)}]
+    \coordinate (O) at (1.2720,1.2088,1.1406);
+    \coordinate (E1) at (0.6820,1.1734,1.0993);
+    \coordinate (E2) at (1.4339,1.0549,1.1602);
+    \coordinate (E3) at (1.4675,1.2031,0.9436);
+    \coordinate (F12) at (0.7658,0.6418,1.1321);
+    \coordinate (F23) at (1.5103,1.1024,1.0223);
+    \coordinate (F31) at (0.8644,1.1371,0.5405);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at Geta: incident to right, upper cut, and top faces.
+  \begin{scope}[shift={(1.15*\explodeXi,0.72*\explodeEta,1.16*\explodeZeta)}]
+    \coordinate (O) at (1.5958,0.9010,1.1797);
+    \coordinate (E1) at (1.5454,0.5410,1.1941);
+    \coordinate (E2) at (1.6294,1.0492,0.9631);
+    \coordinate (E3) at (1.4339,1.0549,1.1602);
+    \coordinate (F12) at (1.5936,0.6334,0.6124);
+    \coordinate (F23) at (1.5103,1.1024,1.0223);
+    \coordinate (F31) at (0.7658,0.6418,1.1321);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+
+  % Child at Gzeta: incident to back, upper cut, and right faces.
+  \begin{scope}[shift={(1.15*\explodeXi,1.12*\explodeEta,0.70*\explodeZeta)}]
+    \coordinate (O) at (1.6630,1.1974,0.7465);
+    \coordinate (E1) at (1.6800,1.1702,0.4065);
+    \coordinate (E2) at (1.4675,1.2031,0.9436);
+    \coordinate (E3) at (1.6294,1.0492,0.9631);
+    \coordinate (F12) at (0.8644,1.1371,0.5405);
+    \coordinate (F23) at (1.5103,1.1024,1.0223);
+    \coordinate (F31) at (1.5936,0.6334,0.6124);
+    \coordinate (CV) at (0.8203,0.6150,0.5828);
+    \drawtrivalentcell{O}{E1}{E2}{E3}{F12}{F23}{F31}{CV}
+  \end{scope}
+\end{tikzpicture}
+\end{document}

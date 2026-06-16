@@ -1,0 +1,174 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{splitred}{HTML}{AF2525}
+\definecolor{centroidgreen}{HTML}{0E8814}
+
+% Wireframe exploded view of the vertex cells produced by hexahedron refinement.
+% The eight separated corner cells duplicate shared edge-midpoint, face-centroid,
+% and volume-centroid vertices so each child can be read independently.
+\providecommand{\fvmadaptYawAngle}{8}
+\providecommand{\fvmadaptExplodeAmount}{1}
+\providecommand{\fvmadaptExplodeScale}{1.69}
+\pgfmathsetmacro{\yawcos}{cos(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\yawsin}{sin(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\xbasisx}{20.3*\yawcos + 15.3*\yawsin}
+\pgfmathsetmacro{\xbasisy}{-8.5*\yawcos + 11.3*\yawsin}
+\pgfmathsetmacro{\ybasisx}{-20.3*\yawsin + 15.3*\yawcos}
+\pgfmathsetmacro{\ybasisy}{8.5*\yawsin + 11.3*\yawcos}
+\pgfmathsetmacro{\explodeXi}{0.42*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeEta}{0.32*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeZeta}{0.50*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+
+\begin{document}
+\begin{tikzpicture}[
+  x={(\xbasisx mm,\xbasisy mm)},
+  y={(\ybasisx mm,\ybasisy mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=black,line width=0.54mm},
+  split/.style={draw=splitred,line width=0.42mm},
+  centroidedge/.style={draw=centroidgreen,line width=0.48mm},
+  axis/.style={draw=black!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Fixed canvas for static and animated renders. The yaw sweep changes the
+  % projected x/y basis, so a stable canvas avoids per-frame cropping.
+  \path[use as bounding box]
+    (canvas cs:x=-62mm,y=-52mm) rectangle (canvas cs:x=70mm,y=64mm);
+
+  \newcommand{\drawcornercell}[8]{%
+    \draw[outer] (#1) -- (#2);
+    \draw[outer] (#1) -- (#3);
+    \draw[outer] (#1) -- (#4);
+    \draw[split] (#2) -- (#5);
+    \draw[split] (#3) -- (#5);
+    \draw[split] (#2) -- (#6);
+    \draw[split] (#4) -- (#6);
+    \draw[split] (#3) -- (#7);
+    \draw[split] (#4) -- (#7);
+    \draw[centroidedge] (#5) -- (#8);
+    \draw[centroidedge] (#6) -- (#8);
+    \draw[centroidedge] (#7) -- (#8);
+    \fill[black] (#1) circle[radius=0.58mm];
+    \foreach \p in {#2,#3,#4,#5,#6,#7} {
+      \fill[splitred] (\p) circle[radius=0.50mm];
+    }
+    \fill[centroidgreen] (#8) circle[radius=0.66mm];
+  }
+
+  % Compact orientation axes, tucked away from the exploded cells.
+  \coordinate (Oaxis) at (-1.55,-0.70,-0.75);
+  \draw[axis] (Oaxis) -- (-0.45,-0.70,-0.75) node[below right,font=\scriptsize] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.55,0.38,-0.75) node[above left,font=\scriptsize] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.55,-0.70,0.35) node[above,font=\scriptsize] {$\zeta$};
+
+  % Explosion heuristic: keep the vertex cell at the xi/eta/zeta minimum corner
+  % fixed, then slide the other cells along the positive coordinate directions
+  % implied by their parent vertices.
+
+  % Corner A child: keep the xi/eta/zeta-minimum child fixed.
+  \begin{scope}[shift={(0,0,0)}]
+    \coordinate (O) at (0,0,0);
+    \coordinate (X) at (0.725,0,0);
+    \coordinate (Y) at (0,0.5,0);
+    \coordinate (Z) at (0,0,0.5);
+    \coordinate (XY) at (0.725,0.5,0);
+    \coordinate (XZ) at (0.725,0,0.5);
+    \coordinate (YZ) at (0,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+
+  % Corner B child: shift along +xi.
+  \begin{scope}[shift={(\explodeXi,0,0)}]
+    \coordinate (O) at (1.45,0,0);
+    \coordinate (X) at (0.725,0,0);
+    \coordinate (Y) at (1.45,0.5,0);
+    \coordinate (Z) at (1.45,0,0.5);
+    \coordinate (XY) at (0.725,0.5,0);
+    \coordinate (XZ) at (0.725,0,0.5);
+    \coordinate (YZ) at (1.45,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+
+  % Corner C child: shift along +xi and +eta.
+  \begin{scope}[shift={(\explodeXi,\explodeEta,0)}]
+    \coordinate (O) at (1.45,1,0);
+    \coordinate (X) at (0.725,1,0);
+    \coordinate (Y) at (1.45,0.5,0);
+    \coordinate (Z) at (1.45,1,0.5);
+    \coordinate (XY) at (0.725,0.5,0);
+    \coordinate (XZ) at (0.725,1,0.5);
+    \coordinate (YZ) at (1.45,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+
+  % Corner D child: shift along +eta.
+  \begin{scope}[shift={(0,\explodeEta,0)}]
+    \coordinate (O) at (0,1,0);
+    \coordinate (X) at (0.725,1,0);
+    \coordinate (Y) at (0,0.5,0);
+    \coordinate (Z) at (0,1,0.5);
+    \coordinate (XY) at (0.725,0.5,0);
+    \coordinate (XZ) at (0.725,1,0.5);
+    \coordinate (YZ) at (0,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+
+  % Corner E child: shift along +zeta.
+  \begin{scope}[shift={(0,0,\explodeZeta)}]
+    \coordinate (O) at (0,0,1);
+    \coordinate (X) at (0.725,0,1);
+    \coordinate (Y) at (0,0.5,1);
+    \coordinate (Z) at (0,0,0.5);
+    \coordinate (XY) at (0.725,0.5,1);
+    \coordinate (XZ) at (0.725,0,0.5);
+    \coordinate (YZ) at (0,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+
+  % Corner F child: shift along +xi and +zeta.
+  \begin{scope}[shift={(\explodeXi,0,\explodeZeta)}]
+    \coordinate (O) at (1.45,0,1);
+    \coordinate (X) at (0.725,0,1);
+    \coordinate (Y) at (1.45,0.5,1);
+    \coordinate (Z) at (1.45,0,0.5);
+    \coordinate (XY) at (0.725,0.5,1);
+    \coordinate (XZ) at (0.725,0,0.5);
+    \coordinate (YZ) at (1.45,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+
+  % Corner G child: shift along +xi, +eta, and +zeta.
+  \begin{scope}[shift={(\explodeXi,\explodeEta,\explodeZeta)}]
+    \coordinate (O) at (1.45,1,1);
+    \coordinate (X) at (0.725,1,1);
+    \coordinate (Y) at (1.45,0.5,1);
+    \coordinate (Z) at (1.45,1,0.5);
+    \coordinate (XY) at (0.725,0.5,1);
+    \coordinate (XZ) at (0.725,1,0.5);
+    \coordinate (YZ) at (1.45,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+
+  % Corner H child: shift along +eta and +zeta.
+  \begin{scope}[shift={(0,\explodeEta,\explodeZeta)}]
+    \coordinate (O) at (0,1,1);
+    \coordinate (X) at (0.725,1,1);
+    \coordinate (Y) at (0,0.5,1);
+    \coordinate (Z) at (0,1,0.5);
+    \coordinate (XY) at (0.725,0.5,1);
+    \coordinate (XZ) at (0.725,1,0.5);
+    \coordinate (YZ) at (0,0.5,0.5);
+    \coordinate (C) at (0.725,0.5,0.5);
+    \drawcornercell{O}{X}{Y}{Z}{XY}{XZ}{YZ}{C}
+  \end{scope}
+\end{tikzpicture}
+\end{document}
