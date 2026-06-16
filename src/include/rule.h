@@ -748,6 +748,45 @@ namespace Loci {
     static T get_value() {
       return std::numeric_limits<T>::lowest() ;
     }
+  /// Combines values with logical AND.
+  template <class T> struct LogicalAnd {
+    void operator()(T &res, const T &arg)
+    { res = res && arg ; }
+    template <class U> void operator()(T &res, const U &arg)
+    { res = res && arg ; }
+  } ;
+  /// Combines matching entries of vector views with logical AND.
+  template <class T> struct LogicalAnd<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = res[i] && arg[i] ;
+    }
+  } ;
+
+  /// Combines values with logical OR.
+  template <class T> struct LogicalOr {
+    void operator()(T &res, const T &arg)
+    { res = res || arg ; }
+    template <class U> void operator()(T &res, const U &arg)
+    { res = res || arg ; }
+  } ;
+  /// Combines matching entries of vector views with logical OR.
+  template <class T> struct LogicalOr<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = res[i] || arg[i] ;
+    }
+  } ;
+
+  template <class T> struct Maximum {
+    void operator()(T &res ,const T &arg)
+    { res = max(res,arg) ; }
+    template <class U> void operator()(T &res, const U &arg)
+    { res = max(res,arg) ; }
   } ;
 
   template<typename T>
