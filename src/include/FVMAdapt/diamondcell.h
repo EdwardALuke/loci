@@ -41,22 +41,26 @@
  * @brief General-cell refinement helpers based on diamond-cell decomposition.
  */
 
-using std::cerr;
-using std::endl;
-using std::list;
+using std::cerr ;
+using std::endl ;
+using std::list ;
 
-class Cell;
+class Cell ;
 
 /**
- * @brief Diamond-cell refinement tree used to decompose general cells.
+ * @brief Diamond-shaped subcell used in general-cell refinement trees.
  * @ingroup fvmadapt_elements
  *
  * Isotropically splitting a general cell creates one DiamondCell for each
- * original general-cell node. If the general cell has `m` nodes, the split
- * produces `m` DiamondCell objects.
+ * original cell node. A DiamondCell is formed from each of the original
+ * general cell's nodes.
  *
- * The fold `n` of a DiamondCell is the number of faces meeting at each of its
- * two apex nodes. A fold-`n` DiamondCell has `2n + 2` nodes, `2n` faces, and
+ * `nfold` is the number of faces that meet at two apex nodes, or original
+ * node that was used to form the DiamondCell. For a DiamondCell, there are
+ * two nodes that have the highest number of faces that touch them, all of the
+ * other nodes of the DiamondCell have fewer faces.
+ *
+ * An n-fold DiamondCell has `2n + 2` nodes, `2n` quadrilateral faces, and
  * `4n` edges. Of those faces, `n` share node `0` and `n` share node `1`.
  */
 class DiamondCell
@@ -100,39 +104,84 @@ public:
     parentCell = 0;
   }
 
-  /// If all children are tagged as 2, remove all children
-  void derefine();
+  /**
+  * Delete this cell's children and mark it as a leaf.
+  */
+  void derefine() ;
 
-  bool needDerefine();
+  /**
+  * Return true if this DiamondCell's children can be removed.
+  *
+  * Derefinement is allowed when this cell has children, each existing child is
+  * tagged `2`, no child is itself refined, and no edge in this cell has been
+  * split more than one level below the cell.
+  */
+  bool needDerefine() ;
 
-  bool needDerefine_ctag();
+  /**
+  * Return true if this DiamondCell's children can be removed using cell tags.
+  *
+  * This is the cell-tag variant of needDerefine(): each existing child must have
+  * `getTag() == 2`, no child may already be refined, and no edge in this cell may
+  * be split more than one level below the cell.
+  */
+  bool needDerefine_ctag() ;
 
-  inline char getTag() const {return tag;}
+  char getTag() const { return tag ; }
 
-  inline void setTag(char c){tag=c;}
+  void setTag(char c){ tag=c ; }
 
-  inline void setCellIndex(int32 cellID){cellIndex = cellID;}
+  void setCellIndex(int32 cellID){ cellIndex = cellID ; }
 
-  inline int32 getCellIndex() const {return cellIndex;}
+  int32 getCellIndex() const { return cellIndex ; }
 
-  inline char getNfold() const{return nfold;}
+  char getNfold() const{ return nfold ; }
 
-  inline int getLevel()const{return face[0]->edge[0]->level;}
+  int getLevel() const{ return face[0]->edge[0]->level ; }
 
   /// Define if this is tagged for refinement, derefinement, or unchanged
-  int get_tagged();
-  int get_tagged(const vector<source_par>& s);
-  int get_num_fine_faces();//for mxfpc
-  inline void setParentCell( DiamondCell* parent){parentCell = parent;}
-  inline DiamondCell* getParentCell(){return parentCell;}
+  /**
+  * Return this cell's adaptation state from its vertex tags.
+  *
+  * Returns `2` if every vertex has tag `2`, `1` if any vertex has tag `1`,
+  * and `0` otherwise. This does not read the DiamondCell's own `tag` field.
+  */
+  int get_tagged() ;
 
-  inline DiamondCell* getChildCell(int i)const {return childCell[i];}
+  /**
+  * Return this cell's source-based refinement state.
+  *
+  * The cell vertices and minimum edge length are passed to tag_cell(), which
+  * returns `1` when the source definitions request refinement and `0`
+  * otherwise.
+  */
+  int get_tagged(const vector<source_par>& s) ;
 
-  inline DiamondCell** getChildCell()const {return childCell;}
+  /**
+  * Return the total number of leaf face pieces on this cell.
+  *
+  * This sums get_num_leaves() over the cell's `2*nfold` face trees.
+  */
+  int get_num_fine_faces() ; //for mxfpc
 
-  /// When faceID >= nfold, a cell will share the same face with its parentCell
-  /// this function find the faceID in parentCell
-  int parentFace(int faceID)const;
+  inline void setParentCell( DiamondCell* parent) { parentCell = parent ; }
+  inline DiamondCell* getParentCell() { return parentCell ; }
+
+  inline DiamondCell* getChildCell(int i) const { return childCell[i] ; }
+
+  inline DiamondCell** getChildCell() const { return childCell ; }
+
+  /**
+  * Return the parentCell face index that contains this cell's face[faceID].
+  *
+  * Only face indices `[nfold, 2*nfold)` map to parentCell faces. Indices
+  * `[0, nfold)` are internal faces between children created by the split.
+  *
+  * @param faceID face index in `[nfold, 2*nfold)`.
+  * @return Face index in `parentCell`, or `-1` if @p faceID has no parent-face
+  *         mapping.
+  */
+  int parentFace(int faceID) const ;
 
   /// This function splits DiamondCell isotropically level times
   /// newly created nodes, edges and faces are put into the lists
@@ -204,22 +253,22 @@ private:
   /// node 0 and node 1 have nfold edges, other vertices has 3 edges
   char nfold;
 
-  /// The index of the cell, start with 1
-  int32 cellIndex;
+  /// The index of the cell. Cell indices start with 1
+  int32 cellIndex ;
 
   /// The parent of the cell
-  DiamondCell *parentCell;
+  DiamondCell *parentCell ;
 
   // A dynamic array of pointers to children cells
-  DiamondCell **childCell;
+  DiamondCell **childCell ;
 
-  Face** face;
+  Face** face ;
 
   /// Orientation of a face.
   /// 0 - Point outward
   /// 1 - Points inward
   /// i.e. faceOrient[i] = 1; else faceOrient[i] = 0;
-  char* faceOrient; //the face points inward or outward
+  char* faceOrient ; //the face points inward or outward
 
   /// If the face has been checked. size: 2*nfold
   bool* faceMarked;
@@ -246,7 +295,7 @@ private:
 
   /// Calculate the centroid of the diamondcell, it's defined as the mean value
   /// of facecenters.
-  /// Precondition: all the faces have been splitted
+  /// Precondition: all the faces have been split
   inline Node* simple_center(){
     Node* cellcenter = new Node();
     std::vector<vect3d> facecenter(2*nfold);
