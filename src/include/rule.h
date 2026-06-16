@@ -721,7 +721,8 @@ namespace Loci {
     }
   } ;
 
-  template<typename T> struct Maximum {
+  template<typename T>
+  struct Maximum {
     GPU_DECL
     void operator()(T &res ,const T &arg) {
       res = max(res,arg) ;
@@ -748,45 +749,6 @@ namespace Loci {
     static T get_value() {
       return std::numeric_limits<T>::lowest() ;
     }
-  /// Combines values with logical AND.
-  template <class T> struct LogicalAnd {
-    void operator()(T &res, const T &arg)
-    { res = res && arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = res && arg ; }
-  } ;
-  /// Combines matching entries of vector views with logical AND.
-  template <class T> struct LogicalAnd<Vect<T> > {
-    template <class U> void operator()(Vect<T> &res ,const U &arg)
-    {
-      int vs = res.getSize() ;
-      for(int i=0;i<vs;++i)
-        res[i] = res[i] && arg[i] ;
-    }
-  } ;
-
-  /// Combines values with logical OR.
-  template <class T> struct LogicalOr {
-    void operator()(T &res, const T &arg)
-    { res = res || arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = res || arg ; }
-  } ;
-  /// Combines matching entries of vector views with logical OR.
-  template <class T> struct LogicalOr<Vect<T> > {
-    template <class U> void operator()(Vect<T> &res ,const U &arg)
-    {
-      int vs = res.getSize() ;
-      for(int i=0;i<vs;++i)
-        res[i] = res[i] || arg[i] ;
-    }
-  } ;
-
-  template <class T> struct Maximum {
-    void operator()(T &res ,const T &arg)
-    { res = max(res,arg) ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = max(res,arg) ; }
   } ;
 
   template<typename T>
@@ -883,7 +845,88 @@ namespace Loci {
     }
   } ;  
 
-  
+  /// Combines values with logical AND.
+  template<typename T>
+  struct LogicalAnd {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = res && arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = res && arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<LogicalAnd<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    LogicalAnd<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return T(1) ;
+    }
+  } ;
+
+  /// Combines matching entries of vector views with logical AND.
+  template <class T> struct LogicalAnd<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = res[i] && arg[i] ;
+    }
+  } ;
+
+  /// Combines values with logical OR.
+  template<typename T>
+  struct LogicalOr {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = res || arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = res || arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<LogicalOr<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    LogicalOr<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return T(0) ;
+    }
+  } ;
+
+  /// Combines matching entries of vector views with logical OR.
+  template <class T> struct LogicalOr<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = res[i] || arg[i] ;
+    }
+  } ;
+
   class rule {
   public:
     enum rule_type {BUILD=0,COLLAPSE=1,GENERIC=2,TIME_SPECIFIC=3,INTERNAL=4} ;
