@@ -934,7 +934,7 @@ if [ $USE_CUDA == 1 ]; then
     echo CUDA_BASE = $CUDA_BASE >> sys.conf
     echo CUDA_LIBS = -L\$\(CUDA_BASE\)/lib64 -lcudart \$\(RPATH\)\$\(CUDA_BASE\)/lib64 >> sys.conf
     echo CUDA_INCLUDE = -I\$\(CUDA_BASE\)/include -I\$\(MPI_BASE\)/include -DUSE_CUDA_RT >> sys.conf
-    echo NVCC = nvcc -O3 -lineinfo -g -arch native >> sys.conf
+    echo NVCC = nvcc -O3 -lineinfo -g -arch native --expt-relaxed-constexpr >> sys.conf
 
 fi
 echo >> sys.conf

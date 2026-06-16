@@ -29,6 +29,8 @@
 #include <Tools/debug.h>
 #include <entitySet.h>
 #include <store_rep.h>
+#include <Tools/gpu_attr.h>
+#include <Tools/basic_types.h>
 
 #include <iostream>
 #include <string>
@@ -626,7 +628,11 @@ namespace Loci {
     }
 
   } ;
-  
+
+  template<typename Op, typename T>
+  struct ReductionIdentity {
+  } ;
+
   template <class T> struct NullOp {
     void operator()(T &res, const T &arg)
     { std::cerr << "join should not be called for NullOp" << std::endl; }
@@ -634,28 +640,242 @@ namespace Loci {
     { std::cerr << "join should not be called for NullOp" << std::endl; }
   } ;
 
-  template <class T> struct Summation {
-    void operator()(T &res, const T &arg)
-    { res += arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res += arg ; }
+  template<typename T> struct Summation {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res += arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res += arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Summation<T>, T>::get_value() ;
+    }
   } ;
 
-  template <class T> struct Product {
-    void operator()(T &res, const T &arg)
-    { res *= arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res *= arg ; }
-
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+    > {
+    GPU_DECL
+    static T get_value() {
+      return 0 ;
+    }
   } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<vector3d<T>>,
+    typename std::enable_if<std::is_arithmetic_v<T>, vector3d<T>>::type
+    > {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(0, 0, 0) ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<vector2d<T>>,
+    typename std::enable_if<std::is_arithmetic_v<T>, vector2d<T>>::type
+    > {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(0, 0) ;
+    }
+  } ;
+
+  template<typename T>
+  struct Product {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res *= arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res *= arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Product<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Product<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+    > {
+    GPU_DECL
+    static T get_value() {
+      return 1.0 ;
+    }
+  } ;
+
+  template<typename T>
+  struct Maximum {
+    GPU_DECL
+    void operator()(T &res ,const T &arg) {
+      res = max(res,arg) ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = max(res,arg) ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Maximum<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Maximum<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return std::numeric_limits<T>::lowest() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Maximum<vector3d<T>>, vector3d<T>> {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Maximum<vector2d<T>>, vector2d<T>> {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template <class T> struct Maximum<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = max(res[i],arg[i]) ;
+    }
+  } ;  
+
+  template<typename T>
+  struct Minimum {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = min(res,arg) ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = min(res,arg) ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Minimum<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Minimum<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return std::numeric_limits<T>::max() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Minimum<vector3d<T>>, vector3d<T>> {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Minimum<vector2d<T>>, vector2d<T>> {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template <class T> struct Minimum<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = min(res[i],arg[i]) ;
+    }
+  } ;  
 
   /// Combines values with logical AND.
-  template <class T> struct LogicalAnd {
-    void operator()(T &res, const T &arg)
-    { res = res && arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = res && arg ; }
+  template<typename T>
+  struct LogicalAnd {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = res && arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = res && arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<LogicalAnd<T>, T>::get_value() ;
+    }
   } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    LogicalAnd<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return T(1) ;
+    }
+  } ;
+
   /// Combines matching entries of vector views with logical AND.
   template <class T> struct LogicalAnd<Vect<T> > {
     template <class U> void operator()(Vect<T> &res ,const U &arg)
@@ -667,12 +887,36 @@ namespace Loci {
   } ;
 
   /// Combines values with logical OR.
-  template <class T> struct LogicalOr {
-    void operator()(T &res, const T &arg)
-    { res = res || arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = res || arg ; }
+  template<typename T>
+  struct LogicalOr {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = res || arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = res || arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<LogicalOr<T>, T>::get_value() ;
+    }
   } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    LogicalOr<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return T(0) ;
+    }
+  } ;
+
   /// Combines matching entries of vector views with logical OR.
   template <class T> struct LogicalOr<Vect<T> > {
     template <class U> void operator()(Vect<T> &res ,const U &arg)
@@ -683,37 +927,6 @@ namespace Loci {
     }
   } ;
 
-  template <class T> struct Maximum {
-    void operator()(T &res ,const T &arg)
-    { res = max(res,arg) ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = max(res,arg) ; }
-  } ;
-  template <class T> struct Maximum<Vect<T> > {
-    template <class U> void operator()(Vect<T> &res ,const U &arg)
-    {
-      int vs = res.getSize() ;
-      for(int i=0;i<vs;++i)
-        res[i] = max(res[i],arg[i]) ;
-    }
-  } ;  
-
-  template <class T> struct Minimum {
-    void operator()(T &res, const T &arg)
-    { res = min(res,arg) ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = min(res,arg) ; }
-  } ;
-  template <class T> struct Minimum<Vect<T> > {
-    template <class U> void operator()(Vect<T> &res ,const U &arg)
-    {
-      int vs = res.getSize() ;
-      for(int i=0;i<vs;++i)
-        res[i] = min(res[i],arg[i]) ;
-    }
-  } ;  
-
-  
   class rule {
   public:
     enum rule_type {BUILD=0,COLLAPSE=1,GENERIC=2,TIME_SPECIFIC=3,INTERNAL=4} ;
