@@ -18,6 +18,12 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
+///////////////////////////////////////////////////////////////////////////////
+//
+// This file balance hex cellPlan between cells  
+//
+///////////////////////////////////////////////////////////////////////////////
+
 
 #include <queue>
 #include <vector>
@@ -32,45 +38,12 @@ using std::endl;
 
 using Loci::storeRepP;
 
-$include "FVM.lh"
-$include "fvmadapt_internal.lh"
 
-//-----------------------------------------------------------------------------
-//
-// This file balances hex cellPlan between cells
-//
-//-----------------------------------------------------------------------------
-
-/// Constraint for cells handled by the hexahedral adaptation path.
-$type hexcells Constraint ;
-
-/// Hex-cell face order used by FVMAdapt's hexahedral refinement trees.
-$type hex2face store<Array<char,6> > ;
-
-/// Hex-cell node order used by FVMAdapt's hexahedral refinement trees.
-$type hex2node store<Array<char,8> > ;
-
-/// Hex-cell face orientation code for the hexahedral refinement tree.
-$type hexOrientCode store<Array<char,6> > ;
-
-/// Split-mode parameter used when choosing anisotropic hex-cell splits.
-$type split_mode_par param<int> ;
-
-/// Initializes cellUnchanged. Initially newCellPlan is the plan made from
-/// postag and nodeTag, and after each cell is balanced.
-$rule pointwise(cellUnchanged{n=0}, tmpCellPlan{n=0} <- newCellPlan),
-constraint(hexcells) {
-  $cellUnchanged{n=0} = ($newCellPlan.size() == 0) ;
-  $tmpCellPlan{n=0} = $newCellPlan ;
-  reduce_vector($tmpCellPlan{n=0}) ;
-}
-
-/*
 class init_hex_cell_updated:public pointwise_rule{
   const_store<std::vector<char> > newCellPlan;
   store<bool> cellUnchanged;
   store<std::vector<char> > tmpCellPlan;
-
+  
 public:
   init_hex_cell_updated(){
     name_store("newCellPlan", newCellPlan);
@@ -81,93 +54,25 @@ public:
     constraint("hexcells");
   }
   virtual void compute(const sequence &seq){
-
+    
     do_loop(seq, this);
   }
   void calculate(Entity cc){
-
+    
     cellUnchanged[cc] = (newCellPlan[cc].size() == 0);
-
+   
     tmpCellPlan[cc] = newCellPlan[cc];
     reduce_vector(tmpCellPlan[cc]);
-
-
+    
+    
   }
 };
 
 register_rule<init_hex_cell_updated> register_init_hex_cell_updated;
-*/
 
 
 
-/// Advance rule for balancing each hex cell with its interior and boundary
-/// faces.
-$rule pointwise(cellUnchanged{n+1}, tmpCellPlan{n+1} <- split_mode_par,
-cellUnchanged{n}, tmpCellPlan{n}, hex2face, hex2node, hexOrientCode,
-isIndivisible,
-(lower, upper, boundary_map)->face2node->pos,
-(lower, upper, boundary_map)->face2edge->tmpEdgePlan{n},
-(lower, upper, boundary_map)->face2edge->edge2node->pos,
-(lower, upper, boundary_map)->tmpFacePlan{n},
-(lower, upper, boundary_map)->fileNumber(face2node)),
-constraint(hexcells) {
-
-  // first assume the cell will not be updated
-  $cellUnchanged{n+1} = true ;
-
-  std::list<Node*> node_list ;
-  std::list<Edge*> edge_list ;
-  std::list<QuadFace*> face_list ;
-  std::list<Node*> bnode_list ;
-
-  HexCell* aCell = build_hex_cell($lower.begin(), $lower.size(),
-                                  $upper.begin(), $upper.size(),
-                                  $boundary_map.begin(),
-                                  $boundary_map.size(),
-                                  $hex2face,
-                                  $hex2node,
-                                  $hexOrientCode,
-                                  $*face2node,
-                                  $*face2edge,
-                                  $*edge2node,
-                                  $*pos,
-                                  $*tmpEdgePlan{n},
-                                  $*tmpFacePlan{n},
-                                  bnode_list,
-                                  edge_list,
-                                  face_list,
-                                  $*fileNumber(face2node)) ;
-
-  std::vector<HexCell*> cells ;
-  aCell->resplit($tmpCellPlan{n},
-                 node_list,
-                 edge_list,
-                 face_list,
-                 cells) ;
-
-  // balance cells
-  if (!$isIndivisible) {
-    aCell->rebalance_cells($split_mode_par, node_list, edge_list, face_list) ;
-  }
-
-  // write new cellPlan
-  std::vector<char> newCellPlan(aCell->make_cellplan()) ;
-  $cellUnchanged{n+1} = (newCellPlan == $tmpCellPlan{n}) ;
-
-  $tmpCellPlan{n+1} = newCellPlan ;
-  reduce_vector($tmpCellPlan{n+1}) ;
-
-  // clean up
-  if (aCell != 0) {
-    delete aCell ;
-    aCell = 0 ;
-  }
-  cleanup_list(node_list, edge_list, face_list) ;
-  cleanup_list(bnode_list) ;
-}
-
-/*
-//this rule balances each cell with all its interior faces(lower, upper)
+//this rule balance each cell with all its interior faces(lower, upper)
 class advance_hex_cell_updated : public pointwise_rule{
   const_multiMap lower;
   const_multiMap upper;
@@ -233,7 +138,7 @@ public:
   }
   void calculate(Entity cc){
     //first assume the cell will not be updated
-
+   
 
     cellUnchangedn1[cc] = true;
 
@@ -259,53 +164,54 @@ public:
                                      edge_list,
                                      face_list,
                                      node_l2f);
-
-
-
-
-
-
-
+    
+  
+  
+ 
+ 
+ 
+    
 
     std::vector<HexCell*> cells;
-
-    aCell->resplit( tmpCellPlann[cc],
+    
+    aCell->resplit( tmpCellPlann[cc], 
                     node_list,
                     edge_list,
                     face_list,
                     cells);
-
-
-
+    
+    
+       
 
     //balance cells
     if(!isIndivisible[cc]){
       aCell->rebalance_cells(*split_mode_par, node_list, edge_list, face_list);
     }
-
+        
 
     //write new cellPlan
     std::vector<char> newCellPlan (aCell->make_cellplan());
 
-
+    
     cellUnchangedn1[cc] =  (newCellPlan == tmpCellPlann[cc]);
 
-
+    
     tmpCellPlann1[cc] = newCellPlan;
     reduce_vector(tmpCellPlann1[cc]);
-
+    
     //clean up
-
+    
     if(aCell != 0){
         delete aCell;
         aCell = 0;
     }
     cleanup_list(node_list, edge_list, face_list);
     cleanup_list(bnode_list);
-
+    
   }
-
+  
 };
 
 register_rule<advance_hex_cell_updated> register_advance_hex_cell_updated;
-*/
+
+
