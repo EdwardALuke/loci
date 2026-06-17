@@ -50,7 +50,7 @@ $type balancedPointSet store<SetLong> ;
 $type balancedEdgePlan store<std::vector<char> > ;
 
 $rule unit(balancedPointSet), constraint(edge2node->pos) {
-  // Do nothing
+  $balancedPointSet = SetLong() ;
 }
 
 $rule apply(face2edge->balancedPointSet<-balancedFacePlan, is_quadface,

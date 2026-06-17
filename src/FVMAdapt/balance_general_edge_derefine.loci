@@ -44,7 +44,7 @@ $include "fvmadapt_internal.lh"
 $type balancedPointSet1 store<SetLong> ;
 
 $rule unit(balancedPointSet1), constraint(edge2node->pos){
-  // Do nothing
+  $balancedPointSet1 = SetLong() ;
 }
 
 $rule apply(face2edge->balancedPointSet1<-balancedFacePlan1, is_quadface,
