@@ -45,11 +45,20 @@ $type tmpCellPlan store<std::vector<char> > ;
 // Balanced general-cell plan used by derefinement/restart reprocessing.
 $type balancedCellPlan1 store<std::vector<char> > ;
 
+// Balanced general-cell plan after cell balancing.
+$type balancedCellPlan store<std::vector<char> > ;
+
+// Balanced general-face plan derived from balancedCellPlan facts.
+$type balancedFacePlan store<std::vector<char> > ;
+
 // Balanced face plan derived from balancedCellPlan1 for derefinement/restart reprocessing.
 $type balancedFacePlan1 store<std::vector<char> > ;
 
 // Balanced edge plan derived from balancedFacePlan1 for derefinement/restart reprocessing.
 $type balancedEdgePlan1 store<std::vector<char> > ;
+
+// Balanced edge plan derived from balancedFacePlan facts.
+$type balancedEdgePlan store<std::vector<char> > ;
 
 // True when all cells are stable under the current balancing iteration.
 $type finishBalancing param<bool> ;
@@ -65,3 +74,33 @@ $type isIndivisible store<bool> ;
 
 // True when this face has quadrilateral topology.
 $type is_quadface store<bool> ;
+
+// All non-boundary faces 
+$type interior_faces Constraint ;
+
+//--------Hex Cell Types----------
+
+/// Constraint for cells handled by the hexahedral adaptation path.
+$type hexcells Constraint ;
+
+/// Constraint for cells handled by the prism adaptation path.
+$type prisms Constraint ;
+
+/// Local face indices on the left and right cells adjacent to a face.
+$type fl store<char> ;
+$type fr store<char> ;
+
+/// Hex-cell face order used by FVMAdapt's hexahedral refinement trees.
+$type hex2face store<Array<char,6> > ;
+
+/// Hex-cell node order used by FVMAdapt's hexahedral refinement trees.
+$type hex2node store<Array<char,8> > ;
+
+/// Hex-cell face orientation code for the hexahedral refinement tree.
+$type hexOrientCode store<Array<char,6> > ;
+
+/// Prism-cell face orientation code for the prism refinement tree.
+$type prismOrientCode store<Array<char,5> > ;
+
+/// Split-mode parameter used when choosing anisotropic hex-cell splits.
+$type split_mode_par param<int> ;
