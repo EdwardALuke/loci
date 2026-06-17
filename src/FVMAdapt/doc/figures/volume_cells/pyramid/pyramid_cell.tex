@@ -1,0 +1,56 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{externalface}{HTML}{8FB9E8}
+
+% Colored square-pyramid cell figure.
+% The base lies in the xi-eta plane and the apex points in +zeta.
+\begin{document}
+\begin{tikzpicture}[
+  x={(20.3mm,-8.5mm)},
+  y={(15.3mm,11.3mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=black,line width=0.62mm},
+  hidden/.style={draw=black!65,line width=0.48mm,loosely dotted},
+  face/.style={fill=externalface,fill opacity=0.32,draw=none},
+  axis/.style={draw=black!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Square-base pyramid vertices. The xi direction is stretched to match the
+  % prism, tetrahedron, and hexahedron figures.
+  \coordinate (A) at (0,0,0);
+  \coordinate (B) at (1.45,0,0);
+  \coordinate (C) at (1.45,1,0);
+  \coordinate (D) at (0,1,0);
+  \coordinate (E) at (0.725,0.5,1);
+
+  % Offset computational-coordinate axes.
+  \coordinate (Oaxis) at (-1.20,-0.42,-0.18);
+  \draw[axis] (Oaxis) -- (1.60,-0.42,-0.18) node[below right,font=\scriptsize] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.20,1.12,-0.18) node[above left,font=\scriptsize] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.20,-0.42,1.12) node[above,font=\scriptsize] {$\zeta$};
+
+  % Exterior faces share the same translucent shade.
+  \path[face] (A) -- (B) -- (C) -- (D) -- cycle;
+  \path[face] (A) -- (B) -- (E) -- cycle;
+  \path[face] (B) -- (C) -- (E) -- cycle;
+  \path[face] (C) -- (D) -- (E) -- cycle;
+  \path[face] (D) -- (A) -- (E) -- cycle;
+
+  % Hidden-line convention: edges incident to the back-left base vertex are dotted.
+  \draw[hidden] (A) -- (D) -- (C);
+  \draw[hidden] (D) -- (E);
+
+  % Visible exterior wireframe.
+  \draw[outer] (A) -- (B) -- (C);
+  \draw[outer] (A) -- (E) -- (B);
+  \draw[outer] (C) -- (E);
+
+  % Original vertices are black, except the hidden back-left base vertex D.
+  \foreach \p in {A,B,C,E} {
+    \fill[black] (\p) circle[radius=0.75mm];
+  }
+  \fill[black!65] (D) circle[radius=0.75mm];
+\end{tikzpicture}
+\end{document}

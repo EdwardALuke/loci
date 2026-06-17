@@ -18,15 +18,6 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-//************************************************************************
-// this file extract the edge refinement plan from the face refinement
-//plan. A queue is used to simulate the tree-building process but no tree is
-//actually built.
-// Two tables are used. edgeIDTable indicates the IDs of the children
-//whose codes need to be extracted. edgeCodeTable transfers from face code to
-//edge code.
-//***************************************************************************
-
 #include <vector>
 #include <queue>
 #include <iostream>
@@ -37,6 +28,29 @@ using std::cerr;
 using std::endl;
 //using namespace std;
 
+/**
+ * @file extract_hex_edge.cc
+ * @brief Extracts one quad-face edge refinement plan from a face refinement
+ *        plan.
+ *
+ * The implementation walks the face plan in breadth-first order without
+ * constructing a Face or QuadFace tree. `edgeIDTable` selects which child
+ * branches contribute to the requested edge, and `edgeCodeTable` maps face
+ * split codes to edge split codes.
+ */
+
+/**
+ * Extracts the refinement plan for one edge of a quadrilateral face.
+ *
+ * The output vector is replaced with the extracted edge plan. Leading and
+ * trailing no-op entries, including the special propagation code `8`, are
+ * trimmed after extraction.
+ *
+ * @param facePlan Breadth-first quad-face refinement plan.
+ * @param edgePlan Output edge plan for edge @p dd.
+ * @param dd       Quad-face edge index, used to select `edgeIDTable` and
+ *                 `edgeCodeTable` rows.
+ */
 void  extract_quad_edge(const  std::vector<char>& facePlan, std::vector<char>& edgePlan, unsigned int dd){
   
   //output edgeCodeTable
