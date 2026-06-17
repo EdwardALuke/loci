@@ -33,145 +33,60 @@ using std::cerr;
 using std::endl;
 using std::cout;
 
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
 
-class merge_general_interior_derefineface:public pointwise_rule{
-  const_Map cl;
-  const_Map cr;
-  const_multiMap lower;
-  const_multiMap upper;
-  const_multiMap boundary_map;
-  const_multiMap face2node;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_store<std::vector<char> > cellPlan;
-  store<std::vector<char> > facePlan;
-  const_store<vect3d> pos;
+$rule pointwise(balancedFacePlan1 <- (cl, cr)->balancedCellPlan1, face2node,
+(cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(interior_faces, (cl, cr)->gnrlcells) {
+  $balancedFacePlan1.clear() ;
 
-   const_store<int> node_l2f;
-public:
-  merge_general_interior_derefineface(){
-    name_store("cl", cl);
-    name_store("cr", cr);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("balancedCellPlan1", cellPlan);
-    name_store("balancedFacePlan1", facePlan);
-    name_store("pos", pos);
-    name_store("fileNumber(pos)", node_l2f);
-  
-    input("(cl,cr)->balancedCellPlan1");
-    input("(cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
-     input("(cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    output("balancedFacePlan1");
-     constraint("interior_faces, (cl, cr)->gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-   
-    if(seq.size()!=0){
-   
-    do_loop(seq, this);
-    }
-   
-  }
-  void calculate(Entity f){
-   
-   
-    facePlan[f].clear();
-   
-    std::vector<char> facePlanL = extract_general_face(lower[cl[f]].begin(), lower.num_elems(cl[f]),
-                                                       upper[cl[f]].begin(), upper.num_elems(cl[f]),
-                                                       boundary_map[cl[f]].begin(), boundary_map.num_elems(cl[f]),
-                                                       face2node,
-                                                       face2edge,
-                                                       edge2node,
-                                                       cellPlan[cl[f]],
-                                                       f,
-                                                       node_l2f);
-    
-    std::vector<char> facePlanR = extract_general_face(lower[cr[f]].begin(), lower.num_elems(cr[f]),
-                                                       upper[cr[f]].begin(), upper.num_elems(cr[f]),
-                                                       boundary_map[cr[f]].begin(), boundary_map.num_elems(cr[f]),
-                                                       face2node,
-                                                       face2edge,
-                                                       edge2node,
-                                                       cellPlan[cr[f]],
-                                                       f,
-                                                       node_l2f);
-    
-    
-    
-    facePlan[f] = merge_faceplan(facePlanL, facePlanR, face2node.num_elems(f));
-    reduce_vector(facePlan[f]);     
-   
-  }
-};
+  std::vector<char> facePlanL = extract_general_face($cl->$lower.begin(),
+                                                     $cl->$lower.size(),
+                                                     $cl->$upper.begin(),
+                                                     $cl->$upper.size(),
+                                                     $cl->$boundary_map.begin(),
+                                                     $cl->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cl->$balancedCellPlan1,
+                                                     _e_,
+                                                     $*fileNumber(pos)) ;
 
-register_rule<merge_general_interior_derefineface> register_merge_general_interior_derefineface;
+  std::vector<char> facePlanR = extract_general_face($cr->$lower.begin(),
+                                                     $cr->$lower.size(),
+                                                     $cr->$upper.begin(),
+                                                     $cr->$upper.size(),
+                                                     $cr->$boundary_map.begin(),
+                                                     $cr->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cr->$balancedCellPlan1,
+                                                     _e_,
+                                                     $*fileNumber(pos)) ;
 
+  $balancedFacePlan1 = merge_faceplan(facePlanL, facePlanR, $face2node.size()) ;
+  reduce_vector($balancedFacePlan1) ;
+}
 
-
-class merge_general_boundary_derefineface:public pointwise_rule{
-  const_Map cl;
-  const_multiMap lower;
-  const_multiMap upper;
-  const_multiMap boundary_map;
-  const_multiMap face2node;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_store<std::vector<char> > cellPlan;
-  store<std::vector<char> > facePlan;
-  const_store<vect3d> pos;//dummy
-
-   const_store<int> node_l2f;
-public:
-  merge_general_boundary_derefineface(){
-    name_store("cl", cl);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("balancedCellPlan1", cellPlan);
-    name_store("balancedFacePlan1", facePlan);
-    name_store("pos", pos);
-    name_store("fileNumber(pos)", node_l2f);
-  
-    input("cl->balancedCellPlan1");
-    input("cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
-    input("cl->(lower, upper, boundary_map)->face2edge->edge2node->pos");
-  
-    output("balancedFacePlan1");
-    constraint("boundary_faces, cl->gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-  
-    if(seq.size()!=0){
-     
-      do_loop(seq, this);
-    }
-  
-  }
-  void calculate(Entity f){
-   
-   
-    facePlan[f] = extract_general_face(lower[cl[f]].begin(), lower.num_elems(cl[f]),
-                                       upper[cl[f]].begin(), upper.num_elems(cl[f]),
-                                       boundary_map[cl[f]].begin(), boundary_map.num_elems(cl[f]),
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       cellPlan[cl[f]],
-                                       f,
-                                       node_l2f);  
-    reduce_vector(facePlan[f]);
- 
-  }
-  
-};
-
-register_rule<merge_general_boundary_derefineface> register_merge_general_boundary_derefineface;
+$rule pointwise(balancedFacePlan1 <- cl->balancedCellPlan1,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(boundary_faces, cl->gnrlcells) {
+  $balancedFacePlan1 = extract_general_face($cl->$lower.begin(),
+                                           $cl->$lower.size(),
+                                           $cl->$upper.begin(),
+                                           $cl->$upper.size(),
+                                           $cl->$boundary_map.begin(),
+                                           $cl->$boundary_map.size(),
+                                           $*face2node,
+                                           $*face2edge,
+                                           $*edge2node,
+                                           $cl->$balancedCellPlan1,
+                                           _e_,
+                                           $*fileNumber(pos)) ;
+  reduce_vector($balancedFacePlan1) ;
+}
