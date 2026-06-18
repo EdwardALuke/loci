@@ -16,4 +16,4 @@ html/index.html: Doxyfile
 clean: 
 
 distclean: 
-	rm -fr html latex
+	rm -fr html latex *~

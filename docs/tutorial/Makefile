@@ -17,3 +17,4 @@ clean:
 distclean:
 	$(MAKE) -C docs distclean LOCI_BASE=$(LOCI_BASE)
 	$(MAKE) -C LociTutorialSlides distclean LOCI_BASE=$(LOCI_BASE)
+	rm -f *~

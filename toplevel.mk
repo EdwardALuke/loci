@@ -26,5 +26,5 @@ tarball:
 	git archive --format=tgz --prefix=Loci-$(LOCI_REVISION_NAME)/ \
 	            --add-virtual-file=Loci-$(LOCI_REVISION_NAME)/src/version.conf:"$$version_string" \
 	            -o Loci-$(LOCI_REVISION_NAME).tgz HEAD
-tarball-with-docs: dosc
+tarball-with-docs: docs
 	bash src/scripts/tarball_with_docs.sh "$(LOCI_REVISION_NAME)" "$(GIT_INFO)" "$(GIT_BRANCH)" "${OBJDIR}"

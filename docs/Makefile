@@ -17,3 +17,4 @@ distclean:
 	$(MAKE) -C tutorial distclean  LOCI_BASE=$(LOCI_BASE)
 	$(MAKE) -C doxygen distclean   LOCI_BASE=$(LOCI_BASE)
 	$(MAKE) -C developer distclean LOCI_BASE=$(LOCI_BASE)
+	rm -f *~

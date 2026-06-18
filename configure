@@ -1051,8 +1051,7 @@ fi
 ################################################################################
 # Make makefile
 ################################################################################
-echo -n "OBJDIR = "                           > Makefile
-echo ${OBJDIR} | sed 's/ /\\ /g'             >> Makefile
+echo OBJDIR = ${OBJDIR}                       > Makefile
 echo                                         >> Makefile
 echo "include \${OBJDIR}/version.conf"       >> Makefile
 echo                                         >> Makefile

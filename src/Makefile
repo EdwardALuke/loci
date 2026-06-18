@@ -47,7 +47,7 @@ docs-distclean: FORCE
 	$(MAKE) -C docs distclean LOCI_BASE="$(LOCI_BASE)"
 
 
-install: default docs-for-install
+install: default docs
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
 	GIT_BRANCH=$(GIT_BRANCH) bash scripts/Install.bash
