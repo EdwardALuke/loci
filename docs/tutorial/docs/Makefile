@@ -1,4 +1,6 @@
-TEX_FILES = appendix.tex \
+.PHONY: clean distclean FRC
+
+TEX_FILES = 	appendix.tex \
 		datatype.tex \
 		intro.tex \
 		io.tex \
@@ -11,12 +13,12 @@ SOURCE_FILES =  entities_cc.tex \
 
 tutorial.pdf: ${TEX_FILES} ${SOURCE_FILES}
 	pdflatex  main && pdflatex  main && mv main.pdf tutorial.pdf
-	
 
 clean: FRC
-	./clean
+	rm -f *.aux *.toc *.log main.pdf
 
-FRC:
+distclean: clean
+	rm -f ${SOURCE_FILES} tutorial.pdf
 
 Makefile_ex.tex: ../heat/Makefile
 	cat begin.tex > Makefile_ex.tex

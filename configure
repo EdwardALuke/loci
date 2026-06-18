@@ -1051,47 +1051,10 @@ fi
 ################################################################################
 # Make makefile
 ################################################################################
-echo "include ${OBJDIR}/version.conf"        >  Makefile
+echo -n "OBJDIR = "                           > Makefile
+echo ${OBJDIR} | sed 's/ /\\ /g'             >> Makefile
 echo                                         >> Makefile
-echo ".PHONY: default install install_minimal test docs clean uninstall distclean tarball tarball-with-docs" >> Makefile
+echo "include \${OBJDIR}/version.conf"       >> Makefile
 echo                                         >> Makefile
-echo "default:"                              >> Makefile
-echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
-echo "install:"                              >> Makefile
-echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
-echo "install_minimal:"                      >> Makefile
-echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
-echo "test:"                                 >> Makefile
-echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
-echo "docs:"                                 >> Makefile
-echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
-echo "clean:"                                >> Makefile
-echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
-echo "uninstall:"                            >> Makefile
-echo "	@\$(MAKE) -C ${OBJDIR} \$@"          >> Makefile
-echo "distclean:"                            >> Makefile
-echo "	rm -fr ${OBJDIR} copy.out config.log"  >> Makefile
-echo "	@if [ -f docs/Makefile ]; then \$(MAKE) -C docs distclean; fi" >> Makefile
-echo "	rm -f Makefile"  >> Makefile
-echo "tarball:"                                                                        >> Makefile
-echo "	version_string=\$\$(sed -e \"s:^GIT_INFO.*:GIT_INFO = \$(GIT_INFO):g\" \\"      >> Makefile
-echo "	                      -e \"s:^GIT_BRANCH.*:GIT_BRANCH = \$(GIT_BRANCH):g\" \\"  >> Makefile
-echo "	                      src/conf/version.conf); \\"                              >> Makefile
-echo "	git archive --format=tgz --prefix=Loci-\$(LOCI_REVISION_NAME)/ \\"             >> Makefile
-echo "	            --add-virtual-file=Loci-\$(LOCI_REVISION_NAME)/src/version.conf:\"\$\$version_string\" \\"  >> Makefile
-echo "	            -o Loci-\$(LOCI_REVISION_NAME).tgz HEAD"                           >> Makefile
-echo "tarball-with-docs: docs"                                                         >> Makefile
-echo "	bash src/scripts/tarball_with_docs.sh \"\$(LOCI_REVISION_NAME)\" \"\$(GIT_INFO)\" \"\$(GIT_BRANCH)\" \"${OBJDIR}\"" >> Makefile
-
-echo
-echo
-echo "To compile Loci, enter:"
-echo "  make"
-echo "To rebuild the tutorial PDF and Doxygen API docs, enter:"
-echo "  make docs"
-echo "  (requires pdflatex for the tutorial PDF and doxygen for API docs)"
-echo "To install Loci in the directory $PREFIX, enter:"
-echo "  make install"
-echo "  (install reuses prebuilt docs when present)"
-echo "To uninstall Loci from the directory $PREFIX, enter:"
-echo "  make uninstall"
+echo "include toplevel.mk"                   >> Makefile
+echo                                         >> Makefile
