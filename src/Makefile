@@ -163,6 +163,7 @@ endif
 	rm -fr $(LOCI_INSTALL_PATH)/docs/doxygen
 	rm -fr $(LOCI_INSTALL_PATH)/docs/heat
 	rm -f $(LOCI_INSTALL_PATH)/docs/tutorial.pdf
+	rm -f $(LOCI_INSTALL_PATH)/docs/LociSlides.pdf
 
 distclean: docs-distclean
 	rm -f $(JUNK)

@@ -53,6 +53,7 @@ fi
 prefix=Loci-$revision_name
 archive=$prefix-with-docs.tgz
 tutorial_pdf=$obj_path/docs/tutorial/docs/tutorial.pdf
+tutorial_slides_pdf=$obj_path/docs/tutorial/LociTutorialSlides/LociSlides.pdf
 doxygen_html=$obj_path/docs/doxygen/html
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
@@ -62,6 +63,12 @@ fi
 
 if [ ! -f "$tutorial_pdf" ]; then
     echo "ERROR: $tutorial_pdf not found."
+    echo "Run 'make docs' with pdflatex available before packaging docs."
+    exit 1
+fi
+
+if [ ! -f "$tutorial_slides_pdf" ]; then
+    echo "ERROR: $tutorial_slides_pdf not found."
     echo "Run 'make docs' with pdflatex available before packaging docs."
     exit 1
 fi
@@ -88,7 +95,7 @@ git archive --format=tar --prefix="$prefix/" HEAD | tar -x -C "$stage_dir"
 
 mkdir -p "$stage_dir/$prefix/docs/tutorial/docs"
 cp -p "$tutorial_pdf" "$stage_dir/$prefix/docs/tutorial/docs/tutorial.pdf"
-
+cp -p "$tutorial_slides_pdf" "$stage_dir/$prefix/docs/tutorial/LociTutorialSlides/LociSlides.pdf"
 rm -rf "$stage_dir/$prefix/docs/doxygen/html"
 mkdir -p "$stage_dir/$prefix/docs/doxygen"
 cp -aL "$doxygen_html" "$stage_dir/$prefix/docs/doxygen/html"
@@ -118,6 +125,7 @@ fi
     echo
     echo "Included generated artifacts:"
     echo "- docs/tutorial/docs/tutorial.pdf"
+    echo "- docs/tutorial/LociTutorialSlides//LociSlides.pdf"
     echo "- docs/doxygen/html/"
 } > "$manifest"
 
