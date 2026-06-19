@@ -52,20 +52,17 @@ copy_with_symlinks() {
             fi
             ln -s "$file" "$target_path"
         fi
-    done < <(find "$src" \( -path "$src/doxygen/html" \
-                  -o -path "$src/doxygen/latex" \) -prune \
-                  -o -type f \( -name '*.cc' -o -name '*.cpp' \
+    done < <(find "$src" -type f \( -name '*.cc' -o -name '*.cpp' \
                   -o -name '*.c' -o -name '*.loci' -o -name '*.sh' \
                   -o -name '*.bash' \
                   -o -name '*.h' -o -name '*.hh' -o -name '*.lh' \
                   -o -name '*.hpp' -o -name '*.md' \
-                  -o -name '*.tex' -o -name '*.eps' -o -name '*.pdf' \
+                  -o -name '*.tex' -o -name '*.pdf' \
                   -o -name '*.png' -o -name '*.svg' -o -name '*.html' \
-                  -o -name '*.css' -o -name '*.js' -o -name '*.obj' -o -name '*.sty' \
-                  -o -name '*.txt' -o -name '*.dat' -o -name '*.vog'\
-                  -o -name '*.vars' -o -name Makefile \
-                  -o -name Doxyfile -o -name clean \
-                  -o -name example_grid -o -name Loci -o -name overset \) -print0)
+                  -o -name '*.css' -o -name '*.js' -o -name '*.obj' \
+                  -o -name '*.sty' -o -name '*.txt' -o -name '*.dat' \
+                  -o -name '*.vog' -o -name '*.vars' -o -name Makefile \
+                  -o -name Loci -o -name overset \) -print0)
 }
 
 source=`pwd`
@@ -134,11 +131,45 @@ mkdir -p $fulltarget/bin
 
 rm -f $fulltarget/Tutorial
 echo "Making symlink copy of directory $source/docs"
-copy_with_symlinks $source/docs $fulltarget/docs
-if [ -d "$source/docs/doxygen/html" ] && [ ! -e "$fulltarget/docs/doxygen/html" ]; then
-    mkdir -p "$fulltarget/docs/doxygen"
-    ln -s "$source/docs/doxygen/html" "$fulltarget/docs/doxygen/html"
-fi
+# do symlink copy of everything except doxygen
+mkdir -p "$fulltarget/docs"
+mkdir -p "$fulltarget/docs/doxygen"
+pushd "$source/docs"
+for docfiles in *; do
+    if [ -f "$docfiles" ]; then
+        if [ ! -h "$fulltarget/docs/$docfiles" ]; then
+            ln -s "$source/docs/$docfiles" "$fulltarget/docs/$docfiles"
+        fi
+    else
+        if [ "$docfiles" != "doxygen" ]; then
+            copy_with_symlinks "$source/docs/$docfiles" "$fulltarget/docs/$docfiles"
+        fi
+    fi
+done
+popd
+# now copy doxygen
+pushd "$source/docs/doxygen"
+for doxfiles in *; do
+    if [ -f "$doxfiles" ]; then
+        if [ ! -h "$fulltarget/docs/doxygen/$doxfiles" ]; then
+            ln -s "$source/docs/doxygen/$doxfiles" \
+               "$fulltarget/docs/doxygen/$doxfiles"
+        fi
+    else
+        if [ "$doxfiles" == "html" ] || \
+               [ "$doxfiles" == "latex" ]; then
+            if [ ! -h "$fulltarget/docs/doxygen/$doxfiles" ]; then
+                ln -s "$source/docs/doxygen/$doxfiles" \
+                   "$fulltarget/docs/doxygen/$doxfiles"
+            fi
+        else
+            copy_with_symlinks "$source/docs/doxygen/$doxfiles" \
+                               "$fulltarget/docs/doxygen/$doxfiles"
+        fi
+    fi
+done
+popd
+
 
 for dir in $TARGET_DIRS; do
     echo "Making symlink copy of directory $source/src/$dir"

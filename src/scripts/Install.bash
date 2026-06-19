@@ -163,6 +163,10 @@ mkdir -p $INSTALL_PATH/docs/Datatypes
 if [ -e docs/tutorial/docs/tutorial.pdf ] ; then
     soft_copy_dir docs/tutorial/docs/tutorial.pdf $INSTALL_PATH/docs
 fi
+if [ -e docs/tutorial/LociTutorialSlides/LociSlides.pdf ] ; then
+    soft_copy_dir docs/tutorial/LociTutorialSlides/LociSlides.pdf $INSTALL_PATH/docs
+fi
+
 soft_copy_dir docs/tutorial/1D-Diffusion/Makefile $INSTALL_PATH/docs/1D-Diffusion
 glob_soft_copy "docs/tutorial/1D-Diffusion/*.loci" $INSTALL_PATH/docs/1D-Diffusion
 glob_soft_copy "docs/tutorial/1D-Diffusion/*.lh" $INSTALL_PATH/docs/1D-Diffusion
