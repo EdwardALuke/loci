@@ -58,7 +58,8 @@ copy_with_symlinks() {
                   -o -name '*.h' -o -name '*.hh' -o -name '*.lh' \
                   -o -name '*.hpp' -o -name '*.md' \
                   -o -name '*.tex' -o -name '*.pdf' \
-                  -o -name '*.png' -o -name '*.svg' -o -name '*.html' \
+                  -o -name '*.png' -o -name '*.svg' -o -name '*.gif' \
+                  -o -name '*.html' \
                   -o -name '*.css' -o -name '*.js' -o -name '*.obj' \
                   -o -name '*.sty' -o -name '*.txt' -o -name '*.dat' \
                   -o -name '*.vog' -o -name '*.vars' -o -name Makefile \

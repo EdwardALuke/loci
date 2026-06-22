@@ -1,0 +1,109 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+
+\definecolor{fvmadaptedge}{HTML}{8A7E7E}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{splitred}{HTML}{AF2525}
+
+% Wireframe exploded view of prism split code 2. The three separated children
+% are the Prism(4) columns generated around the split triangular end faces.
+\providecommand{\fvmadaptYawAngle}{8}
+\providecommand{\fvmadaptExplodeAmount}{1}
+\providecommand{\fvmadaptExplodeScale}{1.35}
+\pgfmathsetmacro{\yawcos}{cos(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\yawsin}{sin(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\xbasisx}{20.3*\yawcos + 15.3*\yawsin}
+\pgfmathsetmacro{\xbasisy}{-8.5*\yawcos + 11.3*\yawsin}
+\pgfmathsetmacro{\ybasisx}{-20.3*\yawsin + 15.3*\yawcos}
+\pgfmathsetmacro{\ybasisy}{8.5*\yawsin + 11.3*\yawcos}
+\pgfmathsetmacro{\fvmadaptEtaProjectionScale}{0.75}
+\pgfmathsetmacro{\ybasisxscaled}{\fvmadaptEtaProjectionScale*\ybasisx}
+\pgfmathsetmacro{\ybasisyscaled}{\fvmadaptEtaProjectionScale*\ybasisy}
+\pgfmathsetmacro{\explodeXi}{0.56*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeEta}{0.43*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+
+\begin{document}
+\begin{tikzpicture}[
+  x={(\xbasisx mm,\xbasisy mm)},
+  y={(\ybasisxscaled mm,\ybasisyscaled mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=fvmadaptedge,line width=0.54mm},
+  split/.style={draw=splitred,line width=0.44mm},
+  axis/.style={draw=fvmadaptedge!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Fixed canvas for static and animated renders.
+  \path[use as bounding box]
+    (canvas cs:x=-57mm,y=-58mm) rectangle (canvas cs:x=72mm,y=68mm);
+
+  \newcommand{\drawquadcolumn}{%
+    % Bottom and top end-face fragments: original boundary pieces stay #8a7e7e,
+    % while the face-center split edges are red.
+    \draw[outer] (B0) -- (B1);
+    \draw[split] (B1) -- (BC) -- (B3);
+    \draw[outer] (B3) -- (B0);
+    \draw[outer] (T0) -- (T1);
+    \draw[split] (T1) -- (TC) -- (T3);
+    \draw[outer] (T3) -- (T0);
+
+    % Original vertical edge plus the new side and axial split edges.
+    \draw[outer] (B0) -- (T0);
+    \draw[split] (B1) -- (T1);
+    \draw[split] (BC) -- (TC);
+    \draw[split] (B3) -- (T3);
+
+    \foreach \p in {B0,T0} {
+      \fill[fvmadaptedge] (\p) circle[radius=0.58mm];
+    }
+    \foreach \p in {B1,BC,B3,T1,TC,T3} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+
+  % Compact orientation axes near the fixed A-column child.
+  \coordinate (Oaxis) at (-1.28,-0.55,-0.70);
+  \draw[axis] (Oaxis) -- (-0.32,-0.55,-0.70) node[below right,font=\normalsize,text=fvmadaptedge] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.28,0.39,-0.70) node[above left,font=\normalsize,text=fvmadaptedge] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.28,-0.55,0.26) node[above,font=\normalsize,text=fvmadaptedge] {$\zeta$};
+
+  % Child around vertex A: keep the low xi/eta column fixed.
+  \begin{scope}[shift={(0,0,0)}]
+    \coordinate (B0) at (0,0,0);
+    \coordinate (B1) at (0.725,0,0);
+    \coordinate (BC) at (0.483,0.333,0);
+    \coordinate (B3) at (0,0.5,0);
+    \coordinate (T0) at (0,0,1);
+    \coordinate (T1) at (0.725,0,1);
+    \coordinate (TC) at (0.483,0.333,1);
+    \coordinate (T3) at (0,0.5,1);
+    \drawquadcolumn
+  \end{scope}
+
+  % Child around vertex B: shift mostly along +xi.
+  \begin{scope}[shift={(\explodeXi,0,0)}]
+    \coordinate (B0) at (1.45,0,0);
+    \coordinate (B1) at (0.725,0.5,0);
+    \coordinate (BC) at (0.483,0.333,0);
+    \coordinate (B3) at (0.725,0,0);
+    \coordinate (T0) at (1.45,0,1);
+    \coordinate (T1) at (0.725,0.5,1);
+    \coordinate (TC) at (0.483,0.333,1);
+    \coordinate (T3) at (0.725,0,1);
+    \drawquadcolumn
+  \end{scope}
+
+  % Child around vertex C: shift mostly along +eta.
+  \begin{scope}[shift={(0,\explodeEta,0)}]
+    \coordinate (B0) at (0,1,0);
+    \coordinate (B1) at (0,0.5,0);
+    \coordinate (BC) at (0.483,0.333,0);
+    \coordinate (B3) at (0.725,0.5,0);
+    \coordinate (T0) at (0,1,1);
+    \coordinate (T1) at (0,0.5,1);
+    \coordinate (TC) at (0.483,0.333,1);
+    \coordinate (T3) at (0.725,0.5,1);
+    \drawquadcolumn
+  \end{scope}
+\end{tikzpicture}
+\end{document}
