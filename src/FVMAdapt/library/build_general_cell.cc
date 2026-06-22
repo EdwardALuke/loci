@@ -18,7 +18,6 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-// This file build a Cell according to Loci data structures and refinementplans
 #include <vector>
 #include <list>
 #include <Loci.h>
@@ -37,76 +36,75 @@ using std::vector;
 //   }
 //   else if(nd->tag == 1) cerr << " p: " << p << " ," << char(nd->tag + '0')<< endl;
 // }
-          
-
-std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan);
 
 
+std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan) ;
 
 
-std::vector<Entity> reorder_nodes(const const_store<int>& node_remap, const entitySet& localSet){
-  
-  //reverse the map 
-  std::vector<pair<int, Entity> > node_f2l(localSet.size());
-  int index = 0;
-  for(entitySet::const_iterator ei = localSet.begin(); ei != localSet.end(); ei++, index++){
-    node_f2l[index] = pair<int, Entity>(node_remap[*ei], *ei);
+std::vector<Entity> reorder_nodes(const const_store<int>& node_remap,
+                                  const entitySet& localSet) {
+
+  // reverse the map
+  std::vector<pair<int, Entity> > node_f2l(localSet.size()) ;
+  int index = 0 ;
+  for(entitySet::const_iterator ei = localSet.begin(); ei != localSet.end(); ei++, index++) {
+    node_f2l[index] = pair<int, Entity>(node_remap[*ei], *ei) ;
   }
-  std::sort(node_f2l.begin(), node_f2l.end());
-  std::vector<Entity> orderedSet(localSet.size());
-  for( size_t i= 0; i < localSet.size(); i++){
-    orderedSet[i] = node_f2l[i].second;
+  std::sort(node_f2l.begin(), node_f2l.end()) ;
+  std::vector<Entity> orderedSet(localSet.size()) ;
+  for( size_t i= 0; i < localSet.size(); i++) {
+    orderedSet[i] = node_f2l[i].second ;
   }
-  return orderedSet;
+  return orderedSet ;
 }
 
-std::vector<Entity> reorder_edges(const const_store<int>& node_remap,const const_MapVec<2>& edge2node, const entitySet& localSet){
-  
-  //reverse the map 
-  std::vector<pair<std::vector<int>, Entity> > node_f2l(localSet.size());
-  int index = 0;
-  for(entitySet::const_iterator ei = localSet.begin(); ei != localSet.end(); ei++, index++){
-    vector<int> e2n(2);
+std::vector<Entity> reorder_edges(const const_store<int>& node_remap,
+                                  const const_MapVec<2>& edge2node,
+                                  const entitySet& localSet) {
+
+  // reverse the map
+  std::vector<pair<std::vector<int>, Entity> > node_f2l(localSet.size()) ;
+  int index = 0 ;
+  for(entitySet::const_iterator ei = localSet.begin(); ei != localSet.end(); ei++, index++) {
+    vector<int> e2n(2) ;
     //  e2n[0] = min(node_remap[edge2node[*ei][0]],node_remap[edge2node[*ei][1]]) ;
     //     e2n[1] = max(node_remap[edge2node[*ei][0]],node_remap[edge2node[*ei][1]]) ;
 
     e2n[0] = node_remap[edge2node[*ei][0]] ;
     e2n[1] = node_remap[edge2node[*ei][0]] ;
-    node_f2l[index] = pair<vector<int>, Entity>(e2n,*ei);
+    node_f2l[index] = pair<vector<int>, Entity>(e2n,*ei) ;
   }
-  std::sort(node_f2l.begin(), node_f2l.end());
-  std::vector<Entity> orderedSet(localSet.size());
-  for( size_t i= 0; i < localSet.size(); i++){
-    orderedSet[i] = node_f2l[i].second;
+  std::sort(node_f2l.begin(), node_f2l.end()) ;
+  std::vector<Entity> orderedSet(localSet.size()) ;
+  for( size_t i= 0; i < localSet.size(); i++) {
+    orderedSet[i] = node_f2l[i].second ;
   }
-  return orderedSet;
+  return orderedSet ;
 }
 
+void reorder_faces(const const_store<int>& node_remap,
+                   const const_multiMap& face2node,
+                   std::vector<Entity>& localSet,
+                   char* orient) {
 
-void reorder_faces(const const_store<int>& node_remap, const const_multiMap& face2node, std::vector<Entity>& localSet, char* orient){
-  
-  //reverse the map 
-  std::vector<pair<vector<int>, pair<Entity, char> > > node_f2l(localSet.size());
-  for(unsigned int  index  = 0; index < localSet.size(); index++){
-    vector<int> f2n(face2node.num_elems(localSet[index]));
-    for(int i = 0; i< face2node.num_elems(localSet[index]); i++){
-      f2n[i] = node_remap[face2node[localSet[index]][i]];
+  // reverse the map
+  std::vector<pair<vector<int>, pair<Entity, char> > > node_f2l(localSet.size()) ;
+  for(unsigned int  index  = 0; index < localSet.size(); index++) {
+    vector<int> f2n(face2node.num_elems(localSet[index])) ;
+    for(int i = 0; i< face2node.num_elems(localSet[index]); i++) {
+      f2n[i] = node_remap[face2node[localSet[index]][i]] ;
     }
-    
+
     node_f2l[index] = pair<vector<int>, pair<Entity, char> >(f2n,
-                                                             pair<Entity, char>(localSet[index], orient[index]));
+                                                             pair<Entity, char>(localSet[index], orient[index])) ;
   }
-  std::sort(node_f2l.begin(), node_f2l.end());
-  
-  for( unsigned int i= 0; i < localSet.size(); i++){
-    localSet[i] = (node_f2l[i].second).first;
-    orient[i] = (node_f2l[i].second).second;
+  std::sort(node_f2l.begin(), node_f2l.end()) ;
+
+  for( unsigned int i= 0; i < localSet.size(); i++) {
+    localSet[i] = (node_f2l[i].second).first ;
+    orient[i] = (node_f2l[i].second).second ;
   }
-  
 }
-
-
-
 
 //parallel version in set_general_nums.cc
 Cell* build_general_cell(const Entity* lower, int lower_size,
@@ -122,166 +120,158 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                          std::list<Node*>& bnode_list,
                          std::list<Edge*>& edge_list,
                          std::list<Face*>& face_list,
-                         const const_store<int>& node_remap){
-  int numFaces = lower_size + upper_size + boundary_map_size;
-  std::vector<Entity> faces(numFaces);
-  
-  //orient value: upper and boundary_map: 1
-  //              lower: -1
-  char* orient = new char[numFaces];
-  
-  int findex = 0;
-  for(int i=0; i<lower_size; i++){
-    faces[findex] = lower[i];
-    orient[findex++] = 1;
+                         const const_store<int>& node_remap) {
+  int numFaces = lower_size + upper_size + boundary_map_size ;
+  std::vector<Entity> faces(numFaces) ;
+
+  // orient value:
+  // upper and boundary_map: 1
+  // lower: -1
+  char* orient = new char[numFaces] ;
+
+  int findex = 0 ;
+  for(int i=0; i<lower_size; i++) {
+    faces[findex] = lower[i] ;
+    orient[findex++] = 1 ;
   }
-  
-  for(int i=0; i<upper_size; i++){
-    faces[findex] = upper[i];
-    orient[findex++] = 0;
-    
+
+  for(int i=0; i<upper_size; i++) {
+    faces[findex] = upper[i] ;
+    orient[findex++] = 0 ;
   }
-  for(int i=0; i<boundary_map_size; i++){
-    faces[findex] = boundary_map[i];
-    orient[findex++] = 0;
-    
-  } 
-  
-  
-  //collect all the nodes and edges of the cell
-  entitySet edges, nodes;
-  for(unsigned int i=0; i< faces.size(); i++){
-    for( int j= 0; j< face2node.num_elems(faces[i]); j++){
-      nodes += face2node[faces[i]][j];
+
+  for(int i=0; i<boundary_map_size; i++) {
+    faces[findex] = boundary_map[i] ;
+    orient[findex++] = 0 ;
+  }
+
+  // collect all the nodes and edges of the cell
+  entitySet edges, nodes ;
+  for(unsigned int i=0; i<faces.size(); i++) {
+    for(int j=0; j<face2node.num_elems(faces[i]); j++) {
+      nodes += face2node[faces[i]][j] ;
     }
-    
-    for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
-      edges += face2edge[faces[i]][j];
+
+    for(int j=0; j<face2edge.num_elems(faces[i]); j++) {
+      edges += face2edge[faces[i]][j] ;
     }
   }
 
-  //reorder entities
-  std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
-  std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node,edges);
-  reorder_faces(node_remap, face2node, faces, orient);
-  
-  int numEdges = edges.size();
-  int numNodes = nodes.size();
-  
-  //define each node and put it into node_list
-  std::map<Entity, Node*> n2n;
-  for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
-    Node* aNode = new Node(pos[*np]);
-    bnode_list.push_back(aNode);
-    n2n[*np] = aNode;
+  // reorder entities
+  std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes) ;
+  std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges) ;
+  reorder_faces(node_remap, face2node, faces, orient) ;
+
+  int numEdges = edges.size() ;
+  int numNodes = nodes.size() ;
+
+  // define each node and put it into node_list
+  std::map<Entity, Node*> n2n ;
+  for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++) {
+    Node* aNode = new Node(pos[*np]) ;
+    bnode_list.push_back(aNode) ;
+    n2n[*np] = aNode ;
   }
-  
-  //define each edge and put it into edge_list
-  std::map<Entity, Edge*> e2e;
-  for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
-    Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
-    edge_list.push_back(anEdge);
-    e2e[*ep] = anEdge;
-    
-    //resplit the edge
-    anEdge->resplit(edgePlan[*ep], bnode_list);
+
+  // define each edge and put it into edge_list
+  std::map<Entity, Edge*> e2e ;
+  for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++) {
+    Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]) ;
+    edge_list.push_back(anEdge) ;
+    e2e[*ep] = anEdge ;
+
+    // resplit the edge
+    anEdge->resplit(edgePlan[*ep], bnode_list) ;
   }
-        
-  
-  
-  //defines each face and put it into face_list
-  Face** face = new Face*[numFaces];
-  for(int i  = 0; i < numFaces; i++){
-    face[i] = new Face(face2edge.num_elems(faces[i]));
-    face_list.push_back(face[i]);
-    //define each edge
-    for(int j = 0; j < face[i]->numEdge; j++){
-      face[i]->edge[j] = e2e[face2edge[faces[i]][j]];
+
+  // define each face and put it into face_list
+  Face** face = new Face*[numFaces] ;
+  for(int i=0; i<numFaces; i++) {
+    face[i] = new Face(face2edge.num_elems(faces[i])) ;
+    face_list.push_back(face[i]) ;
+    // define each edge
+    for(int j=0; j<face[i]->numEdge; j++) {
+      face[i]->edge[j] = e2e[face2edge[faces[i]][j]] ;
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
-         edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-      else face[i]->needReverse[j] = true;
+         edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) {
+        face[i]->needReverse[j] = false ;
+      }else {
+        face[i]->needReverse[j] = true ;
+      }
     }
-    
+
     //resplit each face
- 
-    if(is_quadface[faces[i]]){
-      std::vector<char> newPlan = transfer_plan_q2g(facePlan[faces[i]]);
-     
-      face[i]->resplit(newPlan, bnode_list, edge_list);
-    }
-    else{
-      face[i]->resplit(facePlan[faces[i]], bnode_list, edge_list);
+
+    if(is_quadface[faces[i]]) {
+      std::vector<char> newPlan = transfer_plan_q2g(facePlan[faces[i]]) ;
+      face[i]->resplit(newPlan, bnode_list, edge_list) ;
+    }else {
+      face[i]->resplit(facePlan[faces[i]], bnode_list, edge_list) ;
     }
   }
-  
-  Node** node = new Node*[numNodes];
-  
-  for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
-    node[nindex] = n2n[orderedNodes[nindex]];
+
+  Node** node = new Node*[numNodes] ;
+  for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++) {
+    node[nindex] = n2n[orderedNodes[nindex]] ;
   }
-  
-  Edge** edge = new Edge*[numEdges];
-  
-  for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
-    edge[eindex] = e2e[orderedEdges[eindex]];
+
+  Edge** edge = new Edge*[numEdges] ;
+  for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++) {
+    edge[eindex] = e2e[orderedEdges[eindex]] ;
   }
-  Cell* aCell = new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
-  return aCell;
+
+  Cell* aCell = new Cell(numNodes, numEdges, numFaces, node, edge, face,orient) ;
+  return aCell ;
 }
 
+int find_face_index(const Entity* lower, int lower_size,
+                    const Entity* upper, int upper_size,
+                    const Entity* boundary_map, int boundary_map_size,
+                    const const_multiMap& face2node,
+                    Entity f, const const_store<int>& node_remap) {
 
-int  find_face_index(const Entity* lower, int lower_size,
-                     const Entity* upper, int upper_size,
-                     const Entity* boundary_map, int boundary_map_size,
-                     const const_multiMap& face2node,
-                     Entity f, const const_store<int>& node_remap){
-  
-  int numFaces = lower_size + upper_size + boundary_map_size;
-  std::vector<Entity> faces(numFaces);
-  
-  //orient value: upper and boundary_map: 1
-  //              lower: -1
-  std::vector<char> orient(numFaces);
-  
-  int findex = 0;
-  for(int i=0; i<lower_size; i++){
-    faces[findex] = lower[i];
-    orient[findex++] = 1;
-  }
-  
-  for(int i=0; i<upper_size; i++){
-    faces[findex] = upper[i];
-    orient[findex++] = 0;
-    
-  }
-  for(int i=0; i<boundary_map_size; i++){
-    faces[findex] = boundary_map[i];
-    orient[findex++] = 0;
-    
-  } 
-  
-  
-  reorder_faces(node_remap, face2node, faces, &orient[0]);
+  int numFaces = lower_size + upper_size + boundary_map_size ;
+  std::vector<Entity> faces(numFaces) ;
 
-  findex = -1;
-  for( int i = 0; i < numFaces; i++){
-    if(faces[i] == f){
-      findex = i;
-      break;
+  // orient value:
+  // upper and boundary_map: 1
+  // lower: -1
+  std::vector<char> orient(numFaces) ;
+
+  int findex = 0 ;
+  for(int i=0; i<lower_size; i++) {
+    faces[findex] = lower[i] ;
+    orient[findex++] = 1 ;
+  }
+
+  for(int i=0; i<upper_size; i++) {
+    faces[findex] = upper[i] ;
+    orient[findex++] = 0 ;
+  }
+
+  for(int i=0; i<boundary_map_size; i++) {
+    faces[findex] = boundary_map[i] ;
+    orient[findex++] = 0 ;
+  }
+
+  reorder_faces(node_remap, face2node, faces, &orient[0]) ;
+
+  findex = -1 ;
+  for( int i=0; i<numFaces; i++) {
+    if(faces[i] == f) {
+      findex = i ;
+      break ;
     }
   }
-    
-  
-  if(findex == -1){
-    cerr << "WARNING: can not find the face" << endl;
-    Loci::Abort();
+
+  if(findex == -1) {
+    cerr << "WARNING: can not find the face" << endl ;
+    Loci::Abort() ;
   }
-  return findex;
+  return findex ;
 }
 
-
-
-//parallel version in merge_general_face.cc, set_general_face.cc
+// parallel version in merge_general_face.cc, set_general_face.cc
 Cell* build_general_cell(const Entity* lower, int lower_size,
                          const Entity* upper, int upper_size,
                          const Entity* boundary_map, int boundary_map_size,
@@ -291,100 +281,102 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                          std::list<Node*>& bnode_list,
                          std::list<Edge*>& edge_list,
                          std::list<Face*>& face_list,
-                         const const_store<int>& node_remap){
-  int numFaces = lower_size + upper_size + boundary_map_size;
-  std::vector<Entity> faces(numFaces);
-  
-  //orient value: upper and boundary_map: 1
-  //              lower: -1
-  char* orient = new char[numFaces];
-  
-  int findex = 0;
-  for(int i=0; i<lower_size; i++){
-    faces[findex] = lower[i];
-    orient[findex++] = 1;
+                         const const_store<int>& node_remap) {
+  int numFaces = lower_size + upper_size + boundary_map_size ;
+  std::vector<Entity> faces(numFaces) ;
+
+  // orient value:
+  // upper and boundary_map: 1
+  // lower: -1
+  char* orient = new char[numFaces] ;
+
+  int findex = 0 ;
+  for(int i=0; i<lower_size; i++) {
+    faces[findex] = lower[i] ;
+    orient[findex++] = 1 ;
   }
-  
-  for(int i=0; i<upper_size; i++){
-    faces[findex] = upper[i];
-    orient[findex++] = 0;
-    
+
+  for(int i=0; i<upper_size; i++) {
+    faces[findex] = upper[i] ;
+    orient[findex++] = 0 ;
   }
-  for(int i=0; i<boundary_map_size; i++){
-    faces[findex] = boundary_map[i];
-    orient[findex++] = 0;
-    
-  } 
-  
-  
-  //collect all the nodes and edges of the cell
-  entitySet edges, nodes;
-  for(unsigned int i=0; i< faces.size(); i++){
-    for( int j= 0; j< face2node.num_elems(faces[i]); j++){
-      nodes += face2node[faces[i]][j];
+
+  for(int i=0; i<boundary_map_size; i++) {
+    faces[findex] = boundary_map[i] ;
+    orient[findex++] = 0 ;
+  }
+
+  // collect all the nodes and edges of the cell
+  entitySet edges, nodes ;
+  for(unsigned int i=0; i<faces.size(); i++) {
+    for(int j= 0; j< face2node.num_elems(faces[i]); j++) {
+      nodes += face2node[faces[i]][j] ;
     }
-    
-    for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
-      edges += face2edge[faces[i]][j];
+
+    for(int j=0; j<face2edge.num_elems(faces[i]); j++) {
+      edges += face2edge[faces[i]][j] ;
     }
   }
+
   //reorder entities
 
-  std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
-  std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges);
-  reorder_faces(node_remap, face2node, faces, orient);
-  
-  int numEdges = edges.size();
-  int numNodes = nodes.size();
-  
-  //define each node and put it into node_list
-  std::map<Entity, Node*> n2n;
-  for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
-    Node* aNode = new Node();
-    bnode_list.push_back(aNode);
-    n2n[*np] = aNode;
+  std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes) ;
+  std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges) ;
+  reorder_faces(node_remap, face2node, faces, orient) ;
+
+  int numEdges = edges.size() ;
+  int numNodes = nodes.size() ;
+
+  // define each node and put it into node_list
+  std::map<Entity, Node*> n2n ;
+  for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++) {
+    Node* aNode = new Node() ;
+    bnode_list.push_back(aNode) ;
+    n2n[*np] = aNode ;
   }
-  
-  //define each edge and put it into edge_list
-  std::map<Entity, Edge*> e2e;
-  for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
-    Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
-    edge_list.push_back(anEdge);
-    e2e[*ep] = anEdge;
+
+  // define each edge and put it into edge_list
+  std::map<Entity, Edge*> e2e ;
+  for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++) {
+    Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]) ;
+    edge_list.push_back(anEdge) ;
+    e2e[*ep] = anEdge ;
   }
-          
-  //defines each face and put it into face_list
-  Face** face = new Face*[numFaces];
-  for(int i  = 0; i < numFaces; i++){
-    face[i] = new Face(face2edge.num_elems(faces[i]));
-    face_list.push_back(face[i]);
-    //define each edge
-    for(int j = 0; j < face[i]->numEdge; j++){
-      face[i]->edge[j] = e2e[face2edge[faces[i]][j]];
+
+  // defines each face and put it into face_list
+  Face** face = new Face*[numFaces] ;
+  for(int i=0; i<numFaces; i++) {
+    face[i] = new Face(face2edge.num_elems(faces[i])) ;
+    face_list.push_back(face[i]) ;
+    // define each edge
+    for(int j=0; j<face[i]->numEdge; j++) {
+      face[i]->edge[j] = e2e[face2edge[faces[i]][j]] ;
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
-         edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-            
-      else face[i]->needReverse[j] = true;
+         edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) {
+        face[i]->needReverse[j] = false ;
+      }else {
+        face[i]->needReverse[j] = true ;
+      }
     }
   }
-        
-  Node** node = new Node*[numNodes];
 
-  for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
-    node[nindex] = n2n[orderedNodes[nindex]];
+  Node** node = new Node*[numNodes] ;
+
+  for(unsigned int nindex=0; nindex<orderedNodes.size(); nindex++) {
+    node[nindex] = n2n[orderedNodes[nindex]] ;
   }
-        
-  Edge** edge = new Edge*[numEdges];
-        
-  for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
-    edge[eindex] = e2e[orderedEdges[eindex]];
+
+  Edge** edge = new Edge*[numEdges] ;
+
+  for(unsigned int eindex=0; eindex<orderedEdges.size(); eindex++) {
+    edge[eindex] = e2e[orderedEdges[eindex]] ;
   }
-  Cell* aCell = new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
-       
-  return aCell;
+  Cell* aCell = new Cell(numNodes, numEdges, numFaces, node, edge, face,orient) ;
+
+  return aCell ;
 }
 
-//parallel version in make_general_cellplan.cc
+// parallel version in make_general_cellplan.cc
 Cell* build_general_cell(const Entity* lower, int lower_size,
                          const Entity* upper, int upper_size,
                          const Entity* boundary_map, int boundary_map_size,
@@ -403,36 +395,36 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                          const const_store<int>& node_remap){
   int numFaces = lower_size + upper_size + boundary_map_size;
   std::vector<Entity> faces(numFaces);
-  
+
   //orient value: upper and boundary_map: 1
   //              lower: -1
   char* orient = new char[numFaces];
-  
+
   int findex = 0;
   for(int i=0; i<lower_size; i++){
     faces[findex] = lower[i];
     orient[findex++] = 1;
   }
-    
+
   for(int i=0; i<upper_size; i++){
     faces[findex] = upper[i];
     orient[findex++] = 0;
-      
+
   }
   for(int i=0; i<boundary_map_size; i++){
     faces[findex] = boundary_map[i];
     orient[findex++] = 0;
-      
-  } 
-    
-    
+
+  }
+
+
   //collect all the nodes and edges of the cell
   entitySet edges, nodes;
   for(unsigned int i=0; i< faces.size(); i++){
     for( int j= 0; j< face2node.num_elems(faces[i]); j++){
       nodes += face2node[faces[i]][j];
     }
-      
+
     for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
       edges += face2edge[faces[i]][j];
     }
@@ -441,10 +433,10 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
   std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
   std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges);
   reorder_faces(node_remap, face2node, faces, orient);
-  
+
   int numEdges = edges.size();
   int numNodes = nodes.size();
-          
+
   //define each node
   std::map<Entity, Node*> n2n;
   for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
@@ -453,22 +445,22 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
     bnode_list.push_back(aNode);
     n2n[*np] = aNode;
   }
-          
-  //define each edge 
-    
+
+  //define each edge
+
   std::map<Entity, Edge*> e2e;
   std::list<Node*>::const_iterator bnode_begin = --(bnode_list.end());
-         
-          
+
+
   for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
     Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
     edge_list.push_back(anEdge);
     e2e[*ep] = anEdge;
-            
+
     //replit the edge
-      
+
     anEdge->resplit(edgePlan[*ep], bnode_list);
-      
+
     //index the node
     int nindex = 0;
     for(std::list<Node*>::const_iterator np = ++bnode_begin; np!= bnode_list.end(); np++){
@@ -477,10 +469,10 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
     }
     bnode_begin = --(bnode_list.end());
   }
-    
-    
-    
-  //defines each face 
+
+
+
+  //defines each face
   Face** face = new Face*[numFaces];
   for(int i  = 0; i < numFaces; i++){
     face[i] = new Face(face2edge.num_elems(faces[i]));
@@ -490,16 +482,16 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
       face[i]->edge[j] = e2e[face2edge[faces[i]][j]];
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
          edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-        
+
       else face[i]->needReverse[j] = true;
     }
-      
+
     //replit each face
-      
-     
+
+
     if(is_quadface[faces[i]]){
       std::vector<char> newPlan = transfer_plan_q2g(facePlan[faces[i]]);
-        
+
       face[i]->resplit(newPlan, bnode_list, edge_list);
       //to tag the node of inner nodes of face[i], first build a quadface with integer coordinates,
       //resplit it
@@ -517,13 +509,13 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                                                 edgePlan,
                                                 tmp_bnode_list,
                                                 edge_list);
-    
+
       //resplit the quadface to get node index
       tmp_qface->resplit(facePlan[faces[i]],
                          char(0),
                          tmp_node_list,
                          edge_list);
-      
+
       int   nindex = 0;
       for(std::list<Node*>::const_iterator np = tmp_node_list.begin(); np!= tmp_node_list.end(); np++){
         (*np)->tag = nodeTag[faces[i]][nindex++];
@@ -535,10 +527,10 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                                                edgePlan,
                                                tmp_bnode_list,
                                                edge_list);
-      
 
 
-      
+
+
       tmp_face->resplit(newPlan, tmp_node_list2, edge_list);
 
       std::list<Node*>::const_iterator tmp_np2 = tmp_node_list2.begin();
@@ -555,7 +547,7 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
           cerr <<"WARNING: can not find the node in build_general_cell"<< endl;
           Loci::Abort();
         }
-      
+
       }
       //cleanup
       delete tmp_qface;
@@ -564,7 +556,7 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
       cleanup_list(tmp_node_list2);
       cleanup_list(tmp_bnode_list);
 
-        
+
     }
     else{
       face[i]->resplit(facePlan[faces[i]], bnode_list, edge_list);
@@ -573,28 +565,28 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
       for(std::list<Node*>::const_iterator np = ++bnode_begin; np!= bnode_list.end(); np++){
         (*np)->tag = nodeTag[faces[i]][nindex++];
         //  checkNode(*np);
-      } 
+      }
     }
-     
-      
-     
+
+
+
     bnode_begin= --(bnode_list.end());
   }
-    
+
   Node** node = new Node*[numNodes];
   for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
     node[nindex] = n2n[orderedNodes[nindex]];
   }
-        
+
   Edge** edge = new Edge*[numEdges];
-        
+
   for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
     edge[eindex] = e2e[orderedEdges[eindex]];
-  }   
-     
+  }
+
   return  new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
-        
-        
+
+
 }
 //build a cell with edgePlan and facePlan, tag the nodes
 //then resplit the edges and faces with edgePlan1 and facePlan1
@@ -609,7 +601,7 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
                                  const const_store<std::vector<char> >& edgePlan,
                                  const const_store<std::vector<char> >& facePlan,
                                  const const_store<std::vector<char> >& edgePlan1,
-                                 const const_store<std::vector<char> >& facePlan1,    
+                                 const const_store<std::vector<char> >& facePlan1,
                                  const const_store<char>& posTag,
                                  const const_store<std::vector<char> >& nodeTag,
                                  std::list<Node*>& bnode_list,
@@ -621,36 +613,36 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
                                  const  std::vector<char>& cellNodeTag ){
   int numFaces = lower_size + upper_size + boundary_map_size;
   std::vector<Entity> faces(numFaces);
-  
+
   //orient value: upper and boundary_map: 1
   //              lower: -1
   char* orient = new char[numFaces];
-  
+
   int findex = 0;
   for(int i=0; i<lower_size; i++){
     faces[findex] = lower[i];
     orient[findex++] = 1;
   }
-    
+
   for(int i=0; i<upper_size; i++){
     faces[findex] = upper[i];
     orient[findex++] = 0;
-      
+
   }
   for(int i=0; i<boundary_map_size; i++){
     faces[findex] = boundary_map[i];
     orient[findex++] = 0;
-      
-  } 
-    
-    
+
+  }
+
+
   //collect all the nodes and edges of the cell
   entitySet edges, nodes;
   for(unsigned int i=0; i< faces.size(); i++){
     for( int j= 0; j< face2node.num_elems(faces[i]); j++){
       nodes += face2node[faces[i]][j];
     }
-      
+
     for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
       edges += face2edge[faces[i]][j];
     }
@@ -659,10 +651,10 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
   std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
   std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges);
   reorder_faces(node_remap, face2node, faces, orient);
-  
+
   int numEdges = edges.size();
   int numNodes = nodes.size();
-          
+
   //define each node
   std::map<Entity, Node*> n2n;
   for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
@@ -671,22 +663,22 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
     bnode_list.push_back(aNode);
     n2n[*np] = aNode;
   }
-          
-  //define each edge 
-    
+
+  //define each edge
+
   std::map<Entity, Edge*> e2e;
   std::list<Node*>::const_iterator bnode_begin = --(bnode_list.end());
-         
-          
+
+
   for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
     Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
     edge_list.push_back(anEdge);
     e2e[*ep] = anEdge;
-            
+
     //replit the edge
-      
+
     anEdge->resplit(edgePlan[*ep], bnode_list);
-      
+
     //index the node
     int nindex = 0;
     for(std::list<Node*>::const_iterator np = ++bnode_begin; np!= bnode_list.end(); np++){
@@ -695,10 +687,10 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
     }
     bnode_begin = --(bnode_list.end());
   }
-    
-    
-    
-  //defines each face 
+
+
+
+  //defines each face
   Face** face = new Face*[numFaces];
   for(int i  = 0; i < numFaces; i++){
     face[i] = new Face(face2edge.num_elems(faces[i]));
@@ -708,16 +700,16 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
       face[i]->edge[j] = e2e[face2edge[faces[i]][j]];
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
          edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-        
+
       else face[i]->needReverse[j] = true;
     }
-      
+
     //replit each face
-      
-     
+
+
     if(is_quadface[faces[i]]){
       std::vector<char> newPlan = transfer_plan_q2g(facePlan[faces[i]]);
-        
+
       face[i]->resplit(newPlan, bnode_list, edge_list);
       //to tag the node of inner nodes of face[i], first build a quadface with integer coordinates,
       //resplit it
@@ -735,13 +727,13 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
                                                 edgePlan,
                                                 tmp_bnode_list,
                                                 edge_list);
-    
+
       //resplit the quadface to get node index
       tmp_qface->resplit(facePlan[faces[i]],
                          char(0),
                          tmp_node_list,
                          edge_list);
-      
+
       int   nindex = 0;
       for(std::list<Node*>::const_iterator np = tmp_node_list.begin(); np!= tmp_node_list.end(); np++){
         (*np)->tag = nodeTag[faces[i]][nindex++];
@@ -753,10 +745,10 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
                                                edgePlan,
                                                tmp_bnode_list,
                                                edge_list);
-      
 
 
-      
+
+
       tmp_face->resplit(newPlan, tmp_node_list2, edge_list);
 
       std::list<Node*>::const_iterator tmp_np2 = tmp_node_list2.begin();
@@ -773,7 +765,7 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
           cerr <<"WARNING: can not find the node in build_general_cell"<< endl;
           Loci::Abort();
         }
-      
+
       }
       //cleanup
       delete tmp_qface;
@@ -782,7 +774,7 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
       cleanup_list(tmp_node_list2);
       cleanup_list(tmp_bnode_list);
 
-        
+
     }
     else{
       face[i]->resplit(facePlan[faces[i]], bnode_list, edge_list);
@@ -791,36 +783,36 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
       for(std::list<Node*>::const_iterator np = ++bnode_begin; np!= bnode_list.end(); np++){
         (*np)->tag = nodeTag[faces[i]][nindex++];
         //  checkNode(*np);
-      } 
+      }
     }
-     
-      
-     
+
+
+
     bnode_begin= --(bnode_list.end());
   }
-    
+
   Node** node = new Node*[numNodes];
   for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
     node[nindex] = n2n[orderedNodes[nindex]];
   }
-        
+
   Edge** edge = new Edge*[numEdges];
-        
+
   for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
     edge[eindex] = e2e[orderedEdges[eindex]];
   }
   Cell* aCell = new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
-  
+
   //finish build
-  
+
   //resplit cell
   std::vector<DiamondCell*> cells;
-  aCell->resplit( cellPlan, 
+  aCell->resplit( cellPlan,
                   node_list,
                   edge_list,
                   face_list,
                   cells);
-#ifdef SIZE_DEBUG     
+#ifdef SIZE_DEBUG
   if(node_list.size()!= cellNodeTag.size()){
     cerr<< " nodeTag size and node_list size mismatch(), nodeTag: " << cellNodeTag.size() << " node_list " << node_list.size() <<endl;
     Loci::Abort();
@@ -832,9 +824,9 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
     (*np)->tag = cellNodeTag[nindex++];
   }
   cells.clear();
-  
-  
-  
+
+
+
   //resplit the edges again without tagging the node
   for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
     e2e[*ep]->resplit(edgePlan1[*ep], bnode_list);
@@ -849,10 +841,10 @@ Cell* build_resplit_general_cell(const Entity* lower, int lower_size,
     }
   }
 
-  
-  return aCell;  
-        
-        
+
+  return aCell;
+
+
 }
 
 
@@ -872,7 +864,7 @@ Cell* build_resplit_general_cell_ctag(const Entity* lower, int lower_size,
                                       const const_store<std::vector<char> >& edgePlan,
                                       const const_store<std::vector<char> >& facePlan,
                                       const const_store<std::vector<char> >& edgePlan1,
-                                      const const_store<std::vector<char> >& facePlan1,    
+                                      const const_store<std::vector<char> >& facePlan1,
                                       std::list<Node*>& bnode_list,
                                       std::list<Node*>& node_list,
                                       std::list<Edge*>& edge_list,
@@ -885,36 +877,36 @@ Cell* build_resplit_general_cell_ctag(const Entity* lower, int lower_size,
 
   int numFaces = lower_size + upper_size + boundary_map_size;
   std::vector<Entity> faces(numFaces);
-  
+
   //orient value: upper and boundary_map: 1
   //              lower: -1
   char* orient = new char[numFaces];
-  
+
   int findex = 0;
   for(int i=0; i<lower_size; i++){
     faces[findex] = lower[i];
     orient[findex++] = 1;
   }
-    
+
   for(int i=0; i<upper_size; i++){
     faces[findex] = upper[i];
     orient[findex++] = 0;
-      
+
   }
   for(int i=0; i<boundary_map_size; i++){
     faces[findex] = boundary_map[i];
     orient[findex++] = 0;
-      
-  } 
-    
-    
+
+  }
+
+
   //collect all the nodes and edges of the cell
   entitySet edges, nodes;
   for(unsigned int i=0; i< faces.size(); i++){
     for( int j= 0; j< face2node.num_elems(faces[i]); j++){
       nodes += face2node[faces[i]][j];
     }
-      
+
     for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
       edges += face2edge[faces[i]][j];
     }
@@ -923,10 +915,10 @@ Cell* build_resplit_general_cell_ctag(const Entity* lower, int lower_size,
   std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
   std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges);
   reorder_faces(node_remap, face2node, faces, orient);
-  
+
   int numEdges = edges.size();
   int numNodes = nodes.size();
-          
+
   //define each node
   std::map<Entity, Node*> n2n;
   for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
@@ -934,24 +926,24 @@ Cell* build_resplit_general_cell_ctag(const Entity* lower, int lower_size,
     bnode_list.push_back(aNode);
     n2n[*np] = aNode;
   }
-          
-  //define each edge 
-    
+
+  //define each edge
+
   std::map<Entity, Edge*> e2e;
-           
+
   for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
     Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
     edge_list.push_back(anEdge);
     e2e[*ep] = anEdge;
-            
+
     //replit the edge
-      
+
     anEdge->resplit(edgePlan[*ep], bnode_list);
   }
-    
-    
-    
-  //defines each face 
+
+
+
+  //defines each face
   Face** face = new Face*[numFaces];
   for(int i  = 0; i < numFaces; i++){
     face[i] = new Face(face2edge.num_elems(faces[i]));
@@ -961,48 +953,48 @@ Cell* build_resplit_general_cell_ctag(const Entity* lower, int lower_size,
       face[i]->edge[j] = e2e[face2edge[faces[i]][j]];
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
          edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-        
+
       else face[i]->needReverse[j] = true;
     }
-      
+
     //replit each face
-      
-     
+
+
     if(is_quadface[faces[i]]){
       std::vector<char> newPlan = transfer_plan_q2g(facePlan[faces[i]]);
-        
+
       face[i]->resplit(newPlan, bnode_list, edge_list);
-      
+
     }
     else{
       face[i]->resplit(facePlan[faces[i]], bnode_list, edge_list);
-     
+
     }
-     
+
   }
-    
+
   Node** node = new Node*[numNodes];
   for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
     node[nindex] = n2n[orderedNodes[nindex]];
   }
-        
+
   Edge** edge = new Edge*[numEdges];
-        
+
   for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
     edge[eindex] = e2e[orderedEdges[eindex]];
   }
   Cell* aCell = new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
-  
+
   //finish build
-  
+
   //resplit cell
   std::vector<DiamondCell*> cells;
-  aCell->resplit( cellPlan, 
+  aCell->resplit( cellPlan,
                   node_list,
                   edge_list,
                   face_list,
                   cells);
-#ifdef SIZE_DEBUG     
+#ifdef SIZE_DEBUG
   if(cells.size()!= fineCellTag.size()){
     cerr<< " fineCellTag size and cells size mismatch(), fineCellTag: " << fineCellTag.size() << " cells " << cells.size() <<endl;
     Loci::Abort();
@@ -1014,9 +1006,9 @@ Cell* build_resplit_general_cell_ctag(const Entity* lower, int lower_size,
     (*np)->setTag(fineCellTag[cindex++]);
   }
   cells.clear();
-  
-  
-  
+
+
+
   //resplit the edges again without tagging the node
   for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
     e2e[*ep]->resplit(edgePlan1[*ep], bnode_list);
@@ -1031,10 +1023,10 @@ Cell* build_resplit_general_cell_ctag(const Entity* lower, int lower_size,
     }
   }
 
-  
-  return aCell;  
-        
-        
+
+  return aCell;
+
+
 }
 
 
@@ -1054,36 +1046,36 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                          const const_store<int>& node_remap){
   int numFaces = lower_size + upper_size + boundary_map_size;
   std::vector<Entity> faces(numFaces);
-  
+
   //orient value: upper and boundary_map: 1
   //              lower: -1
   char* orient = new char[numFaces];
-  
+
   int findex = 0;
   for(int i=0; i<lower_size; i++){
     faces[findex] = lower[i];
     orient[findex++] = 1;
   }
-    
+
   for(int i=0; i<upper_size; i++){
     faces[findex] = upper[i];
     orient[findex++] = 0;
-      
+
   }
   for(int i=0; i<boundary_map_size; i++){
     faces[findex] = boundary_map[i];
     orient[findex++] = 0;
-      
-  } 
-    
-    
+
+  }
+
+
   //collect all the nodes and edges of the cell
   entitySet edges, nodes;
   for(unsigned int i=0; i< faces.size(); i++){
     for( int j= 0; j< face2node.num_elems(faces[i]); j++){
       nodes += face2node[faces[i]][j];
     }
-      
+
     for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
       edges += face2edge[faces[i]][j];
     }
@@ -1092,10 +1084,10 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
   std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
   std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges);
   reorder_faces(node_remap, face2node, faces, orient);
-  
+
   int numEdges = edges.size();
   int numNodes = nodes.size();
-          
+
   //define each node
   std::map<Entity, Node*> n2n;
   for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
@@ -1104,23 +1096,23 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
     bnode_list.push_back(aNode);
     n2n[*np] = aNode;
   }
-          
-  //define each edge 
-    
+
+  //define each edge
+
   std::map<Entity, Edge*> e2e;
 
-         
-          
+
+
   for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
     Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
     edge_list.push_back(anEdge);
     e2e[*ep] = anEdge;
   }
 
-    
-    
-    
-  //defines each face 
+
+
+
+  //defines each face
   Face** face = new Face*[numFaces];
   for(int i  = 0; i < numFaces; i++){
     face[i] = new Face(face2edge.num_elems(faces[i]));
@@ -1130,27 +1122,27 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
       face[i]->edge[j] = e2e[face2edge[faces[i]][j]];
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
          edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-        
+
       else face[i]->needReverse[j] = true;
     }
   }
-    
+
   Node** node = new Node*[numNodes];
   for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
     node[nindex] = n2n[orderedNodes[nindex]];
   }
-    
+
   Edge** edge = new Edge*[numEdges];
-    
+
   for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
     edge[eindex] = e2e[orderedEdges[eindex]];
-  }   
-    
+  }
+
   return  new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
-    
-    
+
+
 }
-//parallel version in make_general_cellplan.cc
+// parallel version in make_general_cellplan.cc
 Cell* build_general_cell(const Entity* lower, int lower_size,
                          const Entity* upper, int upper_size,
                          const Entity* boundary_map, int boundary_map_size,
@@ -1161,104 +1153,98 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                          std::list<Node*>& bnode_list,
                          std::list<Edge*>& edge_list,
                          std::list<Face*>& face_list,
-                         const const_store<int>& node_remap){
-  int numFaces = lower_size + upper_size + boundary_map_size;
-  std::vector<Entity> faces(numFaces);
-  
-  //orient value: upper and boundary_map: 1
-  //              lower: -1
-  char* orient = new char[numFaces];
-  
-  int findex = 0;
-  for(int i=0; i<lower_size; i++){
-    faces[findex] = lower[i];
-    orient[findex++] = 1;
+                         const const_store<int>& node_remap) {
+  int numFaces = lower_size + upper_size + boundary_map_size ;
+  std::vector<Entity> faces(numFaces) ;
+
+  // orient value:
+  // upper and boundary_map: 1
+  // lower: -1
+  char* orient = new char[numFaces] ;
+
+  int findex = 0 ;
+  for(int i=0; i<lower_size; i++) {
+    faces[findex] = lower[i] ;
+    orient[findex++] = 1 ;
   }
-    
-  for(int i=0; i<upper_size; i++){
-    faces[findex] = upper[i];
-    orient[findex++] = 0;
-      
+
+  for(int i=0; i<upper_size; i++) {
+    faces[findex] = upper[i] ;
+    orient[findex++] = 0 ;
   }
-  for(int i=0; i<boundary_map_size; i++){
-    faces[findex] = boundary_map[i];
-    orient[findex++] = 0;
-      
-  } 
-    
-    
-  //collect all the nodes and edges of the cell
+
+  for(int i=0; i<boundary_map_size; i++) {
+    faces[findex] = boundary_map[i] ;
+    orient[findex++] = 0 ;
+  }
+
+  // collect all the nodes and edges of the cell
   entitySet edges, nodes;
-  for(unsigned int i=0; i< faces.size(); i++){
-    for( int j= 0; j< face2node.num_elems(faces[i]); j++){
-      nodes += face2node[faces[i]][j];
+  for(unsigned int i=0; i< faces.size(); i++) {
+    for(int j= 0; j< face2node.num_elems(faces[i]); j++) {
+      nodes += face2node[faces[i]][j] ;
     }
-      
-    for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
-      edges += face2edge[faces[i]][j];
-    }
-  }
-  //reorder entities
-  std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
-    
-  std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges);
-  reorder_faces(node_remap, face2node, faces, orient);
-  
-  int numEdges = edges.size();
-  int numNodes = nodes.size();
-          
-  //define each node
-  std::map<Entity, Node*> n2n;
-  for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
-    Node* aNode = new Node(pos[*np]);
-    bnode_list.push_back(aNode);
-    n2n[*np] = aNode;
-  }
-          
-  //define each edge 
-    
-  std::map<Entity, Edge*> e2e;
 
-         
-          
-  for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
-    Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
-    edge_list.push_back(anEdge);
-    e2e[*ep] = anEdge;
+    for(int j = 0; j < face2edge.num_elems(faces[i]); j++) {
+      edges += face2edge[faces[i]][j] ;
+    }
   }
 
-    
-    
-    
-  //defines each face 
-  Face** face = new Face*[numFaces];
-  for(int i  = 0; i < numFaces; i++){
-    face[i] = new Face(face2edge.num_elems(faces[i]));
-    face_list.push_back(face[i]);
-    //find each edge
-    for(int j = 0; j < face[i]->numEdge; j++){
-      face[i]->edge[j] = e2e[face2edge[faces[i]][j]];
+  // reorder entities
+  std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes) ;
+
+  std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges) ;
+  reorder_faces(node_remap, face2node, faces, orient) ;
+
+  int numEdges = edges.size() ;
+  int numNodes = nodes.size() ;
+
+  // define each node
+  std::map<Entity, Node*> n2n ;
+  for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++) {
+    Node* aNode = new Node(pos[*np]) ;
+    bnode_list.push_back(aNode) ;
+    n2n[*np] = aNode ;
+  }
+
+  //define each edge
+  std::map<Entity, Edge*> e2e ;
+
+  for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++) {
+    Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]) ;
+    edge_list.push_back(anEdge) ;
+    e2e[*ep] = anEdge ;
+  }
+
+  // define each face
+  Face** face = new Face*[numFaces] ;
+  for(int i  = 0; i < numFaces; i++) {
+    face[i] = new Face(face2edge.num_elems(faces[i])) ;
+    face_list.push_back(face[i]) ;
+
+    // find each edge
+    for(int j=0; j<face[i]->numEdge; j++) {
+      face[i]->edge[j] = e2e[face2edge[faces[i]][j]] ;
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
-         edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-        
-      else face[i]->needReverse[j] = true;
+         edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]][j==face2node.num_elems(faces[i])-1? 0:j+1]) {
+        face[i]->needReverse[j] = false ;
+      }else {
+        face[i]->needReverse[j] = true ;
+      }
     }
   }
-    
-  Node** node = new Node*[numNodes];
-  for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
-    node[nindex] = n2n[orderedNodes[nindex]];
+
+  Node** node = new Node*[numNodes] ;
+  for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++) {
+    node[nindex] = n2n[orderedNodes[nindex]] ;
   }
-    
-  Edge** edge = new Edge*[numEdges];
-    
-  for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
-    edge[eindex] = e2e[orderedEdges[eindex]];
-  }   
-    
-  return  new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
-    
-    
+
+  Edge** edge = new Edge*[numEdges] ;
+  for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++) {
+    edge[eindex] = e2e[orderedEdges[eindex]] ;
+  }
+
+  return  new Cell(numNodes, numEdges, numFaces, node, edge, face,orient) ;
 }
 
 //parallel version, build  a cell and index all boundary nodes
@@ -1281,17 +1267,17 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
 
   int numFaces = lower_size + upper_size + boundary_map_size;
   std::vector<Entity> faces(numFaces);
-  
+
   //orient value: upper and boundary_map: 1
   //              lower: -1
   char* orient = new char[numFaces];
-  
+
   int findex = 0;
   for(int i=0; i<lower_size; i++){
     faces[findex] = lower[i];
     orient[findex++] = 1;
   }
-  
+
   for(int i=0; i<upper_size; i++){
     faces[findex] = upper[i];
     orient[findex++] = 0;
@@ -1299,17 +1285,17 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
   for(int i=0; i<boundary_map_size; i++){
     faces[findex] = boundary_map[i];
     orient[findex++] = 0;
-    
-  } 
-  
-          
+
+  }
+
+
   //collect all the nodes and edges of the cell
   entitySet edges, nodes;
   for(unsigned int i=0; i< faces.size(); i++){
     for( int j= 0; j< face2node.num_elems(faces[i]); j++){
       nodes += face2node[faces[i]][j];
     }
-    
+
     for( int j = 0; j < face2edge.num_elems(faces[i]); j++){
       edges += face2edge[faces[i]][j];
     }
@@ -1318,15 +1304,15 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
   std::vector<Entity> orderedNodes = reorder_nodes(node_remap, nodes);
   std::vector<Entity> orderedEdges = reorder_edges(node_remap, edge2node, edges);
   reorder_faces(node_remap, face2node, faces, orient);
-  
+
   int numEdges = edges.size();
   int numNodes = nodes.size();
 
 
-  
-  
-  
-  
+
+
+
+
   //define each node
   std::map<Entity, Node*> n2n;
   for(entitySet::const_iterator np = nodes.begin(); np != nodes.end(); np++){
@@ -1335,32 +1321,32 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
     bnode_list.push_back(aNode);
     n2n[*np] = aNode;
   }
-  
-  //define each edge 
+
+  //define each edge
   std::map<Entity, Edge*> e2e;
   std::list<Node*>::const_iterator bnode_begin = --(bnode_list.end());
-  
-  
+
+
   for(entitySet::const_iterator ep = edges.begin(); ep != edges.end(); ep++){
     Edge* anEdge = new Edge(n2n[edge2node[*ep][0]], n2n[edge2node[*ep][1]]);
     edge_list.push_back(anEdge);
     e2e[*ep] = anEdge;
-    
+
     //replit the edge
     anEdge->resplit(edgePlan[*ep],bnode_list);
-    
+
     //index the node
     int nindex = node_offset[*ep];
     for(std::list<Node*>::const_iterator np = ++bnode_begin; np!= bnode_list.end(); np++){
       (*np)->index =  nindex++;
-     
+
     }
     bnode_begin = --(bnode_list.end());
   }
-  
-  
-  
-  //defines each face 
+
+
+
+  //defines each face
   Face** face = new Face*[numFaces];
   for(int i  = 0; i < numFaces; i++){
     face[i] = new Face(face2edge.num_elems(faces[i]));
@@ -1371,13 +1357,13 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
       if(edge2node[face2edge[faces[i]][j]][0] == face2node[faces[i]][j] &&
          edge2node[face2edge[faces[i]][j]][1] == face2node[faces[i]]
          [j==face2node.num_elems(faces[i])-1? 0:j+1]) face[i]->needReverse[j] = false;
-      
+
       else face[i]->needReverse[j] = true;
     }
-    
+
     //replit each face
-    
-   
+
+
     if(is_quadface[faces[i]]){
       //first transfer quadface plan to face plan
       std::vector<char> newPlan = transfer_plan_q2g(facePlan[faces[i]]);
@@ -1399,13 +1385,13 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                                                 edgePlan,
                                                 tmp_bnode_list,
                                                 edge_list);
-   
+
       //resplit the quadface to get node index
       tmp_qface->resplit(facePlan[faces[i]],
                          char(0),
                          tmp_node_list,
                          edge_list);
-      
+
       int   nindex = node_offset[faces[i]];
       for(std::list<Node*>::const_iterator np = tmp_node_list.begin(); np!= tmp_node_list.end(); np++){
         (*np)->index = nindex++;
@@ -1417,10 +1403,10 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
                                                edgePlan,
                                                tmp_bnode_list,
                                                edge_list);
-      
 
 
-      
+
+
       tmp_face->resplit(newPlan, tmp_node_list2, edge_list);
 
       std::list<Node*>::const_iterator tmp_np2 = tmp_node_list2.begin();
@@ -1437,7 +1423,7 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
           cerr <<"WARNING: can not find the node in build_general_cell"<< endl;
           Loci::Abort();
         }
-      
+
       }
       //cleanup
       delete tmp_qface;
@@ -1452,23 +1438,23 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
       int   nindex = node_offset[faces[i]];
       for(std::list<Node*>::const_iterator np = ++bnode_begin; np!= bnode_list.end(); np++){
         (*np)->index = nindex++;
-     
+
       }
     }
-   
-    
-   
+
+
+
     bnode_begin= --(bnode_list.end());
   }
-  
+
   Node** node = new Node*[numNodes];
-  
+
   for(unsigned int nindex = 0; nindex < orderedNodes.size(); nindex++){
     node[nindex] = n2n[orderedNodes[nindex]];
   }
-        
+
   Edge** edge = new Edge*[numEdges];
-        
+
   for(unsigned int eindex = 0; eindex < orderedEdges.size(); eindex++){
     edge[eindex] = e2e[orderedEdges[eindex]];
   }

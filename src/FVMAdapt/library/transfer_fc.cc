@@ -24,6 +24,28 @@
 
 using std::cerr;
 using std::endl;
+
+/**
+ * @file transfer_fc.cc
+ * @brief Coordinate transforms between a quad face's local frame and the
+ *        owning cell's local face frame.
+ *
+ * These helpers apply the orientation codes used by FVMAdapt when a
+ * quadrilateral face is viewed through a cell-local ordering. The routines only
+ * transform integer refinement coordinates; they do not inspect mesh geometry.
+ */
+
+/**
+ * Transforms a face-local refinement range into cell-local coordinates.
+ *
+ * The two range corners are transformed independently and then re-ordered so
+ * the returned range has component-wise minimum and maximum corners.
+ *
+ * @param f      Range in the face-local coordinate system.
+ * @param maxPc  Maximum cell-local face coordinate used by the orientation map.
+ * @param orientCode  Orientation code in the range handled by transfer_f2c().
+ * @return The same range expressed in the cell-local face coordinate system.
+ */
 Range2d  transfer_f2c(Range2d f, Point2d maxPc, char orientCode){
   Point2d p1 = transfer_f2c(f.minP, maxPc, orientCode);
   Point2d p2 = transfer_f2c(f.maxP, maxPc, orientCode);
@@ -32,7 +54,19 @@ Range2d  transfer_f2c(Range2d f, Point2d maxPc, char orientCode){
 }
   
 
-  
+/**
+ * Transforms a face-local refinement point into cell-local coordinates.
+ *
+ * The switch encodes the eight supported orientation cases: identity, rotations
+ * and reflected rotations over the integer coordinate box. Invalid orientation
+ * codes emit a warning; callers should only pass orientation codes produced by
+ * the FVMAdapt face-orientation setup.
+ *
+ * @param p      Point in the face-local coordinate system.
+ * @param maxPc  Maximum cell-local face coordinate used by the orientation map.
+ * @param orientCode  Orientation code selecting one of the supported mappings.
+ * @return The point expressed in the cell-local face coordinate system.
+ */
 Point2d  transfer_f2c(Point2d p, Point2d maxPc, char orientCode){
   
   Point2d pc;
@@ -84,7 +118,20 @@ Point2d  transfer_f2c(Point2d p, Point2d maxPc, char orientCode){
   }
   return pc; 
 }
-            
+
+/**
+ * Transforms a cell-local face point into face-local coordinates.
+ *
+ * This is the opposite coordinate-conversion direction from
+ * transfer_f2c(Point2d, Point2d, char) for the same orientation-code
+ * convention. Invalid orientation codes emit a warning; callers should only
+ * pass orientation codes produced by the FVMAdapt face-orientation setup.
+ *
+ * @param p      Point in the cell-local face coordinate system.
+ * @param maxPf  Maximum face-local coordinate used by the inverse map.
+ * @param orientCode  Orientation code selecting one of the supported mappings.
+ * @return The point expressed in the face-local coordinate system.
+ */
 Point2d transfer_c2f(Point2d p, Point2d maxPf, char orientCode){
   
   Point2d pf;
@@ -137,7 +184,5 @@ Point2d transfer_c2f(Point2d p, Point2d maxPf, char orientCode){
   }
   return pf; 
 }
-
-
 
 
