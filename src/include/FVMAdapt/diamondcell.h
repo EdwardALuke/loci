@@ -30,7 +30,6 @@
 #include <iostream>
 #include <fstream>
 #include <utility>
-//#include <cassert>
 #include "defines.h"
 #include "face.h"
 #include "read_par.h"
@@ -202,8 +201,7 @@ public:
   * Otherwise it creates the child-cell geometry and appends newly allocated
   * nodes, edges, and faces to the supplied lists.
   */
-  void split(std::list<Node*>& node_list,
-             std::list<Edge*>& edge_list,
+  void split(std::list<Node*>& node_list, std::list<Edge*>& edge_list,
              std::list<Face*>& face_list);
 
   /// This function splits diamondcell isotropically once only define childCell

@@ -51,8 +51,8 @@ using std::endl;
  * @param dd       Quad-face edge index, used to select `edgeIDTable` and
  *                 `edgeCodeTable` rows.
  */
-void  extract_quad_edge(const  std::vector<char>& facePlan, std::vector<char>& edgePlan, unsigned int dd){
-  
+void extract_quad_edge(const std::vector<char>& facePlan, std::vector<char>& edgePlan, unsigned int dd) {
+
   //output edgeCodeTable
   /* for(int i=0; i<12; i++){
     if(i%3==0) cout<< endl;
@@ -62,66 +62,65 @@ void  extract_quad_edge(const  std::vector<char>& facePlan, std::vector<char>& e
   */
   //output edgeIDTable
   /* for(int i=0; i<12; i++){
-    if(i%3 == 0)cout <<endl; 
+    if(i%3 == 0)cout <<endl;
     cout <<'{';
       for(int j=0; j<edgeIDTable[i].size(); j++) cout<<edgeIDTable[i][j]<<',';
     cout <<'}';
-   
+
   }
   cout << endl;
   */
 
-  if(facePlan.size() == 0){
-    edgePlan.clear();
-    return;
+  if(facePlan.size() == 0) {
+    edgePlan.clear() ;
+    return ;
   }
-  unsigned int index = 0;  
-  queue<bool> Q;
-  Q.push(true);
-  bool needExtract; 
-  
-  char  faceCode, edgeCode;
-  while(!Q.empty()){
-    needExtract = Q.front();
-    if(index >= facePlan.size()){
-      break;
+  unsigned int index = 0 ;
+  queue<bool> Q ;
+  Q.push(true) ;
+  bool needExtract ;
+
+  char faceCode, edgeCode ;
+  while(!Q.empty()) {
+    needExtract = Q.front() ;
+    if(index >= facePlan.size()) {
+      break ;
+    }else {
+      faceCode = facePlan[index++] ;
     }
-    else{
-      faceCode = facePlan[index++];
+    //cout << "faceCode: " << faceCode <<endl ;
+    if(needExtract) {
+      if(faceCode == 0) {
+        edgeCode = 0 ;
+      }else {
+        edgeCode = edgeCodeTable[dd*3 + faceCode-1] ;
+      }
+
+      edgePlan.push_back(edgeCode) ;
+
+      //cout << "face: " << faceCode <<"  " << "edge: " << edgeCode << endl ;
     }
-    //  cout << "faceCode: " << faceCode <<endl;
-    if(needExtract){
-      if(faceCode == 0){
-        edgeCode = 0;
+
+    if(faceCode != 0) {
+      std::vector<bool> childrenID = edgeIDTable[dd*3+faceCode-1] ;
+      if(!needExtract) {
+        for(unsigned int i = 0; i < childrenID.size(); i++)childrenID[i] = 0 ;
       }
-      else{
-        edgeCode = edgeCodeTable[dd*3+ faceCode-1];
-      }
-     
-      edgePlan.push_back(edgeCode);
-      
-      //cout << "face: " << faceCode <<"  " <<"edge: " << edgeCode <<endl;
-    }
-    
-    
-    if(faceCode != 0){
-      std::vector<bool> childrenID = edgeIDTable[dd*3+faceCode-1];
-      if(!needExtract){
-        for(unsigned int i = 0; i < childrenID.size(); i++)childrenID[i] = 0;
-      }
-      
-      for(unsigned int i = 0; i < childrenID.size(); i++){
-        Q.push(childrenID[i]);
+
+      for(unsigned int i = 0; i < childrenID.size(); i++) {
+        Q.push(childrenID[i]) ;
       }
     }
-    Q.pop();
+    Q.pop() ;
   }
-  //delete 0 and 8 in the beginning of edgeplan
-  while((edgePlan.size() != 0) && ((edgePlan.front() == 0)||(edgePlan.front() == 8)))
-    edgePlan.erase(edgePlan.begin());
-  //delete 0 and 8 at the end of faceplan
-  while((edgePlan.size() != 0) && ((edgePlan.back() == 0)||(edgePlan.back() == 8)))
-    edgePlan.pop_back(); 
-   
-} 
-  
+
+  // delete 0 and 8 in the beginning of edgeplan
+  while((edgePlan.size() != 0) && ((edgePlan.front() == 0)||(edgePlan.front() == 8))) {
+    edgePlan.erase(edgePlan.begin()) ;
+  }
+  // delete 0 and 8 at the end of faceplan
+  while((edgePlan.size() != 0) && ((edgePlan.back() == 0)||(edgePlan.back() == 8))) {
+    edgePlan.pop_back() ;
+  }
+}
+

@@ -111,16 +111,15 @@ const std::vector<bool> faceIDTable[42] = {
 /// The edgeCodeTable is the transfer table from face code to edge code
 /// edgeCode = edgeCodeTable[dd*3+faceCode-1]
 /// Here, dd is the edgeID, values are 0~3 and faceCode is 1~3.
-/// 0 is not included because if faceCode
-/// is 0, edgeCode is always 0
-/// 8 is a special value, means even face is split, the edge is not, but
+/// 0 is not included because if faceCode is 0, then edgeCode is always 0.
+/// 8 is a special value, means even if a face is split, the edge is not, but
 /// the edge can be split in the next step.
 /// When building a tree, 8 means the edge has only one child.
 const char edgeCodeTable[12]={
   8, 1, 1,
   1, 8, 1,
   8, 1, 1,
-  1, 8, 1};
+  1, 8, 1} ;
 
 /// Build the ID table.
 /// edgeIDTable shows the children faces whose codes need to be transferd to
