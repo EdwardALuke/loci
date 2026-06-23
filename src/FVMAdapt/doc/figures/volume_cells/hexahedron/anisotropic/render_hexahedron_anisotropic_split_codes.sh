@@ -5,6 +5,17 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 cd "$script_dir"
 work_dir=$(mktemp -d "${TMPDIR:-/tmp}/fvmadapt-hexahedron-anisotropic.XXXXXX")
 trap 'rm -rf "$work_dir"' EXIT
+render_static=1
+
+if [ "${1:-}" = "--gifs-only" ]; then
+  render_static=0
+  shift
+fi
+
+if [ "$#" -ne 0 ]; then
+  echo "usage: $0 [--gifs-only]" >&2
+  exit 2
+fi
 
 specs=(
   "1:zeta"
@@ -69,7 +80,7 @@ render_motion_gif() {
       -jobname="$frame_base" \
       -output-directory="$frame_dir" \
       "\\def\\fvmadaptExplodeAmount{$amount}\\def\\fvmadaptExplodeScale{1.35}\\def\\fvmadaptYawAngle{$yaw}\\input{$tex_file}" >/dev/null 2>&1
-    mutool draw -c rgba -r 150 -o "$frames_dir/${frame_base}.png" \
+    mutool draw -c rgba -r 120 -o "$frames_dir/${frame_base}.png" \
       "$frame_dir/${frame_base}.pdf" >/dev/null 2>&1
     idx=$((idx + 1))
   }
@@ -78,42 +89,44 @@ render_motion_gif() {
   local left_yaw=-10
   local right_yaw=10
 
-  for _ in $(seq 1 10); do
+  for _ in $(seq 1 3); do
     render_frame 0 "$base_yaw"
   done
 
-  for i in $(seq 1 30); do
-    render_frame "$(ease_amount "$i" 30)" "$base_yaw"
+  for i in $(seq 1 8); do
+    render_frame "$(ease_amount "$i" 8)" "$base_yaw"
   done
 
-  for i in $(seq 1 24); do
-    ease=$(ease_amount "$i" 24)
+  for i in $(seq 1 6); do
+    ease=$(ease_amount "$i" 6)
     render_frame 1 "$(interpolate "$base_yaw" "$left_yaw" "$ease")"
   done
 
-  for i in $(seq 1 40); do
-    ease=$(ease_amount "$i" 40)
+  for i in $(seq 1 10); do
+    ease=$(ease_amount "$i" 10)
     render_frame 1 "$(interpolate "$left_yaw" "$right_yaw" "$ease")"
   done
 
-  for i in $(seq 1 24); do
-    ease=$(ease_amount "$i" 24)
+  for i in $(seq 1 6); do
+    ease=$(ease_amount "$i" 6)
     render_frame 1 "$(interpolate "$right_yaw" "$base_yaw" "$ease")"
   done
 
-  for i in $(seq 29 -1 0); do
-    render_frame "$(ease_amount "$i" 30)" "$base_yaw"
+  for i in $(seq 7 -1 0); do
+    render_frame "$(ease_amount "$i" 7)" "$base_yaw"
   done
 
-  convert -dispose Background -delay 10 -loop 0 \
+  "${FVMADAPT_IMAGEMAGICK:-convert}" -dispose Background -delay 20 -loop 0 \
     "$frames_dir"/frame_*.png +repage "$out_gif"
 }
 
 for spec in "${specs[@]}"; do
   code=${spec%%:*}
   name=${spec#*:}
-  render_static_svg "$code" "$name"
-  echo "wrote hexahedron_split_code_${code}_${name}.svg"
+  if [ "$render_static" -eq 1 ]; then
+    render_static_svg "$code" "$name"
+    echo "wrote hexahedron_split_code_${code}_${name}.svg"
+  fi
   render_motion_gif "$code" "$name"
   echo "wrote hexahedron_split_code_${code}_${name}_exploded_motion_yaw_wire.gif"
 done

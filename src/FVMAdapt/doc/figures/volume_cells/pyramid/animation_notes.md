@@ -41,10 +41,12 @@ The combined wire motion/yaw script regenerates:
 
 - `pyramid_midpoint_based_isotropic_exploded_motion_yaw_wire.gif`
 
+The GIF is a generated build artifact and is intentionally not tracked in git.
+
 The combined wire motion/yaw GIF starts assembled at the normal yaw angle,
 explodes, sweeps left and right while fully exploded, returns to the normal yaw
-angle, and then collapses before restarting. It uses 158 frames with
-`-delay 10`.
+angle, and then collapses before restarting. It uses 41 frames with
+`-delay 20`.
 
 The script intentionally avoids ImageMagick's `-layers Optimize` pass. That
 optimization rewrites frames as cropped subimages with offsets, which can look
@@ -54,9 +56,8 @@ truncated in some GIF viewers.
 
 Required local commands:
 
-- `pdflatex`
-- `dvisvgm`
+- `pdflatex` with TikZ/PGF
 - `mutool`
-- `convert` from ImageMagick
+- ImageMagick `magick` or `convert`
 - `awk`
 - `seq`

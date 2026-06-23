@@ -31,4 +31,7 @@ wireframe children.
 
 Run `render_hexahedron_anisotropic_split_codes.sh` from this directory to
 regenerate the static SVG files and the assembled, explode, yaw, return, and
-collapse GIFs for codes `1` through `6`.
+collapse GIFs for codes `1` through `6`. The documentation build uses
+`render_hexahedron_anisotropic_split_codes.sh --gifs-only` so generated GIFs do
+not require `dvisvgm`. The GIFs are generated build artifacts and are
+intentionally not tracked in git.

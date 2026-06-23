@@ -44,10 +44,12 @@ The combined wire motion/yaw script regenerates:
 
 - `general_polyhedron_face_based_isotropic_exploded_motion_yaw_wire.gif`
 
+The GIF is a generated build artifact and is intentionally not tracked in git.
+
 The combined wire motion/yaw GIF starts assembled at the normal yaw angle,
 explodes, sweeps left and right while fully exploded, returns to the normal yaw
-angle, and then collapses before restarting. It uses 158 frames with
-`-delay 10`. The general-polyhedron renderer rasterizes frames at 150 dpi so
+angle, and then collapses before restarting. It uses 41 frames with
+`-delay 20`. The general-polyhedron renderer rasterizes frames at 120 dpi so
 the larger exploded canvas remains within ImageMagick cache limits.
 
 The script intentionally avoids ImageMagick's `-layers Optimize` pass. That
@@ -58,9 +60,8 @@ truncated in some GIF viewers.
 
 Required local commands:
 
-- `pdflatex`
-- `dvisvgm`
+- `pdflatex` with TikZ/PGF
 - `mutool`
-- `convert` from ImageMagick
+- ImageMagick `magick` or `convert`
 - `awk`
 - `seq`
