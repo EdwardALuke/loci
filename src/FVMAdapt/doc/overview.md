@@ -26,7 +26,7 @@ In this library, general polyhedral cells are supported, and thus adjacent cells
 Mutate the current tree node by creating geometric children. A split usually creates new nodes, edges, faces, or cells.
 </div>
 
-The detailed enumeration of isotropic midpoint split behavior and hexahedron anisotropic split codes is kept on a separate reference page: [FVMAdapt Geometric Splitting Reference](@ref fvmadapt_geometric_splitting).
+The detailed enumeration of isotropic midpoint split behavior and hexahedron anisotropic split codes is kept on a separate reference page: [FVMAdapt Geometric Splitting Reference](@ref fvmadapt_geometric_splitting). The local node, edge, and face numbering used by the helper classes is kept in [FVMAdapt Numbering Conventions](@ref fvmadapt_numbering).
 
 
 ## The Model For the Library
