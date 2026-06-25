@@ -5,6 +5,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 figures_root=$script_dir
 script_path="$script_dir/generate_motion_gifs.sh"
 toolchain_checked=0
+static_svg_toolchain_checked=0
 
 usage() {
   echo "usage: $0 [--figures-root DIR]" >&2
@@ -72,6 +73,36 @@ require_toolchain() {
   export FVMADAPT_IMAGEMAGICK="$imagemagick_cmd"
 }
 
+require_static_svg_toolchain() {
+  local missing=()
+  local tool
+
+  for tool in pdflatex dvisvgm; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      missing+=("$tool")
+    fi
+  done
+
+  if command -v pdflatex >/dev/null 2>&1 && ! check_tikz; then
+    missing+=("TikZ/PGF for pdflatex")
+  fi
+
+  if [ "${#missing[@]}" -ne 0 ]; then
+    echo "ERROR: FVMAdapt static SVG generation needs additional utilities." >&2
+    echo "Missing:" >&2
+    for tool in "${missing[@]}"; do
+      echo "  - $tool" >&2
+    done
+    echo >&2
+    echo "Install the missing utilities and rerun the documentation build." >&2
+    echo "Suggested packages:" >&2
+    echo "  Debian/Ubuntu: sudo apt install texlive-latex-base texlive-pictures dvisvgm" >&2
+    echo "  macOS/Homebrew: install MacTeX or BasicTeX with TikZ/PGF and dvisvgm" >&2
+    echo "Alternatively, install from a tarball-with-docs archive that already contains generated documentation." >&2
+    exit 1
+  fi
+}
+
 find_imagemagick() {
   if [ -n "${FVMADAPT_IMAGEMAGICK:-}" ]; then
     if command -v "$FVMADAPT_IMAGEMAGICK" >/dev/null 2>&1; then
@@ -123,6 +154,13 @@ ensure_toolchain() {
   fi
 }
 
+ensure_static_svg_toolchain() {
+  if [ "$static_svg_toolchain_checked" -eq 0 ]; then
+    require_static_svg_toolchain
+    static_svg_toolchain_checked=1
+  fi
+}
+
 newer_input_exists() {
   local output=$1
   local input_dir
@@ -131,6 +169,106 @@ newer_input_exists() {
   find -L "$input_dir" -maxdepth 1 \
     \( -name '*.tex' -o -name 'render*.sh' \) \
     -newer "$output" -print -quit | grep -q .
+}
+
+is_static_svg_source() {
+  local tex=$1
+  local base
+  base=$(basename "$tex")
+
+  case "$base" in
+    *_common.tex|*_exploded.tex|*_template.tex)
+      return 1
+      ;;
+  esac
+
+  return 0
+}
+
+needs_static_svg_render() {
+  local tex=$1
+  local output=$2
+
+  if [ ! -f "$output" ]; then
+    return 0
+  fi
+
+  if [ "$tex" -nt "$output" ] || [ "$script_path" -nt "$output" ]; then
+    return 0
+  fi
+
+  if newer_input_exists "$output"; then
+    return 0
+  fi
+
+  return 1
+}
+
+render_static_svg() {
+  local tex=$1
+  local output=$2
+  local tex_dir
+  local tex_file
+  local job
+  local build_dir
+  local status
+
+  tex_dir=$(cd "$(dirname "$tex")" && pwd -P)
+  tex_file=$(basename "$tex")
+  job=${tex_file%.tex}
+  build_dir=$(mktemp -d "${TMPDIR:-/tmp}/fvmadapt-static-svg.XXXXXX")
+
+  set +e
+  (
+    cd "$tex_dir" &&
+    pdflatex -halt-on-error -interaction=nonstopmode \
+      -output-directory="$build_dir" \
+      "$tex_file" >/dev/null 2>&1 &&
+    dvisvgm --pdf --no-fonts --exact \
+      -o "$output" "$build_dir/$job.pdf" >/dev/null 2>&1
+  )
+  status=$?
+  set -e
+
+  rm -rf "$build_dir"
+
+  if [ "$status" -ne 0 ]; then
+    echo "ERROR: failed to render static SVG for $tex" >&2
+    exit "$status"
+  fi
+}
+
+render_static_svgs() {
+  local tex
+  local output
+  local checked_count=0
+  local generated_count=0
+
+  while IFS= read -r -d '' tex; do
+    if ! is_static_svg_source "$tex"; then
+      continue
+    fi
+
+    output=${tex%.tex}.svg
+    checked_count=$((checked_count + 1))
+
+    if [ -L "$output" ]; then
+      rm -f "$output"
+    fi
+
+    if needs_static_svg_render "$tex" "$output"; then
+      ensure_static_svg_toolchain
+      render_static_svg "$tex" "$output"
+      generated_count=$((generated_count + 1))
+    fi
+
+    if [ ! -f "$output" ]; then
+      echo "ERROR: renderer did not create $output" >&2
+      exit 1
+    fi
+  done < <(find -L "$figures_root" -type f -name '*.tex' -print0)
+
+  echo "Checked $checked_count FVMAdapt static SVG(s); generated $generated_count."
 }
 
 needs_render() {
@@ -154,6 +292,8 @@ needs_render() {
 
 generated_count=0
 checked_count=0
+
+render_static_svgs
 
 for spec in "${render_specs[@]}"; do
   render_rel=${spec%%|*}
