@@ -1,0 +1,211 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+
+\definecolor{fvmadaptedge}{HTML}{8A7E7E}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{splitred}{HTML}{AF2525}
+
+% Wireframe exploded view of the hexahedron children created by one anisotropic
+% split code. The wrapper files set \fvmadaptHexSplitCode before inputting this
+% template.
+\providecommand{\fvmadaptHexSplitCode}{1}
+\providecommand{\fvmadaptYawAngle}{8}
+\providecommand{\fvmadaptExplodeAmount}{1}
+\providecommand{\fvmadaptExplodeScale}{1.35}
+\pgfmathsetmacro{\yawcos}{cos(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\yawsin}{sin(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\xbasisx}{20.3*\yawcos + 15.3*\yawsin}
+\pgfmathsetmacro{\xbasisy}{-8.5*\yawcos + 11.3*\yawsin}
+\pgfmathsetmacro{\ybasisx}{-20.3*\yawsin + 15.3*\yawcos}
+\pgfmathsetmacro{\ybasisy}{8.5*\yawsin + 11.3*\yawcos}
+\pgfmathsetmacro{\fvmadaptEtaProjectionScale}{0.75}
+\pgfmathsetmacro{\ybasisxscaled}{\fvmadaptEtaProjectionScale*\ybasisx}
+\pgfmathsetmacro{\ybasisyscaled}{\fvmadaptEtaProjectionScale*\ybasisy}
+\pgfmathsetmacro{\explodeXi}{0.45*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeEta}{0.34*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+\pgfmathsetmacro{\explodeZeta}{0.52*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+
+\begin{document}
+\begin{tikzpicture}[
+  x={(\xbasisx mm,\xbasisy mm)},
+  y={(\ybasisxscaled mm,\ybasisyscaled mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=fvmadaptedge,line width=0.54mm},
+  split/.style={draw=splitred,line width=0.48mm},
+  axis/.style={draw=fvmadaptedge!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Fixed canvas for static and animated renders. The yaw sweep changes the
+  % projected x/y basis, so a stable canvas avoids per-frame cropping.
+  \path[use as bounding box]
+    (canvas cs:x=-48mm,y=-38mm) rectangle (canvas cs:x=68mm,y=58mm);
+
+  \newcommand{\drawbox}[6]{%
+    \coordinate (P000) at (#1,#3,#5);
+    \coordinate (P100) at (#2,#3,#5);
+    \coordinate (P110) at (#2,#4,#5);
+    \coordinate (P010) at (#1,#4,#5);
+    \coordinate (P001) at (#1,#3,#6);
+    \coordinate (P101) at (#2,#3,#6);
+    \coordinate (P111) at (#2,#4,#6);
+    \coordinate (P011) at (#1,#4,#6);
+    \draw[outer] (P000) -- (P100) -- (P110) -- (P010) -- cycle;
+    \draw[outer] (P001) -- (P101) -- (P111) -- (P011) -- cycle;
+    \draw[outer] (P000) -- (P001);
+    \draw[outer] (P100) -- (P101);
+    \draw[outer] (P110) -- (P111);
+    \draw[outer] (P010) -- (P011);
+    \foreach \p in {P000,P100,P110,P010,P001,P101,P111,P011} {
+      \fill[fvmadaptedge] (\p) circle[radius=0.50mm];
+    }
+  }
+
+  \newcommand{\redfacexmin}{%
+    \draw[split] (P000) -- (P001) -- (P011) -- (P010) -- cycle;
+    \foreach \p in {P000,P001,P011,P010} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+  \newcommand{\redfacexmax}{%
+    \draw[split] (P100) -- (P110) -- (P111) -- (P101) -- cycle;
+    \foreach \p in {P100,P110,P111,P101} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+  \newcommand{\redfaceymin}{%
+    \draw[split] (P000) -- (P100) -- (P101) -- (P001) -- cycle;
+    \foreach \p in {P000,P100,P101,P001} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+  \newcommand{\redfaceymax}{%
+    \draw[split] (P010) -- (P110) -- (P111) -- (P011) -- cycle;
+    \foreach \p in {P010,P110,P111,P011} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+  \newcommand{\redfacezmin}{%
+    \draw[split] (P000) -- (P100) -- (P110) -- (P010) -- cycle;
+    \foreach \p in {P000,P100,P110,P010} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+  \newcommand{\redfacezmax}{%
+    \draw[split] (P001) -- (P101) -- (P111) -- (P011) -- cycle;
+    \foreach \p in {P001,P101,P111,P011} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+
+  % Compact orientation axes, tucked away from the separated child cells.
+  \coordinate (Oaxis) at (-1.45,-0.64,-0.68);
+  \draw[axis] (Oaxis) -- (-0.38,-0.64,-0.68) node[below right,font=\normalsize,text=fvmadaptedge] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.45,0.40,-0.68) node[above left,font=\normalsize,text=fvmadaptedge] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.45,-0.64,0.38) node[above,font=\normalsize,text=fvmadaptedge] {$\zeta$};
+
+  % Each split keeps the xi/eta/zeta-minimum child fixed and moves every other
+  % child in the positive split directions that identify that child.
+  \ifnum\fvmadaptHexSplitCode=1
+    \begin{scope}[shift={(0,0,0)}]
+      \drawbox{0}{1.45}{0}{1}{0}{0.5}
+      \redfacezmax
+    \end{scope}
+    \begin{scope}[shift={(0,0,\explodeZeta)}]
+      \drawbox{0}{1.45}{0}{1}{0.5}{1}
+      \redfacezmin
+    \end{scope}
+  \fi
+
+  \ifnum\fvmadaptHexSplitCode=2
+    \begin{scope}[shift={(0,0,0)}]
+      \drawbox{0}{1.45}{0}{0.5}{0}{1}
+      \redfaceymax
+    \end{scope}
+    \begin{scope}[shift={(0,\explodeEta,0)}]
+      \drawbox{0}{1.45}{0.5}{1}{0}{1}
+      \redfaceymin
+    \end{scope}
+  \fi
+
+  \ifnum\fvmadaptHexSplitCode=3
+    \begin{scope}[shift={(0,0,0)}]
+      \drawbox{0}{1.45}{0}{0.5}{0}{0.5}
+      \redfaceymax
+      \redfacezmax
+    \end{scope}
+    \begin{scope}[shift={(0,\explodeEta,0)}]
+      \drawbox{0}{1.45}{0.5}{1}{0}{0.5}
+      \redfaceymin
+      \redfacezmax
+    \end{scope}
+    \begin{scope}[shift={(0,0,\explodeZeta)}]
+      \drawbox{0}{1.45}{0}{0.5}{0.5}{1}
+      \redfaceymax
+      \redfacezmin
+    \end{scope}
+    \begin{scope}[shift={(0,\explodeEta,\explodeZeta)}]
+      \drawbox{0}{1.45}{0.5}{1}{0.5}{1}
+      \redfaceymin
+      \redfacezmin
+    \end{scope}
+  \fi
+
+  \ifnum\fvmadaptHexSplitCode=4
+    \begin{scope}[shift={(0,0,0)}]
+      \drawbox{0}{0.725}{0}{1}{0}{1}
+      \redfacexmax
+    \end{scope}
+    \begin{scope}[shift={(\explodeXi,0,0)}]
+      \drawbox{0.725}{1.45}{0}{1}{0}{1}
+      \redfacexmin
+    \end{scope}
+  \fi
+
+  \ifnum\fvmadaptHexSplitCode=5
+    \begin{scope}[shift={(0,0,0)}]
+      \drawbox{0}{0.725}{0}{1}{0}{0.5}
+      \redfacexmax
+      \redfacezmax
+    \end{scope}
+    \begin{scope}[shift={(\explodeXi,0,0)}]
+      \drawbox{0.725}{1.45}{0}{1}{0}{0.5}
+      \redfacexmin
+      \redfacezmax
+    \end{scope}
+    \begin{scope}[shift={(0,0,\explodeZeta)}]
+      \drawbox{0}{0.725}{0}{1}{0.5}{1}
+      \redfacexmax
+      \redfacezmin
+    \end{scope}
+    \begin{scope}[shift={(\explodeXi,0,\explodeZeta)}]
+      \drawbox{0.725}{1.45}{0}{1}{0.5}{1}
+      \redfacexmin
+      \redfacezmin
+    \end{scope}
+  \fi
+
+  \ifnum\fvmadaptHexSplitCode=6
+    \begin{scope}[shift={(0,0,0)}]
+      \drawbox{0}{0.725}{0}{0.5}{0}{1}
+      \redfacexmax
+      \redfaceymax
+    \end{scope}
+    \begin{scope}[shift={(\explodeXi,0,0)}]
+      \drawbox{0.725}{1.45}{0}{0.5}{0}{1}
+      \redfacexmin
+      \redfaceymax
+    \end{scope}
+    \begin{scope}[shift={(0,\explodeEta,0)}]
+      \drawbox{0}{0.725}{0.5}{1}{0}{1}
+      \redfacexmax
+      \redfaceymin
+    \end{scope}
+    \begin{scope}[shift={(\explodeXi,\explodeEta,0)}]
+      \drawbox{0.725}{1.45}{0.5}{1}{0}{1}
+      \redfacexmin
+      \redfaceymin
+    \end{scope}
+  \fi
+\end{tikzpicture}
+\end{document}

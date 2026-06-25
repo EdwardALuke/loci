@@ -1,3 +1,18 @@
+/* Loci documentation additions */
+
+.term-box {
+  border-left: 4px solid var(--separator-color);
+  background: var(--blockquote-background-color);
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.term-box > .term-title {
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+
 /* The standard CSS for doxygen 1.9.8*/
 
 html {
@@ -779,7 +794,7 @@ img.light-mode-visible {
 }
 
 img.formulaDsp {
-	
+
 }
 
 img.formulaInl, img.inline {
@@ -848,19 +863,19 @@ span.xmlcdata {
 	color: var(--code-xml-cdata-color);
 }
 
-span.vhdldigit { 
+span.vhdldigit {
 	color: var(--code-vhdl-digit-color);
 }
 
-span.vhdlchar { 
+span.vhdlchar {
 	color: var(--code-vhdl-char-color);
 }
 
-span.vhdlkeyword { 
+span.vhdlkeyword {
 	color: var(--code-vhdl-keyword-color);
 }
 
-span.vhdllogic { 
+span.vhdllogic {
 	color: var(--code-vhdl-logic-color);
 }
 
@@ -1585,12 +1600,12 @@ dl.section dd {
 	vertical-align: bottom;
 	border-collapse: separate;
 }
- 
+
 #projectlogo img
-{ 
+{
 	border: 0px none;
 }
- 
+
 #projectalign
 {
         vertical-align: middle;
