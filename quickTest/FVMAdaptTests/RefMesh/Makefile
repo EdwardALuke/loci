@@ -4,7 +4,9 @@ include $(TEST_BASE)/test.conf
 LIB_PATH=$(LOCI_BASE)/lib:$(LD_LIBRARY_PATH)
 DY_PATH=$(LOCI_BASE)/lib:$(DYLD_LIBRARY_PATH)
 
-default: testGridRef.dat testGridRef2.dat testGridRef3.dat
+default: TestResults
+
+TestResults: testGridRef.dat testGridRef2.dat testGridRef3.dat FRC
 	cat dats/testGridRef.dat |sort -g > testGridRef.ref
 	diff testGridRef.dat testGridRef.ref
 	rm testGridRef.ref
@@ -17,6 +19,7 @@ default: testGridRef.dat testGridRef2.dat testGridRef3.dat
 	rm -fr output debug
 	rm *.plan *.tag testGridRef*.vog *.quality
 	rm testGridRef.dat testGridRef2.dat testGridRef3.dat 
+	@echo "FVMAdaptTests/RefMesh: PASSED!" > $@
 
 testGrid.tag: testGrid.vog
 	LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) \
@@ -77,8 +80,8 @@ testGridRef3.dat: output/testGridRef3.topo
 	$(SERIALRUN) $(LOCI_BASE)/bin/extract -ascii testGridRef3 0 x y z | sort -g > testGridRef3.dat
 
 clean:
-	rm -fr output *.plan *.tag testGridRef*.vog *.quality testGridRef.dat testGridRef2.dat testGridRef3.dat *~ debug
+	rm -fr output *.plan *.tag testGridRef*.vog *.quality testGridRef.dat testGridRef2.dat testGridRef3.dat TestResults *~ debug
 
 distclean: clean
 
-
+FRC:
