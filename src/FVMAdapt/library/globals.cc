@@ -21,16 +21,45 @@
 #include "globals.h"
 #include "dataxferDB.h"
 
+/**
+ * Minimum target spacing used during refinement.
+ */
 double Globals::tolerance = 1e-10;
-double  Globals::fold = 90.0*3.1415926/180.0; //90 degree
+
+/**
+ * Maximum folded-face angle, in radians.
+ *
+ * A face is folded when its maximum triangle normal angle exceeds this
+ * threshold. The default is 90 degrees.
+ */
+double  Globals::fold = 90.0*3.1415926/180.0; // 90 degrees
+
+/**
+ * Maximum number of recursive split levels requested for one refinement pass.
+ */
 int Globals::levels = 1;
+
+/**
+ * Directional anisotropy threshold used when choosing split codes.
+ */
 double Globals::factor = 2;
-//balance options:
-//0: no edge's depth is greater than 1
-//1: 0 and no cell has more than half of its face split
-//2: 0 and 1 and no cell has two opposite faces split
+
+/**
+ * Additional balancing policy applied after initial cell-plan generation.
+ *
+ * Balance options:
+ * 0: no edge's depth is greater than 1
+ * 1: 0 and no cell has more than half of its face split
+ * 2: 0 and 1 and no cell has two opposite faces split
+ *
+ * Option 0 is the base one-level edge-depth compatibility check. Options 1 and
+ * 2 add progressively stronger face-split compatibility checks during
+ * `rebalance_cells()`.
+ */
 int Globals::balance_option = 0;
+
 vect3d Globals::split = vect3d(0.0, 0.0, 1.0);
+
 vect3d Globals::nosplit = vect3d(0.0, 0.0, 1.0);
 
 namespace Loci {
