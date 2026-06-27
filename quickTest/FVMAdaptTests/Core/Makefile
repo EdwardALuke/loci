@@ -25,7 +25,7 @@ include $(LOCI_BASE)/version.conf
 INCLUDES = -I../../contrib/doctest -I$(LOCI_BASE)/include
 LIB_PATH = $(LOCI_BASE)/lib:$(LD_LIBRARY_PATH)
 DY_PATH = $(LOCI_BASE)/lib:$(DYLD_LIBRARY_PATH)
-SOURCES = fvmadapt_core.cc fixtures.cc core_utils.cc plan_checks.cc \
+SOURCES = test_fvmadapt_core.cc fixtures.cc core_utils.cc plan_checks.cc \
           replay_trace.cc example_artifacts.cc
 OBJS = $(SOURCES:.cc=.o)
 
@@ -33,23 +33,23 @@ OBJS = $(SOURCES:.cc=.o)
 
 default: TestResults
 
-TestResults: fvmadapt_core.exe FRC
-	@(LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./fvmadapt_core.exe --check-only > fvmadapt_core.log || true)
-	@tail -n 1 fvmadapt_core.log > fvmadapt_core.log1
-	@echo -n FVMAdaptTests/Core/fvmadapt_core":" > $@
-	@if grep -q "SUCCESS!" fvmadapt_core.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
-	@rm fvmadapt_core.log1
+TestResults: test_fvmadapt_core.exe FRC
+	@(LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./test_fvmadapt_core.exe --check-only > test_fvmadapt_core.log || true)
+	@tail -n 1 test_fvmadapt_core.log > test_fvmadapt_core.log1
+	@echo -n FVMAdaptTests/Core/test_fvmadapt_core":" > $@
+	@if grep -q "SUCCESS!" test_fvmadapt_core.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
+	@rm test_fvmadapt_core.log1
 	@cat $@
 
-examples: fvmadapt_core.exe
+examples: test_fvmadapt_core.exe
 	@rm -fr output
 	@mkdir -p output
-	LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./fvmadapt_core.exe --write-dir output
+	LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./test_fvmadapt_core.exe --write-dir output
 
-list: fvmadapt_core.exe
-	LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./fvmadapt_core.exe --list
+list: test_fvmadapt_core.exe
+	LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./test_fvmadapt_core.exe --list
 
-fvmadapt_core.exe: $(OBJS) $(LOCI_BASE)/lib/libfvmadaptfunc.$(LIB_SUFFIX)
+test_fvmadapt_core.exe: $(OBJS) $(LOCI_BASE)/lib/libfvmadaptfunc.$(LIB_SUFFIX)
 	$(LD) -o $@ $(OBJS) -L$(LOCI_BASE)/lib -lfvmadaptfunc $(LIBS) $(LDFLAGS)
 
 clean:

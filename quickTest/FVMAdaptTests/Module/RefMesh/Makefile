@@ -19,7 +19,7 @@ TestResults: testGridRef.dat testGridRef2.dat testGridRef3.dat FRC
 	rm -fr output debug
 	rm *.plan *.tag testGridRef*.vog *.quality
 	rm testGridRef.dat testGridRef2.dat testGridRef3.dat 
-	@echo "FVMAdaptTests/RefMesh: PASSED!" > $@
+	@echo "FVMAdaptTests/Module/RefMesh: PASSED!" > $@
 
 testGrid.tag: testGrid.vog
 	LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) \

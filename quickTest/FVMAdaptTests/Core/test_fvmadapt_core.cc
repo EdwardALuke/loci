@@ -82,6 +82,7 @@ void check_replay_traces() {
 
 } // namespace
 
+
 /// Checks that a four-sided original mesh face keeps the same refined pattern
 /// when its plan is translated between general Face and QuadFace formats.
 /// Mixed hex/general interfaces use this so both cells split their copy of the
@@ -89,6 +90,7 @@ void check_replay_traces() {
 TEST_CASE("FVMAdapt face plans round-trip between general and quad encodings") {
   CHECK_NOTHROW(check_plan_transfer_round_trips()) ;
 }
+
 
 /// A one-entry cell plan says how the parent cell itself is split. With no
 /// child entries following it, every child is a leaf, so the library should
@@ -121,6 +123,7 @@ TEST_CASE("root split codes produce the expected fine-cell counts") {
   CHECK(pyramid.root->empty_resplit(plan({1})) == pyramid.root->numNode) ;
 }
 
+
 /// Checks the compact cell-plan convention for omitted child entries. When a
 /// plan ends before every child has an explicit code, the missing children are
 /// unsplit leaves, and make_cellplan() should preserve that compact form.
@@ -151,6 +154,7 @@ TEST_CASE("short cell plans treat omitted child entries as leaves") {
   CHECK(tetra_leaves.size() > size_t(tetra.root->numNode)) ;
   CHECK(tetra.root->make_cellplan() == plan({1, 1})) ;
 }
+
 
 /// Checks that explicit trailing leaf markers do not become part of the saved
 /// cell plan. A producer may spell out every child of a split parent as `0`,
@@ -193,6 +197,7 @@ TEST_CASE("trailing zero child plans canonicalize to the split tree") {
   CHECK(pyramid.root->make_cellplan() == plan({1})) ;
 }
 
+
 TEST_CASE("general cells keep the empty plan as the unsplit-cell convention") {
   // resplit(empty) leaves the output list empty for an unsplit general cell.
   GeneralFixture tetra_for_resplit ;
@@ -212,6 +217,7 @@ TEST_CASE("general cells keep the empty plan as the unsplit-cell convention") {
   // make_cellplan() preserves the empty-plan representation.
   CHECK(tetra_for_count.root->make_cellplan().empty()) ;
 }
+
 
 /// Checks the helpers that derive lower-dimensional plans from a cell or face
 /// plan. Face-balancing code uses these projections to decide how much of a
@@ -262,6 +268,7 @@ TEST_CASE("cell and face plans project to representative boundary plans") {
   CHECK(edge_plan == plan({1})) ;
 }
 
+
 /// Checks the smallest fixed mapping between the general Face plan encoding
 /// and the QuadFace plan encoding. Mixed general/hex and general/prism paths
 /// convert a four-sided general face into QuadFace form before merging face
@@ -276,6 +283,7 @@ TEST_CASE("small face-plan transfers have fixed general and quad encodings") {
   // QuadFace code 3 converts back to general Face code 1.
   CHECK(transfer_plan_q2g(plan({3})) == plan({1})) ;
 }
+
 
 /// Checks the direct-tag derefinement predicate for split cells. A parent is
 /// ready for `needDerefine_ctag()` only when its immediate children are tagged
@@ -327,6 +335,7 @@ TEST_CASE("derefine checks require tagged immediate leaf children") {
   CHECK(prism.root->needDerefine_ctag()) ;
 }
 
+
 /// Smoke-tests that representative split operations create usable child cells,
 /// not just the right plan structure. The checks verify that the split returns
 /// the expected number of non-null leaf pointers and that the resulting parent
@@ -367,6 +376,7 @@ TEST_CASE("representative splits leave finite positive geometry") {
   CHECK(tetra_min_edge > 0.0) ;
 }
 
+
 /// Runs the representative HexCell plan table through the real HexCell replay
 /// paths. Each case must give the same leaf count from resplit(), sort_leaves(),
 /// and num_fine_cells(), and make_cellplan() must return the expected compact
@@ -374,6 +384,7 @@ TEST_CASE("representative splits leave finite positive geometry") {
 TEST_CASE("HexCell plans preserve resplit leaves, sorted leaves, and canonical plans") {
   CHECK_NOTHROW(run_hex_cell_plan_tests(false, "")) ;
 }
+
 
 /// Runs the representative Prism plan table through the real Prism replay
 /// paths. Each case must give the same leaf count from resplit(), sort_leaves(),
@@ -383,6 +394,7 @@ TEST_CASE("Prism plans preserve resplit leaves, sorted leaves, and canonical pla
   CHECK_NOTHROW(run_prism_cell_plan_tests(false, "")) ;
 }
 
+
 /// Runs the representative general-cell plan table on a tetrahedron. This
 /// checks that Cell/DiamondCell resplit(), sort_leaves(), empty_resplit(), and
 /// make_cellplan() agree on the leaf count and canonical plan.
@@ -390,11 +402,13 @@ TEST_CASE("general tetrahedron plans preserve resplit leaves, sorted leaves, and
   CHECK_NOTHROW(run_tetra_cell_plan_tests(false, "")) ;
 }
 
+
 /// Runs the same general-cell plan table on a pyramid. This gives the generic
 /// Cell/DiamondCell replay checks a second parent-cell topology.
 TEST_CASE("general pyramid plans preserve resplit leaves, sorted leaves, and canonical plans") {
   CHECK_NOTHROW(run_pyramid_cell_plan_tests(false, "")) ;
 }
+
 
 /// Checks the independent breadth-first replay tracer against the real cell
 /// plan results. The tracer does not call HexCell, Prism, or Cell replay; it
@@ -403,6 +417,7 @@ TEST_CASE("general pyramid plans preserve resplit leaves, sorted leaves, and can
 TEST_CASE("plan replay traces reproduce the counted leaves for every cell case") {
   CHECK_NOTHROW(check_replay_traces()) ;
 }
+
 
 int main(int argc, char** argv) {
   bool write_example_files = false ;
