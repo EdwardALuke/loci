@@ -220,7 +220,7 @@ public:
  * @param[in,out] node_list Owned node pointers to delete; cleared on return.
  * @param[in,out] edge_list Owned root edge pointers to delete; cleared on return.
  */
-void cleanup_list(std::list<Node*>& node_list,
+inline void cleanup_list(std::list<Node*>& node_list,
                          std::list<Edge*>& edge_list) {
 
   for(std::list<Node*>::iterator p = node_list.begin(); p != node_list.end(); p++){
@@ -245,7 +245,7 @@ void cleanup_list(std::list<Node*>& node_list,
  *
  * @param[in,out] node_list Owned node pointers to delete; cleared on return.
  */
-void cleanup_list(std::list<Node*>& node_list) {
+inline void cleanup_list(std::list<Node*>& node_list) {
 
   for(std::list<Node*>::iterator p = node_list.begin(); p != node_list.end(); p++){
     if((*p) != 0) {
