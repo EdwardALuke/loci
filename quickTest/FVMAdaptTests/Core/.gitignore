@@ -1,0 +1,7 @@
+*.d
+*.exe
+*.log
+*.log1
+*.o
+TestResults
+output/
