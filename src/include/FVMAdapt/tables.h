@@ -47,36 +47,36 @@ const char faceCodeTable[42]={
   1, 8, 1, 2, 3, 2, 3,
   1, 8, 1, 2, 3, 2, 3,
   8, 1, 1, 2, 2, 3, 3,
-  8, 1, 1, 2, 2, 3, 3};
+  8, 1, 1, 2, 2, 3, 3} ;
 
 /// Build the ID table
-const std::vector<bool> v1(2, true);
-const std::vector<bool> v2(4, true);
-const bool a3[3] = {0, 1, 0};
-const bool a4[3] = {1, 0, 0};
-const bool a5[5] = {0, 0, 1, 1, 0};
-const bool a6[5] = {1, 1, 0, 0, 0};
-const bool a7[5] = {1, 0, 1, 0, 0};
-const bool a8[5] = {0, 1, 0, 1, 0};
-const bool a9[9] = {0, 0, 0, 0, 1, 1, 1, 1, 0};
-const bool a10[9] = {1, 1, 1, 1, 0, 0, 0, 0, 0};
-const bool a11[9] = {0, 0, 1, 1, 0, 0, 1, 1, 0};
-const bool a12[9] = {1, 1, 0, 0, 1, 1, 0, 0, 0};
-const bool a13[9] = {0, 1, 0, 1, 0, 1, 0, 1, 0};
-const bool a14[9] = {1, 0, 1, 0, 1, 0, 1, 0, 0};
+const std::vector<bool> v1(2, true) ;
+const std::vector<bool> v2(4, true) ;
+const bool a3[3] = {0, 1, 0} ;
+const bool a4[3] = {1, 0, 0} ;
+const bool a5[5] = {0, 0, 1, 1, 0} ;
+const bool a6[5] = {1, 1, 0, 0, 0} ;
+const bool a7[5] = {1, 0, 1, 0, 0} ;
+const bool a8[5] = {0, 1, 0, 1, 0} ;
+const bool a9[9] = {0, 0, 0, 0, 1, 1, 1, 1, 0} ;
+const bool a10[9] = {1, 1, 1, 1, 0, 0, 0, 0, 0} ;
+const bool a11[9] = {0, 0, 1, 1, 0, 0, 1, 1, 0} ;
+const bool a12[9] = {1, 1, 0, 0, 1, 1, 0, 0, 0} ;
+const bool a13[9] = {0, 1, 0, 1, 0, 1, 0, 1, 0} ;
+const bool a14[9] = {1, 0, 1, 0, 1, 0, 1, 0, 0} ;
 
-const std::vector<bool> v3(a3, &a3[2]);
-const std::vector<bool> v4(a4, &a4[2]);
-const std::vector<bool> v5(a5, &a5[4]);
-const std::vector<bool> v6(a6, &a6[4]);
-const std::vector<bool> v7(a7, &a7[4]);
-const std::vector<bool> v8(a8, &a8[4]);
-const std::vector<bool> v9(a9, &a9[8]);
-const std::vector<bool> v10(a10, &a10[8]);
-const std::vector<bool> v11(a11, &a11[8]);
-const std::vector<bool> v12(a12, &a12[8]);
-const std::vector<bool> v13(a13, &a13[8]);
-const std::vector<bool> v14(a14, &a14[8]);
+const std::vector<bool> v3(a3, &a3[2]) ;
+const std::vector<bool> v4(a4, &a4[2]) ;
+const std::vector<bool> v5(a5, &a5[4]) ;
+const std::vector<bool> v6(a6, &a6[4]) ;
+const std::vector<bool> v7(a7, &a7[4]) ;
+const std::vector<bool> v8(a8, &a8[4]) ;
+const std::vector<bool> v9(a9, &a9[8]) ;
+const std::vector<bool> v10(a10, &a10[8]) ;
+const std::vector<bool> v11(a11, &a11[8]) ;
+const std::vector<bool> v12(a12, &a12[8]) ;
+const std::vector<bool> v13(a13, &a13[8]) ;
+const std::vector<bool> v14(a14, &a14[8]) ;
 
 /// faceIDTable shows the children cells whose codes need to be transferd to face code.
 /// std::vector<bool> childrenID = faceIDTable[dd*7+(int(cellCode)-int(1))];
@@ -89,7 +89,7 @@ const std::vector<bool> faceIDTable[42] = {
   v1, v3, v5, v1, v2, v8, v11,
   v1, v4, v6, v1, v2, v7, v12,
   v3, v1, v8, v1, v8, v2, v13,
-  v4, v1, v7, v1, v7, v2, v14};
+  v4, v1, v7, v1, v7, v2, v14} ;
 
 /* this is the IDtable
 {
@@ -132,7 +132,7 @@ const std::vector<bool> edgeIDTable[12] = {
   v4, v1, v7,
   v1, v3, v5,
   v3, v1, v8,
-  v1, v4, v6};
+  v1, v4, v6} ;
 
 /* this is the IDtable
    {

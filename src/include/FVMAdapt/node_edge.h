@@ -145,7 +145,7 @@ public:
   *
   * @param[in,out] node_list Receives the midpoint node created by this split.
   */
-  inline void split(std::list<Node*>& node_list){
+  void split(std::list<Node*>& node_list){
     if(child == 0) {
       Node *center = centroid() ;
       node_list.push_back(center) ;
@@ -220,7 +220,7 @@ public:
  * @param[in,out] node_list Owned node pointers to delete; cleared on return.
  * @param[in,out] edge_list Owned root edge pointers to delete; cleared on return.
  */
-inline void cleanup_list(std::list<Node*>& node_list,
+void cleanup_list(std::list<Node*>& node_list,
                          std::list<Edge*>& edge_list) {
 
   for(std::list<Node*>::iterator p = node_list.begin(); p != node_list.end(); p++){
@@ -245,7 +245,7 @@ inline void cleanup_list(std::list<Node*>& node_list,
  *
  * @param[in,out] node_list Owned node pointers to delete; cleared on return.
  */
-inline void cleanup_list(std::list<Node*>& node_list) {
+void cleanup_list(std::list<Node*>& node_list) {
 
   for(std::list<Node*>::iterator p = node_list.begin(); p != node_list.end(); p++){
     if((*p) != 0) {
@@ -257,5 +257,3 @@ inline void cleanup_list(std::list<Node*>& node_list) {
 }
 
 #endif
-
-

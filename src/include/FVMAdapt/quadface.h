@@ -392,7 +392,7 @@ public:
   }
 
   /// Only if code is 3
-  inline Node* getCenter()const{
+  Node* getCenter() const {
     return child[0]->edge[1]->tail ; //unsafe version
   }
 
@@ -507,9 +507,9 @@ void tag_quad_face(const Entity* face2node,
 
 /// Compile the facePlan according the tree structure of aQuadFace
 /// std::vector<char> make_faceplan( QuadFace* aFace);
-inline void cleanup_list(std::list<Node*>& node_list,
-                         std::list<Edge*>& edge_list,
-                         std::list<QuadFace*>& face_list) {
+void cleanup_list(std::list<Node*>& node_list,
+                  std::list<Edge*>& edge_list,
+                  std::list<QuadFace*>& face_list) {
 
   for(std::list<Node*>::iterator p = node_list.begin(); p != node_list.end(); p++) {
     if((*p) != 0) {
@@ -536,7 +536,7 @@ inline void cleanup_list(std::list<Node*>& node_list,
   face_list.clear() ;
 }
 
-inline void cleanup_list(std::list<QuadFace*>& face_list) {
+void cleanup_list(std::list<QuadFace*>& face_list) {
   for(std::list<QuadFace*>::iterator p = face_list.begin();  p != face_list.end(); p++) {
     if((*p) != 0) {
       delete (*p) ;

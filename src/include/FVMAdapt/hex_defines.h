@@ -28,55 +28,57 @@
 #include "defines.h"
 
 /// Some machine, long int and int have the same size, both are 32 bits
-typedef Loci::vector3d<int64> IntegerPoint;
-typedef Loci::vector2d<int64>  Point2d;
+typedef Loci::vector3d<int64> IntegerPoint ;
+typedef Loci::vector2d<int64>  Point2d ;
 
-class HexCell;
-class Node;
-class Edge;
-class QuadFace;
+class HexCell ;
+class Node ;
+class Edge ;
+class QuadFace ;
 
 /// The direction of neighbor cells, also as faceID
 /// RIGHT: x = 1; LEFT: x = -1
 /// FRONT: y = 1; BACK: y = -1
 /// UP:    z = 1; DOWN: z = -1
-enum DIRECTION{RIGHT, LEFT, FRONT, BACK, UP, DOWN};
+enum DIRECTION{RIGHT, LEFT, FRONT, BACK, UP, DOWN} ;
 
 /// The direction of normal of faces
-enum NORMAL_DIRECTION{XX, YY, ZZ};
+enum NORMAL_DIRECTION{XX, YY, ZZ} ;
 
 
 namespace Loci {
 
   template<class T> inline bool operator < (const vector3d<T> &p1,const vector3d<T> &p2){
-    if(p1.x < p2.x) return true;
+    if(p1.x < p2.x) { return true ; }
 
-    else if(p1.x == p2.x){
-      if(p1.y < p2.y) return true;
-      else if (p1.y == p2.y){
-        if(p1.z < p2.z) return true;
+    else if(p1.x == p2.x) {
+      if(p1.y < p2.y) {
+        return true ;
+      }else if(p1.y == p2.y) {
+        if(p1.z < p2.z) { return true ; }
       }
     }
-    return false;
+    return false ;
   }
 
   template<class T> inline bool operator == (const  vector3d<T>& p1,const vector3d<T>& p2){
-    return (p1.x == p2.x) && (p1.y == p2.y) && (p1.z == p2.z);
+    return (p1.x == p2.x) && (p1.y == p2.y) && (p1.z == p2.z) ;
   }
-
 
   /// Function object for building a map such as yNodes
   class yless{
   public:
     template<class T> inline  bool operator()(const vector3d<T>& p1, const vector3d<T>& p2)const{
-      if(p1.x < p2.x) return true;
-      else if(p1.x == p2.x){
-        if(p1.z < p2.z) return true;
-        else if (p1.z == p2.z){
-          if(p1.y < p2.y) return true;
+      if(p1.x < p2.x) {
+        return true ;
+      }else if(p1.x == p2.x) {
+        if(p1.z < p2.z) {
+          return true ;
+        }else if(p1.z == p2.z) {
+          if(p1.y < p2.y) { return true ; }
         }
       }
-      return false;
+      return false ;
     }
   };
 
@@ -84,22 +86,24 @@ namespace Loci {
   class xless{
   public:
     template<class T>  inline  bool operator()(const vector3d<T>& p1, const vector3d<T>& p2)const{
-      if(p1.y < p2.y) return true;
-      else if(p1.y == p2.y){
-        if(p1.z < p2.z) return true;
-        else if (p1.z == p2.z){
-          if(p1.x < p2.x) return true;
+      if(p1.y < p2.y) {
+        return true ;
+      }else if(p1.y == p2.y){
+        if(p1.z < p2.z) {
+          return true ;
+        }else if(p1.z == p2.z) {
+          if(p1.x < p2.x) { return true ; }
         }
       }
-      return false;
+      return false ;
     }
   };
 }
 
 struct Edge2d{
-  int64 pos;
-  int64 head;
-  int64 tail;
+  int64 pos ;
+  int64 head ;
+  int64 tail ;
   Edge2d():pos(0),head(0),tail(0){}
   Edge2d(int64 p,int64 h, int64 t):pos(p), head(h),tail(t){}
   bool operator==(const Edge2d & ref) { return pos==ref.pos && head==ref.head && tail == ref.tail ; }
@@ -107,33 +111,33 @@ struct Edge2d{
 };
 
 struct Range2d{
-  Point2d minP;
-  Point2d maxP;
+  Point2d minP ;
+  Point2d maxP ;
   Range2d():minP(Point2d(0, 0)), maxP(Point2d(0, 0)){}
   Range2d(Point2d p0, Point2d p1):minP(p0), maxP(p1){}
 };
 
 inline bool operator < (const Edge2d& e1,const Edge2d& e2){
-  if(e1.pos < e2.pos) return true;
-
-  else if(e1.pos == e2.pos){
-    if(e1.head < e2.head) return true;
-    else if (e1.head == e2.head){
-      if(e1.tail < e2.tail)return true;
+  if(e1.pos < e2.pos) {
+    return true ;
+  }else if(e1.pos == e2.pos) {
+    if(e1.head < e2.head) {
+      return true ;
+    }else if(e1.head == e2.head) {
+      if(e1.tail < e2.tail) { return true ; }
     }
-
   }
-  return false;
+  return false ;
 }
 
 inline bool operator == (const  Edge2d& e1,const Edge2d& e2){
   return ((e1.pos == e2.pos) && (e1.head == e2.head)&&
-          (e1.tail == e2.tail));
+          (e1.tail == e2.tail)) ;
 }
 
-//transfer from face's local coordinates to cell's local coordinates
-Point2d transfer_f2c(Point2d p,Point2d maxPc, char orientCode);
-Point2d transfer_c2f(Point2d p, Point2d maxPf, char orientCode);
-Range2d transfer_f2c(Range2d c, Point2d maxPc, char orientCode);
+// transfer from face's local coordinates to cell's local coordinates
+Point2d transfer_f2c(Point2d p,Point2d maxPc, char orientCode) ;
+Point2d transfer_c2f(Point2d p, Point2d maxPf, char orientCode) ;
+Range2d transfer_f2c(Range2d c, Point2d maxPc, char orientCode) ;
 
 #endif

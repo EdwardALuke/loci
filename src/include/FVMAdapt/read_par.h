@@ -46,34 +46,34 @@ using std::vector;
  * fields define requested spacing near and away from that segment; see
  * get_spacing() for the exact evaluation used by the current implementation.
  */
-struct source_par{
-  vect3d p1;
-  vect3d p2;
-  double r0;
-  double s0;
-  double r1;
-  double s1;
-  double a;
+struct source_par {
+  vect3d p1 ;
+  vect3d p2 ;
+  double r0 ;
+  double s0 ;
+  double r1 ;
+  double s1 ;
+  double a ;
 };
 
 /**
  * Reads source_par entries from a text file.
  */
-void readPar(string filename, vector<source_par>& source_pars); 
+void readPar(string filename, vector<source_par>& source_pars) ;
 
 /**
  * Evaluates one source_par spacing request at a point.
  */
-double get_spacing(const vect3d& p, const source_par& s);
+double get_spacing(const vect3d& p, const source_par& s) ;
 
 /**
  * Computes the minimum requested spacing over a cell's vertices and center.
  */
-double get_min_spacing(const vector<Node*>& nodes, const vector<source_par>& ss);
+double get_min_spacing(const vector<Node*>& nodes, const vector<source_par>& ss) ;
 
 /**
  * Returns `1` when a cell should be refined for the supplied source requests.
  */
-int tag_cell(const vector<Node*>& nodes, const vector<source_par>& source_pars, double min_edge_len);
+int tag_cell(const vector<Node*>& nodes, const vector<source_par>& source_pars, double min_edge_len) ;
 
 #endif

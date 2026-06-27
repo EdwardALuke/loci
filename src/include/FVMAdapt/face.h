@@ -18,15 +18,6 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-/////////////////////////////////////////////////////////////////////////////////////
-//                                face.h
-//
-// this file include the declaration of class Face. Class Face is the abstraction
-// of general face(polygon). It's defined as a collection of edges and the directions
-// of edges. it supports only isotropic refinement.
-// If the face is built as face2node, it can resplit without orientCode(as used in
-// DiamondCell and  general Cell), A face can also be built as defined in cell, and
-// resplit with orientCode(as used in Prism)
 
 #ifndef FACE_H
 #define FACE_H
@@ -42,10 +33,17 @@
  * @file face.h
  * @ingroup fvmadapt_elements
  * @brief Polygonal face tree used for general faces and prism end faces.
+ *
+ *  this file include the declaration of class Face. Class Face is the abstraction
+ * of general face(polygon). It's defined as a collection of edges and the directions
+ *  of edges. it supports only isotropic refinement.
+ * If the face is built as face2node, it can resplit without orientCode(as used in
+ * DiamondCell and  general Cell), A face can also be built as defined in cell, and
+ * resplit with orientCode(as used in Prism)
+ *
  */
 
 
-//general face, i.e., polygon
 /**
  * @brief Isotropic polygon-face refinement tree.
  * @ingroup fvmadapt_elements
@@ -103,61 +101,62 @@ public:
    * edge; those are tracked by builder cleanup lists.
    */
   ~Face(){
-    if(child!= 0){
-      for(int i = 0; i < numEdge; i++){
-	if(child[i] != 0) {
-	  delete child[i];
-	  child[i] = 0;
-	}
+    if(child!= 0) {
+      for(int i=0; i<numEdge; i++) {
+        if(child[i] != 0) {
+          delete child[i] ;
+          child[i] = 0 ;
+        }
       }
-      delete [] child;
-      child = 0;
-    }
-    if(edge!=0){
-      delete [] edge;
-      edge = 0;
+      delete [] child ;
+      child = 0 ;
     }
 
-    if(needReverse !=0){
-      delete [] needReverse;
-      needReverse = 0;
+    if(edge!=0) {
+      delete [] edge ;
+      edge = 0 ;
+    }
+
+    if(needReverse !=0) {
+      delete [] needReverse ;
+      needReverse = 0 ;
     }
   }
+
 
   /**
-   * Computes an unweighted center from the stored edge-head vertices.
-   *
-   * This helper uses edge[i]->head directly; it does not apply the needReverse
-   * flags to reconstruct face-to-node order.
-   *
-   * @return Newly allocated Node at the arithmetic mean of the stored edge
-   * head coordinates; the caller owns the returned Node.
-   */
-  inline Node* simple_center(){
-    std::vector<vect3d> nodes(numEdge);
-    for(int i = 0; i < numEdge; i++){
-      nodes[i] =  edge[i]->head->p;
+  * Computes an unweighted center from the stored edge-head vertices.
+  *
+  * @return Newly allocated Node at the arithmetic mean of edge[i]->head
+  * coordinates; the caller owns the returned Node.
+  */
+  Node* simple_center() {
+    std::vector<vect3d> nodes(numEdge) ;
+    for(int i=0; i<numEdge; i++) {
+      nodes[i] = edge[i]->head->p ;
     }
-    //calculate the mass center of the edge centers
-    vect3d p = point_center(nodes);
-    return new Node(p);
+    // calculate the mass center of the edge centers
+    vect3d p = point_center(nodes) ;
+    return new Node(p) ;
   }
+
 
   /**
    * Estimates the unsigned polygon area by triangulating about simple_center().
    *
    * @return Half the norm of the summed triangle cross products.
    */
-  inline double area(){
-    Node* c = simple_center();
-    vect3d tmp_center = c->p;
-    vect3d sum = vect3d(0.0, 0.0, 0.0);
-    for(int i = 0; i < numEdge; i++){
-      sum += cross((edge[i]->tail->p - tmp_center), (edge[i]->head->p - tmp_center));
+  double area() {
+    Node* c = simple_center() ;
+    vect3d tmp_center = c->p ;
+    vect3d sum = vect3d(0.0, 0.0, 0.0) ;
+    for(int i=0; i<numEdge; i++) {
+      sum += cross((edge[i]->tail->p - tmp_center), (edge[i]->head->p - tmp_center)) ;
     }
-    if(c!=0)delete c;
-    return 0.5*norm(sum);
+    if(c!=0) { delete c ; }
+    return 0.5*norm(sum) ;
   }
+
 
   /**
    * Computes the face-center node used by split().
@@ -168,17 +167,17 @@ public:
    *
    * @return Newly allocated center Node; the caller owns the returned Node.
    */
-  inline Node* centroid(){
-    switch(CENTROID){
+  Node* centroid() {
+    switch(CENTROID) {
     case 0:
-      return simple_center();
+      return simple_center() ;
     case 1:
-      return wireframe();
+      return wireframe() ;
     default:
-      return wireframe();
+      return wireframe() ;
     }
-
   }
+
 
   /**
    * Computes a length-weighted center of the boundary edge midpoints.
@@ -186,27 +185,26 @@ public:
    * @pre Each boundary edge has already been split, so edge[i]->child[0]->tail
    * is the midpoint node for that edge. The total boundary-edge length must be
    * nonzero because weighted_center() divides by the weight sum.
+   *
    * @return Newly allocated Node at the weighted center; the caller owns the
    * returned Node.
    */
-  inline Node* wireframe(){
+  inline Node* wireframe() {
 
-    //allocate edgecenter
-    std::vector<vect3d> edgecenter(numEdge);
-    std::vector<double> len(numEdge);
+    // allocate edgecenter
+    std::vector<vect3d> edgecenter(numEdge) ;
+    std::vector<double> len(numEdge) ;
 
-    //get edge centers
-    for(int i = 0; i < numEdge; i++){
-      edgecenter[i] = edge[i]->child[0]->tail->p;
-      len[i] = edge[i]->length();
+    // get edge centers
+    for(int i=0; i<numEdge; i++) {
+      edgecenter[i] = edge[i]->child[0]->tail->p ;
+      len[i] = edge[i]->length() ;
     }
 
-    //calculate the mass center of the edge centers
-    vect3d p = weighted_center(edgecenter, len);
-    return new Node(p);
+    // calculate the mass center of the edge centers
+    vect3d p = weighted_center(edgecenter, len) ;
+    return new Node(p) ;
   }
-
-
 
 
   /**
@@ -214,7 +212,8 @@ public:
    *
    * @pre The face has at least one boundary edge.
    */
-  inline int  getLevel(){return edge[0]->level;};
+  int getLevel() { return edge[0]->level ; } ;
+
 
   /**
    * Returns the midpoint node for each boundary edge.
@@ -223,11 +222,12 @@ public:
    * @param edgecenter Caller-provided array of at least numEdge Node*
    * entries. The function fills it with borrowed midpoint-node pointers.
    */
-  inline void getEdgeCenter(Node** edgecenter)const{
-    for(int i = 0; i < numEdge; i++){
-      edgecenter[i] = edge[i]->child[0]->tail;
+  void getEdgeCenter(Node** edgecenter) const {
+    for(int i=0; i<numEdge; i++) {
+      edgecenter[i] = edge[i]->child[0]->tail ;
     }
   }
+
 
   /**
    * Finds an immediate child face by pointer identity.
@@ -235,16 +235,17 @@ public:
    * @param theFace Face pointer to search for.
    * @return Child index in [0, numEdge), or -1 if no immediate child matches.
    */
-  inline int containFace(Face* theFace)const{
-    if(child !=0){
-      for(int i = 0; i < numEdge; i++){
-        if(child[i] == theFace){
-          return i;
+  int containFace(Face* theFace) const {
+    if(child !=0) {
+      for(int i=0; i<numEdge; i++) {
+        if(child[i] == theFace) {
+          return i ;
         }
       }
     }
-    return -1;
+    return -1 ;
   }
+
 
   /**
    * Finds a boundary edge by pointer identity.
@@ -252,14 +253,15 @@ public:
    * @param theEdge Edge pointer to search for.
    * @return Edge index in [0, numEdge), or -1 if the edge is not on this face.
    */
-  inline  int containEdge(Edge* theEdge)const{
-    for(int i = 0; i < numEdge; i++){
-      if(edge[i] == theEdge){
-        return i;
+  int containEdge(Edge* theEdge) const {
+    for(int i=0; i<numEdge; i++) {
+      if(edge[i] == theEdge) {
+        return i ;
       }
     }
-    return -1;
+    return -1 ;
   }
+
 
   /**
    * Finds a face vertex by pointer identity in face-to-node order.
@@ -271,21 +273,22 @@ public:
    * @return Vertex index in [0, numEdge), or -1 if the node is not a face
    * vertex.
    */
-  inline int containNode(const Node* theNode)const{
-    std::vector<Node*> f2n(numEdge);
-    for(int i = 0; i < numEdge; i++){
-      if(needReverse[i]) f2n[i] = edge[i]->tail;
-      else f2n[i] = edge[i]->head;
+  int containNode(const Node* theNode) const {
+    std::vector<Node*> f2n(numEdge) ;
+    for(int i=0; i<numEdge; i++) {
+      if(needReverse[i]) f2n[i] = edge[i]->tail ;
+      else f2n[i] = edge[i]->head ;
     }
-    int nodeID = -1;
-    for(int i = 0; i < numEdge; i++){
+    int nodeID = -1 ;
+    for(int i=0; i<numEdge; i++) {
       if(f2n[i] == theNode) {
-        nodeID = i;
-        break;
+        nodeID = i ;
+        break ;
       }
     }
-    return nodeID;
+    return nodeID ;
   }
+
 
   /**
    * Collects leaf faces in tree traversal order.
@@ -297,6 +300,7 @@ public:
    */
   void get_leaves(std::vector<Face*>& leaves) ;
 
+
   /**
    * Writes the face-to-node ordering for the current refined face boundary.
    *
@@ -305,7 +309,8 @@ public:
    *
    * @param f2n Output list replaced with node indices in face order.
    */
-  void set_f2n(std::list<int32>& f2n);
+  void set_f2n(std::list<int32>& f2n) ;
+
 
   /**
    * Splits a general face once.
@@ -317,7 +322,8 @@ public:
    * @param node_list Receives newly created midpoint and face-center nodes.
    * @param edge_list Receives newly created edge objects.
    */
-  void split(std::list<Node*>& node_list, std::list<Edge*>& edge_list);
+  void split(std::list<Node*>& node_list, std::list<Edge*>& edge_list) ;
+
 
   /**
    * Splits a general face once using a prism face orientation code.
@@ -330,7 +336,8 @@ public:
    * @param node_list  Receives newly created midpoint and face-center nodes.
    * @param edge_list  Receives newly created edge objects.
    */
-  void split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>& edge_list);
+  void split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>& edge_list) ;
+
 
   /**
    * Creates empty child Face objects without creating nodes or edges.
@@ -338,7 +345,8 @@ public:
    * This is used when replaying or converting plan vectors where only the tree
    * shape is needed.
    */
-  void empty_split();
+  void empty_split() ;
+
 
   /**
    * Replays a face refinement plan and returns the resulting leaf faces.
@@ -356,7 +364,8 @@ public:
   void resplit(const std::vector<char>& facePlan,
                std::list<Node*>& node_list,
                std::list<Edge*>& edge_list,
-               std::vector<Face*>& fine_face);
+               std::vector<Face*>& fine_face) ;
+
 
   /**
    * Replays a face refinement plan without collecting the leaf faces.
@@ -371,7 +380,8 @@ public:
    */
   void resplit(const std::vector<char>& facePlan,
                std::list<Node*>& node_list,
-               std::list<Edge*>& edge_list);
+               std::list<Edge*>& edge_list) ;
+
 
   /**
    * Replays a face refinement plan using a prism-local orientation code.
@@ -388,7 +398,8 @@ public:
   void resplit(const std::vector<char>& facePlan,
                char orientCode,
                std::list<Node*>& node_list,
-               std::list<Edge*>& edge_list);
+               std::list<Edge*>& edge_list) ;
+
 
   /**
    * Replays a face plan into empty child faces and returns the leaf count.
@@ -398,7 +409,8 @@ public:
    * @param facePlan Breadth-first general-face refinement plan.
    * @return Number of leaf faces represented by the plan.
    */
-  int empty_resplit(const std::vector<char>& facePlan);
+  int empty_resplit(const std::vector<char>& facePlan) ;
+
 
   /**
    * Replays a face plan into empty child faces and returns the leaves.
@@ -409,7 +421,8 @@ public:
    * @param facePlan Breadth-first general-face refinement plan.
    * @param leaves Receives leaf faces in traversal order.
    */
-  void empty_resplit(const std::vector<char>& facePlan, std::vector<Face*>& leaves);
+  void empty_resplit(const std::vector<char>& facePlan, std::vector<Face*>& leaves) ;
+
 
   /**
    * Replays a face plan into empty child faces with prism orientation.
@@ -421,7 +434,8 @@ public:
    * @param facePlan Breadth-first general-face refinement plan.
    * @param orientCode Orientation code associated with the face in the prism.
    */
-  void empty_resplit(const std::vector<char>& facePlan, char orientCode);
+  void empty_resplit(const std::vector<char>& facePlan, char orientCode) ;
+
 
   /**
    * Encodes the current face tree as a breadth-first refinement plan.
@@ -431,28 +445,29 @@ public:
    *
    * @return Face refinement plan for the current tree shape.
    */
-  std::vector<char> make_faceplan();
+  std::vector<char> make_faceplan() ;
+
 
   /**
    * Counts leaf faces under this face tree.
    *
    * @return Number of leaves reachable from this face.
    */
-  int get_num_leaves()const;//for mxfpc
+  int get_num_leaves() const ; //for mxfpc
 public:
-  int numEdge;
-  Edge** edge;
-  //if each edge is built as edge2node, and the face is built as face2node, needReverse is
-  //true if face2node[i] == edge2node[face2edge[i]][1]
+  int numEdge ;
+  Edge** edge ;
 
-  //if each edge is defined as in prism, and the face is also defined as in prism,
-  //needReverse is also false
+  // if each edge is built as edge2node, and the face is built as face2node,
+  // needReverse is true if face2node[i] == edge2node[face2edge[i]][1]
 
-  //during split, needReverse is decided by both the way edge is defined and the way the
-  //face is defined
-  bool* needReverse;
+  // if each edge is defined as in prism, and the face is also defined as in
+  // prism, needReverse is also false.
 
-  Face** child;
+  // during split, needReverse is decided by both the way edge is defined and
+  // the way the face is defined.
+  bool* needReverse ;
+  Face** child ;
 };
 
 
@@ -480,7 +495,8 @@ Face* build_general_face( const Entity* face2node, int num_edge,
                           const const_store<vect3d>& pos,
                           const const_store<std::vector<char> >& edgePlan,
                           std::list<Node*>& bnode_list,
-                          std::list<Edge*>& edge_list);
+                          std::list<Edge*>& edge_list) ;
+
 
 /**
  * Builds a polygon face and assigns parallel node indices.
@@ -508,8 +524,7 @@ Face* build_general_face( const Entity* face2node, int num_edge,
                           const const_store<std::vector<char> >& edgePlan,
                           std::list<Node*>& bnode_list,
                           std::list<Edge*>& edge_list,
-                          const const_store<int>& node_l2f);
-
+                          const const_store<int>& node_l2f) ;
 
 
 /**
@@ -533,7 +548,7 @@ Face* build_tmp_general_face( const Entity* face2node, int num_edge,
                               const const_MapVec<2>& edge2node,
                               const const_store<std::vector<char> >& edgePlan,
                               std::list<Node*>& bnode_list,
-                              std::list<Edge*>& edge_list);
+                              std::list<Edge*>& edge_list) ;
 
 
 /**
@@ -543,7 +558,8 @@ Face* build_tmp_general_face( const Entity* face2node, int num_edge,
  * @param f2 Second face tree.
  * @return true when the two trees have at least one identical leaf pointer.
  */
-bool is_overlapped( Face* f1,  Face* f2);
+bool is_overlapped(Face* f1, Face* f2) ;
+
 
 /**
  * Maps a child index from cell-local order to face-local order.
@@ -556,7 +572,8 @@ bool is_overlapped( Face* f1,  Face* f2);
  * @param numEdge Number of parent face edges.
  * @return Child index in face-local ordering.
  */
-int general_childID_orient_c2f(int childID_c, char orientCode, int numEdge);
+int general_childID_orient_c2f(int childID_c, char orientCode, int numEdge) ;
+
 
 /**
  * Maps a child index from face-local order to cell-local order.
@@ -569,7 +586,8 @@ int general_childID_orient_c2f(int childID_c, char orientCode, int numEdge);
  * @param numEdge Number of parent face edges.
  * @return Child index in cell-local ordering.
  */
-int general_childID_orient_f2c(int childID_f, char orientCode, int numEdge);
+int general_childID_orient_f2c(int childID_f, char orientCode, int numEdge) ;
+
 
 /**
  * Maps a face-local edge index to the cell-local edge index for an orientation.
@@ -583,7 +601,7 @@ int general_childID_orient_f2c(int childID_f, char orientCode, int numEdge);
  * @param numEdge Number of parent face edges.
  * @return Edge index in the oriented cell-local ordering.
  */
-int general_edgeID_orient_f2c(int i, char orientCode, int numEdge);
+int general_edgeID_orient_f2c(int i, char orientCode, int numEdge) ;
 
 
 /**
@@ -600,46 +618,46 @@ int general_edgeID_orient_f2c(int i, char orientCode, int numEdge);
  */
 inline void cleanup_list(std::list<Node*>& node_list,
                          std::list<Edge*>& edge_list,
-                         std::list<Face*>& face_list){
-  for(std::list<Node*>::iterator p = node_list.begin(); p != node_list.end(); p++){
-    if((*p) != 0){
-      delete (*p);
-      (*p) = 0;
+                         std::list<Face*>& face_list) {
+  for(std::list<Node*>::iterator p = node_list.begin(); p != node_list.end(); p++) {
+    if((*p) != 0) {
+      delete (*p) ;
+      (*p) = 0 ;
     }
   }
-  node_list.clear();
+  node_list.clear() ;
 
-  for(std::list<Edge*>::iterator p = edge_list.begin(); p != edge_list.end(); p++){
-    if((*p) != 0){
-      delete (*p);
-      (*p) = 0;
+  for(std::list<Edge*>::iterator p = edge_list.begin(); p != edge_list.end(); p++) {
+    if((*p) != 0) {
+      delete (*p) ;
+      (*p) = 0 ;
     }
   }
-  edge_list.clear();
+  edge_list.clear() ;
 
-  for(std::list<Face*>::iterator p = face_list.begin();  p != face_list.end(); p++){
-    if((*p) != 0){
-      delete (*p);
-      (*p) = 0;
+  for(std::list<Face*>::iterator p = face_list.begin();  p != face_list.end(); p++) {
+    if((*p) != 0) {
+      delete (*p) ;
+      (*p) = 0 ;
     }
   }
-  face_list.clear();
+  face_list.clear() ;
 }
+
 
 /**
  * Deletes owned temporary faces, then clears the list.
  *
  * @param face_list Owning list of Face pointers to delete.
  */
-inline void cleanup_list( std::list<Face*>& face_list){
-  for(std::list<Face*>::iterator p = face_list.begin();  p != face_list.end(); p++){
-    if((*p) != 0){
-      delete (*p);
-      (*p) = 0;
+inline void cleanup_list( std::list<Face*>& face_list) {
+  for(std::list<Face*>::iterator p = face_list.begin();  p != face_list.end(); p++) {
+    if((*p) != 0) {
+      delete (*p) ;
+      (*p) = 0 ;
     }
   }
-  face_list.clear();
+  face_list.clear() ;
 }
-
 
 #endif

@@ -24,6 +24,7 @@
 #include "diamondcell.h"
 #include "defines.h"
 #include "hex_defines.h"
+#include "transfer_plan.h"
 using std::cerr;
 using std::endl;
 using std::swap;
@@ -34,7 +35,6 @@ using std::cout;
  * @brief Computes owner-cell ids for fine faces generated on general cells.
  */
 
-std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan);
 std::vector<int32> contain_2d(const std::vector<pair<Range2d, int32> >& faceMap,
                               const std::vector<Range2d>& leaves);
 
