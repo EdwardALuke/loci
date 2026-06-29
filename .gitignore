@@ -40,9 +40,11 @@ config.log
 *.log
 *.pdf
 *.toc
-Tutorial/docs/Makefile_ex.tex
-Tutorial/docs/entities_cc.tex
-Tutorial/docs/helpers_cc.tex
+docs/tutorial/docs/Makefile_ex.tex
+docs/tutorial/docs/entities_cc.tex
+docs/tutorial/docs/helpers_cc.tex
+docs/generated-docs-manifest.txt
 
 # Doxygen generated files
-docs/
+docs/doxygen/html/
+docs/doxygen/latex/

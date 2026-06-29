@@ -27,38 +27,45 @@ include version.conf
 
 DEFINES = $(DEBUG) $(SYSTEM_DEFINES) $(MACHINE_SPECIFIC)
 
-.PHONEY: default library docs install lpp FVMtools FVMMod FVMAdapt FVMOverset
-.PHONEY: METIS SPRNG
+.PHONY: default install uninstall clean distclean test testclean
+.PHONY: docs docs-clean docs-distclean 
+.PHONY: library lpp FVMtools FVMMod FVMAdapt FVMOverset
+.PHONY: METIS SPRNG FORCE
+
 default: library lpp FVMtools FVMMod FVMAdapt FVMOverset METIS SPRNG
 
 library: Tools/libTools.$(LIB_SUFFIX) System/libLoci.$(LIB_SUFFIX)
 
-docs:
-	$(MAKE) -C Tutorial/docs LOCI_BASE="$(LOCI_BASE)"
+docs: FORCE
+	$(MAKE) -C docs LOCI_BASE="$(LOCI_BASE)"
+
+
+docs-clean: FORCE
+	$(MAKE) -C docs clean LOCI_BASE="$(LOCI_BASE)"
+
+docs-distclean: FORCE
+	$(MAKE) -C docs distclean LOCI_BASE="$(LOCI_BASE)"
+
 
 install: default docs
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
-	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
+	GIT_BRANCH=$(GIT_BRANCH) bash scripts/Install.bash
 
 install_minimal: default
 	INSTALL_DIR=$(INSTALL_DIR) LOCI_INSTALL_DIR=$(LOCI_INSTALL_DIR) \
 	INSTALL_METIS=$(INSTALL_METIS) GIT_INFO=$(GIT_INFO) \
-	GIT_BRANCH=$(GIT_BRANCH) bash Install.bash
+	GIT_BRANCH=$(GIT_BRANCH) bash scripts/Install.bash
 
-.PHONY: METIS
-METIS :
+METIS : FORCE
 ifeq ($(INSTALL_METIS),1)
 	$(MAKE) -C ParMetis-4.0 LOCI_BASE="$(LOCI_BASE)"
 endif
 
 
-.PHONY : SPRNG
-SPRNG : 
+SPRNG : FORCE
 	$(MAKE) -C sprng LOCI_BASE="$(LOCI_BASE)"
 
-
-.PHONY: FORCE
 
 LOCI_MAJOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v\([0-9][0-9]*\).*/\1/")
 LOCI_MINOR_VERSION=$(shell echo $(GIT_INFO) | sed "s/v[0-9][0-9]*[.]\([0-9][0-9]*\).*/\1/")
@@ -103,17 +110,16 @@ FVMOverset: lpp FORCE
 
 JUNK =
 
-.PHONY: test
 test: default
 	$(MAKE) -C quickTest LOCI_BASE="$(LOCI_BASE)"
 
-.PHONY: clean
 
 testclean:
 	$(MAKE) -C quickTest distclean LOCI_BASE="$(LOCI_BASE)"
 
 clean:
 	rm -f $(JUNK)
+	$(MAKE) -C docs clean LOCI_BASE="$(LOCI_BASE)"
 	$(MAKE) -C Tools clean LOCI_BASE="$(LOCI_BASE)"
 	$(MAKE) -C System clean LOCI_BASE="$(LOCI_BASE)"
 ifeq ($(INSTALL_METIS),1)
@@ -131,7 +137,6 @@ endif
 LOCI_HEADER_FILES= $(wildcard include/*.h include/*.lh include/Config/*.h \
                               include/MPI_stubb/*.h) include/Loci
 
-.PHONY: uninstall
 uninstall: FORCE
 # Remove top level header files
 	@for d in $(LOCI_HEADER_FILES); do rm -f  $(LOCI_INSTALL_PATH)/$$d; done
@@ -155,11 +160,12 @@ endif
 # remove documentation
 	rm -fr $(LOCI_INSTALL_PATH)/docs/1D-Diffusion
 	rm -fr $(LOCI_INSTALL_PATH)/docs/Datatypes
+	rm -fr $(LOCI_INSTALL_PATH)/docs/doxygen
 	rm -fr $(LOCI_INSTALL_PATH)/docs/heat
 	rm -f $(LOCI_INSTALL_PATH)/docs/tutorial.pdf
+	rm -f $(LOCI_INSTALL_PATH)/docs/LociSlides.pdf
 
-.PHONY: distclean
-distclean:
+distclean: docs-distclean
 	rm -f $(JUNK)
 ifeq ($(INSTALL_METIS),1)
 	$(MAKE) -C ParMetis-4.0 distclean LOCI_BASE="$(LOCI_BASE)"
