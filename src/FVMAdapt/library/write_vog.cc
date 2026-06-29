@@ -132,11 +132,10 @@ namespace Loci {
       DataXFER_DB.insertItem("c2pglobal",c2pg.Rep()) ;
       return c2pg.Rep() ;
     }
-    // Now get the maps needed to translate from global to file
-    dMap g2f ;
-    g2f = dist->g2f.Rep() ;
     Map l2g ;
     l2g = dist->l2g.Rep() ;
+    Map l2f ;
+    l2f = dist->l2f.Rep() ;
     constraint geom_cells ;
     geom_cells = facts.get_fact("geom_cells") ;
     dom = geom_cells.Rep()->domain() ;
@@ -149,7 +148,7 @@ namespace Loci {
     int xfol = std::numeric_limits<int>::lowest() ;
     FORALL(dom,ii) {
       int g = l2g[ii] ;
-      int f = g2f[g] ;
+      int f = l2f[ii] ;
       f2g[cnt++] = pair<int,int>(f,g) ;
       mfol = min(mfol,f) ;
       xfol = max(xfol,f) ;
@@ -1567,10 +1566,11 @@ namespace Loci{
   // MPI Communicator(comm)
   storeRepP Global2FileOrder(storeRepP sp, entitySet dom, int &offset,
                              fact_db::distribute_infoP dist, MPI_Comm comm) {
-   
+
+    int keyspace = sp->getDomainKeySpace() ;
     // Now get global to file numbering
     dMap g2f ;
-    g2f = dist->g2fv[0].Rep() ; // FIX THIS
+    g2f = dist->g2fv[keyspace].Rep() ; 
 
     // Compute map from local numbering to file numbering
     Map newnum ;
@@ -2055,7 +2055,7 @@ namespace Loci{
     // update remap from global to file numbering for faces after sorting
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
     dMap g2f ;
-    g2f = df->g2fv[0].Rep() ; // FIX THIS
+    g2f = df->g2fv[fk].Rep() ; 
 
     int cells_base=local_cells[0].Min() ;
     for(size_t i=0;i<volTags.size();++i) {

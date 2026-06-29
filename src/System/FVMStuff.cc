@@ -1396,7 +1396,7 @@ namespace Loci{
 
     double a = val[edge2node[e][0]] ;
     double b = val[edge2node[e][1]] ;
-    return ((b)/(b - a)) ;
+    return ((b)/(b - a + 1e-30)) ;
   }
 
 
@@ -3913,13 +3913,14 @@ namespace Loci{
     // Allocate entities for new edges
     int num_edges = emap.size() ;
     int ek = facts.getKeyDomain("Edges") ;
-    if(!useDomainKeySpaces) {
+    //    if(!useDomainKeySpaces) {
+    //      ek = 0 ;
+    //    }
+    if(Loci::MPI_processes == 0)
       ek = 0 ;
-    }
     int fk = face2node.Rep()->getDomainKeySpace() ;
 
     entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
-
 
     //create constraint edges
     constraint edges_tag;
@@ -4280,7 +4281,7 @@ namespace Loci{
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
 
       FORALL(global2file.domain(), ei){
-        dist->g2fv[0][ei] = global2file[ei][0] ;
+        dist->g2fv[ek][ei] = global2file[ei][0] ;
       }ENDFORALL;
 
     }
