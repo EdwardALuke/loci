@@ -3916,6 +3916,8 @@ namespace Loci{
     //    if(!useDomainKeySpaces) {
     //      ek = 0 ;
     //    }
+    if(Loci::MPI_processes == 0)
+      ek = 0 ;
     int fk = face2node.Rep()->getDomainKeySpace() ;
 
     entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
