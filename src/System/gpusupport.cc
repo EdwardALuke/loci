@@ -29,6 +29,8 @@
 #include "comp_tools.h"
 #include <gpurep.h>
 #include "gpuMap.h"
+#include "gpumultiMap.h"
+#include <multiMap.h>
 
 using std::bad_alloc ;
 using std::map ;
@@ -446,6 +448,456 @@ namespace Loci {
   }
 
   store_instance::instance_type const_gpuMap::access() const
+  { return READ_ONLY ; }
+
+  void gpumultiMapRepI::allocate(const entitySet &ptn) {
+    store<int> count ;
+    count.allocate(ptn) ;
+    FORALL(ptn,i) {
+      count[i] = 0 ;
+    } ENDFORALL ;
+    allocate(count) ;
+  }
+
+  void gpumultiMapRepI::allocate(const store<int> &sizes) {
+    if(alloc_id < 0)
+      alloc_id = getGPUStoreAllocateID() ;
+
+    entitySet ptn = sizes.domain() ;
+    int cntid = sizes.Rep()->get_alloc_id() ;
+    GPUstoreAllocateData[alloc_id].template release<Entity>() ;
+    GPUstoreAllocateData[alloc_id].template
+      allocMulti<Entity>(storeAllocateData[cntid],ptn) ;
+
+    base_ptr = ((Entity **)GPUstoreAllocateData[alloc_id].alloc_ptr2 -
+		GPUstoreAllocateData[alloc_id].base_offset) ;
+   
+    store_domain = ptn ;
+    dispatch_notify() ;
+  }
+
+  gpumultiMapRepI::~gpumultiMapRepI() {
+    if(alloc_id>=0) {
+      GPUstoreAllocateData[alloc_id].template release<Entity>() ;
+      releaseGPUStoreAllocateID(alloc_id) ;
+      alloc_id = -1 ;
+    }
+  }
+
+  storeRep *gpumultiMapRepI::new_store(const entitySet &p) const {
+    return new gpumultiMapRepI()  ;
+  }
+  storeRep *gpumultiMapRepI::new_store(const entitySet &p, const int* cnt) const {
+    store<int> count ;
+    count.allocate(p) ;
+    int t= 0 ;
+    FORALL(p, pi) {
+      count[pi] = cnt[t++] ; 
+    } ENDFORALL ;
+    return new gpumultiMapRepI(count)  ;
+  }
+  storeRepP gpumultiMapRepI::MapRemap(const dMap &dm, const dMap &rm) const {
+    cerr << "remap should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    entitySet newdomain = dm.domain() & domain() ;
+    entitySet mapimage = dm.image(newdomain) ;
+    multiMap s ;
+    s.Rep()->setDomainKeySpace(getDomainKeySpace()) ;
+    MapRepP(s.Rep())->setRangeKeySpace(getRangeKeySpace()) ;
+    s.allocate(mapimage) ;
+    storeRepP my_store = getRep() ;
+    s.Rep()->scatter(dm,my_store,newdomain) ;
+    MapRepP(s.Rep())->compose(rm,mapimage) ;
+    return s.Rep() ;
+  }
+  storeRepP gpumultiMapRepI::remap(const dMap &m) const {
+    cerr << "remap should not be used on gpumultiMap!" << endl ;
+    return MapRemap(m,m) ;
+  }
+
+  void gpumultiMapRepI::compose(const dMap &m, const entitySet &context) {
+    cerr << "compose should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    fatal((context-store_domain) != EMPTY) ;
+    entitySet dom = m.domain() ;
+    FORALL(context,i) {
+      for(int *ii = base_ptr[i];ii!=base_ptr[i+1];++ii) {
+        if(dom.inSet(*ii))
+          *ii = m[*ii] ;
+        else
+          *ii = -1 ;
+      }
+    } ENDFORALL ;
+  }
+
+  void gpumultiMapRepI::copy(storeRepP &st, const entitySet &context) {
+    cerr << "copy should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    const_multiMap s(st) ;
+    fatal((context-domain()) != EMPTY) ;
+    fatal((context-s.domain()) != EMPTY) ;
+
+    store<int> count ;
+    count.allocate(domain()) ;
+    FORALL(domain()-context,i) {
+      count[i] = base_ptr[i+1]-base_ptr[i] ;
+    } ENDFORALL ;
+    FORALL(context,i) {
+      count[i] = s.end(i)-s.begin(i) ;
+    } ENDFORALL ;
+
+    int cntid = count.Rep()->get_alloc_id() ;
+    GPUstoreAllocateInfo tmp ;
+    tmp.template allocMulti<Entity>(storeAllocateData[cntid],count.domain()) ;
+
+    Entity **new_base_ptr = ((Entity **)tmp.alloc_ptr2 -
+			     tmp.base_offset) ;
+
+    FORALL(domain()-context,i) {
+      for(int j=0;j<count[i];++j) 
+        new_base_ptr[i][j] = base_ptr[i][j] ;
+    } ENDFORALL ;
+
+    FORALL(context,i) {
+      for(int j=0;j<count[i];++j)
+        new_base_ptr[i][j] = s[i][j] ;
+    } ENDFORALL ;
+    GPUstoreAllocateData[alloc_id].template release<Entity>() ;
+    GPUstoreAllocateData[alloc_id] = tmp ;
+    base_ptr = new_base_ptr ;
+    dispatch_notify() ;
+  }
+
+  void gpumultiMapRepI::gather(const dMap &m, storeRepP &st,
+                            const entitySet  &context) {
+    cerr << "gather should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    store<int> count ;
+    const_multiMap s(st) ;
+    count.allocate(domain()) ;
+    FORALL(domain()-context,i) {
+      count[i] = base_ptr[i+1]-base_ptr[i] ;
+    } ENDFORALL ;
+    FORALL(context,i) {
+      count[i] = s.end(m[i])-s.begin(m[i]) ;
+    } ENDFORALL ;
+
+    int cntid = count.Rep()->get_alloc_id() ;
+    GPUstoreAllocateInfo tmp ;
+    tmp.template allocMulti<Entity>(storeAllocateData[cntid],count.domain()) ;
+
+    Entity **new_base_ptr = ((Entity **)tmp.alloc_ptr2 -
+			     tmp.base_offset) ;
+    FORALL(domain()-context,i) {
+      for(int j=0;j<count[i];++j) 
+        new_base_ptr[i][j] = base_ptr[i][j] ;
+    } ENDFORALL ;
+
+    FORALL(context,i) {
+      for(int j=0;j<count[i];++j)
+        new_base_ptr[i][j] = s[m[i]][j] ;
+    } ENDFORALL ;
+
+    GPUstoreAllocateData[alloc_id].template release<Entity>() ;
+    GPUstoreAllocateData[alloc_id] = tmp ;
+
+    base_ptr = new_base_ptr ;
+    dispatch_notify() ;
+  }
+ 
+  void gpumultiMapRepI::scatter(const dMap &m, storeRepP &st,
+                             const entitySet  &context) {
+    cerr << "scatter should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    store<int> count ;
+    const_multiMap s(st) ;
+    count.allocate(domain()) ;
+
+    fatal((context != EMPTY) && (base_ptr == 0)) ;
+    fatal((context - s.domain()) != EMPTY) ;
+    fatal((context - m.domain()) != EMPTY);
+    
+    FORALL(domain()-m.image(context),i) {
+      count[i] = base_ptr[i+1]-base_ptr[i] ;
+    } ENDFORALL ;
+    FORALL(context,i) {
+      count[m[i]] = s.end(i)-s.begin(i) ;
+    } ENDFORALL ;
+    int cntid = count.Rep()->get_alloc_id() ;
+    GPUstoreAllocateInfo tmp ;
+    tmp.template allocMulti<Entity>(storeAllocateData[cntid],count.domain()) ;
+
+    Entity **new_base_ptr = ((Entity **)tmp.alloc_ptr2 -
+			     tmp.base_offset) ;
+
+    FORALL(domain()-m.image(context),i) {
+      for(int j=0;j<count[i];++j) 
+        new_base_ptr[i][j] = base_ptr[i][j] ;
+    } ENDFORALL ;
+    FORALL(context,i) {
+      for(int j=0;j<count[m[i]];++j) {
+        new_base_ptr[m[i]][j] = s[i][j] ;
+      }
+    } ENDFORALL ;
+    GPUstoreAllocateData[alloc_id].template release<Entity>() ;
+    GPUstoreAllocateData[alloc_id] = tmp ;
+
+    base_ptr = new_base_ptr ;
+    dispatch_notify() ;
+  }
+  
+  int gpumultiMapRepI::pack_size(const  entitySet &eset ) {
+    fatal((eset - domain()) != EMPTY);
+
+    int size = 0 ;
+    FORALL(eset,i) {
+      int cnt = end(i) - begin(i) ;
+      size += sizeof(int) ;
+      size += sizeof(Entity)*cnt ;
+    } ENDFORALL ;
+    
+    return size ;
+  }
+  
+  int gpumultiMapRepI::estimated_pack_size(const  entitySet &eset ) {
+    return 5*eset.size()*sizeof(Entity);
+  }
+
+  int gpumultiMapRepI::
+  pack_size(const entitySet& e, entitySet& packed) {
+    packed = domain() & e ;
+    int size = 0 ;
+    FORALL(packed, i) {
+      int cnt = end(i) - begin(i) ;
+      size += sizeof(int) ;
+      size += sizeof(Entity)*cnt ;
+    } ENDFORALL ;
+
+    return size ;
+  }
+
+  void gpumultiMapRepI::pack(void *outbuf, int &position, int &outcount, const entitySet &eset) {
+    cerr << "pack should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    entitySet :: const_iterator ci;
+    for( ci = eset.begin(); ci != eset.end(); ++ci) {
+      int vsize    = end(*ci) - begin(*ci);
+      MPI_Pack(&vsize, 1, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
+      MPI_Pack(begin(*ci), vsize, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
+    }
+  }
+  
+  void gpumultiMapRepI::pack(void *outbuf, int &position,
+                          int &outcount, const entitySet &eset,
+                          const Map& remap) {
+    cerr << "pack should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    int vsize;
+    entitySet :: const_iterator ci;
+    for( ci = eset.begin(); ci != eset.end(); ++ci) {
+      vsize    = end(*ci) - begin(*ci);
+      MPI_Pack(&vsize, 1, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
+      int* img = new int[vsize] ;
+      for(int k=0;k<vsize;++k)
+        img[k] = remap[base_ptr[*ci][k]] ;
+      MPI_Pack(img, vsize, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
+      delete[] img ;
+    }
+  }
+  
+  void gpumultiMapRepI::unpack(void *inbuf, int &position, int &insize, const sequence &seq) {
+    cerr << "unpack should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    int vsize;
+    sequence:: const_iterator ci;
+    for( ci = seq.begin(); ci != seq.end(); ++ci) {
+      MPI_Unpack(inbuf, insize, &position, &vsize, 1, MPI_INT, MPI_COMM_WORLD) ;
+      fatal(vsize != end(*ci)-begin(*ci)) ;
+      MPI_Unpack(inbuf, insize, &position, begin(*ci), vsize, MPI_INT, MPI_COMM_WORLD) ;
+    }
+  }   
+    
+  void gpumultiMapRepI::unpack(void *inbuf, int &position,
+                            int &insize, const sequence &seq,
+                            const dMap& remap) {
+    cerr << "unpack should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    int vsize;
+    sequence:: const_iterator ci;
+    for( ci = seq.begin(); ci != seq.end(); ++ci) {
+      MPI_Unpack(inbuf, insize, &position, &vsize, 1, MPI_INT, MPI_COMM_WORLD) ;
+      fatal(vsize != end(*ci)-begin(*ci)) ;
+      MPI_Unpack(inbuf, insize, &position, begin(*ci), vsize, MPI_INT, MPI_COMM_WORLD) ;
+      for(int k=0;k<vsize;++k)
+        base_ptr[*ci][k] = remap[base_ptr[*ci][k]] ;
+    }
+  }   
+    
+  entitySet gpumultiMapRepI::domain() const {
+    return store_domain ;
+  }
+    
+  entitySet gpumultiMapRepI::image(const entitySet &domain) const {
+    return defermap->image(domain) ;
+  }
+
+  pair<entitySet,entitySet>
+  gpumultiMapRepI::preimage(const entitySet &codomain) const  {
+    return defermap->preimage(codomain) ;
+  }
+
+  storeRepP gpumultiMapRepI::expand(entitySet &out_of_dom, std::vector<entitySet> &ptn) {
+    cerr << "expand should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    return getRep() ;
+  }
+
+  storeRepP gpumultiMapRepI::freeze() {
+    cerr << "freeze should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    return getRep() ;
+  }
+  
+  storeRepP gpumultiMapRepI::thaw() {
+    cerr << "thaw should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    return getRep() ;
+  }
+
+  storeRepP gpumultiMapRepI::get_map() {
+    return this ;
+  }
+    
+  std::ostream &gpumultiMapRepI::Print(std::ostream &s) const {
+    cerr << "Print should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    s << '{' << domain() << std::endl ;
+    FORALL(domain(),ii) {
+      s << end(ii)-begin(ii) << std::endl ;
+    } ENDFORALL ;
+    FORALL(domain(),ii) {
+      for(const int *ip = begin(ii);ip!=end(ii);++ip)
+        s << *ip << " " ;
+      s << std::endl;
+    } ENDFORALL ;
+    s << '}' << std::endl ;
+    return s ;
+  }
+
+
+  std::istream &gpumultiMapRepI::Input(std::istream &s) {
+    cerr << "Input should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    entitySet e ;
+    char ch ;
+    
+    do ch = s.get(); while(ch==' ' || ch=='\n') ;
+    if(ch != '{') {
+      std::cerr << "Incorrect Format while reading store" << std::endl ;
+      s.putback(ch) ;
+      return s ;
+    }
+    s >> e ;
+    store<int> sizes ;
+    sizes.allocate(e) ;
+    FORALL(e,ii) {
+      s >> sizes[ii] ;
+    } ENDFORALL ;
+
+    allocate(sizes) ;
+        
+    FORALL(e,ii) {
+      for(int *ip = begin(ii);ip!=end(ii);++ip)
+        s >> *ip  ;
+    } ENDFORALL ;
+            
+    do ch = s.get(); while(ch==' ' || ch=='\n') ;
+    if(ch != '}') {
+      std::cerr << "Incorrect Format while reading store" << std::endl ;
+      s.putback(ch) ;
+    }
+    return s ;
+  }
+
+  DatatypeP gpumultiMapRepI::getType() {
+    warn(true) ;
+    DatatypeP dp ;
+    return dp ;
+  }
+  frame_info gpumultiMapRepI::get_frame_info() {
+    cerr << "get_frame_info should not be called for gpumultiMap" << endl ;
+    debugger_() ;
+    warn(true) ;
+    frame_info fi ;
+    return fi ;
+  }
+
+  void gpumultiMapRepI::copyFrom(const storeRepP &p, entitySet set) {
+#ifdef USE_CUDA_RT
+    const_multiMap mm(p) ;
+    Entity **gpu_base_ptr = get_base_ptr() ;
+    int setivals = set.num_intervals() ;
+    for(int i=0;i<setivals;++i) {
+      int start = set[i].first ;
+      int stop = set[i].second ;
+      for(int j=start;j<=stop;++j) {
+        int sz = mm.end(j)-mm.begin(j) ;
+        if(sz > 0) {
+          cudaError_t err = cudaMemcpy(gpu_base_ptr[j],mm.begin(j),
+                                       sizeof(Entity)*sz,
+                                       cudaMemcpyHostToDevice) ;
+          cudaDeviceSynchronize() ;
+          if(err!= cudaSuccess) {
+            cerr << "cudaMemcpy failed in gpumultiMapRepI::copyFrom" << endl ;
+            Loci::Abort() ;
+          }
+        }
+      }
+    }
+#endif
+  }
+
+  store_type gpumultiMapRepI::RepType() const  {
+    return GPUMAP ;
+  }
+  
+  void gpumultiMapRepI::readhdf5(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, frame_info &fi, entitySet &usr_eset){
+    warn(true) ; 
+  } 
+
+#ifdef H5_HAVE_PARALLEL 
+  void gpumultiMapRepI::readhdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, frame_info &fi, entitySet &usr_eset, hid_t xfer_plist_id){
+    warn(true) ; 
+  } 
+#endif
+  void gpumultiMapRepI::writehdf5(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet &usr_eset) const{
+    warn(true) ;
+  } 
+
+#ifdef H5_HAVE_PARALLEL 
+  void gpumultiMapRepI::writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet &usr_eset, hid_t xfer_plist_id) const{
+    warn(true) ;
+  } 
+#endif  
+  gpumultiMap::~gpumultiMap() {}
+
+  void gpumultiMap::notification() {
+    NPTR<MapType> p(Rep()) ;
+    if(p!=0)
+      base_ptr = p->get_base_ptr() ;
+    warn(p==0) ;
+  }
+
+  const_gpumultiMap::~const_gpumultiMap() { }
+
+  void const_gpumultiMap::notification() {
+    NPTR<MapType> p(Rep()) ;
+    if(p!=0)
+      base_ptr = p->get_base_ptr() ;
+    warn(p==0) ;
+  }
+
+  store_instance::instance_type const_gpumultiMap::access() const
   { return READ_ONLY ; }
     
   namespace {

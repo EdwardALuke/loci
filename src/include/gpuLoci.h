@@ -23,6 +23,7 @@
 #include <gpustore.h>
 #include <gpuMap.h>
 #include <gpuMapVec.h>
+#include <gpumultiMap.h>
 
 #ifdef USE_CUDA_RT
 #include <thrust/device_vector.h>
