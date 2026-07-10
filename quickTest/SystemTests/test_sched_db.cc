@@ -5,9 +5,9 @@
 
 using namespace Loci;
 
-/// Initializing sched_db from fact_db must make each fact domain available as
-/// the corresponding variable's existence.
-TEST_CASE("sched_db initializes variable existence from fact domains") {
+/// Initializing sched_db from a fact_db records each fact's domain as the
+/// corresponding variable's existence.
+TEST_CASE("sched_db records fact domains as variable existence") {
   fact_db facts;
 
   const entitySet cell_domain = interval(4, 6);
@@ -21,24 +21,26 @@ TEST_CASE("sched_db initializes variable existence from fact domains") {
   CHECK(scheds.variable_existence(variable("cells")) == cell_domain);
 }
 
-/// A rule must be scheduled only where its target variable is both requested
-/// and produced by that rule.
-TEST_CASE("rule requests are limited to entities produced by the rule") {
+/// A rule's request for a target variable is the overlap between the requested
+/// entities and the entities where that rule can compute the target.
+TEST_CASE("rule request contains requested entities where the rule can "
+          "compute its target") {
   fact_db facts;
 
-  const entitySet produced_cells = interval(10, 12);
+  const entitySet target_cells = interval(10, 12);
+  const entitySet requested_cells = interval(11, 13);
   store<int> cells;
-  cells.allocate(produced_cells);
+  cells.allocate(target_cells);
   facts.create_fact("cells", cells);
 
   sched_db scheds(facts);
-  const rule producer(
-    "source(upstream),target(cells),qualifier(test_producer)");
-  scheds.set_existential_info(variable("cells"), producer, produced_cells);
-  scheds.variable_request(variable("cells"), interval(11, 13));
+  const rule cell_rule(
+    "source(upstream),target(cells),qualifier(cell_rule)");
+  scheds.set_existential_info(variable("cells"), cell_rule, target_cells);
+  scheds.variable_request(variable("cells"), requested_cells);
 
   const entitySet expected_rule_request = interval(11, 12);
-  CHECK(scheds.get_variable_request(producer, variable("cells")) ==
+  CHECK(scheds.get_variable_request(cell_rule, variable("cells")) ==
         expected_rule_request);
 }
 
