@@ -5,9 +5,9 @@
 
 using namespace Loci;
 
-/// Reallocating a store must preserve values for entities shared by the old
-/// and new domains.
-TEST_CASE("store reallocation preserves values on the overlapping domain") {
+/// Reallocating a store must preserve values on the overlap between its current
+/// and requested domains.
+TEST_CASE("store reallocation preserves values on the domain overlap") {
   store<int> values;
   values.allocate(interval(1, 4));
   values[1] = 101;
@@ -23,8 +23,9 @@ TEST_CASE("store reallocation preserves values on the overlapping domain") {
   CHECK(values[4] == 104);
 }
 
-/// Remapping a store must move each value to the image of its original entity.
-TEST_CASE("store remap carries values to the remapped domain") {
+/// Remapping a store must renumber its domain according to the dMap while
+/// preserving the values associated with the original entities.
+TEST_CASE("store remap renumbers the domain without changing values") {
   const entitySet source_domain = interval(1, 3);
   store<int> source;
   source.allocate(source_domain);
