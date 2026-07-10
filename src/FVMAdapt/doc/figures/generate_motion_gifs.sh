@@ -6,9 +6,12 @@ figures_root=$script_dir
 script_path="$script_dir/generate_motion_gifs.sh"
 toolchain_checked=0
 static_svg_toolchain_checked=0
+parallel_jobs=${FVMADAPT_DOC_JOBS:-1}
+worker_mode=
+worker_task=
 
 usage() {
-  echo "usage: $0 [--figures-root DIR]" >&2
+  echo "usage: $0 [--figures-root DIR] [--jobs N]" >&2
   exit 2
 }
 
@@ -19,11 +22,35 @@ while [ "$#" -gt 0 ]; do
       figures_root=$(cd "$2" && pwd -P)
       shift 2
       ;;
+    --jobs)
+      [ "$#" -ge 2 ] || usage
+      parallel_jobs=$2
+      shift 2
+      ;;
+    --worker-static-svg)
+      [ "$#" -ge 2 ] || usage
+      worker_mode=static-svg
+      worker_task=$2
+      shift 2
+      ;;
+    --worker-motion-spec)
+      [ "$#" -ge 2 ] || usage
+      worker_mode=motion-spec
+      worker_task=$2
+      shift 2
+      ;;
     *)
       usage
       ;;
   esac
 done
+
+case "$parallel_jobs" in
+  ''|*[!0-9]*|0)
+    echo "ERROR: --jobs must be a positive integer." >&2
+    exit 2
+    ;;
+esac
 
 render_specs=(
   "volume_cells/diamond/render_diamond_face_based_isotropic_exploded_motion_yaw_wire.sh|volume_cells/diamond/diamond_face_based_isotropic_exploded_motion_yaw_wire.gif"
@@ -223,9 +250,11 @@ render_static_svg() {
     cd "$tex_dir" &&
     pdflatex -halt-on-error -interaction=nonstopmode \
       -output-directory="$build_dir" \
-      "$tex_file" >/dev/null 2>&1 &&
+      "$tex_file" >/dev/null 2>&1
+  ) && (
+    cd "$build_dir" &&
     dvisvgm --pdf --no-fonts --exact \
-      -o "$output" "$build_dir/$job.pdf" >/dev/null 2>&1
+      -o "$output" "$job.pdf" >/dev/null 2>&1
   )
   status=$?
   set -e
@@ -238,11 +267,72 @@ render_static_svg() {
   fi
 }
 
+render_motion_spec() {
+  local spec=$1
+  local render_rel=${spec%%|*}
+  local render_script="$figures_root/$render_rel"
+
+  echo "Generating $render_rel"
+  case "$render_rel" in
+    volume_cells/hexahedron/anisotropic/render_hexahedron_anisotropic_split_codes.sh)
+      bash "$render_script" --gifs-only
+      ;;
+    *)
+      bash "$render_script"
+      ;;
+  esac
+}
+
+run_parallel_tasks() {
+  local mode=$1
+  shift
+
+  if [ "$#" -eq 0 ]; then
+    return 0
+  fi
+
+  if [ "$parallel_jobs" -eq 1 ]; then
+    local task
+    for task in "$@"; do
+      case "$mode" in
+        static-svg)
+          render_static_svg "$task" "${task%.tex}.svg"
+          ;;
+        motion-spec)
+          render_motion_spec "$task"
+          ;;
+      esac
+    done
+    return 0
+  fi
+
+  if ! command -v xargs >/dev/null 2>&1; then
+    echo "ERROR: parallel figure generation requires xargs." >&2
+    return 1
+  fi
+
+  printf '%s\0' "$@" | xargs -0 -n 1 -P "$parallel_jobs" \
+    bash "$script_path" --figures-root "$figures_root" --jobs 1 "--worker-$mode"
+}
+
+if [ -n "$worker_mode" ]; then
+  case "$worker_mode" in
+    static-svg)
+      render_static_svg "$worker_task" "${worker_task%.tex}.svg"
+      ;;
+    motion-spec)
+      render_motion_spec "$worker_task"
+      ;;
+  esac
+  exit 0
+fi
+
 render_static_svgs() {
   local tex
   local output
   local checked_count=0
-  local generated_count=0
+  local -a inputs=()
+  local -a outputs=()
 
   while IFS= read -r -d '' tex; do
     if ! is_static_svg_source "$tex"; then
@@ -251,24 +341,30 @@ render_static_svgs() {
 
     output=${tex%.tex}.svg
     checked_count=$((checked_count + 1))
+    outputs+=("$output")
 
     if [ -L "$output" ]; then
       rm -f "$output"
     fi
 
     if needs_static_svg_render "$tex" "$output"; then
-      ensure_static_svg_toolchain
-      render_static_svg "$tex" "$output"
-      generated_count=$((generated_count + 1))
+      inputs+=("$tex")
     fi
+  done < <(find -L "$figures_root" -type f -name '*.tex' -print0)
 
+  if [ "${#inputs[@]}" -gt 0 ]; then
+    ensure_static_svg_toolchain
+    run_parallel_tasks static-svg "${inputs[@]}"
+  fi
+
+  for output in "${outputs[@]}"; do
     if [ ! -f "$output" ]; then
       echo "ERROR: renderer did not create $output" >&2
       exit 1
     fi
-  done < <(find -L "$figures_root" -type f -name '*.tex' -print0)
+  done
 
-  echo "Checked $checked_count FVMAdapt static SVG(s); generated $generated_count."
+  echo "Checked $checked_count FVMAdapt static SVG(s); generated ${#inputs[@]}."
 }
 
 needs_render() {
@@ -292,6 +388,7 @@ needs_render() {
 
 generated_count=0
 checked_count=0
+motion_specs=()
 
 render_static_svgs
 
@@ -318,26 +415,25 @@ for spec in "${render_specs[@]}"; do
   done
 
   if [ "$render_needed" -eq 1 ]; then
-    ensure_toolchain
-    echo "Generating ${render_rel#$figures_root/}"
-    case "$render_rel" in
-      volume_cells/hexahedron/anisotropic/render_hexahedron_anisotropic_split_codes.sh)
-        bash "$render_script" --gifs-only
-        ;;
-      *)
-        bash "$render_script"
-        ;;
-    esac
+    motion_specs+=("$spec")
+    for output_rel in $outputs_rel; do
+      generated_count=$((generated_count + 1))
+    done
   fi
+done
 
+if [ "${#motion_specs[@]}" -gt 0 ]; then
+  ensure_toolchain
+  run_parallel_tasks motion-spec "${motion_specs[@]}"
+fi
+
+for spec in "${render_specs[@]}"; do
+  outputs_rel=${spec#*|}
   for output_rel in $outputs_rel; do
     output="$figures_root/$output_rel"
     if [ ! -f "$output" ]; then
       echo "ERROR: renderer did not create $output" >&2
       exit 1
-    fi
-    if [ "$render_needed" -eq 1 ]; then
-      generated_count=$((generated_count + 1))
     fi
   done
 done

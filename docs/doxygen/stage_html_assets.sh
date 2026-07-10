@@ -4,6 +4,7 @@ set -euo pipefail
 asset_root=${1:-../..}
 html_dir=${2:-html}
 generator_source_root=${3:-}
+generator_jobs=${4:-1}
 
 asset_root=$(cd "$asset_root" && pwd -P)
 if [ -n "$generator_source_root" ]; then
@@ -59,9 +60,9 @@ while IFS= read -r -d '' figures_dir; do
         generator=${generator_record%%$'\t'*}
         output_root=${generator_record#*$'\t'}
         if [ -n "$output_root" ]; then
-            bash "$generator" --figures-root "$output_root"
+            bash "$generator" --figures-root "$output_root" --jobs "$generator_jobs"
         else
-            bash "$generator"
+            bash "$generator" --jobs "$generator_jobs"
         fi
         generators=$((generators + 1))
     fi
