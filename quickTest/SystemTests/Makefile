@@ -43,7 +43,7 @@ TestResults: $(TESTS)
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
 	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe > $*.log || true)
 	@tail -n 1 $*.log > $*.log1
-	@echo -n Containers/$*":" > $@
+	@echo -n SystemTests/$*":" > $@
 	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
 	@rm $*.log1 $*.exe
 	@cat $@
