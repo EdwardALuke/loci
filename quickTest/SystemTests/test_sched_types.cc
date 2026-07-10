@@ -12,12 +12,12 @@ namespace Loci {
 
 namespace {
 
-  class store_target_rule : public pointwise_rule {
+  class target_type_rule : public pointwise_rule {
     const_store<int> source_cells;
     store<int> target_cells;
 
   public:
-    store_target_rule() {
+    target_type_rule() {
       name_store("source_cells", source_cells);
       name_store("target_cells", target_cells);
       input("source_cells");
@@ -29,33 +29,34 @@ namespace {
 
 } // namespace
 
-/// Variable type setup must add an untyped rule target to fact_db as an
-/// intensional fact using the container type declared by the rule.
-TEST_CASE("set_var_types installs an untyped target as an intensional fact") {
+/// Variable type setup must create an intensional fact for an untyped target
+/// variable using the variable type provided by a rule that generates it.
+TEST_CASE("set_var_types creates an intensional fact for an untyped target "
+          "variable") {
   fact_db facts;
   store<int> source_cells;
   source_cells.allocate(interval(1, 3));
   facts.create_fact("source_cells", source_cells);
 
   sched_db scheds(facts);
-  const rule typing_rule(
-    rule_implP(new copy_rule_impl<store_target_rule>));
+  const rule generating_rule(
+    rule_implP(new copy_rule_impl<target_type_rule>));
   digraph graph;
-  graph.add_edges(typing_rule.sources(), typing_rule.ident());
-  graph.add_edges(typing_rule.ident(), typing_rule.targets());
+  graph.add_edges(generating_rule.sources(), generating_rule.ident());
+  graph.add_edges(generating_rule.ident(), generating_rule.targets());
 
   set_var_types(facts, graph, scheds);
 
-  const storeRepP target = facts.get_variable("target_cells");
-  REQUIRE(target != static_cast<storeRep *>(0));
-  CHECK(isSTORE(target));
+  const storeRepP target_rep = facts.get_variable("target_cells");
+  REQUIRE(target_rep != static_cast<storeRep *>(0));
+  CHECK(isSTORE(target_rep));
   CHECK(facts.get_intensional_facts().inSet(variable("target_cells")));
   CHECK(scheds.get_typed_variables().inSet(variable("target_cells")));
 }
 
-/// Variable type setup must preserve an existing extensional target fact,
-/// including its domain and values.
-TEST_CASE("set_var_types preserves an extensional target fact") {
+/// Variable type setup must preserve an existing extensional fact for a target
+/// variable, including its domain and values.
+TEST_CASE("set_var_types preserves an extensional fact for a target variable") {
   fact_db facts;
   store<int> source_cells;
   source_cells.allocate(interval(1, 3));
@@ -69,20 +70,20 @@ TEST_CASE("set_var_types preserves an extensional target fact") {
   facts.create_fact("target_cells", target_cells);
 
   sched_db scheds(facts);
-  const rule typing_rule(
-    rule_implP(new copy_rule_impl<store_target_rule>));
+  const rule generating_rule(
+    rule_implP(new copy_rule_impl<target_type_rule>));
   digraph graph;
-  graph.add_edges(typing_rule.sources(), typing_rule.ident());
-  graph.add_edges(typing_rule.ident(), typing_rule.targets());
+  graph.add_edges(generating_rule.sources(), generating_rule.ident());
+  graph.add_edges(generating_rule.ident(), generating_rule.targets());
 
   set_var_types(facts, graph, scheds);
 
-  const storeRepP target = facts.get_variable("target_cells");
-  REQUIRE(target != static_cast<storeRep *>(0));
-  store<int> target_after_typing(target);
-  CHECK(target_after_typing.domain() == target_domain);
-  CHECK(target_after_typing[7] == 41);
-  CHECK(target_after_typing[8] == 42);
+  const storeRepP target_rep = facts.get_variable("target_cells");
+  REQUIRE(target_rep != static_cast<storeRep *>(0));
+  store<int> preserved_target(target_rep);
+  CHECK(preserved_target.domain() == target_domain);
+  CHECK(preserved_target[7] == 41);
+  CHECK(preserved_target[8] == 42);
   CHECK(facts.get_extensional_facts().inSet(variable("target_cells")));
   CHECK_FALSE(facts.get_intensional_facts().inSet(variable("target_cells")));
 }
