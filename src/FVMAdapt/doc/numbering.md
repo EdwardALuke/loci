@@ -1,8 +1,8 @@
 # FVMAdapt Numbering Conventions {#fvmadapt_numbering}
 
 FVMAdapt uses local numbering for each refinement entity. These numbers are not
-global mesh entity IDs. They label positions within one edge, face, or cell
-refinement tree as that tree is built and replayed.
+global mesh entity IDs. They label positions in the local topology of one edge,
+face, or cell as its refinement tree is built and replayed.
 
 The coordinate names below are local reference directions. They are not physical
 `x`, `y`, and `z` coordinates from the mesh, and they do not imply orthogonal
@@ -65,7 +65,7 @@ orthogonal rectangular prism.
 
 The face numbers are named by the constant local coordinate on that face. The
 face numbers are written inside boxes in the diagram below. The node numbers
-are written without boxes. The face numbers are expressed elsehwere in the text
+are written without boxes. The face numbers are expressed elsewhere in the text
 as f<sub>H</sub><sup>(i)</sup> for face `i`, and the node numbers are expressed as
 n<sub>H</sub><sup>(i)</sup> for node `i`.
 
@@ -159,8 +159,8 @@ examples above the face normal vector was pointing away from the HexCell. In
 the example below that face normal now points into the HexCell. The node 0 of
 the QuadFace is back on HexCell node four, like our first example, but you can
 see that the local node numbers are different. You can create this face from
-the first example by rotating the face in the firs example 180 degrees along
-the eta axis, and then rotating it again 90 degrees along the xi axis.
+the first example by rotating it 180 degrees along the eta axis, and then
+rotating it again 90 degrees along the xi axis.
 
 <img src="figures/numbering/quadface_orientation_reversed.svg"
      alt="HexCell xi equals 1 face projected with reversed QuadFace local order"
