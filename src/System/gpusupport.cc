@@ -395,9 +395,9 @@ namespace Loci {
       int end = set[i].second ;
       int sz = end-start+1 ;
 
-      cudaError_t err = cudaMemcpy(gpu_base_ptr+start,&m[start],sizeof(Entity)*sz,
+      cudaError_t err = cudaMemcpy(gpu_base_ptr+start,&m[start],
+                                   sizeof(Entity)*sz,
 			       cudaMemcpyHostToDevice) ;
-      cudaDeviceSynchronize() ;
       if(err!= cudaSuccess) {
 	cerr << "cudaMemcpy failed in gpuMapRepI::copyFrom" << endl ;
 	Loci::Abort() ;
@@ -835,22 +835,39 @@ namespace Loci {
   void gpumultiMapRepI::copyFrom(const storeRepP &p, entitySet set) {
 #ifdef USE_CUDA_RT
     const_multiMap mm(p) ;
+    store<int> sizes ;
+    entitySet dom = mm.domain() ;
+    set &= dom ;
+    sizes.allocate(mm.domain()) ;
+    FORALL(dom,ii) {
+      sizes[ii] = mm[ii].size() ;
+    } ENDFORALL ;
+    allocate(sizes) ;
     Entity **gpu_base_ptr = get_base_ptr() ;
+    fatal(gpu_base_ptr == 0) ;
+
     int setivals = set.num_intervals() ;
     for(int i=0;i<setivals;++i) {
       int start = set[i].first ;
       int stop = set[i].second ;
-      for(int j=start;j<=stop;++j) {
-        int sz = mm.end(j)-mm.begin(j) ;
-        if(sz > 0) {
-          cudaError_t err = cudaMemcpy(gpu_base_ptr[j],mm.begin(j),
-                                       sizeof(Entity)*sz,
-                                       cudaMemcpyHostToDevice) ;
-          cudaDeviceSynchronize() ;
-          if(err!= cudaSuccess) {
-            cerr << "cudaMemcpy failed in gpumultiMapRepI::copyFrom" << endl ;
-            Loci::Abort() ;
-          }
+      size_t sz = mm[stop].end()-mm[start].begin() ;
+      if(sz > 0) {
+        // Get pointer for this segment of memory from gpu
+        Entity *p = 0;
+        cudaError_t err = cudaMemcpy((void *)(&p),gpu_base_ptr+start,
+                                     sizeof(Entity *),
+                                     cudaMemcpyDeviceToHost) ;
+        if(err!= cudaSuccess) {
+          cerr << "cudaMemcpy failed in gpumultiMapRepI::copyFrom get ptr" << endl ;
+          Loci::Abort() ;
+        }
+        // Copy map to host 
+        err = cudaMemcpy(p,mm[start].begin(),
+                         sizeof(Entity)*sz,
+                         cudaMemcpyHostToDevice) ;
+        if(err!= cudaSuccess) {
+          cerr << "cudaMemcpy failed in gpumultiMapRepI::copyFrom" << endl ;
+          Loci::Abort() ;
         }
       }
     }

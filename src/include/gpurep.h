@@ -110,19 +110,18 @@ namespace Loci {
 #ifdef USE_CUDA_RT
         cudaError_t err = cudaFree(alloc_ptr1) ;
         if(err!= cudaSuccess) {
-          cerr << "cudaFree failed" << endl ;
+          cerr << "cudaFree alloc_ptr1 failed in release" << endl ;
           cerr << "error = " << cudaGetErrorString(err) << endl;
           Loci::Abort() ;
         }
 #else
         free(alloc_ptr1) ;
 #endif
-
         if(alloc_ptr2 != 0) {
 #ifdef USE_CUDA_RT
           err = cudaFree(alloc_ptr2) ;
           if(err!= cudaSuccess) {
-            cerr << "cudaFree failed" << endl ;
+            cerr << "cudaFree alloc_ptr2 failed in release" << endl ;
             cerr << "error = " << cudaGetErrorString(err) << endl;
             Loci::Abort() ;
           }
@@ -130,6 +129,7 @@ namespace Loci {
           free(alloc_ptr2) ;
 #endif
         }
+
 
         alloc_ptr1 = 0 ;
         alloc_ptr2 = 0 ;
@@ -161,7 +161,7 @@ namespace Loci {
 #ifdef USE_CUDA_RT
           cudaError_t err = cudaFree(alloc_ptr1) ;
           if(err!= cudaSuccess) {
-            cerr << "cudaFree failed" << endl ;
+            cerr << "cudaFree alloc_ptr1 failed in allocBasic" << endl ;
             cerr << "error = " << cudaGetErrorString(err) << endl;
             Loci::Abort() ;
           }
@@ -174,7 +174,7 @@ namespace Loci {
 #ifdef USE_CUDA_RT
           cudaError_t err = cudaFree(alloc_ptr2) ;
           if(err != cudaSuccess) {
-            cerr << "cudaFree failed" << endl ;
+            cerr << "cudaFree alloc_ptr2 failed in allocBasic" << endl ;
             cerr << "error = " << cudaGetErrorString(err) << endl ;
             Loci::Abort() ;
           }
@@ -225,7 +225,6 @@ namespace Loci {
           cerr << "error = " << cudaGetErrorString(err) << endl;
           Loci::Abort() ;
         }
-        cudaDeviceSynchronize() ;
 #else
         T * tmp_alloc_pointer = (T *) malloc(sizeof(T)*(alloc_size)+(STORE_ALIGN_SIZE)) ;
 #endif
@@ -262,7 +261,7 @@ namespace Loci {
 #ifdef USE_CUDA_RT
           cudaError_t err = cudaFree(alloc_ptr1) ;
           if(err != cudaSuccess) {
-            cerr << "cudaFree  failed" << endl ;
+            cerr << "cudaFree  alloc_ptr1 failed in allocBasic" << endl ;
             cerr << "error = " << cudaGetErrorString(err) << endl;
             Loci::Abort() ;
           }
@@ -275,13 +274,14 @@ namespace Loci {
 #ifdef USE_CUDA_RT
           cudaError_t err = cudaFree(alloc_ptr2) ;
           if(err != cudaSuccess) {
-            cerr << "cudaFree failed" << endl ;
+            cerr << "cudaFree alloc_ptr2 failed in allocBasic" << endl ;
             cerr << "error = " << cudaGetErrorString(err) << endl ;
             Loci::Abort() ;
           }
 #else
           free(alloc_ptr2) ;
 #endif
+          alloc_ptr2 = 0 ;
         }
 
         alloc_ptr1 = tmp_alloc_pointer ;
@@ -321,8 +321,19 @@ namespace Loci {
       T * tmp_base_ptr = 0 ;
       T ** tmp_alloc_ptr2 = 0 ;
       size_t tmp_allocated_sz = sum + 1 ; 
-      
+
+#ifdef USE_CUDA_RT
+      cudaError_t err =
+        cudaMalloc((void **) & tmp_alloc_ptr1,
+                   sizeof(T)*tmp_allocated_sz+(STORE_ALIGN_SIZE)) ;
+      if(err != cudaSuccess) {
+        cerr << "cudaMalloc  failed" << endl ;
+        cerr << "error = " << cudaGetErrorString(err) << endl;
+        Loci::Abort() ;
+      }
+#else
       tmp_alloc_ptr1 = (T *) malloc(sizeof(T)*tmp_allocated_sz +(STORE_ALIGN_SIZE)) ;
+#endif
       tmp_base_ptr = tmp_alloc_ptr1 ;
       T * tmp_base_algn = (T *) ((uintptr_t) tmp_base_ptr & ~(uintptr_t)(STORE_ALIGN_SIZE-1)) ;
       if(tmp_base_ptr !=tmp_base_algn) 
@@ -333,21 +344,39 @@ namespace Loci {
 	     << endl ;
 	Loci::Abort() ;
       }
+#ifdef USE_CUDA_RT
+      err =  cudaMalloc((void **) & tmp_alloc_ptr2,
+                        sizeof(T *)*npntrs+(STORE_ALIGN_SIZE)) ;
+      if(err != cudaSuccess) {
+        cerr << "cudaMalloc  failed" << endl ;
+        cerr << "error = " << cudaGetErrorString(err) << endl;
+        Loci::Abort() ;
+      }
+      T **cpu_side_ptr = (T **) malloc(sizeof(T*)*npntrs) ;
+#else
       tmp_alloc_ptr2 = (T **) malloc(sizeof(T*)*npntrs) ;
+#endif
       int tmp_base_offset = ptn.Min() ;
       if(ptn==EMPTY)
 	tmp_base_offset = 0 ;
       size_t loc = 0 ;
       FORALL(ptn,ii) {
-	tmp_alloc_ptr2[ii-tmp_base_offset] = tmp_base_ptr+loc ;
+	cpu_side_ptr[ii-tmp_base_offset] = tmp_base_ptr+loc ;
 	if(count.allocset.inSet(ii))
 	  loc += ((int *)count.base_ptr)[ii-count.base_offset] ;
-	tmp_alloc_ptr2[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
+	cpu_side_ptr[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
       } ENDFORALL ;
 
       // release existing memory
       release<T>() ;
-      
+      err = cudaMemcpy(tmp_alloc_ptr2, cpu_side_ptr,
+                       sizeof(T *)*npntrs,
+                       cudaMemcpyHostToDevice) ;
+      if(err!= cudaSuccess) {
+	cerr << "cudaMemcpy failed in gpuMapRepI::copyFrom" << endl ;
+	Loci::Abort() ;
+      }
+      free(cpu_side_ptr) ;
       alloc_ptr1 = tmp_alloc_ptr1 ;
       alloc_ptr2 = tmp_alloc_ptr2 ;
       base_ptr = tmp_base_ptr ;
