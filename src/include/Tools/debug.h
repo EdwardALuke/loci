@@ -37,8 +37,8 @@
 using std::abort ;
 #endif
 
-#ifdef DEBUG
 
+#if defined(DEBUG) && !(defined(USE_CUDA_RT) && defined(__CUDA_ARCH__))
 /* 
    When DEBUG is defined, warn(bool) and fatal(bool) print warning messages 
    if the boolean argument they are passed evaluates to a true value.  
