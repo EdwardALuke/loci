@@ -34,6 +34,9 @@ using std::cout;
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 
+/// True when every cell plan is stable under the current balancing iteration.
+$type finishBalancing param<bool> ;
+
 //----------------------------------------------------------------------------
 //
 // This file balance general cellPlan between cells
