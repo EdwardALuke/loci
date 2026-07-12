@@ -19,88 +19,142 @@
 //#
 //#############################################################################
 
-// These are internal typed stores used by the FVMAdapt module.
+// Internal fact types shared by FVMAdapt rules.
 
-// Constraint for cells handled by the general-cell adaptation path.
+// Cell and face classification
+
+/// Cells handled by the general, hexahedral, and prism adaptation paths.
 $type gnrlcells Constraint ;
-
-// Mesh faces used by FVMAdapt edge/face balancing rules.
-$type faces Constraint ;
-
-// Mapping from face to edges that bound the face.
-$type face2edge multiMap ;
-
-// Mapping from edge to its two endpoint nodes.
-$type edge2node MapVec<2> ;
-
-// Planned cell refinement before cell-plan balancing.
-$type newCellPlan store<std::vector<char> > ;
-
-// True when this cell's refinement plan is stable under cell balancing.
-$type cellUnchanged store<bool> ;
-
-// Temporary cell refinement plan used while balancing cell, face, and edge plans.
-$type tmpCellPlan store<std::vector<char> > ;
-
-// Balanced general-cell plan used by derefinement/restart reprocessing.
-$type balancedCellPlan1 store<std::vector<char> > ;
-
-// Balanced general-cell plan after cell balancing.
-$type balancedCellPlan store<std::vector<char> > ;
-
-// Balanced general-face plan derived from balancedCellPlan facts.
-$type balancedFacePlan store<std::vector<char> > ;
-
-// Balanced face plan derived from balancedCellPlan1 for derefinement/restart reprocessing.
-$type balancedFacePlan1 store<std::vector<char> > ;
-
-// Balanced edge plan derived from balancedFacePlan1 for derefinement/restart reprocessing.
-$type balancedEdgePlan1 store<std::vector<char> > ;
-
-// Balanced edge plan derived from balancedFacePlan facts.
-$type balancedEdgePlan store<std::vector<char> > ;
-
-// True when all cells are stable under the current balancing iteration.
-$type finishBalancing param<bool> ;
-
-// Temporary face refinement plan used while balancing cell plans.
-$type tmpFacePlan store<std::vector<char> > ;
-
-// Temporary edge refinement plan used while balancing cell plans.
-$type tmpEdgePlan store<std::vector<char> > ;
-
-// True when this cell topology cannot be split further during balancing.
-$type isIndivisible store<bool> ;
-
-// True when this face has quadrilateral topology.
-$type is_quadface store<bool> ;
-
-// All non-boundary faces 
-$type interior_faces Constraint ;
-
-//--------Hex Cell Types----------
-
-/// Constraint for cells handled by the hexahedral adaptation path.
 $type hexcells Constraint ;
-
-/// Constraint for cells handled by the prism adaptation path.
 $type prisms Constraint ;
 
-/// Local face indices on the left and right cells adjacent to a face.
+/// Marker whose domain contains faces treated as quadrilateral by FVMAdapt.
+$type quadfaces store<bool> ;
+
+/// True when a face is treated as quadrilateral by FVMAdapt.
+$type is_quadface store<bool> ;
+
+/// True when a cell is kept indivisible because an adjacent face is folded.
+$type isIndivisible store<bool> ;
+
+// Cell-local topology and orientation
+
+/// Local face indices on the left and right cells adjacent to a mesh face.
 $type fl store<char> ;
 $type fr store<char> ;
 
-/// Hex-cell face order used by FVMAdapt's hexahedral refinement trees.
+/// Cell-local face and node order used to construct hexahedral refinement trees.
 $type hex2face store<Array<char,6> > ;
-
-/// Hex-cell node order used by FVMAdapt's hexahedral refinement trees.
 $type hex2node store<Array<char,8> > ;
 
-/// Hex-cell face orientation code for the hexahedral refinement tree.
-$type hexOrientCode store<Array<char,6> > ;
+/// Cell-local face and node order used to construct prism refinement trees.
+$type prism2face store<Array<char,5> > ;
+$type prism2node store<Array<char,6> > ;
 
-/// Prism-cell face orientation code for the prism refinement tree.
+/// Per-face orientation codes for the hexahedral and prism cell-local orders.
+$type hexOrientCode store<Array<char,6> > ;
 $type prismOrientCode store<Array<char,5> > ;
 
-/// Split-mode parameter used when choosing anisotropic hex-cell splits.
+/// Split mode used when choosing cell refinements.
 $type split_mode_par param<int> ;
+
+// Refinement inputs and plans
+
+/// Refinement plans attached to original mesh cells, faces, and edges.
+$type cellPlan store<std::vector<char> > ;
+$type facePlan store<std::vector<char> > ;
+$type edgePlan store<std::vector<char> > ;
+
+/// Cell refinement plan from the previous adaptation cycle.
+$type parentPlan store<std::vector<char> > ;
+
+/// Candidate cell plan produced from the current refinement request.
+$type newCellPlan store<std::vector<char> > ;
+
+/// Adaptation requests for original nodes and refinement-created nodes.
+$type posTag store<char> ;
+$type nodeTag store<std::vector<char> > ;
+
+/// Adaptation requests for original cells and current leaf cells.
+$type cellTag store<char> ;
+$type fineCellTag store<std::vector<char> > ;
+
+/// Input files for XML- and parameter-driven cell-plan construction.
+$type xmlfile_par param<std::string> ;
+$type parfile_par param<std::string> ;
+
+/// Rule-selection tokens for tag input with and without an existing plan.
+$type restart_tag_par param<int> ;
+$type norestart_tag_par param<int> ;
+
+/// Rule-selection tokens for XML input with and without an existing plan.
+$type restart_xml_par param<int> ;
+$type norestart_xml_par param<int> ;
+
+/// Rule-selection tokens for parameter input with and without an existing plan.
+$type restart_par_par param<int> ;
+$type norestart_par_par param<int> ;
+
+/// Parsed XML and parameter inputs shared by the topology-specific plan rules.
+$type cellPlanXMLDoc blackbox<std::shared_ptr<xmlDoc> > ;
+$type cellPlanSources blackbox<std::vector<source_par> > ;
+
+/// Scheduler token selecting the marker-driven plan path.
+$type beginWithMarker param<bool> ;
+
+/// File- and database-backed input plan selectors.
+$type planfile_par param<std::string> ;
+$type planDB_par param<std::string> ;
+
+// Plan balancing
+
+/// Temporary cell, face, and edge plans used during a balancing iteration.
+$type tmpCellPlan store<std::vector<char> > ;
+$type tmpFacePlan store<std::vector<char> > ;
+$type tmpEdgePlan store<std::vector<char> > ;
+
+/// Intermediate balanced plans used for restart and derefinement processing.
+$type balancedCellPlan1 store<std::vector<char> > ;
+$type balancedFacePlan1 store<std::vector<char> > ;
+$type balancedEdgePlan1 store<std::vector<char> > ;
+
+/// Cell, face, and edge plans after balancing.
+$type balancedCellPlan store<std::vector<char> > ;
+$type balancedFacePlan store<std::vector<char> > ;
+$type balancedEdgePlan store<std::vector<char> > ;
+
+/// True when a cell plan is stable under the current balancing iteration.
+$type cellUnchanged store<bool> ;
+
+// Refined-mesh numbering
+
+/// Numbers of nodes and faces in the original mesh.
+$type num_original_nodes param<int> ;
+$type num_original_faces param<int> ;
+
+/// Numbers of refinement-created nodes before and after plan balancing.
+$type num_inner_nodes store<int> ;
+$type balanced_num_inner_nodes store<int> ;
+
+/// Numbers of leaf cells for the current, balanced, and parent plans.
+$type num_fine_cells store<int> ;
+$type balanced_num_fine_cells store<int> ;
+$type parent_num_fine_cells store<int> ;
+
+/// Global starting indices for nodes and cells produced by the balanced plans.
+$type balanced_node_offset store<int> ;
+$type balanced_cell_offset store<int> ;
+
+/// Leaf-index pairs relating the balanced and parent refinement trees.
+$type indexMap store<std::vector<pair<int32, int32> > > ;
+
+// Generated refined mesh
+
+/// Coordinates of nodes created inside original cells, faces, and edges.
+$type inner_nodes_cell store<Loci::FineNodes> ;
+$type inner_nodes_face store<Loci::FineNodes> ;
+$type inner_nodes_edge store<Loci::FineNodes> ;
+
+/// Fine faces created inside refined cells and from original mesh faces.
+$type fine_faces_cell store<Loci::FineFaces> ;
+$type fine_faces store<Loci::FineFaces> ;
