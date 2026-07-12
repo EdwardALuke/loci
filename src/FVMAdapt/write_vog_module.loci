@@ -160,7 +160,9 @@ option(disable_threading) {
   Map cl, cr ;
   multiMap face2node ;
   store<int> count ;
-  entitySet faces = interval(face_min, face_max) ;
+  entitySet faces = EMPTY ;
+  if(face_sizes[MPI_rank] > 0)
+    faces = interval(face_min, face_max) ;
   cl.allocate(faces) ;
   cr.allocate(faces) ;
   count.allocate(faces) ;
