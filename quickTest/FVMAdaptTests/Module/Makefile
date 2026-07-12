@@ -1,4 +1,4 @@
-TESTS = RefMesh
+TESTS = RefMesh UniformHex Prism Mixed PlanInputs
 TEST_RESULTS = $(addsuffix /TestResults,$(TESTS))
 
 .PHONY: default $(TESTS) clean distclean FRC
@@ -15,10 +15,14 @@ $(TESTS): FRC
 
 clean:
 	rm -f TestResults
-	$(MAKE) -C RefMesh LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
+	@for test in $(TESTS); do \
+	  $(MAKE) -C $$test LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean || exit $$?; \
+	done
 
 distclean:
 	rm -f TestResults
-	$(MAKE) -C RefMesh LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
+	@for test in $(TESTS); do \
+	  $(MAKE) -C $$test LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean || exit $$?; \
+	done
 
 FRC:
