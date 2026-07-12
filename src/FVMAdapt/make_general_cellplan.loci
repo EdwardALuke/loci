@@ -24,1488 +24,873 @@
 #include <list>
 #include <Loci.h>
 #include <algorithm>
+#include <memory>
 #include "diamondcell.h"
 #include "read_par.h"
+
 #ifdef USE_LIBXML2
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xpath.h>
 #endif
+
 #include "globals.h"
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
 
-using std::list;
-using std::queue;
-
-using std::cerr;
-using std::endl;
-using std::cout;
-using Loci::storeRepP;
-//int currentMem(void);
-
-#ifdef USE_LIBXML2
-bool mark_node( xmlNode* root_element,
-                std::list<Node*>::iterator begin_pnt,
-                std::list<Node*>::iterator end_pnt);
+#ifndef USE_LIBXML2
+typedef struct _xmlDoc xmlDoc;
 #endif
 
-//this rule make  a newCellPlan according to cellPlan 
-//and nodeTag, posTag
-class make_general_cellplan:public pointwise_rule{
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_store<bool> is_quadface;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<std::vector<char> > cellPlan;
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_store<char>  posTag;
-  const_store<std::vector<char> > nodeTag;
-  const_store<bool> isIndivisible;
-  const_param<int> restart_tag_par;
-  store<std::vector<char> > newCellPlan;
+using std::list ;
+using std::queue ;
+using std::cerr ;
+using std::endl ;
+using std::cout ;
+using Loci::storeRepP ;
+//int currentMem(void) ;
 
-  const_store<int> node_l2f;
-public:
-  make_general_cellplan(){
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("cellPlan", cellPlan);
-    name_store("facePlan", facePlan);
-    name_store("edgePlan", edgePlan);
-    name_store("posTag", posTag);
-    name_store("nodeTag", nodeTag);
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    name_store("is_quadface", is_quadface);
-    name_store("restart_tag_par", restart_tag_par);
-    input("restart_tag_par");
-    input("(cellPlan,nodeTag) ");
-    input("isIndivisible");
-    input("(lower, upper, boundary_map) -> (facePlan,is_quadface, nodeTag)"); 
-    input("(lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->(edgePlan, nodeTag)");
-
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-   
-      do_loop(seq, this);
-    }
-   
-  }
-  void calculate(Entity cc){
-
-    if(!isIndivisible[cc]){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-      int nindex;
-
-    
- 
-
-                                                 
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       is_quadface,
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       edgePlan,
-                                       facePlan,
-                                       posTag,
-                                       nodeTag,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       node_l2f);
-
-  
-  
- 
-      //calculate min_edge_length of the cell
-      double min_edge_length =aCell->get_min_edge_length();
-      
-      
-      std::vector<DiamondCell*> cells;
-      
-      aCell->resplit( cellPlan[cc], 
-                      node_list,
-                      edge_list,
-                      face_list,
-                      cells);
-      
-      
-      nindex = 0;
-      for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++){
-        (*np)->tag = nodeTag[cc][nindex++];
-      }
-      
-      
-      
-    
-      // split the cell Globals::levels times
-      int numCells = cells.size();
-      bool cell_split = false;
-      if(numCells != 0){//aCell is not a leaf
-        for(int i = 0; i < numCells; i++){
-          if((cells[i]->get_tagged())==1) {
-            if((min_edge_length/double(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance){
-              cells[i]->resplit(Globals::levels,node_list, edge_list, face_list);
-              cell_split = true;
-            }else{
-              int split_level = Globals::levels;
-              if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel());
-              if(split_level >= 1){
-                cells[i]->resplit(split_level,node_list, edge_list, face_list);
-                cell_split = true;
-              }
-            }
-          }
-                   
-        }
-       
-      }else{//aCell is a leaf
-        if(aCell->get_tagged()==1){
-          int split_level = Globals::levels;
-          if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-          if(split_level >= 1){
-            aCell->split(node_list, edge_list, face_list);
-            for(int i = 0; i < aCell->numNode; i++){
-              aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list);
-            }
-          }
-        }
-      }
-
-      //rebalance this cell
-      if(cell_split){
-        aCell->rebalance_cells(node_list, edge_list, face_list);
-        newCellPlan[cc] = aCell->make_cellplan();
-      }else{
-        //write new cellPlan
-        newCellPlan[cc] = aCell->make_cellplan();
-      }
-      
-     
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, face_list);
-      cleanup_list(bnode_list);
-      reduce_vector(newCellPlan[cc]);
-    }
-  }
-};
-
-register_rule<make_general_cellplan> register_make_general_cellplan;
-
-//this rule make  a newCellPlan according to  posTag
-class make_general_cellplan_norestart:public pointwise_rule{
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<char>  posTag;
-  const_store<bool> isIndivisible;
-  const_param<int> norestart_tag_par;
-  store<std::vector<char> > newCellPlan;
-
-  const_store<int> node_l2f;
-public:
-  make_general_cellplan_norestart(){
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("posTag", posTag);
-    name_store("norestart_tag_par", norestart_tag_par);
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    
-  
-    input("isIndivisible");
-    input("(lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("norestart_tag_par");
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-   
-      do_loop(seq, this);
-    }
-
-    
-  }
-  void calculate(Entity cc){
-    if(!isIndivisible[cc]){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-  
-    
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       posTag,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       node_l2f);
-
-  
-  
- 
-      //calculate min_edge_length of the cell
-      double min_edge_length =aCell->get_min_edge_length();
-    
-      // split the cell Globals::levels times
-    
-   
-   
-      if(aCell->get_tagged()==1){
-        int split_level = Globals::levels;
-        if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-      
-        if(split_level >= 1){
-          aCell->split(node_list, edge_list, face_list);
-          for(int i = 0; i < aCell->numNode; i++){
-            aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list);
-          }
-        }
-      }
-      
-      //write new cellPlan
-      newCellPlan[cc] = aCell->make_cellplan();
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, face_list);
-      cleanup_list(bnode_list);
-      reduce_vector(newCellPlan[cc]);
-    }
-  }
-};
-
-register_rule<make_general_cellplan_norestart> register_make_general_cellplan_norestart;
-
-
-//this rule make  a newCellPlan according to  xml file and input plan file
-class make_general_cellplan_xml:public pointwise_rule{
-  const_param<std::string> xmlfile_par;
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_store<bool> is_quadface;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<std::vector<char> > cellPlan;
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_store<bool> isIndivisible;
-  const_param<int> restart_xml_par;
-  store<std::vector<char> > newCellPlan;
-
-  const_store<int> node_l2f;
 #ifdef USE_LIBXML2
-  xmlDoc* doc ;
-  xmlNode* root_element ;
+bool mark_node(xmlNode* root_element,
+               std::list<Node*>::iterator begin_pnt,
+               std::list<Node*>::iterator end_pnt);
 #endif
-public:
-  make_general_cellplan_xml(){
-    name_store("xmlfile_par", xmlfile_par);
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("cellPlan", cellPlan);
-    name_store("facePlan", facePlan);
-    name_store("edgePlan", edgePlan);
-    name_store("restart_xml_par", restart_xml_par);
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    name_store("is_quadface", is_quadface);
-    input("xmlfile_par");
-    input("restart_xml_par");
-    input("cellPlan ");
-    input("isIndivisible");
-    input("(lower, upper, boundary_map) -> (facePlan,is_quadface)"); 
-    input("(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->edgePlan");
- 
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
+
+/// Read the XML region once for all cell topologies.
+$rule blackbox(cellPlanXMLDoc <- xmlfile_par), prelude {
 #ifdef USE_LIBXML2
-      doc = xmlReadFile((*xmlfile_par).c_str(), NULL, 0);
-      if(doc==NULL){
-        cerr << "WARNING: fail to parse xml file" << endl;
-        Loci::Abort();
-      }
-      root_element = xmlDocGetRootElement(doc);
-      if(root_element == NULL) {
-        cerr <<"WARNING: fail to parse xml file" << endl;
-        Loci::Abort();
-      }
-      do_loop(seq, this);
-      xmlFreeDoc(doc);
-      xmlCleanupParser();
-      xmlMemoryDump();
+  xmlDoc* doc = xmlReadFile((*$xmlfile_par).c_str(), NULL, 0) ;
+  if(doc==NULL) {
+    cerr << "WARNING: fail to parse xml file" << endl ;
+    Loci::Abort() ;
+  }
+  xmlNode* root_element = xmlDocGetRootElement(doc) ;
+  if(root_element == NULL) {
+    xmlFreeDoc(doc) ;
+    cerr << "WARNING: fail to parse xml file" << endl ;
+    Loci::Abort() ;
+  }
+  *$cellPlanXMLDoc = std::shared_ptr<xmlDoc>(doc, [](xmlDoc* owned_doc) {
+    xmlFreeDoc(owned_doc) ;
+  }) ;
 #else
-      cerr << "adaptation code not compiled with libxml!  XML features not available!" ;
+  cerr << "adaptation code not compiled with libxml!  XML features not available!" ;
+  Loci::Abort() ;
+#endif
+} ;
+
+/// Read the parameter sources once for all cell topologies.
+$rule blackbox(cellPlanSources <- parfile_par), prelude {
+  vector<source_par> sources ;
+  readPar(*$parfile_par, sources) ;
+  if(sources.size()==0) {
+    cerr << "WARNING: fail to read par file" << endl ;
+    Loci::Abort() ;
+  }
+  *$cellPlanSources = sources ;
+} ;
+
+/// This rule make a newCellPlan according to cellPlan
+/// and nodeTag, posTag
+$rule pointwise(newCellPlan <- restart_tag_par, cellPlan, nodeTag,
+isIndivisible,
+(lower, upper, boundary_map)->(facePlan, is_quadface, nodeTag),
+(lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2edge->(edgePlan, nodeTag)),
+constraint(gnrlcells) {
+
+  if(!$isIndivisible) {
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+    int nindex ;
+
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                     $upper.begin(), $upper.size(),
+                                     $boundary_map.begin(), $boundary_map.size(),
+                                     $*is_quadface,
+                                     $*face2node,
+                                     $*face2edge,
+                                     $*edge2node,
+                                     $*pos,
+                                     $*edgePlan,
+                                     $*facePlan,
+                                     $*posTag,
+                                     $*nodeTag,
+                                     bnode_list,
+                                     edge_list,
+                                     face_list,
+                                     $*fileNumber(pos));
+
+    // calculate min_edge_length of the cell
+    double min_edge_length =aCell->get_min_edge_length() ;
+    std::vector<DiamondCell*> cells ;
+    aCell->resplit($cellPlan, node_list, edge_list, face_list, cells) ;
+
+    nindex = 0 ;
+    for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++) {
+      (*np)->tag = $nodeTag[nindex++] ;
+    }
+
+    // split the cell Globals::levels times
+    int numCells = cells.size();
+    bool cell_split = false;
+    if(numCells != 0) { // aCell is not a leaf
+      for(int i=0; i<numCells; i++) {
+        if((cells[i]->get_tagged())==1) {
+          if((min_edge_length/double(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance) {
+            cells[i]->resplit(Globals::levels,node_list, edge_list, face_list) ;
+            cell_split = true ;
+          }else {
+            int split_level = Globals::levels ;
+            if(Globals::tolerance > 0.0) {
+              split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel()) ;
+            }
+            if(split_level >= 1) {
+              cells[i]->resplit(split_level,node_list, edge_list, face_list) ;
+              cell_split = true ;
+            }
+          }
+        }
+      }
+    }else { //aCell is a leaf
+      if(aCell->get_tagged()==1) {
+        int split_level = Globals::levels ;
+        if(Globals::tolerance > 0.0) {
+          split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
+        }
+        if(split_level >= 1) {
+          aCell->split(node_list, edge_list, face_list) ;
+          for(int i=0; i<aCell->numNode; i++) {
+            aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list) ;
+          }
+        }
+      }
+    }
+
+    // rebalance this cell
+    if(cell_split) {
+      aCell->rebalance_cells(node_list, edge_list, face_list) ;
+      $newCellPlan = aCell->make_cellplan() ;
+    }else {
+      // write new cellPlan
+      $newCellPlan = aCell->make_cellplan() ;
+    }
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+    cleanup_list(node_list, edge_list, face_list) ;
+    cleanup_list(bnode_list) ;
+    reduce_vector($newCellPlan) ;
+  }
+}
+
+
+/// This rule make a newCellPlan according to posTag
+$rule pointwise(newCellPlan <- isIndivisible,
+(lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+norestart_tag_par), constraint(gnrlcells) {
+  if(!$isIndivisible) {
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                     $upper.begin(), $upper.size(),
+                                     $boundary_map.begin(), $boundary_map.size(),
+                                     $*face2node,
+                                     $*face2edge,
+                                     $*edge2node,
+                                     $*pos,
+                                     $*posTag,
+                                     bnode_list,
+                                     edge_list,
+                                     face_list,
+                                     $*fileNumber(pos));
+
+    // calculate min_edge_length of the cell
+    double min_edge_length =aCell->get_min_edge_length() ;
+
+    // split the cell Globals::levels times
+    if(aCell->get_tagged()==1) {
+      int split_level = Globals::levels ;
+      if(Globals::tolerance > 0.0) {
+        split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
+      }
+
+      if(split_level >= 1) {
+        aCell->split(node_list, edge_list, face_list) ;
+        for(int i=0; i<aCell->numNode; i++) {
+          aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list) ;
+        }
+      }
+    }
+
+    // write new cellPlan
+    $newCellPlan = aCell->make_cellplan() ;
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+
+    cleanup_list(node_list, edge_list, face_list) ;
+    cleanup_list(bnode_list) ;
+    reduce_vector($newCellPlan) ;
+  }
+}
+
+
+/// This rule make a newCellPlan according to  xml file and input plan file
+$rule pointwise(newCellPlan <- xmlfile_par, restart_xml_par,
+cellPlan, isIndivisible,
+(lower, upper, boundary_map)->(facePlan, is_quadface),
+(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2edge->edgePlan, cellPlanXMLDoc),
+constraint(gnrlcells) {
+
+#ifdef USE_LIBXML2
+  xmlNode* root_element = xmlDocGetRootElement($*cellPlanXMLDoc->get()) ;
+
+  if(!$isIndivisible) {
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+    std::queue<DiamondCell*> Q ;
+
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                     $upper.begin(), $upper.size(),
+                                     $boundary_map.begin(), $boundary_map.size(),
+                                     $*is_quadface,
+                                     $*face2node,
+                                     $*face2edge,
+                                     $*edge2node,
+                                     $*pos,
+                                     $*edgePlan,
+                                     $*facePlan,
+                                     bnode_list,
+                                     edge_list,
+                                     face_list,
+                                     $*fileNumber(pos));
+
+    if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
+      cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
       Loci::Abort() ;
-#endif
     }
-   
-  }
-  void calculate(Entity cc){
-#ifdef USE_LIBXML2
 
-    if(!isIndivisible[cc]){
- 
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-      std::queue<DiamondCell*> Q;
+    std::vector<DiamondCell*> cells ;
+    std::list<Node*>::iterator former_pnt = bnode_list.end() ;
+    aCell->resplit($cellPlan, bnode_list, edge_list, face_list, cells) ;
 
-    
- 
-
-                                                 
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       is_quadface,
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       edgePlan,
-                                       facePlan,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       node_l2f);
-
-  
-  
- 
-
-
-      
-      
-      
-      if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-        cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-        Loci::Abort();
-      }
-     
-      
-      std::vector<DiamondCell*> cells;
-
-      std::list<Node*>::iterator former_pnt = bnode_list.end();
-      aCell->resplit( cellPlan[cc], 
-                      bnode_list,
-                      edge_list,
-                      face_list,
-                      cells);
-     
-      former_pnt--;
-      if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-        cerr <<"WARNING: fail to mark nodes, please check xml file" << endl;
-        Loci::Abort();
-      }
-
-      
-     
-      DiamondCell* current;
-    
-      // split the cell Globals::levels times
-      int numCells = cells.size();
-
-      if(numCells != 0){
-        for(int i = 0; i < numCells; i++)Q.push(cells[i]);
-      }
-      else{
-        double min_edge_length =aCell->get_min_edge_length();
-        if(aCell->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)){
-         
-
-          former_pnt = bnode_list.end();
-          aCell->split(bnode_list, edge_list, face_list);
-          former_pnt--;
-          if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-            cerr<<"WARNING: fail to mark nodes, please check xml file"<< endl;
-            Loci::Abort();
-          }
-         
-          
-          for(int i = 0; i < aCell->numNode; i++){
-            Q.push(aCell->child[i]);
-          }
-        }
-      }
-      while(!Q.empty()){
-        current =Q.front();
-        //calculate min_edge_length of the cell
-        double min_edge_length =current->get_min_edge_length();
-        
-        if(current->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)){
-
-          former_pnt = bnode_list.end();
-          current->split(bnode_list, edge_list, face_list);
-          
-          former_pnt--;
-          if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-            cerr << "WARNING: fail to mark nodes, please check xml file"<< endl;
-            Loci::Abort();
-          }
-
-          for(int i = 0; i < 2*current->getNfold()+2; i++){
-            Q.push(current->getChildCell(i));
-          }
-        }
-        Q.pop();
-      }
-      aCell->rebalance_cells(bnode_list, edge_list, face_list);
-      
-      
-      //write new cellPlan
-      newCellPlan[cc] = aCell->make_cellplan();
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, face_list);
-     
-      reduce_vector(newCellPlan[cc]);
-    }
-#endif
-  }
-};
-
-register_rule<make_general_cellplan_xml> register_make_general_cellplan_xml;
-//this rule make  a newCellPlan according to  xml file
-class make_general_cellplan_xml_norestart:public pointwise_rule{
-  const_param<std::string> xmlfile_par;
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<bool> isIndivisible;
-  const_param<int> norestart_xml_par;
-  store<std::vector<char> > newCellPlan;
-
-  const_store<int> node_l2f;
-#ifdef USE_LIBXML2
-  xmlDoc* doc ;
-  xmlNode* root_element ;
-#endif
-public:
-  make_general_cellplan_xml_norestart(){
-    name_store("xmlfile_par", xmlfile_par);
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("norestart_xml_par", norestart_xml_par);
-   
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    
-    input("norestart_xml_par");
-    input("(isIndivisible,xmlfile_par)");
-    input("(lower, upper, boundary_map)->face2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2node->fileNumber(pos)");
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-#ifdef USE_LIBXML2
-      doc = xmlReadFile((*xmlfile_par).c_str(), NULL, 0);
-      if(doc==NULL){
-        cerr << "WARNING: fail to parse xml file" << endl;
-        Loci::Abort();
-      }
-      root_element = xmlDocGetRootElement(doc);
-      if(root_element == NULL) {
-        cerr <<"WARNING: fail to  parse xml file" << endl;
-        Loci::Abort();
-      }
-      do_loop(seq, this);
-      xmlFreeDoc(doc);
-      xmlCleanupParser();
-      xmlMemoryDump();
-#else
-      cerr << "libxml not available when adapt code compiled.  XML features not available!" << endl ;
+    former_pnt-- ;
+    if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
+      cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
       Loci::Abort() ;
-#endif
     }
 
-   
+    DiamondCell* current ;
+
+    // split the cell Globals::levels times
+    int numCells = cells.size() ;
+
+    if(numCells != 0) {
+      for(int i=0; i<numCells; i++) {
+        Q.push(cells[i]) ;
+      }
+    }else {
+      double min_edge_length = aCell->get_min_edge_length() ;
+      if(aCell->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)) {
+        former_pnt = bnode_list.end() ;
+        aCell->split(bnode_list, edge_list, face_list) ;
+        former_pnt-- ;
+        if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
+          cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
+          Loci::Abort() ;
+        }
+
+        for(int i=0; i<aCell->numNode; i++) {
+          Q.push(aCell->child[i]) ;
+        }
+      }
+    }
+
+    while(!Q.empty()) {
+      current =Q.front() ;
+
+      // calculate min_edge_length of the cell
+      double min_edge_length =current->get_min_edge_length() ;
+
+      if(current->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)) {
+        former_pnt = bnode_list.end() ;
+        current->split(bnode_list, edge_list, face_list) ;
+
+        former_pnt-- ;
+        if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
+          cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
+          Loci::Abort() ;
+        }
+
+        for(int i=0; i<2*current->getNfold()+2; i++) {
+          Q.push(current->getChildCell(i)) ;
+        }
+      }
+      Q.pop() ;
+    }
+    aCell->rebalance_cells(bnode_list, edge_list, face_list) ;
+
+    // write new cellPlan
+    $newCellPlan = aCell->make_cellplan() ;
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+    cleanup_list(bnode_list, edge_list, face_list) ;
+    reduce_vector($newCellPlan) ;
   }
-  void calculate(Entity cc){
+#endif
+}
+
+
+/// This rule make a newCellPlan according to xml file
+$rule pointwise(newCellPlan <- norestart_xml_par,
+isIndivisible, xmlfile_par,
+(lower, upper, boundary_map)->face2node->pos,
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2node->fileNumber(pos),
+cellPlanXMLDoc),
+constraint(gnrlcells) {
 #ifdef USE_LIBXML2
-    if(!isIndivisible[cc]){
-    
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-      std::queue<DiamondCell*> Q;
-    
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       node_l2f);
+  xmlNode* root_element = xmlDocGetRootElement($*cellPlanXMLDoc->get()) ;
+  if(!$isIndivisible) {
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+    std::queue<DiamondCell*> Q ;
 
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                     $upper.begin(), $upper.size(),
+                                     $boundary_map.begin(), $boundary_map.size(),
+                                     $*face2node,
+                                     $*face2edge,
+                                     $*edge2node,
+                                     $*pos,
+                                     bnode_list,
+                                     edge_list,
+                                     face_list,
+                                     $*fileNumber(pos));
 
-   
-    
-      DiamondCell* current;
-    
-      if(!mark_node(root_element,bnode_list.begin(), bnode_list.end())){
-        cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-        Loci::Abort();
-      }
-      double min_edge_length =aCell->get_min_edge_length();
+    DiamondCell* current ;
 
-
-      if(aCell->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)){
-        std::list<Node*>::iterator former_pnt = bnode_list.end();
-        aCell->split(bnode_list, edge_list, face_list);
-        former_pnt--;
-        if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-          cerr << "WARNING: fail to mark nodes, plase check xml file"<< endl;
-          Loci::Abort();
-        }
-        for(int i = 0; i < aCell->numNode; i++){
-          Q.push(aCell->child[i]);
-        }
-      
-        while(!Q.empty()){
-          current =Q.front();
-          //calculate min_edge_length of the cell
-          double min_edge_length =current->get_min_edge_length();
-      
-          if(current->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)){
-            std::list<Node*>::iterator former_pnt = bnode_list.end();
-            current->split(bnode_list, edge_list, face_list);
-          
-            former_pnt--;
-            if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-              cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-              Loci::Abort();
-            }
-            for(int i = 0; i <2*current->getNfold()+2; i++){
-              Q.push(current->getChildCell(i));
-            }
-          }
-          Q.pop();
-        }
-        aCell->rebalance_cells(bnode_list, edge_list, face_list);
-     
-      }
-      //write new cellPlan
-      newCellPlan[cc] = aCell->make_cellplan();
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, face_list);
-  
-      reduce_vector(newCellPlan[cc]);
-  
+    if(!mark_node(root_element,bnode_list.begin(), bnode_list.end())) {
+      cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
+      Loci::Abort() ;
     }
+
+    double min_edge_length =aCell->get_min_edge_length() ;
+    if(aCell->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)) {
+      std::list<Node*>::iterator former_pnt = bnode_list.end() ;
+      aCell->split(bnode_list, edge_list, face_list) ;
+      former_pnt-- ;
+      if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
+        cerr << "WARNING: fail to mark nodes, plase check xml file" << endl ;
+        Loci::Abort() ;
+      }
+      for(int i=0; i<aCell->numNode; i++) {
+        Q.push(aCell->child[i]) ;
+      }
+
+      while(!Q.empty()) {
+        current =Q.front() ;
+
+        // calculate min_edge_length of the cell
+        double min_edge_length = current->get_min_edge_length() ;
+
+        if(current->get_tagged()==1 && min_edge_length > (2*Globals::tolerance)) {
+          std::list<Node*>::iterator former_pnt = bnode_list.end() ;
+          current->split(bnode_list, edge_list, face_list) ;
+
+          former_pnt-- ;
+          if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
+            cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
+            Loci::Abort() ;
+          }
+          for(int i=0; i<2*current->getNfold()+2; i++) {
+            Q.push(current->getChildCell(i)) ;
+          }
+        }
+        Q.pop() ;
+      }
+      aCell->rebalance_cells(bnode_list, edge_list, face_list) ;
+    }
+
+    // write new cellPlan
+    $newCellPlan = aCell->make_cellplan() ;
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+
+    cleanup_list(bnode_list, edge_list, face_list) ;
+    reduce_vector($newCellPlan) ;
+  }
 #endif
-  }
-};
-
-register_rule<make_general_cellplan_xml_norestart> register_make_general_cellplan_xml_norestart;
+}
 
 
+/// Make a newCellPlan according to par file and input plan file
+$rule pointwise(newCellPlan <- parfile_par, restart_par_par,
+cellPlan, isIndivisible,
+(lower, upper, boundary_map)->(facePlan, is_quadface),
+(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2edge->edgePlan, cellPlanSources),
+constraint(gnrlcells) {
 
-
-//this rule make  a newCellPlan according to  par file and input plan file
-class make_general_cellplan_par:public pointwise_rule{
-  const_param<std::string> parfile_par;
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_store<bool> is_quadface;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<std::vector<char> > cellPlan;
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_store<bool> isIndivisible;
-  const_param<int> restart_par_par;
-  store<std::vector<char> > newCellPlan;
-
-  const_store<int> node_l2f;
-
-  vector<source_par> sources;
-  
-
-public:
-  make_general_cellplan_par(){
-    name_store("parfile_par", parfile_par);
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("cellPlan", cellPlan);
-    name_store("facePlan", facePlan);
-    name_store("edgePlan", edgePlan);
-    name_store("restart_par_par", restart_par_par);
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    name_store("is_quadface", is_quadface);
-    input("parfile_par");
-    input("restart_par_par");
-    input("cellPlan ");
-    input("isIndivisible");
-    input("(lower, upper, boundary_map) -> (facePlan,is_quadface)"); 
-    input("(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->edgePlan");
- 
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-      readPar(*parfile_par, sources);
-      if(sources.size()==0){
-        cerr << "WARNING: fail to read par file" << endl;
-        Loci::Abort();
+  const vector<source_par>& sources = *($*cellPlanSources) ;
+  if(!$isIndivisible) {
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+    std::queue<DiamondCell*> Q ;
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                     $upper.begin(), $upper.size(),
+                                     $boundary_map.begin(), $boundary_map.size(),
+                                     $*is_quadface,
+                                     $*face2node,
+                                     $*face2edge,
+                                     $*edge2node,
+                                     $*pos,
+                                     $*edgePlan,
+                                     $*facePlan,
+                                     bnode_list,
+                                     edge_list,
+                                     face_list,
+                                     $*fileNumber(pos)) ;
+    std::vector<DiamondCell*> cells ;
+    aCell->resplit( $cellPlan, bnode_list, edge_list, face_list, cells) ;
+    DiamondCell* current ;
+    int numCells = cells.size() ;
+    if(numCells != 0) {
+      for(int i=0; i<numCells; i++) {
+        Q.push(cells[i]) ;
       }
-      do_loop(seq, this); 
+    }else {
+      if(aCell->get_tagged(sources) == 1) {
+        aCell->split(bnode_list, edge_list, face_list) ;
+
+        for(int i=0; i<aCell->numNode; i++) {
+          Q.push(aCell->child[i]) ;
+        }
+      }
     }
+
+    while(!Q.empty()) {
+      current =Q.front() ;
+      if(current->get_tagged(sources) == 1) {
+        current->split(bnode_list, edge_list, face_list) ;
+        for(int i=0; i<2*current->getNfold()+2; i++) {
+          Q.push(current->getChildCell(i)) ;
+        }
+      }
+      Q.pop() ;
+    }
+    aCell->rebalance_cells(bnode_list, edge_list, face_list) ;
+
+    // write new cellPlan
+    $newCellPlan = aCell->make_cellplan() ;
+
+    //clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+
+    cleanup_list(bnode_list, edge_list, face_list) ;
+    reduce_vector($newCellPlan) ;
   }
-  void calculate(Entity cc){
+}
 
 
-    if(!isIndivisible[cc]){
- 
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-      std::queue<DiamondCell*> Q;
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       is_quadface,
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       edgePlan,
-                                       facePlan,
+/// Make a newCellPlan according to par file
+$rule pointwise(newCellPlan <- norestart_par_par,
+isIndivisible, parfile_par,
+(lower, upper, boundary_map)->face2node->pos,
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2node->fileNumber(pos),
+cellPlanSources),
+constraint(gnrlcells) {
+
+    const vector<source_par>& sources = *($*cellPlanSources) ;
+    if(!$isIndivisible) {
+      std::list<Edge*> edge_list ;
+      std::list<Face*> face_list ;
+      std::list<Node*> bnode_list ;
+      std::queue<DiamondCell*> Q ;
+
+      Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                       $upper.begin(), $upper.size(),
+                                       $boundary_map.begin(), $boundary_map.size(),
+                                       $*face2node,
+                                       $*face2edge,
+                                       $*edge2node,
+                                       $*pos,
                                        bnode_list,
                                        edge_list,
                                        face_list,
-                                       node_l2f);
-      std::vector<DiamondCell*> cells;
-      aCell->resplit( cellPlan[cc], 
-                      bnode_list,
-                      edge_list,
-                      face_list,
-                      cells);
-      DiamondCell* current;
-      int numCells = cells.size();
-      if(numCells != 0){
-        for(int i = 0; i < numCells; i++)Q.push(cells[i]);
-      }else{
-        if(aCell->get_tagged(sources) == 1)
-          aCell->split(bnode_list, edge_list, face_list);
-        for(int i = 0; i < aCell->numNode; i++){
-          Q.push(aCell->child[i]);
+                                       $*fileNumber(pos));
+
+      DiamondCell* current ;
+      if(aCell->get_tagged(sources) ==1) {
+        aCell->split(bnode_list, edge_list, face_list) ;
+        for(int i=0; i<aCell->numNode; i++) {
+          Q.push(aCell->child[i]) ;
         }
-      }
-      while(!Q.empty()){
-        current =Q.front();
-        if(current->get_tagged(sources) == 1){
-          current->split(bnode_list, edge_list, face_list);
-          for(int i = 0; i < 2*current->getNfold()+2; i++){
-            Q.push(current->getChildCell(i));
-          }
-        }
-        Q.pop();
-      }
-      aCell->rebalance_cells(bnode_list, edge_list, face_list);
-      //write new cellPlan
-      newCellPlan[cc] = aCell->make_cellplan();
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, face_list);
-      reduce_vector(newCellPlan[cc]);
-    }
-  }
-};
 
-register_rule<make_general_cellplan_par> register_make_general_cellplan_par;
-
-//this rule make  a newCellPlan according to  par file
-class make_general_cellplan_par_norestart:public pointwise_rule{
-  const_param<std::string> parfile_par;
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<bool> isIndivisible;
-  const_param<int> norestart_par_par;
-  store<std::vector<char> > newCellPlan;
-
-  const_store<int> node_l2f;
-  vector<source_par> sources;
-public:
-  make_general_cellplan_par_norestart(){
-    name_store("parfile_par", parfile_par);
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("norestart_par_par", norestart_par_par);
-   
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    
-    input("norestart_par_par");
-    input("(isIndivisible,parfile_par)");
-    input("(lower, upper, boundary_map)->face2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2node->fileNumber(pos)");
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-      readPar(*parfile_par, sources);
-      if(sources.size()==0){
-        cerr << "WARNING: fail to read par file" << endl;
-        Loci::Abort();
-      }
-      do_loop(seq, this); 
-    }
-  }
-  void calculate(Entity cc){
-
-    if(!isIndivisible[cc]){
-    
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-      std::queue<DiamondCell*> Q;
-    
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       node_l2f);
-
-
-   
-    
-      DiamondCell* current;
-      if(aCell->get_tagged(sources) ==1){
-        aCell->split(bnode_list, edge_list, face_list);
-        for(int i = 0; i < aCell->numNode; i++){
-          Q.push(aCell->child[i]);
-        }
-        while(!Q.empty()){
-          current =Q.front();
-          if(current->get_tagged(sources) == 1 ){
-            current->split(bnode_list, edge_list, face_list);
-            for(int i = 0; i <2*current->getNfold()+2; i++){
-              Q.push(current->getChildCell(i));
+        while(!Q.empty()) {
+          current =Q.front() ;
+          if(current->get_tagged(sources) == 1 ) {
+            current->split(bnode_list, edge_list, face_list) ;
+            for(int i=0; i <2*current->getNfold()+2; i++) {
+              Q.push(current->getChildCell(i)) ;
             }
           }
-          Q.pop();
+          Q.pop() ;
         }
-        aCell->rebalance_cells(bnode_list, edge_list, face_list);
+        aCell->rebalance_cells(bnode_list, edge_list, face_list) ;
       }
-      //write new cellPlan
-      newCellPlan[cc] = aCell->make_cellplan();
+
+      // write new cellPlan
+      $newCellPlan = aCell->make_cellplan() ;
+
       //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
+      if(aCell != 0) {
+        delete aCell ;
+        aCell = 0 ;
       }
-      cleanup_list(bnode_list, edge_list, face_list);
-    
-      reduce_vector(newCellPlan[cc]);
-    
+
+      cleanup_list(bnode_list, edge_list, face_list) ;
+      reduce_vector($newCellPlan) ;
     }
-
-  }
-};
-
-register_rule<make_general_cellplan_par_norestart> register_make_general_cellplan_par_norestart;
+}
 
 
+/// Dummy parameter to trick Loci scheduler
+$rule pointwise(priority::restart::balancedCellPlan <- beginWithMarker,
+restart_tag_par, cellPlan, balancedCellPlan1, nodeTag, isIndivisible,
+(lower, upper, boundary_map)->(facePlan, balancedFacePlan1, is_quadface, nodeTag),
+(lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1, nodeTag)),
+constraint(gnrlcells) {
 
-class derefine_general_cellplan:public pointwise_rule{
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_store<bool> is_quadface;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<std::vector<char> > cellPlan;
+  if(!$isIndivisible) {
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
 
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_store<std::vector<char> > cellPlan1;
-  const_store<std::vector<char> > facePlan1;
-  const_store<std::vector<char> > edgePlan1;
-  const_store<char>  posTag;
-  const_store<std::vector<char> > nodeTag;
-  const_store<bool> isIndivisible;
-  const_param<int> restart_tag_par;
-  store<std::vector<char> > newCellPlan;
-  const_param<bool> beginWithMarker; //dummy parameter to trick Loci scheduler
-  const_store<int> node_l2f;
-public:
-  derefine_general_cellplan(){
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("cellPlan", cellPlan);
-    name_store("facePlan", facePlan);
-    name_store("edgePlan", edgePlan);
-    name_store("balancedCellPlan1", cellPlan1);
-    name_store("balancedFacePlan1", facePlan1);
-    name_store("balancedEdgePlan1", edgePlan1);
-    name_store("posTag", posTag);
-    name_store("nodeTag", nodeTag);
-    name_store("isIndivisible", isIndivisible);
-    name_store("priority::restart::balancedCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    name_store("is_quadface", is_quadface);
-    name_store("restart_tag_par", restart_tag_par);
-    name_store("beginWithMarker", beginWithMarker);
+    Cell* aCell = build_resplit_general_cell($lower.begin(), $lower.size(),
+                                             $upper.begin(), $upper.size(),
+                                             $boundary_map.begin(), $boundary_map.size(),
+                                             $*is_quadface,
+                                             $*face2node,
+                                             $*face2edge,
+                                             $*edge2node,
+                                             $*pos,
+                                             $*edgePlan,
+                                             $*facePlan,
+                                             $*balancedEdgePlan1,
+                                             $*balancedFacePlan1,
+                                             $*posTag,
+                                             $*nodeTag,
+                                             bnode_list,
+                                             node_list,
+                                             edge_list,
+                                             face_list,
+                                             $*fileNumber(pos),
+                                             $cellPlan,
+                                             $nodeTag);
 
-    
-    input("beginWithMarker");
-    input("restart_tag_par");
-    input("(cellPlan,balancedCellPlan1,nodeTag) ");
-    input("isIndivisible");
-    input("(lower, upper, boundary_map) -> (facePlan,balancedFacePlan1,is_quadface, nodeTag)"); 
-    input("(lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->(edgePlan,balancedEdgePlan1,nodeTag)");
+    std::vector<DiamondCell*> cells ; //leaves collected according to cellPlan1
+    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
 
-    output("priority::restart::balancedCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-   
-      do_loop(seq, this);
-    }
-   
-  }
-  void calculate(Entity cc){
-  
-    if(!isIndivisible[cc]){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-     
+    // re-collect leaves according to tree structure
+    std::list<DiamondCell*> leaves ;
+    aCell->sort_leaves(leaves) ;
 
-    
- 
+    // first if any cell need derefine
+    std::set<DiamondCell*> dparents ;
+    bool check_root = false ;
 
-                                                 
-      Cell* aCell = build_resplit_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                               upper[cc].begin(), upper.num_elems(cc),
-                                               boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                               is_quadface,
-                                               face2node,
-                                               face2edge,
-                                               edge2node,
-                                               pos,
-                                               edgePlan,
-                                               facePlan,
-                                               edgePlan1,
-                                               facePlan1,
-                                               posTag,
-                                               nodeTag,
-                                               bnode_list,
-                                               node_list,
-                                               edge_list,
-                                               face_list,
-                                               node_l2f,
-                                               cellPlan[cc],
-                                               nodeTag[cc]);
-      
-  
-  
- 
-      
-      
-      std::vector<DiamondCell*> cells;//leaves collected according to cellPlan1
-      aCell->resplit( cellPlan1[cc], 
-                      node_list,
-                      edge_list,
-                      face_list,
-                      cells);
-      
-      
-      
-       //recollect leaves according to tree structure
-      std::list<DiamondCell*> leaves;
-      aCell->sort_leaves(leaves);
-      
-      
-       
-      //first if any cell need derefine
-      std::set<DiamondCell*> dparents;
-      bool check_root = false;
-      //mark the cell that will be eliminated
-      for(std::list<DiamondCell*>::const_iterator li = leaves.begin(); li != leaves.end(); li++){
-        if((*li)->get_tagged() ==2){
-          DiamondCell* parent = (*li)->getParentCell();
-          if(parent==0)check_root = true;
-          if(parent!=0 && parent->needDerefine()){
-            dparents.insert(parent);
-          }
+    // mark the cell that will be eliminated
+    for(std::list<DiamondCell*>::const_iterator li = leaves.begin(); li != leaves.end(); li++) {
+      if((*li)->get_tagged() ==2) {
+        DiamondCell* parent = (*li)->getParentCell() ;
+        if(parent==0) { check_root = true ; }
+        if(parent!=0 && parent->needDerefine()) {
+          dparents.insert(parent) ;
         }
       }
-      //derefine the cells
-      for(std::set<DiamondCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
-        (*si)->derefine();
-      }
-      if(check_root){
-        if(aCell->needDerefine()) aCell->derefine();
-      }
-      
-      newCellPlan[cc] = aCell->make_cellplan();
-      
-      
-     
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, face_list);
-      cleanup_list(bnode_list);
-      reduce_vector(newCellPlan[cc]);
     }
-  }
-};
 
-register_rule<derefine_general_cellplan> register_derefine_general_cellplan;
-
-
-//this rule make  a newCellPlan according to cellPlan 
-//and fineCellTag
-class make_general_cellplan_fineCellTag:public pointwise_rule{
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_store<bool> is_quadface;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<std::vector<char> > cellPlan;
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_store<std::vector<char> > fineCellTag;
-  const_store<bool> isIndivisible;
-  const_param<int> restart_tag_par;
-  store<std::vector<char> > newCellPlan;
-
-  const_store<int> node_l2f;
-public:
-  make_general_cellplan_fineCellTag(){
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("cellPlan", cellPlan);
-    name_store("facePlan", facePlan);
-    name_store("edgePlan", edgePlan);
-    name_store("fineCellTag", fineCellTag);
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    name_store("is_quadface", is_quadface);
-    name_store("restart_tag_par", restart_tag_par);
-    input("restart_tag_par");
-    input("(cellPlan,fineCellTag) ");
-    input("isIndivisible");
-    input("(lower, upper, boundary_map) -> (facePlan,is_quadface)"); 
-    input("(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->(edgePlan)");
-
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-      do_loop(seq, this);
+    // derefine the cells
+    for(std::set<DiamondCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
+      (*si)->derefine() ;
     }
-   
+    if(check_root) {
+      if(aCell->needDerefine()) aCell->derefine() ;
+    }
+
+    $balancedCellPlan = aCell->make_cellplan() ;
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+    cleanup_list(node_list, edge_list, face_list) ;
+    cleanup_list(bnode_list) ;
+    reduce_vector($balancedCellPlan) ;
   }
-  void calculate(Entity cc){
+}
 
-    if(!isIndivisible[cc]){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-     
 
-    
- 
+/// Make a newCellPlan according to cellPlan and fineCellTag
+$rule pointwise(newCellPlan <- restart_tag_par, cellPlan, fineCellTag,
+isIndivisible,
+(lower, upper, boundary_map)->(facePlan, is_quadface),
+(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2edge->edgePlan),
+constraint(gnrlcells) {
 
-                                                 
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       is_quadface,
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       edgePlan,
-                                       facePlan,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       node_l2f);
+  if(!$isIndivisible) {
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
 
-  
-  
- 
-      //calculate min_edge_length of the cell
-      double min_edge_length =aCell->get_min_edge_length();
-      
-      
-      std::vector<DiamondCell*> cells;
-      
-      aCell->resplit( cellPlan[cc], 
-                      node_list,
-                      edge_list,
-                      face_list,
-                      cells);
-      
-      
-    
-      
-    
-      // split the cell Globals::levels times
-      int numCells = cells.size();
-      bool cell_split = false;
-      if(numCells != 0){//aCell is not a leaf
-        for(int i = 0; i < numCells; i++){
-          if(fineCellTag[cc][i]==1) {
-            if((min_edge_length/double(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance){
-              cells[i]->resplit(Globals::levels,node_list, edge_list, face_list);
-              cell_split = true;
-            }else{
-              int split_level = Globals::levels;
-              if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel());
-              if(split_level >= 1){
-                cells[i]->resplit(split_level,node_list, edge_list, face_list);
-                cell_split = true;
-              }
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                      $upper.begin(), $upper.size(),
+                                      $boundary_map.begin(), $boundary_map.size(),
+                                      $*is_quadface,
+                                      $*face2node,
+                                      $*face2edge,
+                                      $*edge2node,
+                                      $*pos,
+                                      $*edgePlan,
+                                      $*facePlan,
+                                      bnode_list,
+                                      edge_list,
+                                      face_list,
+                                      $*fileNumber(pos));
+
+    // calculate min_edge_length of the cell
+    double min_edge_length = aCell->get_min_edge_length() ;
+
+    std::vector<DiamondCell*> cells ;
+    aCell->resplit( $cellPlan, node_list, edge_list, face_list, cells) ;
+
+    // split the cell Globals::levels times
+    int numCells = cells.size() ;
+    bool cell_split = false ;
+    if(numCells != 0) { //aCell is not a leaf
+      for(int i=0; i<numCells; i++) {
+        if($fineCellTag[i]==1) {
+          if((min_edge_length/double(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance) {
+            cells[i]->resplit(Globals::levels,node_list, edge_list, face_list) ;
+            cell_split = true ;
+          }else {
+            int split_level = Globals::levels ;
+            if(Globals::tolerance > 0.0) {
+              split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel()) ;
             }
-          }
-          
-        }
-        
-      }else{//aCell is a leaf
-        if(fineCellTag[cc][0]==1){
-          int split_level = Globals::levels;
-          if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-          if(split_level >= 1){
-            aCell->split(node_list, edge_list, face_list);
-            for(int i = 0; i < aCell->numNode; i++){
-              aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list);
+            if(split_level >= 1) {
+              cells[i]->resplit(split_level,node_list, edge_list, face_list) ;
+              cell_split = true ;
             }
           }
         }
       }
-
-      //rebalance this cell
-      if(cell_split){
-        aCell->rebalance_cells(node_list, edge_list, face_list);
-        newCellPlan[cc] = aCell->make_cellplan();
-      }else{
-        //write new cellPlan
-        newCellPlan[cc] = aCell->make_cellplan();
-      }
-      
-     
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, face_list);
-      cleanup_list(bnode_list);
-      reduce_vector(newCellPlan[cc]);
-    }
-  }
-};
-
-register_rule<make_general_cellplan_fineCellTag> register_make_general_cellplan_fineCellTag;
-
-//this rule make  a newCellPlan according to  cellTag
-class make_general_cellplan_cellTag_norestart:public pointwise_rule{
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<char>  cellTag;
-  const_store<bool> isIndivisible;
-  const_param<int> norestart_tag_par;
-  store<std::vector<char> > newCellPlan;
-
-  const_store<int> node_l2f;
-public:
-  make_general_cellplan_cellTag_norestart(){
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("cellTag", cellTag);
-    name_store("norestart_tag_par", norestart_tag_par);
-    name_store("isIndivisible", isIndivisible);
-    name_store("newCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    
-  
-    input("isIndivisible, cellTag");
-    input("(lower, upper, boundary_map)->face2node->(pos,fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("norestart_tag_par");
-    output("newCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-      do_loop(seq, this);
-    }
-
-    
-  }
-  void calculate(Entity cc){
-    if(!isIndivisible[cc]){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-  
-    
-      Cell* aCell = build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                       upper[cc].begin(), upper.num_elems(cc),
-                                       boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                       face2node,
-                                       face2edge,
-                                       edge2node,
-                                       pos,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       node_l2f);
-
-  
-  
- 
-      //calculate min_edge_length of the cell
-      double min_edge_length =aCell->get_min_edge_length();
-    
-      // split the cell Globals::levels times
-    
-   
-   
-      if(cellTag[cc]==1){
-        int split_level = Globals::levels;
-        if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-      
-        if(split_level >= 1){
-          aCell->split(node_list, edge_list, face_list);
-          for(int i = 0; i < aCell->numNode; i++){
-            aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list);
+    }else { //aCell is a leaf
+      if($fineCellTag[0]==1) {
+        int split_level = Globals::levels ;
+        if(Globals::tolerance > 0.0) {
+          split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
+        }
+        if(split_level >= 1) {
+          aCell->split(node_list, edge_list, face_list) ;
+          for(int i=0; i<aCell->numNode; i++) {
+            aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list) ;
           }
         }
       }
-      
-      //write new cellPlan
-      newCellPlan[cc] = aCell->make_cellplan();
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
+    }
+
+    // rebalance this cell
+    if(cell_split) {
+      aCell->rebalance_cells(node_list, edge_list, face_list) ;
+      $newCellPlan = aCell->make_cellplan() ;
+    }else {
+      // write new cellPlan
+      $newCellPlan = aCell->make_cellplan() ;
+    }
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+    cleanup_list(node_list, edge_list, face_list) ;
+    cleanup_list(bnode_list) ;
+    reduce_vector($newCellPlan) ;
+  }
+}
+
+
+/// Make a newCellPlan according to cellTag
+$rule pointwise(newCellPlan <- isIndivisible, cellTag,
+(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+norestart_tag_par), constraint(gnrlcells) {
+  if(!$isIndivisible) {
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                      $upper.begin(), $upper.size(),
+                                      $boundary_map.begin(), $boundary_map.size(),
+                                      $*face2node,
+                                      $*face2edge,
+                                      $*edge2node,
+                                      $*pos,
+                                      bnode_list,
+                                      edge_list,
+                                      face_list,
+                                      $*fileNumber(pos));
+
+    // calculate min_edge_length of the cell
+    double min_edge_length =aCell->get_min_edge_length() ;
+
+    // split the cell Globals::levels times
+    if($cellTag==1) {
+      int split_level = Globals::levels ;
+      if(Globals::tolerance > 0.0) {
+        split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
       }
-      cleanup_list(node_list, edge_list, face_list);
-      cleanup_list(bnode_list);
-      reduce_vector(newCellPlan[cc]);
-    }
-  }
-};
 
-register_rule<make_general_cellplan_cellTag_norestart> register_make_general_cellplan_cellTag_norestart;
-
-
-class ctag_derefine_general_cellplan:public pointwise_rule{
-  const_store<vect3d> pos;
-  const_multiMap upper;
-  const_multiMap lower;
-  const_multiMap boundary_map;
-  const_store<bool> is_quadface;
-  const_MapVec<2> edge2node;
-  const_multiMap face2edge;
-  const_multiMap face2node;
-  const_store<std::vector<char> > cellPlan;
-
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_store<std::vector<char> > cellPlan1;
-  const_store<std::vector<char> > facePlan1;
-  const_store<std::vector<char> > edgePlan1;
-  const_store<std::vector<char> > fineCellTag;
-  const_store<bool> isIndivisible;
-  const_param<int> restart_tag_par;
-  store<std::vector<char> > newCellPlan;
-  const_param<bool> beginWithMarker; //dummy parameter to trick Loci scheduler
-  const_store<int> node_l2f;
-public:
-  ctag_derefine_general_cellplan(){
-    name_store("pos", pos);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("cellPlan", cellPlan);
-    name_store("facePlan", facePlan);
-    name_store("edgePlan", edgePlan);
-    name_store("balancedCellPlan1", cellPlan1);
-    name_store("balancedFacePlan1", facePlan1);
-    name_store("balancedEdgePlan1", edgePlan1);
-    name_store("fineCellTag", fineCellTag);
-    name_store("isIndivisible", isIndivisible);
-    name_store("priority::restart::balancedCellPlan", newCellPlan);
-    name_store("fileNumber(pos)", node_l2f);
-    name_store("is_quadface", is_quadface);
-    name_store("restart_tag_par", restart_tag_par);
-    name_store("beginWithMarker", beginWithMarker);
-
-    
-    input("beginWithMarker");
-    input("restart_tag_par");
-    input("(cellPlan,balancedCellPlan1,fineCellTag) ");
-    input("isIndivisible");
-    input("(lower, upper, boundary_map) -> (facePlan,balancedFacePlan1,is_quadface)"); 
-    input("(lower, upper, boundary_map)->face2node->(pos,fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->(edgePlan,balancedEdgePlan1)");
-
-    output("priority::restart::balancedCellPlan");
-    constraint("gnrlcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-      do_loop(seq, this);
-    }
-   
-  }
-  void calculate(Entity cc){
-  
-    if(!isIndivisible[cc]){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<Face*> face_list;
-      std::list<Node*> bnode_list;
-     
-
-    
- 
-
-                                                 
-      Cell* aCell = build_resplit_general_cell_ctag(lower[cc].begin(), lower.num_elems(cc),
-                                                    upper[cc].begin(), upper.num_elems(cc),
-                                                    boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                                    is_quadface,
-                                                    face2node,
-                                                    face2edge,
-                                                    edge2node,
-                                                    pos,
-                                                    edgePlan,
-                                                    facePlan,
-                                                    edgePlan1,
-                                                    facePlan1,
-                                                    bnode_list,
-                                                    node_list,
-                                                    edge_list,
-                                                    face_list,
-                                                    node_l2f,
-                                                    cellPlan[cc],
-                                                    fineCellTag[cc]);
-      
-  
-  
- 
-      
-      
-      std::vector<DiamondCell*> cells;//leaves collected according to cellPlan1
-      aCell->resplit( cellPlan1[cc], 
-                      node_list,
-                      edge_list,
-                      face_list,
-                      cells);
-      
-      
-      
-      //recollect leaves according to tree structure
-      std::list<DiamondCell*> leaves;
-      aCell->sort_leaves(leaves);
-      
-      
-       
-      //first if any cell need derefine
-      std::set<DiamondCell*> dparents;
-      bool check_root = false;
-      //mark the cell that will be eliminated
-      for(std::list<DiamondCell*>::const_iterator li= leaves.begin(); li != leaves.end(); li++){
-        if((*li)->getTag() ==2){
-          DiamondCell* parent = (*li)->getParentCell();
-          if(parent==0)check_root = true;
-          if(parent!=0 && parent->needDerefine_ctag()){
-            dparents.insert(parent);
-          }
+      if(split_level >= 1) {
+        aCell->split(node_list, edge_list, face_list) ;
+        for(int i=0; i<aCell->numNode; i++) {
+          aCell->child[i]->resplit(min(Globals::levels, split_level)-1, node_list, edge_list, face_list) ;
         }
       }
-      
-      //derefine the cells
-      for(std::set<DiamondCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
-        (*si)->derefine();
-      }
-      if(check_root){
-        if(aCell->needDerefine_ctag()) aCell->derefine();
-      }
-      
-      newCellPlan[cc] = aCell->make_cellplan();
-      
-      
-     
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, face_list);
-      cleanup_list(bnode_list);
-      reduce_vector(newCellPlan[cc]);
     }
-  }
-};
 
-register_rule<ctag_derefine_general_cellplan> register_ctag_derefine_general_cellplan;
+    // write new cellPlan
+    $newCellPlan = aCell->make_cellplan() ;
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+    cleanup_list(node_list, edge_list, face_list) ;
+    cleanup_list(bnode_list) ;
+    reduce_vector($newCellPlan) ;
+  }
+}
+
+
+/// Dummy parameter to trick Loci scheduler
+$rule pointwise(priority::restart::balancedCellPlan <- beginWithMarker,
+restart_tag_par, cellPlan, balancedCellPlan1, fineCellTag, isIndivisible,
+(lower, upper, boundary_map)->(facePlan, balancedFacePlan1, is_quadface),
+(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1)),
+constraint(gnrlcells) {
+
+  if(!$isIndivisible) {
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+
+    Cell* aCell = build_resplit_general_cell_ctag($lower.begin(), $lower.size(),
+                                                  $upper.begin(), $upper.size(),
+                                                  $boundary_map.begin(), $boundary_map.size(),
+                                                  $*is_quadface,
+                                                  $*face2node,
+                                                  $*face2edge,
+                                                  $*edge2node,
+                                                  $*pos,
+                                                  $*edgePlan,
+                                                  $*facePlan,
+                                                  $*balancedEdgePlan1,
+                                                  $*balancedFacePlan1,
+                                                  bnode_list,
+                                                  node_list,
+                                                  edge_list,
+                                                  face_list,
+                                                  $*fileNumber(pos),
+                                                  $cellPlan,
+                                                  $fineCellTag);
+
+    std::vector<DiamondCell*> cells ; //leaves collected according to cellPlan1
+    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
+
+    // recollect leaves according to tree structure
+    std::list<DiamondCell*> leaves ;
+    aCell->sort_leaves(leaves) ;
+
+    // first if any cell need derefine
+    std::set<DiamondCell*> dparents ;
+    bool check_root = false ;
+
+    // mark the cell that will be eliminated
+    for(std::list<DiamondCell*>::const_iterator li= leaves.begin(); li != leaves.end(); li++) {
+      if((*li)->getTag() ==2) {
+        DiamondCell* parent = (*li)->getParentCell() ;
+        if(parent==0)check_root = true ;
+        if(parent!=0 && parent->needDerefine_ctag()) {
+          dparents.insert(parent) ;
+        }
+      }
+    }
+
+    // derefine the cells
+    for(std::set<DiamondCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
+      (*si)->derefine() ;
+    }
+    if(check_root) {
+      if(aCell->needDerefine_ctag()) { aCell->derefine() ; }
+    }
+
+    $balancedCellPlan = aCell->make_cellplan() ;
+
+    // clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+    cleanup_list(node_list, edge_list, face_list) ;
+    cleanup_list(bnode_list) ;
+    reduce_vector($balancedCellPlan) ;
+  }
+}
