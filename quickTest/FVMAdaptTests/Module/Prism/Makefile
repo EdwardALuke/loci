@@ -8,7 +8,7 @@ SERIAL = LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) $(SERIALRUN)
 THREE_RANKS = LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) $(MPI_RUN) -np 3
 MESH_BEHAVIOR = sh ../mesh_behavior.sh
 
-.PHONY: default empty-partition clean distclean FRC
+.PHONY: default empty-partition empty-partition-known-failure clean distclean FRC
 
 default: TestResults
 
@@ -51,13 +51,36 @@ empty-partition: prism.ugrid refine.tag FRC
 	$(MESH_BEHAVIOR) prismParallelRef.vog prismParallelRef.check > prismParallelRef.actual
 	diff -u dats/prismRef.dat prismParallelRef.actual
 
+# Keep the known cell-plan output failure reproducible without accepting an
+# unrelated error. An implementation that fixes the issue should use the
+# positive empty-partition target above and retire this wrapper.
+empty-partition-known-failure: prism.ugrid refine.tag FRC
+	$(SERIAL) $(LOCI_BASE)/bin/ugrid2vog $(LOCI_CMD_FLAGS) -o -m prism \
+	  > prism.convert 2>&1
+	@set +e; \
+	$(THREE_RANKS) $(LOCI_BASE)/bin/marker $(LOCI_CMD_FLAGS) \
+	  -g prism.vog -ctag refine.tag -mode 2 -o prismParallel.plan \
+	  > empty-partition.log 2>&1; \
+	status=$$?; \
+	if test $$status -eq 0; then \
+	  echo "FVMAdaptTests/Module/Prism: UNEXPECTED SUCCESS"; \
+	  exit 1; \
+	fi; \
+	if ! grep -Fq 'writing cellplan into prismParallel.plan' empty-partition.log || \
+	   ! grep -Fq 'rule cellplan_output<-' empty-partition.log; then \
+	  echo "FVMAdaptTests/Module/Prism: UNEXPECTED ERROR"; \
+	  cat empty-partition.log; \
+	  exit 1; \
+	fi; \
+	echo "FVMAdaptTests/Module/Prism: KNOWN ISSUE REPRODUCED"
+
 derefine.tag:
 	awk 'BEGIN { for (i = 0; i < 6; ++i) print -1 }' > $@
 
 clean:
 	rm -rf output debug
 	rm -f TestResults prism.vog prismRef.vog prismParallelRef.vog prismRoundTrip.vog derefine.tag
-	rm -f *.plan *.convert *.check *.quality *.actual
+	rm -f *.plan *.convert *.check *.quality *.actual *.log
 
 distclean: clean
 

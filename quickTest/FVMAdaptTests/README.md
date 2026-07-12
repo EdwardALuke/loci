@@ -55,3 +55,9 @@ one-cell tag file through three ranks. Tag reading reaches the later plan-output
 stage, but the current implementation cannot write a plan when ranks own no
 cells. Keep that diagnostic separate from the default suite until the
 empty-domain workflow is fixed.
+
+`empty-partition-known-failure` is an opt-in wrapper for the current defect. It
+passes only when the marker reaches cell-plan output and reproduces the known
+crash. An unexpected success or a different error fails the wrapper. The
+positive `empty-partition` target remains the behavior required from a future
+fix; neither target is part of the default suite.
