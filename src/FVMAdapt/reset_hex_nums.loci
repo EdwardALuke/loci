@@ -34,209 +34,110 @@ using std::endl;
 using std::set;
 using std::map;
 using Loci::storeRepP;
-class reset_hexcell_num_nodes : public pointwise_rule{
-  const_store<std::vector<char> > cellPlan;
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_multiMap lower;
-  const_multiMap upper;
-  const_multiMap boundary_map;
-  const_store<Array<char,6> > orientCode;
-  const_store<Array<char,6> > hex2face;
-  const_store<Array<char,8> > hex2node;
-  const_multiMap face2node;
-  const_multiMap face2edge;
-  const_MapVec<2> edge2node;
-  const_store<vect3d> pos;
-  store<int> num_inner_nodes;
 
-  const_store<int> node_l2f;
-public:
-  reset_hexcell_num_nodes(){
-    name_store("balancedCellPlan", cellPlan);
-    name_store("balancedFacePlan", facePlan);
-    name_store("balancedEdgePlan", edgePlan);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("hexOrientCode", orientCode);
-    name_store("hex2face", hex2face);
-    name_store("hex2node", hex2node);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("pos", pos);
-    name_store("fileNumber(face2node)", node_l2f);
-    name_store("balanced_num_inner_nodes", num_inner_nodes);
- 
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
 
-    input("balancedCellPlan");
-    input("(hex2face, hex2node, hexOrientCode)");
-    input("(lower, upper, boundary_map)->balancedFacePlan");
-    input("(lower, upper, boundary_map)->face2edge->balancedEdgePlan");
-    input("(lower, upper, boundary_map)->face2node->pos");
-    input("(lower, upper, boundary_map)->face2edge->edge2node");
-    input("(lower, upper, boundary_map)->(fileNumber(face2node),face2edge)");
+$rule pointwise(balanced_num_inner_nodes <- balancedCellPlan,
+hex2face, hex2node, hexOrientCode,
+(lower, upper, boundary_map)->balancedFacePlan,
+(lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+(lower, upper, boundary_map)->face2node->pos,
+(lower, upper, boundary_map)->face2edge->edge2node,
+(lower, upper, boundary_map)->(fileNumber(face2node), face2edge)),
+constraint(hexcells) {
+
+  if($balancedCellPlan.size() == 0) {
+    $balanced_num_inner_nodes = 0 ;
+    return ;
+  }
+
+  std::list<Node*> bnode_list ; //boundary node
+  std::list<Node*> node_list ; //inner node
+  std::list<Edge*> edge_list ;
+  std::list<QuadFace*> face_list ;
     
-    output("balanced_num_inner_nodes");
- 
-    constraint("hexcells");
-  }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-       
-      do_loop(seq, this);
-    }
-  
-  }
-  void calculate(Entity cc){
-       
-    if(cellPlan[cc].size() == 0){
-      num_inner_nodes[cc] = 0;
- 
-      return;
-    }
-
-    std::list<Node*> bnode_list; //boundary node
-    std::list<Node*> node_list; //inner node
-    std::list<Edge*> edge_list;
-    std::list<QuadFace*> face_list;
+  HexCell* aCell = build_hex_cell($lower.begin(), $lower.size(),
+                                  $upper.begin(), $upper.size(),
+                                  $boundary_map.begin(), $boundary_map.size(),
+                                  $hex2face,
+                                  $hex2node,
+                                  $hexOrientCode,
+                                  $*face2node,
+                                  $*face2edge,
+                                  $*edge2node,
+                                  $*pos,
+                                  $*balancedEdgePlan,
+                                  $*balancedFacePlan,
+                                  bnode_list,
+                                  edge_list,
+                                  face_list,
+                                  $*fileNumber(face2node)) ;
     
-    HexCell* aCell = build_hex_cell(lower[cc].begin(), lower.num_elems(cc),
-                                    upper[cc].begin(), upper.num_elems(cc),
-                                    boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                    hex2face[cc],
-                                    hex2node[cc],
-                                    orientCode[cc],
-                                    face2node,
-                                    face2edge,
-                                    edge2node,
-                                    pos,
-                                    edgePlan,
-                                    facePlan,
-                                    bnode_list,
-                                    edge_list,
-                                    face_list,
-                                    node_l2f);
-    
-    std::vector<HexCell*> cells;
-    aCell->resplit( cellPlan[cc],
-                    node_list,
-                    edge_list,
-                    face_list,
-                    cells);
-  
-  
-  
-    num_inner_nodes[cc] = node_list.size();
+  std::vector<HexCell*> cells ;
+  aCell->resplit($balancedCellPlan,
+                 node_list,
+                 edge_list,
+                 face_list,
+                 cells) ;
 
-    
-    //clean up
-    if(aCell != 0){
-      delete aCell;
-      aCell = 0;
-    }
-    
-    //aCell will clean up these
-    cleanup_list(bnode_list, edge_list, face_list);
-    cleanup_list(node_list);
+  $balanced_num_inner_nodes = node_list.size() ;
+
+  //clean up
+  if(aCell != 0) {
+    delete aCell ;
+    aCell = 0 ;
   }
-};
-register_rule<reset_hexcell_num_nodes> register_reset_hexcell_num_nodes;  
 
-class reset_hexcell_num_cells : public pointwise_rule{
-  const_store<std::vector<char> > cellPlan;
-  store<int> num_fine_cells;
-public:
-  reset_hexcell_num_cells(){
-    name_store("balancedCellPlan", cellPlan);
-    name_store("balanced_num_fine_cells", num_fine_cells);
-    input("balancedCellPlan");
-    output("balanced_num_fine_cells");
-    constraint("hexcells");
+  //aCell will clean up these
+  cleanup_list(bnode_list, edge_list, face_list) ;
+  cleanup_list(node_list) ;
+}
+
+$rule pointwise(balanced_num_fine_cells <- balancedCellPlan),
+constraint(hexcells) {
+  HexCell* aCell = new HexCell ;
+  $balanced_num_fine_cells = aCell->num_fine_cells($balancedCellPlan) ;
+  delete aCell ;
+}
+
+$rule pointwise(priority::quadface::balanced_num_inner_nodes <- balancedFacePlan,
+face2edge->(balancedEdgePlan, edge2node), face2node->pos),
+constraint(quadfaces) {
+
+  if($balancedFacePlan.size() == 0) {
+    $balanced_num_inner_nodes = 0 ;
+    return ;
   }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-      do_loop(seq, this);
-    }
-  }
-  void calculate(Entity cc){
-    HexCell* aCell = new HexCell;
-    num_fine_cells[cc] = aCell->num_fine_cells(cellPlan[cc]);
-    delete aCell;    
-  }
-};
-register_rule<reset_hexcell_num_cells> register_reset_hexcell_num_cells;  
 
-
-
-
-
-class reset_quadface_nums : public pointwise_rule{
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_multiMap face2node;
-  const_multiMap face2edge;
-  const_MapVec<2> edge2node;
-  const_store<vect3d> pos;
-  store<int> num_inner_nodes;
-  
-public:
-  reset_quadface_nums(){
-    name_store("balancedFacePlan", facePlan);
-    name_store("balancedEdgePlan", edgePlan);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("pos", pos);
-    name_store("priority::quadface::balanced_num_inner_nodes", num_inner_nodes);
-    input("balancedFacePlan");
-    input("face2edge->(balancedEdgePlan, edge2node)");
-    input("face2node->pos");
-    output("priority::quadface::balanced_num_inner_nodes");
-    constraint("quadfaces");
-  }
-  virtual void compute(const sequence &seq){
-    do_loop(seq, this);
-  }
-  void calculate(Entity f){
-    if(facePlan[f].size() == 0){
-      num_inner_nodes[f] = 0;
-      return;
-    }
-    std::list<Node*> bnode_list;
-    std::list<Node*> node_list;
-    std::list<Edge*> edge_list;
+  std::list<Node*> bnode_list ;
+  std::list<Node*> node_list ;
+  std::list<Edge*> edge_list ;
    
     
-    QuadFace* aFace = build_quad_face(face2node[f].begin(),
-                                      face2edge[f].begin(),
-                                      edge2node,
-                                      pos,
-                                      edgePlan,
-                                      bnode_list,
-                                      edge_list);
+  QuadFace* aFace = build_quad_face($face2node.begin(),
+                                    $face2edge.begin(),
+                                    $*edge2node,
+                                    $*pos,
+                                    $*balancedEdgePlan,
+                                    bnode_list,
+                                    edge_list) ;
            
-    aFace->resplit(facePlan[f],
-                   char(0),
-                   node_list,
-                   edge_list);
+  aFace->resplit($balancedFacePlan,
+                 char(0),
+                 node_list,
+                 edge_list) ;
     
     
-    num_inner_nodes[f] = node_list.size();
+  $balanced_num_inner_nodes = node_list.size() ;
     
-    //clean up
-    if(aFace != 0){
-      delete aFace;
-      aFace = 0;
-    }
-    
-    cleanup_list(bnode_list, edge_list);
-    cleanup_list(node_list);
-    
+  //clean up
+  if(aFace != 0) {
+    delete aFace ;
+    aFace = 0 ;
   }
-};
-register_rule<reset_quadface_nums> register_reset_quadface_nums;
-
-
-
+    
+  cleanup_list(bnode_list, edge_list) ;
+  cleanup_list(node_list) ;
+    
+}
