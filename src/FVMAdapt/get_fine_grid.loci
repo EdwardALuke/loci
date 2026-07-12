@@ -18,196 +18,117 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-////////////////////////////////////////////////////////////////////////////////////////
-//                                get_fine_grid.cc                                    //
-//                                by: Qiuhan Xue                                      //
-//                                                                                    //
-// This file generate inner_nodes  according refinement plans. The
-//original grid is general element. Isotropic refinement is used. the rules should be
-//usedAfter node_offset and cell_offset has been set up.
-// FineFaces is defined as c1, c2,followed by face2node.
-//
-////////////////////////////////////////////////////////////////////////////////////////                             
-
-
 #include <iostream>
 #include <vector>
 #include <Loci.h>
 #include <Tools/tools.h>
 #include "diamondcell.h"
 
-using std::cerr;
-using std::endl;
-using std::vector;
-//get inner_nodes of general cells
-class get_general_cell_nodes : public pointwise_rule{
-  const_store<std::vector<char> > cellPlan;
-  const_store<std::vector<char> > facePlan;
-  const_store<std::vector<char> > edgePlan;
-  const_multiMap lower;
-  const_multiMap upper;
-  const_multiMap boundary_map;
-  const_multiMap face2node;
-  const_multiMap face2edge;
-  const_MapVec<2> edge2node;
-  const_store<vect3d> pos;
+using std::cerr ;
+using std::endl ;
+using std::vector ;
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+//by: Qiuhan Xue
+//
+// This file generate inner_nodes  according refinement plans. The
+//original grid is general element. Isotropic refinement is used. the rules should be
+//usedAfter node_offset and cell_offset has been set up.
+// FineFaces is defined as c1, c2,followed by face2node.
 
 
-  const_store<bool> is_quadface;
-  store<Loci::FineNodes> inner_nodes;
-  
-  const_store<int> node_l2f;
-public:
-  get_general_cell_nodes(){
-    name_store("balancedCellPlan", cellPlan);
-    name_store("balancedFacePlan", facePlan);
-    name_store("balancedEdgePlan", edgePlan);
-    name_store("lower", lower);
-    name_store("upper", upper);
-    name_store("boundary_map", boundary_map);
-    name_store("face2node", face2node);
-    name_store("face2edge", face2edge);
-    name_store("edge2node", edge2node);
-    name_store("pos", pos);
+/// Get inner_nodes of general cells
+$rule pointwise(inner_nodes_cell <- balancedCellPlan,
+(lower, upper, boundary_map)->(balancedFacePlan,is_quadface),
+(lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(gnrlcells) {
 
-
-    name_store("inner_nodes_cell", inner_nodes);
-    name_store("fileNumber(pos)", node_l2f);
-    name_store("is_quadface", is_quadface);
-    
-    input("balancedCellPlan");
-    input("(lower, upper, boundary_map)->(balancedFacePlan,is_quadface)");
-    input("(lower, upper, boundary_map)->face2edge->balancedEdgePlan");
-    input("(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos))");
-    input("(lower, upper, boundary_map)->face2edge->edge2node->pos");
-   
-    output("inner_nodes_cell");
-    constraint("gnrlcells");
+  if($balancedCellPlan.size() == 0) {
+    vector<vect3d>().swap($inner_nodes_cell) ;
+    return ;
   }
-  virtual void compute(const sequence &seq){
-    if(seq.size()!=0){
-     
-      do_loop(seq, this);
-    }
+
+  std::list<Node*> bnode_list ; //boundary node
+  std::list<Edge*> edge_list ;
+  std::list<Face*> face_list ;
+  std::list<Node*> node_list ; //inner node
+
+  // build a cell
+  Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                   $upper.begin(), $upper.size(),
+                                   $boundary_map.begin(), $boundary_map.size(),
+                                   $*is_quadface,
+                                   $*face2node,
+                                   $*face2edge,
+                                   $*edge2node,
+                                   $*pos,
+                                   $*balancedEdgePlan,
+                                   $*balancedFacePlan,
+                                   bnode_list,
+                                   edge_list,
+                                   face_list,
+                                   $*fileNumber(pos));
+
+  std::vector<DiamondCell*> cells ;
+
+  // split the cell
+  aCell->resplit($balancedCellPlan, node_list, edge_list, face_list, cells) ;
+
+  // put the node_list into inner_nodes, and index the nodes
+  vector<vect3d>(node_list.size()).swap($inner_nodes_cell) ;
+  int nindex = 0 ;
+  for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++){
+    $inner_nodes_cell[nindex]=(*np)->p ;
   }
-  void calculate(Entity cc){
-    
-    
-    if(cellPlan[cc].size() == 0){
-      vector<vect3d>().swap(inner_nodes[cc]);
-      return;
-    }
-    
-    std::list<Node*> bnode_list; //boundary node
-    std::list<Edge*> edge_list;
-    std::list<Face*> face_list;
-    std::list<Node*> node_list; //inner node
 
+  // clean up
+  if(aCell != 0) {
+    delete aCell ;
+    aCell = 0 ;
+  }
 
-    //build a cell
-    Cell* aCell =  build_general_cell(lower[cc].begin(), lower.num_elems(cc),
-                                      upper[cc].begin(), upper.num_elems(cc),
-                                      boundary_map[cc].begin(), boundary_map.num_elems(cc),
-                                      is_quadface,
-                                      face2node,
-                                      face2edge,
-                                      edge2node,
-                                      pos,
-                                      edgePlan,
-                                      facePlan,
-                                      bnode_list,
-                                      edge_list,
-                                      face_list,
-                                      node_l2f);
-      
-          
-          
-          
-   
-    std::vector<DiamondCell*> cells;
-    //split the cell
-    aCell->resplit( cellPlan[cc], 
-                    node_list,
-                    edge_list,
-                    face_list,
-                    cells);
-      
-    //put the node_list into inner_nodes, and index the nodes
-    vector<vect3d>(node_list.size()).swap(inner_nodes[cc]); 
-    int nindex = 0;
+  // aCell will clean up these
+  cleanup_list(bnode_list, edge_list, face_list) ;
+  cleanup_list(node_list) ;
+}
+
+/// Get inner nodes of edges
+$rule pointwise(inner_nodes_edge <- balancedEdgePlan, edge2node->pos) {
+  if($balancedEdgePlan.size() != 0) {
+    std::list<Node*> node_list ;
+
+    Node* head = new Node($edge2node[0]->$pos) ;
+    Node* tail = new Node($edge2node[1]->$pos) ;
+    Edge* theEdge = new Edge(head, tail) ;
+
+    theEdge->resplit($balancedEdgePlan, node_list) ;
+
+    vector<vect3d>(node_list.size()).swap($inner_nodes_edge) ;
+    int nindex = 0 ;
     for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++){
-      inner_nodes[cc][nindex]=(*np)->p;
+      $inner_nodes_edge[nindex] = (*np)->p ;
     }
-  
-    
-    //clean up
-    if(aCell != 0){
-      delete aCell;
-      aCell = 0;
-    }
-    
-    //aCell will clean up these
-    cleanup_list(bnode_list, edge_list, face_list);
-    cleanup_list(node_list);
-  }
-};
-register_rule<get_general_cell_nodes> register_get_general_cell_nodes;  
 
-//get inner nodes of edges
-class get_edge_nodes : public pointwise_rule{
-  const_store<std::vector<char> > edgePlan;
-  const_store<vect3d> pos;
-  const_MapVec<2> edge2node;
-  store<Loci::FineNodes> inner_nodes;
-public:
-  get_edge_nodes(){
-    name_store("balancedEdgePlan", edgePlan);
-    name_store("pos", pos); 
-    name_store("edge2node", edge2node);
-    name_store("inner_nodes_edge", inner_nodes);
-    input("balancedEdgePlan");
-    input("edge2node->pos");
-    output("inner_nodes_edge");
-   
-  }
-  virtual void compute(const sequence &seq){
-        do_loop(seq, this);
-  }
-  void calculate(Entity e){
-    if(edgePlan[e].size() != 0){
-      std::list<Node*> node_list;
-      
-      Node* head = new Node(pos[edge2node[e][0]]);
-      Node* tail = new Node(pos[edge2node[e][1]]);
-      Edge* theEdge = new Edge(head, tail);
-        
-      theEdge->resplit(edgePlan[e], node_list);
-      
-      vector<vect3d>(node_list.size()).swap(inner_nodes[e]);
-      int nindex = 0;
-      for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++){
-        inner_nodes[e][nindex] = (*np)->p;
-      } 
-      
-      //clean up
-      if(head != 0 ) {
-        delete head;
-        head = 0;
-      }
-      if(tail != 0){
-        delete tail;
-        tail = 0;
-      }
-      if(theEdge !=0){
-        delete theEdge;
-        theEdge = 0;
-      }
-      cleanup_list(node_list);
+    // clean up
+    if(head != 0 ) {
+      delete head ;
+      head = 0 ;
     }
-    else{
-      vector<vect3d>().swap(inner_nodes[e]);
-      return;
+    if(tail != 0) {
+      delete tail ;
+      tail = 0 ;
     }
+    if(theEdge !=0) {
+      delete theEdge ;
+      theEdge = 0 ;
+    }
+    cleanup_list(node_list) ;
+  }else {
+    vector<vect3d>().swap($inner_nodes_edge) ;
+    return ;
   }
-};
-register_rule<get_edge_nodes> register_get_edge_nodes;  
+}
