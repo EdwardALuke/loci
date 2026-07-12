@@ -25,8 +25,8 @@ include $(LOCI_BASE)/version.conf
 INCLUDES = -I../../contrib/doctest -I$(LOCI_BASE)/include
 LIB_PATH = $(LOCI_BASE)/lib:$(LD_LIBRARY_PATH)
 DY_PATH = $(LOCI_BASE)/lib:$(DYLD_LIBRARY_PATH)
-SOURCES = test_fvmadapt_core.cc fixtures.cc core_utils.cc plan_checks.cc \
-          replay_trace.cc example_artifacts.cc
+SOURCES = test_fvmadapt_core.cc test_adaptation_behavior.cc fixtures.cc \
+          core_utils.cc plan_checks.cc replay_trace.cc example_artifacts.cc
 OBJS = $(SOURCES:.cc=.o)
 
 .PHONY: default examples list clean distclean FRC
@@ -34,11 +34,15 @@ OBJS = $(SOURCES:.cc=.o)
 default: TestResults
 
 TestResults: test_fvmadapt_core.exe FRC
-	@(LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./test_fvmadapt_core.exe --check-only > test_fvmadapt_core.log || true)
-	@tail -n 1 test_fvmadapt_core.log > test_fvmadapt_core.log1
-	@echo -n FVMAdaptTests/Core/test_fvmadapt_core":" > $@
-	@if grep -q "SUCCESS!" test_fvmadapt_core.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
-	@rm test_fvmadapt_core.log1
+	@LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) \
+	  ./test_fvmadapt_core.exe --check-only > test_fvmadapt_core.log 2>&1 || { \
+	    status=$$?; \
+	    cat test_fvmadapt_core.log; \
+	    echo "FVMAdaptTests/Core/test_fvmadapt_core: FAILED!" > $@; \
+	    cat $@; \
+	    exit $$status; \
+	  }
+	@echo "FVMAdaptTests/Core/test_fvmadapt_core: PASSED!" > $@
 	@cat $@
 
 examples: test_fvmadapt_core.exe
@@ -49,7 +53,8 @@ examples: test_fvmadapt_core.exe
 list: test_fvmadapt_core.exe
 	LD_LIBRARY_PATH=$(LIB_PATH) DYLD_LIBRARY_PATH=$(DY_PATH) ./test_fvmadapt_core.exe --list
 
-test_fvmadapt_core.exe: $(OBJS) $(LOCI_BASE)/lib/libfvmadaptfunc.$(LIB_SUFFIX)
+test_fvmadapt_core.exe: $(LOCI_BASE)/include/Config/version_info.h \
+                        $(OBJS) $(LOCI_BASE)/lib/libfvmadaptfunc.$(LIB_SUFFIX)
 	$(LD) -o $@ $(OBJS) -L$(LOCI_BASE)/lib -lfvmadaptfunc $(LIBS) $(LDFLAGS)
 
 clean:

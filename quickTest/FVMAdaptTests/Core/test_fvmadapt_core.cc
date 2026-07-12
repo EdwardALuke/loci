@@ -24,7 +24,6 @@
 #define DOCTEST_CONFIG_IMPLEMENT
 #include <doctest.h>
 
-#include <cmath>
 #include <initializer_list>
 #include <iostream>
 
@@ -49,6 +48,10 @@ void print_test_inventory(std::ostream& out) {
   out << "  plan replay: omitted children, trailing zeros, and canonical plans\n" ;
   out << "  plan-transfer: transfer_plan_g2q/transfer_plan_q2g round trips\n" ;
   out << "  plan projection: cell-to-face and face-to-edge extraction\n" ;
+  out << "  adaptation behavior: node tags, face merges, orientation, and ownership\n" ;
+  out << "  tree mapping: fine leaves return to their coarse parent\n" ;
+  out << "  refined geometry: hex, prism, and general-cell child edges\n" ;
+  out << "  level refinement: every hex and prism branch reaches the requested depth\n" ;
   out << "  hex-cell plans: resplit, sort_leaves, num_fine_cells, make_cellplan\n" ;
   out << "  prism-cell plans: resplit, sort_leaves, empty_resplit, make_cellplan\n" ;
   out << "  general-cell plans: Cell/DiamondCell resplit, sort_leaves, "
@@ -333,47 +336,27 @@ TEST_CASE("derefine checks require tagged immediate leaf children") {
     prism.root->getChildCell(child)->setTag(char(2)) ;
   }
   CHECK(prism.root->needDerefine_ctag()) ;
-}
 
+  // Prism derefinement also collapses the tagged children to the parent.
+  prism.root->derefine() ;
+  CHECK(prism.root->getMySplitCode() == 0) ;
+  CHECK(prism.root->make_cellplan().empty()) ;
 
-/// Smoke-tests that representative split operations create usable child cells,
-/// not just the right plan structure. The checks verify that the split returns
-/// the expected number of non-null leaf pointers and that the resulting parent
-/// still reports a finite, positive minimum edge length.
-TEST_CASE("representative splits leave finite positive geometry") {
-  // A full hex split produces eight non-null leaves.
-  HexFixture hex ;
-  build_unit_hex(hex) ;
-  std::vector<HexCell*> hex_leaves ;
-  hex.root->resplit(plan({7}), hex.nodes, hex.edges, hex.faces, hex_leaves) ;
-  REQUIRE(hex_leaves.size() == 8) ;
-  for(size_t i = 0; i < hex_leaves.size(); ++i) {
-    CAPTURE(i) ;
-    CHECK(hex_leaves[i] != 0) ;
-  }
-  // Split hex geometry still has a finite, positive minimum edge length.
-  const double hex_min_edge = hex.root->get_min_edge_length() ;
-  CHECK(std::isfinite(hex_min_edge)) ;
-  CHECK(hex_min_edge > 0.0) ;
-
-  // A general-cell split produces one non-null child per original node.
+  // General cells use the same direct-tag rule for their DiamondCell children.
   GeneralFixture tetra ;
   build_tetra_cell(tetra) ;
   std::vector<DiamondCell*> tetra_leaves ;
-  tetra.root->resplit(plan({1}),
-                      tetra.nodes,
-                      tetra.edges,
-                      tetra.faces,
+  tetra.root->resplit(plan({1}), tetra.nodes, tetra.edges, tetra.faces,
                       tetra_leaves) ;
-  REQUIRE(tetra_leaves.size() == size_t(tetra.root->numNode)) ;
-  for(size_t i = 0; i < tetra_leaves.size(); ++i) {
-    CAPTURE(i) ;
-    CHECK(tetra_leaves[i] != 0) ;
+  for(int child = 0; child < tetra.root->numNode; ++child) {
+    tetra.root->child[child]->setTag(char(2)) ;
   }
-  // Split general-cell geometry also keeps a finite, positive minimum edge.
-  const double tetra_min_edge = tetra.root->get_min_edge_length() ;
-  CHECK(std::isfinite(tetra_min_edge)) ;
-  CHECK(tetra_min_edge > 0.0) ;
+  CHECK(tetra.root->needDerefine_ctag()) ;
+
+  // Derefinement removes the general-cell children and restores an empty plan.
+  tetra.root->derefine() ;
+  CHECK(tetra.root->child == 0) ;
+  CHECK(tetra.root->make_cellplan().empty()) ;
 }
 
 
