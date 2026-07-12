@@ -22,66 +22,50 @@
 #include <map>
 #include "defines.h"
 #include <list>
-using std::list ;
 #include <string>
-using std::string ;
 #include <vector>
-using std::vector ;
-using std::pair ;
 #include <algorithm>
-using std::sort ;
-using std::unique ;
 
+$include "FVM.lh"
 
+using std::cerr ;
 using std::cout ;
-
-
+using std::endl ;
+using std::list ;
+using std::ofstream ;
+using std::pair ;
+using std::sort ;
 using std::string;
-using std::cout;
-using std::endl;
-using std::cerr;
-using std::ofstream;
+using std::unique ;
+using std::vector ;
+
 using Loci::MPI_processes;
 
-class fileNumRule: public pointwise_rule {
-  store<int> fileNumX ;
-public:
-  fileNumRule() {
-    name_store("fileNumber(X)",fileNumX) ;
-    output("fileNumber(X)") ;
-    constraint("X") ;
-    disable_threading() ;
-  }
-  void compute(const sequence &seq) {
+
+$type X store<Loci::real_t> ;
+$rule pointwise(fileNumber(X)), constraint(X), option(disable_threading),
+prelude {
    if(Loci::MPI_processes == 1) {
-    
-     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
-       fileNumX[*si] = *si ;
-       // if(*si < 0) cout << "negative file Number " << *si << endl; 
+     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si) {
+       $fileNumber(X)[*si] = *si ;
+       //if(*si < 0) cout << "negative file Number " << *si << endl;
      }
-     return;
+     return ;
    }
    fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
     Map l2g ;
     l2g = df->l2g.Rep() ;
     store<unsigned char> key_domain ;
     key_domain = df->key_domain.Rep() ;
-    //    dMap g2f ;
-    //    g2f = df->g2f.Rep() ;
+    //dMap g2f ;
+    //g2f = df->g2f.Rep() ;
 
     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
       int kd = key_domain[*si] ;
-      fileNumX[*si] = df->g2fv[kd][l2g[*si]] ;
-      //if(fileNumX[*si] < 0) cout << "negative file Number " << fileNumX[*si] << endl; 
+      $fileNumber(X)[*si] = df->g2fv[kd][l2g[*si]] ;
+      //if(fileNumX[*si] < 0) cout << "negative file Number " << fileNumX[*si] << endl;
     }
-  }
-  
 } ;
-
-register_rule<fileNumRule> register_fileNumRule ;
-
-
-
 
 
 
