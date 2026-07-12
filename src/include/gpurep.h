@@ -353,9 +353,6 @@ namespace Loci {
         Loci::Abort() ;
       }
       T **cpu_side_ptr = (T **) malloc(sizeof(T*)*npntrs) ;
-#else
-      tmp_alloc_ptr2 = (T **) malloc(sizeof(T*)*npntrs) ;
-#endif
       int tmp_base_offset = ptn.Min() ;
       if(ptn==EMPTY)
 	tmp_base_offset = 0 ;
@@ -366,9 +363,6 @@ namespace Loci {
 	  loc += ((int *)count.base_ptr)[ii-count.base_offset] ;
 	cpu_side_ptr[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
       } ENDFORALL ;
-
-      // release existing memory
-      release<T>() ;
       err = cudaMemcpy(tmp_alloc_ptr2, cpu_side_ptr,
                        sizeof(T *)*npntrs,
                        cudaMemcpyHostToDevice) ;
@@ -377,6 +371,22 @@ namespace Loci {
 	Loci::Abort() ;
       }
       free(cpu_side_ptr) ;
+#else
+      tmp_alloc_ptr2 = (T **) malloc(sizeof(T*)*npntrs) ;
+      int tmp_base_offset = ptn.Min() ;
+      if(ptn==EMPTY)
+	tmp_base_offset = 0 ;
+      size_t loc = 0 ;
+      FORALL(ptn,ii) {
+	tmp_alloc_ptr[ii-tmp_base_offset] = tmp_base_ptr+loc ;
+	if(count.allocset.inSet(ii))
+	  loc += ((int *)count.base_ptr)[ii-count.base_offset] ;
+	tmp_alloc_ptr[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
+      } ENDFORALL ;
+#endif
+
+      // release existing memory
+      release<T>() ;
       alloc_ptr1 = tmp_alloc_ptr1 ;
       alloc_ptr2 = tmp_alloc_ptr2 ;
       base_ptr = tmp_base_ptr ;
