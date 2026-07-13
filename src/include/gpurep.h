@@ -378,10 +378,10 @@ namespace Loci {
 	tmp_base_offset = 0 ;
       size_t loc = 0 ;
       FORALL(ptn,ii) {
-	tmp_alloc_ptr[ii-tmp_base_offset] = tmp_base_ptr+loc ;
+	tmp_alloc_ptr2[ii-tmp_base_offset] = tmp_base_ptr+loc ;
 	if(count.allocset.inSet(ii))
 	  loc += ((int *)count.base_ptr)[ii-count.base_offset] ;
-	tmp_alloc_ptr[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
+	tmp_alloc_ptr2[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
       } ENDFORALL ;
 #endif
 

@@ -105,12 +105,12 @@ namespace Loci {
     const T *first ;
     const T *last ;
   public:
-    GPU_DECL multiArrayHelper_const(const Entity *f, const Entity *l) : first(f), last(l){}
+    GPU_DECL multiArrayHelper_const(const T *f, const T *l) : first(f), last(l){}
     GPU_DECL int size() { return last-first ; }
-    GPU_DECL const Entity &operator[](Entity indx) { return first[indx] ; }
-    GPU_DECL const Entity &operator[](size_t indx) { return first[indx] ; }
-    GPU_DECL const Entity &operator[](unsigned int indx) { return first[indx] ; }
-    GPU_DECL  const Entity &operator[](unsigned char indx) { return first[indx] ; }
+    GPU_DECL const T &operator[](Entity indx) { return first[indx] ; }
+    GPU_DECL const T &operator[](size_t indx) { return first[indx] ; }
+    GPU_DECL const T &operator[](unsigned int indx) { return first[indx] ; }
+    GPU_DECL  const T &operator[](unsigned char indx) { return first[indx] ; }
     GPU_DECL const T *begin() { return first ; }
     GPU_DECL const T *end() { return last; }
   } ;

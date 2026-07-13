@@ -3341,6 +3341,17 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       } else {
         cerr << "unexpected loci variable type!" << endl ;
       }
+    } else if(mi->second.container == "multiStore") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = "Loci::constMultiAccessor<" + arg + "> ";
+        cargtable[*vi] = arg ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
     } else {
       string scratch = mi->second.container_args ;
       string::size_type start = scratch.find('<') ;
