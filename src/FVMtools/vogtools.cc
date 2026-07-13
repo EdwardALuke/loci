@@ -554,7 +554,7 @@ namespace VOG {
       cellmap[cnt++] = pair<Entity,Entity>(cr[fc],cl[fc]) ;
     } ENDFORALL ;
     multiMap c2c ;
-    Loci::distributed_inverseMap(c2c,cellmap,cells,cells,cptn) ;
+    Loci::distributed_inverseMap(c2c,cellmap,cells,cells,cptn,MPI_COMM_WORLD) ;
 
     store<int> ctmp ;
     ctmp.allocate(geom_cells) ;
@@ -1061,7 +1061,8 @@ namespace VOG {
     }
     multiMap mapping ;
 
-    Loci::distributed_inverseMap(mapping,keypair,geom_cells,geom_cells,cptn) ;
+    Loci::distributed_inverseMap(mapping,keypair,geom_cells,geom_cells,cptn,
+                                 MPI_COMM_WORLD) ;
     // release keypair memory.
     { vector<pair<Entity,Entity> > tmp ; keypair.swap(tmp) ; }
     REPORTMEM() ;
@@ -1302,7 +1303,8 @@ namespace VOG {
 
     multiMap nmapping ;
 
-    Loci::distributed_inverseMap(nmapping,nodepair,allNodes,allNodes,nptn) ;
+    Loci::distributed_inverseMap(nmapping,nodepair,allNodes,allNodes,nptn,
+                                 MPI_COMM_WORLD) ;
     REPORTMEM() ;
     // renumber nodes
     dMap node2node ;

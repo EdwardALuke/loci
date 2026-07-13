@@ -2,24 +2,31 @@
 	path = ext/hdf5
 	url = https://github.com/HDFGroup/hdf5.git
     branch = hdf5-1.14.5
+    shallow = true
 [submodule "ext/GKlib"]
 	path = ext/GKlib
 	url = https://github.com/KarypisLab/GKlib.git
+    shallow = true
 [submodule "ext/METIS"]
 	path = ext/METIS
 	url = https://github.com/KarypisLab/METIS.git
+    shallow = true
 [submodule "ext/ParMETIS"]
 	path = ext/ParMETIS
 	url = https://github.com/KarypisLab/ParMETIS.git
+    shallow = true
 [submodule "ext/scotch"]
 	path = ext/scotch
 	url = https://gitlab.inria.fr/scotch/scotch.git
     branch = v7.0.8
+    shallow = true
 [submodule "ext/petsc"]
 	path = ext/petsc
 	url = https://github.com/petsc/petsc.git
     branch = v3.22.2
+    shallow = true
 [submodule "ext/cgns"]
 	path = ext/cgns
 	url = https://github.com/CGNS/CGNS.git
     branch = v4.4.0
+    shallow = true

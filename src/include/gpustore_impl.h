@@ -344,8 +344,6 @@ namespace Loci {
       }
 #endif
       position += t*sizeof(T) ;
-      //      MPI_Pack( &base_ptr[begin], t*sizeof(T), MPI_BYTE, outbuf,outcount,
-      //                &position, MPI_COMM_WORLD) ;
     }
 #ifdef USE_CUDA_RT
     cudaDeviceSynchronize() ;
@@ -394,7 +392,6 @@ namespace Loci {
       typename schema_traits::Converter_Type cvtr( base_ptr[*ci]);
       cvtr.getState( inbuf, stateSize);
 
-      incount =  sizeof(int);
       MPI_Pack(&stateSize, 1, MPI_INT, outbuf, outcount,&position,
                MPI_COMM_WORLD);
 

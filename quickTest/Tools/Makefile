@@ -41,11 +41,12 @@ TestResults: $(TESTS)
 
 %.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe >& $*.log || true)
-	tail -n 1 $*.log > $*.log1
-	echo -n Containers/$*":" > $@
+	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe > $*.log || true)
+	@tail -n 1 $*.log > $*.log1
+	@echo -n Containers/$*":" > $@
 	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
-	rm $*.log1 $*.exe
+	@rm $*.log1 $*.exe
+	@cat $@
 
 clean:
 	rm -fr *.o *.exe *.d *.log *.log1

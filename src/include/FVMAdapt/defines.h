@@ -194,6 +194,10 @@ namespace Loci {
       f1 = result;
     }
   };
+
+  template <typename T>
+  struct SetLongUnionOp : public SetLongUnion {
+  };
 }
 
 namespace Loci {
@@ -410,7 +414,7 @@ namespace Loci{
 }
 
 
-void colorMatrix(Map &cl, Map &cr, multiMap &face2node);
+void colorMatrix(Map &cl, Map &cr, multiMap &face2node, fact_db &facts);
 
 
 namespace Loci {

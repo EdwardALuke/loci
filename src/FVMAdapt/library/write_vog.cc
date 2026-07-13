@@ -1563,7 +1563,7 @@ namespace Loci {
   vector<entitySet> simplePartition(int mn, int mx, MPI_Comm comm);
   vector<sequence> transposeSeq(const vector<sequence> sv, MPI_Comm comm = MPI_COMM_WORLD);
 }
-void colorMatrix(Map &cl, Map &cr, multiMap &face2node) ;
+void colorMatrix(Map &cl, Map &cr, multiMap &face2node, fact_db &facts) ;
 
 namespace Loci{
 
@@ -2612,7 +2612,7 @@ namespace Loci {
         fid++;
       }
     }
-    colorMatrix(cl, cr, face2node);
+    colorMatrix(cl, cr, face2node, facts);
   }
 
 }
@@ -2646,7 +2646,6 @@ namespace Loci{
 
 
 
-void colorMatrix(Map &cl, Map &cr, multiMap &face2node);
 namespace Loci{
 
   //copied from ditribute_io.cc

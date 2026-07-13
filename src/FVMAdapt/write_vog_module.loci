@@ -250,7 +250,7 @@ public:
     }
 
 
-    colorMatrix(cl, cr, face2node);
+    colorMatrix(cl, cr, face2node, *Loci::exec_current_fact_db);
     MPI_Comm wcomm = Loci::exec_current_fact_db->get_comm() ;
     writeVOGFace(file_id, cl, cr, face2node, wcomm);
     Loci::writeVOGClose(file_id, wcomm);

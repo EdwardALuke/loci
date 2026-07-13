@@ -872,13 +872,18 @@ void getDist( Loci::entitySet &faces, Loci::entitySet &cells,
   cells = interval(minC,maxC) ;
 }
 
-void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
-    
+void colorMatrix(Map &cl, Map &cr, multiMap &face2node, fact_db &facts) {
+
+  MPI_Comm comm = facts.get_comm() ;
+  int MPI_processes = 1;
+  MPI_Comm_size(comm,&MPI_processes) ;
+  int MPI_rank = 0 ;
+  MPI_Comm_rank(comm,&MPI_rank) ;
   entitySet  faces,cells ;
   std::vector<entitySet> cptn(MPI_processes),fptn(MPI_processes) ; 
   getDist(faces,cells,fptn,cptn,cl,cr,face2node) ;
-  entitySet loc_faces = faces & fptn[Loci::MPI_rank] ;
-  entitySet geom_cells = cells & cptn[Loci::MPI_rank] ;
+  entitySet loc_faces = faces & fptn[MPI_rank] ;
+  entitySet geom_cells = cells & cptn[MPI_rank] ;
   entitySet negs = interval(UNIVERSE_MIN,-1) ;
   entitySet boundary_faces = cr.preimage(negs).first ;
   entitySet interior_faces = loc_faces - boundary_faces ;
@@ -894,7 +899,7 @@ void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
   } ENDFORALL ;
   
   multiMap c2c ;
-  Loci::distributed_inverseMap(c2c,cellmap,cells,cells,cptn) ;
+  Loci::distributed_inverseMap(c2c,cellmap,cells,cells,cptn,comm) ;
   int ncells = cells.size() ;
 
   store<int> ctmp ;
@@ -903,7 +908,7 @@ void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
     ctmp[cc] = -1 ;
   } ENDFORALL ;
 
-  int col = ncells*Loci::MPI_rank ;
+  int col = ncells*MPI_rank ;
     
   std:: vector<int> visited ;
   entitySet left_out = geom_cells ;
@@ -943,7 +948,6 @@ void colorMatrix(Map &cl, Map &cr, multiMap &face2node) {
     color[cc] = ctmp[cc];
   } ENDFORALL ;
 
-  MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ;
   entitySet clone_cells = cl.image(interior_faces)
     + cr.image(interior_faces) ;
   clone_cells -= geom_cells ;
