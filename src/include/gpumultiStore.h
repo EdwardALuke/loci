@@ -18,18 +18,11 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-#include <Loci.h>
-#include <gpuparameter.h>
-#include <gpustore.h>
-#include <gpuMap.h>
-#include <gpuMapVec.h>
-#include <gpumultiMap.h>
-#include <gpumultiStore.h>
+#ifndef GPUMULTISTORE_H
+#define GPUMULTISTORE_H
 
-#ifdef USE_CUDA_RT
-#include <thrust/device_vector.h>
-#include <thrust/host_vector.h>
-#include <thrust/iterator/counting_iterator.h>
-#include <thrust/iterator/transform_iterator.h>
-#include <cub/cub.cuh>
+#include <DMultiStore.h>
+#include <gpumultiStore_def.h>
+#include <gpumultiStore_impl.h>
+
 #endif

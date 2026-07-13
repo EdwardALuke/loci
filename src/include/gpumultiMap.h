@@ -18,8 +18,8 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-#ifndef MULTIMAP_H
-#define MULTIMAP_H
+#ifndef LOCI_GPUMULTIMAP_H_
+#define LOCI_GPUMULTIMAP_H_
 
 #ifdef HAVE_CONFIG_H
 #include <config.h> // This must be the first file included
@@ -28,30 +28,32 @@
 
 #include <Tools/debug.h>
 #include <Map_rep.h>
-
-#include <Map.h>
+#include <gpuMap.h>
 #include <store.h>
 
 namespace Loci {
-  class multiMapRepI : public MapRep {
+
+  class gpumultiMapRepI : public gpuMapRep {
     entitySet store_domain ;
     Entity **base_ptr ;
   public:
-    multiMapRepI() { base_ptr = 0 ; }
-    multiMapRepI(const store<int> &sizes) {
+    gpumultiMapRepI() { base_ptr = 0 ; }
+    gpumultiMapRepI(const store<int> &sizes) {
       base_ptr = 0 ;
       allocate(sizes) ; }
     void allocate(const store<int> &sizes) ;
     virtual void allocate(const entitySet &ptn) ;
-    virtual ~multiMapRepI() ;
+    virtual ~gpumultiMapRepI() ;
     virtual storeRep *new_store(const entitySet &p) const ;
     virtual storeRep *new_store(const entitySet &p, const int* cnt) const ;
     virtual storeRepP remap(const dMap &m) const ;
     virtual storeRepP MapRemap(const dMap &dm, const dMap &rm) const ;
+    virtual storeRepP freeze() ;
+    virtual storeRepP thaw() ;
     virtual void compose(const dMap &m, const entitySet &context) ;
-    virtual void copy(storeRepP &st, const entitySet &context)  ;
+    virtual void copy(storeRepP &st, const entitySet &context) ;
     virtual void gather(const dMap &m, storeRepP &st,
-                        const entitySet &context)  ;
+                        const entitySet &context) ;
     virtual void scatter(const dMap &m, storeRepP &st,
                          const entitySet &context) ;
 
@@ -79,7 +81,13 @@ namespace Loci {
     virtual void readhdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, frame_info &fi, entitySet &en, hid_t xfer_plist_id) ;
     virtual void writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet& en, hid_t xfer_plist_id) const ;
 #endif
-    Entity ** get_base_ptr() const { Entity ** p = 0 ; if(alloc_id>=0) p = ((Entity **)storeAllocateData[alloc_id].alloc_ptr2 - storeAllocateData[alloc_id].base_offset) ; return p ; }
+    Entity ** get_base_ptr() const {
+      Entity ** p = 0 ;
+      if(alloc_id>=0)
+        p = ((Entity **)GPUstoreAllocateData[alloc_id].alloc_ptr2
+             - GPUstoreAllocateData[alloc_id].base_offset) ;
+      return p ;
+    }
     Entity *begin(int indx) { return base_ptr[indx] ; }
     Entity *end(int indx) { return base_ptr[indx+1] ; }
     const Entity *begin(int indx) const { return base_ptr[indx] ; }
@@ -87,15 +95,42 @@ namespace Loci {
     int vec_size(int indx) const { return end(indx)-begin(indx) ; }
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
+    virtual void copyFrom(const storeRepP &fromMap, entitySet set) ;
+    virtual store_type RepType() const ;
   private:
     virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
-    virtual storeRepP freeze() ;
-    virtual storeRepP thaw() ; 
   } ;
-      
-  class multiMap : public store_instance {
-    friend class const_multiMap ;
-    typedef multiMapRepI MapType ;
+
+  template <class T> class multiArrayHelper_const {
+    const T *first ;
+    const T *last ;
+  public:
+    GPU_DECL multiArrayHelper_const(const T *f, const T *l) : first(f), last(l){}
+    GPU_DECL int size() { return last-first ; }
+    GPU_DECL const T &operator[](Entity indx) { return first[indx] ; }
+    GPU_DECL const T &operator[](size_t indx) { return first[indx] ; }
+    GPU_DECL const T &operator[](unsigned int indx) { return first[indx] ; }
+    GPU_DECL  const T &operator[](unsigned char indx) { return first[indx] ; }
+    GPU_DECL const T *begin() { return first ; }
+    GPU_DECL const T *end() { return last; }
+  } ;
+  
+  template <class T> class constMultiAccessor {
+    const T * const * accessor ;
+  public:
+    void operator=(const T * const * acc) { accessor = acc; } 
+    GPU_DECL multiArrayHelper_const<T> operator[](Entity indx) {
+      return multiArrayHelper_const<T>(accessor[indx],accessor[indx+1]) ;
+    }
+    GPU_DECL multiArrayHelper_const<T> operator[](Entity indx) const {
+      return multiArrayHelper_const<T>(accessor[indx],accessor[indx+1]) ;
+    }
+  } ;
+    
+    
+  class gpumultiMap : public store_instance {
+    friend class const_gpumultiMap ;
+    typedef gpumultiMapRepI MapType ;
     Entity **base_ptr ;
   public:
 
@@ -125,29 +160,21 @@ namespace Loci {
       const Entity *begin() { return first ; }
       const Entity *end() { return last; }
     } ;
-        
-    // These should be private, as they only perform a shallow copy,
-    // which is dangerous.  For now we leave them public because it would
-    // be too difficult to fix properly.
-    multiMap(const multiMap &var) { setRep(var.Rep()) ; }
-    multiMap & operator=(const multiMap &str)
+
+    gpumultiMap(const gpumultiMap &var) { setRep(var.Rep()) ; }
+    gpumultiMap & operator=(const gpumultiMap &str)
     { setRep(str.Rep()) ; return *this ;}
     
-    multiMap() { setRep(new MapType) ; }
-        
-    multiMap(const store<int> &sizes) { setRep( new MapType(sizes) ); }
+    gpumultiMap() { setRep(new MapType) ; }
 
-    multiMap(storeRepP p) { setRep(p) ; }
+    gpumultiMap(storeRepP p) { setRep(p) ; }
     
-    virtual ~multiMap() ;
+    virtual ~gpumultiMap() ;
     virtual void notification() ;
 
-    multiMap & operator=(storeRepP p) { setRep(p) ; return *this ;}
+    gpumultiMap & operator=(storeRepP p) { setRep(p) ; return *this ;}
     
     void allocate(const entitySet &ptn) { Rep()->allocate(ptn) ; }
-    void allocate(const store<int> &sizes) {
-      NPTR<MapType> p(Rep()) ;
-      p->allocate(sizes) ; }
 
     entitySet domain() const { return Rep()->domain() ; }
 
@@ -209,20 +236,22 @@ namespace Loci {
     std::istream &Input(std::istream &s) { return Rep()->Input(s) ; }
     int getRangeKeySpace() const { return MapRepP(Rep())->getRangeKeySpace() ; }
     void setRangeKeySpace(int v) { MapRepP(Rep())->setRangeKeySpace(v) ; }
+    Entity **ptr() { return base_ptr ; }
+    
   } ;
   
-  inline std::ostream & operator<<(std::ostream &s, const multiMap &m)
+  inline std::ostream & operator<<(std::ostream &s, const gpumultiMap &m)
   { return m.Print(s) ; }
-  inline std::istream & operator>>(std::istream &s, multiMap &m)
+  inline std::istream & operator>>(std::istream &s, gpumultiMap &m)
   { return m.Input(s) ; }
 
-  class const_multiMap : public store_instance {
-    typedef multiMapRepI MapType ;
+  class const_gpumultiMap : public store_instance {
+    typedef gpumultiMapRepI MapType ;
     const Entity * const * base_ptr ;
-    const_multiMap(const_multiMap &var) {  setRep(var.Rep()) ; }
-    const_multiMap & operator=(const const_multiMap &str)
+    const_gpumultiMap(const_gpumultiMap &var) {  setRep(var.Rep()) ; }
+    const_gpumultiMap & operator=(const const_gpumultiMap &str)
     { setRep(str.Rep()) ; return *this ;}
-    const_multiMap & operator=(const multiMap &str)
+    const_gpumultiMap & operator=(const gpumultiMap &str)
     { setRep(str.Rep()) ; return *this ;}
   public:
     class arrayHelper_const {
@@ -240,22 +269,20 @@ namespace Loci {
       
     } ;
 
-    const_multiMap() { setRep(new MapType) ; }
+    const_gpumultiMap() { setRep(new MapType) ; }
     
+    const_gpumultiMap(gpumultiMap &var) { setRep(var.Rep()) ; }
     
-    const_multiMap(multiMap &var) { setRep(var.Rep()) ; }
+    const_gpumultiMap(storeRepP rp) { setRep(rp) ; }
     
-    const_multiMap(storeRepP rp) { setRep(rp) ; }
-    
-    virtual ~const_multiMap() ;
+    virtual ~const_gpumultiMap() ;
     virtual void notification() ;
     
     virtual instance_type access() const ;
     
-    const_multiMap & operator=(storeRepP p) { setRep(p) ; return *this ;}
+    const_gpumultiMap & operator=(storeRepP p) { setRep(p) ; return *this ;}
     
     entitySet domain() const { return Rep()->domain(); }
-    //    operator storeRepP() { return Rep() ; }
     operator MapRepP() {
       MapRepP p(Rep()) ;
       fatal(p==0) ;
@@ -283,33 +310,10 @@ namespace Loci {
     const int *end(int indx) const { return base_ptr[indx+1] ; }
     std::ostream &Print(std::ostream &s) const { return Rep()->Print(s) ; }
     int getRangeKeySpace() const { return MapRepP(Rep())->getRangeKeySpace() ; }
+    const Entity * const *ptr() const { return base_ptr ; }
   } ;
 
-
-  /*
-    inline std::ostream & operator<<(std::ostream &s, const const_multiMap &m)
-    { return m.Print(s) ; }
-  */
-
-  void inverseMap(multiMap &result,
-                  const Map &input_map,
-                  const entitySet &input_image,
-                  const entitySet &input_preimage) ;
-  void inverseMap(multiMap &result,
-                  const multiMap &input_map,
-                  const entitySet &input_image,
-                  const entitySet &input_preimage) ;
-  void inverseMap(multiMap &result,
-                  const const_Map &input_map,
-                  const entitySet &input_image,
-                  const entitySet &input_preimage) ;
-  void inverseMap(multiMap &result,
-                  const const_multiMap &input_map,
-                  const entitySet &input_image,
-                  const entitySet &input_preimage) ;
-
-
-
 }
+
 
 #endif

@@ -173,7 +173,7 @@ string killCommentOut(istream &s, int & lines,ostream &out) {
 	current_comment += c ;
 	out << c ;
       }
-      current_comment += '\n' ;
+      current_comment += ' ' ;
     } else {
       while(s.peek() != EOF && s.peek() !='\n') {
 	char c = s.get() ;
@@ -212,6 +212,9 @@ string killCommentOut(istream &s, int & lines,ostream &out) {
         break ;
       }
     }
+    if(c == '\n')
+      c = ' ' ;
+      
     if(javadoc)
       current_comment += c ;
   }
@@ -2404,11 +2407,11 @@ $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
   typedef struct {\n\
 $$#each rule.input_stores$$\
 $$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ const * $$vname$$ ;\n\
+    $$vtype$$ $$vname$$ ;\n\
 $$/each$$\
 $$#each rule.output_stores$$\
 $$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ * $$vname$$ ;\n\
+    $$vtype$$ $$vname$$ ;\n\
 $$/each$$\
 \n\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
@@ -2467,11 +2470,11 @@ $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
   typedef struct {\n\
 $$#each rule.input_stores$$\
 $$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ const * $$vname$$ ;\n\
+    $$vtype$$ $$vname$$ ;\n\
 $$/each$$\
 $$#each rule.output_stores$$\
 $$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ * $$vname$$ ;\n\
+    $$vtype$$ $$vname$$ ;\n\
 $$/each$$\
 \n\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
@@ -2564,7 +2567,6 @@ $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
     d_result_ptr\n\
   ) ;\n\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  cudaDeviceSynchronize() ;\n\
 \n\
 $$#else$$\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
@@ -2715,7 +2717,6 @@ $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
     d_interval_result_ptr+num_intervals\n\
   ) ;\n\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  cudaDeviceSynchronize() ;\n\
 $$/if$$\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
 $$#if debug_info$$nvtxRangePop() ;\n$$/if$$\
@@ -2750,7 +2751,6 @@ $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
     thrust::for_each(thrust::cuda::par.on(Loci::getGPUStream()), start_iter, end_iter, compute_op) ;\n\
   }\n\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  cudaDeviceSynchronize() ;\n\
 $$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
 $$#if debug_info$$nvtxRangePop() ;\n$$/if$$\
 \n\
@@ -3312,6 +3312,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     if(mi->second.container != "param" &&
        mi->second.container != "Map" &&
        mi->second.container != "MapVec" &&
+       mi->second.container != "multiMap" &&
        mi->second.container != "store" &&
        mi->second.container != "storeVec" &&
        mi->second.container != "storeMat" &&
@@ -3324,7 +3325,10 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     ctypetable[*vi] = mi->second.container ;
 
     if(mi->second.container == "Map") {
-      typetable[*vi] = "int" ;
+      typetable[*vi] = "int const *" ;
+      cargtable[*vi] = "" ;
+    } else if(mi->second.container == "multiMap") {
+      typetable[*vi] = "Loci::constMultiAccessor<Loci::Entity> " ;
       cargtable[*vi] = "" ;
     } else if(mi->second.container == "MapVec") {
       string scratch = mi->second.container_args ;
@@ -3332,7 +3336,18 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       string::size_type end = scratch.rfind('>') ;
       if(start != string::npos && end != string::npos && start+1 < end) {
         string arg = scratch.substr(start+1, end-start-1) ;
-        typetable[*vi] = string("Array<Entity,") + arg + ">" ;
+        typetable[*vi] = string("Array<Entity,") + arg + "> const *" ;
+        cargtable[*vi] = arg ;
+      } else {
+        cerr << "unexpected loci variable type!" << endl ;
+      }
+    } else if(mi->second.container == "multiStore") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = "Loci::constMultiAccessor<" + arg + "> ";
         cargtable[*vi] = arg ;
       } else {
         cerr << "unexpected loci variable type!" << endl ;
@@ -3343,7 +3358,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       string::size_type end = scratch.rfind('>') ;
       if(start != string::npos && end != string::npos && start+1 < end) {
         string arg = scratch.substr(start+1, end-start-1) ;
-        typetable[*vi] = arg ;
+        typetable[*vi] = arg + " const *";
         cargtable[*vi] = arg ;
       } else {
         cerr << "unexpected loci variable type!" << endl ;
@@ -3373,7 +3388,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     ctypetable[*vi] = mi->second.container ;
 
     if(mi->second.container == "Map") {
-      typetable[*vi] = "int" ;
+      typetable[*vi] = "int *" ;
       cargtable[*vi] = "" ;
     } else if(mi->second.container == "MapVec") {
       string scratch = mi->second.container_args ;
@@ -3381,7 +3396,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       string::size_type end = scratch.rfind('>') ;
       if(start != string::npos && end != string::npos && start+1 < end) {
         string arg = scratch.substr(start+1, end-start-1) ;
-        typetable[*vi] = string("Array<Entity,") + arg + ">" ;
+        typetable[*vi] = string("Array<Entity,") + arg + ">  *" ;
         cargtable[*vi] = arg ;
       } else {
         cerr << "unexpected loci variable type!" << endl ;
@@ -3392,7 +3407,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       string::size_type end = scratch.rfind('>') ;
       if(start != string::npos && end != string::npos && start+1 < end) {
         string arg = scratch.substr(start+1, end-start-1) ;
-        typetable[*vi] = arg ;
+        typetable[*vi] = arg + " *";
         cargtable[*vi] = arg ;
       } else {
         cerr << "unexpected loci variable type!" << endl ;
