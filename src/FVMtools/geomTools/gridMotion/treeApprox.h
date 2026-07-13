@@ -118,7 +118,7 @@ namespace gridMotion {
       werr = 0 ;
       disp = vector3d<double>(0.,0.,0.) ;
       approxTree.TreeApprox(disp,w,werr,posf,0,a,b,L,aL,errpn) ;
-      vector3d<double> d = disp ;
+      d = disp ;
       d *= 1./w ;
     }
     return d ;
