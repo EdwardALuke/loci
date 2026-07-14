@@ -1207,7 +1207,8 @@ namespace Loci {
       all_cells += local_cells[i] ;
     }
 
-    distributed_inverseMap(cell2cell,rawMap, all_cells,all_cells,local_cells) ;
+    distributed_inverseMap(cell2cell,rawMap, all_cells,all_cells,local_cells,
+                           comm) ;
 
     vector<pair<int,int> >().swap(rawMap) ; // Free up memory from rawMap
     int count = 0 ;
@@ -1318,7 +1319,8 @@ namespace Loci {
 
         // create a hdf5 handle
         hid_t file_id = Loci::hdf5OpenFile(cell_weight_file.c_str(),
-                                           H5F_ACC_RDONLY, H5P_DEFAULT) ;
+                                           H5F_ACC_RDONLY, H5P_DEFAULT,
+                                           comm) ;
         if(file_id < 0) {
           std::cerr << "...file reading failed..., Aborting" << std::endl ;
           Loci::Abort() ;
@@ -1330,7 +1332,7 @@ namespace Loci {
         readContainerRAW(file_id,"cellweights", cell_weights.Rep(),
                          comm) ;
 
-        Loci::hdf5CloseFile(file_id) ;
+        Loci::hdf5CloseFile(file_id,comm) ;
       } else if(cell_weight_store !=0) {
 
         entitySet dom = local_cells[r] ;

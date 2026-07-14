@@ -149,6 +149,7 @@ void describe_inputs(rule_db &rdb) {
 //#include "FVMAdapt/dataxferDB.h"
 
 
+
 int main(int ac, char *av[]) {
   Loci::Init(&ac, &av) ;
 
@@ -167,8 +168,9 @@ int main(int ac, char *av[]) {
   
   vector<pair<string,string> > command_vars ;
   
-   string casename ;
+  string casename ;
 
+  bool test_subcomm = false ;
   while(ac>=2 && av[1][0] == '-') {
     // If user specifies an alternate query, extract it from the
     // command line.
@@ -203,6 +205,11 @@ int main(int ac, char *av[]) {
       av += 2 ;
     } else if(ac >= 2 && !strcmp(av[1],"-dryrun")) {
       dryrun = true ;
+      ac-- ;
+      av++ ;
+    } else if(ac >= 2 && !strcmp(av[1],"-sub_comm")) { // Test sub communicator
+      // schedules
+      test_subcomm = true ;
       ac-- ;
       av++ ;
     } else if(ac >=4 && !strcmp(av[1],"-set")) {
@@ -266,7 +273,22 @@ int main(int ac, char *av[]) {
   // read grid, connectivity information, and user supplied information into
   // the fact database
   fact_db facts ;
-
+  if(test_subcomm) {
+    MPI_Comm new_comm ;
+    int world_rank ;
+    MPI_Comm_rank(MPI_COMM_WORLD,&world_rank) ;
+    int color = world_rank%2 ;
+    int key = world_rank ;
+    MPI_Comm_split(MPI_COMM_WORLD,color,key,&new_comm) ;
+    if(color == 0) {
+      Loci::SetDefaultComm(new_comm) ;
+      facts.set_comm(new_comm) ;
+    } else {
+      Loci::Finalize() ;
+      exit(0) ;
+    }
+  }
+  
   Loci::load_module("fvm",rdb) ;
   
   // Now look in vars file for directives to load in modules, or solid_heat

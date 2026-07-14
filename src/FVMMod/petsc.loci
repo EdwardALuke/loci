@@ -276,7 +276,7 @@ namespace Loci {
                   char const * options_prefix
                   ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
@@ -311,7 +311,7 @@ namespace Loci {
                char const * options_prefix
                ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
@@ -373,7 +373,7 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       PetscViewer viewer;
       LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(VecView(v, viewer));
@@ -429,7 +429,7 @@ namespace Loci {
                   char const * options_prefix
                   ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
@@ -465,7 +465,7 @@ namespace Loci {
                char const * options_prefix
                ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(VecCreate(comm, &v));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(VecSetType(v, VECMPI));
@@ -528,7 +528,7 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       PetscViewer viewer;
       LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(VecView(v, viewer));
@@ -584,7 +584,7 @@ namespace Loci {
                   char const * system_name, char const * options_prefix
                   ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIAIJ));
@@ -636,7 +636,7 @@ namespace Loci {
                char const * system_name, char const * options_prefix
                ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIAIJ));
@@ -715,7 +715,7 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       PetscViewer viewer;
       LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(MatView(m, viewer));
@@ -771,7 +771,7 @@ namespace Loci {
                   char const * system_name, char const * options_prefix
                   ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIBAIJ));
@@ -826,7 +826,7 @@ namespace Loci {
                char const * system_name, char const * options_prefix
                ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(MatCreate(comm, &m));
       if(Loci::MPI_processes > 1) {
         LociPetscCall(MatSetType(m, MATMPIBAIJ));
@@ -957,7 +957,7 @@ namespace Loci {
     }
 
     int Print(char const * filename) const {
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       PetscViewer viewer;
       LociPetscCall(PetscViewerASCIIOpen(comm, filename, &viewer));
       LociPetscCall(MatView(m, viewer));
@@ -1001,7 +1001,7 @@ namespace Loci {
                char const * options_prefix
                ) {
       if(created) return 0;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       LociPetscCall(KSPCreate(comm, &ksp));
       LociPetscCall(KSPSetTolerances(
                                      ksp, reltol, abstol, PETSC_CURRENT, maxit
@@ -1154,7 +1154,7 @@ namespace Loci {
       Loci::debugout << "CUDA: device=" << int(dev_id)
                      << ", type=" << int(dev_type)
                      << endl ;
-      MPI_Comm comm = get_exec_comm() ;
+      MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
       PetscSynchronizedPrintf(
                               comm,
                               "MPI rank %d: device=%d, type=%d\n",
@@ -1373,6 +1373,8 @@ namespace Loci {
     // Get the collection of entities assigned to this processor
     storeRepP myEntities=
       Loci::exec_current_fact_db->get_variable("my_entities") ;
+    MPI_Comm comm = Loci::exec_current_fact_db->get_comm() ; 
+
     entitySet localEntities=~EMPTY ;
     if(myEntities!=0) localEntities = (*myEntities).domain() ;
 
@@ -1382,7 +1384,7 @@ namespace Loci {
     $petscLocalCell= (localEntities & localCellWithGhost) ;
 
     // Distribute the number of cells to all processes.
-    $petscNumCell = Loci::all_collect_sizes(($petscLocalCell).size()) ;
+    $petscNumCell = Loci::all_collect_sizes(($petscLocalCell).size(),comm) ;
 
 #ifdef VERBOSE
     for(size_t i=0;i<$petscNumCell.size();++i)

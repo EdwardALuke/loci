@@ -1331,7 +1331,8 @@ namespace Loci {
     for(int i=0;i<MPI_processes;++i)
       all_cells += local_cells[i] ;
 
-    distributed_inverseMap(cell2cell,rawMap, all_cells,all_cells,local_cells) ;
+    distributed_inverseMap(cell2cell,rawMap, all_cells,all_cells,local_cells,
+                           MPI_COMM_WORLD) ;
 
     vector<pair<int,int> >().swap(rawMap) ; // Free up memory from rawMap
     int count = 0 ;

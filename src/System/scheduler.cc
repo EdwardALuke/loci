@@ -1676,6 +1676,7 @@ bool operator <(const timingData &d) const {
 
   bool makeQuery(const rule_db &rdb, fact_db &facts,
                  const std::string& query) {
+    Loci::SetDefaultComm(facts.get_comm()) ;
 	/*	
 	  #ifdef USE_PAPI
 	  int perr,ev_set=PAPI_NULL;

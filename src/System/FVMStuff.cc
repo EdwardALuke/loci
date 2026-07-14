@@ -2236,7 +2236,7 @@ namespace Loci{
 #ifdef DEBUG
     // Check to see if there are any ORPHAN cells in geom_cells.
     entitySet accessedSet = distribute_entitySet(cellmask,ptn,comm) ;
-    WARN(GLOBAL_OR((geom_cells-accessedSet) != EMPTY))
+    WARN(GLOBAL_OR((geom_cells-accessedSet) != EMPTY,comm))
 #endif
     // Get mapping from face to geometric cells
     Loci::addToProtoMap(cl,f2cell) ;
@@ -2477,7 +2477,7 @@ namespace Loci{
 #ifdef DEBUG
     // Check to see if there are any ORPHAN cells in geom_cells.
     entitySet accessedSet = distribute_entitySet(cellmask,ptn,comm) ;
-    WARN(GLOBAL_OR((geom_cells-accessedSet) != EMPTY))
+    WARN(GLOBAL_OR((geom_cells-accessedSet) != EMPTY,comm))
 #endif
 
     // Get mapping from face to geometric cells

@@ -79,6 +79,15 @@ namespace Loci {
     comm_ = c ;
     MPI_Comm_rank(c, &comm_rank_) ;
     MPI_Comm_size(c, &comm_size_) ;
+
+    // reset init_ptn
+    vector<entitySet> baseline_ptn ;
+    for(int i = 0; i < comm_size_; ++i) {
+      baseline_ptn.push_back(EMPTY) ;
+    }
+    init_ptn = vector<vector<entitySet> >() ;
+    init_ptn.push_back(baseline_ptn) ;
+
   }
 
   void
