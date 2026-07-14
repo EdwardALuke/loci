@@ -52,11 +52,12 @@ namespace flowPsi {
 
 
    hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                        H5P_DEFAULT, H5P_DEFAULT) ;
+                                        H5P_DEFAULT, H5P_DEFAULT,
+                                        Loci::exec_current_fact_db->get_comm()) ;
 
    Loci::writeContainer(file_id,"pos",pos.Rep()) ;
 
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, Loci::exec_current_fact_db->get_comm()) ;
   }
 
   void dump_pos(const sequence &seq,const_store<vector3d<Loci::FADd> > &pos,
@@ -77,7 +78,8 @@ namespace flowPsi {
 
 
    hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                        H5P_DEFAULT, H5P_DEFAULT) ;
+                                        H5P_DEFAULT, H5P_DEFAULT,
+                                        Loci::exec_current_fact_db->get_comm()) ;
 
    store<vector3d<double> > pcopy ;
    entitySet dom = pos.domain() ;
@@ -87,7 +89,7 @@ namespace flowPsi {
    } ENDFORALL ;
    Loci::writeContainer(file_id,"pos",pcopy.Rep()) ;
 
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, Loci::exec_current_fact_db->get_comm()) ;
   }
 
   void dump_pos(const sequence &seq,const_store<vector3d<Loci::FAD2d> > &pos,
@@ -108,7 +110,8 @@ namespace flowPsi {
 
 
    hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                        H5P_DEFAULT, H5P_DEFAULT) ;
+                                        H5P_DEFAULT, H5P_DEFAULT,
+                                        Loci::exec_current_fact_db->get_comm()) ;
 
    store<vector3d<double> > pcopy ;
    entitySet dom = pos.domain() ;
@@ -118,7 +121,7 @@ namespace flowPsi {
    } ENDFORALL ;
    Loci::writeContainer(file_id,"pos",pcopy.Rep()) ;
 
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, Loci::exec_current_fact_db->get_comm()) ;
   }
   
 
@@ -260,9 +263,9 @@ namespace flowPsi {
 
     entitySet set(seq) ;
     hid_t file_id = Loci::createUnorderedFile(filename.c_str(),set) ;
-    Loci::writeUnorderedStore(file_id,$area,set,"area") ;
-    Loci::writeUnorderedStore(file_id,$facecenter,set,"facecenter") ;
-    Loci::closeUnorderedFile(file_id) ;
+    Loci::writeUnorderedStore(file_id,$area,set,"area",Loci::exec_current_fact_db->get_comm()) ;
+    Loci::writeUnorderedStore(file_id,$facecenter,set,"facecenter",Loci::exec_current_fact_db->get_comm()) ;
+    Loci::closeUnorderedFile(file_id, Loci::exec_current_fact_db->get_comm()) ;
   } ;
 
 }

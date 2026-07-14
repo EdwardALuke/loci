@@ -22,6 +22,7 @@
 #include <Tools/debug.h>
 #include <entitySet.h>
 #include "Tools/debugger.h"
+#include <fact_db.h>
 
 #include <vector>
 using std::vector ;
@@ -68,8 +69,9 @@ namespace Loci {
     //   over their domains.
     void getVariableAssociations(map<variable,entitySet> &vm, fact_db &facts, int kd) {
       vector<entitySet> ptn = facts.get_init_ptn(kd) ;
+      MPI_Comm comm = facts.get_comm() ;
       entitySet total_entities ;
-      entitySet my_entities = ptn[MPI_rank] ;
+      entitySet my_entities = ptn[facts.get_comm_rank()] ;
       vm.clear() ;
       variableSet vars = facts.get_typed_variables() ;
       for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
@@ -102,11 +104,12 @@ namespace Loci {
           if(mp->getRangeKeySpace() == kd) {
             entitySet dom = my_entities & p->domain() ;
             entitySet image_dom = mp->image(dom) ;
-            image_dom += distribute_entitySet(image_dom, ptn) ;
+            image_dom += distribute_entitySet(image_dom, ptn, comm) ;
             entitySet testSet = image_dom - total_entities ;
             int size = testSet.size() ;
             int tsize = 0 ;
-            MPI_Allreduce(&size,&tsize,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+            MPI_Allreduce(&size, &tsize, 1, MPI_INT,
+                          MPI_SUM, comm) ;
             if(tsize != 0) {
               std::string name = "image_" ;
               name.append(vi->get_info().name) ;
@@ -118,7 +121,7 @@ namespace Loci {
         }
       }
       variable v_leftout("SENTINEL_LEFTOUT") ;
-      vm[v_leftout] = ptn[MPI_rank]-total_entities ;
+      vm[v_leftout] = ptn[facts.get_comm_rank()]-total_entities ;
     }
 
     // Compute the distict intervals that are required to describe all of
@@ -218,7 +221,9 @@ namespace Loci {
     void getGlobalCategories(vector<variableSet> &clist,
                              vector<variable> &vlist,
                              const map<variableSet,entitySet> &cmap,
-                             const map<variable,entitySet> &vm) {
+                             const map<variable,entitySet> &vm,
+			     fact_db &facts) {
+      int r = facts.get_comm_rank() ;
       vector<string> vnlist ;
       map<variable,entitySet>::const_iterator ii ;
       for(ii=vm.begin();ii!=vm.end();++ii) {
@@ -249,7 +254,7 @@ namespace Loci {
       int comm_root = 0 ;
       while(comm_root != -1) {
         vector<int> buffer ;
-        if(comm_root == MPI_rank) {
+        if(comm_root == r) {
           set<entitySet>::const_iterator si ;
           for(si=cat_set.begin();si!=cat_set.end();++si) {
             entitySet s = *si ;
@@ -259,10 +264,12 @@ namespace Loci {
           }
         }
         int buf_size = buffer.size() ;
-        MPI_Bcast(&buf_size,1,MPI_INT,comm_root,MPI_COMM_WORLD) ;
-        if(comm_root != MPI_rank)
+        MPI_Comm comm = facts.get_comm() ;
+        MPI_Bcast(&buf_size, 1, MPI_INT, comm_root, comm) ;
+        if(comm_root != r)
           buffer = vector<int>(buf_size) ;
-        MPI_Bcast(&buffer[0],buf_size,MPI_INT,comm_root,MPI_COMM_WORLD) ;
+        MPI_Bcast(&buffer[0], buf_size, MPI_INT, comm_root,
+                  comm) ;
 
         for(size_t ex=0;ex<buffer.size();) {
           int num_ents = buffer[ex] ;
@@ -277,8 +284,9 @@ namespace Loci {
         }
         int r = -1 ;
         if(cat_set.size() != 0)
-          r = MPI_rank ;
-        MPI_Allreduce(&r,&comm_root,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+          r = facts.get_comm_rank() ;
+        MPI_Allreduce(&r, &comm_root, 1, MPI_INT, MPI_MAX,
+                      comm) ;
       }
       clist.clear() ;
       set<entitySet>::const_iterator si ;
@@ -294,14 +302,16 @@ namespace Loci {
     // Collect the sizes of the distributed variable sets
     void getVarSizes(vector<pair<variable,int> > &var_sizes,
                      const vector<variable> &var_list,
-                     const map<variable,entitySet> &vm) {
+                     const map<variable,entitySet> &vm,
+		     fact_db &facts) {
       var_sizes.clear() ;
       for(size_t i=0;i<var_list.size();++i) {
         variable v = var_list[i] ;
         map<variable,entitySet>::const_iterator vinfo = vm.find(v) ;
         int local_size = vinfo->second.size() ;
         int vsize = 0 ;
-        MPI_Allreduce(&local_size,&vsize,1,MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
+        MPI_Allreduce(&local_size, &vsize, 1, MPI_INT, MPI_SUM,
+                      facts.get_comm()) ;
         var_sizes.push_back(pair<variable,int>(v,vsize)) ;
       }
       std::stable_sort(var_sizes.begin(),var_sizes.end(),compare_var_sizes) ;
@@ -334,10 +344,10 @@ namespace Loci {
 
     vector<variableSet> cat_list ;
     vector<variable> var_list ;
-    getGlobalCategories(cat_list,var_list,cmap,vm) ;
+    getGlobalCategories(cat_list,var_list,cmap,vm,facts) ;
 
     vector<pair<variable,int> > var_sizes ;
-    getVarSizes(var_sizes,var_list,vm) ;
+    getVarSizes(var_sizes,var_list,vm,facts) ;
 
     vector<pair<variableSet,string> > cat_keys ;
     getCategoryKeys(cat_keys,var_sizes,cat_list) ;

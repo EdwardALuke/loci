@@ -412,7 +412,7 @@ namespace Loci {
         vinfo.offset=1 ;
         li->v = variable(vinfo) ;
       }
-      execute_comm2::inc_comm_step() ;
+      execute_comm2::inc_comm_step(facts.get_comm()) ;
       //executeP exec_comm =
       //new execute_comm(advance_variables_barrier, facts);
       executeP exec_comm2 =

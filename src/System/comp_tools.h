@@ -550,9 +550,9 @@ namespace Loci {
     virtual void Print(std::ostream& s) const ;
     virtual string getName() {return "execute_comm2";};
     virtual void dataCollate(collectData& data_collector) const ;
-    static void inc_comm_step() {
+    static void inc_comm_step(MPI_Comm comm) {
       int lt=tag_base, gt=0 ;
-      MPI_Allreduce(&lt, &gt, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD) ;
+      MPI_Allreduce(&lt, &gt, 1, MPI_INT, MPI_MAX, comm) ;
       tag_base = gt ;
       if(tag_base > 32500) {
 	tag_base=1500 ; // recycle tags

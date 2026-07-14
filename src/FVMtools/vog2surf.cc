@@ -101,7 +101,7 @@ void readSurfaces(string filename,
 
   // read in boundary names.
   vector<pair<int,string> > boundary_ids ;
-  Loci::readBCfromVOG(filename,boundary_ids) ;
+  Loci::readBCfromVOG(filename,boundary_ids,MPI_COMM_WORLD) ;
   map<int,string> surf_id ;
   for(size_t i=0;i<boundary_ids.size();++i)
     surf_id[boundary_ids[i].first] = boundary_ids[i].second ;
@@ -480,7 +480,7 @@ void writeSurfaces(string filename,
 // int main(int ac, char *av[]) {
 //   using Loci::entitySet ;
 //   using Loci::vector3d ;
-//   Loci::Init(&ac, &av) ;
+//   Loci::Init(&ac, &av, MPI_COMM_WORLD) ;
 //   if(Loci::MPI_processes > 1) {
 //     cerr << "vog2surf is not parallel! Run on only one processor!" << endl ;
 //     Loci::Abort() ;

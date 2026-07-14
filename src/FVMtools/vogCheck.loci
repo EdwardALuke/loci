@@ -212,7 +212,8 @@ void dump_pos(const sequence &seq,const_store<vector3d<real_t> > &pos,
   }
 
   hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-				       H5P_DEFAULT, H5P_DEFAULT) ;
+				       H5P_DEFAULT, H5P_DEFAULT,
+                                       MPI_COMM_WORLD) ;
 
   if(file_id < 0) {
     cerr << "unable to open file " << filename << endl ;
@@ -220,7 +221,7 @@ void dump_pos(const sequence &seq,const_store<vector3d<real_t> > &pos,
   }
   Loci::writeContainer(file_id,"pos",pos.Rep()) ;
 
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id,MPI_COMM_WORLD) ;
 }
 
 $rule apply(topo<-pos,modelName)[Loci::Maximum],option(disable_threading),
@@ -652,11 +653,12 @@ void dump_scalar(const sequence &seq,const_store<float> &c2n,
   }
   
   hid_t file_id = Loci::hdf5CreateFile(filename.c_str(),H5F_ACC_TRUNC,
-                                       H5P_DEFAULT, H5P_DEFAULT) ;
+                                       H5P_DEFAULT, H5P_DEFAULT,
+                                       MPI_COMM_WORLD) ;
 
   Loci::writeContainer(file_id,sname,c2n.Rep()) ;
 
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id,MPI_COMM_WORLD) ;
 
 }
   
@@ -855,9 +857,9 @@ option(disable_threading),constraint(ci->cellcenter),prelude {
   //    cout << "opening file " << filename << endl ;
   entitySet set(seq) ;
   hid_t file_id = createUnorderedFile(filename.c_str(),set) ;
-  writeUnorderedStore(file_id,$area,set,"area") ;
-  writeUnorderedStore(file_id,$facecenter,set,"facecenter") ;
-  closeUnorderedFile(file_id) ;
+  writeUnorderedStore(file_id,$area,set,"area",MPI_COMM_WORLD) ;
+  writeUnorderedStore(file_id,$facecenter,set,"facecenter",MPI_COMM_WORLD) ;
+  closeUnorderedFile(file_id,MPI_COMM_WORLD) ;
 } ;
 
 $type alpha_geom_f store<real_t> ;

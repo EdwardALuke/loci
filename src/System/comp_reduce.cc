@@ -362,7 +362,7 @@ namespace Loci {
     }
 
 #ifdef GROUP_ALLREDUCE
-    groupAllReduce(sp,join_ops,MPI_COMM_WORLD) ;
+    groupAllReduce(sp, join_ops, facts.get_comm()) ;
 #else
     // Old Code (Works only for fixed sized types)
     int size = 0;
@@ -378,7 +378,9 @@ namespace Loci {
     }
 
     global_join_ops = join_ops;
-    MPI_Allreduce(&send_ptr[0], &result_ptr[0], size, MPI_PACKED, create_join_op, MPI_COMM_WORLD) ;
+    MPI_Allreduce(&send_ptr[0], &result_ptr[0], size,
+                   MPI_PACKED, create_join_op,
+                   facts.get_comm()) ;
     position = 0;
     for(size_t i = 0; i < sp.size(); i++) {
       sp[i]->unpack(&result_ptr[0], position, size, seq) ;
@@ -439,7 +441,7 @@ namespace Loci {
       vector<CPTR<joiner> > jop ;
 
       for(size_t i=0;i<reduce_vars.size();++i) {
-        if(GLOBAL_OR(scheds.get_variable_requests(reduce_vars[i])!=EMPTY)) {
+        if(GLOBAL_OR(scheds.get_variable_requests(reduce_vars[i])!=EMPTY, facts.get_comm())) {
           red.push_back(reduce_vars[i]) ;
           ulist.push_back(unit_rules[i]) ;
           jop.push_back(join_ops[i]) ;
@@ -452,7 +454,7 @@ namespace Loci {
         return 0 ;
 
     }
-    if(verbose || MPI_processes > 1) {
+    if(verbose || facts.get_comm_size() > 1) {
       ostringstream oss ;
       for(size_t i = 0; i < reduce_vars.size(); i++)
         oss << "reduce param " << reduce_vars[i] << std::endl;
@@ -724,7 +726,7 @@ namespace Loci {
     for(int i=0;i<nrecv;++i) {
       int proc = recv_info[i].first ;
       MPI_Irecv(recv_ptr[i], r_size[i], MPI_PACKED, proc, 1,
-                MPI_COMM_WORLD, &request[i]) ;
+                facts.get_comm(), &request[i]) ;
     }
     total_size = 0 ;
     const int nsend = send_info.size() ;
@@ -766,13 +768,16 @@ namespace Loci {
 	}
       }
       else
-	MPI_Pack(&maxs_size[i], sizeof(int), MPI_BYTE, send_ptr[i], s_size[i], &loc_pack, MPI_COMM_WORLD) ;
+	MPI_Pack(&maxs_size[i], sizeof(int), MPI_BYTE,
+                send_ptr[i], s_size[i], &loc_pack,
+                facts.get_comm()) ;
 
     }
     // Send Buffer
     for(int i=0;i<nsend;++i) {
       int proc = send_info[i].first ;
-      MPI_Send(send_ptr[i],s_size[i],MPI_PACKED,proc,1,MPI_COMM_WORLD) ;
+      MPI_Send(send_ptr[i], s_size[i], MPI_PACKED, proc, 1,
+               facts.get_comm()) ;
     }
     if(nrecv > 0) {
 #ifdef DEBUG
@@ -793,7 +798,9 @@ namespace Loci {
       int loc_unpack = 0;
       if(rerecv_procs.inSet(recv_info[i].first)) {
 	int temp ;
-	MPI_Unpack(recv_ptr[i], r_size[i], &loc_unpack, &temp, sizeof(int), MPI_BYTE, MPI_COMM_WORLD) ;
+	MPI_Unpack(recv_ptr[i], r_size[i], &loc_unpack,
+                   &temp, sizeof(int), MPI_BYTE,
+                   facts.get_comm()) ;
 	if(temp > maxr_size[i])
 	  maxr_size[i] = temp ;
       }
@@ -819,7 +826,10 @@ namespace Loci {
     for(int i = 0; i < rerecv_size; i++) {
       int proc = recv_info[recv_index[i]].first ;
       recv_ptr[recv_index[i]] = new unsigned char[maxr_size[recv_index[i]]] ;
-      MPI_Irecv(recv_ptr[recv_index[i]], maxr_size[recv_index[i]], MPI_PACKED, proc, 2, MPI_COMM_WORLD, &re_request[i]) ;
+      MPI_Irecv(recv_ptr[recv_index[i]],
+                maxr_size[recv_index[i]], MPI_PACKED,
+                proc, 2, facts.get_comm(),
+                &re_request[i]) ;
     }
 
     for(int i=0;i<resend_size;++i) {
@@ -834,7 +844,9 @@ namespace Loci {
     // Send Buffer
     for(int i=0;i<resend_size;++i) {
       int proc = send_info[send_index[i]].first ;
-      MPI_Send(send_ptr[send_index[i]],maxs_size[send_index[i]],MPI_PACKED,proc,2,MPI_COMM_WORLD) ;
+      MPI_Send(send_ptr[send_index[i]],
+               maxs_size[send_index[i]], MPI_PACKED,
+               proc, 2, facts.get_comm()) ;
       delete [] send_ptr[send_index[i]] ;
     }
     if(rerecv_size > 0) {
@@ -934,14 +946,15 @@ namespace Loci {
         executeP exec_comm_reduce = new execute_comm_reduce(rlist, facts, join_op);
         el->append_list(exec_comm_reduce);
       }
-      execute_comm2::inc_comm_step() ;
+      MPI_Comm comm = facts.get_comm() ;
+      execute_comm2::inc_comm_step(comm) ;
       if(!clist.empty()) {
         //executeP exec_comm = new execute_comm(clist, facts);
         executeP exec_comm2 = new execute_comm2(clist, facts);
         el->append_list(exec_comm2) ;
         //el->append_list(exec_comm) ;
       }
-      if(verbose || MPI_processes > 1) {
+      if(verbose || facts.get_comm_size() > 1) {
         ostringstream oss ;
         oss << "reduce store " << reduce_var ;
         executeP exec_msg = new execute_msg(oss.str());
@@ -950,7 +963,7 @@ namespace Loci {
       return executeP(el) ;
     }
 
-    if(verbose || MPI_processes > 1) {
+    if(verbose || facts.get_comm_size() > 1) {
       ostringstream oss ;
       oss << "reduce store " << reduce_var ;
       executeP exec_msg2 = new execute_msg(oss.str());

@@ -89,7 +89,7 @@ namespace Loci {
 #endif    
 
     Entity * get_base_ptr() const { Entity * p = 0 ; if(alloc_id>=0) p = ((Entity *)storeAllocateData[alloc_id].base_ptr) -storeAllocateData[alloc_id].base_offset ; return p ; }
-    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
   } ;

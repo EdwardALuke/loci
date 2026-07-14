@@ -49,6 +49,7 @@ namespace Loci {
   extern int MPI_rank ;
   
   void Init(int* argc, char*** argv) ;
+  void SetDefaultComm(MPI_Comm comm) ;
   void Finalize() ; 
   void Abort() ;
   size_t MPI_process_mem_avail() ;
@@ -567,13 +568,13 @@ namespace Loci {
   } ;
 
 
-  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
 
-  std::vector<dMap> send_global_map(Map &attrib_data, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
-  void fill_clone(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+  std::vector<dMap> send_global_map(Map &attrib_data, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  void fill_clone(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
-  storeRepP send_clone_non(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
-  std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn) ;
+  storeRepP send_clone_non(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
   std::vector<std::pair<int, entitySet> >
   transpose_entitySet(const std::vector<std::pair<int,entitySet> > &in,
@@ -585,11 +586,18 @@ namespace Loci {
   transpose_sequence(const std::vector<sequence>& in, MPI_Comm comm) ;
 
   std::vector<entitySet> all_collect_vectors(entitySet &e,MPI_Comm comm) ;
+#ifndef LOCI_STRICT_COMM
   std::vector<entitySet> all_collect_vectors(entitySet &e) ;
+#endif
 
-  entitySet distribute_entitySet(entitySet e,const std::vector<entitySet> &ptn) ;
+  entitySet dist_collect_entitySet(entitySet inSet, const std::vector<entitySet> &ptn, MPI_Comm comm ) ;
+#ifndef LOCI_STRICT_COMM
+  entitySet dist_collect_entitySet(entitySet inSet, const std::vector<entitySet> &ptn) ;
+#endif
 
-  entitySet all_collect_entitySet(const entitySet &e) ;
+  entitySet distribute_entitySet(entitySet e,const std::vector<entitySet> &ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+
+  entitySet all_collect_entitySet(const entitySet &e, MPI_Comm comm LOCI_DEFAULT_COMM) ;
 
   // This is equivalent to but more efficient than
   // collectSet(entitySet iset) {
@@ -598,10 +606,10 @@ namespace Loci {
   entitySet collectSet(const entitySet iset, const entitySet domain,
 		       MPI_Comm comm) ;
   
-  int GLOBAL_OR(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
-  int GLOBAL_AND(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
-  int GLOBAL_MAX(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
-  int GLOBAL_MIN(int b, MPI_Comm comm=MPI_COMM_WORLD) ;
+  int GLOBAL_OR(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  int GLOBAL_AND(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  int GLOBAL_MAX(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  int GLOBAL_MIN(int b, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
   // We've added these back as they seem to be used
   // in the fuel cell program//from distribute.h //////

@@ -210,7 +210,7 @@ namespace Loci {
 
   template<unsigned int M>
   inline storeRepP gpuMapVecRepI<M>::expand(
-    entitySet & out_of_dom, std::vector<entitySet> & init_ptn
+    entitySet & out_of_dom, std::vector<entitySet> & init_ptn, MPI_Comm comm
   ) {
     cerr << "gpuMapVecRepI<M>::expand is not implemented" << endl;
     Loci::Abort();

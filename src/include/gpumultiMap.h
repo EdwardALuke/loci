@@ -98,7 +98,7 @@ namespace Loci {
     virtual void copyFrom(const storeRepP &fromMap, entitySet set) ;
     virtual store_type RepType() const ;
   private:
-    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   } ;
 
   template <class T> class multiArrayHelper_const {
@@ -126,7 +126,7 @@ namespace Loci {
       return multiArrayHelper_const<T>(accessor[indx],accessor[indx+1]) ;
     }
   } ;
-    
+
     
   class gpumultiMap : public store_instance {
     friend class const_gpumultiMap ;

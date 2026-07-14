@@ -21,6 +21,7 @@
 #include "visitor.h"
 #include "visit_tools.h"
 #include "comp_tools.h"
+#include <fact_db.h>
 
 
 #include <vector>

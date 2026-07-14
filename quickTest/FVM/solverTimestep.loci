@@ -114,13 +114,14 @@ namespace flowPsi {
   }
 
   void ic_time_from_file::compute(const sequence &seq) {
-    if(Loci::GLOBAL_AND(seq==EMPTY))
+    if(Loci::GLOBAL_AND(seq==EMPTY, Loci::exec_current_fact_db->get_comm()))
       return ;
 
     string filename = *icfile + "flowVars_" + *modelName ;
 
     hid_t file_id = Loci::hdf5OpenFile((filename).c_str(),
-                                       H5F_ACC_RDONLY, H5P_DEFAULT);
+                                       H5F_ACC_RDONLY, H5P_DEFAULT,
+                                       Loci::exec_current_fact_db->get_comm());
     entitySet dom = ~EMPTY ;
 
     // Set up defaults
@@ -129,7 +130,7 @@ namespace flowPsi {
     // Read in restart values
     Loci::readContainer(file_id,"stime",stime.Rep(),dom) ;
     Loci::readContainer(file_id,"ncycle",ncycle.Rep(),dom) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, Loci::exec_current_fact_db->get_comm()) ;
 
     if(*stime == 0)
       *ncycle = 0 ;

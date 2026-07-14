@@ -612,7 +612,7 @@ namespace Loci {
       whole_entities = d->my_entities;
     } else {
       // note, this probably needs to be fixed for big mode
-      whole_entities = facts.get_init_ptn(0)[Loci::MPI_rank] ;
+      whole_entities = facts.get_init_ptn(0)[facts.get_comm_rank()] ;
     }
 
     // we will partition the entities among all the work threads.

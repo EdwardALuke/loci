@@ -65,9 +65,11 @@ namespace Loci {
   hid_t hdf5CreateFile(const char *name, unsigned flags, hid_t create_id, hid_t access_id, MPI_Comm comm, size_t file_size_estimate=0);
  
 
+#ifndef LOCI_STRICT_COMM
   inline hid_t hdf5CreateFile(const char *name, unsigned flags, hid_t create_id, hid_t access_id, size_t file_size_estimate = 0) {
     return hdf5CreateFile(name,flags,create_id,access_id, MPI_COMM_WORLD,file_size_estimate) ;
   }    
+#endif
 
   //-----------------------------------------------------------------------
   hid_t hdf5OpenFile(const char *name, unsigned flags, hid_t access_id,
@@ -75,17 +77,21 @@ namespace Loci {
 
 
   //-----------------------------------------------------------------------
+#ifndef LOCI_STRICT_COMM
   inline hid_t hdf5OpenFile(const char *name, unsigned flags, hid_t access_id) {
     return hdf5OpenFile(name,flags,access_id,MPI_COMM_WORLD) ;
   }
+#endif
 
   //-----------------------------------------------------------------------
+#ifndef LOCI_STRICT_COMM
   inline herr_t hdf5CloseFile(hid_t file_id) {
     if(use_parallel_io || Loci::MPI_rank==0)
       return H5Fclose(file_id) ;
     else
       return 0 ;
   }
+#endif
 
   //-----------------------------------------------------------------------
   inline herr_t hdf5CloseFile(hid_t file_id, MPI_Comm comm) {
@@ -99,8 +105,8 @@ namespace Loci {
 
   //-----------------------------------------------------------------------
   //general way to open a file for writing
-  hid_t writeVOGOpen(std::string filename) ;
-  hid_t readVOGOpen(std::string filename) ;
+  hid_t writeVOGOpen(std::string filename, MPI_Comm comm LOCI_DEFAULT_COMM) ;
+  hid_t readVOGOpen(std::string filename, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   void writeVOGClose(hid_t file_id) ;
   //-----------------------------------------------------------------------  
   hid_t createUnorderedFile(const char * filename, entitySet set,
@@ -118,7 +124,7 @@ namespace Loci {
   }
   
   //-----------------------------------------------------------------------  
-  void closeUnorderedFile(hid_t file_id) ;
+  void closeUnorderedFile(hid_t file_id, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   
 
 
@@ -461,11 +467,13 @@ namespace Loci {
     }
  
     //-----------------------------------------------------------------------  
+#ifndef LOCI_STRICT_COMM
     template<class T> void writeUnorderedVectorS(hid_t group_id,
                                                  const char *element_name,
                                                  std::vector<T> &v) {
       writeUnorderedVectorS(group_id,element_name,v,MPI_COMM_WORLD) ;
     }
+#endif
   
     //-----------------------------------------------------------------------  
     template<class T> void writeUnorderedVectorP(hid_t group_id,
@@ -576,6 +584,7 @@ namespace Loci {
     }
 
     //-----------------------------------------------------------------------  
+#ifndef LOCI_STRICT_COMM
     template<class T> void writeUnorderedVectorP(hid_t group_id,
                                                  const char *element_name,
                                                  std::vector<T> &v
@@ -585,6 +594,7 @@ namespace Loci {
                             v,
                             MPI_COMM_WORLD );
     }
+#endif
 
 
 
@@ -683,7 +693,7 @@ namespace Loci {
       readUnorderedVectorS(group_id,element_name,v,prime_comm) ;
 #else
       int procs = 1 ;
-      MPI_Comm_size(MPI_COMM_WORLD,&procs) ;
+      MPI_Comm_size(prime_comm,&procs) ;
 
       if(procs == 1)
         return readVectorSerial(group_id,element_name,v) ;
@@ -764,6 +774,7 @@ namespace Loci {
 
 
   //-----------------------------------------------------------------------  
+#ifndef LOCI_STRICT_COMM
   template<class T> void writeUnorderedVector(hid_t group_id,
                                               const char *element_name,
                                               std::vector<T> &v
@@ -773,17 +784,19 @@ namespace Loci {
                          v,
                          MPI_COMM_WORLD );
   }
+#endif
   
   //-----------------------------------------------------------------------  
   template<class T> void writeUnorderedStore(hid_t file_id,
                                              const_store<T> &s, entitySet set,
-                                             const char *name) {
+                                             const char *name,
+                                             MPI_Comm comm LOCI_DEFAULT_COMM) {
     std::vector<T> v(set.size()) ;
     size_t c = 0 ;
     FORALL(set,ii) {
       v[c++] = s[ii] ;
     } ENDFORALL ;
-    writeUnorderedVector(file_id,name,v) ;
+    writeUnorderedVector(file_id,name,v,comm) ;
   }
   
   //-----------------------------------------------------------------------  
@@ -926,7 +939,7 @@ namespace Loci {
   // fact_db pointer  (facts)
   // MPI Communicator
   storeRepP Local2FileOrder_output(storeRepP sp, entitySet dom,
-                                   fact_db& facts, MPI_Comm comm);
+                                   fact_db& facts);
 
   //serial/parallel io
   template<class T>   void writeCutPlaneNodalVal(hid_t file_id,
@@ -965,7 +978,7 @@ namespace Loci {
     //transform the store into output order
     store<T> gedge_pos;
     storeRepP geposRep =  Local2FileOrder_output(edge_pos.Rep(),  edgesCut, 
-                                                 facts, MPI_COMM_WORLD);
+                                                 facts);
        
     if(geposRep == NULL){
       gedge_pos .allocate(EMPTY);
@@ -1151,7 +1164,7 @@ namespace Loci {
                               storeRepP input, int offset,
                               fact_db::distribute_infoP dist,
                               MPI_Comm comm) ;
-  void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist) ;
+  void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm LOCI_DEFAULT_COMM) ;
   void FindSimpleDistribution(entitySet dom, const Map &l2f,
                               std::vector<int> &splits, MPI_Comm comm) ;
   void memoryBalancedDistribution(std::vector<int> &splits_out,

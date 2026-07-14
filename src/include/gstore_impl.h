@@ -167,7 +167,7 @@ namespace Loci {
   gStoreRepP  gStoreRepI<T>::recompose(const gMultiMap &remap, MPI_Comm comm)const{
     gEntitySet new_dom = remap.image();
     gEntitySet old_dom = domain();
-    vector<gEntitySet> ptn = g_all_collect_vectors<gEntity>(new_dom);
+    vector<gEntitySet> ptn = g_all_collect_vectors<gEntity>(new_dom, comm);
     gStore<T> expanded_store;//the value in expanded store is unique in each process
     expanded_store = split_redistribute(ptn, comm);
     expanded_store.local_sort();
@@ -218,7 +218,7 @@ namespace Loci {
         
     gEntitySet new_dom = remap.image();
     gEntitySet old_dom = domain();
-    vector<gEntitySet> ptn = g_all_collect_vectors<gEntity>(new_dom);
+    vector<gEntitySet> ptn = g_all_collect_vectors<gEntity>(new_dom, comm);
     gStore<T> expanded_store;//the value in expanded store is unique in each process
     expanded_store = split_redistribute(ptn, comm);
     expanded_store.local_sort();

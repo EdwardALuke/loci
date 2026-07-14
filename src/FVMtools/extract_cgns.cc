@@ -162,7 +162,7 @@ void read_surf_info(string casename, string iteration,
     cout<<"boundary: " << the_surf.name << endl;
   }
     
-   Loci::hdf5CloseFile(file_id) ;
+   Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 }
 bool read_pambient(string casename, string iteration, float& pambient){
 
@@ -170,7 +170,7 @@ bool read_pambient(string casename, string iteration, float& pambient){
   
   hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                H5F_ACC_RDONLY,
-                               H5P_DEFAULT) ;
+                               H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) {
     cerr << "unable to open file '" << filename << "'!" << endl ;
     return false;
@@ -178,7 +178,7 @@ bool read_pambient(string casename, string iteration, float& pambient){
   fact_db facts ;
   param<float> Pambient ;
   Loci::readContainer(file_id,"Pambient",Pambient.Rep(),EMPTY,facts) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   pambient = *Pambient;
   return true;
 }

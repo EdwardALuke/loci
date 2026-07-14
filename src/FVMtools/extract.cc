@@ -283,14 +283,14 @@ volumePart::volumePart(string out_dir, string iteration, string casename,
   if(stat(iblankname.c_str(),&tmpstat)== 0) {
     file_id = Loci::hdf5OpenFile(iblankname.c_str(),
                                  H5F_ACC_RDONLY,
-                                 H5P_DEFAULT) ;
+                                 H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       return ;
     }
     fact_db facts ;
     store<unsigned char> iblank_tmp ;
     readData(file_id,"iblank",iblank_tmp.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     entitySet pdom = interval(1,nnodes) ;
     iblank.allocate(pdom) ;
     entitySet dom = iblank_tmp.domain() ;
@@ -472,7 +472,7 @@ volumePart::volumePart(string out_dir, string iteration, string casename,
         cout << ngenc-ngenc_b << " general cells iblanked" << endl ;
     }
     H5Gclose(elg) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
      
   }
   ntets_orig = ntets ;
@@ -619,7 +619,7 @@ void volumePart::getTetBlock(vector<Array<int,4> > &tets, size_t start, size_t s
   vector<Array<int,4> > tets_local(lsize) ;
   readElementTypeBlock(elg,"tetrahedra",tets_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = tetsIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -656,7 +656,7 @@ void volumePart::getTetIds(vector<int> &tetids, size_t start, size_t size) const
   vector<int > tets_local(lsize) ;
   readElementTypeBlock(elg,"tetrahedra_ids",tets_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = tetsIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -693,7 +693,7 @@ void volumePart::getPyrmBlock(vector<Array<int,5> > &pyrms, size_t start, size_t
   vector<Array<int,5> > pyrms_local(lsize) ;
   readElementTypeBlock(elg,"pyramid",pyrms_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = pyrmIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -730,7 +730,7 @@ void volumePart::getPyrmIds(vector<int> &pyrmids, size_t start, size_t size) con
   vector<int > pyrms_local(lsize) ;
   readElementTypeBlock(elg,"pyramid_ids",pyrms_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = pyrmIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -766,7 +766,7 @@ void volumePart::getPrsmBlock(vector<Array<int,6> > &prsms, size_t start, size_t
   vector<Array<int,6> > prsms_local(lsize) ;
   readElementTypeBlock(elg,"prism",prsms_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = prsmIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -802,7 +802,7 @@ void volumePart::getPrsmIds(vector<int> &prsmids, size_t start, size_t size) con
   vector<int > prsms_local(lsize) ;
   readElementTypeBlock(elg,"prism_ids",prsms_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = prsmIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -839,7 +839,7 @@ void volumePart::getHexBlock(vector<Array<int,8> > &hexs, size_t start, size_t s
   vector<Array<int,8> > hexs_local(lsize) ;
   readElementTypeBlock(elg,"hexahedra",hexs_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = hexsIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -875,7 +875,7 @@ void volumePart::getHexIds(vector<int> &hexids, size_t start, size_t size) const
   vector<int > hexs_local(lsize) ;
   readElementTypeBlock(elg,"hexahedra_ids",hexs_local,start,lsize) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = hexsIblanked & interval(start,start+lsize-1) ;
   if(iblank==EMPTY) {
@@ -915,7 +915,7 @@ void volumePart::getGenCell(vector<int> &genCellNfaces,
   vector<int> GeneralCellNodes(nnodes) ;
   readElementType(elg,"GeneralCellNodes",GeneralCellNodes) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   // If no general cells iblanked, then return
   if(ngenc_orig == ngenc) {
     genCellNfaces.swap(GeneralCellNfaces) ;
@@ -982,7 +982,7 @@ void volumePart::getGenIds(vector<int> &genids) const {
   vector<int > gens_local(lsize) ;
   readElementType(elg,"GeneralCell_ids",gens_local) ;
   H5Gclose(elg) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   entitySet iblank = gencIblanked & interval(0,lsize-1) ;
   if(iblank==EMPTY) {
@@ -1146,13 +1146,13 @@ volumePartDerivedVars::volumePartDerivedVars(volumePartP part,
   if(stat(filename.c_str(),&tmpstat) == 0) {
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				       H5F_ACC_RDONLY,
-				       H5P_DEFAULT) ;
+				       H5P_DEFAULT, MPI_COMM_WORLD) ;
     Pambient = 0 ;
     if(file_id >= 0) {
       fact_db facts ;
       param<float> Pamb ;
       readData(file_id,"Pambient",Pamb.Rep(),EMPTY,facts) ;
-      Loci::hdf5CloseFile(file_id) ;
+      Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       Pambient = *Pamb ;
     } else {
       cerr << "Unable to open file " << filename << endl ;
@@ -1347,17 +1347,17 @@ surfacePart::surfacePart(string name, string dir, string iteration,
   posFile = dir + "/pos." + iteration ;
   hid_t file_id = Loci::hdf5OpenFile(posFile.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) cerr << posFile << " fail" << endl ;
   if(file_id < 0) return ;
   
   nnodes = sizeElementType(file_id,"data") ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   
   topoFile = dir + "/" + topolink ;
   file_id = Loci::hdf5OpenFile(topoFile.c_str(),
                                H5F_ACC_RDONLY,
-                               H5P_DEFAULT) ;
+                               H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) cerr << topoFile << " fail" << endl ;
   if(file_id < 0) return ;
 
@@ -1372,7 +1372,7 @@ surfacePart::surfacePart(string name, string dir, string iteration,
   if(ngenf > 0)
     genSet = interval(0,ngenf-1) ;
   
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   bool has_element_data = false ;
   for(size_t i=0;i<vars.size();++i) {
     string varname = vars[i] ;
@@ -1380,7 +1380,7 @@ surfacePart::surfacePart(string name, string dir, string iteration,
     string svar = dir+"/" + varname+"_sca."+iteration ;
     file_id = Loci::hdf5OpenFile(svar.c_str(),
 				 H5F_ACC_RDONLY,
-				 H5P_DEFAULT) ;
+				 H5P_DEFAULT, MPI_COMM_WORLD) ;
     bool found_var = false ;
     if(file_id >= 0) {
       int nsz = sizeElementType(file_id,"data") ;
@@ -1388,28 +1388,28 @@ surfacePart::surfacePart(string name, string dir, string iteration,
 	nodalScalarVars[varname] = svar ;
 	found_var = true ;
       }
-      Loci::hdf5CloseFile(file_id) ;
+      Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     }
 
     if(!found_var) {
       svar = dir+"/" + varname+"_vec."+iteration ;
       file_id = Loci::hdf5OpenFile(svar.c_str(),
 				   H5F_ACC_RDONLY,
-				   H5P_DEFAULT) ;
+				   H5P_DEFAULT, MPI_COMM_WORLD) ;
       if(file_id >= 0) {
 	int nsz = sizeElementType(file_id,"data") ;
 	if(nsz == nnodes) {
 	  nodalVectorVars[varname] = svar ;
 	  found_var = true ;
 	}
-	Loci::hdf5CloseFile(file_id) ;
+	Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       }
     }
     if(!found_var) {
       svar = dir+"/" + varname+"_bsca."+iteration ;
       file_id = Loci::hdf5OpenFile(svar.c_str(),
 				   H5F_ACC_RDONLY,
-				   H5P_DEFAULT) ;
+				   H5P_DEFAULT, MPI_COMM_WORLD) ;
       if(file_id >= 0) {
 	int nsz = sizeElementType(file_id,"data") ;
 	if(nsz == (nquads+ntrias+ngenf)) {
@@ -1417,14 +1417,14 @@ surfacePart::surfacePart(string name, string dir, string iteration,
 	  found_var = true ;
           has_element_data = true ;
 	}
-	Loci::hdf5CloseFile(file_id) ;
+	Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       }
     }
     if(!found_var) {
       svar = dir+"/" + varname+"_bvec."+iteration ;
       file_id = Loci::hdf5OpenFile(svar.c_str(),
 				   H5F_ACC_RDONLY,
-				   H5P_DEFAULT) ;
+				   H5P_DEFAULT, MPI_COMM_WORLD) ;
       if(file_id >= 0) {
 	int nsz = sizeElementType(file_id,"data") ;
 	if(nsz == (nquads+ntrias+ngenf)) {
@@ -1432,25 +1432,25 @@ surfacePart::surfacePart(string name, string dir, string iteration,
 	  found_var = true ;
           has_element_data = true ;
 	}
-	Loci::hdf5CloseFile(file_id) ;
+	Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       }
     }
   }
   vector<unsigned char> iblank ;
   string iblank_file = dir +"/iblank."+iteration ;
-  file_id = Loci::hdf5OpenFile(iblank_file.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT);
+  file_id = Loci::hdf5OpenFile(iblank_file.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT, MPI_COMM_WORLD);
   if(file_id >=0) {
     vector<unsigned char> tmp(nquads+ntrias+ngenf) ;
     iblank.swap(tmp) ;
     readElementType(file_id,"data",iblank) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     for(size_t i=0;i<iblank.size();++i)
       has_element_data = (iblank[i] > 1) || has_element_data ;
   }
   if(has_element_data) {
     file_id = Loci::hdf5OpenFile(topoFile.c_str(),
                                  H5F_ACC_RDONLY,
-                                 H5P_DEFAULT) ;
+                                 H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(nquads > 0) {
       vector<int> tmp(nquads) ;
       readElementType(file_id,"quads_ord",tmp) ;
@@ -1468,7 +1468,7 @@ surfacePart::surfacePart(string name, string dir, string iteration,
       readElementType(file_id,"nside_ord",tmp) ;
       gen_ord.swap(tmp) ;
     }
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     if(iblank.size() > 0) {
       // compute iblanked set
       quadSet = EMPTY ;
@@ -1546,7 +1546,7 @@ void surfacePart::getQuads(vector<Array<int,4> > &quads) const {
   if(nquads > 0) {
     hid_t file_id = Loci::hdf5OpenFile(topoFile.c_str(),
 				       H5F_ACC_RDONLY,
-				       H5P_DEFAULT) ;
+				       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) return ;
     int nq = sizeElementType(file_id,"quads") ;
 
@@ -1558,7 +1558,7 @@ void surfacePart::getQuads(vector<Array<int,4> > &quads) const {
       quads[cnt] = tmp[ii] ;
       cnt++ ;
     } ENDFORALL ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   }
 }
 void surfacePart::getQuadsIds(vector<int> &quads_ids) const {
@@ -1578,7 +1578,7 @@ void surfacePart::getTrias(vector<Array<int,3> > &trias) const {
   if(ntrias > 0) {
     hid_t file_id = Loci::hdf5OpenFile(topoFile.c_str(),
 				       H5F_ACC_RDONLY,
-				       H5P_DEFAULT) ;
+				       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) return ;
     int nt = sizeElementType(file_id,"triangles") ;
     vector<Array<int,3> > tmp(nt) ;
@@ -1589,7 +1589,7 @@ void surfacePart::getTrias(vector<Array<int,3> > &trias) const {
       trias[cnt] = tmp[ii] ;
       cnt++ ;
     } ENDFORALL ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   }
 }
 void  surfacePart::getTriasIds(vector<int> &trias_ids) const{
@@ -1608,7 +1608,7 @@ void surfacePart::getGenf(vector<int> &numGenFnodes, vector<int> &genNodes) cons
   if(ngenf > 0) {
     hid_t file_id = Loci::hdf5OpenFile(topoFile.c_str(),
 				       H5F_ACC_RDONLY,
-				       H5P_DEFAULT) ;
+				       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) return ;
 
     int ng = sizeElementType(file_id,"nside_sizes") ;
@@ -1628,7 +1628,7 @@ void surfacePart::getGenf(vector<int> &numGenFnodes, vector<int> &genNodes) cons
       for(int i=0;i<tmp[ii];++i)
         genNodes.push_back(tmp2[sum[ii]+i]) ;
     } ENDFORALL ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   }
 }
 
@@ -1647,11 +1647,11 @@ void surfacePart::getPos(vector<vector3d<float> > &pos) const {
   pos.swap(tmp) ;
   hid_t file_id = Loci::hdf5OpenFile(posFile.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
 
   if(file_id < 0) return ;
   readElementType(file_id,"data",pos) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 }
 
 void surfacePart::getPos(vector<vector3d<double> > &pos) const {
@@ -1659,11 +1659,11 @@ void surfacePart::getPos(vector<vector3d<double> > &pos) const {
   pos.swap(tmp) ;
   hid_t file_id = Loci::hdf5OpenFile(posFile.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
 
   if(file_id < 0) return ;
   readElementType(file_id,"data",pos) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 }
 
 void surfacePart::getNodalScalar(string varname,
@@ -1676,11 +1676,11 @@ void surfacePart::getNodalScalar(string varname,
   string filename = mi->second ;
   hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
 
   if(file_id < 0) return ;
   readElementType(file_id,"data",vals) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   
 }
 void surfacePart::getNodalVector(string varname,
@@ -1693,11 +1693,11 @@ void surfacePart::getNodalVector(string varname,
   string filename = mi->second ;
   hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
 
   if(file_id < 0) return ;
   readElementType(file_id,"data",vals) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 }
 
 void surfacePart::getElementScalar(string varname,
@@ -1714,12 +1714,12 @@ void surfacePart::getElementScalar(string varname,
   string filename = mi->second ;
   hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
 
   if(file_id < 0) return ;
   vector<float> vals(quad_ord.size()+tri_ord.size()+gen_ord.size()) ;
   readElementType(file_id,"data",vals) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   int i=0 ;
   FORALL(quadSet,ii) {
     qvals[i] = vals[quad_ord[ii]] ;
@@ -1751,12 +1751,12 @@ void surfacePart::getElementVector(string varname,
   string filename = mi->second ;
   hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
 
   if(file_id < 0) return ;
   vector<vector3d<float> > vals(quad_ord.size()+tri_ord.size()+gen_ord.size()) ;
   readElementType(file_id,"data",vals) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   int i=0 ;
   FORALL(quadSet,ii) {
     qvals[i] = vals[quad_ord[ii]] ;
@@ -1838,13 +1838,13 @@ surfacePartDerivedVars::surfacePartDerivedVars(surfacePartP part,
   if(stat(filename.c_str(),&tmpstat) == 0) {
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
     Pambient = 0 ;
     if(file_id >= 0) {
       fact_db facts ;
       param<float> Pamb ;
       readData(file_id,"Pambient",Pamb.Rep(),EMPTY,facts) ;
-      Loci::hdf5CloseFile(file_id) ;
+      Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
       Pambient = *Pamb ;
     } else { 
       cerr << "unable to open " << filename << endl ;
@@ -2270,7 +2270,7 @@ particlePart::particlePart(string output_dir, string iteration, string casename,
   }
   hid_t file_id = Loci::hdf5OpenFile(posfile.c_str(),
 				     H5F_ACC_RDONLY,
-				     H5P_DEFAULT) ;
+				     H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) 
     return ;
   numParticles = sizeElementType(file_id, "particle position") ;
@@ -2323,7 +2323,7 @@ std::vector<string> particlePart::getVectorVars() const {
 }
 void particlePart::getParticlePositions(vector<vector3d<float> > &ppos) const {
   hid_t file_id = Loci::hdf5OpenFile(posfile.c_str(),
-				     H5F_ACC_RDONLY, H5P_DEFAULT) ;
+				     H5F_ACC_RDONLY, H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) {
     cerr << "unable to open file '" << posfile << "'!" << endl ;
     return ;
@@ -2331,7 +2331,7 @@ void particlePart::getParticlePositions(vector<vector3d<float> > &ppos) const {
   size_t np = sizeElementType(file_id, "particle position") ;
   vector<vector3d<float> > tmp(np) ;
   readElementType(file_id, "particle position", tmp) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   
   if(stride_size == 1)
     ppos.swap(tmp) ;
@@ -2347,14 +2347,14 @@ void particlePart::getParticleScalar(string varname, vector<float> &val) const {
   mi = scalarVars.find(varname) ;
   string filename = mi->second ;
   hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
-				     H5F_ACC_RDONLY, H5P_DEFAULT) ;
+				     H5F_ACC_RDONLY, H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) {
     cerr << "unable to open file '" << filename << "'!" << endl ;
   }
   size_t np = sizeElementType(file_id, varname.c_str()) ;
   vector<float> scalar(np) ;
   readElementType(file_id, varname.c_str(), scalar) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   
   if(stride_size == 1)
     val.swap(scalar) ;
@@ -2372,7 +2372,7 @@ void particlePart::getParticleVector(string varname,
   mi = vectorVars.find(varname) ;
   string filename = mi->second ;
   hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
-				     H5F_ACC_RDONLY, H5P_DEFAULT) ;
+				     H5F_ACC_RDONLY, H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) {
     cerr << "unable to open file '" << filename << "'!" << endl ;
     return ;
@@ -2380,7 +2380,7 @@ void particlePart::getParticleVector(string varname,
   size_t np = sizeElementType(file_id, varname.c_str()) ;
   vector<vector3d<float> > tmp(np) ;
   readElementType(file_id, varname.c_str(), tmp) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
   
   if(stride_size == 1)
     val.swap(tmp) ;
@@ -2400,7 +2400,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
     
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                        H5F_ACC_RDONLY,
-                                       H5P_DEFAULT) ;
+                                       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
       return ;
@@ -2409,12 +2409,12 @@ void getDerivedVar(vector<float> &dval, string var_name,
     fact_db facts ;
     store<float> soundSpeed ;
     readData(file_id,"a",soundSpeed.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
     filename = output_dir+"/v_vec." + iteration +"_" + casename ;
     file_id = Loci::hdf5OpenFile(filename.c_str(),
                                  H5F_ACC_RDONLY,
-                                 H5P_DEFAULT) ;
+                                 H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
       return ;
@@ -2422,7 +2422,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
 
     store<vector3d<float> > u ;
     readData(file_id,"v",u.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
     entitySet dom = u.domain() ;
     int c = 0 ;
@@ -2435,7 +2435,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
     
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                        H5F_ACC_RDONLY,
-                                       H5P_DEFAULT) ;
+                                       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
       return ;
@@ -2444,13 +2444,13 @@ void getDerivedVar(vector<float> &dval, string var_name,
     fact_db facts ;
     store<float> pg ;
     readData(file_id,"pg",pg.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
     filename = output_dir+"/Pambient_par." + iteration +"_" + casename ;
 
     file_id = Loci::hdf5OpenFile(filename.c_str(),
                                  H5F_ACC_RDONLY,
-                                 H5P_DEFAULT) ;
+                                 H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
       return ;
@@ -2458,7 +2458,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
 
     param<float> Pambient ;
     readData(file_id,"Pambient",Pambient.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
     entitySet dom = pg.domain() ;
     bool log = (var_name == "p") ;
@@ -2475,7 +2475,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
     string filename = output_dir+"/v_vec." + iteration +"_" + casename ;
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                        H5F_ACC_RDONLY,
-                                       H5P_DEFAULT) ;
+                                       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
       return ;
@@ -2483,7 +2483,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
 
     store<vector3d<float> > u ;
     readData(file_id,"v",u.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
     entitySet dom = u.domain() ;
     int c = 0 ;
@@ -2496,7 +2496,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
     string posname = getPosFile(output_dir,iteration,casename) ;
     hid_t file_id = Loci::hdf5OpenFile(posname.c_str(),
                                        H5F_ACC_RDONLY,
-                                       H5P_DEFAULT) ;
+                                       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to get grid positions for iteration " << iteration
            << endl ;
@@ -2507,7 +2507,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
 
     fact_db facts ;
     readData(file_id,"pos",pos.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
     entitySet dom = pos.domain() ;
     int c = 0 ;
     if(var_name == "x") {
@@ -2530,7 +2530,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
     string filename = output_dir+"/v_vec." + iteration +"_" + casename ;
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
                                        H5F_ACC_RDONLY,
-                                       H5P_DEFAULT) ;
+                                       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
       return ;
@@ -2538,7 +2538,7 @@ void getDerivedVar(vector<float> &dval, string var_name,
 
     store<vector3d<float> > u ;
     readData(file_id,"v",u.Rep(),EMPTY,facts) ;
-    Loci::hdf5CloseFile(file_id) ;
+    Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
     entitySet dom = u.domain() ;
     int c = 0 ;
@@ -2633,7 +2633,7 @@ void extractVolumeSurfaces(vector<surfacePartP> &volSurface,
     string varname = varlist[id] ;
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				       H5F_ACC_RDONLY,
-				       H5P_DEFAULT) ;
+				       H5P_DEFAULT, MPI_COMM_WORLD) ;
 
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
@@ -2668,7 +2668,7 @@ void extractVolumeSurfaces(vector<surfacePartP> &volSurface,
     string varname = varlist[id] ;
     hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
 				       H5F_ACC_RDONLY,
-				       H5P_DEFAULT) ;
+				       H5P_DEFAULT, MPI_COMM_WORLD) ;
     if(file_id < 0) {
       cerr << "unable to open file '" << filename << "'!" << endl ;
       continue ;

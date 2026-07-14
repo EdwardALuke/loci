@@ -44,7 +44,7 @@ namespace Loci {
     virtual storeRepP get_map() = 0 ;
     virtual void compose(const dMap &m, const entitySet &context) = 0 ;
     virtual store_type RepType() const ;
-    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) = 0 ;
+    virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM) = 0 ;
     virtual storeRepP MapRemap(const dMap &dm, const dMap &im) const = 0 ;
     virtual void shift(int_type)
     {std::cerr<<"shift for Map has not been implemented!"<<std::endl ;}

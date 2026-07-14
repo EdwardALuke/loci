@@ -21,6 +21,7 @@
 #include <depend_graph.h>
 #include "dist_tools.h"
 #include "loci_globs.h"
+#include <fact_db.h>
 #include <unistd.h>
 #include <map>
 using std::map ;

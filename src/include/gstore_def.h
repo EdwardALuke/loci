@@ -133,8 +133,8 @@ namespace Loci {
                     const char* name, IDENTITY_CONVERTER c, const gEntitySet &en) const;
     void  hdf5write(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
                     const char* name, USER_DEFINED_CONVERTER c, const gEntitySet &en) const;
-    virtual gStoreRepP recompose(const gMap &m, MPI_Comm comm=MPI_COMM_WORLD )const ;
-    virtual gStoreRepP recompose(const gMultiMap &m, MPI_Comm comm=MPI_COMM_WORLD )const ;
+    virtual gStoreRepP recompose(const gMap &m, MPI_Comm comm LOCI_DEFAULT_COMM )const ;
+    virtual gStoreRepP recompose(const gMultiMap &m, MPI_Comm comm LOCI_DEFAULT_COMM )const ;
   public:
     typedef typename std::vector<std::pair<gEntity,T> >::iterator iterator ;
     typedef typename std::vector<std::pair<gEntity,T> >::const_iterator const_iterator ;
@@ -153,21 +153,21 @@ namespace Loci {
     //For stores,recompose will compose a store whose domain is the domain of m,
     //whose data is the data of the SECOND field of m.
     //for example, pos.recompose(face2node) will produce the positions  for each face  
-    virtual gStoreRepP  recompose( gStoreRepP &m, MPI_Comm comm=MPI_COMM_WORLD)const  ;
+    virtual gStoreRepP  recompose( gStoreRepP &m, MPI_Comm comm LOCI_DEFAULT_COMM)const  ;
     
     
     // this method redistributes the stores according to the split of local domain over a group of process
     //dom_split: the send split of local domain
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,
-                 MPI_Comm comm=MPI_COMM_WORLD)const;
+                 MPI_Comm comm LOCI_DEFAULT_COMM)const;
     
     // this redistribute version takes an additional remap
     // argument, after redistribution, the new store is remapped
     // dom_split:  the send split of local domain
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,const gMap &remap,
-                 MPI_Comm comm=MPI_COMM_WORLD)const;
+                 MPI_Comm comm LOCI_DEFAULT_COMM)const;
     
     // the redistribute takes a vector of gEntitySets as domain
     // distribution over a group of processes and
@@ -177,7 +177,7 @@ namespace Loci {
     // containers will need to implement this method later.
     virtual gStoreRepP
     split_redistribute(const std::vector<gEntitySet>& dom_ptn,
-                       MPI_Comm comm=MPI_COMM_WORLD)const;
+                       MPI_Comm comm LOCI_DEFAULT_COMM)const;
     
     //binary search function, for random access
     //mixed equality and equivalance
@@ -340,7 +340,7 @@ namespace Loci {
     //For stores,recompose will compose a store whose domain is the domain of m,
     //whose data is the data of the SECOND field of m.
     //for example, pos.recompose(face2node) will produce the positions  for each face  
-    virtual gStoreRepP  recompose(gStoreRepP &m, MPI_Comm comm=MPI_COMM_WORLD)const{
+    virtual gStoreRepP  recompose(gStoreRepP &m, MPI_Comm comm LOCI_DEFAULT_COMM)const{
       return Rep()->recompose(m, comm);}
     // virtual gStoreRepP recompose(const gMap &m, MPI_Comm comm=MPI_COMM_WORLD )const{
     //   return Rep()->recompose(m, comm);} 
@@ -351,10 +351,10 @@ namespace Loci {
     
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,
-                 MPI_Comm comm=MPI_COMM_WORLD)const{return Rep()->redistribute(dom_split, comm);}
+                 MPI_Comm comm LOCI_DEFAULT_COMM)const{return Rep()->redistribute(dom_split, comm);}
     virtual gStoreRepP
     redistribute(const std::vector<gEntitySet>& dom_split,
-                 const gMap& remap, MPI_Comm comm=MPI_COMM_WORLD)const{return Rep()->redistribute(dom_split,remap,comm);}
+                 const gMap& remap, MPI_Comm comm LOCI_DEFAULT_COMM)const{return Rep()->redistribute(dom_split,remap,comm);}
     // the redistribute takes a vector of gEntitySets as domain
     // distribution over a group of processes and
     // redistributes the gStores according to the domain partition
@@ -363,7 +363,7 @@ namespace Loci {
     // containers will need to implement this method later.
     virtual gStoreRepP
     split_redistribute(const std::vector<gEntitySet>& dom_ptn,
-                       MPI_Comm comm=MPI_COMM_WORLD)const{return Rep()->split_redistribute(dom_ptn, comm);}
+                       MPI_Comm comm LOCI_DEFAULT_COMM)const{return Rep()->split_redistribute(dom_ptn, comm);}
     
     //insert elements into store
     void insert(gEntity e, const T &val){

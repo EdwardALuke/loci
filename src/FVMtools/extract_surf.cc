@@ -61,7 +61,7 @@ void get_surf(string casename, string iteration,
   string posname = getPosFile(output_dir,iteration,casename) ;
   hid_t file_id = Loci::hdf5OpenFile(posname.c_str(),
                                      H5F_ACC_RDONLY,
-                                     H5P_DEFAULT) ;
+                                     H5P_DEFAULT, MPI_COMM_WORLD) ;
   if(file_id < 0) {
     cerr << "unable to get grid positions for iteration " << iteration
          << endl ;
@@ -72,7 +72,7 @@ void get_surf(string casename, string iteration,
 
   fact_db facts ;
   Loci::readContainer(file_id,"pos",pos.Rep(),EMPTY,facts) ;
-  Loci::hdf5CloseFile(file_id) ;
+  Loci::hdf5CloseFile(file_id, MPI_COMM_WORLD) ;
 
   string gridtopo = getTopoFileName(output_dir, casename, iteration) ;
 

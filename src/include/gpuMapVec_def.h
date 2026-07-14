@@ -82,7 +82,7 @@ namespace Loci {
       return base_ptr;
     }
 
-    virtual storeRepP expand(entitySet & out_of_dom, std::vector<entitySet> & init_ptn);
+    virtual storeRepP expand(entitySet & out_of_dom, std::vector<entitySet> & init_ptn, MPI_Comm comm LOCI_DEFAULT_COMM);
     virtual storeRepP freeze();
     virtual storeRepP thaw();
     virtual DatatypeP getType();

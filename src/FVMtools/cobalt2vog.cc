@@ -268,7 +268,7 @@ int main(int ac, char *av[]) {
   for(size_t i=0;i<bcs.size();++i)
     surf_ids.push_back(pair<int,string>(bcs[i].id,bcs[i].name)) ;
   
-  Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids) ;
+  Loci::writeVOG(outfile, pos, cl, cr, face2node,surf_ids, MPI_COMM_WORLD) ;
 
   Loci::Finalize() ;
   return 0 ;

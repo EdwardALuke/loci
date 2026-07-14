@@ -32,6 +32,7 @@
 #include <Map.h>
 #include <partition.h>
 #include <distributed_inverse_long.h>
+#include <fact_db.h>
 using std::cerr ;
 using std::endl ;
 using std::ostream ;
@@ -159,7 +160,7 @@ namespace Loci {
 
 
     gEntitySet local_input_image = global_image ;
-    local_input_image &= init_ptn[MPI_rank] ;
+    local_input_image &= init_ptn[get_exec_rank()] ;
     
     
     for(size_t i=0;i<recv_store.size();++i) {
@@ -210,8 +211,8 @@ namespace Loci {
     
   
     
-    int *send_displs = new int[MPI_processes] ;
-    int *recv_displs = new int[MPI_processes] ;
+    int *send_displs = new int[np] ;
+    int *recv_displs = new int[np] ;
     send_displs[0] = 0 ;
     recv_displs[0] = 0 ;
     for(int i=1;i<np;++i){
