@@ -799,7 +799,8 @@ namespace Loci {
     
     vector<pair<int,int> > splits(p-1) ;
     for(int i=0;i<p-1;++i)
-      splits[i] = pair<int,int>(parentoffsets[i+1],-1) ;
+      splits[i] = pair<int,int>(parentoffsets[i+1],
+                                std::numeric_limits<int>::lowest()) ;
 
     Loci::parSplitSort(p2c,splits,MPI_COMM_WORLD) ;
 
@@ -833,7 +834,8 @@ namespace Loci {
       parentoffsets[i+1] = parentoffsets[i]+cellsizes[i] ;
     
     for(int i=0;i<p-1;++i)
-      splits[i] = pair<int,int>(parentoffsets[i+1],-1) ;
+      splits[i] = pair<int,int>(parentoffsets[i+1],
+                                std::numeric_limits<int>::lowest()) ;
 
 
     sort(cell2weights.begin(),cell2weights.end()) ;
@@ -1244,7 +1246,8 @@ namespace Loci {
     
     vector<pair<int,int> > splits(p-1) ;
     for(int i=0;i<p-1;++i)
-      splits[i] = pair<int,int>(parentoffsets[i+1],-1) ;
+      splits[i] = pair<int,int>(parentoffsets[i+1],
+                                std::numeric_limits<int>::lowest()) ;
 
     Loci::parSplitSort(p2c,splits,MPI_COMM_WORLD) ;
 

@@ -108,6 +108,8 @@ namespace Loci{
      
      constraint quadrangles;
      *quadrangles = quadface;
+     int fk = face2node.Rep()->getDomainKeySpace() ;
+     quadrangles.Rep()->setDomainKeySpace(fk) ;
      facts.create_fact("quadrangles", quadrangles);
    
      
