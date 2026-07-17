@@ -463,7 +463,7 @@ namespace Loci {
     //########################################################################
     //
     // Use parSplitSort to map child to parent map to processors according to
-    // child distribution.
+    // child distribution.
     //
     vector<int> csplits(p) ;
     MPI_Allgather(&csplit,1,MPI_INT,&csplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -2058,7 +2058,7 @@ namespace Loci{
     // update remap from global to file numbering for faces after sorting
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
     dMap g2f ;
-    g2f = df->g2fv[fk].Rep() ; 
+    g2f = df->g2fv[0].Rep() ; 
 
     int cells_base=local_cells[0].Min() ;
     for(size_t i=0;i<volTags.size();++i) {
@@ -2162,7 +2162,7 @@ namespace Loci {
     //get store pos
     store<vector3d<double> > pos;
     pos =  facts.get_variable("pos");
-       
+
     if(MPI_processes == 1){
       //firsr write out numNodes
       long  num_original_nodes  = pos.domain().size();
@@ -2242,6 +2242,7 @@ namespace Loci {
       int noffset, eoffset, coffset, foffset;
       noffset = 0;
       store<vector3d<double> > pos_io;
+      
       pos_io = Loci::Global2FileOrder(pos.Rep(), local_nodes, noffset, dist, MPI_COMM_WORLD) ;
       entitySet file_nodes = pos_io.domain(); 
     
@@ -2499,7 +2500,7 @@ namespace Loci {
     for(int i =0; i < MPI_processes; i++) numFaces += face_sizes[i];
   
     //get face domains and allocate the maps 
-    int face_min = numNodes;
+    int face_min = std::numeric_limits<int>::lowest()+2048 ;
     for(int i =0; i < MPI_rank; i++) face_min += face_sizes[i];
 
     int face_max = face_min + face_sizes[MPI_rank] -1;
@@ -2515,7 +2516,7 @@ namespace Loci {
     local_faces.resize(MPI_processes);
     local_faces = all_collect_vectors(faces);
     //fill up the maps cl , cr and count 
-    int cell_base = numNodes + numFaces;
+    int cell_base = numNodes  ;
     int cell_max = std::numeric_limits<int>::min();
     int cell_min = std::numeric_limits<int>::max();
 
