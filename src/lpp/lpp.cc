@@ -2338,428 +2338,6 @@ std::vector<list<variable> > expand_mapping(std::vector<variableSet> vset) {
   return tmp2 ;
 }
 
-static char const * cuda_rule_template = "\
-$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-class $$rule.class$$ : public Loci::$$rule.type$$_rule\
-$$#if rule.is_apply$$<\
-Loci::gpu$$rule.apply.container$$\
-$$#if rule.apply.container_args$$<$$rule.apply.container_args$$>$$/if$$, \
-$$rule.apply.operator$$<$$rule.apply.container_args$$> >\
-$$/if$$\
-{\n\
-$$#each rule.input_stores$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-  Loci::const_gpu$$ctype$$$$#if carg$$<$$carg$$>$$/if$$ $$vname$$ ;\n\
-$$/each$$\
-$$#each rule.output_stores$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-  Loci::gpu$$ctype$$$$#if carg$$<$$carg$$>$$/if$$ $$vname$$ ;\n\
-$$/each$$\
-\n\
-public:\n\
-$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$() {\n\
-$$#each rule.name_stores$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    name_store(\"$$name$$\", $$vname$$) ;\n\
-$$#if has_info_id$$\
-    store_info_id(\"$$name$$\", $$info_id$$) ;\n\
-$$/if$$\
-$$/each$$\
-$$#each rule.inputs$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    input(\"$$str$$\") ;\n\
-$$/each$$\
-$$#each rule.outputs$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    output(\"$$str$$\") ;\n\
-$$/each$$\
-$$#each rule.constraints.spec$$\
-$$#if ::pln$$#line $$::rule.constraints.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    constraint(\"$$str$$\") ;\n\
-$$/each$$\
-    disable_threading() ;\n\
-$$#if rule.is_parametric$$\
-$$#if pln$$#line $$rule.parametric.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    set_parametric_variable(\"$$rule.parametric.spec$$\") ;\n\
-$$/if$$\
-$$#if rule.is_specialized$$\
-$$#if pln$$#line $$rule.specialized.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    set_specialized() ;\n\
-$$/if$$\
-$$#if rule.is_conditional$$\
-$$#if pln$$#line $$rule.conditional.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    conditional(\"$$rule.conditional.spec$$\") ;\n\
-$$/if$$\
-$$#each rule.comments$$\
-$$#if ::pln$$#line $$line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    comments(\"$$str$$\") ;\n\
-$$/each$$\
-$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    set_file(\"$$rule.file$$:$$rule.line_number$$\") ;\n\
-  }\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  void compute(const Loci::sequence &seq) override ;\n\
-$$#if rule.is_pointwise$$\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  typedef struct {\n\
-$$#each rule.input_stores$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ $$vname$$ ;\n\
-$$/each$$\
-$$#each rule.output_stores$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ $$vname$$ ;\n\
-$$/each$$\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    GPU_DECL\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    void operator()(Entity _e_) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$rule.compute.spec$$\n\
-    }\n\
-  } compute_t ;\n\
-$$/if$$\
-$$#if rule.is_unit$$\
-\n\
-$$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  typedef $$rule.unit.container_args$$ value_t ;\n\
-$$/if$$\
-$$#if rule.is_apply$$\
-\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  typedef $$rule.apply.container_args$$ value_t ;\n\
-\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  typedef $$rule.apply.operator$$<value_t> loci_reduction_t ;\n\
-\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  typedef struct {\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    GPU_DECL\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    value_t operator()(value_t const & lhs, value_t const & rhs) {\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-      value_t tmp = lhs ;\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-      loci_reduction_t op ;\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-      op(tmp, rhs) ;\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-      return tmp ;\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    }\n\
-\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    GPU_DECL\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    value_t identity() const {\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-      loci_reduction_t tmp ;\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-      return tmp.identity() ;\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    }\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  } reduction_t ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  typedef struct {\n\
-$$#each rule.input_stores$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ $$vname$$ ;\n\
-$$/each$$\
-$$#each rule.output_stores$$\
-$$#if ::pln$$#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-    $$vtype$$ $$vname$$ ;\n\
-$$/each$$\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    GPU_DECL\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    value_t operator()(Entity _e_) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$rule.compute.spec$$\n\
-    }\n\
-  } compute_t ;\n\
-$$/if$$\
-} ;\n\
-\n\
-$$#if rule.is_unit$$\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-__global__\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-void $$rule.class$$_kernel($$rule.class$$::value_t * $$rule.unit.target_vname$$) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$rule.compute.spec$$\n\
-}\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$#if debug_info$$nvtxRangePush(\"$$rule.debug_name$$\") ;\n$$/if$$\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$_kernel<<<1, 1>>>($$rule.unit.target_vname$$.ptr()) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$#if debug_info$$nvtxRangePop(\"$$rule.debug_name$$\") ;\n$$/if$$\
-}\n\
-$$/if$$\
-$$#if rule.is_apply$$\
-$$#if rule.apply.is_singleton$$\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-__global__\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-void $$rule.class$$_computevar_kernel(\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$::value_t * res,\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$::compute_t compute_op\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-) {\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  if(threadIdx.x == 0)\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    *res = compute_op(0) ;\n\
-}\n\
-$$/if$$\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-__global__\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-void $$rule.class$$_reducevar_kernel(\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$::value_t * res,\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$::value_t const * part\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-) {\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$::loci_reduction_t op ;\n\
-$$#if pln$$#line $$rule.apply.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  op(*res, *part) ;\n\
-}\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$#if debug_info$$nvtxRangePush(\"$$rule.debug_name$$\") ;\n$$/if$$\
-$$#if rule.apply.is_singleton$$\
-  compute_t compute_op ;\n\
-$$#each rule.input_stores$$\
-$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
-$$/each$$\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  thrust::device_vector<value_t> d_result(1) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  value_t * d_result_ptr  = thrust::raw_pointer_cast(d_result.data()) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$_computevar_kernel<<<1, 1>>>(d_result_ptr, compute_op) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$_reducevar_kernel<<<1, 1>>>(\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    $$rule.apply.target_vname$$.ptr(),\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_result_ptr\n\
-  ) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-\n\
-$$#else$$\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  size_t num_intervals = seq.num_intervals() ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  thrust::device_vector<value_t> d_interval_result(num_intervals+1) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  value_t * d_interval_result_ptr = thrust::raw_pointer_cast(d_interval_result.data()) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  thrust::host_vector<Entity> h_interval_offsets(num_intervals*2) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  for(size_t i = 0; i < num_intervals; ++i) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    h_interval_offsets[i] = seq[i].first ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    h_interval_offsets[i+num_intervals] = seq[i].second+1 ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  }\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  thrust::device_vector<Entity> d_interval_offsets(h_interval_offsets) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  compute_t compute_op ;\n\
-$$#each rule.input_stores$$\
-$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
-$$/each$$\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  reduction_t reduce_op ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  value_t const unit_value = reduce_op.identity() ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  thrust::counting_iterator entity_iter = thrust::make_counting_iterator(0) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  thrust::transform_iterator transform_iter = thrust::make_transform_iterator(entity_iter, compute_op) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  void * d_temp_storage = nullptr ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  size_t temp_storage_bytes = 0 ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  cub::DeviceSegmentedReduce::Reduce(\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_temp_storage,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    temp_storage_bytes,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    transform_iter,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_result_ptr,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_offsets.begin(),\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_offsets.begin()+num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    reduce_op,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    unit_value\n\
-  ) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  thrust::device_vector<std::uint8_t> temp_storage(temp_storage_bytes) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  d_temp_storage = thrust::raw_pointer_cast(temp_storage.data()) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  cub::DeviceSegmentedReduce::Reduce(\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_temp_storage,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    temp_storage_bytes,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    transform_iter,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_result_ptr,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_offsets.begin(),\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_offsets.begin()+num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    reduce_op,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    unit_value\n\
-  ) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  d_temp_storage = nullptr ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  temp_storage_bytes = 0 ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  cub::DeviceReduce::Reduce(\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_temp_storage,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    temp_storage_bytes,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_result_ptr,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_result_ptr+num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    reduce_op,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    unit_value\n\
-  ) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  temp_storage.resize(temp_storage_bytes) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  d_temp_storage = thrust::raw_pointer_cast(temp_storage.data()) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  cub::DeviceReduce::Reduce(\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_temp_storage,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    temp_storage_bytes,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_result_ptr,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_result_ptr+num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    num_intervals,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    reduce_op,\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    unit_value\n\
-  ) ;\n\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  $$rule.class$$_reducevar_kernel<<<1, 1>>>(\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    $$rule.apply.target_vname$$.ptr(),\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    d_interval_result_ptr+num_intervals\n\
-  ) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$/if$$\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$#if debug_info$$nvtxRangePop() ;\n$$/if$$\
-}\n\
-\n\
-$$/if$$\
-$$#if rule.is_pointwise$$\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$#if debug_info$$nvtxRangePush(\"$$rule.debug_name$$\") ;\n$$/if$$\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  compute_t compute_op ;\n\
-$$#each rule.input_stores$$\
-$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
-$$/each$$\
-$$#each rule.output_stores$$\
-$$#if ::pln$$#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\n$$/if$$\
-  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
-$$/each$$\
-\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  const int ni = seq.num_intervals() ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-  for(int i = 0; i < ni; ++i) {\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    thrust::counting_iterator start_iter = thrust::make_counting_iterator(seq[i].first) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    thrust::counting_iterator end_iter = thrust::make_counting_iterator(seq[i].second+1) ;\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-    thrust::for_each(thrust::cuda::par.on(Loci::getGPUStream()), start_iter, end_iter, compute_op) ;\n\
-  }\n\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$#if pln$$#line $$rule.compute.line_number$$ \"$$rule.file$$\"\n$$/if$$\
-$$#if debug_info$$nvtxRangePop() ;\n$$/if$$\
-\n\
-}\n\
-$$/if$$\
-\n\
-Loci::register_rule<$$rule.class$$> register_$$rule.class$$ ;\n\
-" ;
-
 void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
                                const parseSharedInfo &parseInfo) {
   int rule_type_line_no = 0 ;
@@ -2801,7 +2379,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   list<string> options ;
   vector<string> comments ;
   list<pair<variable,variable> > inplace ;
-  
+
   bool use_prelude = false ;
   bool is_specialized = false ;
   using namespace Loci ;
@@ -2817,7 +2395,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       con.get(is) ;
       if(constraint == "")
         constraint = con.str() ;
-      else 
+      else
         constraint += "," + con.str() ;
       constraint_line_no = line_no ;
       line_no += con.num_lines() ;
@@ -2856,7 +2434,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
         for(int i=0;i<valsz;++i)
           if(val[i] != ' ' && val[i] != '\t' && val[i] != '\r' && val[i] != '\n')
             val2 += val[i] ;
-        
+
         if(val2 != "param<bool>") {
           throw(parseError("conditional variable must be typed as a param<bool>")) ;
         }
@@ -2867,15 +2445,14 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       line_no += ip.num_lines() ;
       exprP p = expression::create(ip.str()) ;
       exprList l = collect_associative_op(p,OP_OR) ;
-      if(l.size() != 2) 
+      if(l.size() != 2)
         throw parseError("inplace needs two variables with a '|' separator") ;
-        
+
       auto i = l.begin() ;
       variable v1(*i) ;
       ++i ;
       variable v2(*i) ;
       inplace.push_back(pair<variable,variable>(v1,v2)) ;
-    
     } else if(s == "prelude") {
       use_prelude=true ;
       killsp() ;
@@ -3126,9 +2703,12 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       throw parseError("unit rule should have only param output variable") ;
     }
 
-    paramUnit = 1 ;
+    if(tinfo.container == "param") {
+      paramUnit = 1 ;
+    }
   }
 
+  int paramApply = 0 ;
   int singletonApply = 0 ;
   if(rule_type == "apply") {
     if(output.size() != 1) {
@@ -3147,6 +2727,10 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
       if(tinfo2.container != "param") {
         allparam = false ;
       }
+    }
+
+    if(tinfo.container == "param") {
+      paramApply = 1 ;
     }
 
     if(allparam) {
@@ -3774,6 +3358,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     apply_ctx.set("container_args", cargtable[apply_var]) ;
     apply_ctx.set("operator", apply_op.str()) ;
     apply_ctx.set("line_number", apply_op_line_no) ;
+    apply_ctx.set("is_param", paramApply) ;
     apply_ctx.set("is_singleton", singletonApply) ;
 
     rule_ctx.set("is_pointwise", 0) ;
@@ -3799,9 +3384,572 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   root_ctx.set_object("rule", rule_ctx) ;
 
   TemplateEngine engine ;
-  std::string rule_text = "" ;
+
+  engine.define("rule_type_line_spec", "\
+$$#if ::pln$$\
+#line $$::rule.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("signature_line_spec", "\
+$$#if ::pln$$\
+#line $$::rule.signature.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("apply_op_line_spec", "\
+$$#if ::pln && ::rule.is_apply$$\
+#line $$::rule.apply.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("constraint_line_spec", "\
+$$#if ::pln$$\
+#line $$::rule.constraints.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("parametric_line_spec", "\
+$$#if pln && ::rule.is_parametric$$\
+#line $$::rule.parametric.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("specialized_line_spec", "\
+$$#if pln && ::rule.is_specialized$$\
+#line $$::rule.specialized.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("conditional_line_spec", "\
+$$#if ::pln && ::rule.is_conditional$$\
+#line $$::rule.conditional.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("comment_line_spec", "\
+$$#if ::pln$$\
+#line $$line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("compute_line_spec", "\
+$$#if ::pln$$\
+#line $$::rule.compute.line_number$$ \"$$::rule.file$$\"\
+$$/if$$") ;
+
+  engine.define("rule_class_sig", "\
+$$> rule_type_line_spec$$\n\
+class $$rule.class$$ : public Loci::$$rule.type$$_rule\
+$$#if rule.is_apply$$<\
+Loci::gpu$$rule.apply.container$$\
+$$#if rule.apply.container_args$$<$$rule.apply.container_args$$>$$/if$$, \
+$$rule.apply.operator$$<$$rule.apply.container_args$$> >\
+$$/if$$") ;
+
+  engine.define("input_store_decl", "\
+$$#each rule.input_stores$$\
+  $$> signature_line_spec$$\n\
+  Loci::const_gpu$$ctype$$$$#if carg$$<$$carg$$>$$/if$$ $$vname$$ ;\n\n\
+$$/each$$") ;
+
+  engine.define("output_store_decl", "\
+$$#each rule.output_stores$$\
+  $$> signature_line_spec$$\n\
+  Loci::gpu$$ctype$$$$#if carg$$<$$carg$$>$$/if$$ $$vname$$ ;\n\n\
+$$/each$$") ;
+
+  engine.define("ctor_name_store_spec", "\
+$$#each rule.name_stores$$\
+    $$> signature_line_spec$$\n\
+    name_store(\"$$name$$\", $$vname$$) ;\n\n\
+$$#if has_info_id$$\
+    $$> signature_line_spec$$\n\
+    store_info_id(\"$$name$$\", $$info_id$$) ;\n\n\
+$$/if$$\
+$$/each$$") ;
+
+  engine.define("ctor_input_spec", "\
+$$#each rule.inputs$$\
+    $$> signature_line_spec$$\n\
+    input(\"$$str$$\") ;\n\n\
+$$/each$$") ;
+
+  engine.define("ctor_output_spec", "\
+$$#each rule.outputs$$\
+    $$> signature_line_spec$$\n\
+    output(\"$$str$$\") ;\n\n\
+$$/each$$") ;
+
+  engine.define("ctor_constraint_spec", "\
+$$#each rule.constraints.spec$$\
+    $$> constraint_line_spec$$\n\
+    constraint(\"$$str$$\") ;\n\n\
+$$/each$$") ;
+
+  engine.define("ctor_threading_spec", "\
+    disable_threading() ;\n\n") ;
+
+  engine.define("ctor_parametric_spec", "\
+$$#if rule.is_parametric$$\
+    $$> parametric_line_spec$$\n\
+    set_parametric_variable(\"$$rule.parametric.spec$$\") ;\n\n\
+$$/if$$") ;
+
+  engine.define("ctor_specialized_spec", "\
+$$#if rule.is_specialized$$\
+    $$> specialized_line_spec$$\n\
+    set_specialized() ;\n\n\
+$$/if$$") ;
+
+  engine.define("ctor_conditional_spec", "\
+$$#if rule.is_conditional$$\
+    $$> conditional_line_spec$$\n\
+    conditional(\"$$rule.conditional.spec$$\") ;\n\n\
+$$/if$$") ;
+
+  engine.define("ctor_comment_spec", "\
+$$#each rule.comments$$\
+    $$> comment_line_spec$$\n\
+    comments(\"$$str$$\") ;\n\n\
+$$/each$$") ;
+
+  engine.define("ctor_file_spec", "\
+    $$> rule_type_line_spec$$\n\
+    set_file(\"$$rule.file$$:$$rule.line_number$$\") ;\n\n") ;
+
+  engine.define("pointwise_compute_type_decl", "\
+  $$>> compute_line_spec$$\n\
+  typedef struct {\n\
+$$#each rule.input_stores$$\
+    $$> signature_line_spec$$\n\
+    $$vtype$$ $$vname$$ ;\n\
+$$/each$$\
+\n\
+$$#each rule.output_stores$$\
+    $$> signature_line_spec$$\n\
+    $$vtype$$ $$vname$$ ;\n\
+$$/each$$\
+\n\
+    $$> compute_line_spec$$\n\
+    GPU_DECL void operator()(Entity _e_) {\n\
+      $$> compute_line_spec$$\n\
+$$rule.compute.spec$$\n\
+    }\n\
+  } compute_t ;\n") ;
+
+    engine.define("pointwise_compute_impl", "\
+$$> compute_line_spec$$\n\
+__global__ void $$rule.class$$_kernel(int start, int stop, $$rule.class$$::compute_t compute_op) {\n\
+  $$> compute_line_spec$$\n\
+  int _e_ = blockIdx.x*blockDim.x + threadIdx.x + start ;\n\
+  $$> compute_line_spec$$\n\
+  if(_e_ < stop) {\n\
+    $$> compute_line_spec$$\n\
+    compute_op(_e_) ;\n\
+  }\n\
+$$> compute_line_spec$$\n\
+}\n\
+\n\
+$$> compute_line_spec$$\n\
+void $$rule.class$$::compute(sequence const & seq) {\n\
+  $$> compute_line_spec$$\n\
+  if(seq.num_intervals() == 0) return ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  compute_t compute_op ;\n\
+\n\
+$$#each rule.input_stores$$\
+  $$> signature_line_spec$$\n\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+$$#each rule.output_stores$$\
+  $$> signature_line_spec$$\n\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+  $$> compute_line_spec$$\n\
+  size_t num_intervals = seq.num_intervals() ;\n\
+  $$> compute_line_spec$$\n\
+  for(size_t ni = 0; ni < num_intervals; ++ni) {\n\
+    $$> compute_line_spec$$\n\
+    Entity start = seq[ni].first, stop = seq[ni].second+1 ;\n\
+    $$> compute_line_spec$$\n\
+    int minGridSize, blockSize ;\n\
+    $$> compute_line_spec$$\n\
+    if(cudaOccupancyMaxPotentialBlockSize(&minGridSize, &blockSize, $$rule.class$$_kernel) != cudaSuccess) {\n\
+      $$> compute_line_spec$$\n\
+      cerr << \"could not determine CUDA block size\" << endl ;\n\
+      $$> compute_line_spec$$\n\
+      Loci::Abort() ;\n\
+    }\n\
+    $$> compute_line_spec$$\n\
+    int gridSize = ((stop-start) + blockSize - 1) / blockSize;\n\
+$$#if debug_info$$\
+    $$> compute_line_spec$$\n\
+    nvtxRangePush(\"$$rule.debug_name$$\") ;\n\
+$$/if$$\
+    $$> compute_line_spec$$\n\
+    $$rule.class$$_kernel<<<gridSize, blockSize>>>(start, stop, compute_op) ;\n\
+$$#if debug_info$$\
+    $$> compute_line_spec$$\n\
+    nvtxRangePop(\"$$rule.debug_name$$\") ;\n\
+$$/if$$\
+  }\n\
+}") ;
+
+  engine.define("unit_value_type_decl", "\
+  $$> rule_type_line_spec$$\n\
+  typedef $$rule.unit.container_args$$ value_t ;\n\n") ;
+
+  engine.define("unit_compute_type_decl", "\
+  $$> compute_line_spec$$\n\
+  typedef struct {\n\
+$$#each rule.input_stores$$\
+    $$> signature_line_spec$$\n\
+    $$vtype$$ $$vname$$ ;\n\
+$$/each$$\
+\n\
+$$#each rule.output_stores$$\
+    $$> signature_line_spec$$\n\
+    $$vtype$$ $$vname$$ ;\n\
+$$/each$$\
+\n\
+    $$> compute_line_spec$$\n\
+    GPU_DECL void operator()() {\n\
+      $$> compute_line_spec$$\n\
+$$rule.compute.spec$$\n\
+    }\n\
+  } compute_t ;\n\n") ;
+
+  engine.define("param_unit_compute_impl", "\
+$$> compute_line_spec$$\n\
+__global__ void $$rule.class$$_kernel($$rule.class$$::compute_t compute_op) {\n\
+  $$> compute_line_spec$$\n\
+  if(threadIdx.x == 0)\n\
+    $$> compute_line_spec$$\n\
+    compute_op() ;\n\
+}\n\
+\n\
+$$> compute_line_spec$$\n\
+void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
+  $$> compute_line_spec$$\n\
+  if(seq.num_intervals() == 0) return ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  compute_t compute_op ;\n\
+\n\
+$$#each rule.input_stores$$\
+  $$> signature_line_spec$$\n\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+$$#each rule.output_stores$$\
+  $$> signature_line_spec$$\n\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+$$#if debug_info$$\
+  $$> compute_line_spec$$\n\
+  nvtxRangePush(\"$$rule.debug_name$$\") ;\n\
+$$/if$$\
+  $$> compute_line_spec$$\n\
+  $$rule.class$$_kernel<<<1, 1>>>(compute_op) ;\n\
+$$#if debug_info$$\
+  $$> compute_line_spec$$\n\
+  nvtxRangePop(\"$$rule.debug_name$$\") ;\n\
+$$/if$$\
+}") ;
+
+    engine.define("apply_value_type_decl", "\
+  $$> apply_op_line_spec$$\n\
+  typedef $$rule.apply.container_args$$ value_t ;\n\n") ;
+
+  engine.define("apply_loci_reduction_type_decl", "\
+  $$> apply_op_line_spec$$\n\
+  typedef $$rule.apply.operator$$<value_t> loci_reduction_t ;\n") ;
+
+  engine.define("apply_gpu_reduction_type_decl", "\
+  $$> apply_op_line_spec$$\n\
+  typedef struct {\n\
+    $$> apply_op_line_spec$$\n\
+    GPU_DECL value_t operator()(value_t const & lhs, value_t const & rhs) {\n\
+      $$> apply_op_line_spec$$\n\
+      value_t tmp = lhs ;\n\
+      $$> apply_op_line_spec$$\n\
+      loci_reduction_t op ;\n\
+      $$> apply_op_line_spec$$\n\
+      op(tmp, rhs) ;\n\
+      $$> apply_op_line_spec$$\n\
+      return tmp ;\n\
+      $$> apply_op_line_spec$$\n\
+    }\n\
+\n\
+    $$> apply_op_line_spec$$\n\
+    GPU_DECL value_t identity() const {\n\
+      $$> apply_op_line_spec$$\n\
+      loci_reduction_t tmp ;\n\
+      $$> apply_op_line_spec$$\n\
+      return tmp.identity() ;\n\
+      $$> apply_op_line_spec$$\n\
+    }\n\
+  $$> apply_op_line_spec$$\n\
+  } reduction_t ;\n\n") ;
+
+  engine.define("apply_compute_type_decl", "\
+  $$> compute_line_spec$$\n\
+  typedef struct {\n\
+$$#each rule.input_stores$$\
+    $$> signature_line_spec$$\n\
+    $$vtype$$ $$vname$$ ;\n\
+$$/each$$\
+$$#each rule.output_stores$$\
+    $$> signature_line_spec$$\n\
+    $$vtype$$ $$vname$$ ;\n\
+$$/each$$\
+\n\
+    $$> compute_line_spec$$\n\
+    GPU_DECL value_t operator()(Entity _e_) {\n\
+      $$> compute_line_spec$$\n\
+$$rule.compute.spec$$\n\
+    }\n\
+  } compute_t ;\n\n") ;
+
+  engine.define("singleton_apply_compute_impl", "\
+  $$> compute_line_spec$$\n\
+__global__ void $$rule.class$$_computevar_kernel(\n\
+  $$> compute_line_spec$$\n\
+  $$rule.class$$::value_t * target,\n\
+  $$> compute_line_spec$$\n\
+  $$rule.class$$::compute_t compute_op\n\
+) {\n\
+  $$> compute_line_spec$$\n\
+  if(threadIdx.x == 0) {\n\
+    $$> apply_op_line_spec$$\n\
+    $$rule.class$$::loci_reduction_t reduce_op ;\n\
+    $$> compute_line_spec$$\n\
+    $$rule.class$$::value_t const part = compute_op(0) ;\n\
+    $$> apply_op_line_spec$$\n\
+    reduce_op(*target, part) ;\n\
+  }\n\
+}\n\
+\n\
+$$> compute_line_spec$$\n\
+void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
+  $$> compute_line_spec$$\n\
+  if(Loci::MPI_rank == 0) {\n\
+    $$> compute_line_spec$$\n\
+    compute_t compute_op ;\n\
+$$#each rule.input_stores$$\
+    $$> signature_line_spec$$\n\
+    compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+    $$> compute_line_spec$$\n\
+    $$rule.class$$_computevar_kernel<<<1, 1>>>($$rule.apply.target_vname$$.ptr(), compute_op) ;\n\
+  }\n\
+}\n\n") ;
+
+  engine.define("param_apply_compute_impl", "\
+$$> apply_op_line_spec$$\n\
+__global__ void $$rule.class$$_reducevar_kernel(\n\
+  $$> apply_op_line_spec$$\n\
+  $$rule.class$$::value_t * res,\n\
+  $$> apply_op_line_spec$$\n\
+  $$rule.class$$::value_t const * part\n\
+) {\n\
+  $$> apply_op_line_spec$$\n\
+  if(threadIdx.x == 0) {\n\
+    $$> apply_op_line_spec$$\n\
+    $$rule.class$$::loci_reduction_t op ;\n\
+    $$> apply_op_line_spec$$\n\
+    op(*res, *part) ;\n\
+  }\n\
+}\n\
+\n\
+$$> compute_line_spec$$\n\
+void $$rule.class$$::compute(const Loci::sequence &seq) {\n\
+$$#if debug_info$$\
+  $$> compute_line_spec$$\n\
+  nvtxRangePush(\"$$rule.debug_name$$\") ;\n\
+$$/if$$\
+\n\
+  $$> compute_line_spec$$\n\
+  size_t num_intervals = seq.num_intervals() ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  if(num_intervals == 0) return ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  thrust::device_vector<value_t> d_interval_result(num_intervals+1) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  value_t * d_interval_result_ptr = thrust::raw_pointer_cast(d_interval_result.data()) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  thrust::host_vector<Entity> h_interval_offsets(num_intervals*2) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  for(size_t i = 0; i < num_intervals; ++i) {\n\
+    $$> compute_line_spec$$\n\
+    h_interval_offsets[i] = seq[i].first ;\n\
+    $$> compute_line_spec$$\n\
+    h_interval_offsets[i+num_intervals] = seq[i].second+1 ;\n\
+  }\n\
+\n\
+  $$> compute_line_spec$$\n\
+  thrust::device_vector<Entity> d_interval_offsets(h_interval_offsets) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  compute_t compute_op ;\n\
+$$#each rule.input_stores$$\
+  $$> signature_line_spec$$\n\
+  compute_op.$$vname$$ = $$vname$$.ptr() ;\n\
+$$/each$$\
+\n\
+  $$> apply_op_line_spec$$\n\
+  reduction_t reduce_op ;\n\
+\n\
+  $$> apply_op_line_spec$$\n\
+  value_t const unit_value = reduce_op.identity() ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  thrust::counting_iterator entity_iter = thrust::make_counting_iterator(0) ;\n\
+  $$> compute_line_spec$$\n\
+  thrust::transform_iterator transform_iter = thrust::make_transform_iterator(entity_iter, compute_op) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  void * d_temp_storage = nullptr ;\n\
+  $$> compute_line_spec$$\n\
+  size_t temp_storage_bytes = 0 ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  cub::DeviceSegmentedReduce::Reduce(\
+d_temp_storage, \
+temp_storage_bytes, \
+transform_iter, \
+d_interval_result_ptr, \
+num_intervals, \
+d_interval_offsets.begin(), \
+d_interval_offsets.begin()+num_intervals, \
+reduce_op, \
+unit_value) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  thrust::device_vector<std::uint8_t> temp_storage(temp_storage_bytes) ;\n\
+  $$> compute_line_spec$$\n\
+  d_temp_storage = thrust::raw_pointer_cast(temp_storage.data()) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  cub::DeviceSegmentedReduce::Reduce(\
+d_temp_storage, \
+temp_storage_bytes, \
+transform_iter, \
+d_interval_result_ptr, \
+num_intervals, \
+d_interval_offsets.begin(), \
+d_interval_offsets.begin()+num_intervals, \
+reduce_op, \
+unit_value) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  d_temp_storage = nullptr ;\n\
+  $$> compute_line_spec$$\n\
+  temp_storage_bytes = 0 ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  cub::DeviceReduce::Reduce(\
+d_temp_storage, \
+temp_storage_bytes, \
+d_interval_result_ptr, \
+d_interval_result_ptr+num_intervals, \
+num_intervals, \
+reduce_op, \
+unit_value) ;\n\
+\n\
+  $$> compute_line_spec$$\n\
+  temp_storage.resize(temp_storage_bytes) ;\n\
+  $$> compute_line_spec$$\n\
+  d_temp_storage = thrust::raw_pointer_cast(temp_storage.data()) ;\n\
+\n\
+  $$> apply_op_line_spec$$\n\
+  cub::DeviceReduce::Reduce(\
+d_temp_storage, \
+temp_storage_bytes, \
+d_interval_result_ptr, \
+d_interval_result_ptr+num_intervals, \
+num_intervals, \
+reduce_op, \
+unit_value) ;\n\
+\n\
+  $$> apply_op_line_spec$$\n\
+  $$rule.class$$_reducevar_kernel<<<1, 1>>>(\
+$$rule.apply.target_vname$$.ptr(), \
+d_interval_result_ptr+num_intervals) ;\n\
+$$#if debug_info$$\
+  $$> compute_line_spec$$\n\
+  nvtxRangePop() ;\n\
+$$/if$$\
+}\n\n") ;
+
+  std::string rule_template_text = "\
+$$> rule_class_sig$$ {\n\
+$$> input_store_decl$$\
+$$> output_store_decl$$\
+\n\
+public:\n\n\
+  $$#if pln$$#line $$rule.line_number$$ \"$$rule.file$$\"\n$$/if$$\
+  $$rule.class$$() {\n\
+$$> ctor_name_store_spec$$\
+$$> ctor_input_spec$$\
+$$> ctor_output_spec$$\
+$$> ctor_constraint_spec$$\
+$$> ctor_threading_spec$$\
+$$> ctor_parametric_spec$$\
+$$> ctor_specialized_spec$$\
+$$> ctor_conditional_spec$$\
+$$> ctor_comment_spec$$\
+$$> ctor_file_spec$$\
+  }\n\
+\n\
+  $$> compute_line_spec$$\n\
+  void compute(const Loci::sequence &seq) override ;\n\
+\n\
+$$#if rule.is_pointwise$$\
+$$> pointwise_compute_type_decl$$\
+$$/if$$\
+\
+$$#if rule.is_unit$$\
+$$> unit_value_type_decl$$\
+$$> unit_compute_type_decl$$\
+$$/if$$\
+\
+$$#if rule.is_apply$$\
+$$> apply_value_type_decl$$\
+$$> apply_loci_reduction_type_decl$$\
+$$> apply_gpu_reduction_type_decl$$\
+$$> apply_compute_type_decl$$\
+$$/if$$\
+} ;\n\
+\n\
+$$#if rule.is_pointwise$$\
+$$> pointwise_compute_impl$$\
+$$/if$$\
+\
+$$#if rule.is_unit$$\
+$$#if rule.unit.is_param$$\
+$$> param_unit_compute_impl$$\
+$$/if$$\
+$$/if$$\
+\
+$$#if rule.is_apply$$\
+$$#if rule.apply.is_param$$\
+$$#if rule.apply.is_singleton$$\
+$$> singleton_apply_compute_impl$$\
+$$#else$$\
+$$> param_apply_compute_impl$$\
+$$/if$$\
+$$/if$$\
+$$/if$$\
+\n\
+Loci::register_rule<$$rule.class$$> register_$$rule.class$$ ;\n\n" ;
+
+  string rule_text ;
   try {
-    rule_text = engine.render(cuda_rule_template, root_ctx) ;
+    rule_text = engine.render(rule_template_text, root_ctx) ;
   } catch(std::runtime_error const & error) {
     ostringstream ss ;
     string const message = error.what() ;

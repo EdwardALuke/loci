@@ -22,6 +22,7 @@
 #ifndef LOCI_TEMPLATE_H
 #define LOCI_TEMPLATE_H
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -82,16 +83,40 @@ struct RenderOptions {
   bool keep_missing_placeholders = false;
 };
 
+struct NewlineEvent {
+  std::string_view template_name;
+  const TemplateContext& context;
+};
+
+// Called for literal newlines rendered from a named template. The returned
+// text replaces the newline; return "\n" to preserve it unchanged.
+using NewlineCallback = std::function<std::string(const NewlineEvent&)>;
+
 class TemplateEngine {
 public:
   explicit TemplateEngine(RenderOptions options = {});
+  TemplateEngine(const TemplateEngine& other);
+  TemplateEngine(TemplateEngine&& other) noexcept;
+  TemplateEngine& operator=(const TemplateEngine& other);
+  TemplateEngine& operator=(TemplateEngine&& other) noexcept;
+  ~TemplateEngine();
+
+  // Register a named nested template. Include it with $$> name$$.
+  void define(std::string name, std::string_view template_text);
+  void define(std::string name, std::string_view template_text,
+        NewlineCallback on_newline);
+
+  bool has_template(std::string_view name) const;
 
   std::string render(std::string_view template_text, const TemplateContext& context) const;
+
+  std::string render_template(std::string_view name, const TemplateContext& context) const;
 
   std::string render_file(const std::string& path, const TemplateContext& context) const;
 
 private:
-  RenderOptions options_;
+  struct Impl;
+  std::shared_ptr<Impl> impl_;
 };
 
 }  // namespace Loci

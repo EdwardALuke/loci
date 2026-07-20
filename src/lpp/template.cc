@@ -203,7 +203,7 @@ struct CondLexer {
 struct ConditionEvaluator;
 
 struct TemplateNode {
-  enum class Type { Text, Variable, IfBlock, EachBlock };
+  enum class Type { Text, Variable, IfBlock, EachBlock, Partial };
 
   struct ElifBranch {
     std::string condition;
@@ -220,6 +220,11 @@ struct TemplateNode {
 
 using NodeList = std::vector<TemplateNode>;
 
+struct NamedTemplate {
+  NodeList nodes;
+  NewlineCallback on_newline;
+};
+
 enum class TokenKind {
   Text,
   Variable,
@@ -229,6 +234,7 @@ enum class TokenKind {
   IfClose,
   EachOpen,
   EachClose,
+  Partial,
   End
 };
 
@@ -261,6 +267,8 @@ std::string token_kind_label(TokenKind kind) {
       return "#each";
     case TokenKind::EachClose:
       return "/each";
+    case TokenKind::Partial:
+      return ">";
     case TokenKind::End:
       return "end of template";
   }
@@ -405,6 +413,17 @@ private:
       throw_parse_error(location, "Expected list path after '#each'");
     }
 
+    if (content.rfind("> ", 0) == 0) {
+      const std::string name = trim_copy(content.substr(2));
+      if (name.empty()) {
+        throw_parse_error(location, "Expected template name after '>'");
+      }
+      return {TokenKind::Partial, name, location};
+    }
+    if (content == ">") {
+      throw_parse_error(location, "Expected template name after '>'");
+    }
+
     if (!content.empty() && (content[0] == '#' || content[0] == '/')) {
       throw_unknown_control(content, location);
     }
@@ -489,6 +508,13 @@ private:
         return parse_if_block();
       case TokenKind::EachOpen:
         return parse_each_block();
+      case TokenKind::Partial: {
+        TemplateNode node;
+        node.type = TemplateNode::Type::Partial;
+        node.value = std::move(current_.value);
+        advance();
+        return node;
+      }
       default:
         throw_parse_error(current_, "Unexpected token in template segment");
     }
@@ -534,7 +560,11 @@ private:
 struct RenderState {
   const TemplateContext& root;
   const RenderOptions& options;
+  const std::unordered_map<std::string, NamedTemplate>* templates;
   std::vector<const TemplateContext*> scopes;
+  std::vector<std::string> include_stack;
+  std::string current_template_name;
+  NewlineCallback on_newline;
   std::string result;
 
   const TemplateContext* owning_context(std::string_view path) const {
@@ -604,6 +634,39 @@ struct RenderState {
       result += path;
       result += "$$";
     }
+  }
+
+  void append_template_text(std::string_view text) {
+    if (!on_newline) {
+      result += text;
+      return;
+    }
+
+    std::size_t start = 0;
+    while (start < text.size()) {
+      const std::size_t newline = text.find('\n', start);
+      if (newline == std::string_view::npos) {
+        result.append(text.substr(start));
+        return;
+      }
+
+      result.append(text.substr(start, newline - start));
+      const TemplateContext& context =
+        scopes.empty() ? root : *scopes.back();
+      result += on_newline({current_template_name, context});
+      start = newline + 1;
+    }
+  }
+
+  const NamedTemplate* lookup_template(const std::string& name) const {
+    if (templates == nullptr) {
+      return nullptr;
+    }
+    const auto it = templates->find(name);
+    if (it == templates->end()) {
+      return nullptr;
+    }
+    return &it->second;
   }
 };
 
@@ -684,7 +747,7 @@ void render_nodes(const NodeList& nodes, RenderState& state);
 void render_node(const TemplateNode& node, RenderState& state) {
   switch (node.type) {
     case TemplateNode::Type::Text:
-      state.result += node.value;
+      state.append_template_text(node.value);
       break;
 
     case TemplateNode::Type::Variable:
@@ -725,6 +788,28 @@ void render_node(const TemplateNode& node, RenderState& state) {
       }
       break;
     }
+
+    case TemplateNode::Type::Partial: {
+      if (std::find(state.include_stack.begin(), state.include_stack.end(),
+              node.value) != state.include_stack.end()) {
+        throw std::runtime_error("Circular nested template include: '" + node.value + "'");
+      }
+      const NamedTemplate* nested = state.lookup_template(node.value);
+      if (nested == nullptr) {
+        throw std::runtime_error("Unknown nested template: '" + node.value + "'");
+      }
+
+      const std::string previous_name = std::move(state.current_template_name);
+      NewlineCallback previous_callback = std::move(state.on_newline);
+      state.include_stack.push_back(node.value);
+      state.current_template_name = node.value;
+      state.on_newline = nested->on_newline;
+      render_nodes(nested->nodes, state);
+      state.on_newline = std::move(previous_callback);
+      state.current_template_name = previous_name;
+      state.include_stack.pop_back();
+      break;
+    }
   }
 }
 
@@ -736,12 +821,24 @@ void render_nodes(const NodeList& nodes, RenderState& state) {
 
 std::string parse_and_render(std::string_view template_text,
               const TemplateContext& context,
-              const RenderOptions& options) {
+              const RenderOptions& options,
+              const std::unordered_map<std::string, NamedTemplate>* templates) {
   Parser parser(template_text);
   const NodeList document = parser.parse_document();
 
-  RenderState state{context, options, {}, {}};
+  RenderState state{context, options, templates, {}, {}, {}, {}, {}};
   render_nodes(document, state);
+  return state.result;
+}
+
+std::string render_named_template(const std::string& name,
+                 const NamedTemplate& definition,
+                 const TemplateContext& context,
+                 const RenderOptions& options,
+                 const std::unordered_map<std::string, NamedTemplate>* templates) {
+  RenderState state{
+    context, options, templates, {}, {}, name, definition.on_newline, {}};
+  render_nodes(definition.nodes, state);
   return state.result;
 }
 
@@ -1013,12 +1110,57 @@ bool TemplateContext::is_true(std::string_view path) const {
   return false;
 }
 
+struct TemplateEngine::Impl {
+  RenderOptions options;
+  std::unordered_map<std::string, NamedTemplate> templates;
+};
+
 TemplateEngine::TemplateEngine(RenderOptions options)
-  : options_(std::move(options)) {}
+  : impl_(std::make_shared<Impl>()) {
+  impl_->options = std::move(options);
+}
+
+TemplateEngine::TemplateEngine(const TemplateEngine& other) = default;
+
+TemplateEngine::TemplateEngine(TemplateEngine&& other) noexcept = default;
+
+TemplateEngine& TemplateEngine::operator=(const TemplateEngine& other) = default;
+
+TemplateEngine& TemplateEngine::operator=(TemplateEngine&& other) noexcept = default;
+
+TemplateEngine::~TemplateEngine() = default;
+
+void TemplateEngine::define(std::string name, std::string_view template_text) {
+  define(std::move(name), template_text, {});
+}
+
+void TemplateEngine::define(std::string name, std::string_view template_text,
+              NewlineCallback on_newline) {
+  if (name.empty()) {
+    throw std::runtime_error("Template name must not be empty");
+  }
+  Parser parser(template_text);
+  impl_->templates[std::move(name)] =
+    NamedTemplate{parser.parse_document(), std::move(on_newline)};
+}
+
+bool TemplateEngine::has_template(std::string_view name) const {
+  return impl_->templates.find(std::string(name)) != impl_->templates.end();
+}
 
 std::string TemplateEngine::render(std::string_view template_text,
                  const TemplateContext& context) const {
-  return parse_and_render(template_text, context, options_);
+  return parse_and_render(template_text, context, impl_->options, &impl_->templates);
+}
+
+std::string TemplateEngine::render_template(std::string_view name,
+                       const TemplateContext& context) const {
+  const auto it = impl_->templates.find(std::string(name));
+  if (it == impl_->templates.end()) {
+    throw std::runtime_error("Unknown nested template: '" + std::string(name) + "'");
+  }
+  return render_named_template(
+    it->first, it->second, context, impl_->options, &impl_->templates);
 }
 
 std::string TemplateEngine::render_file(const std::string& path,
