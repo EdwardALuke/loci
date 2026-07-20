@@ -3916,7 +3916,7 @@ namespace Loci{
     //    if(!useDomainKeySpaces) {
     //      ek = 0 ;
     //    }
-    if(Loci::MPI_processes == 0)
+    if(Loci::MPI_processes < 2)
       ek = 0 ;
     int fk = face2node.Rep()->getDomainKeySpace() ;
 
