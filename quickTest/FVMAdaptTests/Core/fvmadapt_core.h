@@ -42,6 +42,9 @@ void extract_quad_edge(const std::vector<char>& facePlan,
 std::vector<char> extract_prism_face(const std::vector<char>& cellPlan, int dd) ;
 std::vector<char> transfer_plan_g2q(std::vector<char>& facePlan) ;
 std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan) ;
+std::vector<Entity> reorder_edges(const const_store<int>& node_remap,
+                                  const const_MapVec<2>& edge2node,
+                                  const entitySet& localSet) ;
 
 /// Owns the unit hexahedron used by the HexCell tests.
 struct HexFixture {

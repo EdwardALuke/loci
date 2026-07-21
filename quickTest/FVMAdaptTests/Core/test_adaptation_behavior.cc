@@ -42,6 +42,48 @@ std::vector<char> plan(std::initializer_list<int> codes) {
 } // namespace
 
 
+/// Edges sharing one endpoint must still be ordered by the remapped number of
+/// the other endpoint, rather than falling back to their mesh entity numbers.
+TEST_CASE("general-cell edge ordering uses both endpoint node numbers") {
+  const Entity lower_id_edge = 4 ;
+  const Entity higher_id_edge = 9 ;
+  const Entity shared_node = 20 ;
+  const Entity later_node = 21 ;
+  const Entity earlier_node = 22 ;
+
+  entitySet edges ;
+  edges += lower_id_edge ;
+  edges += higher_id_edge ;
+
+  entitySet nodes ;
+  nodes += shared_node ;
+  nodes += later_node ;
+  nodes += earlier_node ;
+
+  store<int> node_remap ;
+  node_remap.allocate(nodes) ;
+  node_remap[shared_node] = 0 ;
+  node_remap[later_node] = 2 ;
+  node_remap[earlier_node] = 1 ;
+
+  MapVec<2> edge2node ;
+  edge2node.allocate(edges) ;
+  edge2node[lower_id_edge][0] = shared_node ;
+  edge2node[lower_id_edge][1] = later_node ;
+  edge2node[higher_id_edge][0] = shared_node ;
+  edge2node[higher_id_edge][1] = earlier_node ;
+
+  const_store<int> remap_view(node_remap.Rep()) ;
+  const_MapVec<2> edge_view(edge2node.Rep()) ;
+  const std::vector<Entity> ordered =
+    reorder_edges(remap_view, edge_view, edges) ;
+
+  REQUIRE(ordered.size() == 2) ;
+  CHECK(ordered[0] == higher_id_edge) ;
+  CHECK(ordered[1] == lower_id_edge) ;
+}
+
+
 /// A cell is selected for refinement when any node is tagged `1`, selected for
 /// derefinement only when every node is tagged `2`, and otherwise is unchanged.
 /// This is the common node-tag contract for hex, prism, and general cells.

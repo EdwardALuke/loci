@@ -48,7 +48,7 @@ void print_test_inventory(std::ostream& out) {
   out << "  plan replay: omitted children, trailing zeros, and canonical plans\n" ;
   out << "  plan-transfer: transfer_plan_g2q/transfer_plan_q2g round trips\n" ;
   out << "  plan projection: cell-to-face and face-to-edge extraction\n" ;
-  out << "  adaptation behavior: node tags, face merges, orientation, and ownership\n" ;
+  out << "  adaptation behavior: edge ordering, node tags, face merges, orientation, and ownership\n" ;
   out << "  tree mapping: fine leaves return to their coarse parent\n" ;
   out << "  refined geometry: hex, prism, and general-cell child edges\n" ;
   out << "  level refinement: every hex and prism branch reaches the requested depth\n" ;
