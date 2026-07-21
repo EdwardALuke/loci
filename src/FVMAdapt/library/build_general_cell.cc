@@ -71,7 +71,7 @@ std::vector<Entity> reorder_edges(const const_store<int>& node_remap,const const
     //     e2n[1] = max(node_remap[edge2node[*ei][0]],node_remap[edge2node[*ei][1]]) ;
 
     e2n[0] = node_remap[edge2node[*ei][0]] ;
-    e2n[1] = node_remap[edge2node[*ei][0]] ;
+    e2n[1] = node_remap[edge2node[*ei][1]] ;
     node_f2l[index] = pair<vector<int>, Entity>(e2n,*ei);
   }
   std::sort(node_f2l.begin(), node_f2l.end());
