@@ -30,6 +30,7 @@
 #include <vector>
 #include <queue>
 #include "hexcell.h"
+#include "plan_operations.h"
 #include "tables.h"
 using std::queue;
 using std::cerr;

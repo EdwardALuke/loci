@@ -21,6 +21,7 @@
 #include <vector>
 #include <queue>
 
+#include "plan_operations.h"
 #include "prism.h"
 
 using std::queue;
@@ -28,9 +29,6 @@ using std::cerr;
 using std::endl;
 using std::cout;
 using std::list;
-
-std::vector<char>  merge_tri_face_p(const  std::vector<char>& cellPlan1, int dd1, char orientCode1);
-  
 
 // void  write_quad_inner_faces(const std::map<QuadFace*, NeibIndex>& faces,
 //                                 int cell_offset, int& mxppf, ofstream& ofile){

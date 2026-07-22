@@ -23,6 +23,7 @@
 #include <utility>
 #include <list>
 #include "diamondcell.h"
+#include "plan_operations.h"
 #include <Loci.h>
 #include <algorithm>
 $include "FVM.lh"

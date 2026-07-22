@@ -24,6 +24,7 @@
 #include <Loci.h>
 #include "diamondcell.h"
 #include "defines.h"
+#include "plan_operations.h"
 #include "quadface.h"
 using std::cerr;
 using std::endl;
@@ -38,12 +39,6 @@ using std::vector;
 //   else if(nd->tag == 1) cerr << " p: " << p << " ," << char(nd->tag + '0')<< endl;
 // }
           
-
-std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan);
-
-
-
-
 std::vector<Entity> reorder_nodes(const const_store<int>& node_remap, const entitySet& localSet){
   
   //reverse the map 
@@ -1474,4 +1469,3 @@ Cell* build_general_cell(const Entity* lower, int lower_size,
   }
   return new Cell(numNodes, numEdges, numFaces, node, edge, face,orient);
 }
-

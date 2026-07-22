@@ -30,6 +30,7 @@
 #include <vector>
 #include <queue>
 #include <iostream>
+#include "plan_operations.h"
 #include "tables.h"
 
 using std::queue;

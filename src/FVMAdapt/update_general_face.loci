@@ -26,6 +26,7 @@
 #include <algorithm>
 
 #include "diamondcell.h"
+#include "plan_operations.h"
 #include <Loci.h>
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"

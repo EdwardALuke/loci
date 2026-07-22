@@ -23,6 +23,7 @@
 #include <utility>
 #include <Loci.h>
 #include "hex_defines.h"
+#include "plan_operations.h"
 #include "defines.h"
 #include "face.h"
 
@@ -35,34 +36,6 @@ using std::cout ;
 
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
-
-std::vector<char> extract_general_face(const Entity* lower, int lower_size,
-                                       const Entity* upper, int upper_size,
-                                       const Entity* boundary_map, int boundary_map_size,
-                                       const const_multiMap& face2node,
-                                       const const_multiMap& face2edge,
-                                       const const_MapVec<2>& edge2node,
-                                       const std::vector<char>& cellPlan,
-                                       Entity ff,
-                                       const const_store<int>& node_remap) ;
-
-std::vector<char> extract_prism_face(const std::vector<char>& cellPlan, int dd) ;
-std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan1, int dd1, char orientCode1) ;
-std::vector<char> extract_hex_face(const std::vector<char>& cellPlan,  DIRECTION dd) ;
-
-std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL) ;
-
-std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL,
-                                  std::vector<char>& facePlanR, char orientCodeR) ;
-
-std::vector<char>  merge_tri_face_pp(const  std::vector<char>& cellPlan1, int dd1, char orientCode1,
-                                     const  std::vector<char>& cellPlan2, int dd2, char orientCode2) ;
-
-
-std::vector<char> merge_faceplan(std::vector<char>& planl, std::vector<char>& planr, int numNodes) ;
-
-std::vector<char> transfer_plan_g2q(std::vector<char>& facePlan) ;
-
 
 /// Merge refinement face plans between a general cell on the left and a
 /// hexahedral cell on the right.
@@ -231,4 +204,3 @@ constraint(cr->hexcells, cl->prisms) {
                                        facePlanR, $cr->$hexOrientCode[$fr]) ;
   reduce_vector($balancedFacePlan) ;
 }
-

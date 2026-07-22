@@ -24,12 +24,12 @@
 #include "diamondcell.h"
 #include "defines.h"
 #include "hex_defines.h"
+#include "plan_operations.h"
 using std::cerr;
 using std::endl;
 using std::swap;
 using std::cout;
 
-std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan);
 std::vector<int32> contain_2d(const std::vector<pair<Range2d, int32> >& faceMap,
                               const std::vector<Range2d>& leaves);
 

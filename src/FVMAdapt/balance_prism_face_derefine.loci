@@ -24,6 +24,7 @@
 #include <list>
 #include <bitset>
 #include "hex_defines.h"
+#include "plan_operations.h"
 #include <Loci.h>
 
 using std::list ;
@@ -35,20 +36,6 @@ using std::cout ;
 
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
-
-void  extract_prism_face(const  std::vector<char>& cellPlan, std::vector<char>& facePlan, int dd);
-
-std::vector<char>  merge_quad_face_p(const  std::vector<char>& cellPlan1, int dd1, char orientCode1);
-
-std::vector<char>  merge_quad_face_pp(const  std::vector<char>& cellPlan1, int dd1, char orientCode1,
-                                      const  std::vector<char>& cellPlan2, int dd2, char orientCode2);
-
-std::vector<char>  merge_tri_face_p(const  std::vector<char>& cellPlan1, int dd1, char orientCode1);
-
-std::vector<char>  merge_tri_face_pp(const  std::vector<char>& cellPlan1, int dd1, char orientCode1,
-                                      const  std::vector<char>& cellPlan2, int dd2, char orientCode2);
-
-
 
 /// This rule first extracts faceplan from cl and cr, then merges them into one final plan
 /// in the face's local coordinates system.

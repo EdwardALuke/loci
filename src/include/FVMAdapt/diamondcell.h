@@ -40,6 +40,7 @@
 //#include <cassert>
 #include "defines.h"
 #include "face.h"
+#include "plan_operations.h"
 #include "read_par.h"
 
 using std::cerr;
@@ -671,20 +672,6 @@ std::vector<int32> get_c1_general(const Entity* lower, int lower_size,
                                   const const_store<int>& node_remap);
 
 
-//this function merge two isotropical facePlan
-std::vector<char> merge_faceplan(std::vector<char>& planl, std::vector<char>& planr, int numNodes);
-
-//this function extract facePlan from a cellPlan
-std::vector<char>   extract_general_face(const Entity* lower, int lower_size,
-                                         const Entity* upper, int upper_size,
-                                         const Entity* boundary_map, int boundary_map_size,
-                                         const const_multiMap& face2node,
-                                         const const_multiMap& face2edge,
-                                         const const_MapVec<2>& edge2node,
-                                         const std::vector<char>& cellPlan,
-                                         Entity ff, const const_store<int>& node_remap);
-
-
 #endif
 
 
@@ -693,5 +680,4 @@ std::vector<char>   extract_general_face(const Entity* lower, int lower_size,
   
   
   
-
 

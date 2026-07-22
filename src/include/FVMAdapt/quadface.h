@@ -46,6 +46,7 @@
 #include <iostream>
 #include <bitset>
 #include "node_edge.h"
+#include "plan_operations.h"
 using std::ofstream;
 using std::bitset;
 using std::cout;
@@ -484,12 +485,4 @@ inline void cleanup_list(std::list<QuadFace*>& face_list){
   
 }
 
-
-
-
-void extract_quad_edge(const std::vector<char>&, std::vector<char>&, unsigned int);
-std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL);
-std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL,
-                                  std::vector<char>& facePlanR, char orientCodeR);
 #endif
-

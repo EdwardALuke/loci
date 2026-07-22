@@ -38,6 +38,7 @@
 #include <iostream>
 #include <utility> 
 #include "hex_defines.h"
+#include "plan_operations.h"
 #include "quadface.h"
 #include "read_par.h"
 using std::cerr;
@@ -533,7 +534,5 @@ Array<Entity, 12> collect_hex_edges(const Array<Entity, 6>& faces, const Array<E
 //at the same time, mxppf(max num of points per face) will be updated
 // void  write_hex_inner_faces(const std::list<pair<QuadFace*, NeibIndex> >& faces,
 //                             int cell_offset, int& mxppf,std::ofstream& ofile);
-
-std::vector<char>  extract_hex_face(const  std::vector<char>& cellPlan,  DIRECTION dd);
 #endif
   

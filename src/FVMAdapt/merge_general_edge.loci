@@ -28,6 +28,7 @@
 #include <Loci.h>
 #include "defines.h"
 #include "hex_defines.h"
+#include "plan_operations.h"
 #include "quadface.h"
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"

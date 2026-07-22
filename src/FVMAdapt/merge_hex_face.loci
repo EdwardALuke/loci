@@ -24,6 +24,7 @@
 #include <list>
 #include <bitset>
 #include "hex_defines.h"
+#include "plan_operations.h"
 #include <Loci.h>
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
@@ -34,15 +35,6 @@ using std::bitset ;
 using std::cerr ;
 using std::endl ;
 using std::cout ;
-
-void extract_quad_edge(const std::vector<char>&, std::vector<char>&, unsigned int) ;
-
-std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL) ;
-
-std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL,
-                                  std::vector<char>& facePlanR, char orientCodeR) ;
-
-std::vector<char>  extract_hex_face(const  std::vector<char>& cellPlan, DIRECTION dd) ;
 
 /// This rule first extracts faceplan from cl and cr, then merges them into one final plan
 /// in the face's local coordinates system
@@ -73,4 +65,3 @@ constraint(boundary_faces, cl->hexcells) {
   $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl]) ;
   reduce_vector($facePlan) ;
 }
-

@@ -30,6 +30,7 @@
 #include <vector>
 #include <queue>
 #include <list>
+#include "plan_operations.h"
 #include "prism.h"
 #include "tables.h"
 using std::queue;
