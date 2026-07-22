@@ -203,6 +203,54 @@ TEST_CASE("quad-face merging preserves both requests regardless of side order") 
 }
 
 
+/// Neighboring prisms may describe their shared triangular face with different
+/// local orientations. The merged face plan must retain each refinement request
+/// without depending on which prism is supplied first.
+TEST_CASE("prism triangular-face merging preserves both oriented requests") {
+  const std::vector<char> cell_plan = plan({3, 2}) ;
+  const std::vector<char> first_request =
+    merge_tri_face_p(cell_plan, 0, char(0)) ;
+  const std::vector<char> second_request =
+    merge_tri_face_p(cell_plan, 0, char(1)) ;
+  const std::vector<char> merged =
+    merge_tri_face_pp(cell_plan, 0, char(0), cell_plan, 0, char(1)) ;
+  const std::vector<char> reverse_merged =
+    merge_tri_face_pp(cell_plan, 0, char(1), cell_plan, 0, char(0)) ;
+
+  Face first_face(3) ;
+  Face second_face(3) ;
+  Face merged_face(3) ;
+  Face reverse_merged_face(3) ;
+
+  first_face.empty_resplit(first_request) ;
+  second_face.empty_resplit(second_request) ;
+  merged_face.empty_resplit(merged) ;
+  reverse_merged_face.empty_resplit(reverse_merged) ;
+
+  REQUIRE(first_face.child != 0) ;
+  REQUIRE(second_face.child != 0) ;
+  REQUIRE(merged_face.child != 0) ;
+  REQUIRE(reverse_merged_face.child != 0) ;
+
+  bool requests_affect_different_regions = false ;
+  for(int child = 0; child < 3; ++child) {
+    const int first_leaves = first_face.child[child]->get_num_leaves() ;
+    const int second_leaves = second_face.child[child]->get_num_leaves() ;
+    const int merged_leaves = merged_face.child[child]->get_num_leaves() ;
+    const int reverse_merged_leaves =
+      reverse_merged_face.child[child]->get_num_leaves() ;
+
+    CAPTURE(child) ;
+    requests_affect_different_regions =
+      requests_affect_different_regions || first_leaves != second_leaves ;
+    CHECK(merged_leaves == (first_leaves > second_leaves ?
+                            first_leaves : second_leaves)) ;
+    CHECK(reverse_merged_leaves == merged_leaves) ;
+  }
+  CHECK(requests_affect_different_regions) ;
+}
+
+
 /// With matching one-level cell and face plans, each fine face must receive a
 /// valid, distinct leaf index. The check intentionally ignores index ordering.
 TEST_CASE("matching fine faces receive valid hex and prism leaf indices") {
