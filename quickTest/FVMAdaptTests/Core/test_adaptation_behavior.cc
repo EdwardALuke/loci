@@ -203,6 +203,48 @@ TEST_CASE("quad-face merging preserves both requests regardless of side order") 
 }
 
 
+/// Different prism refinement directions can meet on one quadrilateral face.
+/// The shared face must retain the boundary refinement requested by either
+/// prism, regardless of neighbor order.
+TEST_CASE("prism quad-face merging preserves both refinement requests") {
+  const std::vector<char> axial_request = plan({1}) ;
+  const std::vector<char> transverse_request = plan({2}) ;
+  const int quad_face = 2 ;
+
+  const std::vector<char> axial_face =
+    merge_quad_face_p(axial_request, quad_face, char(0)) ;
+  const std::vector<char> transverse_face =
+    merge_quad_face_p(transverse_request, quad_face, char(0)) ;
+  const std::vector<char> merged =
+    merge_quad_face_pp(axial_request, quad_face, char(0),
+                       transverse_request, quad_face, char(0)) ;
+  const std::vector<char> reverse_merged =
+    merge_quad_face_pp(transverse_request, quad_face, char(0),
+                       axial_request, quad_face, char(0)) ;
+
+  bool requests_affect_different_edges = false ;
+  for(unsigned int edge = 0; edge < 4; ++edge) {
+    std::vector<char> axial_edge ;
+    std::vector<char> transverse_edge ;
+    std::vector<char> merged_edge ;
+    std::vector<char> reverse_merged_edge ;
+    extract_quad_edge(axial_face, axial_edge, edge) ;
+    extract_quad_edge(transverse_face, transverse_edge, edge) ;
+    extract_quad_edge(merged, merged_edge, edge) ;
+    extract_quad_edge(reverse_merged, reverse_merged_edge, edge) ;
+
+    CAPTURE(edge) ;
+    requests_affect_different_edges =
+      requests_affect_different_edges || axial_edge != transverse_edge ;
+    if(!axial_edge.empty() || !transverse_edge.empty()) {
+      CHECK_FALSE(merged_edge.empty()) ;
+    }
+    CHECK(reverse_merged_edge == merged_edge) ;
+  }
+  CHECK(requests_affect_different_edges) ;
+}
+
+
 /// Neighboring prisms may describe their shared triangular face with different
 /// local orientations. The merged face plan must retain each refinement request
 /// without depending on which prism is supplied first.

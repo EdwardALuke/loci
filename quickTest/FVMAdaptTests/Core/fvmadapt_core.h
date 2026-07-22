@@ -40,6 +40,12 @@ void extract_quad_edge(const std::vector<char>& facePlan,
                        std::vector<char>& edgePlan,
                        unsigned int dd) ;
 std::vector<char> extract_prism_face(const std::vector<char>& cellPlan, int dd) ;
+std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan,
+                                    int faceID, char orientCode) ;
+std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlanL,
+                                     int faceIDL, char orientCodeL,
+                                     const std::vector<char>& cellPlanR,
+                                     int faceIDR, char orientCodeR) ;
 std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan,
                                    int faceID, char orientCode) ;
 std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlanL,
