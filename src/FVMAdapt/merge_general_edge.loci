@@ -268,41 +268,5 @@ constraint(faces) {
 
 $rule pointwise(edgePlan <- pointSet), constraint(edge2node->pos) {
   if($pointSet.aset.empty()) { return ; }
-
-  // define range of the integer coordinates of the edge
-  int64 maxValue = int64(1) << MAXLEVEL ;
-
-  // prepare to make up the refinement plan according to list points
-  $edgePlan.clear() ;
-  queue<pair<int64, int64> > Q ;
-  pair<int64,int64> pRange = make_pair(int64(0), maxValue) ;
-  Q.push(pRange) ;
-  int64 midP ;
-
-  while(!Q.empty()) {
-    // read in the range
-    pRange = Q.front() ;
-
-    // define the positions
-    midP = (pRange.first + pRange.second) / 2 ;
-
-    // if midP is in pointSet,set the code to 1, else the code is 0
-    if($pointSet.aset.empty()) {
-      break ;
-    }else {
-      std::set<int64>::iterator p = $pointSet.aset.find(midP) ;
-      if(p != $pointSet.aset.end()) {
-        Q.push(make_pair(pRange.first, midP)) ;
-        Q.push(make_pair(midP, pRange.second)) ;
-        $edgePlan.push_back(1) ;
-      }else {
-        $edgePlan.push_back(0) ;
-      }
-    }
-    Q.pop() ;
-  }
-  while($edgePlan.size() != 0 && $edgePlan.back() == 0 ) {
-    $edgePlan.pop_back() ;
-  }
-  reduce_vector($edgePlan) ;
+  encode_edge_plan($pointSet, $edgePlan) ;
 }

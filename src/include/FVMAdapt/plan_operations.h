@@ -30,6 +30,9 @@
 void extract_quad_edge(const std::vector<char>& facePlan,
                        std::vector<char>& edgePlan, unsigned int direction) ;
 
+void encode_edge_plan(const Loci::SetLong& splitCoordinates,
+                      std::vector<char>& edgePlan) ;
+
 std::vector<char> merge_quad_face(std::vector<char>& facePlan,
                                   char orientCode) ;
 
