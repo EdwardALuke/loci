@@ -33,6 +33,13 @@ void extract_quad_edge(const std::vector<char>& facePlan,
 void encode_edge_plan(const Loci::SetLong& splitCoordinates,
                       std::vector<char>& edgePlan) ;
 
+/// Return one split-coordinate set per face-local edge.
+/// Coordinates follow the stored edge2node orientation.
+std::vector<Loci::SetLong> project_face_plan_to_edge_splits(
+  const std::vector<char>& facePlan,
+  bool isQuadFace,
+  const std::vector<bool>& edgeReversed) ;
+
 std::vector<char> merge_quad_face(std::vector<char>& facePlan,
                                   char orientCode) ;
 
