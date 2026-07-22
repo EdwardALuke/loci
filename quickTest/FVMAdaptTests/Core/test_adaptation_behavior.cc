@@ -39,6 +39,33 @@ std::vector<char> plan(std::initializer_list<int> codes) {
   return result ;
 }
 
+/// Replay an edge plan and report the physical leaf lengths from head to tail.
+std::vector<double> edge_leaf_lengths(const std::vector<char>& edge_plan) {
+  Node head(vect3d(0.0, 0.0, 0.0)) ;
+  Node tail(vect3d(1.0, 0.0, 0.0)) ;
+  std::list<Node*> generated_nodes ;
+  std::vector<double> lengths ;
+
+  {
+    Edge edge(&head, &tail) ;
+    edge.resplit(edge_plan, generated_nodes) ;
+
+    std::list<Edge*> leaves ;
+    edge.sort_leaves(leaves) ;
+    for(std::list<Edge*>::const_iterator leaf = leaves.begin() ;
+        leaf != leaves.end(); ++leaf) {
+      lengths.push_back((*leaf)->get_length()) ;
+    }
+  }
+
+  for(std::list<Node*>::iterator node = generated_nodes.begin() ;
+      node != generated_nodes.end(); ++node) {
+    delete *node ;
+  }
+
+  return lengths ;
+}
+
 } // namespace
 
 
@@ -160,6 +187,64 @@ TEST_CASE("quad-face edge orientation round-trips between cell and face ids") {
                               orientation) == edge) ;
     }
   }
+}
+
+
+/// Rotating or reflecting a nested quad-face plan must move its extra boundary
+/// split to the corresponding face-local edge without changing the refinement.
+TEST_CASE("oriented nested quad-face plans preserve boundary refinement") {
+  const std::vector<char> cell_local_plan = plan({3, 2}) ;
+
+  for(char orientation = 0; orientation < 8; ++orientation) {
+    std::vector<char> plan_copy = cell_local_plan ;
+    const std::vector<char> face_local_plan =
+      merge_quad_face(plan_copy, orientation) ;
+    const char nested_edge = orient_edgeID_c2f(0, orientation) ;
+
+    for(unsigned int face_edge = 0; face_edge < 4; ++face_edge) {
+      std::vector<char> edge_plan ;
+      extract_quad_edge(face_local_plan, edge_plan, face_edge) ;
+      const std::vector<double> lengths = edge_leaf_lengths(edge_plan) ;
+
+      CAPTURE(int(orientation)) ;
+      CAPTURE(face_edge) ;
+      CHECK(lengths.size() == (face_edge == unsigned(nested_edge) ? 3u : 2u)) ;
+    }
+  }
+}
+
+
+/// Reflection reverses an asymmetric edge subdivision while preserving the
+/// same physical segment lengths and number of boundary leaves.
+TEST_CASE("reflected quad-face plans reverse boundary subdivision") {
+  const std::vector<char> cell_local_plan = plan({3, 2}) ;
+  std::vector<char> forward_copy = cell_local_plan ;
+  std::vector<char> reflected_copy = cell_local_plan ;
+  const std::vector<char> forward_face_plan =
+    merge_quad_face(forward_copy, char(0)) ;
+  const std::vector<char> reflected_face_plan =
+    merge_quad_face(reflected_copy, char(5)) ;
+
+  std::vector<char> forward_edge_plan ;
+  std::vector<char> reflected_edge_plan ;
+  extract_quad_edge(forward_face_plan, forward_edge_plan, 0) ;
+  extract_quad_edge(reflected_face_plan, reflected_edge_plan, 0) ;
+
+  const std::vector<double> forward_lengths =
+    edge_leaf_lengths(forward_edge_plan) ;
+  const std::vector<double> reflected_lengths =
+    edge_leaf_lengths(reflected_edge_plan) ;
+
+  REQUIRE(forward_lengths.size() == reflected_lengths.size()) ;
+  bool order_changed = false ;
+  for(std::size_t segment = 0; segment < forward_lengths.size(); ++segment) {
+    const double reflected_length =
+      reflected_lengths[reflected_lengths.size() - 1 - segment] ;
+    CHECK(forward_lengths[segment] == doctest::Approx(reflected_length)) ;
+    order_changed = order_changed ||
+      forward_lengths[segment] != reflected_lengths[segment] ;
+  }
+  CHECK(order_changed) ;
 }
 
 
