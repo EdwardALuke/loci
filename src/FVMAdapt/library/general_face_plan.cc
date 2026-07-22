@@ -27,90 +27,95 @@
 using std::make_pair;
 using std::pair;
 
-std::vector<char> merge_faceplan(std::vector<char>& planl, std::vector<char>& planr, int numNodes) {
-  if(planl.size() == 0) { return planr ; }
-  if(planr.size() == 0) { return planl ; }
-  std::vector<char> fplan ;
-  size_t ptl = 0 ;
-  size_t ptr = 0 ;
+std::vector<char> merge_faceplan(std::vector<char>& facePlanL,
+                                 std::vector<char>& facePlanR,
+                                 int faceNodeCount) {
+  if(facePlanL.size() == 0) { return facePlanR ; }
+  if(facePlanR.size() == 0) { return facePlanL ; }
+  std::vector<char> mergedFacePlan ;
+  size_t leftPlanIndex = 0 ;
+  size_t rightPlanIndex = 0 ;
 
-  std::queue<pair<char, char> > Q ;
-  char codel ;
-  char coder ;
+  std::queue<pair<char, char> > pendingCodePairs ;
+  char leftSplitCode ;
+  char rightSplitCode ;
 
-  // assume the first code of both planl and planr is 1
-  ptl++ ;
-  ptr++ ;
+  // assume the first code of both facePlanL and facePlanR is 1
+  leftPlanIndex++ ;
+  rightPlanIndex++ ;
 
-  fplan.push_back(1) ;
-  for(int i=0; i<numNodes; i++) {
-    if(ptl < planl.size()) {
-      codel = planl[ptl] ;
+  mergedFacePlan.push_back(1) ;
+  for(int i=0; i<faceNodeCount; i++) {
+    if(leftPlanIndex < facePlanL.size()) {
+      leftSplitCode = facePlanL[leftPlanIndex] ;
     }else {
-      codel = 0 ;
+      leftSplitCode = 0 ;
     }
 
-    if(ptr < planr.size()) {
-      coder = planr[ptr] ;
+    if(rightPlanIndex < facePlanR.size()) {
+      rightSplitCode = facePlanR[rightPlanIndex] ;
     }else {
-      coder = 0 ;
+      rightSplitCode = 0 ;
     }
-    Q.push(make_pair(codel, coder)) ;
-    ptl++ ;
-    ptr++ ;
+    pendingCodePairs.push(make_pair(leftSplitCode, rightSplitCode)) ;
+    leftPlanIndex++ ;
+    rightPlanIndex++ ;
   }
 
-  while(!Q.empty()) {
-    if(Q.front().first ==1 && Q.front().second == 1) {
-      fplan.push_back(1) ;
+  while(!pendingCodePairs.empty()) {
+    if(pendingCodePairs.front().first == 1 &&
+       pendingCodePairs.front().second == 1) {
+      mergedFacePlan.push_back(1) ;
 
       for(int i=0; i<4; i++) {
-        if(ptl < planl.size()) {
-          codel = planl[ptl] ;
+        if(leftPlanIndex < facePlanL.size()) {
+          leftSplitCode = facePlanL[leftPlanIndex] ;
         }else {
-          codel = 0 ;
+          leftSplitCode = 0 ;
         }
 
-        if(ptr < planr.size()) {
-          coder = planr[ptr] ;
+        if(rightPlanIndex < facePlanR.size()) {
+          rightSplitCode = facePlanR[rightPlanIndex] ;
         }else {
-          coder = 0 ;
+          rightSplitCode = 0 ;
         }
-        Q.push(make_pair(codel, coder)) ;
-        ptl++ ;
-        ptr++ ;
+        pendingCodePairs.push(make_pair(leftSplitCode, rightSplitCode)) ;
+        leftPlanIndex++ ;
+        rightPlanIndex++ ;
       }
-    }else if(Q.front().first == 1 && Q.front().second == 0) {
-      fplan.push_back(1) ;
+    }else if(pendingCodePairs.front().first == 1 &&
+             pendingCodePairs.front().second == 0) {
+      mergedFacePlan.push_back(1) ;
       for(int i=0; i<4; i++) {
-        if(ptl < planl.size()) {
-          codel = planl[ptl] ;
+        if(leftPlanIndex < facePlanL.size()) {
+          leftSplitCode = facePlanL[leftPlanIndex] ;
         }else {
-          codel = 0 ;
+          leftSplitCode = 0 ;
         }
-        Q.push(make_pair(codel, 0)) ;
-        ptl++ ;
+        pendingCodePairs.push(make_pair(leftSplitCode, 0)) ;
+        leftPlanIndex++ ;
       }
-    }else if(Q.front().first == 0 && Q.front().second == 1) {
-      fplan.push_back(1) ;
+    }else if(pendingCodePairs.front().first == 0 &&
+             pendingCodePairs.front().second == 1) {
+      mergedFacePlan.push_back(1) ;
       for(int i=0; i<4; i++) {
-        if(ptr < planr.size()) {
-          coder = planr[ptr] ;
+        if(rightPlanIndex < facePlanR.size()) {
+          rightSplitCode = facePlanR[rightPlanIndex] ;
         }else {
-          coder = 0 ;
+          rightSplitCode = 0 ;
         }
-        Q.push(make_pair(0, coder)) ;
-        ptr++ ;
+        pendingCodePairs.push(make_pair(0, rightSplitCode)) ;
+        rightPlanIndex++ ;
       }
     }else {
-      fplan.push_back(0) ;
+      mergedFacePlan.push_back(0) ;
     }
-    Q.pop() ;
+    pendingCodePairs.pop() ;
   }
 
-  while(fplan.size() != 0 && fplan.back() == 0) {
-    fplan.pop_back() ;
+  while(mergedFacePlan.size() != 0 && mergedFacePlan.back() == 0) {
+    mergedFacePlan.pop_back() ;
   }
-  reduce_vector(fplan) ;
-  return fplan ;
+  reduce_vector(mergedFacePlan) ;
+  return mergedFacePlan ;
 }

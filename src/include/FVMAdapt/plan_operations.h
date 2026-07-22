@@ -28,7 +28,8 @@
 #include "hex_defines.h"
 
 void extract_quad_edge(const std::vector<char>& facePlan,
-                       std::vector<char>& edgePlan, unsigned int direction) ;
+                       std::vector<char>& edgePlan,
+                       unsigned int faceEdgeID) ;
 
 void encode_edge_plan(const Loci::SetLong& splitCoordinates,
                       std::vector<char>& edgePlan) ;
@@ -38,7 +39,7 @@ void encode_edge_plan(const Loci::SetLong& splitCoordinates,
 std::vector<Loci::SetLong> project_face_plan_to_edge_splits(
   const std::vector<char>& facePlan,
   bool isQuadFace,
-  const std::vector<bool>& edgeReversed) ;
+  const std::vector<bool>& edgeIsReversed) ;
 
 std::vector<char> merge_quad_face(std::vector<char>& facePlan,
                                   char orientCode) ;
@@ -81,9 +82,9 @@ std::vector<char> extract_general_face(
   Entity face,
   const const_store<int>& node_remap) ;
 
-std::vector<char> merge_faceplan(std::vector<char>& planL,
-                                 std::vector<char>& planR,
-                                 int numNodes) ;
+std::vector<char> merge_faceplan(std::vector<char>& facePlanL,
+                                 std::vector<char>& facePlanR,
+                                 int faceNodeCount) ;
 
 std::vector<char> transfer_plan_g2q(std::vector<char>& facePlan) ;
 

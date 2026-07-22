@@ -40,7 +40,8 @@ using std::list;
 //using namespace std;
 
 
-std::vector<char>  extract_hex_face(const  std::vector<char>& cellPlan,  DIRECTION dd){
+std::vector<char> extract_hex_face(const std::vector<char>& cellPlan,
+                                   DIRECTION direction){
 
   //output faceCodeTable
   /*  for(int i=0; i<42; i++){
@@ -92,7 +93,7 @@ std::vector<char>  extract_hex_face(const  std::vector<char>& cellPlan,  DIRECTI
         faceCode = 0;
       }
       else{
-        faceCode = faceCodeTable[dd*7+cellCode- 1];
+        faceCode = faceCodeTable[direction*7+cellCode- 1];
       }
      
       facePlan.push_back(faceCode);
@@ -102,7 +103,7 @@ std::vector<char>  extract_hex_face(const  std::vector<char>& cellPlan,  DIRECTI
     
     
     if(cellCode != 0){
-      std::vector<bool> childrenID = faceIDTable[dd*7+cellCode-1];
+      std::vector<bool> childrenID = faceIDTable[direction*7+cellCode-1];
       if(!needExtract){
         for(unsigned int i = 0; i < childrenID.size(); i++)childrenID[i] = 0;
       }

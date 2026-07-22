@@ -39,7 +39,8 @@ using std::cout;
 //using namespace std;
 
 
-std::vector<char> extract_prism_face(const  std::vector<char>& cellPlan,  int dd){
+std::vector<char> extract_prism_face(const std::vector<char>& cellPlan,
+                                     int faceID){
   //Since when extract the code from childcell, the order can be 3, 0 or 2, 0,
   //it's more convenient to have an empty tree split
   std::vector<char> facePlan;
@@ -47,88 +48,97 @@ std::vector<char> extract_prism_face(const  std::vector<char>& cellPlan,  int dd
     return facePlan;
   }
 
-  Prism *aCell = new Prism(); // the root, nfold = 3
-  aCell->empty_resplit(cellPlan); //only nfold and childCell is defined
+  Prism *rootCell = new Prism(); // the root, nfold = 3
+  rootCell->empty_resplit(cellPlan); //only nfold and childCell is defined
   
 
 
-  queue<pair<Prism*, int> > Q;
-  Q.push(make_pair(aCell, dd));
+  queue<pair<Prism*, int> > pendingFaces;
+  pendingFaces.push(make_pair(rootCell, faceID));
   
   
-  char cellCode, faceCode;
-  Prism *current;
-  int faceID;
-  int nfold;
-  while(!Q.empty()){
-    current = Q.front().first;
-    cellCode = current->mySplitCode;
-    nfold = current-> getNfold();
-    faceID = Q.front().second;
+  char cellSplitCode, faceSplitCode;
+  Prism *currentCell;
+  int currentFaceID;
+  int currentNfold;
+  while(!pendingFaces.empty()){
+    currentCell = pendingFaces.front().first;
+    cellSplitCode = currentCell->mySplitCode;
+    currentNfold = currentCell-> getNfold();
+    currentFaceID = pendingFaces.front().second;
   
-    //    cout << "cellCode: " << cellCode <<endl;
+    //    cout << "cellSplitCode: " << cellSplitCode <<endl;
   
-    if(cellCode == 0){
+    if(cellSplitCode == 0){
       facePlan.push_back(char(0));
-      Q.pop();
+      pendingFaces.pop();
       continue;
     }
-    else if(faceID >= 2)faceCode = cellCode;
-    else if(cellCode == 1)faceCode = 8; //for triface, facecode is 8 for cellcode 1
-    else faceCode =1; //for triface, facecode is 1 for cellcode 2, 3
+    else if(currentFaceID >= 2)faceSplitCode = cellSplitCode;
+    else if(cellSplitCode == 1)faceSplitCode = 8; //for triface, facecode is 8 for cellcode 1
+    else faceSplitCode =1; //for triface, facecode is 1 for cellcode 2, 3
     
-    facePlan.push_back(faceCode);
+    facePlan.push_back(faceSplitCode);
     //define chidID and child's faceID
-    switch(cellCode){
+    switch(cellSplitCode){
     case 1:
-      if(faceID == 0)Q.push(make_pair(current->childCell[0], faceID)); 
-      else if (faceID == 1)Q.push(make_pair(current->childCell[1], faceID));
+      if(currentFaceID == 0)
+        pendingFaces.push(make_pair(currentCell->childCell[0], currentFaceID));
+      else if (currentFaceID == 1)
+        pendingFaces.push(make_pair(currentCell->childCell[1], currentFaceID));
       else{
-        Q.push(make_pair(current->childCell[0], faceID));
-        Q.push(make_pair(current->childCell[1], faceID));
+        pendingFaces.push(make_pair(currentCell->childCell[0], currentFaceID));
+        pendingFaces.push(make_pair(currentCell->childCell[1], currentFaceID));
       }
       break;
       
     case 2:
-      if(faceID < 2){
-        for(int i = 0; i < nfold; i++){
-          Q.push(make_pair(current->childCell[i], faceID)); 
+      if(currentFaceID < 2){
+        for(int i = 0; i < currentNfold; i++){
+          pendingFaces.push(make_pair(currentCell->childCell[i], currentFaceID));
         }
       }
       else{
-        Q.push(make_pair(current->childCell[faceID-2], 2));
-        Q.push(make_pair(current->childCell[(faceID-2)== nfold-1? 0:(faceID-1)], 5));
+        pendingFaces.push(make_pair(currentCell->childCell[currentFaceID-2], 2));
+        pendingFaces.push(make_pair(
+          currentCell->childCell[(currentFaceID-2)== currentNfold-1?
+                                 0:(currentFaceID-1)], 5));
       }
       break;
       
     case 3:
-      if(faceID == 0){
-        for(int i = 0; i < nfold; i++){
-          Q.push(make_pair(current->childCell[i], faceID)); 
+      if(currentFaceID == 0){
+        for(int i = 0; i < currentNfold; i++){
+          pendingFaces.push(make_pair(currentCell->childCell[i], currentFaceID));
         }
         
       }
-      else if(faceID == 1){
-        for(int i = 0; i < nfold; i++){
-          Q.push(make_pair(current->childCell[i+nfold], faceID)); 
+      else if(currentFaceID == 1){
+        for(int i = 0; i < currentNfold; i++){
+          pendingFaces.push(make_pair(currentCell->childCell[i+currentNfold], currentFaceID));
         }
      
       }
       else {
-        Q.push(make_pair(current->childCell[faceID-2], 2));
-        Q.push(make_pair(current->childCell[faceID-2+nfold], 2));
-        Q.push(make_pair(current->childCell[(faceID-2)== nfold-1? 0:(faceID-1)], 5));
-        Q.push(make_pair(current->childCell[(faceID-2)== nfold-1? nfold:(faceID-1+nfold)], 5));
+        pendingFaces.push(make_pair(currentCell->childCell[currentFaceID-2], 2));
+        pendingFaces.push(make_pair(currentCell->childCell[currentFaceID-2+currentNfold], 2));
+        pendingFaces.push(make_pair(
+          currentCell->childCell[(currentFaceID-2)== currentNfold-1?
+                                 0:(currentFaceID-1)], 5));
+        pendingFaces.push(make_pair(
+          currentCell->childCell[(currentFaceID-2)== currentNfold-1?
+                                 currentNfold:(currentFaceID-1+currentNfold)],
+          5));
       }
       break;
     default:
-      cerr<<"WARNING: illegal cellCode" << endl;
+      cerr<<"WARNING: illegal cell split code" << endl;
       break;
       
-      // cout << "cell: " << cellCode <<"  " <<"face: " << faceCode <<endl;
+      // cout << "cell: " << cellSplitCode <<"  " <<"face: " << faceSplitCode <<endl;
     }
   
-    Q.pop();
+    pendingFaces.pop();
   }
   //delete 0 and 8 in the beginning of faceplan
   while(facePlan.size() != 0 && ((facePlan.front() == 0)||(facePlan.front() == 8))){
@@ -138,84 +148,87 @@ std::vector<char> extract_prism_face(const  std::vector<char>& cellPlan,  int dd
     facePlan.pop_back();
   }
   //clean up
-  delete aCell;
+  delete rootCell;
   return facePlan;
 }
 
 
 
 
-std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlan1,
-                                     int dd1, char orientCode1,
-                                     const std::vector<char>& cellPlan2,
-                                     int dd2, char orientCode2){
-  std::vector<char> facePlan1 = extract_prism_face(cellPlan1, dd1);
-  std::vector<char> facePlan2 = extract_prism_face(cellPlan2, dd2);
+std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlanL,
+                                     int faceIDL, char orientCodeL,
+                                     const std::vector<char>& cellPlanR,
+                                     int faceIDR, char orientCodeR){
+  std::vector<char> facePlanL = extract_prism_face(cellPlanL, faceIDL);
+  std::vector<char> facePlanR = extract_prism_face(cellPlanR, faceIDR);
 
-  return merge_quad_face(facePlan1, orientCode1, facePlan2, orientCode2);
+  return merge_quad_face(facePlanL, orientCodeL, facePlanR, orientCodeR);
 }
 
 
 
 
-std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan1,
-                                    int dd1, char orientCode1){
-  std::vector<char> facePlan = extract_prism_face(cellPlan1, dd1);
+std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan,
+                                    int faceID, char orientCode){
+  std::vector<char> facePlan = extract_prism_face(cellPlan, faceID);
 
-  return merge_quad_face(facePlan, orientCode1);
+  return merge_quad_face(facePlan, orientCode);
 }
 
 
 
 
-std::vector<char>  merge_tri_face_pp(const  std::vector<char>& cellPlan1, int dd1, char orientCode1,
-                                     const  std::vector<char>& cellPlan2, int dd2, char orientCode2){
+std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlanL,
+                                    int faceIDL, char orientCodeL,
+                                    const std::vector<char>& cellPlanR,
+                                    int faceIDR, char orientCodeR){
 
   
-  std::vector<char> plan1;
-  std::vector<char> plan2;
-  if(dd1>=2 || dd2 >= 2) {
-    cerr<< "WARNING: illegal  faceID in merge_tri_face_pp" << endl;
-    return plan1;
+  std::vector<char> facePlanL;
+  std::vector<char> facePlanR;
+  if(faceIDL>=2 || faceIDR >= 2) {
+    cerr << "WARNING: illegal face ID in merge_tri_face_pp" << endl;
+    return facePlanL;
   }
 
  
-  plan1 = extract_prism_face(cellPlan1, dd1);
-  plan2 = extract_prism_face(cellPlan2, dd2);
+  facePlanL = extract_prism_face(cellPlanL, faceIDL);
+  facePlanR = extract_prism_face(cellPlanR, faceIDR);
 
-  if(plan1.size() == 0 && plan2.size() == 0) return plan1;
+  if(facePlanL.size() == 0 && facePlanR.size() == 0) return facePlanL;
   
-  Face* aFace = new Face();
-  aFace->numEdge = 3;
-  aFace->empty_resplit(plan1, orientCode1);
-  aFace->empty_resplit(plan2, orientCode2);
-  plan1.clear();
-  plan1 = aFace->make_faceplan();
+  Face* mergedFace = new Face();
+  mergedFace->numEdge = 3;
+  mergedFace->empty_resplit(facePlanL, orientCodeL);
+  mergedFace->empty_resplit(facePlanR, orientCodeR);
+  facePlanL.clear();
+  facePlanL = mergedFace->make_faceplan();
 
-  delete aFace;
-  return plan1;
+  delete mergedFace;
+  return facePlanL;
 }
     
-std::vector<char>  merge_tri_face_p(const  std::vector<char>& cellPlan1, int dd1, char orientCode1){
+std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan,
+                                   int faceID, char orientCode){
   
   
-  std::vector<char> plan1;
+  std::vector<char> facePlan;
   
-  if(dd1>=2 ) {
-    cerr<< "WARNING: illegal  faceID in merge_tri_face_pp" << endl;
-    return plan1;
+  if(faceID>=2 ) {
+    cerr << "WARNING: illegal face ID in merge_tri_face_p" << endl;
+    return facePlan;
   }
   
  
-  plan1 = extract_prism_face(cellPlan1,dd1);
-  if(plan1.size() == 0) return plan1;
+  facePlan = extract_prism_face(cellPlan,faceID);
+  if(facePlan.size() == 0) return facePlan;
   
-  Face* aFace = new Face();
-  aFace->numEdge = 3;
-  aFace->empty_resplit(plan1, orientCode1);
+  Face* orientedFace = new Face();
+  orientedFace->numEdge = 3;
+  orientedFace->empty_resplit(facePlan, orientCode);
  
-  plan1.clear();
-  plan1 =  aFace->make_faceplan();
-  delete aFace;
-  return plan1;
+  facePlan.clear();
+  facePlan =  orientedFace->make_faceplan();
+  delete orientedFace;
+  return facePlan;
 }
