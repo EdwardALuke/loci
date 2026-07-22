@@ -221,7 +221,7 @@ public:
 
   void empty_resplit(const std::vector<char>& facePlan, std::vector<Face*>& leaves);
 
-  //this function is for merge_general_face_pp, 
+  //Replay a face plan using orientCode to map into this face's local ordering.
   void empty_resplit(const std::vector<char>& facePlan, char orientCode);
 
   //compile the facePlan according the tree structure of aFace
@@ -334,6 +334,5 @@ inline void cleanup_list( std::list<Face*>& face_list){
 
 
 #endif
-
 
 

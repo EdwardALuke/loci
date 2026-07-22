@@ -52,15 +52,13 @@ $rule pointwise(facePlan <- (cl, cr)->cellPlan,
 (cl, cr)->prismOrientCode, fl, fr),
 constraint(interior_faces, (cl, cr)->prisms) {
   if($fl < 2) {
-    $facePlan = merge_tri_face_pp($cl->$cellPlan, $fl,
-                                  $cl->$prismOrientCode[$fl],
-                                  $cr->$cellPlan, $fr,
-                                  $cr->$prismOrientCode[$fr]) ;
+    $facePlan = merge_prism_tri_face_plans(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl],
+      $cr->$cellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
   }else {
-    $facePlan = merge_quad_face_pp($cl->$cellPlan, $fl,
-                                   $cl->$prismOrientCode[$fl],
-                                   $cr->$cellPlan, $fr,
-                                   $cr->$prismOrientCode[$fr]) ;
+    $facePlan = merge_prism_quad_face_plans(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl],
+      $cr->$cellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
   }
   reduce_vector($facePlan) ;
 }
@@ -69,11 +67,11 @@ constraint(interior_faces, (cl, cr)->prisms) {
 $rule pointwise(facePlan <- cl->cellPlan, cl->prismOrientCode, fl),
 constraint(boundary_faces, cl->prisms) {
   if($fl < 2) {
-    $facePlan = merge_tri_face_p($cl->$cellPlan, $fl,
-                                 $cl->$prismOrientCode[$fl]) ;
+    $facePlan = extract_oriented_prism_tri_face_plan(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
   }else {
-    $facePlan = merge_quad_face_p($cl->$cellPlan, $fl,
-                                  $cl->$prismOrientCode[$fl]) ;
+    $facePlan = extract_oriented_prism_quad_face_plan(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
   }
   reduce_vector($facePlan) ;
 }

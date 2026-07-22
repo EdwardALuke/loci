@@ -155,10 +155,9 @@ std::vector<char> extract_prism_face(const std::vector<char>& cellPlan,
 
 
 
-std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlanL,
-                                     int faceIDL, char orientCodeL,
-                                     const std::vector<char>& cellPlanR,
-                                     int faceIDR, char orientCodeR){
+std::vector<char> merge_prism_quad_face_plans(
+  const std::vector<char>& cellPlanL, int faceIDL, char orientCodeL,
+  const std::vector<char>& cellPlanR, int faceIDR, char orientCodeR){
   std::vector<char> facePlanL = extract_prism_face(cellPlanL, faceIDL);
   std::vector<char> facePlanR = extract_prism_face(cellPlanR, faceIDR);
 
@@ -168,8 +167,8 @@ std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlanL,
 
 
 
-std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan,
-                                    int faceID, char orientCode){
+std::vector<char> extract_oriented_prism_quad_face_plan(
+  const std::vector<char>& cellPlan, int faceID, char orientCode){
   std::vector<char> facePlan = extract_prism_face(cellPlan, faceID);
 
   return merge_quad_face(facePlan, orientCode);
@@ -178,16 +177,16 @@ std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan,
 
 
 
-std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlanL,
-                                    int faceIDL, char orientCodeL,
-                                    const std::vector<char>& cellPlanR,
-                                    int faceIDR, char orientCodeR){
+std::vector<char> merge_prism_tri_face_plans(
+  const std::vector<char>& cellPlanL, int faceIDL, char orientCodeL,
+  const std::vector<char>& cellPlanR, int faceIDR, char orientCodeR){
 
   
   std::vector<char> facePlanL;
   std::vector<char> facePlanR;
   if(faceIDL>=2 || faceIDR >= 2) {
-    cerr << "WARNING: illegal face ID in merge_tri_face_pp" << endl;
+    cerr << "WARNING: illegal face ID in merge_prism_tri_face_plans"
+         << endl;
     return facePlanL;
   }
 
@@ -208,14 +207,15 @@ std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlanL,
   return facePlanL;
 }
     
-std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan,
-                                   int faceID, char orientCode){
+std::vector<char> extract_oriented_prism_tri_face_plan(
+  const std::vector<char>& cellPlan, int faceID, char orientCode){
   
   
   std::vector<char> facePlan;
   
   if(faceID>=2 ) {
-    cerr << "WARNING: illegal face ID in merge_tri_face_p" << endl;
+    cerr << "WARNING: illegal face ID in "
+            "extract_oriented_prism_tri_face_plan" << endl;
     return facePlan;
   }
   
@@ -231,4 +231,33 @@ std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan,
   facePlan =  orientedFace->make_faceplan();
   delete orientedFace;
   return facePlan;
+}
+
+
+// Preserve the historical exported names while callers migrate away from the
+// opaque p/pp participant notation.
+std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan,
+                                    int faceID, char orientCode){
+  return extract_oriented_prism_quad_face_plan(cellPlan, faceID, orientCode);
+}
+
+std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlanL,
+                                     int faceIDL, char orientCodeL,
+                                     const std::vector<char>& cellPlanR,
+                                     int faceIDR, char orientCodeR){
+  return merge_prism_quad_face_plans(cellPlanL, faceIDL, orientCodeL,
+                                     cellPlanR, faceIDR, orientCodeR);
+}
+
+std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan,
+                                   int faceID, char orientCode){
+  return extract_oriented_prism_tri_face_plan(cellPlan, faceID, orientCode);
+}
+
+std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlanL,
+                                    int faceIDL, char orientCodeL,
+                                    const std::vector<char>& cellPlanR,
+                                    int faceIDR, char orientCodeR){
+  return merge_prism_tri_face_plans(cellPlanL, faceIDL, orientCodeL,
+                                    cellPlanR, faceIDR, orientCodeR);
 }

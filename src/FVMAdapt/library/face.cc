@@ -794,7 +794,7 @@ int  Face::empty_resplit(const std::vector<char>& facePlan){
 }
 
 
-//this function is for merge_general_face_pp, 
+//Replay a face plan using orientCode to map into this face's local ordering.
 void Face::empty_resplit(const std::vector<char>& facePlan, char orientCode){
   if(facePlan.size() == 0) {
     return;
@@ -831,6 +831,5 @@ void Face::empty_resplit(const std::vector<char>& facePlan, char orientCode){
   }
   return ;
 }
-
 
 

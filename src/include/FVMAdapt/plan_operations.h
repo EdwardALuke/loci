@@ -55,17 +55,33 @@ std::vector<char> extract_hex_face(const std::vector<char>& cellPlan,
 std::vector<char> extract_prism_face(const std::vector<char>& cellPlan,
                                      int faceID) ;
 
+/// Extract one prism quadrilateral-face plan in the face-local orientation.
+std::vector<char> extract_oriented_prism_quad_face_plan(
+  const std::vector<char>& cellPlan, int faceID, char orientCode) ;
+
+/// Merge both prism contributions to a shared quadrilateral face.
+std::vector<char> merge_prism_quad_face_plans(
+  const std::vector<char>& cellPlanL, int faceIDL, char orientCodeL,
+  const std::vector<char>& cellPlanR, int faceIDR, char orientCodeR) ;
+
+/// Extract one prism triangular-face plan in the face-local orientation.
+std::vector<char> extract_oriented_prism_tri_face_plan(
+  const std::vector<char>& cellPlan, int faceID, char orientCode) ;
+
+/// Merge both prism contributions to a shared triangular face.
+std::vector<char> merge_prism_tri_face_plans(
+  const std::vector<char>& cellPlanL, int faceIDL, char orientCodeL,
+  const std::vector<char>& cellPlanR, int faceIDR, char orientCodeR) ;
+
+// Compatibility wrappers for the historical p/pp participant notation.
 std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan,
                                     int faceID, char orientCode) ;
-
 std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlanL,
                                      int faceIDL, char orientCodeL,
                                      const std::vector<char>& cellPlanR,
                                      int faceIDR, char orientCodeR) ;
-
 std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan,
                                    int faceID, char orientCode) ;
-
 std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlanL,
                                     int faceIDL, char orientCodeL,
                                     const std::vector<char>& cellPlanR,

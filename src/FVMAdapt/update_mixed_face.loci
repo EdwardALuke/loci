@@ -120,9 +120,9 @@ constraint(cl->gnrlcells, cr->prisms) {
                                                       $*fileNumber(pos)) ;
 
   if($fr < 2) {
-    std::vector<char> facePlanR = merge_tri_face_p($cr->$tmpCellPlan,
-                                                   $fr,
-                                                   $cr->$prismOrientCode[$fr]) ;
+    std::vector<char> facePlanR =
+      extract_oriented_prism_tri_face_plan(
+        $cr->$tmpCellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
     $tmpFacePlan = merge_faceplan(localPlanL, facePlanR,
                                   $face2node.size()) ;
   }else {
@@ -159,9 +159,9 @@ constraint(cr->gnrlcells, cl->prisms) {
                                                       $*fileNumber(pos)) ;
 
   if($fl < 2) {
-    std::vector<char> facePlanL = merge_tri_face_p($cl->$tmpCellPlan,
-                                                   $fl,
-                                                   $cl->$prismOrientCode[$fl]) ;
+    std::vector<char> facePlanL =
+      extract_oriented_prism_tri_face_plan(
+        $cl->$tmpCellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
     $tmpFacePlan = merge_faceplan(facePlanL, localPlanR,
                                   $face2node.size()) ;
   }else {
