@@ -54,7 +54,7 @@ constraint(faces) {
   if($facePlan.size() == 0) { return ; }
 
   if($is_quadface && $face2node.size() != 4) {
-    cerr << "WARNING: Not a hexcell" << endl ;
+    cerr << "WARNING: quadrilateral face must have four nodes" << endl ;
     Loci::Abort() ;
   }
 

@@ -40,7 +40,7 @@ $rule apply(face2edge->tmpPointSet <- tmpFacePlan, is_quadface,
 face2node->pos, face2edge->edge2node->pos,
 face2edge->tmpPointSet)[SetLongUnionOp], constraint(faces) {
   if($is_quadface && $face2node.size() != 4) {
-    cerr << "WARNING: Not a hexcell" << endl ;
+    cerr << "WARNING: quadrilateral face must have four nodes" << endl ;
     Loci::Abort() ;
   }
 

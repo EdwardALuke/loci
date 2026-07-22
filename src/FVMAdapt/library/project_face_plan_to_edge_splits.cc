@@ -21,59 +21,70 @@
 
 #include <cstddef>
 #include <iostream>
-#include <iostream>
 #include <queue>
 #include <utility>
 
 #include "plan_operations.h"
 
+namespace {
+
+struct BoundaryEdgeRanges {
+  std::pair<int64, int64> edge0Range ;
+  std::pair<int64, int64> edge3Range ;
+} ;
+
+} // namespace
+
 std::vector<Loci::SetLong> project_face_plan_to_edge_splits(
   const std::vector<char>& facePlan,
   bool isQuadFace,
-  const std::vector<bool>& edgeReversed) {
-  const int64 maxValue = int64(1) << MAXLEVEL ;
-  std::vector<Loci::SetLong> edgeSplits(edgeReversed.size()) ;
+  const std::vector<bool>& edgeIsReversed) {
+  const int64 maxCoordinate = int64(1) << MAXLEVEL ;
+  std::vector<Loci::SetLong> edgeSplits(edgeIsReversed.size()) ;
 
   if(facePlan.empty()) { return edgeSplits ; }
 
   if(isQuadFace) {
-    for(std::size_t i=0; i<edgeReversed.size(); i++) {
-      std::vector<char> plan ;
-      extract_quad_edge(facePlan, plan, i) ;
-      if(plan.size() == 0) { continue ; }
+    for(std::size_t edgeIndex=0;
+        edgeIndex<edgeIsReversed.size(); edgeIndex++) {
+      std::vector<char> edgePlan ;
+      extract_quad_edge(facePlan, edgePlan, edgeIndex) ;
+      if(edgePlan.size() == 0) { continue ; }
 
-      std::queue<std::pair<int64, int64> > Q ;
-      char code = plan.front() ;
-      unsigned int index = 0 ;
-      std::pair<int64, int64> pRange =
-        std::make_pair(int64(0), maxValue) ;
-      Q.push(pRange) ;
+      std::queue<std::pair<int64, int64> > pendingRanges ;
+      char splitCode = edgePlan.front() ;
+      unsigned int planIndex = 0 ;
+      std::pair<int64, int64> edgeRange =
+        std::make_pair(int64(0), maxCoordinate) ;
+      pendingRanges.push(edgeRange) ;
 
-      int64 midP ;
+      int64 midpoint ;
 
-      while(!Q.empty()) {
+      while(!pendingRanges.empty()) {
         // read in a code
-        if(index >= plan.size()) {
-          code = 0 ;
+        if(planIndex >= edgePlan.size()) {
+          splitCode = 0 ;
         }else {
-          code = plan[index++] ;
+          splitCode = edgePlan[planIndex++] ;
         }
 
         // read in the range from the queue
-        pRange = Q.front() ;
+        edgeRange = pendingRanges.front() ;
 
-        // process the cell, push children ranges into Q
-        // and put the middle point into points
-        switch(code) {
+        // process the edge, push child ranges into the queue,
+        // and record the midpoint
+        switch(splitCode) {
           case 1: {
-            midP = (pRange.first + pRange.second)/2 ;
-            Q.push(std::make_pair(pRange.first, midP)) ;
-            Q.push(std::make_pair(midP, pRange.second)) ;
+            midpoint = (edgeRange.first + edgeRange.second)/2 ;
+            pendingRanges.push(
+              std::make_pair(edgeRange.first, midpoint)) ;
+            pendingRanges.push(
+              std::make_pair(midpoint, edgeRange.second)) ;
 
-            if(edgeReversed[i]) {
-              edgeSplits[i].aset.insert(maxValue - midP) ;
+            if(edgeIsReversed[edgeIndex]) {
+              edgeSplits[edgeIndex].aset.insert(maxCoordinate - midpoint) ;
             }else {
-              edgeSplits[i].aset.insert(midP) ;
+              edgeSplits[edgeIndex].aset.insert(midpoint) ;
             }
             break ;
           }
@@ -82,129 +93,163 @@ std::vector<Loci::SetLong> project_face_plan_to_edge_splits(
             break ;
 
           case 8:
-            Q.push(pRange) ;
+            pendingRanges.push(edgeRange) ;
             break ;
 
           default:
-            std::cerr << "WARNING: illegal splitCode in rule edge_points_apply"
+            std::cerr << "WARNING: illegal split code in "
+                         "project_face_plan_to_edge_splits"
                       << std::endl ;
             break ;
         }
-        Q.pop() ;
+        pendingRanges.pop() ;
       }
     }
     return edgeSplits ;
   }
 
-  const int nfnode = edgeReversed.size() ;
+  const int faceEdgeCount = edgeIsReversed.size() ;
 
-  // first time split face, put all the edgecenter into pointSet
-  std::queue<std::pair<int, TwoEdge> > Q ;
-  std::vector<TwoEdge> child(nfnode) ;
-  for(int i=0; i<nfnode; i++) {
-    if(edgeReversed[i]) {
-      child[i].e0 = std::make_pair(maxValue, maxValue/2) ;
+  // The root split contributes the midpoint of every face-local edge.
+  std::queue<std::pair<int, BoundaryEdgeRanges> > pendingBoundaryStates ;
+  std::vector<BoundaryEdgeRanges> rootChildRanges(faceEdgeCount) ;
+  for(int edgeIndex=0; edgeIndex<faceEdgeCount; edgeIndex++) {
+    if(edgeIsReversed[edgeIndex]) {
+      rootChildRanges[edgeIndex].edge0Range =
+        std::make_pair(maxCoordinate, maxCoordinate/2) ;
     }else {
-      child[i].e0 = std::make_pair(int64(0),maxValue/2) ;
+      rootChildRanges[edgeIndex].edge0Range =
+        std::make_pair(int64(0),maxCoordinate/2) ;
     }
 
-    if(edgeReversed[i==0?nfnode-1:i-1]) {
-      child[i].e3 = std::make_pair(maxValue/2, int64(0)) ;
+    const int previousEdgeIndex =
+      edgeIndex==0 ? faceEdgeCount-1 : edgeIndex-1 ;
+    if(edgeIsReversed[previousEdgeIndex]) {
+      rootChildRanges[edgeIndex].edge3Range =
+        std::make_pair(maxCoordinate/2, int64(0)) ;
     }else {
-      child[i].e3 = std::make_pair(maxValue/2, maxValue) ;
+      rootChildRanges[edgeIndex].edge3Range =
+        std::make_pair(maxCoordinate/2, maxCoordinate) ;
     }
 
-    Q.push(std::make_pair(i, child[i])) ;
-    edgeSplits[i].aset.insert(maxValue/2) ;
+    pendingBoundaryStates.push(
+      std::make_pair(edgeIndex, rootChildRanges[edgeIndex])) ;
+    edgeSplits[edgeIndex].aset.insert(maxCoordinate/2) ;
   }
 
-  TwoEdge current ;
-  unsigned int index = 1 ;
-  char mySplitCode ;
-  int edgeID ;
+  BoundaryEdgeRanges currentRanges ;
+  unsigned int planIndex = 1 ;
+  char splitCode ;
+  int boundaryState ;
 
-  while(!Q.empty()) {
-    current = Q.front().second ;
-    edgeID = Q.front().first ;
-    if(index >= facePlan.size()) {
-      mySplitCode = 0 ;
+  while(!pendingBoundaryStates.empty()) {
+    currentRanges = pendingBoundaryStates.front().second ;
+    boundaryState = pendingBoundaryStates.front().first ;
+    if(planIndex >= facePlan.size()) {
+      splitCode = 0 ;
     }else {
-      // take a code from splitcode
-      mySplitCode = facePlan[index] ;
-      index++ ;
+      // Read the next face split code.
+      splitCode = facePlan[planIndex] ;
+      planIndex++ ;
     }
 
-    if(mySplitCode == 1) {
-      // define new edgeID and push the children into Q
-      // put edgecenter into pointSet if necessary
-      int newID[4] = {-1,-1,-1,-1} ;
+    if(splitCode == 1) {
+      // Define the child boundary states and record boundary midpoints.
+      int childBoundaryStates[4] = {-1,-1,-1,-1} ;
 
-      // define the 4 children
-      TwoEdge child[4] ;
+      // Define the four children.
+      BoundaryEdgeRanges childRanges[4] ;
 
-      // if edgeID== -1, each newID is -1, no edgecenter need to be put
-      // into pointSet
-      if(edgeID == -1) {
-        for(int i=0; i<3; i++) {
-          newID[i] = -1 ;
+      // If boundaryState == -1, every child is interior.
+      if(boundaryState == -1) {
+        for(int childIndex=0; childIndex<3; childIndex++) {
+          childBoundaryStates[childIndex] = -1 ;
         }
-      }else if(edgeID >= 0 && edgeID < nfnode) {
-        // if edgeID is in [0, nfnode), edge 0 is on edgeID, edge3 is on edgeID-1
-        newID[2] = -1 ;
-        newID[0] = edgeID ; //e0 on edgeID, e3 on edgeID-1
-        child[0].e0 = std::make_pair(
-          current.e0.first, (current.e0.first + current.e0.second)/2) ;
-        child[0].e3 = std::make_pair(
-          (current.e3.first + current.e3.second)/2, current.e3.second) ;
+      }else if(boundaryState >= 0 && boundaryState < faceEdgeCount) {
+        // In this band, local edge 0 is on the face edge indexed by
+        // boundaryState, and local edge 3 is on the preceding face edge.
+        childBoundaryStates[2] = -1 ;
+        childBoundaryStates[0] = boundaryState ;
+        childRanges[0].edge0Range = std::make_pair(
+          currentRanges.edge0Range.first,
+          (currentRanges.edge0Range.first +
+           currentRanges.edge0Range.second)/2) ;
+        childRanges[0].edge3Range = std::make_pair(
+          (currentRanges.edge3Range.first +
+           currentRanges.edge3Range.second)/2,
+          currentRanges.edge3Range.second) ;
 
-        newID[1] = 2*nfnode+edgeID ; //e3 on edgId
-        child[1].e3 = std::make_pair(
-          (current.e0.first + current.e0.second)/2, current.e0.second) ;
+        childBoundaryStates[1] = 2*faceEdgeCount+boundaryState ;
+        childRanges[1].edge3Range = std::make_pair(
+          (currentRanges.edge0Range.first +
+           currentRanges.edge0Range.second)/2,
+          currentRanges.edge0Range.second) ;
 
-        newID[3] = nfnode +(edgeID==0?nfnode-1:edgeID-1) ; //e0 on edgeId
-        child[3].e0 = std::make_pair(
-          current.e3.first, (current.e3.first + current.e3.second)/2) ;
+        const int previousEdgeIndex = boundaryState==0 ?
+          faceEdgeCount-1 : boundaryState-1 ;
+        childBoundaryStates[3] = faceEdgeCount + previousEdgeIndex ;
+        childRanges[3].edge0Range = std::make_pair(
+          currentRanges.edge3Range.first,
+          (currentRanges.edge3Range.first +
+           currentRanges.edge3Range.second)/2) ;
 
-        edgeSplits[edgeID].aset.insert(
-          (current.e0.first + current.e0.second)/2) ;
-        edgeSplits[edgeID==0?nfnode-1:edgeID-1].aset.insert(
-          (current.e3.first + current.e3.second)/2) ;
-      }else if(edgeID >=nfnode && edgeID <2*nfnode) {
-        // edge 0 on edgeID-nfnode
-        newID[2] = newID[3] = -1 ;
-        newID[0] = edgeID ; //e0 on edgeId
-        child[0].e0 = std::make_pair(
-          current.e0.first, (current.e0.first + current.e0.second)/2) ;
+        edgeSplits[boundaryState].aset.insert(
+          (currentRanges.edge0Range.first +
+           currentRanges.edge0Range.second)/2) ;
+        edgeSplits[previousEdgeIndex].aset.insert(
+          (currentRanges.edge3Range.first +
+           currentRanges.edge3Range.second)/2) ;
+      }else if(boundaryState >= faceEdgeCount &&
+               boundaryState < 2*faceEdgeCount) {
+        // In this band, local edge 0 lies on one face boundary edge.
+        childBoundaryStates[2] = childBoundaryStates[3] = -1 ;
+        childBoundaryStates[0] = boundaryState ;
+        childRanges[0].edge0Range = std::make_pair(
+          currentRanges.edge0Range.first,
+          (currentRanges.edge0Range.first +
+           currentRanges.edge0Range.second)/2) ;
 
-        newID[1] = nfnode + edgeID ; //e3 on edgeId
-        child[1].e3 = std::make_pair(
-          (current.e0.first + current.e0.second)/2, current.e0.second) ;
+        childBoundaryStates[1] = faceEdgeCount + boundaryState ;
+        childRanges[1].edge3Range = std::make_pair(
+          (currentRanges.edge0Range.first +
+           currentRanges.edge0Range.second)/2,
+          currentRanges.edge0Range.second) ;
 
-        edgeSplits[edgeID-nfnode].aset.insert(
-          (current.e0.first + current.e0.second)/2) ;
-      }else if(edgeID >= 2*nfnode && edgeID < 3*nfnode) {
-        // edge 3 on edgeID-2*nfnode
-        newID[1] = newID[2] = -1 ;
-        newID[0] = edgeID ; //e3 on edgeId
-        child[0].e3 = std::make_pair(
-          (current.e3.first + current.e3.second)/2, current.e3.second) ;
+        edgeSplits[boundaryState-faceEdgeCount].aset.insert(
+          (currentRanges.edge0Range.first +
+           currentRanges.edge0Range.second)/2) ;
+      }else if(boundaryState >= 2*faceEdgeCount &&
+               boundaryState < 3*faceEdgeCount) {
+        // In this band, local edge 3 lies on one face boundary edge.
+        childBoundaryStates[1] = childBoundaryStates[2] = -1 ;
+        childBoundaryStates[0] = boundaryState ;
+        childRanges[0].edge3Range = std::make_pair(
+          (currentRanges.edge3Range.first +
+           currentRanges.edge3Range.second)/2,
+          currentRanges.edge3Range.second) ;
 
-        newID[3] = edgeID - nfnode ; //e0 on edgeId
-        child[3].e0 = std::make_pair(
-          current.e3.first, (current.e3.first + current.e3.second)/2) ;
+        childBoundaryStates[3] = boundaryState - faceEdgeCount ;
+        childRanges[3].edge0Range = std::make_pair(
+          currentRanges.edge3Range.first,
+          (currentRanges.edge3Range.first +
+           currentRanges.edge3Range.second)/2) ;
 
-        edgeSplits[edgeID-2*nfnode].aset.insert(
-          (current.e3.first + current.e3.second)/2) ;
+        edgeSplits[boundaryState-2*faceEdgeCount].aset.insert(
+          (currentRanges.edge3Range.first +
+           currentRanges.edge3Range.second)/2) ;
       }else {
-        std::cerr << " WARNING: illegal edgeID" << std::endl ;
+        std::cerr << "WARNING: illegal boundary state in "
+                     "project_face_plan_to_edge_splits" << std::endl ;
         Loci::Abort() ;
       }
 
-      for(int i=0; i<4; i++) {
-        Q.push(std::make_pair(newID[i],child[i])) ;
+      for(int childIndex=0; childIndex<4; childIndex++) {
+        pendingBoundaryStates.push(
+          std::make_pair(childBoundaryStates[childIndex],
+                         childRanges[childIndex])) ;
       }
     }
-    Q.pop() ;
+    pendingBoundaryStates.pop() ;
   }
 
   return edgeSplits ;

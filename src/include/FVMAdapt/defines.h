@@ -399,16 +399,6 @@ struct logicalAnd {
   }
 } ;  
 
-//for a quadface, the two edge that need apply
-struct TwoEdge{
-  TwoEdge(){};
-  
-  pair<int64, int64> e0;
-  pair<int64, int64> e3;
-};
-
-
-
 namespace Loci{
   storeRepP my_get_node_remap(entitySet nodes, entitySet faces, entitySet edges);
 }
