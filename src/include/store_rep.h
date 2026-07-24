@@ -537,6 +537,22 @@ namespace Loci {
 			 (rep->RepType() == Loci::GPUPARAMETER) )) ;
   }
 
+  class abstract_store : public store_instance {
+  public:
+    virtual ~abstract_store() { }
+    virtual instance_type access() const
+      { return READ_WRITE ; }
+    virtual void notification() { }
+  } ;
+
+  class const_abstract_store : public store_instance {
+  public:
+    virtual ~const_abstract_store() { }
+    virtual instance_type access() const
+      { return READ_ONLY ; }
+    virtual void notification() { }
+  } ;
+
   /** ************************************************************************
    *
    * @brief cpypacksize() returns the 
