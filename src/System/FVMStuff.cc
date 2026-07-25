@@ -1577,12 +1577,10 @@ namespace Loci{
     storeRepP sp = tmp_pos.Rep() ;
     int tmp_out = out_of_dom.size() ;
     std::vector<entitySet> init_ptn ;
-    if(facts.is_distributed_start()) {
-      int pk = pos.Rep()->getDomainKeySpace() ;
-      init_ptn = facts.get_init_ptn(pk) ;
-      if(GLOBAL_OR(tmp_out)) {
-        fill_clone(sp, out_of_dom, init_ptn) ;
-      }
+    int pk = pos.Rep()->getDomainKeySpace() ;
+    init_ptn = facts.get_init_ptn(pk) ;
+    if(GLOBAL_OR(tmp_out)) {
+      fill_clone(sp, out_of_dom, init_ptn) ;
     }
 
     list<pair<periodic_info,periodic_info> >::const_iterator ii ;
@@ -1680,10 +1678,8 @@ namespace Loci{
       entitySet p1map = create_entitySet(p1closest.begin(),p1closest.end()) ;
       storeRepP sp = check.Rep() ;
       std::vector<entitySet> init_ptn ;
-      if(facts.is_distributed_start()) {
-        init_ptn = facts.get_init_ptn(fk) ;
-        fill_clone(sp, p1map, init_ptn) ;
-      }
+      init_ptn = facts.get_init_ptn(fk) ;
+      fill_clone(sp, p1map, init_ptn) ;
       bool periodic_problem = false ;
       for(size_t i=0;i<p1id.size();++i) {
         if(check[pmap[p1id[i]]] != p1id[i]) {

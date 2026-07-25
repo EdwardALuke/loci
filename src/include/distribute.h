@@ -558,6 +558,17 @@ namespace Loci {
 
   class  entityPartitionInfo  {
   public:
+    entityPartitionInfo(entitySet &scope,
+                        Map &l2g_in,
+                        store<unsigned char> &key_domain_in,
+                        Map &l2f_in,
+                        std::vector<dataPartitionP> &ptnlist):
+      my_entities(scope),keyspacePartitions(ptnlist) {
+      l2g.setRep(l2g_in.Rep()) ;
+      l2f.setRep(l2f_in.Rep()) ;
+      key_domain.setRep(key_domain_in.Rep()) ;
+    }
+      
     entitySet my_entities ;
     Map l2g ;
     store<unsigned char> key_domain ;

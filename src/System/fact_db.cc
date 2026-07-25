@@ -917,50 +917,34 @@ namespace Loci {
   
   void reorder_facts(fact_db &facts, dMap &remap) {
     variableSet vars = facts.get_typed_variables() ;
-    if(facts.is_distributed_start()) {
-      fact_db::distribute_infoP df = facts.get_distribute_info()  ;
-      for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
-	storeRepP p = facts.get_variable(*vi) ;
-	if(p->domain() == ~EMPTY) {
-	  // For universal set, keep set universal
-	  facts.replace_fact(*vi,p->freeze()) ;
-	  p = facts.get_variable(*vi) ;
-	} else if(!isMAP(p)) {
-	  int kd = p->getDomainKeySpace() ;
-	  entitySet rdom = p->domain() & df->g2lv[kd].domain() ;
-	  storeRepP fp = (p->remap(df->g2lv[kd]))->freeze() ;
-	  facts.replace_fact(*vi,fp) ;
-	  p = facts.get_variable(*vi) ;
-	} else {
-	  MapRepP mp = MapRepP(p->getRep()) ;
-	  int kd = p->getDomainKeySpace() ;
-	  int rd = mp->getRangeKeySpace() ;
-	  storeRepP fp = (mp->MapRemap(df->g2lv[kd],
-				       df->g2lv[rd]))->freeze() ;
-	  facts.replace_fact(*vi,fp) ;
-	  p = facts.get_variable(*vi) ;
-	  mp = MapRepP(p->getRep()) ;
-	}
-      }
-#ifdef LOCI_COMPAT_MODE1
-      df->g2f.setRep(df->g2fv[0].Rep()) ;
-      df->g2l.setRep(df->g2lv[0].Rep()) ;
-#endif
-
-    } else {
-      for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
-	storeRepP p = facts.get_variable(*vi) ;
-	if(p->domain() == ~EMPTY) {
-	  // For universal set, keep set universal
-	  facts.update_fact(*vi,p->freeze()) ;
-	} else if(!isMAP(p)) {
-	  facts.update_fact(*vi,(p->remap(remap))->freeze()) ;
-	} else {
-	  MapRepP mp = MapRepP(p->getRep()) ;
-	  facts.update_fact(*vi,(mp->MapRemap(remap,remap))->freeze()) ;
-	}
+    fact_db::distribute_infoP df = facts.get_distribute_info()  ;
+    for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
+      storeRepP p = facts.get_variable(*vi) ;
+      if(p->domain() == ~EMPTY) {
+        // For universal set, keep set universal
+        facts.replace_fact(*vi,p->freeze()) ;
+        p = facts.get_variable(*vi) ;
+      } else if(!isMAP(p)) {
+        int kd = p->getDomainKeySpace() ;
+        entitySet rdom = p->domain() & df->g2lv[kd].domain() ;
+        storeRepP fp = (p->remap(df->g2lv[kd]))->freeze() ;
+        facts.replace_fact(*vi,fp) ;
+        p = facts.get_variable(*vi) ;
+      } else {
+        MapRepP mp = MapRepP(p->getRep()) ;
+        int kd = p->getDomainKeySpace() ;
+        int rd = mp->getRangeKeySpace() ;
+        storeRepP fp = (mp->MapRemap(df->g2lv[kd],
+                                     df->g2lv[rd]))->freeze() ;
+        facts.replace_fact(*vi,fp) ;
+        p = facts.get_variable(*vi) ;
+        mp = MapRepP(p->getRep()) ;
       }
     }
+#ifdef LOCI_COMPAT_MODE1
+    df->g2f.setRep(df->g2fv[0].Rep()) ;
+    df->g2l.setRep(df->g2lv[0].Rep()) ;
+#endif
   }
 
   ///////////////////////////////////////////////////////////////////////////////

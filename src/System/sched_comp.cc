@@ -943,9 +943,8 @@ namespace Loci {
       schedule->append_list(new allocate_all_vars(facts,scheds,alloc_vars,true)) ;
     }
     else
-      if(facts.is_distributed_start())
-        if((MPI_processes > 1))
-          schedule->append_list(new allocate_all_vars(facts,scheds,alloc,false)) ;
+      if((MPI_processes > 1))
+        schedule->append_list(new allocate_all_vars(facts,scheds,alloc,false)) ;
 
     schedule->append_list(fact_db_comm->create_execution_schedule(facts, scheds));
     executeP top_level_schedule = 0;
@@ -1144,14 +1143,10 @@ namespace Loci {
       // perform the global -> local renumbering
       // since the fact_db facts is in global numbering state
 #ifdef RENUMBER
-      if(clone.is_distributed_start()) {
-        if((MPI_processes > 1)) 
-          get_clone(clone, par_rdb) ;
-        else
-          Loci::serial_freeze(clone) ; 
-      } else {
-        Loci::serial_freeze(clone) ;
-      }
+      if((MPI_processes > 1)) 
+        get_clone(clone, par_rdb) ;
+      else
+        Loci::serial_freeze(clone) ; 
 #else
       Loci::serial_freeze(clone) ;
 #endif
@@ -1166,33 +1161,20 @@ namespace Loci {
       // Okay, now we need to put back the computed relations
       // to the original fact_db and restore the global numbering
 #ifdef RENUMBER
-      if(clone.is_distributed_start()) {
-        fact_db::distribute_infoP df = clone.get_distribute_info() ;
-        dMap dl2g ;
-        dl2g = MapRepP(df->l2g.Rep())->thaw() ;
-        for(variableSet::const_iterator vi2=all_queries.begin();
-            vi2!=all_queries.end();++vi2) {
-          storeRepP srp = clone.get_variable(*vi2) ;
-          if(srp->RepType() == Loci::CONSTRAINT)
-            if(GLOBAL_AND(srp->domain()==EMPTY)) {
-              empty_constraints += *vi2 ;
-              // we don't create empty constraints in
-              // the global fact database
-              continue ;
-            }
-          facts.create_intensional_fact(*vi2,(srp->remap(dl2g))->freeze()) ;
-        }
-      }else{
-        for(variableSet::const_iterator vi2=all_queries.begin();
-            vi2!=all_queries.end();++vi2) {
-          storeRepP srp = clone.get_variable(*vi2) ;
-          if(srp->RepType() == Loci::CONSTRAINT)
-            if(GLOBAL_AND(srp->domain()==EMPTY)) {
-              empty_constraints += *vi2 ;
-              continue ;
-            }
-          facts.create_intensional_fact(*vi2,srp) ;
-        }
+      fact_db::distribute_infoP df = clone.get_distribute_info() ;
+      dMap dl2g ;
+      dl2g = MapRepP(df->l2g.Rep())->thaw() ;
+      for(variableSet::const_iterator vi2=all_queries.begin();
+          vi2!=all_queries.end();++vi2) {
+        storeRepP srp = clone.get_variable(*vi2) ;
+        if(srp->RepType() == Loci::CONSTRAINT)
+          if(GLOBAL_AND(srp->domain()==EMPTY)) {
+            empty_constraints += *vi2 ;
+            // we don't create empty constraints in
+            // the global fact database
+            continue ;
+          }
+        facts.create_intensional_fact(*vi2,(srp->remap(dl2g))->freeze()) ;
       }
 #else
       for(variableSet::const_iterator vi2=all_queries.begin();
@@ -1214,14 +1196,10 @@ namespace Loci {
         // perform the global -> local renumbering
         // since the fact_db facts is in global numbering state
 #ifdef RENUMBER
-        if(clone.is_distributed_start()) {
-          if((MPI_processes > 1)) 
-            get_clone(clone, par_rdb) ;
-          else
-            Loci::serial_freeze(clone) ; 
-        } else {
-          Loci::serial_freeze(clone) ;
-        }
+        if((MPI_processes > 1)) 
+          get_clone(clone, par_rdb) ;
+        else
+          Loci::serial_freeze(clone) ; 
 #else
         Loci::serial_freeze(clone) ;
 #endif
@@ -1239,38 +1217,25 @@ namespace Loci {
         // Okay, now we need to put back the computed relations
         // to the original fact_db and restore the global numbering
 #ifdef RENUMBER
-        if(clone.is_distributed_start()) {
-          fact_db::distribute_infoP df = clone.get_distribute_info() ;
-          dMap dl2g ;
-          dl2g = MapRepP(df->l2g.Rep())->thaw() ;
-          for(variableSet::const_iterator vi2=queries.begin();
-              vi2!=queries.end();++vi2) {
-            storeRepP srp = clone.get_variable(*vi2) ;
-            if(srp->RepType() == Loci::CONSTRAINT)
-              if(GLOBAL_AND(srp->domain()==EMPTY)) {
-                empty_constraints += *vi2 ;
-                // we don't create empty constraints in
-                // the global fact database
-                continue ;
-              }
-            // we do not need to remap any maps from local -> global
-            // because they are generated in the global numbering
-            if(isMAP(srp))
-              facts.create_intensional_fact(*vi2,srp) ;
-            else
-              facts.create_intensional_fact(*vi2,srp->remap(dl2g)) ;
-          }
-        }else{
-          for(variableSet::const_iterator vi2=queries.begin();
-              vi2!=queries.end();++vi2) {
-            storeRepP srp = clone.get_variable(*vi2) ;
-            if(srp->RepType() == Loci::CONSTRAINT)
-              if(GLOBAL_AND(srp->domain()==EMPTY)) {
-                empty_constraints += *vi2 ;
-                continue ;
-              }
+        fact_db::distribute_infoP df = clone.get_distribute_info() ;
+        dMap dl2g ;
+        dl2g = MapRepP(df->l2g.Rep())->thaw() ;
+        for(variableSet::const_iterator vi2=queries.begin();
+            vi2!=queries.end();++vi2) {
+          storeRepP srp = clone.get_variable(*vi2) ;
+          if(srp->RepType() == Loci::CONSTRAINT)
+            if(GLOBAL_AND(srp->domain()==EMPTY)) {
+              empty_constraints += *vi2 ;
+              // we don't create empty constraints in
+              // the global fact database
+              continue ;
+            }
+          // we do not need to remap any maps from local -> global
+          // because they are generated in the global numbering
+          if(isMAP(srp))
             facts.create_intensional_fact(*vi2,srp) ;
-          }
+          else
+            facts.create_intensional_fact(*vi2,srp->remap(dl2g)) ;
         }
 #else
         for(variableSet::const_iterator vi2=queries.begin();

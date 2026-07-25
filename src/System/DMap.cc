@@ -175,6 +175,16 @@ namespace Loci {
     dispatch_notify() ;
   }
   
+  
+  //*************************************************************************/
+  void dMapRepI::erase(const entitySet &rm) {
+    // we need to make sure the erased sets are
+    // indeed valid (within the domain)
+    entitySet valid = domain() & rm ;
+    attrib_data.erase_set(valid) ;
+    dispatch_notify() ;
+  }
+
   //************************************************************************/
   
   dMapRepI::~dMapRepI() 

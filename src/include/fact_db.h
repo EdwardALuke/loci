@@ -245,7 +245,7 @@ namespace Loci {
     std::pair<entitySet, entitySet> get_distributed_alloc(int size,size_t kd) ;
     std::pair<entitySet, entitySet> get_distributed_alloc(const std::vector<int> &remap_entities, size_t kd);
     std::pair<entitySet, entitySet> get_distributed_alloc(int size, int offset, size_t kd);
-    int is_distributed_start() {return dist_from_start ;}
+    int is_distributed_start() {return true || dist_from_start ;}
 #ifdef LOCI_COMPAT_MODE1
     std::vector<entitySet>& get_init_ptn() {return init_ptn[0] ;}
     std::pair<entitySet, entitySet> get_distributed_alloc(int size) {

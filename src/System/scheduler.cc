@@ -714,14 +714,10 @@ namespace Loci {
     stationary_relation_gen(par_rdb, facts, target) ;
 #endif
     // then we need to perform global -> local renumbering
-    if(facts.is_distributed_start()) {
-      if((MPI_processes > 1))
-        get_clone(facts, par_rdb) ;
-      else
-        Loci::serial_freeze(facts) ;
-    } else {
+    if((MPI_processes > 1))
+      get_clone(facts, par_rdb) ;
+    else
       Loci::serial_freeze(facts) ;
-    }
 
     // then we can generate the dependency graph
     variableSet given = facts.get_typed_variables() ;
@@ -1877,28 +1873,19 @@ bool operator <(const timingData &d) const {
       // distributed at the beginning, since if it was
       // started distributed at the beginning, then we've already
       // done the local renumbering step to the facts.
-      if(local_facts.is_distributed_start()) {
-        fact_db::distribute_infoP df = local_facts.get_distribute_info() ;
-        // first get the local to global dMap
-        dMap l2g ;
-        entitySet dom = df->l2g.domain() ;
-        for(entitySet::const_iterator ei=dom.begin();ei!=dom.end();++ei)
-          l2g[*ei] = df->l2g[*ei] ;
+      fact_db::distribute_infoP df = local_facts.get_distribute_info() ;
+      // first get the local to global dMap
+      dMap l2g ;
+      entitySet dom = df->l2g.domain() ;
+      for(entitySet::const_iterator ei=dom.begin();ei!=dom.end();++ei)
+        l2g[*ei] = df->l2g[*ei] ;
 
-        for(variableSet::const_iterator vi=target.begin();
-            vi!=target.end();++vi) {
-          storeRepP srp = local_facts.get_variable(*vi) ;
-          // the results are clearly intensional facts
-          facts.create_intensional_fact(*vi,srp->remap(l2g)) ;
-        }
-      }else{
-        for(variableSet::const_iterator vi=target.begin();
-            vi!=target.end();++vi) {
-          storeRepP srp = local_facts.get_variable(*vi) ;
-          facts.create_intensional_fact(*vi,srp) ;
-        }
+      for(variableSet::const_iterator vi=target.begin();
+          vi!=target.end();++vi) {
+        storeRepP srp = local_facts.get_variable(*vi) ;
+        // the results are clearly intensional facts
+        facts.create_intensional_fact(*vi,srp->remap(l2g)) ;
       }
-	  
 		
       if(profile_memory_usage) {
         Loci::debugout << "++++++++Memory Profiling Report++++++++"

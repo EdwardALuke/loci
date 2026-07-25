@@ -94,6 +94,7 @@ namespace Loci {
     virtual block_hash<int> *get_attrib_data() { return &attrib_data; }
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
+    void erase(const entitySet &rm) ;
   } ;
       
   class dMap : public store_instance {
@@ -119,6 +120,10 @@ namespace Loci {
     
     void allocate(const entitySet &ptn) { Rep()->allocate(ptn) ; }
 
+    // this method does erases the domain of the Map that are
+    // inside the passed in parameter
+    void erase(const entitySet& rm) { dynamic_cast<MapType *>(&(*Rep()))->erase(rm) ; }
+    
     entitySet domain() const { return Rep()->domain() ; }
 
     operator MapRepP() {
