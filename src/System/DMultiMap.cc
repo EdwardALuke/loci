@@ -228,25 +228,6 @@ namespace Loci
     dispatch_notify() ;
   }
   
-  void dmultiMapRepI::erase(const entitySet &rm) {
-    entitySet valid = domain() & rm ;
-    attrib_data.erase_set(valid) ;
-    dispatch_notify() ;
-  }
-  
-  void dmultiMapRepI::invalidate(const entitySet& valid) {
-    entitySet redundant = domain() - valid ;
-    erase(redundant) ;
-  }
-
-  void dmultiMapRepI::guarantee_domain(const entitySet& include) {
-    entitySet new_set = include - domain() ;
-    for(entitySet::const_iterator ei=new_set.begin();
-        ei!=new_set.end();++ei)
-      std::vector<int,malloc_alloc<int> >(0).swap(attrib_data[*ei]) ;
-    dispatch_notify() ;
-  }
-
   //**************************************************************************/
 
   dmultiMapRepI::~dmultiMapRepI() 

@@ -110,10 +110,6 @@ namespace Loci {
     Rep()->copy(st,context) ;
   }
 
-  void store_ref::fast_copy(storeRepP &st, const entitySet &context) {
-    Rep()->fast_copy(st,context) ;
-  }
-
   void store_ref::gather(const dMap &m,storeRepP &st,
                          const entitySet &context) {
     Rep()->gather(m,st,context) ;
@@ -163,23 +159,5 @@ namespace Loci {
     dispatch_notify() ;
   }
 
-  void store_ref::
-  erase(const entitySet& rm) { Rep()->erase(rm) ;}
-  
-  void store_ref::
-  invalidate(const entitySet& valid) { Rep()->invalidate(valid) ;}
-  
-  void store_ref::
-  guarantee_domain(const entitySet& include)
-  { Rep()->guarantee_domain(include) ;}
-  
-  storeRepP store_ref::
-  redistribute(const std::vector<entitySet>& dom_ptn,MPI_Comm comm)
-  { return Rep()->redistribute(dom_ptn,comm) ;}
-  
-  storeRepP store_ref::
-  redistribute(const std::vector<entitySet>& dom_ptn,
-               const dMap& remap, MPI_Comm comm)
-  { return Rep()->redistribute(dom_ptn,remap,comm) ;}
   
 }

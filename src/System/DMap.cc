@@ -175,27 +175,6 @@ namespace Loci {
     dispatch_notify() ;
   }
   
-  //*************************************************************************/
-  void dMapRepI::erase(const entitySet &rm) {
-    // we need to make sure the erased sets are
-    // indeed valid (within the domain)
-    entitySet valid = domain() & rm ;
-    attrib_data.erase_set(valid) ;
-    dispatch_notify() ;
-  }
-
-  void dMapRepI::invalidate(const entitySet& valid) {
-    entitySet redundant = domain() - valid ;
-    erase(redundant) ;
-  }
-  void dMapRepI::guarantee_domain(const entitySet& include) {
-    entitySet new_set = include - domain() ;
-    for(entitySet::const_iterator ei=new_set.begin();
-        ei!=new_set.end();++ei)
-      attrib_data.access(*ei) ;
-    dispatch_notify() ;
-  }
-  
   //************************************************************************/
   
   dMapRepI::~dMapRepI() 

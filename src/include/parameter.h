@@ -72,17 +72,6 @@ namespace Loci {
     paramRepI() { store_domain = interval(UNIVERSE_MIN,UNIVERSE_MAX) ; }
     paramRepI(const entitySet &p) { store_domain = p ;}
     virtual void allocate(const entitySet &p)  ;
-    virtual void erase(const entitySet& rm) ;
-    virtual void guarantee_domain(const entitySet& include) ;
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) ;
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
-    virtual storeRepP
-    redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                     const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
     virtual void shift(int_type offset) ;
     virtual ~paramRepI() ;
     virtual store_type RepType() const ;
@@ -93,7 +82,6 @@ namespace Loci {
     virtual storeRepP freeze() ;
     virtual storeRepP thaw() ;
     virtual void copy(storeRepP &st, const entitySet &context) ;
-    virtual void fast_copy(storeRepP& st, const entitySet& context);
     virtual void gather(const dMap &m, storeRepP &st,
                         const entitySet &context)  ;
     virtual void scatter(const dMap &m, storeRepP &st,
@@ -125,19 +113,8 @@ namespace Loci {
     dispatch_notify();
   }
 
-  template<class T> void paramRepI<T>::erase(const entitySet& rm) {
-    store_domain -= rm ;
-    dispatch_notify() ;
-  }
-
   template<class T> void paramRepI<T>::shift(int_type offset) {
     store_domain >>= offset ;
-    dispatch_notify() ;
-  }
-
-  template<class T> void paramRepI<T>::
-  guarantee_domain(const entitySet& include) {
-    store_domain += include ;
     dispatch_notify() ;
   }
 
@@ -512,20 +489,6 @@ namespace Loci {
     dispatch_notify() ;
   }
 
-  // note this method can only be used when the paramRepI<T> (i.e., *this)
-  // is NOT connected to any of the containers since we don't perform any
-  // kind of notification
-  template<class T>
-  void paramRepI<T>::fast_copy(storeRepP &st, const entitySet &context)
-  {
-    storeRepP true_rep = st->getRep();
-    paramRepI<T>* p = dynamic_cast<paramRepI<T>*>(&(*true_rep));
-    fatal(p==0);
-    attrib_data = p->attrib_data;
-    warn((store_domain - context) != EMPTY) ;
-    store_domain = context ;
-  }
-
   //**************************************************************************/
 
   template<class T>
@@ -846,64 +809,6 @@ namespace Loci {
 #endif
   }
 
-
-   
-  template<class T> storeRepP paramRepI<T>::
-  redistribute(const std::vector<entitySet>& dom_ptn, MPI_Comm comm) {
-    // for a parameter, we just redistribute its domain
-    entitySet dom = domain() ;
-    entitySet new_all ;
-    for(size_t i=0;i<dom_ptn.size();++i)
-      new_all += dom_ptn[i] ;
-    entitySet out = dom - new_all ;
-
-    std::vector<entitySet> old_dist = all_collect_vectors(dom, comm) ;
-    entitySet old_all ;
-    for(size_t i=0;i<old_dist.size();++i)
-      old_all += old_dist[i] ;
-
-    int rank = 0 ;
-    MPI_Comm_rank(comm,&rank) ;
-
-    // get the new domain
-    entitySet new_dom = old_all & dom_ptn[rank] ;
-    new_dom += out ;
-
-    param<T> np ;
-    np.set_entitySet(new_dom) ;
-    *np = attrib_data ;
-
-    return np.Rep() ;
-  }
-
-  template<class T> storeRepP paramRepI<T>::
-  redistribute(const std::vector<entitySet>& dom_ptn,
-               const dMap& remap, MPI_Comm comm) {
-    // for a parameter, we just redistribute its domain
-    entitySet dom = domain() ;
-    std::vector<entitySet> old_dist = all_collect_vectors(dom, comm) ;
-    entitySet old_all ;
-    for(size_t i=0;i<old_dist.size();++i)
-      old_all += old_dist[i] ;
-
-    int rank = 0 ;
-    MPI_Comm_rank(comm,&rank) ;
-
-    // get the new domain
-    entitySet new_dom = old_all & dom_ptn[rank] ;
-    new_dom = remap_entitySet(new_dom, remap) ;
-
-    param<T> np ;
-    np.set_entitySet(new_dom) ;
-    *np = attrib_data ;
-
-    return np.Rep() ;
-  }
-  template<class T> storeRepP paramRepI<T>::
-  redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                   const dMap& remap, MPI_Comm comm) {
-    return redistribute(dom_ptn,remap,comm) ;
-  }
   //***************************************************************************
 
 }

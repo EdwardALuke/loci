@@ -44,19 +44,8 @@ namespace Loci {
     return ;
   }
 
-  template<class T> void gpuparamRepI<T>::erase(const entitySet& rm) {
-    store_domain -= rm ;
-    dispatch_notify() ;
-  }
-
   template<class T> void gpuparamRepI<T>::shift(int_type offset) {
     store_domain >>= offset ;
-    dispatch_notify() ;
-  }
-
-  template<class T> void gpuparamRepI<T>::
-  guarantee_domain(const entitySet& include) {
-    store_domain += include ;
     dispatch_notify() ;
   }
 
@@ -318,19 +307,6 @@ namespace Loci {
     dispatch_notify() ;
   }
 
-  // note this method can only be used when the gpuparamRepI<T> (i.e., *this)
-  // is NOT connected to any of the containers since we don't perform any
-  // kind of notification
-  template<class T>
-  void gpuparamRepI<T>::fast_copy(storeRepP &st, const entitySet &context)
-  {
-    storeRepP true_rep = st->getRep();
-    gpuparamRepI<T>* p = dynamic_cast<gpuparamRepI<T>*>(&(*true_rep));
-    fatal(p==0);
-    *base_ptr = p->base_ptr[0];
-    warn((store_domain - context) != EMPTY) ;
-    store_domain = context ;
-  }
 
   //**************************************************************************/
 
@@ -622,58 +598,6 @@ namespace Loci {
       H5Tclose(datatype) ;
       delete [] tmp_array ;
     }
-  }
-
-  template<class T> storeRepP gpuparamRepI<T>::
-  redistribute(const std::vector<entitySet>& dom_ptn, MPI_Comm comm) {
-    // for a parameter, we just redistribute its domain
-    entitySet dom = domain() ;
-    entitySet new_all ;
-    for(size_t i=0;i<dom_ptn.size();++i)
-      new_all += dom_ptn[i] ;
-    entitySet out = dom - new_all ;
-
-    std::vector<entitySet> old_dist = all_collect_vectors(dom, comm) ;
-    entitySet old_all ;
-    for(size_t i=0;i<old_dist.size();++i)
-      old_all += old_dist[i] ;
-
-    int rank = 0 ;
-    MPI_Comm_rank(comm,&rank) ;
-
-    // get the new domain
-    entitySet new_dom = old_all & dom_ptn[rank] ;
-    new_dom += out ;
-
-    gpuparam<T> np ;
-    np.set_entitySet(new_dom) ;
-    *np = *base_ptr ;
-
-    return np.Rep() ;
-  }
-
-  template<class T> storeRepP gpuparamRepI<T>::
-  redistribute(const std::vector<entitySet>& dom_ptn,
-               const dMap& remap, MPI_Comm comm) {
-    // for a parameter, we just redistribute its domain
-    entitySet dom = domain() ;
-    std::vector<entitySet> old_dist = all_collect_vectors(dom, comm) ;
-    entitySet old_all ;
-    for(size_t i=0;i<old_dist.size();++i)
-      old_all += old_dist[i] ;
-
-    int rank = 0 ;
-    MPI_Comm_rank(comm,&rank) ;
-
-    // get the new domain
-    entitySet new_dom = old_all & dom_ptn[rank] ;
-    new_dom = remap_entitySet(new_dom, remap) ;
-
-    gpuparam<T> np ;
-    np.set_entitySet(new_dom) ;
-    *np = *base_ptr ;
-
-    return np.Rep() ;
   }
 
   //***************************************************************************
