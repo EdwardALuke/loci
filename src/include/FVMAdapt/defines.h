@@ -194,6 +194,10 @@ namespace Loci {
       f1 = result;
     }
   };
+
+  template <typename T>
+  struct SetLongUnionOp : public SetLongUnion {
+  };
 }
 
 namespace Loci {

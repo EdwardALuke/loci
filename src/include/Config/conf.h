@@ -23,8 +23,6 @@
 
 #include "Config/version_info.h"
 
-#define DYNAMICSCHEDULING
-
 #ifdef restrict
 #undef restrict
 #endif

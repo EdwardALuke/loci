@@ -29,7 +29,8 @@
 #include <Tools/debug.h>
 #include <entitySet.h>
 #include <store_rep.h>
-#include <key_manager.h>
+#include <Tools/gpu_attr.h>
+#include <Tools/basic_types.h>
 
 #include <iostream>
 #include <string>
@@ -85,14 +86,13 @@ namespace Loci {
     bool specialized_parametric ;
     bool use_parametric_variable ;
     variable ParametricVariable ;
-    mutable std::string name ;
+
     info rule_info ;
     typedef std::multimap<variable, store_instance *> storeIMap ;
     storeIMap var_table ;
     std::map<variable,variable> rvmap ;
     std::map<variable,int> varInfoId ;
     const char **vardoc ;
-
     void source(const std::string &invar) ;
     void target(const std::string &outvar) ;
     std::string rule_comments ; // the comments for a rule_impl
@@ -125,7 +125,6 @@ namespace Loci {
     // these should be called if the pre- and postlude methods are present
     void enable_prelude() { use_prelude = true; }
     void enable_postlude() { use_postlude = true; }
-    void rule_name(const std::string &name) ;
     void name_store(const std::string &name,store_instance &si) ;
     void input(const std::string &invar) { source(invar) ; }
     void output(const std::string &outvar) { target(outvar) ; }
@@ -143,6 +142,7 @@ namespace Loci {
     // set the space_dist bit
     void keyspace_dist_hint() {space_dist = true ;}
   public:
+    std::string rule_identifier() const { return rule_info.rule_identifier() ;}
     const char *getvardoc(variable v) const {
       if(vardoc) {
         auto mi = varInfoId.find(v) ;
@@ -178,7 +178,6 @@ namespace Loci {
     std::string
     get_keyspace_tag() const {return space_tag ;}
     
-    std::string get_name() const ;
     rule_impl_type get_rule_class() const { return rule_impl_class ; }
     const info &get_info() const { return rule_info ; }
     void set_store(variable v, const storeRepP &p) ;
@@ -216,8 +215,6 @@ namespace Loci {
     // to reflect the substitution of constraints for maps.
     void replace_map_constraints(fact_db& facts) ;
 
-    void split_constraints(const variableSet& dc) ;
-    
     void set_variable_times(time_ident tl) ;
     void copy_store_from(rule_impl &f) ;
     void Print(std::ostream &s) const ;
@@ -324,8 +321,8 @@ namespace Loci {
     { rule_impl::output(outvar) ; }
     // do we allow constraint in a constraint rule???
     // I don't think so currently --- so we disable it for now.
-//     void constraint(const std::string &constrain)
-//     { rule_impl::constraint(constrain) ; }
+    //     void constraint(const std::string &constrain)
+    //     { rule_impl::constraint(constrain) ; }
     void conditional(const std::string &cond)
       { rule_impl::conditional(cond) ; }
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
@@ -363,170 +360,6 @@ namespace Loci {
     virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
   } ;
 
-#ifdef DYNAMICSCHEDULING
-  // this one is purely for interface purpose
-  class insertion_rule_interface: public rule_impl {
-  public:
-    virtual void set_key_manager(KeyManagerP kp) = 0 ;
-    virtual KeyManagerP get_key_manager() const = 0 ;
-    virtual const KeySet& get_keys_inserted() const = 0 ;
-  } ;
-  typedef CPTR<insertion_rule_interface> insertion_rule_interfaceP ;
-
-  // we require that "SequentialContainer" provides an iterator
-  // interface, and a "value_type" definition. Good examples of
-  // "SequentialContainer" are "std::vector", "std::list" etc.
-  template<class SequentialContainer>
-  class insertion_rule: public insertion_rule_interface {
-    KeyManagerP key_manager ;
-    KeySet keys_inserted ;
-
-    int input_num ;
-  protected:
-    insertion_rule():key_manager(0),keys_inserted(EMPTY),input_num(0)
-    {rule_class(INSERTION) ;}
-
-    void name_store(const std::string &nm, store_instance &si)
-    { rule_impl::name_store(nm,si) ; }
-    void input(const std::string &invar) {
-      ++input_num ;
-      if(input_num >= 2) {
-        std::cerr << "Warning: an INSERTION rule should only have ONE input!"
-                  << endl ;
-      } else
-        rule_impl::input(invar) ;
-    }
-    void output(const std::string &outvar)
-    { rule_impl::output(outvar) ; }
-    void constraint(const std::string &constrain) {
-      std::cerr << "Warning: an INSERTION rule should not have "
-                << "any constraints!" << endl ;
-    }
-    void conditional(const std::string &cond)
-    { rule_impl::conditional(cond) ; }
-
-    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
-
-    // method to be defined by users
-    // supplied by two arguments: the Entity e is the newly
-    // created entity for the value passed in, users would
-    // just need to decide how to fill the value to their
-    // target facts
-    virtual void
-    insert(const typename SequentialContainer::value_type& value,
-           Entity e) = 0 ;
-  public:
-    virtual void set_key_manager(KeyManagerP kp) {
-      key_manager = kp ;
-    }
-    virtual KeyManagerP get_key_manager() const {
-      return key_manager ;
-    }
-    virtual const KeySet& get_keys_inserted() const {
-      return keys_inserted ;
-    }
-    
-    virtual void compute(const sequence& seq) {
-      // at the beginning, we'll need to clear the keys inserted
-      keys_inserted = EMPTY ;
-      // we assume that there are only
-      // one input to this rule and its type
-      // is blackbox<SequentialContainer>
-      
-      // lets get the input's rep first
-      variable rule_input = *( (get_info().sources.begin())->var.begin()) ;
-      storeRepP rule_input_rep = get_store(rule_input) ;
-      const_blackbox<SequentialContainer> input(rule_input_rep) ;
-      const SequentialContainer& input_sequence = *input ;
-      // now we can know how many keys to be created
-      size_t num_of_keys = std::distance(input_sequence.begin(),
-                                         input_sequence.end()) ;
-      keys_inserted = key_manager->generate_key(num_of_keys) ;
-      KeySet::const_iterator ki = keys_inserted.begin() ;
-      typename SequentialContainer::const_iterator b, e ;
-      for(b=input_sequence.begin(),e=input_sequence.end();b!=e;++b,++ki)
-        insert(*b, *ki) ;
-    }
-  } ;
-
-  class deletion_rule: public rule_impl {
-    KeyManagerP key_manager ;
-    KeySet keys_deleted ;
-    bool if_destroy_keys ;
-  protected:
-    deletion_rule():key_manager(0),
-                    keys_deleted(EMPTY),if_destroy_keys(false) {
-      rule_class(DELETION) ;
-    }
-
-    void name_store(const std::string &nm, store_instance &si)
-    { rule_impl::name_store(nm,si) ; }
-    void input(const std::string &invar)
-    { rule_impl::input(invar) ; }
-    void output(const std::string &outvar)
-    { rule_impl::output(outvar) ; }
-    void constraint(const std::string &constrain)
-    { rule_impl::constraint(constrain) ; }
-    void conditional(const std::string &cond)
-    { rule_impl::conditional(cond) ; }
-    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
-
-    // this one tells if the deleted keys will also be destroyed
-    void destroy_keys() {if_destroy_keys = true ;}
-
-    void delete_key(Key k) {keys_deleted += k ;}
-
-    // defined by the users
-    virtual void evaluate_key(Key k) = 0 ;
-  public:
-    virtual void set_key_manager(KeyManagerP kp) {
-      key_manager = kp ;
-    }
-    virtual KeyManagerP get_key_manager() const {
-      return key_manager ;
-    }
-    const KeySet& get_keys_deleted() const {return keys_deleted ;}
-    bool destroy_deleted_keys() const {return if_destroy_keys ;}
-
-    void compute(const sequence& seq) {
-      // first clear the keys to be destroyed
-      keys_deleted = EMPTY ;
-      do_loop(seq,this,&deletion_rule::evaluate_key) ;
-    }
-  } ;
-  typedef CPTR<deletion_rule> deletion_ruleP ;
-
-  class erase_rule: public rule_impl {
-    KeySet record_erased ;
-  protected:
-    erase_rule():record_erased(EMPTY) {
-      rule_class(ERASE) ;
-    }
-
-    void name_store(const std::string &nm, store_instance &si)
-    { rule_impl::name_store(nm,si) ; }
-    void input(const std::string &invar)
-    { rule_impl::input(invar) ; }
-    void output(const std::string &outvar)
-    { rule_impl::output(outvar) ; }
-    void constraint(const std::string &constrain)
-    { rule_impl::constraint(constrain) ; }
-    void conditional(const std::string &cond)
-    { rule_impl::conditional(cond) ; }
-    virtual CPTR<joiner> get_joiner() { return CPTR<joiner>(0) ; }
-    void erase_record(Key k) {record_erased += k ;}
-    // defined by the users
-    virtual void evaluate_record(Key k) = 0 ;
-  public:
-    const KeySet& get_erased_record() const {return record_erased ;}
-    void compute(const sequence& seq) {
-      // first clear the keys to be destroyed
-      record_erased = EMPTY ;
-      do_loop(seq,this,&erase_rule::evaluate_record) ;
-    }
-  } ;
-  typedef CPTR<erase_rule> erase_ruleP ;
-#endif
   
   // This rule is 
   class super_rule : public rule_impl {
@@ -795,7 +628,11 @@ namespace Loci {
     }
 
   } ;
-  
+
+  template<typename Op, typename T>
+  struct ReductionIdentity {
+  } ;
+
   template <class T> struct NullOp {
     void operator()(T &res, const T &arg)
     { std::cerr << "join should not be called for NullOp" << std::endl; }
@@ -803,27 +640,140 @@ namespace Loci {
     { std::cerr << "join should not be called for NullOp" << std::endl; }
   } ;
 
-  template <class T> struct Summation {
-    void operator()(T &res, const T &arg)
-    { res += arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res += arg ; }
+  template<typename T> struct Summation {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res += arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res += arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Summation<T>, T>::get_value() ;
+    }
   } ;
 
-  template <class T> struct Product {
-    void operator()(T &res, const T &arg)
-    { res *= arg ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res *= arg ; }
-
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+    > {
+    GPU_DECL
+    static T get_value() {
+      return 0 ;
+    }
   } ;
 
-  template <class T> struct Maximum {
-    void operator()(T &res ,const T &arg)
-    { res = max(res,arg) ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = max(res,arg) ; }
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<vector3d<T>>,
+    typename std::enable_if<std::is_arithmetic_v<T>, vector3d<T>>::type
+    > {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(0, 0, 0) ;
+    }
   } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Summation<vector2d<T>>,
+    typename std::enable_if<std::is_arithmetic_v<T>, vector2d<T>>::type
+    > {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(0, 0) ;
+    }
+  } ;
+
+  template<typename T>
+  struct Product {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res *= arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res *= arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Product<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Product<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+    > {
+    GPU_DECL
+    static T get_value() {
+      return 1.0 ;
+    }
+  } ;
+
+  template<typename T>
+  struct Maximum {
+    GPU_DECL
+    void operator()(T &res ,const T &arg) {
+      res = max(res,arg) ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = max(res,arg) ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Maximum<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Maximum<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return std::numeric_limits<T>::lowest() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Maximum<vector3d<T>>, vector3d<T>> {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Maximum<vector2d<T>>, vector2d<T>> {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(
+                         ReductionIdentity<Maximum<T>, T>::get_value(),
+                         ReductionIdentity<Maximum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
   template <class T> struct Maximum<Vect<T> > {
     template <class U> void operator()(Vect<T> &res ,const U &arg)
     {
@@ -833,12 +783,59 @@ namespace Loci {
     }
   } ;  
 
-  template <class T> struct Minimum {
-    void operator()(T &res, const T &arg)
-    { res = min(res,arg) ; }
-    template <class U> void operator()(T &res, const U &arg)
-    { res = min(res,arg) ; }
+  template<typename T>
+  struct Minimum {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = min(res,arg) ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = min(res,arg) ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<Minimum<T>, T>::get_value() ;
+    }
   } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    Minimum<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return std::numeric_limits<T>::max() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Minimum<vector3d<T>>, vector3d<T>> {
+    GPU_DECL
+    static vector3d<T> get_value() {
+      return vector3d<T>(
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<Minimum<vector2d<T>>, vector2d<T>> {
+    GPU_DECL
+    static vector2d<T> get_value() {
+      return vector2d<T>(
+                         ReductionIdentity<Minimum<T>, T>::get_value(),
+                         ReductionIdentity<Minimum<T>, T>::get_value()
+                         ) ;
+    }
+  } ;
+
   template <class T> struct Minimum<Vect<T> > {
     template <class U> void operator()(Vect<T> &res ,const U &arg)
     {
@@ -848,7 +845,88 @@ namespace Loci {
     }
   } ;  
 
-  
+  /// Combines values with logical AND.
+  template<typename T>
+  struct LogicalAnd {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = res && arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = res && arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<LogicalAnd<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    LogicalAnd<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return T(1) ;
+    }
+  } ;
+
+  /// Combines matching entries of vector views with logical AND.
+  template <class T> struct LogicalAnd<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = res[i] && arg[i] ;
+    }
+  } ;
+
+  /// Combines values with logical OR.
+  template<typename T>
+  struct LogicalOr {
+    GPU_DECL
+    void operator()(T &res, const T &arg) {
+      res = res || arg ;
+    }
+
+    template<typename U>
+    GPU_DECL
+    void operator()(T &res, const U &arg) {
+      res = res || arg ;
+    }
+
+    GPU_DECL
+    T identity() const {
+      return ReductionIdentity<LogicalOr<T>, T>::get_value() ;
+    }
+  } ;
+
+  template<typename T>
+  struct ReductionIdentity<
+    LogicalOr<T>,
+    typename std::enable_if<std::is_arithmetic_v<T>, T>::type
+  > {
+    GPU_DECL
+    static T get_value() {
+      return T(0) ;
+    }
+  } ;
+
+  /// Combines matching entries of vector views with logical OR.
+  template <class T> struct LogicalOr<Vect<T> > {
+    template <class U> void operator()(Vect<T> &res ,const U &arg)
+    {
+      int vs = res.getSize() ;
+      for(int i=0;i<vs;++i)
+        res[i] = res[i] || arg[i] ;
+    }
+  } ;
+
   class rule {
   public:
     enum rule_type {BUILD=0,COLLAPSE=1,GENERIC=2,TIME_SPECIFIC=3,INTERNAL=4} ;
@@ -867,6 +945,7 @@ namespace Loci {
       std::string internal_qualifier ;
       std::string impl_name ;
       const std::string &name() const { return rule_ident ; }
+      const std::string &rule_identifier() const { return rule_ident ;}
       info() { rule_ident = "NO_RULE" ;}
       info(const rule_implP &fp) ;
       info(const info &fi, time_ident tl) ;
@@ -975,11 +1054,6 @@ namespace Loci {
       s << std::string( (pos==name.end()?name.begin():pos+1),name.end()) ;
       return s ;
     }
-    // this function is used to rename a rule
-    // i.e., modify the corresponding string inside
-    void rename(const std::string&) ;
-
-    static rule get_rule_by_name(std::string &name);
         
     bool operator<(const rule &f) const { return id < f.id ; }
     bool operator==(const rule &f) const { return id == f.id ; }
@@ -988,6 +1062,7 @@ namespace Loci {
     int ident() const { return id ; }
     const rule::info &get_info() const { return rdb->get_info(id) ; }
 
+    const std::string rule_identifier() const { return get_info().name() ; }
     const variableSet &sources() const { return rdb->get_info(id).sources(); }
     const variableSet &targets() const { return rdb->get_info(id).targets(); }
 
@@ -1154,7 +1229,6 @@ namespace Loci {
   class rule_db {
     typedef std::map<variable,ruleSet> varmap ;
     typedef varmap::const_iterator vc_iterator ;
-    typedef std::map<std::string,rule> rule_map_type ;
       
     static const ruleSet EMPTY_RULE ;
     ruleSet known_rules ;
@@ -1163,7 +1237,6 @@ namespace Loci {
     ruleSet optional_rules ;
 
     varmap srcs2rule,trgt2rule ;
-    rule_map_type name2rule ;
     // partition rules according their keyspace
     std::map<std::string,ruleSet> keyspace2rule ;
 
@@ -1174,9 +1247,6 @@ namespace Loci {
     void add_rules(register_rule_impl_list &gfl) ;
     void remove_rule(rule f) ;
     void remove_rules(const ruleSet& rs) ;
-    rule_implP get_rule(const std::string &name) {
-      return name2rule[name].get_info().rule_impl->new_rule_impl() ;
-    }
     
     const ruleSet &all_rules() const { return known_rules ; }
     // return all the rules in "keyspace_tag"

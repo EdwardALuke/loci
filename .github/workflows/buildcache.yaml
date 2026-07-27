@@ -31,11 +31,11 @@ jobs:
         fetch-depth: 0
 
     - name: Setup Spack
-      uses: spack/setup-spack@v2
+      uses: spack/setup-spack@v3
       with:
-        ref: develop      # Spack version (examples: develop, releases/v0.23)
-        color: true       # Force color output (SPACK_COLOR=always)
-        path: spack       # Where to clone Spack
+        spack_ref: develop  # Spack version (examples: develop, releases/v0.23)
+        color: true         # Force color output (SPACK_COLOR=always)
+        spack_path: spack   # Where to clone Spack
 
     - name: Find built-in compilers
       run: spack -e .spack/ compiler find

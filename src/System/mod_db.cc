@@ -112,16 +112,9 @@ namespace Loci {
       }
       //Copy the loaded rule_list to the mod_info rule_list. 
       md.loaded_rule_list.copy_rule_list(register_rule_list) ;
-#ifdef DYNAMICSCHEDULING
-      // copy the loaded keyspace list to the mod_info keyspace list
-      md.loaded_keyspace_list.copy_space_list(register_key_space_list) ;
-#endif
       // We  have to clear the static register_rule_list as it is
       // going to be used to push in the next loaded rule list. 
       register_rule_list.clear() ;
-#ifdef DYNAMICSCHEDULING
-      register_key_space_list.clear() ;
-#endif
       md.mod_name = tmp_str ;
 
       put_info(md) ;
@@ -161,13 +154,7 @@ namespace Loci {
       md.m_init_model = (void (*)(fact_db &, rule_db &, const char *))
 	dlsym(md.m_library,"init_model") ;
       md.loaded_rule_list.copy_rule_list(register_rule_list) ;
-#ifdef DYNAMICSCHEDULING
-      md.loaded_keyspace_list.copy_space_list(register_key_space_list) ;
-#endif
       register_rule_list.clear() ;
-#ifdef DYNAMICSCHEDULING
-      register_key_space_list.clear() ;
-#endif
       md.mod_name = tmp_str ;
 
       put_info(md) ;
@@ -340,10 +327,6 @@ namespace Loci {
 	    cout << "loading in rules from " << str_vec[i] <<"  for module " << to_str << endl ; 
 	  load_module(str_vec[i], to_str, rdb, str_set) ;
 	}
-#ifdef DYNAMICSCHEDULING
-      // finally add the keyspace list to the global one
-      global_key_space_list.copy_space_list(m.loaded_keyspace_list) ;
-#endif
     }
   }
   
@@ -493,10 +476,6 @@ namespace Loci {
 	facts.remove_namespace() ;
       unnamedVarList.pop_back() ;
     }
-#ifdef DYNAMICSCHEDULING
-    // finally add the keyspace list to the global one
-    global_key_space_list.copy_space_list(m.loaded_keyspace_list) ;
-#endif
 #ifdef VERBOSE
     debugout << "unnamedVarList.size on exit to loadModule = "
 	     << unnamedVarList.size() << endl ;

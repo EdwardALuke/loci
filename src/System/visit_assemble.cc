@@ -249,65 +249,12 @@ namespace Loci {
 
   assembleVisitor::
   assembleVisitor(
-#ifdef DYNAMICSCHEDULING
-                  fact_db& fd, sched_db& sd,
-#endif
                   const variableSet& arv,
                   const std::map<variable,
                   std::pair<rule,CPTR<joiner> > >& ri
-#ifdef DYNAMICSCHEDULING
-                  ,const variableSet& dt,
-                  const map<variable,string>& sc,
-                  const map<variable,set<string> >& sac,
-                  const map<variable,set<string> >& drc
-#endif
                   ):
-#ifdef DYNAMICSCHEDULING
-    facts(fd),scheds(sd),
-#endif
     all_reduce_vars(arv),reduceInfo(ri)
-#ifdef DYNAMICSCHEDULING
-    ,dynamic_targets(dt),
-    self_clone(sc),shadow_clone(sac),drule_ctrl(drc)
-#endif
   {
-#ifdef DYNAMICSCHEDULING
-    // get all the keyspace critical vars
-    map<string,KeySpaceP>::iterator ki ;
-    for(ki=facts.keyspace.begin();ki!=facts.keyspace.end();++ki) {
-      string space_name = ki->second->get_name() ;
-      
-      variableSet critical_vars = ki->second->get_critical_vars() ;
-      variableSet all_synonyms ;
-
-      for(variableSet::const_iterator vi=critical_vars.begin();
-          vi!=critical_vars.end();++vi) {
-        all_synonyms += scheds.try_get_synonyms(*vi) ;
-        all_synonyms += scheds.try_get_aliases(*vi) ;
-        all_synonyms += scheds.try_get_rotations(*vi) ;
-      }
-
-      critical_vars += all_synonyms ;
-      for(variableSet::const_iterator vi=critical_vars.begin();
-            vi!=critical_vars.end();++vi)
-        var2keyspace[*vi] = space_name ;
-
-      keyspace_critical_vars += critical_vars ;
-    } // finish all keyspace init
-    // build the dynamic clone data
-    map<variable,string>::const_iterator sci ;
-    for(sci=self_clone.begin();sci!=self_clone.end();++sci)
-      self_clone_vars += sci->first ;
-    map<variable,set<string> >::const_iterator sai ;
-    for(sai=shadow_clone.begin();sai!=shadow_clone.end();++sai)
-      shadow_clone_vars += sai->first ;
-
-    clone_vars = self_clone_vars + shadow_clone_vars ;
-
-    // build the dynamic rule control data
-    for(sai=drule_ctrl.begin();sai!=drule_ctrl.end();++sai)
-      drule_inputs += sai->first ;
-#endif
   }
   
   void assembleVisitor::compile_dag_sched
@@ -475,10 +422,6 @@ namespace Loci {
 
       all_vars += barrier_vars ;
 
-#ifdef DYNAMICSCHEDULING
-      // remove dynamic targets
-      barrier_vars -= dynamic_targets ;
-#endif
 
       if(barrier_vars != EMPTY) {
         dag_comp.push_back(new barrier_compiler(barrier_vars)) ;
@@ -486,9 +429,6 @@ namespace Loci {
       
       all_vars += singleton_vars ;
 
-#ifdef DYNAMICSCHEDULING
-      singleton_vars -= dynamic_targets ;
-#endif
       if(singleton_vars != EMPTY)
         dag_comp.push_back(new singleton_var_compiler(singleton_vars)) ;
 
@@ -496,9 +436,6 @@ namespace Loci {
 
       all_vars += dide_vars ;
 
-#ifdef DYNAMICSCHEDULING
-      reduce_vars -= dynamic_targets ;
-#endif
 #ifdef VERBOSE
       debugout << "all_vars = " << all_vars << endl ;
       debugout << "singleton_vars =" <<singleton_vars << endl ;
@@ -547,83 +484,6 @@ namespace Loci {
       if(reduce_var_vector.size() != 0)  
         dag_comp.push_back(new reduce_param_compiler(reduce_var_vector, unit_rule_vector, join_op_vector));
 
-#ifdef DYNAMICSCHEDULING
-      // check for dynamic clone invalidator first
-      for(variableSet::const_iterator dci=dvars.begin();
-          dci!=dvars.end();++dci) {
-        variable t = facts.remove_synonym(*dci) ;
-        if(clone_vars.inSet(t)) {
-          // create a compiler for the task
-          KeySpaceP self_clone_kp = 0 ;
-          vector<KeySpaceP> shadow_clone_kp ;
-
-          map<variable,string>::const_iterator sci ;
-          sci = self_clone.find(t) ;
-          if(sci != self_clone.end()) {
-            self_clone_kp = facts.get_keyspace(sci->second) ;
-            if(self_clone_kp == 0) {
-              cerr << "Error: keyspace: " << sci->second
-                   << " does not exist, error from assembleVisitor"
-                   << endl ;
-              Loci::Abort() ;
-            }
-          }
-
-          map<variable,set<string> >::const_iterator sai ;
-          sai = shadow_clone.find(t) ;
-          if(sai != shadow_clone.end()) {
-            const set<string>& space_names = sai->second ;
-            for(set<string>::const_iterator si=space_names.begin();
-                si!=space_names.end();++si) {
-              KeySpaceP kp = facts.get_keyspace(*si) ;
-              if(kp == 0) {
-                cerr << "Error: keyspace: " << *si
-                     << " does not exist, error from assembleVisitor"
-                     << endl ;
-                Loci::Abort() ;
-              }
-              shadow_clone_kp.push_back(kp) ;
-            }
-          }
-
-          dag_comp.push_back
-            (new dclone_invalidate_compiler(*dci, t,
-                                            self_clone_kp, shadow_clone_kp)) ;
-        }
-        // then check for dynamic rule control relations
-        if(drule_inputs.inSet(*dci)) {
-          // create a compiler for the task
-          vector<KeySpaceP> register_kp ;
-          map<variable,set<string> >::const_iterator msi ;
-          msi = drule_ctrl.find(*dci) ;
-          if(msi != drule_ctrl.end()) {
-            const set<string>& space_names = msi->second ;
-            dag_comp.push_back
-              (new dcontrol_reset_compiler(*dci, t, space_names)) ;
-          }
-        }
-      }
-
-      // check for automatic keyspace distribution
-      variableSet level_critical =
-        variableSet(all_vars & keyspace_critical_vars) ;
-      set<string> keyspaces ;
-      for(variableSet::const_iterator lcvi=level_critical.begin();
-          lcvi!=level_critical.end();++lcvi) {
-        map<variable,string>::const_iterator mi =
-          var2keyspace.find(*lcvi) ;
-        FATAL(mi == var2keyspace.end()) ;
-        keyspaces.insert(mi->second) ;
-      }
-      if(!keyspaces.empty()) {
-        vector<string> keyspace_dist ;
-        for(set<string>::const_iterator si=keyspaces.begin();
-            si!=keyspaces.end();++si)
-          keyspace_dist.push_back(*si) ;
-
-        dag_comp.push_back(new keyspace_dist_compiler(keyspace_dist)) ;
-      }
-#endif
       if(check_dump_vars.ok()) {
         if(all_vars != EMPTY) 
           dag_comp.push_back(new dump_vars_compiler(all_vars)) ;
@@ -640,17 +500,6 @@ namespace Loci {
             dag_comp.push_back(rmi->second) ;
         }
 
-#ifdef DYNAMICSCHEDULING
-        // check for manual keyspace distribution
-        for(ri=rules.begin();ri!=rules.end();++ri) {
-          if(is_internal_rule(ri))
-            continue ;
-          rule_implP rp = ri->get_rule_implP() ;
-          if(rp->affect_keyspace_dist())
-            dag_comp.push_back
-              (new keyspace_dist_compiler(rp->gather_keyspace_dist())) ;
-        }
-#endif
       }
     }
   }

@@ -1,0 +1,258 @@
+% Created 2026-07-17 Fri 18:13
+% Intended LaTeX compiler: pdflatex
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage{longtable}
+\usepackage{wrapfig}
+\usepackage{rotating}
+\usepackage[normalem]{ulem}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{capt-of}
+\usepackage{hyperref}
+\usepackage{fullpage}
+\author{Anup Zope}
+\date{\today}
+\title{C++ Text Template Engine}
+\hypersetup{
+ pdfauthor={Anup Zope},
+ pdftitle={C++ Text Template Engine},
+ pdfkeywords={},
+ pdfsubject={},
+ pdfcreator={},
+ pdflang={English}}
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+\section{Section}
+\label{sec:org5374fa6}
+
+A C++ text template engine with \texttt{\$\$variable\$\$} substitution. It is created to
+streamline the process of generating biolerplace code required to generate CUDA
+enabled Loci rules from Loci preprocessor.
+\section{Features}
+\label{sec:org29f0111}
+
+\begin{itemize}
+\item \texttt{\$\$variable\$\$} substitution from a hierarchical context
+\item \texttt{\$\$user.name\$\$} nested key paths
+\item \texttt{\$\$::path\$\$} root-scoped paths (always resolve from the render context root)
+\item \texttt{\$\$\#if condition\$\$...\$\$/if\$\$} conditionals with \texttt{\$\$\#else if condition\$\$} and
+optional \texttt{\$\$\#else\$\$}
+\item Logical conditions: \texttt{\&\&}, \texttt{||}, \texttt{!}, and parentheses (\texttt{\&\&} binds tighter than
+\texttt{||})
+\item \texttt{\$\$\#each list\$\$...\$\$/each\$\$} loops over arrays (exposes \texttt{\$\$@index\$\$} and
+\texttt{\$\$@size\$\$} per item)
+\item Nested \texttt{\$\$\#if\$\$} blocks and \texttt{\$\$\#if\$\$} inside \texttt{\$\$\#each\$\$}
+\item Named nested templates via \texttt{define()} and \texttt{\$\$> name\$\$} includes
+\item \texttt{\#} and \texttt{/} prefixes reserved for control statements; unknown directives fail
+at parse time with line and column
+\item User-defined C++ callbacks for newline character in template text
+\item Whitespace trimming inside placeholders
+\item Optional behavior for missing variables (empty string or keep placeholder)
+\item File-based template rendering
+\end{itemize}
+\section{Usage}
+\label{sec:orge511e08}
+
+\begin{verbatim}
+#include "template.h"
+
+Loci::TemplateEngine engine;
+
+Loci::TemplateContext context;
+context.set("greeting", "Hello");
+context.set("name", "World");
+context.set("active", "true");
+context.set("count", 3);
+
+std::string output = engine.render("$$greeting$$, $$name$$!", context);
+// output: "Hello, World!"
+\end{verbatim}
+
+\texttt{set()} has typed overloads for \texttt{std::string}, \texttt{const char*}, \texttt{bool}, \texttt{char},
+integer types, and floating-point types. Values are stored in the context
+variant and formatted when rendered (for example, \texttt{bool} renders as \texttt{1} or \texttt{0},
+floats use \texttt{std::to\_string}).
+
+Build a flat string map quickly with \texttt{from\_flat}:
+
+\begin{verbatim}
+auto context = Loci::TemplateContext::from_flat({
+  {"name", "World"},
+  {"active", "true"},
+});
+\end{verbatim}
+\subsection{Nested Keys}
+\label{sec:orgdd570af}
+
+\begin{verbatim}
+Loci::TemplateContext user;
+user.set("name", "Alice");
+
+Loci::TemplateContext context;
+context.set_object("user", user);
+
+engine.render("Hello, $$user.name$$!", context);
+// output: "Hello, Alice!"
+\end{verbatim}
+
+\texttt{set\_object()} and \texttt{set\_array()} store nested data by value (deep copy). Use
+\texttt{set\_object} for objects and \texttt{set\_array} for lists of \texttt{TemplateContext} items.
+\subsection{Root scope (\texttt{::})}
+\label{sec:orgd17ee1c}
+
+Prefix a path with \texttt{::} to resolve from the root context instead of the current
+loop scope. Use \texttt{.} to descend into nested objects:
+
+\begin{verbatim}
+// Inside a loop where the item also has "label":
+engine.render("$$#each rows$$$$label$$ / $$::label$$$$/each$$", context);
+// item label, then root label
+\end{verbatim}
+
+Works in variables (\texttt{\$\$::user.name\$\$}), conditionals (\texttt{\$\$\#if ::active\$\$}), and
+loops (\texttt{\$\$\#each ::items\$\$}).
+
+Inside a loop, unqualified paths resolve from the current item first, then fall
+back to root. Use \texttt{::} when a loop item shadows a root key.
+\subsection{Conditionals}
+\label{sec:org9ef13d3}
+
+\begin{verbatim}
+context.set("active", "true");
+engine.render("$$#if active$$On$$#else$$Off$$/if$$", context);
+// output: "On"
+
+context.set("active", "false");
+context.set("backup", "true");
+engine.render("$$#if active$$On$$#else if backup$$Fallback$$#else$$Off$$/if$$", context);
+// output: "Fallback"
+\end{verbatim}
+
+\texttt{\$\$\#elseif condition\$\$} is also accepted as an alias for \texttt{\$\$\#else if
+condition\$\$}.
+
+Conditions support logical operators with parentheses for grouping:
+
+\begin{verbatim}
+engine.render("$$#if active && backup$$On$$/if$$", context);
+engine.render("$$#if ::published || draft$$Visible$$/if$$", context);
+engine.render("$$#if !(archived || hidden)$$Show$$/if$$", context);
+\end{verbatim}
+
+Nested blocks are supported:
+
+\begin{verbatim}
+$$#if outer$$
+  $$#if ::inner$$
+    both true
+  $$/if$$
+$$/if$$
+\end{verbatim}
+
+Placeholders starting with \texttt{\#} or \texttt{/} are control statements only (\texttt{\#if},
+\texttt{\#else}, \texttt{\#each}, \texttt{/if}, \texttt{/each}, and so on). Anything else is a parse error,
+for example \texttt{\$\$/fi\$\$} reports \texttt{Unrecognized control statement '/fi' (did you
+mean '/if'?)} with a line and column.
+
+\texttt{is\_true} treats non-empty strings as true except \texttt{false}, \texttt{0}, \texttt{no}, \texttt{off}.
+Non-empty arrays and objects are also true. Typed booleans and non-zero numbers
+are true in conditions.
+\subsection{Loops}
+\label{sec:org9a9f6d3}
+
+\begin{verbatim}
+Loci::TemplateContext a;
+a.set("name", "Alice");
+Loci::TemplateContext b;
+b.set("name", "Bob");
+
+Loci::TemplateContext context;
+context.set_array("users", {a, b});
+
+engine.render("$$#each users$$$$@index$$: $$name$$, $$/each$$", context);
+// output: "0: Alice, 1: Bob, "
+\end{verbatim}
+
+Inside a loop, fields from the current item are in scope. \texttt{\$\$@index\$\$} is the
+zero-based index of the current item. \texttt{\$\$@size\$\$} is the number of items in the
+array being iterated.
+
+\texttt{\$\$\#if\$\$} may appear inside a loop body; conditions follow the same scope rules
+as variables.
+\subsection{Nested templates}
+\label{sec:org18f0ee1}
+
+Break large templates into named pieces with \texttt{define()}, then include them with
+\texttt{\$\$> name\$\$}. Nested templates inherit the current render scope (including
+\texttt{\#each} item scope).
+
+\begin{verbatim}
+Loci::TemplateEngine engine;
+
+engine.define("status_line",
+  "$$#if published$$Status: Published$$#else$$Status: Draft$$/if$$\n");
+
+engine.define("task_row",
+  "$$@index$$. $$name$$\n");
+
+engine.define("task_list",
+  "Tasks:\n"
+  "$$#each tasks$$$$> task_row$$$$/each$$");
+
+engine.define("report",
+  "Report: $$title$$\n"
+  "$$> status_line$$"
+  "\n"
+  "$$> task_list$$");
+
+std::string output = engine.render_template("report", context);
+\end{verbatim}
+
+Includes are resolved at render time. Circular includes and unknown names throw.
+Use \texttt{has\_template("name")} to check registration.
+\subsubsection{Newline Callbacks}
+\label{sec:org6e35c5e}
+
+A named template can replace each literal newline as it is rendered:
+
+\begin{verbatim}
+engine.define(
+  "declarations",
+  "$$#each inputs$$$$ctype$$ $$vname$$;\n$$/each$$",
+  [](const Loci::NewlineEvent& event) {
+    // The current #each item is available through event.context.
+    return "\n#line 42 \"rules.template\"\n";
+  });
+\end{verbatim}
+
+The callback runs once for every literal \texttt{\textbackslash{}n} in text emitted by that
+definition, including repeated loop bodies. Its return value replaces the
+newline; return \texttt{"\textbackslash{}n"} to preserve it unchanged. Newlines originating in
+variable values do not invoke the callback.
+
+Each nested template uses its own callback. A nested template without one
+emits ordinary newlines, and the caller's callback is restored when the
+include returns.
+\subsection{Render From File}
+\label{sec:org4bdac99}
+
+\begin{verbatim}
+std::string output = engine.render_file("templates/report.txt", context);
+\end{verbatim}
+\subsection{Options}
+\label{sec:orgbddae7e}
+
+\begin{verbatim}
+Loci::RenderOptions options;
+options.keep_missing_placeholders = true;  // leave $$missing$$ unchanged
+
+Loci::TemplateEngine engine(options);
+\end{verbatim}
+\end{document}

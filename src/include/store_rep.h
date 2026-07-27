@@ -375,18 +375,6 @@ namespace Loci {
       abort() ;
       return storeRepP(0);
     }
-#ifdef DYNAMICSCHEDULING
-    // this redistribute version only remaps the new store domain
-    // in the process (in case of maps, the image is not remapped)
-    virtual storeRepP
-    redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                     const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) {
-      std::cerr << "storeRep.redistribute_omd() is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-#endif
     // the freeze method converts a dynamic container to
     // a static one. For already static container,
     // its Rep() is returned    
@@ -395,28 +383,6 @@ namespace Loci {
     // a dynamic one. For already dynamic container,
     // its Rep() is returned ;
     virtual storeRepP thaw() = 0 ;
-#ifdef DYNAMICSCHEDULING
-    // this version of freeze and thaw will take an entitySet
-    // and creats a corresponding version of stores with
-    // the passed in entitySet as its domain. in the meanwhile,
-    // it also initializes the new store, for those domain
-    // within the current store, the data will be copied;
-    // for the domains outside of the current store, random
-    // values picked from the current store will be used to
-    // initialize them
-    virtual storeRepP freeze(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual storeRepP thaw(const entitySet& es) const {
-      std::cerr << "storeRep.thaw(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-#endif
     virtual void copy(storeRepP &st, const entitySet &context) = 0 ;
     virtual void fast_copy(storeRepP& st, const entitySet& context)
     { copy(st,context); }       // default behavior
@@ -433,19 +399,6 @@ namespace Loci {
     virtual int pack_size(const entitySet& e, entitySet& packed) = 0 ;
     virtual void pack(void *ptr, int &loc, int &size,  const entitySet &e) = 0 ;
     virtual void unpack(void *ptr, int &loc, int &size, const sequence &seq) = 0 ;
-#ifdef DYNAMICSCHEDULING
-    // this version of pack/unpack uses a remap during the process
-    // mainly for maps images to transform to another numbering scheme
-    // default behavior is to ignore the remaps
-    virtual void pack(void* ptr, int& loc,
-                      int& size, const entitySet& e, const Map& remap) {
-      pack(ptr,loc,size,e) ;
-    }
-    virtual void unpack(void* ptr, int& loc,
-                        int& size, const sequence& seq, const dMap& remap) {
-      unpack(ptr,loc,size,seq) ;
-    }
-#endif
     virtual store_type RepType() const = 0 ;
     virtual std::ostream &Print(std::ostream &s) const = 0 ;
     virtual std::istream &Input(std::istream &s) = 0 ;
@@ -553,18 +506,6 @@ namespace Loci {
     virtual storeRepP
     redistribute(const std::vector<entitySet>& dom_ptn,
                  const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP
-    redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                     const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
-    virtual storeRepP freeze(const entitySet& es) const ;
-    virtual storeRepP thaw(const entitySet& es) const ;
-
-    virtual void pack(void* ptr, int& loc,
-                      int& size, const entitySet& e, const Map& remap) ;
-    virtual void unpack(void* ptr, int& loc,
-                        int& size, const sequence& seq, const dMap& remap) ;
-#endif
     virtual int getDomainKeySpace() const { return Rep()->getDomainKeySpace() ; }
     virtual void setDomainKeySpace(int v) { Rep()->setDomainKeySpace(v) ; }
     

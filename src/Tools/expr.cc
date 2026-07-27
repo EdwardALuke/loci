@@ -1409,6 +1409,16 @@ namespace Loci {
           tmp /= (*li)->evaluate(varmap) ;
         }
         return tmp ;
+      case OP_UNARY_PLUS:
+        li = expr_list.begin() ;
+        if(li!=expr_list.end())
+          return (*li)->evaluate(varmap) ;
+        return 0 ;
+      case OP_UNARY_MINUS:
+        li = expr_list.begin() ;
+        if(li!=expr_list.end())
+          return -(*li)->evaluate(varmap) ;
+        return 0 ;
       case OP_FUNC:
         li = expr_list.begin() ;
         tmp = 0 ;
@@ -1515,6 +1525,16 @@ namespace Loci {
           tmp /= (*li)->evaluate(varmap) ;
         }
         return tmp ;
+      case OP_UNARY_PLUS:
+        li = expr_list.begin() ;
+        if(li!=expr_list.end())
+          return (*li)->evaluate(varmap) ;
+        return 0 ;
+      case OP_UNARY_MINUS:
+        li = expr_list.begin() ;
+        if(li!=expr_list.end())
+          return -(*li)->evaluate(varmap) ;
+        return 0 ;
       case OP_LT:
         li = expr_list.begin() ;
         tmp = 1 ;
@@ -3023,4 +3043,3 @@ namespace Loci {
     }
   }
 }
-

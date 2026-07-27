@@ -192,18 +192,6 @@ namespace Loci {
           else
             rule_process[*ri] = new error_compiler ;
         } else {
-#ifdef DYNAMICSCHEDULING
-          if(ri->get_info().rule_impl->get_rule_class()
-             == rule_impl::INSERTION) // an insertion rule
-            rule_process[*ri] = new insertion_rule_compiler(*ri) ;
-          else if(ri->get_info().rule_impl->get_rule_class()
-                  == rule_impl::DELETION) // a deletion rule
-            rule_process[*ri] = new deletion_rule_compiler(*ri) ;
-          else if(ri->get_info().rule_impl->get_rule_class()
-                  == rule_impl::ERASE) // a erase rule
-            rule_process[*ri] = new erase_rule_compiler(*ri) ;
-          else
-#endif
 	    if(ri->get_info().rule_impl->get_rule_class()
                   == rule_impl::CONSTRAINT_RULE) // a constraint rule
             rule_process[*ri] = new constraint_compiler(*ri) ;
@@ -346,16 +334,6 @@ namespace Loci {
     unitApplyMapVisitor reduceV ;
     top_down_visit(reduceV) ;
 
-#ifdef DYNAMICSCHEDULING
-    // replace all the dynamic rules with corresponding compilers
-    DynamicKeyspaceVisitor dkv(facts,scheds,
-                               reduceV.get_apply2unit(),
-                               rotlv.get_overlap_rotvars()) ;
-    top_down_visit(dkv) ;
-#endif
-    
-    // insert rule that redistribute dynamic keyspaces
-
 #ifdef COMPILE_PROGRESS
     if(Loci::MPI_rank==0)
       cerr << "[Graph Compile Phase] Passed Information Collection!" << endl ;
@@ -472,12 +450,7 @@ namespace Loci {
                            // we also don't want to allocate
                            // all the dynamic rule targets because
                            // they are handled dynamically
-#ifdef DYNAMICSCHEDULING
-                           variableSet(untypevarV.get_untyped_vars() +
-                                       dkv.get_dynamic_targets())) ;
-#else
                            variableSet(untypevarV.get_untyped_vars())) ;
-#endif
       top_down_visit(aiv) ;
 
       // compute how to do deletion
@@ -666,20 +639,9 @@ namespace Loci {
       compGreedyPrio cgp2 ;
       graphSchedulerVisitor gsv2(cgp2) ;
       top_down_visit(gsv2) ;
-#ifdef DYNAMICSCHEDULING
-      assembleVisitor av2(local_facts, local_scheds,
-                          reduceV.get_all_reduce_vars(),
-                          reduceV.get_reduceInfo(),
-                          dkv.get_dynamic_targets(),
-                          dkv.get_self_clone(),
-                          dkv.get_shadow_clone(),
-                          dkv.get_drule_ctrl()) ;
-      bottom_up_visit(av2) ;
-#else
       assembleVisitor av2(reduceV.get_all_reduce_vars(),
                           reduceV.get_reduceInfo()) ;
       bottom_up_visit(av2) ;
-#endif
       existential_analysis(local_facts, local_scheds);
     
       map<variable, double> var_info;
@@ -745,20 +707,9 @@ namespace Loci {
 
     schedet = MPI_Wtime() ;
     
-#ifdef DYNAMICSCHEDULING
-    assembleVisitor av(facts, scheds,
-                       reduceV.get_all_reduce_vars(),
-                       reduceV.get_reduceInfo(),
-                       dkv.get_dynamic_targets(),
-                       dkv.get_self_clone(),
-                       dkv.get_shadow_clone(),
-                       dkv.get_drule_ctrl()) ;
-    bottom_up_visit(av) ;
-#else
   assembleVisitor av(reduceV.get_all_reduce_vars(),
                      reduceV.get_reduceInfo()) ;
   bottom_up_visit(av) ;
-#endif
 
 
 
@@ -996,11 +947,6 @@ namespace Loci {
         if((MPI_processes > 1))
           schedule->append_list(new allocate_all_vars(facts,scheds,alloc,false)) ;
 
-    // we first create a execution module to initialize all keyspaces
-#ifdef DYNAMICSCHEDULING
-    if(!in_internal_query)
-      schedule->append_list(new execute_init_keyspace(facts,scheds)) ;
-#endif
     schedule->append_list(fact_db_comm->create_execution_schedule(facts, scheds));
     executeP top_level_schedule = 0;
 

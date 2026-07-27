@@ -97,11 +97,6 @@ namespace Loci {
         }
         debugout << "]" << endl ;
 #endif
-#ifdef DYNAMICSCHEDULING
-        // before rotation, we need to adjust the
-        // history variables (if necessary)
-        facts.adjust_rotation_vars(*rli) ;
-#endif
         // then rotate them
         facts.rotate_vars(*rli) ;
       }

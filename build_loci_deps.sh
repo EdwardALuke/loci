@@ -47,9 +47,14 @@ need cmake
 have_submodule() { [[ -d "$ext/$1" && -n "$(ls -A "$ext/$1" 2>/dev/null || true)" ]]; }
 ensure_submodule() {
   local name="$1"
+  local submodule_path="ext/$name"
   if ! have_submodule "$name"; then
-    say "Initializing submodule: ext/$name"
-    (cd "$root" && git submodule update --init "ext/$name")
+    say "Initializing shallow submodule: $submodule_path"
+    (
+      cd "$root"
+      git submodule update --init --recursive --depth 1 "$submodule_path"
+    )
+    say "Submodule ready: $submodule_path"
   fi
 }
 

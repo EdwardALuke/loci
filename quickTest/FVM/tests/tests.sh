@@ -27,10 +27,10 @@ for ii in $BC_TESTS ; do
   cd ..
  if $NDIFF $i.dat TEST_$i/$i.dat $TOL_ARGS ; then
      echo Test Passed `pwd` $i
-     echo Passed `pwd` $i >> $i.test
+     echo Test `pwd` $i PASSED! >> $i.test
      rm -fr TEST_$i
  else 
      echo Test `pwd` $i FAILED !!!!!!!
-     echo Test `pwd` $i FAILED >> $i.test
+     echo Test `pwd` $i FAILED! >> $i.test
   fi
 done

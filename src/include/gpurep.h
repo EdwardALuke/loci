@@ -81,7 +81,6 @@ namespace Loci {
 
 
   // GPU store allocation object
-
   struct GPUstoreAllocateInfo {
     void *alloc_ptr1 ;
     void *alloc_ptr2 ;
@@ -91,163 +90,209 @@ namespace Loci {
     size_t allocated_size ;
     bool allocated ;
     entitySet allocset ;
-    GPUstoreAllocateInfo():alloc_ptr1(0),alloc_ptr2(0),base_ptr(0),base_offset(0),size(0),allocated_size(0),allocated(false) {allocset=EMPTY ;}
+
+    GPUstoreAllocateInfo()
+      : alloc_ptr1(0), alloc_ptr2(0), base_ptr(0),
+        base_offset(0), size(0), allocated_size(0),
+        allocated(false) {
+      allocset = EMPTY ;
+    }
 
     template<class T> void release() {
-      if(alloc_ptr1!=0) {
-	// Call placement delete
-	if(!std::is_trivially_default_constructible<T>::value) {
-	  cerr << "gpu container types should be trivially constructable"
-	       << endl ;
-	  Loci::Abort() ;
-	}
+      if(alloc_ptr1 != 0) {
+        // Call placement delete
+        if(!std::is_trivially_default_constructible<T>::value) {
+          cerr << "gpu container types should be trivially constructable"
+               << endl ;
+          Loci::Abort() ;
+        }
 
 #ifdef USE_CUDA_RT
-	cudaError_t err = cudaFree(alloc_ptr1) ;
-	if(err!= cudaSuccess) {
-	  cerr << "cudaFree  failed" << endl ;
-	  cerr << "error = " << cudaGetErrorString(err) << endl;
-	  Loci::Abort() ;
-	}
+        cudaError_t err = cudaFree(alloc_ptr1) ;
+        if(err!= cudaSuccess) {
+          cerr << "cudaFree alloc_ptr1 failed in release" << endl ;
+          cerr << "error = " << cudaGetErrorString(err) << endl;
+          Loci::Abort() ;
+        }
 #else
-	free(alloc_ptr1) ;
+        free(alloc_ptr1) ;
 #endif
-	if(alloc_ptr2 != 0) {
+        if(alloc_ptr2 != 0) {
 #ifdef USE_CUDA_RT
-	  err = cudaFree(alloc_ptr2) ;
-	  if(err!= cudaSuccess) {
-	    cerr << "cudaFree  failed" << endl ;
-	    cerr << "error = " << cudaGetErrorString(err) << endl;
-	    Loci::Abort() ;
-	  }
+          err = cudaFree(alloc_ptr2) ;
+          if(err!= cudaSuccess) {
+            cerr << "cudaFree alloc_ptr2 failed in release" << endl ;
+            cerr << "error = " << cudaGetErrorString(err) << endl;
+            Loci::Abort() ;
+          }
 #else
-	  free(alloc_ptr2) ;
+          free(alloc_ptr2) ;
 #endif
-	}
+        }
 
-	alloc_ptr1 = 0 ;
-	alloc_ptr2 = 0 ;
-	base_ptr = 0 ;
-	base_offset = 0 ;
-	allocated_size = 0 ;
+
+        alloc_ptr1 = 0 ;
+        alloc_ptr2 = 0 ;
+        base_ptr = 0 ;
+        base_offset = 0 ;
+        size = 0 ;
+        allocated_size = 0 ;
+        allocated = false ;
+        allocset = EMPTY ;
       }
     }
 
-    template<class T> void allocBasic(const entitySet &eset, int sz) {
+    template<class T>
+    void allocBasic(const entitySet &eset, int sz) {
       // if the pass in is EMPTY, we delete the previous allocated memory
       // this equals to free the memory
       if( eset == EMPTY ) {
-	// just return instead of releasing memory
-	return ;
-	if(alloc_ptr1 != 0) {
-	  // Call placement delete
-	  if(!std::is_trivially_default_constructible<T>::value) {
-	    cerr << "gpu container types should be trivially constructable"
-		 << endl ;
-	    Loci::Abort() ;
-	  }
-	  //	  free(alloc_ptr1) ;
+        // just return instead of releasing memory
+        return ;
+
+        if(alloc_ptr1 != 0) {
+          // Call placement delete
+          if(!std::is_trivially_default_constructible<T>::value) {
+            cerr << "gpu container types should be trivially constructible"
+                 << endl ;
+            Loci::Abort() ;
+          }
 
 #ifdef USE_CUDA_RT
-	  cudaError_t err = cudaFree(alloc_ptr1) ;
-	  if(err!= cudaSuccess) {
-	    cerr << "cudaFree  failed" << endl ;
-	    cerr << "error = " << cudaGetErrorString(err) << endl;
-	    Loci::Abort() ;
-	  }
+          cudaError_t err = cudaFree(alloc_ptr1) ;
+          if(err!= cudaSuccess) {
+            cerr << "cudaFree alloc_ptr1 failed in allocBasic" << endl ;
+            cerr << "error = " << cudaGetErrorString(err) << endl;
+            Loci::Abort() ;
+          }
 #else
-	  free(alloc_ptr1) ;
+          free(alloc_ptr1) ;
 #endif
-	  
-	}
-	alloc_ptr1 = 0 ;
-	base_ptr = 0 ;
-	size=sz ;
-	base_offset=0 ;
-	allocated_size = 0 ;
-	allocset = eset ;
-	return ;
-      }
+        }
 
-      int_type old_range_min = allocset.Min() ;
-      int_type old_range_max = allocset.Max() ;
-      int_type new_range_min = eset.Min() ;
-      int_type new_range_max = eset.Max() ;
-
-      // if the old range and the new range are equal, nothing
-      // needs to be done, just return
-      if( (old_range_min == new_range_min) &&
-	  (old_range_max == new_range_max)) {
-	allocset = eset ;
-	//	cerr << "doing nothing... allocset=" << allocset << ", eset=" << eset  << endl ;
-	return ;
-      }
-
-      // is there any overlap between the old and the new domain?
-      // we copy the contents in the overlap region to the new
-      // allocated storage
-      entitySet ecommon = allocset & eset ;
-
-      size_t alloc_size = (new_range_max-new_range_min+1)*sz ;
-
+        if(alloc_ptr2 != 0) {
 #ifdef USE_CUDA_RT
-      T *tmp_alloc_pointer  ;
-      cudaError_t err = cudaMalloc((void **) &tmp_alloc_pointer,sizeof(T)*alloc_size) ;
-      if(err!= cudaSuccess) {
-	cerr << "cudaMalloc  failed" << endl ;
-	cerr << "error = " << cudaGetErrorString(err) << endl;
-	Loci::Abort() ;
-      }
-      cudaDeviceSynchronize() ;
-#else      
-      T * tmp_alloc_pointer = (T *) malloc(sizeof(T)*(alloc_size)+(STORE_ALIGN_SIZE)) ;
-#endif
-      T* tmp_base_ptr = tmp_alloc_pointer ; 
-      T* tmp_base_algn = (T *) ((uintptr_t) tmp_base_ptr ) ;
-      if(tmp_base_ptr !=tmp_base_algn) 
-	tmp_base_ptr = (T *) ( tmp_base_algn) ;
-      // Call placement new
-      if(!std::is_trivially_default_constructible<T>::value) {
-	    cerr << "gpu container types should be trivially constructable"
-		 << endl ;
-	    Loci::Abort() ;
-      }
-      if(sz == size) {
-	//Not copying on realloc
-	//	T *p = ((T *) base_ptr)  ;
-      // if ecommon == EMPTY, then nothing is done in the loop
-	//	FORALL(ecommon,ii) {
-	//	  for(int i=0;i<sz;++i)
-	//	    tmp_base_ptr[ii-new_range_min*sz+i] = p[ii-base_offset*sz+i] ;
-	//	} ENDFORALL ;
-      }
-
-
-      // Call placement delete
-      if(!std::is_trivially_default_constructible<T>::value) {
-	cerr << "gpu container types should be trivially constructable"
-	     << endl ;
-	Loci::Abort() ;
-      }
-      if(alloc_ptr1) {
-#ifdef USE_CUDA_RT
-	cudaError_t err = cudaFree(alloc_ptr1) ;
-	if(err!= cudaSuccess) {
-	  cerr << "cudaFree  failed" << endl ;
-	  cerr << "error = " << cudaGetErrorString(err) << endl;
-	  Loci::Abort() ;
-	}
+          cudaError_t err = cudaFree(alloc_ptr2) ;
+          if(err != cudaSuccess) {
+            cerr << "cudaFree alloc_ptr2 failed in allocBasic" << endl ;
+            cerr << "error = " << cudaGetErrorString(err) << endl ;
+            Loci::Abort() ;
+          }
 #else
-      	free(alloc_ptr1) ;
+          free(alloc_ptr2) ;
 #endif
+        }
+
+        alloc_ptr1 = 0 ;
+        alloc_ptr2 = 0 ;
+        base_ptr = 0 ;
+        size = sz ;
+        base_offset = 0 ;
+        allocated = false ;
+        allocated_size = 0 ;
+        allocset = eset ;
+      } else {
+        int_type old_range_min = allocset.Min() ;
+        int_type old_range_max = allocset.Max() ;
+        int_type new_range_min = eset.Min() ;
+        int_type new_range_max = eset.Max() ;
+
+        // if the old range and the new range are equal, nothing
+        // needs to be done, just return
+        if( (old_range_min == new_range_min) &&
+            (old_range_max == new_range_max) &&
+            size == sz) {
+          allocset = eset ;
+          //	cerr << "doing nothing... allocset=" << allocset << ", eset=" << eset  << endl ;
+          return ;
+        }
+
+        size_t alloc_size = (new_range_max-new_range_min+1)*sz ;
+
+        // TODO: copying overlapped entity data is currently disabled for GPU
+        // containers.
+
+        // is there any overlap between the old and the new domain?
+        // we copy the contents in the overlap region to the new
+        // allocated storage
+        //entitySet ecommon = allocset & eset ;
+
+#ifdef USE_CUDA_RT
+        T * tmp_alloc_pointer ;
+        cudaError_t err = cudaMalloc((void **) &tmp_alloc_pointer,sizeof(T)*alloc_size) ;
+        if(err != cudaSuccess) {
+          cerr << "cudaMalloc  failed" << endl ;
+          cerr << "error = " << cudaGetErrorString(err) << endl;
+          Loci::Abort() ;
+        }
+#else
+        T * tmp_alloc_pointer = (T *) malloc(sizeof(T)*(alloc_size)+(STORE_ALIGN_SIZE)) ;
+#endif
+
+        T * tmp_base_ptr = tmp_alloc_pointer ;
+        T * tmp_base_algn = (T *) ((uintptr_t) tmp_base_ptr ) ;
+        if(tmp_base_ptr != tmp_base_algn) {
+          tmp_base_ptr = (T *) ( tmp_base_algn) ;
+        }
+
+        // Call placement new
+        if(!std::is_trivially_default_constructible<T>::value) {
+          cerr << "gpu container types should be trivially constructable" << endl ;
+          Loci::Abort() ;
+        }
+
+        if(sz == size) {
+          //Not copying on realloc
+          //	T *p = ((T *) base_ptr)  ;
+          // if ecommon == EMPTY, then nothing is done in the loop
+          //	FORALL(ecommon,ii) {
+          //	  for(int i=0;i<sz;++i)
+          //	    tmp_base_ptr[ii-new_range_min*sz+i] = p[ii-base_offset*sz+i] ;
+          //	} ENDFORALL ;
+        }
+
+        // Not calling placement new/delete, or copying on realloc
+        if(!std::is_trivially_default_constructible<T>::value) {
+          cerr << "gpu container types should be trivially constructable" << endl ;
+          Loci::Abort() ;
+        }
+
+        if(alloc_ptr1 != 0) {
+#ifdef USE_CUDA_RT
+          cudaError_t err = cudaFree(alloc_ptr1) ;
+          if(err != cudaSuccess) {
+            cerr << "cudaFree  alloc_ptr1 failed in allocBasic" << endl ;
+            cerr << "error = " << cudaGetErrorString(err) << endl;
+            Loci::Abort() ;
+          }
+#else
+          free(alloc_ptr1) ;
+#endif
+        }
+
+        if(alloc_ptr2 != 0) {
+#ifdef USE_CUDA_RT
+          cudaError_t err = cudaFree(alloc_ptr2) ;
+          if(err != cudaSuccess) {
+            cerr << "cudaFree alloc_ptr2 failed in allocBasic" << endl ;
+            cerr << "error = " << cudaGetErrorString(err) << endl ;
+            Loci::Abort() ;
+          }
+#else
+          free(alloc_ptr2) ;
+#endif
+          alloc_ptr2 = 0 ;
+        }
+
+        alloc_ptr1 = tmp_alloc_pointer ;
+        alloc_ptr2 = 0 ;
+        base_ptr = tmp_base_ptr ;
+        base_offset = new_range_min ;
+        size = sz;
+        allocated_size = alloc_size ;
+        allocated = true ;
+        allocset = eset ;
       }
-      alloc_ptr1 = tmp_alloc_pointer ;
-      base_ptr = tmp_base_ptr ;
-      base_offset = new_range_min ;
-      allocated_size = alloc_size ;
-      size = sz ;
-      allocset = eset ;
-      return ;
     }
 
     // elist is the list of entities (in increasing order)
@@ -276,8 +321,19 @@ namespace Loci {
       T * tmp_base_ptr = 0 ;
       T ** tmp_alloc_ptr2 = 0 ;
       size_t tmp_allocated_sz = sum + 1 ; 
-      
+
+#ifdef USE_CUDA_RT
+      cudaError_t err =
+        cudaMalloc((void **) & tmp_alloc_ptr1,
+                   sizeof(T)*tmp_allocated_sz+(STORE_ALIGN_SIZE)) ;
+      if(err != cudaSuccess) {
+        cerr << "cudaMalloc  failed" << endl ;
+        cerr << "error = " << cudaGetErrorString(err) << endl;
+        Loci::Abort() ;
+      }
+#else
       tmp_alloc_ptr1 = (T *) malloc(sizeof(T)*tmp_allocated_sz +(STORE_ALIGN_SIZE)) ;
+#endif
       tmp_base_ptr = tmp_alloc_ptr1 ;
       T * tmp_base_algn = (T *) ((uintptr_t) tmp_base_ptr & ~(uintptr_t)(STORE_ALIGN_SIZE-1)) ;
       if(tmp_base_ptr !=tmp_base_algn) 
@@ -288,6 +344,34 @@ namespace Loci {
 	     << endl ;
 	Loci::Abort() ;
       }
+#ifdef USE_CUDA_RT
+      err =  cudaMalloc((void **) & tmp_alloc_ptr2,
+                        sizeof(T *)*npntrs+(STORE_ALIGN_SIZE)) ;
+      if(err != cudaSuccess) {
+        cerr << "cudaMalloc  failed" << endl ;
+        cerr << "error = " << cudaGetErrorString(err) << endl;
+        Loci::Abort() ;
+      }
+      T **cpu_side_ptr = (T **) malloc(sizeof(T*)*npntrs) ;
+      int tmp_base_offset = ptn.Min() ;
+      if(ptn==EMPTY)
+	tmp_base_offset = 0 ;
+      size_t loc = 0 ;
+      FORALL(ptn,ii) {
+	cpu_side_ptr[ii-tmp_base_offset] = tmp_base_ptr+loc ;
+	if(count.allocset.inSet(ii))
+	  loc += ((int *)count.base_ptr)[ii-count.base_offset] ;
+	cpu_side_ptr[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
+      } ENDFORALL ;
+      err = cudaMemcpy(tmp_alloc_ptr2, cpu_side_ptr,
+                       sizeof(T *)*npntrs,
+                       cudaMemcpyHostToDevice) ;
+      if(err!= cudaSuccess) {
+	cerr << "cudaMemcpy failed in gpuMapRepI::copyFrom" << endl ;
+	Loci::Abort() ;
+      }
+      free(cpu_side_ptr) ;
+#else
       tmp_alloc_ptr2 = (T **) malloc(sizeof(T*)*npntrs) ;
       int tmp_base_offset = ptn.Min() ;
       if(ptn==EMPTY)
@@ -299,10 +383,10 @@ namespace Loci {
 	  loc += ((int *)count.base_ptr)[ii-count.base_offset] ;
 	tmp_alloc_ptr2[ii-tmp_base_offset+1] = tmp_base_ptr+loc ;
       } ENDFORALL ;
+#endif
 
       // release existing memory
       release<T>() ;
-      
       alloc_ptr1 = tmp_alloc_ptr1 ;
       alloc_ptr2 = tmp_alloc_ptr2 ;
       base_ptr = tmp_base_ptr ;

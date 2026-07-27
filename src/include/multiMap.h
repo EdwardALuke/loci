@@ -79,7 +79,7 @@ namespace Loci {
     virtual void readhdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, frame_info &fi, entitySet &en, hid_t xfer_plist_id) ;
     virtual void writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet& en, hid_t xfer_plist_id) const ;
 #endif
-    Entity ** get_base_ptr() const { return base_ptr ; }
+    Entity ** get_base_ptr() const { Entity ** p = 0 ; if(alloc_id>=0) p = ((Entity **)storeAllocateData[alloc_id].alloc_ptr2 - storeAllocateData[alloc_id].base_offset) ; return p ; }
     Entity *begin(int indx) { return base_ptr[indx] ; }
     Entity *end(int indx) { return base_ptr[indx+1] ; }
     const Entity *begin(int indx) const { return base_ptr[indx] ; }
@@ -87,20 +87,6 @@ namespace Loci {
     int vec_size(int indx) const { return end(indx)-begin(indx) ; }
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
-#ifdef DYNAMICSCHEDULING
-    virtual storeRepP freeze(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    virtual storeRepP thaw(const entitySet& es) const {
-      std::cerr << "storeRep.freeze(e) is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-#endif
   private:
     virtual storeRepP expand(entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
     virtual storeRepP freeze() ;

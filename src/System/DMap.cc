@@ -344,28 +344,10 @@ namespace Loci {
     dMap new_map ;
     new_map.Rep()->setDomainKeySpace(getDomainKeySpace()) ;
     MapRepP(new_map.Rep())->setRangeKeySpace(getRangeKeySpace()) ;
-#ifdef DYNAMICSCHEDULING
-    fill_store2(getRep(), 0, new_map.Rep(), &remap, send, recv, comm) ;
-#else
     Loci::Abort();
-#endif
     return new_map.Rep() ;
   }
 
-#ifdef DYNAMICSCHEDULING
-  storeRepP dMapRepI::
-  redistribute_omd(const std::vector<entitySet>& dom_ptn,
-                   const dMap& remap, MPI_Comm comm) {
-    // this is a push operation, thus the send recv are reversed
-    std::vector<P2pCommInfo> send, recv ;
-    get_p2p_comm(dom_ptn, domain(), 0, 0, comm, recv, send) ;
-    dMap new_map ;
-    new_map.Rep()->setDomainKeySpace(getDomainKeySpace()) ;
-    MapRepP(new_map.Rep())->setRangeKeySpace(getRangeKeySpace()) ;
-    fill_store_omd(getRep(), 0, new_map.Rep(), &remap, send, recv, comm) ;
-    return new_map.Rep() ;
-  }
-#endif
   
   // ******************************************************************/
   storeRepP dMapRepI::freeze() {
@@ -469,17 +451,6 @@ namespace Loci {
     }
   }
   
-#ifdef DYNAMICSCHEDULING
-  void dMapRepI::pack(void *outbuf, int &position,
-                      int &outcount, const entitySet &eset, const Map& remap) 
-  {
-    entitySet :: const_iterator ci;
-    for( ci = eset.begin(); ci != eset.end(); ++ci) {
-      int img = remap[attrib_data[*ci]] ;
-      cpypack(outbuf,position,outcount,&img,1) ;
-    }
-  }
-#endif  
   //**************************************************************************/
 
   void dMapRepI::unpack(void *inbuf, int &position, int &insize, const sequence &seq) 
@@ -490,19 +461,6 @@ namespace Loci {
     }
   }
   
-#ifdef DYNAMICSCHEDULING
-  void dMapRepI::unpack(void *inbuf, int &position,
-                        int &insize, const sequence &seq, const dMap& remap) 
-  {
-    sequence:: const_iterator ci;
-    for( ci = seq.begin(); ci != seq.end(); ++ci) {
-      cpyunpack(inbuf,position,insize,&attrib_data[*ci],1) ;
-    }
-    // then remap
-    for(ci=seq.begin();ci!=seq.end();++ci)
-      attrib_data[*ci] = remap[attrib_data[*ci]] ;
-  }
-#endif
   
   //**************************************************************************/
   

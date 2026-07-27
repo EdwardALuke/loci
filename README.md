@@ -177,7 +177,7 @@ When Loci is installed these configuration files are copied to the
 installed directory allowing application programs to be compiled with
 the same setup as the Loci framework.  To take the greatest advantage
 of these features, base your application makefile on the generic
-Makefile provided in the `Tutorial/heat/Makefile` directory.  This
+Makefile provided in the `docs/tutorial/heat/Makefile` directory.  This
 Makefile is setup such that by editing the target executable name and
 specifying the `LOCI_BASE` environment variable to point to the Loci
 installed directory one can easily compile Loci applications.
@@ -193,9 +193,10 @@ The following make commands are provided after successfully executing `./configu
 | `make install_minimal`        | Minimal compile and install Loci sans pdf documentation      |
 | `make uninstall`              | Undo the install (remove Loci from the install directory)    |
 | `make test`                   | Run unit and regression tests                                |
-| `make docs`                   | Compile latex documentation to PDF files                     |
+| `make docs`                   | Compile tutorial PDF files and generated Doxygen HTML        |
 | `make clean`                  | Clean compiled files from OBJ directory                      |
 | `make distclean`              | Remove all configuration and compilation artifacts           |
+
 
 To contribute to Loci, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
@@ -214,6 +215,10 @@ The library can be found at http://sprng.cs.fsu.edu/
 The source code under FVMtools/libadf is the ADF library is an open
 source library that is used by some grid converters found in FVMtools
 and is provided here as a convenience.
+
+The source code under quickTest/contrib/doctest is the single header testing
+framework that is provided under the MIT license.  The software can be obtained
+from https://github.com/doctest/doctest
 
 Note that the parMETIS tools are licensed only for non-commercial use by
 University of Minnesota.  For commercial use, contact University of

@@ -831,6 +831,7 @@ namespace Loci {
     Loci::debugout << " initial_vars = " << initial_vars << endl ;
 
     if(duplicate_work) {
+#ifdef DUPLICATE_DATA_FILE
       if(use_duplicate_model) {
 	std::ifstream fin(model_file);
 	if(!fin) {
@@ -872,6 +873,7 @@ namespace Loci {
 	      scheds.add_model_info(comm_ts, comm_tw, comp_info);	
 	}
       }
+#endif
     }
 
     graph_compiler compile_graph(decomp, initial_vars) ;
