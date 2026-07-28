@@ -562,7 +562,8 @@ namespace Loci {
         if(mi != $componentTransformMap->end()) {
           int sz = mi->second.size() ;
           for(int i=0;i<sz;++i) {
-            Loci::CPTR<geometry_type> ngp = gp->applyXform(mi->second[i]) ;
+            Loci::CPTR<geometry_type> ngp = gp->transform(mi->second[i]) ;
+//            Loci::CPTR<geometry_type> ngp = gp->applyXform(mi->second[i]) ;
             gp = ngp ;
           }
         }

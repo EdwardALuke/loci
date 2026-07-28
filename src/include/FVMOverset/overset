@@ -156,22 +156,22 @@ namespace Loci {
     return s ;
   }
 
-  /// Abstract base class for geometry types. These represent simple
-  /// geometrical shapes that can be used for overset component definitions.
-  class geometry_type : public Loci::CPTR_type {
-  public:
-    /// Apply a transform to the geometry and return a new geometry object.
-    /// This new geometry object represents the transformation applied to the
-    /// original geometry.
-    virtual geometry_type *applyXform(componentXform xform) const = 0 ;
+  // /// Abstract base class for geometry types. These represent simple
+  // /// geometrical shapes that can be used for overset component definitions.
+  // class geometry_type : public Loci::CPTR_type {
+  // public:
+  //   /// Apply a transform to the geometry and return a new geometry object.
+  //   /// This new geometry object represents the transformation applied to the
+  //   /// original geometry.
+  //   virtual geometry_type *applyXform(componentXform xform) const = 0 ;
 
-    /// Evaluate if a point is inside the geometry. Returns true if the point
-    /// is inside the geometry, false otherwise.
-    virtual bool inGeometry(vector3d<real_t> pt) const = 0 ;
+  //   /// Evaluate if a point is inside the geometry. Returns true if the point
+  //   /// is inside the geometry, false otherwise.
+  //   virtual bool inGeometry(vector3d<real_t> pt) const = 0 ;
 
-    /// Compute a distance from a point to the surface of the geometry.
-    virtual real_t distToSurface(vector3d<real_t> pt) const = 0 ;
-  } ;
+  //   /// Compute a distance from a point to the surface of the geometry.
+  //   virtual real_t distToSurface(vector3d<real_t> pt) const = 0 ;
+  // } ;
 
   /// Abstract base class for motion types. These represent different ways
   /// that overset components can move in space over time.
