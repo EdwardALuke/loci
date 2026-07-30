@@ -2,505 +2,384 @@
 
 This page expands the splitting terminology used by the
 [FVMAdapt Mesh Adaptation Overview](@ref fvmadapt_overview). It collects the
-detailed isotropic and anisotropic split types separately so the overview can
-stay focused on the main adaptation flow.
+detailed isotropic and directional split operations so the overview can stay
+focused on the main adaptation flow.
+
+The figures use idealized reference shapes to expose topology. They do not
+imply that physical mesh cells are regular or orthogonal. The `xi`, `eta`, and
+`zeta` directions below are the local directions defined in the
+[numbering conventions](@ref fvmadapt_numbering), not global Cartesian axes.
+
+This page uses *face center* and *cell center* for the nodes returned by
+FVMAdapt's current `centroid()` helpers. With `CENTROID = 1`, a face center is
+the edge-length-weighted average of its edge midpoints, and a cell center is
+the face-area-weighted average of its face centers. These points are not
+exact geometric centroids.
 
 
-## Midpoint Splitting Strategy
+## Isotropic Face Splitting
 
-For an N-faced element that has E edges and V nodes:
-  - Insert a new node at the centroid of the element.
-  - Connect that node to the centroid nodes of all the faces of the element.
-  - This will create V new elements from the original element.
+The general polygonal `Face` path splits an n-edge face into n quadrilateral
+children:
 
-
-### Face Splitting
-
-An n-sided face is split into n quadrilateral child faces by inserting a node
-at the face centroid, splitting each edge at its midpoint, and connecting the
-face centroid to each edge midpoint.
-
-1. Each edge of the face is split by inserting a node at the midpoint.
-2. A node is inserted at the centroid of the face.
-3. The face-centroid node is connected to each edge-midpoint node.
+1. Split each boundary edge at its midpoint.
+2. Create one face-center node.
+3. Connect the face center to every edge midpoint.
 4. Each original vertex forms one quadrilateral child face with the two
-   neighboring edge midpoints and the face centroid.
+   adjacent edge midpoints and the face center.
 
-The face formalism is simpler than the cell formalism. A general polygonal
-`Face` supports isotropic refinement: an n-edge parent face becomes n
-quadrilateral child faces. There is also a specialized `QuadFace` form for
-quadrilateral faces on the hexahedron and prism anisotropic paths. In the
-isotropic face split shown here, the result is still quadrilateral child faces;
-there is not a separate face analogue of `DiamondCell`.
+The specialized `QuadFace` class also supports directional splits used by
+`HexCell` and `Prism`. The examples in this section show only the isotropic
+operation on a general `Face`.
 
 | Parent face | Library handling | Isotropic split result |
 | --- | --- | --- |
 | Triangle | General polygonal `Face` | 3 quadrilateral child faces |
-| Quadrilateral | General polygonal `Face`, or `QuadFace` on anisotropic cell paths | 4 quadrilateral child faces |
+| Quadrilateral | General polygonal `Face` | 4 quadrilateral child faces |
 | Pentagon | General polygonal `Face` | 5 quadrilateral child faces |
 | n-sided polygon | General polygonal `Face` | n quadrilateral child faces |
 
-The same rule applies to every polygonal face. The examples below show the full
-split and then highlight one of the quadrilateral child faces.
-
-#### Triangle Face
-
-A triangular face has 3 edges, so 3 new nodes are inserted at the edge
-midpoints and a new node is inserted at the face centroid.
+### Triangle Face
 
 <img src="figures/faces/triangle/triangle_face_isotropic_split.svg"
      alt="Triangle face split into three quadrilateral child faces"
      width="300">
 
-Below in green is one quadrilateral child face created from the triangular
-parent face.
+The parent has three edges, so the split creates three quadrilateral children.
+One child is highlighted below.
 
 <img src="figures/faces/triangle/triangle_face_isotropic_split_quad_face.svg"
      alt="One quadrilateral child face highlighted inside a split triangle"
      width="200">
 
-#### Quadrilateral Face
-
-A quadrilateral face has 4 edges, so 4 new nodes are inserted at the edge
-midpoints and a new node is inserted at the face centroid.
+### Quadrilateral Face
 
 <img src="figures/faces/quadrilaterial/quadrilateral_face_isotropic_split.svg"
      alt="Quadrilateral face split into four quadrilateral child faces"
      width="300">
 
-Below in green is one quadrilateral child face created from the quadrilateral
-parent face.
+The parent has four edges, so the split creates four quadrilateral children.
+One child is highlighted below.
 
 <img src="figures/faces/quadrilaterial/quadrilaterial_face_isotropic_split_quad_face.svg"
      alt="One quadrilateral child face highlighted inside a split quadrilateral"
      width="200">
 
-#### Pentagon Face
-
-A pentagonal face has 5 edges, so 5 new nodes are inserted at the edge
-midpoints and a new node is inserted at the face centroid.
+### Pentagon Face
 
 <img src="figures/faces/pentagon/pentagon_face_isotropic_split.svg"
      alt="Pentagon face split into five quadrilateral child faces"
      width="300">
 
-Below in green is one quadrilateral child face created from the pentagonal
-parent face.
+The parent has five edges, so the split creates five quadrilateral children.
+One child is highlighted below.
 
 <img src="figures/faces/pentagon/pentagon_face_isotropic_split_quad_face.svg"
      alt="One quadrilateral child face highlighted inside a split pentagon"
      width="200">
 
-#### General Polygonal Face
-
-An n-sided general polygonal face has n edges, so n new nodes are inserted at
-the edge midpoints and a new node is inserted at the face centroid.
+### General Polygonal Face
 
 <img src="figures/faces/polyhedra/polyhedra_face_isotropic_split.svg"
      alt="General polygonal face split into quadrilateral child faces"
      width="300">
 
-Below in green is one quadrilateral child face created from the general
-polygonal parent face.
+An n-edge parent produces n quadrilateral children. One child is highlighted
+below.
 
 <img src="figures/faces/polyhedra/polyhedra_face_isotropic_split_quad_face.svg"
      alt="One quadrilateral child face highlighted inside a split general polygon"
      width="200">
 
-## Isotropic Cell Splitting Strategy
+## Isotropic Cell Splitting
 
-The child cells that are formed when a parent standard canonical cell shape is
-split using the isotropic splitting strategy can be categorized. Below are the
-various cell types and a description of how they are split and what they are
-split into.
-
+FVMAdapt does not send every cell shape through one generic splitter.
+Cells classified as hexahedra use `HexCell`, cells classified as prisms use
+`Prism`, and other polyhedra use the general `Cell` path. The resulting child
+objects and topologies therefore depend on the parent path.
 
 ### Hexahedron
 
-When split isotropically, the hexahedral cells split into 8 hexahedral cells.
-Consider the hexahedron cell below.
+An isotropic `HexCell` split uses code `7`, which splits all three local
+directions and creates eight `HexCell` children.
 
- <img src="figures/volume_cells/hexahedron/isotropic/hexahedron_cell.svg"
+<img src="figures/volume_cells/hexahedron/isotropic/hexahedron_cell.svg"
      alt="Hexahedron cell"
      width="300">
 
-To reiterate the refinement strategy, a midpoint is placed in the middle of the
-hexehedral cell, then a midpoint is placed in the middle of all of the faces of
-the cell, and then finally a midpoint is placed at the middle of every edge of
-the cell. In the diagram below, the green lines are the new edges that that
-connect the newly inserted midpoints on the face to the cell midpoint. And the
-red points are the midpoints placed onto the faces and the edges. The red lines
-are the lines that connect the inserted midpoints on the edges to the midpoint
-of a face.
+Each boundary `QuadFace` is split in both face-local directions. The
+construction uses the edge midpoints, six face centers, and one cell center to
+form the child connectivity. In the figure below, red points mark the inserted
+edge-midpoint and face-center nodes, while the green point marks the cell
+center. Red segments connect edge midpoints to face centers, and green segments
+connect face centers to the cell center.
 
- <img src="figures/volume_cells/hexahedron/isotropic/hexahedron_midpoint_based_isotropic.svg"
+<img src="figures/volume_cells/hexahedron/isotropic/hexahedron_midpoint_based_isotropic.svg"
      alt="Hexahedron midpoint-based isotropic split"
      width="300">
 
-Below is an animation showing the child cells that are generated from splitting
-the parent hexahedron cell.
+The animation separates the eight children.
 
- <img src="figures/volume_cells/hexahedron/isotropic/hexahedron_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
+<img src="figures/volume_cells/hexahedron/isotropic/hexahedron_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
      alt="Hexahedron midpoint-based isotropic split"
      width="600">
 
 ### Tetrahedron
 
-When split isotropically, the tetrahedral cells split into 4 hexahedral cells.
-Consider the tetrahedron cell below.
+A tetrahedron follows the general `Cell` path. `Cell::split()` creates one
+`DiamondCell` at each original vertex. Every tetrahedron vertex has three
+incident edges, so the result is four 3-fold `DiamondCell` children. A 3-fold
+`DiamondCell` has hexahedral connectivity, but it remains a `DiamondCell`
+object rather than a `HexCell`.
 
- <img src="figures/volume_cells/tetrahedron/tetrahedron_cell.svg"
+<img src="figures/volume_cells/tetrahedron/tetrahedron_cell.svg"
      alt="Tetrahedron cell"
      width="300">
 
-The diagram below shows the isotropic splitting stragegy applied to a
-tetrahedron cell.
-
- <img src="figures/volume_cells/tetrahedron/tetrahedron_midpoint_based_isotropic.svg"
+<img src="figures/volume_cells/tetrahedron/tetrahedron_midpoint_based_isotropic.svg"
      alt="Tetrahedron midpoint-based isotropic split"
      width="300">
 
-Below is an animation showing the child cells that are generated from splitting
-the parent tetrahedron cell.
+The animation separates the four children.
 
- <img src="figures/volume_cells/tetrahedron/tetrahedron_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
+<img src="figures/volume_cells/tetrahedron/tetrahedron_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
      alt="Tetrahedron midpoint-based isotropic split"
      width="600">
 
+### Triangular Prism
 
-### Prism
+A classified triangular prism uses the specialized `Prism` path with
+`nfold = 3`. Isotropic split code `3` splits both prism directions and creates
+`2*nfold`, or six, children. The implementation represents each child as a
+`Prism` with `nfold = 4`; each therefore has hexahedral connectivity.
 
-When split isotropically, the prism cells split into 6 hexahedral cells.
-Consider the prism cell below.
-
- <img src="figures/volume_cells/prism/isotropic/prism_cell.svg"
+<img src="figures/volume_cells/prism/isotropic/prism_cell.svg"
      alt="Prism cell"
      width="300">
 
-The diagram below shows the isotropic splitting stragegy applied to a prism
-cell.
-
- <img src="figures/volume_cells/prism/isotropic/prism_midpoint_based_isotropic.svg"
+<img src="figures/volume_cells/prism/isotropic/prism_midpoint_based_isotropic.svg"
      alt="Prism midpoint-based isotropic split"
      width="300">
 
-Below is an animation showing the child cells that are generated from splitting
-the parent prism cell.
+The animation separates the six children.
 
- <img src="figures/volume_cells/prism/isotropic/prism_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
+<img src="figures/volume_cells/prism/isotropic/prism_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
      alt="Prism midpoint-based isotropic split"
      width="600">
-
 
 ### Pyramid
 
-When split isotropically, the pyramid cells split into 4 hexahedral cells and
-1 diamond cell. Consider the pyramid cell below.
+A pyramid also follows the general `Cell` path. Its four base vertices each
+produce a 3-fold `DiamondCell`, while its four-edge apex produces one 4-fold
+`DiamondCell`. The result is five children: four with hexahedral connectivity
+and one 4-fold diamond.
 
- <img src="figures/volume_cells/pyramid/pyramid_cell.svg"
+<img src="figures/volume_cells/pyramid/pyramid_cell.svg"
      alt="Pyramid cell"
      width="300">
 
-The diagram below shows the isotropic splitting stragegy applied to a pyramid
-cell.
-
- <img src="figures/volume_cells/pyramid/pyramid_midpoint_based_isotropic.svg"
+<img src="figures/volume_cells/pyramid/pyramid_midpoint_based_isotropic.svg"
      alt="Pyramid midpoint-based isotropic split"
      width="300">
 
-Below is an animation showing the child cells that are generated from splitting
-the parent pyramid cell.
+The animation separates the five children.
 
- <img src="figures/volume_cells/pyramid/pyramid_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
+<img src="figures/volume_cells/pyramid/pyramid_midpoint_based_isotropic_exploded_motion_yaw_wire.gif"
      alt="Pyramid midpoint-based isotropic split"
      width="600">
 
+### General Cell and DiamondCell Topology
 
-### Summary
+The general `Cell` split first splits every boundary face. It then creates one
+cell-center node, connects that node to every face center, and creates one
+interior quadrilateral face for every original edge. Finally, it creates one
+`DiamondCell` child for every original vertex.
 
-With this isotropic midpoint splitting behavior, there is a tendency towards
-hexahedral topology as refinement is applied. In this module, `hexahedral`
-means the child has hexahedron connectivity: eight vertices and six
-quadrilateral faces. It does not mean the physical angles are 90 degrees or
-that the child is a regular cube.
+A general parent `Cell` does not have one fold value. Each original vertex
+produces a `DiamondCell` whose fold equals that vertex's incident-edge count,
+so one split can produce children with different folds.
 
-The `-hedron` names are singular cell-shape names: one hexahedron, one
-tetrahedron, one polyhedron. The `-hedra` names are their plurals:
-hexahedra, tetrahedra, polyhedra. This page usually names the singular parent
-shape in headings and uses `children` for the cells produced by a split.
+The fold of a child is the number of original edges incident on its
+corresponding vertex. A fold `n` `DiamondCell` has:
 
-FVMAdapt separates the shape name from the refinement path used to refine it.
-Recognized hexahedra use the `HexCell` path. Recognized triangular prisms use
-the `Prism` path. Tetrahedra, pyramids, and other polyhedra use the general
-`Cell` path.
+- `2*n + 2` nodes
+- `4*n` edges
+- `2*n` quadrilateral faces
+
+Only the 3-fold case has hexahedral connectivity: eight nodes and six
+quadrilateral faces. That topological description does not imply right angles
+or identify the object as a `HexCell`.
+
+| Diamond fold | Nodes | Edges | Faces | Example |
+| --- | --- | --- | --- | --- |
+| 3-fold | 8 | 12 | 6 | Tetrahedron child or pyramid base-vertex child |
+| 4-fold | 10 | 16 | 8 | Pyramid apex child |
+| n-fold | `2*n + 2` | `4*n` | `2*n` | General-cell child at an n-valent vertex |
+
+### Isotropic Split Summary
 
 | Parent shape | Refinement path | Local split rule | Isotropic child topology |
 | --- | --- | --- | --- |
-| Hexahedron | `HexCell` | Split in all three local directions. | 8 hexahedral children. |
-| Tetrahedron | General `Cell` | Four children are created: one 3-fold `DiamondCell` at each vertex. | 4 hexahedral children. |
-| Triangular prism | `Prism` | A normal prism has `nfold = 3`; the isotropic case creates `2*nfold` children. | 6 hexahedral children. |
-| Pyramid | General `Cell` | Five children are created: one 3-fold `DiamondCell` at each of the four base vertices, and one 4-fold `DiamondCell` at the apex. | 4 hexahedral children + 1 higher-fold diamond child. |
-| Other polyhedron | General `Cell` | One `DiamondCell` child is created at each original vertex. The child's fold is the number of original edges incident on that vertex. | One diamond child per original vertex; each child has `2*fold` faces. |
-
-The diamond fold is local to one `DiamondCell`, not a single value for the
-whole parent shape and not the number of children. A 3-fold `DiamondCell` has
-six quadrilateral faces and is topologically hexahedral. A 4-fold
-`DiamondCell` has eight quadrilateral faces. This is why a tetrahedron can be
-described as producing four hexahedral children even though the general path
-actually constructs four `DiamondCell` objects, each with fold 3. Likewise, a
-pyramid produces five `DiamondCell` objects: four base-vertex children with
-fold 3, plus one apex child with fold 4.
-
-A 3-fold `DiamondCell` is hexahedral by topology, but it is not handled as a
-`HexCell`; it remains a `DiamondCell` produced by the general `Cell` path.
-
-For a fold `n` `DiamondCell`, the topology is:
-
-- nodes: `2*n + 2`
-- faces: `2*n`
-- edges: `4*n`
-
-| Diamond fold | Nodes | Faces | Edges | Related shape or use |
-| --- | --- | --- | --- | --- |
-| 3-fold | 8 | 6 | 12 | Hexahedral topology, but still a `DiamondCell`, not a `HexCell`. |
-| 4-fold | 10 | 8 | 16 | Pyramid apex child; an eight-faced diamond. |
-| 5-fold | 12 | 10 | 20 | General-cell child around a five-valent parent vertex. |
-| 6-fold | 14 | 12 | 24 | General-cell child around a six-valent parent vertex. |
-| n-fold | `2*n + 2` | `2*n` | `4*n` | General formula for a `DiamondCell` produced by the general `Cell` path. |
-
-Only the 3-fold case has the same topology as a hexahedron. Higher-fold
-diamonds are best described by their fold.
+| Hexahedron | `HexCell` | Code `7`: split all three local directions | 8 `HexCell` children |
+| Tetrahedron | General `Cell` | One fold-3 child per vertex | 4 `DiamondCell` children with hexahedral connectivity |
+| Triangular prism | `Prism` | Code `3`: split both prism directions | 6 `Prism` children with `nfold = 4` |
+| Pyramid | General `Cell` | One child per vertex | 4 fold-3 and 1 fold-4 `DiamondCell` children |
+| Other polyhedron | General `Cell` | One child per vertex | `DiamondCell` fold follows the vertex valence |
 
 
-## Anisotropic Splitting Strategy
+## Directional Cell Splitting
 
-Anisotropic refinement can be driven by edge or direction choices. This allows
-for a splitting that has a preferential direction. This is often related to
-cells that are in a boundary layer for example, where an isotropic splitting
-generates cells that are numerically unecessary. In a boundary layer for
-example, the direction perpendicular to the surface where the boundary layer
-cells are placed is the direction where additional resolution enhances the
-solution.
+`HexCell` and `Prism` support split codes that refine selected local
+directions. This section defines what each code constructs. The policy that
+selects a code from tags, geometry, or the configured split mode is separate
+from these code semantics.
 
-Cells such as the hexahedra and prisms can be split in special ways. A way of
-accounting for this information is to use special codes that can indicate the
-type of splitting to perform.
+### HexCell Split Codes
 
+A `HexCell` code is a three-bit mask: bit `0` selects `zeta`, bit `1` selects
+`eta`, and bit `2` selects `xi`. For a nonzero code, the number of children is
+`2^k`, where `k` is the number of selected directions.
 
-### Hexahedron
+| Code | Binary | Split directions | Children |
+| --- | --- | --- | --- |
+| 0 | `000` | none | 0; the cell remains a leaf |
+| 1 | `001` | `zeta` | 2 `HexCell` children |
+| 2 | `010` | `eta` | 2 `HexCell` children |
+| 3 | `011` | `eta`, `zeta` | 4 `HexCell` children |
+| 4 | `100` | `xi` | 2 `HexCell` children |
+| 5 | `101` | `xi`, `zeta` | 4 `HexCell` children |
+| 6 | `110` | `xi`, `eta` | 4 `HexCell` children |
+| 7 | `111` | `xi`, `eta`, `zeta` | 8 `HexCell` children |
 
-For the hexahedron shape, we can consider several ways of splitting the shape
-anisotropically. Here, we can use the idea of the split codes to keep things
-nicely accounted for. If we think of a hexahedral cell on a general set of
-coordinates (for simplicity you can think of x as xi, y and eta, and z as
-zeta).
+Code `7` is the isotropic `HexCell` split shown earlier. The remaining
+directional codes are illustrated below.
 
+#### Code 1: Zeta
 
-* 0: no split.
-* 1: split in the zeta direction. This creates two child hexahedra.
-* 2: split in the eta direction. This creates two child hexahedra.
-* 3: split in the eta and zeta directions. This creates four child hexahedra.
-* 4: split in the xi direction. This creates two child hexahedra.
-* 5: split in the xi and zeta directions. This creates four child hexahedra.
-* 6: split in the xi and eta directions. This creates four child hexahedra.
-* 7: split in all three directions. This is treated as the isotropic hexahedron case.
+Code `1` splits only the `zeta` direction and produces two children.
 
-
-### Zeta Split(1)
-
-For this split type, a set of edges aligned in the zeta direction are split
-using a midpoint splitting strategy. For one of the quadrilaterial faces of
-the hexahedra, this looks like two edges on the sides aligned with the zeta
-direction getting split and their newly inserted midpoints being connected
-with a new line. Below is a diagram showing the splitting and connection
-strategy for this type of splitting.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_1_zeta.svg"
-     alt="Hexahedron midpoint-based anisotropic split, code 1"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_1_zeta.svg"
+     alt="Hexahedron directional split in zeta, code 1"
      width="300">
 
-
-Below is an animation showing the children cells that are generated from this
-split.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_1_zeta_exploded_motion_yaw_wire.gif"
-     alt="Hexahedron midpoint-based anisotropic split, code 1"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_1_zeta_exploded_motion_yaw_wire.gif"
+     alt="Children of the HexCell zeta split, code 1"
      width="600">
 
+#### Code 2: Eta
 
-### Eta Split(2)
+Code `2` splits only the `eta` direction and produces two children.
 
-For this split type, a set of edges aligned in the eta direction are split
-using a midpoint splitting strategy. For one of the quadrilaterial faces of
-the hexahedra, this looks like two edges on the sides aligned with the eta
-direction getting split and their newly inserted midpoints being connected
-with a new line. Below is a diagram showing the splitting and connection
-strategy for this type of splitting.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_2_eta.svg"
-     alt="Hexahedron midpoint-based anisotropic split, code 2"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_2_eta.svg"
+     alt="Hexahedron directional split in eta, code 2"
      width="300">
 
-
-Below is an animation showing the children cells that are generated from this
-split.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_2_eta_exploded_motion_yaw_wire.gif"
-     alt="Hexahedron midpoint-based anisotropic split, code 2"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_2_eta_exploded_motion_yaw_wire.gif"
+     alt="Children of the HexCell eta split, code 2"
      width="600">
 
+#### Code 3: Eta and Zeta
 
-### Eta + Zeta Split(3)
+Code `3` combines the `eta` and `zeta` directions and produces four children.
 
-For this split type, a set of edges aligned in the eta and zeta directions
-are split using a midpoint splitting strategy. This is a combination of two
-of the single-dimension splitting strategies. For one of the quadrilaterial
-faces of the hexahedra, this looks like two edges on the sides aligned with
-the eta and zeta directions getting split and their newly inserted midpoints
-being connected with a new line. Below is a diagram showing the splitting and
-connection strategy for this type of splitting.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_3_eta_zeta.svg"
-     alt="Hexahedron midpoint-based anisotropic split, code 3"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_3_eta_zeta.svg"
+     alt="Hexahedron directional split in eta and zeta, code 3"
      width="300">
 
-
-Below is an animation showing the children cells that are generated from this split.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_3_eta_zeta_exploded_motion_yaw_wire.gif"
-     alt="Hexahedron midpoint-based anisotropic split, code 3"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_3_eta_zeta_exploded_motion_yaw_wire.gif"
+     alt="Children of the HexCell eta-zeta split, code 3"
      width="600">
 
+#### Code 4: Xi
 
-### Xi Split(4)
+Code `4` splits only the `xi` direction and produces two children.
 
-For this split type, a set of edges aligned in the xi direction are split
-using a midpoint splitting strategy. For one of the quadrilaterial faces of
-the hexahedra, this looks like two edges on the sides aligned with the xi
-direction getting split and their newly inserted midpoints being connected
-with a new line. Below is a diagram showing the splitting and connection
-strategy for this type of splitting.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_4_xi.svg"
-     alt="Hexahedron midpoint-based anisotropic split, code 4"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_4_xi.svg"
+     alt="Hexahedron directional split in xi, code 4"
      width="300">
 
-
-Below is an animation showing the children cells that are generated from this
-split.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_4_xi_exploded_motion_yaw_wire.gif"
-     alt="Hexahedron midpoint-based anisotropic split, code 4"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_4_xi_exploded_motion_yaw_wire.gif"
+     alt="Children of the HexCell xi split, code 4"
      width="600">
 
+#### Code 5: Xi and Zeta
 
-### Xi + Zeta Split(5)
+Code `5` combines the `xi` and `zeta` directions and produces four children.
 
-For this split type, a set of edges aligned in the xi and zeta directions are
-split using a midpoint splitting strategy. This is a combination of two of
-the single-dimension splitting strategies. For one of the quadrilaterial
-faces of the hexahedra, this looks like two edges on the sides aligned with
-the xi and zeta directions getting split and their newly inserted midpoints
-being connected with a new line. Below is a diagram showing the splitting and
-connection strategy for this type of splitting.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_5_xi_zeta.svg"
-     alt="Hexahedron midpoint-based anisotropic split, code 5"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_5_xi_zeta.svg"
+     alt="Hexahedron directional split in xi and zeta, code 5"
      width="300">
 
-
-Below is an animation showing the children cells that are generated from
-this split.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_5_xi_zeta_exploded_motion_yaw_wire.gif"
-     alt="Hexahedron midpoint-based anisotropic split, code 5"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_5_xi_zeta_exploded_motion_yaw_wire.gif"
+     alt="Children of the HexCell xi-zeta split, code 5"
      width="600">
 
+#### Code 6: Xi and Eta
 
-### Xi + Eta Split(6)
+Code `6` combines the `xi` and `eta` directions and produces four children.
 
-For this split type, a set of edges aligned in the xi and eta directions are
-split using a midpoint splitting strategy. This is a combination of two of
-the single-dimension splitting strategies. For one of the quadrilaterial
-faces of the hexahedra, this looks like two edges on the sides aligned with
-the xi and eta directions getting split and their newly inserted midpoints
-being connected with a new line. Below is a diagram showing the splitting
-and connection strategy for this type of splitting.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_6_xi_eta.svg"
-     alt="Hexahedron midpoint-based anisotropic split, code 6"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_6_xi_eta.svg"
+     alt="Hexahedron directional split in xi and eta, code 6"
      width="300">
 
-
-Below is an animation showing the children cells that are generated from
-this split.
-
- <img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_6_xi_eta_exploded_motion_yaw_wire.gif"
-     alt="Hexahedron midpoint-based anisotropic split, code 6"
+<img src="figures/volume_cells/hexahedron/anisotropic/hexahedron_split_code_6_xi_eta_exploded_motion_yaw_wire.gif"
+     alt="Children of the HexCell xi-eta split, code 6"
      width="600">
 
+### Prism Split Codes
 
-Of course a xi + eta + zeta splitting would just be the original isotropic
-midpoint splitting strategy, so it isn't shown here.
+A `Prism` has two corresponding n-sided end faces and `nfold`
+quadrilateral side faces. A classified triangular prism has `nfold = 3`.
+`Prism::nfold` counts the sides of the prism's end faces; it is distinct from
+the vertex-based fold of a `DiamondCell`.
 
+| Code | Split operation | Children |
+| --- | --- | --- |
+| 0 | none | 0; the prism remains a leaf |
+| 1 | axial | 2 `Prism` children with the parent's `nfold` |
+| 2 | transverse | `nfold` `Prism` children, each with `nfold = 4` |
+| 3 | axial and transverse | `2*nfold` `Prism` children, each with `nfold = 4` |
 
-### Prism
+#### Code 1: Axial
 
-A `Prism` has two corresponding polygonal end faces joined by quadrilateral side
-faces. An axial split divides the prism between its two triangular end faces,
-producing two shorter prisms. A transverse split subdivides the end faces and
-carries the matching subdivision through the prism.
-For a normal triangular prism, `nfold = 3`.
+The axial split bisects the edges that join corresponding end-face vertices.
+Their midpoint nodes form one new interior n-sided face. A triangular prism
+therefore produces two triangular-prism children.
 
-* 0: no split.
-* 1: split in the axial direction. This creates two child triangular prisms.
-* 2: split in the transverse direction. This creates `nfold` children; a
-  triangular prism creates three quadrilateral-prism children.
-* 3: split in both directions. This creates `2*nfold` children and is the
-  isotropic prism case shown earlier.
-
-
-#### Axial Split (1)
-
-For the axial split, the edges connecting the two end faces are split at their
-midpoints. Connecting those midpoint nodes creates a new interior face between
-the original end faces. For a triangular prism, the new face is triangular and
-separates the parent into two triangular-prism children.
-
- <img src="figures/volume_cells/prism/anisotropic/prism_split_code_1_axial.svg"
-     alt="Prism axial anisotropic split, code 1"
+<img src="figures/volume_cells/prism/anisotropic/prism_split_code_1_axial.svg"
+     alt="Prism axial directional split, code 1"
      width="300">
 
-Below is an animation showing the two child prisms generated by this split.
-
- <img src="figures/volume_cells/prism/anisotropic/prism_split_code_1_axial_exploded_motion_yaw_wire.gif"
-     alt="Prism axial anisotropic split children, code 1"
+<img src="figures/volume_cells/prism/anisotropic/prism_split_code_1_axial_exploded_motion_yaw_wire.gif"
+     alt="Children of the prism axial split, code 1"
      width="600">
 
+#### Code 2: Transverse
 
-#### Transverse Split (2)
+The transverse split subdivides both end faces, splits each side face in its
+transverse direction, and connects the two end-face centers with a new
+interior edge. A triangular prism produces three `Prism` children with
+`nfold = 4`, so each child has hexahedral connectivity.
 
-For the transverse split, both end faces are split from their edge midpoints
-to their face centroids. The corresponding midpoint nodes on the side faces
-are connected, and a new interior edge connects the two end-face centroids.
-For a triangular prism, this creates three quadrilateral-prism children. Each
-child has hexahedral connectivity, although the implementation represents it
-as a `Prism` with `nfold = 4`.
-
- <img src="figures/volume_cells/prism/anisotropic/prism_split_code_2_transverse.svg"
-     alt="Prism transverse anisotropic split, code 2"
+<img src="figures/volume_cells/prism/anisotropic/prism_split_code_2_transverse.svg"
+     alt="Prism transverse directional split, code 2"
      width="300">
 
-Below is an animation showing the three children generated by this split.
-
- <img src="figures/volume_cells/prism/anisotropic/prism_split_code_2_transverse_exploded_motion_yaw_wire.gif"
-     alt="Prism transverse anisotropic split children, code 2"
+<img src="figures/volume_cells/prism/anisotropic/prism_split_code_2_transverse_exploded_motion_yaw_wire.gif"
+     alt="Children of the prism transverse split, code 2"
      width="600">
 
+#### Code 3: Axial and Transverse
 
-#### Combined Axial and Transverse Split (3)
+Code `3` combines both operations. A triangular prism produces six `Prism`
+children with `nfold = 4`. This is the isotropic prism split shown earlier.
 
-Split code 3 combines the axial and transverse operations. It creates
-`2*nfold` children, so a triangular prism creates six children with hexahedral
-connectivity. This is the isotropic prism split shown earlier and is not
-repeated here.
+
+## Further Reference
+
+See [FVMAdapt Numbering Conventions](@ref fvmadapt_numbering) for the local
+directions and orientation mappings used to interpret these split codes.
+
+See [FVMAdapt Refinement Plans and Balancing](@ref fvmadapt_plans_and_balancing)
+for how split codes are stored in plans and coordinated across shared faces
+and edges.

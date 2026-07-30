@@ -1,174 +1,134 @@
 # FVMAdapt Refinement Plans and Balancing {#fvmadapt_plans_and_balancing}
 
-FVMAdapt decides the topology of an adapted mesh before it constructs that
-mesh. Temporary refinement trees describe possible subdivisions of individual
-mesh entities. Compact plans record how to reconstruct those trees, and
-balancing coordinates the plans so independently reconstructed parts of the
-mesh agree.
+FVMAdapt records the topology it intends to construct before it creates the
+fine mesh. The recorded plans let the module rebuild and adjust temporary
+refinement trees without keeping all of those trees in memory between Loci rule
+operations.
 
-This page develops those ideas in more detail. The
-[mesh-adaptation overview](@ref fvmadapt_overview) gives the shorter workflow,
-the [geometric splitting reference](@ref fvmadapt_geometric_splitting) shows
-what each split creates, and the
-[numbering conventions](@ref fvmadapt_numbering) describe the local positions
-used to interpret the plans.
+This page follows the refinement path.
+[Derefinement](@ref fvmadapt_derefinement) uses related plan machinery, but it
+has different request, sibling-family, and edge-depth conditions. Here,
+*balancing* means making the subdivisions of shared faces and edges compatible
+and enforcing refinement-grading rules. It does not mean processor load
+balancing.
 
-
-## Mesh Incidence and Refinement Lineage
-
-Two different relationships are important in FVMAdapt.
-
-The first is **mesh incidence**:
-
-```text
-cell --bounded by--> faces --bounded by--> edges --end at--> nodes
-```
-
-This is not a refinement tree. A face can be shared by two cells, an edge can
-belong to several faces, and a node can belong to several edges. These are
-connections between different kinds of mesh entities.
-
-The second relationship is **refinement lineage**:
-
-```text
-original entity
-├── child 0
-├── child 1
-│   ├── child 1.0
-│   └── child 1.1
-└── child 2
-```
-
-This is a tree. The original entity is the root. A split entity is an internal
-tree object, and an entity that is not split further is a leaf. Its children
-are entities of the same kind: a cell has child cells, a face has child faces,
-and an edge has child edges.
-
-In this discussion, a *tree object* means an entity occupying a position in a
-refinement tree. It should not be confused with a mesh `Node`, which represents
-a geometric vertex.
+The [mesh-adaptation overview](@ref fvmadapt_overview) introduces the complete
+workflow. The
+[geometric splitting reference](@ref fvmadapt_geometric_splitting) shows what
+the split operations create, and the
+[numbering conventions](@ref fvmadapt_numbering) define the local positions
+used by those operations.
 
 
-## A Forest of Related Trees
+## What Is Stored
 
-FVMAdapt does not construct one global refinement tree for the entire mesh. A
-useful conceptual model is a forest of related trees rooted at original mesh
-entities. The implementation reconstructs the trees temporarily when it needs
-to interpret or modify their plans.
+The Loci rule layer owns the mesh-wide plan stores. A plan is a variable-length
+vector of split codes associated with one original mesh entity. The C++ library
+does not keep a persistent `Cell`, `HexCell`, or `Prism` object for every plan.
+Instead, it receives one plan vector at a time and reconstructs the temporary
+objects needed for that operation.
 
-| Plan | Root entity | What its leaves represent |
+| Plan | Associated with | What replay reconstructs |
 | --- | --- | --- |
-| Cell plan | One original cell | Fine cells inside that original cell |
-| Face plan | One original face | Fine faces covering that original face |
-| Edge plan | One original edge | Fine edge segments covering that original edge |
+| Cell plan | One original cell | Fine cells inside the original cell |
+| Face plan | One original face | Fine faces covering the original face |
+| Edge plan | One original edge | Fine edge segments covering the original edge |
 
-The cell trees describe volume subdivision. Face and edge trees describe the
-shared boundaries through which independently reconstructed cell trees must
-agree. The original face or edge provides the common point of reference even
-when neighboring cells use different local orientations.
+Cell plans describe volume subdivision. Face and edge plans describe the
+shared boundaries on which independently reconstructed cells must agree. An
+original face or edge provides the common reference even when neighboring
+cells describe it with different local numbering or orientation.
 
-These mesh-wide face and edge plans govern boundaries rooted at original mesh
-faces and edges. New interior faces and edges created by a cell split are
-consequences of that cell tree; they do not each receive another independently
-stored mesh-wide plan.
-
-The trees used during replay are temporary working objects. They are created
-while a rule examines or constructs part of the mesh and are discarded when
-that work is complete. The plans, rather than those temporary objects, are the
-compact topological state carried between operations.
-
-
-## Plans Are Replay Recipes
-
-A plan is a sequence of split codes stored in breadth-first order. It records
-which tree objects split and which split operation each one uses. It does not
-store coordinates, temporary object addresses, or global node, edge, face, and
-cell identifiers.
-
-Breadth-first order processes all queued objects at one tree level before
-objects at the next level:
+Faces and edges created inside a split cell are consequences of the cell plan.
+They do not each receive another independently stored mesh-wide plan.
 
 ```text
-start with the root in a queue
+plan vector in a Loci store
+        ↓ replay for one original entity
+temporary parent-and-child objects
+        ↓ inspect, balance, or construct
+updated plan or fine mesh entities
         ↓
-read the next split code for the first queued object
-        ↓
-if it splits, append its children to the queue
-        ↓
-remove the processed object and continue
+discard the temporary objects
 ```
 
-Code `0` means that the current object remains a leaf. When a compact plan ends,
-the remaining queued objects are also treated as leaves. Trailing no-split
-codes therefore do not need to be stored.
+The vectors therefore preserve the planned topology between rule operations
+without retaining the more memory-intensive object trees.
 
-For example, consider the HexCell plan `[7, 1]`:
+
+## How One Plan Reconstructs a Tree
+
+A plan records split codes in breadth-first order. Replay begins with the
+original entity as the root of a queue. Each stored code applies to the first
+object in the queue. If that code splits the object, its children are appended
+to the queue.
+
+Code `0` leaves the current object unsplit. When the stored vector ends, every
+object still in the queue is also treated as unsplit. A compact plan can
+therefore omit trailing zeroes.
+
+The HexCell plan `[7, 1]`, introduced in the overview, produces the following
+queue operations:
+
+| Queue before the entry | Code | Operation | Queue after the entry |
+| --- | --- | --- | --- |
+| root | `7` | Split the root into children 0 through 7 | 0, 1, 2, 3, 4, 5, 6, 7 |
+| 0, 1, 2, 3, 4, 5, 6, 7 | `1` | Split child 0 into children 0.0 and 0.1 | 1, 2, 3, 4, 5, 6, 7, 0.0, 0.1 |
+
+The plan then ends, so the nine objects remaining in the queue are leaves.
+Those leaves represent the fine cells that can later be constructed inside the
+original cell.
+
+The values `7` and `1` select HexCell split operations. The values used for
+child positions, such as `0` and `0.1`, are not mesh cell identifiers. Other
+cell, face, and edge types have their own split codes and child-numbering
+conventions.
+
+### Refinement Lineage and Mesh Incidence
+
+The parent-and-child relationship reconstructed by a plan connects objects of
+the same kind:
 
 ```text
-plan position 0: the root consumes code 7
-                 → create root children 0 through 7
-
-plan position 1: root child 0 consumes code 1
-                 → create two children beneath root child 0
-
-end of plan:     root children 1 through 7 and both new grandchildren
-                 remain leaves
+cell → child cells
+face → child faces
+edge → child edges
 ```
 
-The numbers `0` through `7` in this example are ordered child positions, not
-mesh cell identifiers. Code `7` and code `1` have the HexCell meanings given in
-the splitting reference. Other entity types have their own split codes and
-child counts.
-
-The same plan can be viewed in either direction:
+That refinement lineage forms a tree. It is different from mesh incidence,
+which connects unlike entities:
 
 ```text
-temporary tree --serialize--> compact plan
-compact plan    --replay-----> temporary tree
+cell → boundary faces → boundary edges → endpoint nodes
 ```
 
-After replay, the tree leaves can be walked to construct the fine entities.
-The plan is therefore neither the temporary tree nor the final fine mesh.
+A split cell is an internal object in its cell tree. A cell that is not split
+further is a cell-tree leaf. The same terminology applies separately to face
+and edge trees.
+
+### Local Positions Are Not Mesh IDs
+
+Local positions identify roles inside one cell, face, edge, or child array.
+They do not provide persistent global identity. For example, two adjacent
+cells can refer to their shared face using different cell-local face
+positions. Each cell can also number and orient the children of that face
+differently.
+
+Before FVMAdapt combines the two descriptions, it maps both into the original
+face's orientation. The mapped child positions then refer to the same parts of
+the shared face. Final mesh numbers are assigned later, when the fine
+connectivity is constructed; they are not encoded in the plan.
 
 
-## Local Positions and Identity
-
-Every child uses the local numbering convention of its entity type. A HexCell
-child, for example, has its own local nodes, edges, and faces. Those numbers
-describe positions within that child; they are not inherited global identities
-from the parent.
-
-Existing corner objects can be reused by a child, and newly created midpoint
-or center objects can be shared by siblings. The same geometric object may
-therefore occupy different local positions in different cells or faces.
-Orientation mappings identify the corresponding physical positions.
-
-The important identity layers are:
-
-```text
-original cell, face, or edge
-        → is the root addressed by a plan
-local position
-        → identifies a role inside one cell, face, edge, or child array
-temporary object
-        → connects one reconstructed topology during replay
-final mesh number
-        → identifies an entity in the generated mesh connectivity
-```
-
-Final mesh numbering is assigned later. It is not encoded in the refinement
-plan and is not the identity used to balance the trees.
-
-
-## How Cell, Face, and Edge Plans Meet
+## Deriving Shared Face and Edge Plans
 
 A cell plan determines how each boundary face appears from that cell's local
-view. FVMAdapt extracts that boundary subdivision as a face plan. For an
-interior face, it performs this operation for both adjacent cells.
+view. FVMAdapt extracts that subdivision as a face plan. For an interior face,
+it extracts one contribution from each adjacent cell.
 
-Before the two views can be compared, each one is mapped into the shared face's
-local orientation. The mapped plans are then merged so the shared face contains
-every subdivision required by either cell:
+The contributions are first mapped into the shared face's orientation. They
+are then merged so that the shared-face plan contains every subdivision
+required by either cell:
 
 ```text
 left cell plan  --extract and orient--┐
@@ -176,201 +136,196 @@ left cell plan  --extract and orient--┐
 right cell plan --extract and orient--┘
 ```
 
-A boundary face has only the cell-side contribution. An interior face has both
-cell-side contributions, even if the adjacent cells have different element
+### Combining Different Face Subdivisions
+
+The merge operates on the subdivisions after orientation mapping, not on the
+raw cell or face split codes. For the supported plan forms, it produces a
+common refinement: the shared plan retains every distinct cut required by
+either side.
+
+| Left requirement | Right requirement after orientation | Shared result |
+| --- | --- | --- |
+| No split | Direction A | Direction A |
+| Direction A | Direction A | Direction A |
+| Direction A | Direction B | Directions A and B |
+| Coarse subdivision | Same subdivision with a deeper child split | Coarse and deeper subdivisions |
+
+For example, suppose a HexCell and a prism share a quadrilateral face. If the
+hex contribution cuts that face in one face-local direction and the prism
+contribution cuts it in the perpendicular direction, the merged root code is
+QuadFace code `3`. Replaying that code creates four child faces. If the two raw
+directional codes instead map to the same cut in the shared face orientation,
+the duplicate cut is retained only once.
+
+A quadrilateral face contributed by the general `Cell` path does not introduce
+an unrelated subdivision pattern. Its isotropic general-face split is
+converted to QuadFace code `3` before it is merged with a HexCell or prism
+contribution. In the face-plan topology, that full split already contains both
+supported directional subdivisions. FVMAdapt later reconstructs the shared
+face once from the merged plan, so the adjacent cells do not create competing
+face-center nodes or incompatible cuts independently.
+
+For a general polygonal face, the merge is the corresponding tree operation:
+if either input splits a tree position, the shared plan splits that position
+and retains the descendant subdivisions from both inputs.
+
+A boundary face has only its cell-side contribution. An interior face has
+contributions from both sides, even when the adjacent cells use different cell
 types.
 
-The same idea continues from faces to edges. Each face plan implies split
-positions on its boundary edges. Contributions from every incident face are
-mapped into the edge direction and merged:
+The same process continues from faces to edges. A face plan implies
+subdivisions of its boundary edges. Contributions from all incident faces are
+mapped into the shared edge direction and merged:
 
 ```text
 incident face plans
         ↓ extract edge subdivisions
-map every contribution into the shared edge direction
+map each contribution into the shared edge direction
         ↓ merge
 one shared-edge plan
 ```
 
-The result is one physical subdivision of each original shared face and edge.
-Neighboring local numbering does not need to be identical; the orientation
-mappings only need to make the local views refer to the same physical
-subentities.
+The result is one shared topological subdivision for each original face and
+edge. Neighboring local numbering does not need to match. The orientation
+mappings only need to make the local child positions refer to the same parts of
+the shared entity.
 
 
 ## What Balancing Enforces
 
-Balancing has two related jobs.
+Balancing has two related jobs: shared-topology compatibility and refinement
+grading.
 
 ### Shared-Topology Compatibility
 
-Every cell touching a shared face must be compatible with the same face
-subdivision. Every face touching a shared edge must be compatible with the same
-edge subdivision. Without this agreement, independently replayed plans could
-describe different connectivity on the two sides of the same physical entity.
+Every cell touching a shared face must be compatible with the same face plan.
+Every face touching a shared edge must be compatible with the same edge plan.
+Without this agreement, replaying the plans independently could produce
+different connectivity on opposite sides of the same mesh entity.
 
-Compatibility does not require adjacent cells to have identical cell trees. A
-cell may remain one leaf while its boundary is represented by several fine
-faces. The resulting fine cell simply has a more detailed polyhedral boundary.
-This is how general polyhedral cells can absorb some neighboring refinement
-without forcing the cell itself to split.
+Compatibility does not require adjacent cells to have identical cell trees.
+For a cell handled by the general `Cell` path, one cell-tree leaf can sometimes
+be reconstructed with several fine faces on its boundary. The resulting fine
+cell has a more detailed polyhedral boundary, but the cell does not need to
+split solely to retain a standard element shape.
 
 ### Refinement Grading
 
-A splittable cell cannot remain arbitrarily coarse while the trees on its
-boundary become arbitrarily deep. In the default grading check, a leaf cell is
-split when one of its incident edge trees extends more than one additional
-refinement level beneath that leaf's boundary edge.
+Compatibility alone would allow an unsplit cell to border a boundary tree of
+arbitrary depth. The grading checks limit that difference.
 
-This condition is more precise than saying that every pair of neighboring
-cells must have refinement levels that differ by at most one. The
-implementation examines the boundary edge trees of each leaf and handles the
-required split according to the cell type and available split directions.
+For example, suppose a boundary edge supplied to a cell-tree leaf is split,
+and one of those child edges is split again. Relative to the leaf, the boundary
+edge tree is two levels deep. The default edge-depth check requires that leaf
+cell to split. The cell implementation selects an appropriate split operation
+for its topology and, for specialized cells, the permitted split directions.
 
-The library also contains stronger grading policies that can split a cell when
-too many of its faces, or certain opposing faces, are already subdivided. These
-are additional topology-regularity policies rather than the basic requirement
-that both sides of a shared entity describe compatible connectivity.
+The optional `balance_option` policies can impose additional constraints.
+They include splitting when more than half of a cell's faces are already
+subdivided and, in cell paths that implement the test, splitting for certain
+subdivided opposing-face combinations. These are separate topology-regularity
+policies. Their precise split decisions depend on the cell type and split mode;
+they are not one uniform rule applied identically to every cell representation.
 
 A cell classified as indivisible is not expanded by the ordinary local
-balancing step. It can still be reconstructed with the compatible subdivision
-of its original boundary.
+balancing operation. Its original boundary is still reconstructed using the
+shared face and edge plans so that the resulting connectivity is compatible.
 
 
-## The Balancing Feedback Loop
+## The Iterative Balancing Loop
 
-Balancing is not a single pass from cell plans to face plans to edge plans.
-Temporary face and edge plans feed their requirements back into the cell plans:
+Shared face and edge plans are not merely outputs of cell balancing. They also
+supply the boundary trees used to reconsider the cell plans:
 
 ```text
-current cell plans at iteration n
+cell plans at iteration n
         ↓
-extract each cell's boundary-face views
-map neighboring views into shared-face orientation and merge them
+extract, orient, and merge shared-face plans
         ↓
-temporary shared-face plans
-        ↓
-extract, orient, and merge their edge subdivisions
-        ↓
-temporary shared-edge plans
+extract, orient, and merge shared-edge plans
         ↓
 reconstruct each original cell with those boundary trees
-replay its current cell plan and locally balance its leaves
+replay and locally balance its current cell plan
         ↓
 cell plans at iteration n + 1
         ↓
 are all cell plans unchanged?
-        ├── no: repeat with the expanded plans
-        └── yes: preserve the balanced cell plans
+        ├── no: repeat
+        └── yes: preserve the balanced plans
 ```
 
-On the refinement path, the shared face and edge plans accumulate the
-subdivisions required for compatibility. Cell plans preserve requested
-refinement and expand when the grading checks require a cell split. A change in
-one cell can therefore affect a neighbor on the next pass, and that neighbor
-can affect another cell through a different face.
+The implementation reaches stability at two scales. Within one reconstructed
+cell, the library repeatedly checks its cell-tree leaves against the supplied
+face and edge trees. Local balancing stops when another check adds no cell
+split.
 
-Once the cell plans stop changing, the stable plans form a fixed point: another
-balancing pass would produce the same cell plans. Final compatible face and
-edge plans are then derived from those balanced cell plans.
+Across the mesh, the Loci rule layer regenerates the shared-face and
+shared-edge requirements, reconstructs and balances the cells, and compares
+each resulting cell plan with its plan from the preceding iteration. Mesh-wide
+balancing stops only when every cell plan is unchanged.
+
+The unchanged plans form a stable plan set: another balancing iteration would
+produce the same cell plans. Final compatible face and edge plans can then be
+derived from those balanced cell plans.
 
 
-## Local and Mesh-Wide Convergence
+## How Refinement Propagates
 
-The implementation reaches the fixed point at two scales.
+Consider the cells `A`, `B`, and `C`, where `A` shares a face with `B` and `B`
+shares another face with `C`.
 
-Within one reconstructed splittable cell, local balancing repeatedly examines
-its leaves against the currently supplied face and edge trees. It adds required
-child splits until another local pass makes no change.
+As described in the overview, a requested split in `A` can subdivide the
+`A`-`B` face. Cell `B` is then reconstructed with that shared-face subdivision.
+If `B` is handled by the general `Cell` path, it may remain one cell with a
+more detailed polyhedral boundary. If a grading or other active balancing
+policy requires a cell split, however, the plan for `B` is expanded.
 
-Across the mesh, the rule layer repeats the larger exchange. It regenerates
-temporary shared-face and shared-edge requirements, reconstructs and balances
-the affected cell trees, and compares the resulting cell plans with the plans
-from the previous iteration. Mesh-wide balancing finishes only when every cell
-plan is unchanged.
+That change can affect the other side of `B`:
 
 ```text
-local convergence:     leaves within one reconstructed cell stop changing
-mesh-wide convergence: plans for all original cells stop changing
+A's plan subdivides the A-B face
+        ↓
+B is reconstructed and reconsidered
+        ↓
+B's plan expands
+        ↓
+the B-C face gains a subdivision
+        ↓
+C is reconsidered during a later mesh-wide iteration
 ```
 
-The two scales explain why a refinement request can propagate through several
-neighbors over several balancing iterations.
+General polyhedral cells can limit propagation caused only by the need to
+preserve a standard element shape. They do not stop propagation required by
+shared-topology compatibility, refinement grading, or another enabled
+balancing policy.
 
 
-## A Two-Cell Propagation Example
+## Balanced Plans and Fine-Mesh Construction
 
-Consider two cells, `A` and `B`, sharing a face:
+A balanced result provides:
 
-```text
-requested split in cell A
-        ↓
-A's cell plan implies a finer subdivision of the shared face
-        ↓
-the shared-face and shared-edge plans carry that subdivision to cell B
-        ↓
-B is reconstructed with the finer boundary
-        ↓
-does B satisfy the grading rules without a cell split?
-        ├── yes: B remains one cell with a subdivided polyhedral boundary
-        └── no:  B's cell plan is expanded
-```
+- a stable plan for each original cell
+- one compatible subdivision for every original shared face and edge
+- cell plans that satisfy the applicable grading checks
+- enough topological information to reconstruct the fine mesh.
 
-If `B` is expanded, its other boundary faces can acquire new subdivisions.
-Those changes may reach another neighbor `C` during the next mesh-wide
-iteration:
-
-```text
-A requests refinement
-        → shared boundary changes B
-        → B may change another shared boundary
-        → C is reconsidered on a later pass
-```
-
-General polyhedral cells limit this propagation because a cell can often
-accept a subdivided boundary without being split solely to retain a standard
-element shape. The shared boundary plans still carry compatibility
-requirements, but cell-split propagation continues only where grading or
-another active topology policy requires it.
-
-
-## What a Balanced Result Is and Is Not
-
-A balanced result is:
-
-- a stable set of cell plans
-- one compatible subdivision for every shared face and edge
-- cell plans stable under the applicable grading checks
-- sufficient topological information to reconstruct the adapted mesh
-
-A balanced result does not require:
-
-- identical cell trees on opposite sides of a face
-- identical local numbering or orientation in neighboring cells
-- uniform refinement throughout the mesh.
-
-Here, *balancing* means topological compatibility and refinement grading. It is
-not processor load balancing, coordinate smoothing, or general mesh-quality
-optimization. It produces compatible plans, not the final mesh coordinates and
-connectivity.
-
-
-## From Balanced Plans to the Fine Mesh
+It does not require adjacent cells to have identical cell trees, local
+numbering, or orientation. It also does not imply uniform refinement,
+coordinate smoothing, or general mesh-quality optimization.
 
 After balancing, FVMAdapt replays the compatible plans to construct the fine
 mesh:
 
 ```text
 balanced cell, face, and edge plans
-        ↓ replay
-temporary trees and their leaves
-        ↓ construct and number
-fine nodes, faces, and cells
-        ↓ transfer and output
-adapted mesh and associated field data
+        ↓ replay each plan
+temporary refinement trees and their leaves
+        ↓ create and number the fine nodes, faces, and cells
+numbered fine nodes, faces, and cells
+        ↓ transfer field data and write the adapted mesh
+adapted mesh with transferred field data
 ```
 
 Coordinates and final mesh numbering enter during this construction stage.
-This separation allows the balancing process to reason primarily about
-topology while later rules handle geometric placement, connectivity numbering,
-field transfer, and mesh output.
+Later rules handle geometric placement, connectivity numbering, field
+transfer, and mesh output.

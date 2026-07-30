@@ -1,170 +1,160 @@
 # FVMAdapt Mesh Adaptation Overview {#fvmadapt_overview}
 
-FVMAdapt takes refinement requests for an existing mesh and turns them into a
-topologically compatible refined mesh. Requests may come from tags, regions,
-or solution-based indicators, while mesh-focused rules account for the effects
-of each requested refinement on neighboring entities.
+FVMAdapt takes an existing mesh and a description of requested refinement and
+constructs the topology of an adapted mesh. Refinement selection can be supplied
+through cell tags, fine-cell tags, geometric source parameters, or XML regions.
+An upstream application may derive tags from solution data, but FVMAdapt starts
+from supplied refinement inputs.
 
-The module first describes the requested topology with refinement plans. These
-plans record which cells, faces, and edges are split and how their children are
-ordered; they do not contain the physical coordinates of the refined mesh. The
-plans are balanced across the mesh and then replayed to construct the final
-nodes, faces, and cells.
+This page follows the refinement path. FVMAdapt also supports
+[plan-based derefinement](@ref fvmadapt_derefinement), which replaces an
+eligible family of fine cells with its parent in the refinement tree.
 
-This overview focuses on refinement. FVMAdapt also supports plan-based
-derefinement.
+The module has two cooperating layers:
+
+- The lower-level C++ library implements cell, face, and edge splitting,
+  temporary refinement trees, plan serialization, and plan replay.
+- The Loci rule layer owns the mesh-wide plan stores, coordinates shared faces
+  and edges, schedules balancing, and invokes mesh construction and data
+  transfer.
+
+
+## From Refinement Request to Adapted Mesh
+
+FVMAdapt determines the adapted topology before constructing the final
+mesh. This final mesh is referred to as the **fine mesh**. The refinement workflow is:
+
+1. Tags or geometric inputs select refinement in the original mesh or in
+   previously refined cells.
+2. The rule layer creates or updates one cell-plan vector for each original
+   cell. An empty vector means that the cell is not split.
+3. Each cell plan implies subdivisions of its boundary faces. Contributions
+   from adjacent cells are mapped into a common face orientation and merged.
+4. The merged face plans imply subdivisions of their boundary edges. Those
+   contributions are mapped into a common edge direction and merged.
+5. The shared face and edge requirements are fed back into the cell plans.
+   Steps 3 through 5 repeat until another pass makes no cell plan change.
+6. The stable cell plans and their compatible face and edge plans are replayed
+   to construct and number the fine nodes, faces, and cells used by transfer and
+   mesh-output operations.
+
+Steps 3 through 5 are *balancing*. Here, balancing means making the shared
+topology compatible and enforcing the applicable refinement-grading rules.
+Balancing can add cell splits required by those
+topological rules; it does not construct the final mesh.
+
+A plan is a sequence of split codes associated with one original cell, face, or
+edge. A split code says whether the current tree object is left unsplit or
+which split operation it uses. Replaying a plan means reading those codes to
+recreate the corresponding parent-and-child objects in memory. An object that
+is not split further is a *leaf*. The leaves identify the fine entities that
+will be constructed from that original entity.
+
+
+### A Concrete Cell Plan
+
+Consider the HexCell plan `[7, 1]`. HexCell code `7` splits all three local
+directions and creates eight children. Code `1` splits only the local `zeta`
+direction and creates two children.
+
+Replay begins with the original cell, called the root:
+
+```text
+plan position 0: root consumes code 7
+                 → create root children 0 through 7
+
+plan position 1: root child 0 consumes code 1
+                 → create children 0.0 and 0.1
+
+end of plan:     no more explicit codes
+                 → children 0.0, 0.1, and root children 1 through 7 are leaves
+```
+
+The plan is read in breadth-first order: the root is processed first, followed
+by its children in child order, followed by the next level(of splitting of the children).
+When the stored vector ends, the remaining queued objects are treated as unsplit leaves. The
+plan can therefore omit trailing no-split codes.
+
+In this example, replay produces nine leaves: the two children beneath root
+child 0 and the seven unsplit root children. The values in `[7, 1]` do not
+contain coordinates or final mesh cell numbers. They only say which tree
+objects split and how. The geometric split operations create the required
+midpoint and center nodes during replay, and later construction rules assign
+the final mesh numbering.
 
 
 ## Why General Polyhedral Cells Matter
 
-A central principle of FVMAdapt is that general polyhedral cells can help keep
-the effects of refinement local. When one cell subdivides a shared face, its
-neighbor must agree with that new face topology. Requiring every affected cell
-to remain a standard element could force refinement to cascade through several
-layers of neighboring cells.
+Consider two cells, `A` and `B`, that share a face. If the plan for `A`
+subdivides that face, both sides must use the same fine-face subdivision:
 
-FVMAdapt can instead represent affected cells as general polyhedra when needed.
-This lets a neighboring cell incorporate a subdivided shared face without being
-split only to preserve a standard cell shape. Balancing may still propagate
-refinement where compatibility or refinement-depth rules require it, but
-general cells reduce propagation caused solely by element-shape restrictions.
+```text
+cell A requests a split
+        ↓
+A's boundary view subdivides the shared face
+        ↓
+the shared-face plan carries that subdivision to cell B
+```
+
+For a cell handled by the general `Cell` path, `B` can sometimes remain one
+leaf while its boundary is reconstructed with several fine faces. In that case,
+`B` becomes a general polyhedral fine cell with a more detailed boundary; it
+does not need a cell split solely to preserve a standard element shape.
+
+This does not guarantee that refinement stops at `B`. If the boundary trees
+violate a refinement-grading rule, balancing expands `B`'s cell plan. That
+change can subdivide another face and affect another neighbor on the next
+balancing pass. General polyhedral cells can therefore limit refinement
+propagation caused only by element-shape restrictions, while compatibility and
+grading requirements can still propagate refinement.
 
 
-## Geometric Model
+## Mesh Topology and Refinement Trees
 
-The basic mesh-incidence chain is:
+Two different relationships appear throughout the FVMAdapt implementation.
+
+The first is **mesh incidence**:
 
 ```text
 cell → face → edge → node
 ```
 
-Cells drive the refinement process, while their faces and edges determine how
-the resulting topology must match neighboring cells. FVMAdapt handles standard
-cell shapes such as hexahedra, prisms, tetrahedra, and pyramids, as well as
-general polyhedral cells.
+This describes how unlike mesh entities are connected. A face can be shared by
+two cells, and an edge can belong to several faces.
 
-Many refinement paths use midpoint-based construction: edges receive midpoint
-nodes, faces receive center nodes, and cells receive center nodes as required by
-the split. The exact nodes, child faces, and child cells depend on the entity
-type and split code.
-
-<div class="term-box">
-<div class="term-title">Splitting</div>
-A split subdivides an entity into child entities. Depending on the entity and
-split code, this may create new nodes, edges, faces, or cells.
-</div>
-
-
-## Refinement Trees and Plans
-
-The lower-level refinement library can be understood as a collection of
-replayable trees for cells, faces, and edges. A tree begins with a root object
-representing an entity in the original mesh. Splitting that object creates its
-children, and splitting a child extends the tree to another refinement level.
-An object with no children is a leaf. After replay, the leaves represent the
-fine entities produced by that refinement tree.
-
-These trees are temporary working objects rather than the permanent mesh-wide
-representation. Compact plans describe how to reconstruct them:
-
-- A cell plan describes a cell refinement tree.
-- A face plan describes a face refinement tree.
-- An edge plan describes an edge refinement tree.
-
-Plans are compact sequences of split codes stored in breadth-first order.
-Breadth-first means that the plan describes one level of an entity's tree before
-continuing to the next level. The plan is therefore a recipe for replaying the
-tree, not the tree itself and not the final refined mesh.
-
-
-### A Cell Plan Example
-
-Consider an illustrative cell whose first split creates four children:
+The second is **refinement lineage**:
 
 ```text
-cell
+original entity
 ├─ child 0
 ├─ child 1
-├─ child 2
-└─ child 3
+└─ child 2
 ```
 
-If child 1 is split again, the tree becomes:
+This describes parent and child objects of the same kind. A cell has child
+cells, a face has child faces, and an edge has child edges. This relationship between
+a mesh entity and the children/grandchildren forms a tree. These temporary trees are
+reconstructed when FVMAdapt interprets or modifies a plan. The plans preserve the
+topology between rule operations, allowing FVMAdapt to communicate and adjust it
+without keeping the full refinement trees in memory.
 
-```text
-cell
-├─ child 0
-├─ child 1
-│  ├─ child 1.0
-│  └─ child 1.1
-├─ child 2
-└─ child 3
-```
-
-The child counts in this example are illustrative; the actual count depends on
-the cell type and split code. A cell plan stores the split codes needed to
-recreate this structure in breadth-first order. Creating a plan serializes an
-existing temporary tree, while replaying a plan reconstructs that tree. Each
-cell type defines the split codes that its plans can contain.
+Recognized hexahedra and prisms use specialized refinement paths. Tetrahedra,
+pyramids, and other polyhedra use the general `Cell` path. The exact child
+topology and split-code meanings depend on that path.
 
 
-## From Refinement Request to Adapted Mesh
+## FVMAdapt Documentation
 
-The module has two cooperating layers. The lower-level C++ library creates,
-splits, serializes, and replays individual entity trees. The Loci rule layer
-coordinates plans across the mesh, balances neighboring entities, and invokes
-the construction and data-transfer operations that produce the refined mesh.
+This overview is the entry point for the FVMAdapt documentation:
 
-The overall flow is:
-
-1. Tags, region inputs, or solution-based indicators identify where refinement
-   is requested.
-2. Cell plans are created or updated to represent those requests.
-3. Cell plans are balanced to satisfy mesh-wide compatibility requirements.
-4. Face plans are derived from cell plans and merged on shared faces.
-5. Edge plans are derived from face plans and merged on shared edges.
-6. The compatible plans are replayed to generate fine nodes, faces, cells,
-   numbering, transfer data, and data used by later mesh-output operations.
-
-The plan representation itself is topological and does not store physical
-coordinates. Geometric measurements can still influence which splits are
-selected, and coordinates and mesh numbering are used when the plans are
-replayed. The collection of plans across all cells carries the topological
-information needed for balancing and final mesh generation.
-
-
-## Why Balancing Is Necessary
-
-An initial cell plan represents requested refinement for one cell, but that
-request cannot be applied independently of its neighbors. Cells that share a
-face must agree on how that face is subdivided, and the faces that share an edge
-must agree on the edge subdivision. Each cell may view a shared face with a
-different local orientation, so the orientation mapping must identify which
-child entities correspond.
-
-Balancing adjusts requested cell plans to satisfy these shared-topology and
-refinement-depth requirements, such as limits on refinement-depth differences
-between neighboring entities. During this process, temporary face and edge
-information is derived from the current cell plans and used to determine
-whether those cell plans must expand. The process continues until the cell
-plans no longer need to change. Compatible face and edge plans are then derived
-from the balanced cell plans.
-
-The result of balancing is a compatible set of cell, face, and edge plans, not
-the fine mesh itself. Those plans are replayed later during construction,
-numbering, transfer, and output.
-
-
-## Further Reference
-
-See [FVMAdapt Geometric Splitting Reference](@ref fvmadapt_geometric_splitting)
-for the isotropic and anisotropic split behavior of faces and cells, including
-child topology and split codes.
-
-See [FVMAdapt Refinement Plans and Balancing](@ref fvmadapt_plans_and_balancing)
-for the relationship between temporary refinement trees, cell, face, and edge
-plans, and the iterative balancing process.
-
-See [FVMAdapt Numbering Conventions](@ref fvmadapt_numbering) for the local node,
-edge, and face numbering used to interpret split codes, child ordering, and
-face orientation.
+1. @subpage fvmadapt_geometric_splitting
+   shows the children created by the face and cell split operations.
+2. @subpage fvmadapt_plans_and_balancing
+   develops the plan representation, orientation mappings, balancing loop, and
+   reconstruction process in more detail.
+3. @subpage fvmadapt_derefinement
+   explains how coarsening requests are evaluated, how eligible sibling
+   families are collapsed, and how data is transferred to coarsened cells.
+4. @subpage fvmadapt_numbering
+   defines the local node, edge, face, and direction conventions used by the
+   specialized split codes.
