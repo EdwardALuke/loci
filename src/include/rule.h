@@ -64,7 +64,7 @@ namespace Loci {
 
   inline variable makeREDUCEVAR(variable v) {
     variable::info vinfo = v.get_info() ;
-    std::string vname = vinfo.name + std::string("Partial") ;
+    std::string vname = vinfo.name + std::string("Partial__") ;
     vinfo.name = vname ;
     return variable(vinfo) ;
   }
