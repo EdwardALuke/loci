@@ -1158,6 +1158,40 @@ namespace Loci {
   inline std::ostream &operator<<(std::ostream &s, const ruleSet& v)
     { return v.Print(s) ; }
 
+
+  //--------------------------------------------------------------------------
+  // Rules are registerered (recorderd) by constructing a register rule static
+  // object in the file.  Note that this idiom is dangerous because of the
+  // ** static initialization order fiasco ** problem.  Basically the order of
+  // object static object construction between compilation units can not well
+  // defined.  Thus if you construct a static object that depends on a
+  // static initialization in another compiler unit (For example, the stl
+  // library containers, then very bizzare behavior can be observed which
+  // can cause programs to crash before main runs.  This behavior may depend
+  // on compiler and linkage processes so it is possible that programs that
+  // depend on initialization order might fail at some future date when
+  // compiler or linkage behavior changes.
+
+  // However, we need some way that a module can record the rules that were
+  // defined within the linkage unit.  To solve this problem we still use
+  // static inititialization of an object to record the rule.  However we need
+  // to use care in the implementation of this infrastructure such that there
+  // can be no dependence on hidden globally initialized objects from other
+  // linkage units.  This is implemented through the register_rule_impl_list
+  // which implements a basic linear linked list using pointers (C style) to
+  // avoid any static initialization problems.  The list items contain a
+  // pointer to register_rule_type abstract base class which delegates the
+  // construction of the rule to a later time after main is called.  A special
+  // copy_rule_impl<T> helper is used to delegate the responsibility of
+  // deferring construction of the rule including managing transformations such
+  // as adding namespaces.  This complicated arrangement is only needed to
+  // avoid the static initialization order fiasco.  Note, non of this
+  // infrastructure is needed to create rules and register them after execution
+  // of main().
+
+  // Abstract class that provides an interface to get a copy of the rule
+  // implemetned by get_func().  A special is_module_rule method is provided
+  // to separate a special module management registration.
   class register_rule_type {
   public:
       virtual ~register_rule_type() {}
@@ -1166,8 +1200,17 @@ namespace Loci {
       
   } ; 
 
+  // Forward declaration of a class that we need to friend before it is
+  // defined.
   class register_rule_impl_list ;
-  
+
+  // This class implements a basic linear linked list of rules.  This will be
+  // used to store a global list of rules that are defined in files through the
+  // static initialization of the register_rule<T> templated class.  This has
+  // an interface that is roughly similar to the stl list with iterators
+  // that can be accessed with the begin() and end() methods.  New rules
+  // are added to the list with a push_rule() method, and shallow copy
+  // semantics are implemented for the assignment.
   class rule_impl_list {
   public:
     class rule_list_iterator ;
@@ -1216,11 +1259,13 @@ namespace Loci {
       copy_rule_list(x) ;
     }
     rule_impl_list &operator=(const rule_impl_list &x) {
-      list = 0 ;
+      clear() ;
       copy_rule_list(x) ;
       return *this ;
     }
   } ;
+
+  // Wrapper class that implemnts the global rule list
   class register_rule_impl_list : public rule_impl_list {
   public:
     static rule_list_ent *global_list ;
@@ -1235,24 +1280,10 @@ namespace Loci {
   extern register_rule_impl_list register_rule_list ;    
   extern rule_impl_list global_rule_list ;    
 
-  // Loci uses global declarations of register_rule instance to register rules
-  // in global rule list. This process takes place before main() is called. At
-  // this instance in the program lifecycle, proper initialization of standard
-  // library is not guaranteed. Therefore, a state-less instance of
-  // register_rule<T> is created and added to register_rule_list. register_rule
-  // knows only about type of the rule class, T. Instantiation of T occurs only
-  // when register_rule<T>::get_func() is invoked when populating the global
-  // rule list after main() starts. register_rule<T>::get_func() relies on
-  // copy_rule_impl<T> to enable generation of deep-copyable instance of type
-  // T. Class copy_rule_impl<T> encapsulates the process of generating clones
-  // of the rule implementation as it undergoes generalizations, promotions
-  // etc. as the schedule evolves. At every instantiation of concrete rule
-  // implementation class, copy_rule_impl starts from a fresh copy using the
-  // default constructor of the rule implementation class, and then applies 
-  // variable renaming on this instance in the same order. Therefore, each rule
-  // class is expected to initialize its named-stores, inputs, outputs,
-  // constraints, etc. in the default constructor.
-
+  // copy_rule_impl<T> is a class that is used to create a copy of a rule
+  // implmentation that can managed adding namespaces and other module rule
+  // modifications that are processed as part of loading rules from the rule
+  // list.
   template <class TCopyRuleImpl> class copy_rule_impl : public TCopyRuleImpl {
     typedef std::list<std::map<variable, variable> > rename_varList ;
     typedef std::list<std::map<variable, variable> >::const_iterator list_iter;
@@ -1277,13 +1308,18 @@ namespace Loci {
     rule_impl::prot_rename_vars(rvm) ;
   }
 
+  // This class adds itself to the global rule list on initialization
+  // and includes concrete implementations of the get_func() method which
+  // returns a new rule.
   template<class T> class register_rule : public register_rule_type {
   public:
     register_rule() { register_rule_list.push_rule(this) ; }
     virtual bool is_module_rule()  const{ return false; }
     virtual rule_implP get_func() const { return new copy_rule_impl<T> ; }
   } ;
-  
+
+  // This is for registering a special module identifier that is used to
+  // manage how a module will be loaded into the rule database.
   class register_module : public register_rule_type {
   public:
     register_module() { register_rule_list.push_rule(this) ; }
@@ -1298,6 +1334,8 @@ namespace Loci {
     virtual std::string disable_compute_vars() const ;
   } ;
   
+
+  // This is a database used for storing a database of Loci rules.
   class rule_db {
     typedef std::map<variable,ruleSet> varmap ;
     typedef varmap::const_iterator vc_iterator ;
