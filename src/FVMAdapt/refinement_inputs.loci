@@ -21,14 +21,27 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <memory>
 #include <Loci.h>
 #include <vector>
 #include <Tools/tools.h>
 #include "sciTypes.h"
 #include "defines.h"
+#include "read_par.h"
 #include <hdf5.h>
+
+#ifdef USE_LIBXML2
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+#include <libxml/xpath.h>
+#endif
+
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
+
+#ifndef USE_LIBXML2
+typedef struct _xmlDoc xmlDoc;
+#endif
 
 using std::cerr ;
 using std::cout ;
@@ -38,6 +51,9 @@ using std::string ;
 using std::ifstream ;
 using Loci::storeRepP ;
 
+//-----------------------------------------------------------------------------
+// Rules for tag-file inputs
+//-----------------------------------------------------------------------------
 
 $type tagfile_par param<std::string> ;
 $type inputTagsData blackbox<std::vector<char> > ;
@@ -770,4 +786,43 @@ option(disable_threading), prelude {
     $cellTag[returndata[i].first] = returndata[i].second ;
   }
 
+} ;
+
+
+//-----------------------------------------------------------------------------
+// Rules for refinement-region inputs
+//-----------------------------------------------------------------------------
+
+/// Read the XML region once for all cell topologies.
+$rule blackbox(cellPlanXMLDoc <- xmlfile_par), prelude {
+#ifdef USE_LIBXML2
+  xmlDoc* doc = xmlReadFile((*$xmlfile_par).c_str(), NULL, 0) ;
+  if(doc==NULL) {
+    cerr << "WARNING: fail to parse xml file" << endl ;
+    Loci::Abort() ;
+  }
+  xmlNode* root_element = xmlDocGetRootElement(doc) ;
+  if(root_element == NULL) {
+    xmlFreeDoc(doc) ;
+    cerr << "WARNING: fail to parse xml file" << endl ;
+    Loci::Abort() ;
+  }
+  *$cellPlanXMLDoc = std::shared_ptr<xmlDoc>(doc, [](xmlDoc* owned_doc) {
+    xmlFreeDoc(owned_doc) ;
+  }) ;
+#else
+  cerr << "adaptation code not compiled with libxml!  XML features not available!" ;
+  Loci::Abort() ;
+#endif
+} ;
+
+/// Read the parameter sources once for all cell topologies.
+$rule blackbox(cellPlanSources <- parfile_par), prelude {
+  vector<source_par> sources ;
+  readPar(*$parfile_par, sources) ;
+  if(sources.size()==0) {
+    cerr << "WARNING: fail to read par file" << endl ;
+    Loci::Abort() ;
+  }
+  *$cellPlanSources = sources ;
 } ;

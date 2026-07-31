@@ -1,0 +1,360 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+#include <iostream>
+#include <vector>
+
+#include <Loci.h>
+#include <Tools/tools.h>
+#include "diamondcell.h"
+#include "hexcell.h"
+#include "prism.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+using std::cerr ;
+using std::endl ;
+using std::vector ;
+using Loci::storeRepP ;
+
+//-----------------------------------------------------------------------------
+// General-cell-created nodes
+//-----------------------------------------------------------------------------
+
+//by: Qiuhan Xue
+//
+// This file generate inner_nodes  according refinement plans. The
+//original grid is general element. Isotropic refinement is used. the rules should be
+//usedAfter node_offset and cell_offset has been set up.
+// FineFaces is defined as c1, c2,followed by face2node.
+
+
+/// Get inner_nodes of general cells
+$rule pointwise(inner_nodes_cell <- balancedCellPlan,
+(lower, upper, boundary_map)->(balancedFacePlan,is_quadface),
+(lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(gnrlcells) {
+
+  if($balancedCellPlan.size() == 0) {
+    vector<vect3d>().swap($inner_nodes_cell) ;
+    return ;
+  }
+
+  std::list<Node*> bnode_list ; //boundary node
+  std::list<Edge*> edge_list ;
+  std::list<Face*> face_list ;
+  std::list<Node*> node_list ; //inner node
+
+  // build a cell
+  Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                   $upper.begin(), $upper.size(),
+                                   $boundary_map.begin(), $boundary_map.size(),
+                                   $*is_quadface,
+                                   $*face2node,
+                                   $*face2edge,
+                                   $*edge2node,
+                                   $*pos,
+                                   $*balancedEdgePlan,
+                                   $*balancedFacePlan,
+                                   bnode_list,
+                                   edge_list,
+                                   face_list,
+                                   $*fileNumber(pos));
+
+  std::vector<DiamondCell*> cells ;
+
+  // split the cell
+  aCell->resplit($balancedCellPlan, node_list, edge_list, face_list, cells) ;
+
+  // put the node_list into inner_nodes, and index the nodes
+  vector<vect3d>(node_list.size()).swap($inner_nodes_cell) ;
+  int nindex = 0 ;
+  for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++){
+    $inner_nodes_cell[nindex]=(*np)->p ;
+  }
+
+  // clean up
+  if(aCell != 0) {
+    delete aCell ;
+    aCell = 0 ;
+  }
+
+  // aCell will clean up these
+  cleanup_list(bnode_list, edge_list, face_list) ;
+  cleanup_list(node_list) ;
+}
+
+//-----------------------------------------------------------------------------
+// Hex-cell-created nodes
+//-----------------------------------------------------------------------------
+
+//by: Qiuhan Xue
+//
+// This file generate inner_nodes  according refinement plans. The
+// original grid is hexcell element. Anisotropic refinement is used. the rules should be
+// used After node_offset and cell_offset has been set up.
+// FineFaces is defined as c1, c2,followed by face2node.
+
+
+/// Get inner_nodes of hex cells
+$rule pointwise(inner_nodes_cell <- balancedCellPlan,
+hex2face, hex2node, hexOrientCode,
+(lower, upper, boundary_map)->(fileNumber(face2node), balancedFacePlan),
+(lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+(lower, upper, boundary_map)->face2node->pos,
+(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(hexcells) {
+
+  if($balancedCellPlan.size() == 0) {
+    vector<vect3d>().swap($inner_nodes_cell) ;
+    return ;
+  }
+
+  std::list<Node*> bnode_list ; //boundary node
+  std::list<Edge*> edge_list ;
+  std::list<QuadFace*> face_list ;
+  std::list<Node*> node_list ; //inner node
+
+
+  // build a Cell
+  HexCell* aCell = build_hex_cell($lower.begin(), $lower.size(),
+                                  $upper.begin(), $upper.size(),
+                                  $boundary_map.begin(), $boundary_map.size(),
+                                  $hex2face,
+                                  $hex2node,
+                                  $hexOrientCode,
+                                  $*face2node,
+                                  $*face2edge,
+                                  $*edge2node,
+                                  $*pos,
+                                  $*balancedEdgePlan,
+                                  $*balancedFacePlan,
+                                  bnode_list,
+                                  edge_list,
+                                  face_list,
+                                  $*fileNumber(face2node));
+
+  std::vector<HexCell*> cells ;
+
+  aCell->resplit($balancedCellPlan, node_list, edge_list, face_list, cells) ;
+
+  // put the node_list into inner_nodes, and index the nodes
+  vector<vect3d>(node_list.size()).swap($inner_nodes_cell) ;
+  int nindex = 0 ;
+  for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++) {
+    $inner_nodes_cell[nindex]=(*np)->p ;
+  }
+
+  // clean up
+  if(aCell != 0) {
+    delete aCell ;
+    aCell = 0 ;
+  }
+
+  // aCell will clean up these
+  cleanup_list(bnode_list, edge_list, face_list) ;
+  cleanup_list(node_list) ;
+}
+
+//-----------------------------------------------------------------------------
+// Prism-cell-created nodes
+//-----------------------------------------------------------------------------
+
+// by: Qiuhan Xue
+//
+// This file generate inner_nodes and fine_faces according refinement plans. The
+// original grid is prism element. Anisotropic refinement is used. the rules should be
+// used After node_offset and cell_offset has been set up.
+// FineFaces is defined as c1, c2,followed by face2node.
+
+
+/// Get inner_nodes of prism cells
+$rule pointwise(inner_nodes_cell <- balancedCellPlan,
+prism2face, prism2node, prismOrientCode,
+(lower, upper, boundary_map)->balancedFacePlan,
+(lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+(lower, upper, boundary_map)->face2node->pos,
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->fileNumber(face2node)),
+constraint(prisms) {
+
+  if($balancedCellPlan.size() == 0) {
+    vector<vect3d>().swap($inner_nodes_cell) ;
+    return ;
+  }
+
+  std::list<Node*> bnode_list ; //boundary node
+  std::list<Edge*> edge_list ;
+  std::list<QuadFace*> qface_list ;
+  std::list<Face*> gface_list ;
+  std::list<Node*> node_list ; //inner node
+
+  //build a Cell
+  Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                  $upper.begin(), $upper.size(),
+                                  $boundary_map.begin(), $boundary_map.size(),
+                                  $prism2face,
+                                  $prism2node,
+                                  $prismOrientCode,
+                                  $*face2node,
+                                  $*face2edge,
+                                  $*edge2node,
+                                  $*pos,
+                                  $*balancedEdgePlan,
+                                  $*balancedFacePlan,
+                                  bnode_list,
+                                  edge_list,
+                                  qface_list,
+                                  gface_list,
+                                  $*fileNumber(face2node)) ;
+
+  std::vector<Prism*> cells ;
+
+  aCell->resplit($balancedCellPlan, node_list, edge_list, qface_list, gface_list, cells) ;
+
+  // put the node_list into inner_nodes, and index the nodes
+  vector<vect3d>(node_list.size()).swap($inner_nodes_cell) ;
+  int nindex = 0 ;
+  for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++) {
+    $inner_nodes_cell[nindex]=(*np)->p ;
+  }
+
+  // clean up
+  if(aCell != 0) {
+    delete aCell ;
+    aCell = 0 ;
+  }
+
+  // aCell will clean up these
+  cleanup_list(bnode_list, edge_list, qface_list) ;
+  cleanup_list(gface_list) ;
+  cleanup_list(node_list) ;
+}
+
+//-----------------------------------------------------------------------------
+// Face-created nodes
+//-----------------------------------------------------------------------------
+
+/// Get inner_nodes of faces
+$rule pointwise(inner_nodes_face <- balancedFacePlan, is_quadface,
+face2edge->(balancedEdgePlan, edge2node), face2node->pos),
+constraint(faces) {
+
+  if($balancedFacePlan.size() == 0) {
+    // num of inner nodes is 0
+    vector<vect3d>().swap($inner_nodes_face) ;
+    return ;
+  }
+
+  std::list<Node*> bnode_list, node_list ;
+  std::list<Edge*> edge_list ;
+
+  if($is_quadface) {
+    QuadFace* aqFace = build_quad_face($face2node.begin(),
+                                       $face2edge.begin(),
+                                       $*edge2node,
+                                       $*pos,
+                                       $*balancedEdgePlan,
+                                       bnode_list,
+                                       edge_list) ;
+
+    aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list) ;
+
+    // put node_list into inner_nodes[f]
+    vector<vect3d>(node_list.size()).swap($inner_nodes_face);
+    int nindex = 0;
+    for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++){
+      $inner_nodes_face[nindex] = (*np)->p;
+    }
+
+    // clean up
+    if(aqFace != 0) {
+      delete aqFace ;
+      aqFace = 0 ;
+    }
+  }else {
+    Face * agFace = build_general_face($face2node.begin(),$face2node.size(),
+                                       $face2edge.begin(),
+                                       $*edge2node,
+                                       $*pos,
+                                       $*balancedEdgePlan,
+                                       bnode_list,
+                                       edge_list) ;
+
+    agFace->resplit($balancedFacePlan, node_list, edge_list) ;
+
+    // put node_list into inner_nodes[f] and index the node_list
+    vector<vect3d>(node_list.size()).swap($inner_nodes_face) ;
+    int nindex = 0 ;
+    for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++) {
+      $inner_nodes_face[nindex] = (*np)->p ;
+    }
+
+    if(agFace != 0) {
+    delete agFace ;
+    agFace = 0 ;
+    }
+  }
+  cleanup_list(node_list) ;
+  cleanup_list(bnode_list, edge_list) ;
+}
+
+//-----------------------------------------------------------------------------
+// Edge-created nodes
+//-----------------------------------------------------------------------------
+
+/// Get inner nodes of edges
+$rule pointwise(inner_nodes_edge <- balancedEdgePlan, edge2node->pos) {
+  if($balancedEdgePlan.size() != 0) {
+    std::list<Node*> node_list ;
+
+    Node* head = new Node($edge2node[0]->$pos) ;
+    Node* tail = new Node($edge2node[1]->$pos) ;
+    Edge* theEdge = new Edge(head, tail) ;
+
+    theEdge->resplit($balancedEdgePlan, node_list) ;
+
+    vector<vect3d>(node_list.size()).swap($inner_nodes_edge) ;
+    int nindex = 0 ;
+    for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++){
+      $inner_nodes_edge[nindex] = (*np)->p ;
+    }
+
+    // clean up
+    if(head != 0 ) {
+      delete head ;
+      head = 0 ;
+    }
+    if(tail != 0) {
+      delete tail ;
+      tail = 0 ;
+    }
+    if(theEdge !=0) {
+      delete theEdge ;
+      theEdge = 0 ;
+    }
+    cleanup_list(node_list) ;
+  }else {
+    vector<vect3d>().swap($inner_nodes_edge) ;
+    return ;
+  }
+}

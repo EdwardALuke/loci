@@ -1,0 +1,404 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <algorithm>
+#include <bitset>
+#include <list>
+#include <queue>
+#include <utility>
+#include <vector>
+
+#include <Loci.h>
+#include "defines.h"
+#include "diamondcell.h"
+#include "face.h"
+#include "hex_defines.h"
+#include "plan_operations.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+using std::bitset ;
+using std::cerr ;
+using std::cout ;
+using std::endl ;
+using std::list ;
+using std::queue ;
+using std::vector ;
+using namespace Loci ;
+
+//-----------------------------------------------------------------------------
+// Rules for general-cell face plans
+//-----------------------------------------------------------------------------
+
+// This file extracts a facePlan from a cellPlan, and then merges two facePlan together
+// the extracting algrithm uses the numbering system of DiamondCell and is faster than
+// straight forward approach
+
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan, face2node,
+(cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos), //dummy
+constraint((cl, cr)->gnrlcells) {
+  $facePlan.clear() ;
+  std::vector<char> facePlanL = extract_general_face($cl->$lower.begin(), $cl->$lower.size(),
+                                                     $cl->$upper.begin(), $cl->$upper.size(),
+                                                     $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cl->$cellPlan,
+                                                     _e_,
+                                                     $*fileNumber(pos)) ;
+
+  std::vector<char> facePlanR = extract_general_face($cr->$lower.begin(), $cr->$lower.size(),
+                                                     $cr->$upper.begin(), $cr->$upper.size(),
+                                                     $cr->$boundary_map.begin(), $cr->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cr->$cellPlan,
+                                                     _e_, $*fileNumber(pos)) ;
+
+  $facePlan = merge_faceplan(facePlanL, facePlanR, $face2node.size()) ;
+  reduce_vector($facePlan) ;
+}
+
+
+$rule pointwise(facePlan <- cl->cellPlan,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),//dummy
+constraint(boundary_faces, cl->gnrlcells) {
+  $facePlan = extract_general_face($cl->$lower.begin(), $cl->$lower.size(),
+                                   $cl->$upper.begin(), $cl->$upper.size(),
+                                   $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
+                                   $*face2node,
+                                   $*face2edge,
+                                   $*edge2node,
+                                   $cl->$cellPlan,
+                                   _e_,
+                                   $*fileNumber(pos)) ;
+  reduce_vector($facePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for hex-cell face plans
+//-----------------------------------------------------------------------------
+
+/// This rule first extracts faceplan from cl and cr, then merges them into one final plan
+/// in the face's local coordinates system
+///
+/// To merge the plans, use a queue of ranges to simulate the tree splitting
+/// process, and put the inner eges in list xEdge and yEdges according to their directions.
+///
+/// then sort and unique xEdge and yEdge. and then merge all the overlapped edges
+///
+/// The last step is compose a new refinement plan according to xEdges and yEdges. Search
+/// the inner edges of a parent cell, the result implies the split code. repeat the same process for
+/// each child.
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+(cl, cr)->hexOrientCode, fl, fr),
+constraint(interior_faces, (cl, cr)->hexcells) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan, DIRECTION($fl)) ;
+  std::vector<char> facePlanR = extract_hex_face($cr->$cellPlan, DIRECTION($fr)) ;
+
+  $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl],
+                              facePlanR, $cr->$hexOrientCode[$fr]) ;
+  reduce_vector($facePlan) ;
+}
+
+
+$rule pointwise(facePlan <- cl->cellPlan, cl->hexOrientCode, fl),
+constraint(boundary_faces, cl->hexcells) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan, DIRECTION($fl)) ;
+  $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl]) ;
+  reduce_vector($facePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for prism-cell face plans
+//-----------------------------------------------------------------------------
+
+/// This rule first extracts faceplan from cl and cr, then merges them into one final plan
+/// in the face's local coordinates system
+///
+/// To merge the plans,  use a queue of ranges to simulate the tree splitting
+/// process, and put the inner eges in list xEdge and yEdges according to their directions.
+///
+/// Then sort and unique xEdge and yEdge. and then merge all the overlapped edges
+///
+/// The last step is compose a new refinement plan according to xEdges and yEdges. Search
+/// the inner edges of a parent cell, the result implies the split code. repeat the same process for
+/// each child.
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+(cl, cr)->prismOrientCode, fl, fr),
+constraint(interior_faces, (cl, cr)->prisms) {
+  if($fl < 2) {
+    $facePlan = merge_prism_tri_face_plans(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl],
+      $cr->$cellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+  }else {
+    $facePlan = merge_prism_quad_face_plans(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl],
+      $cr->$cellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+  }
+  reduce_vector($facePlan) ;
+}
+
+
+$rule pointwise(facePlan <- cl->cellPlan, cl->prismOrientCode, fl),
+constraint(boundary_faces, cl->prisms) {
+  if($fl < 2) {
+    $facePlan = extract_oriented_prism_tri_face_plan(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+  }else {
+    $facePlan = extract_oriented_prism_quad_face_plan(
+      $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+  }
+  reduce_vector($facePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for mixed-topology face plans
+//-----------------------------------------------------------------------------
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+cr->hexOrientCode, fr,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos), //dummy
+constraint(cl->gnrlcells, cr->hexcells) {
+  $facePlan.clear() ;
+  std::vector<char> localPlanL = extract_general_face($cl->$lower.begin(),
+                                                      $cl->$lower.size(),
+                                                      $cl->$upper.begin(),
+                                                      $cl->$upper.size(),
+                                                      $cl->$boundary_map.begin(),
+                                                      $cl->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cl->$cellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+
+  std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
+  std::vector<char> facePlanR = extract_hex_face($cr->$cellPlan,
+                                                 DIRECTION($fr)) ;
+
+  $facePlan = merge_quad_face(facePlanL, char(0),
+                              facePlanR, $cr->$hexOrientCode[$fr]) ;
+  reduce_vector($facePlan) ;
+}
+
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+cl->hexOrientCode, fl,
+cr->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cr->(lower, upper, boundary_map)->face2edge->edge2node->pos), //dummy
+constraint(cr->gnrlcells, cl->hexcells) {
+  $facePlan.clear() ;
+  std::vector<char> localPlanR = extract_general_face($cr->$lower.begin(),
+                                                      $cr->$lower.size(),
+                                                      $cr->$upper.begin(),
+                                                      $cr->$upper.size(),
+                                                      $cr->$boundary_map.begin(),
+                                                      $cr->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cr->$cellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+  std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan,
+                                                 DIRECTION($fl)) ;
+
+  $facePlan = merge_quad_face(facePlanR, char(0),
+                              facePlanL, $cl->$hexOrientCode[$fl]) ;
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+face2node, cr->prismOrientCode, fr,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos), //dummy
+constraint(cl->gnrlcells, cr->prisms) {
+  $facePlan.clear() ;
+  std::vector<char> localPlanL = extract_general_face($cl->$lower.begin(),
+                                                      $cl->$lower.size(),
+                                                      $cl->$upper.begin(),
+                                                      $cl->$upper.size(),
+                                                      $cl->$boundary_map.begin(),
+                                                      $cl->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cl->$cellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+
+  if($fr < 2) {
+    std::vector<char> facePlanR =
+      extract_oriented_prism_tri_face_plan(
+        $cr->$cellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+    $facePlan = merge_faceplan(localPlanL, facePlanR,
+                               $face2node.size()) ;
+  }else {
+    std::vector<char> facePlanR = extract_prism_face($cr->$cellPlan, $fr) ;
+    std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
+    $facePlan = merge_quad_face(facePlanL, char(0),
+                                facePlanR,
+                                $cr->$prismOrientCode[$fr]) ;
+  }
+  reduce_vector($facePlan) ;
+}
+
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+face2node, cl->prismOrientCode, fl,
+cr->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cr->(lower, upper, boundary_map)->face2edge->edge2node->pos), //dummy
+constraint(cr->gnrlcells, cl->prisms) {
+  $facePlan.clear() ;
+  std::vector<char> localPlanR = extract_general_face($cr->$lower.begin(),
+                                                      $cr->$lower.size(),
+                                                      $cr->$upper.begin(),
+                                                      $cr->$upper.size(),
+                                                      $cr->$boundary_map.begin(),
+                                                      $cr->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cr->$cellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+
+  if($fl < 2) {
+    std::vector<char> facePlanL =
+      extract_oriented_prism_tri_face_plan(
+        $cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+    $facePlan = merge_faceplan(facePlanL, localPlanR,
+                               $face2node.size()) ;
+  }else {
+    std::vector<char> facePlanL = extract_prism_face($cl->$cellPlan, $fl) ;
+    std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
+
+    $facePlan = merge_quad_face(facePlanR, char(0),
+                                facePlanL,
+                                $cl->$prismOrientCode[$fl]) ;
+  }
+  reduce_vector($facePlan) ;
+}
+
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+cr->prismOrientCode, cl->hexOrientCode, fl, fr),
+constraint(cl->hexcells, cr->prisms) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan,
+                                                 DIRECTION($fl)) ;
+  std::vector<char> facePlanR = extract_prism_face($cr->$cellPlan, $fr) ;
+  $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl],
+                              facePlanR, $cr->$prismOrientCode[$fr]) ;
+  reduce_vector($facePlan) ;
+}
+
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+cl->prismOrientCode, cr->hexOrientCode, fl, fr),
+constraint(cr->hexcells, cl->prisms) {
+  std::vector<char> facePlanR = extract_hex_face($cr->$cellPlan,
+                                                 DIRECTION($fr)) ;
+  std::vector<char> facePlanL = extract_prism_face($cl->$cellPlan, $fl) ;
+  $facePlan = merge_quad_face(facePlanL, $cl->$prismOrientCode[$fl],
+                              facePlanR, $cr->$hexOrientCode[$fr]) ;
+  reduce_vector($facePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for edge plans
+//-----------------------------------------------------------------------------
+
+$type planname_par param<std::string> ;
+$type pointSet store<SetLong> ;
+
+
+$rule singleton(planname_par <- planfile_par) {
+  $planname_par = $planfile_par ;
+}
+
+
+$rule singleton(planname_par <- planDB_par) {
+  $planname_par = $planDB_par ;
+}
+
+
+$rule unit(pointSet <- planname_par), constraint(edge2node->pos) { }
+
+/// Project the face refinement plan onto its boundary edges for union merging.
+$rule apply(face2edge->pointSet <- planname_par, facePlan, is_quadface,
+face2node->pos, face2edge->edge2node->pos, face2edge->pointSet)[SetLongUnionOp],
+constraint(faces) {
+  if($facePlan.size() == 0) { return ; }
+
+  if($is_quadface && $face2node.size() != 4) {
+    cerr << "WARNING: quadrilateral face must have four nodes" << endl ;
+    Loci::Abort() ;
+  }
+
+  const int edgeCount =
+    $is_quadface ? $face2edge.size() : $face2node.size() ;
+  std::vector<bool> edgeReversed(edgeCount, false) ;
+
+  if($is_quadface) {
+    for(int i=0; i<edgeCount; i++) {
+      if(i == 0 && $face2edge[0]->$edge2node[0] == $face2node[1]) {
+        edgeReversed[i] = true ;
+      }else if(i == 1 &&
+               $face2edge[1]->$edge2node[0] == $face2node[2]) {
+        edgeReversed[i] = true ;
+      }else if(i == 2 &&
+               $face2edge[2]->$edge2node[0] == $face2node[2]) {
+        edgeReversed[i] = true ;
+      }else if(i == 3 &&
+               $face2edge[3]->$edge2node[0] == $face2node[3]) {
+        edgeReversed[i] = true ;
+      }
+    }
+  }else {
+    for(int i=0; i<edgeCount; i++) {
+      edgeReversed[i] =
+        !($face2edge[i]->$edge2node[0] == $face2node[i] &&
+          $face2edge[i]->$edge2node[1] ==
+            $face2node[i==(edgeCount-1)?0:i+1]) ;
+    }
+  }
+
+  const std::vector<SetLong> edgeSplits =
+    project_face_plan_to_edge_splits($facePlan, $is_quadface, edgeReversed) ;
+  for(int i=0; i<edgeCount; i++) {
+    if(edgeSplits[i].aset.empty()) { continue ; }
+    join($face2edge[i]->$pointSet, edgeSplits[i]) ;
+  }
+}
+
+$rule pointwise(edgePlan <- pointSet), constraint(edge2node->pos) {
+  if($pointSet.aset.empty()) { return ; }
+  encode_edge_plan($pointSet, $edgePlan) ;
+}

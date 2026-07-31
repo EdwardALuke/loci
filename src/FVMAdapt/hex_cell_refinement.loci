@@ -56,6 +56,9 @@ bool mark_node(xmlNode* root_element,
                std::list<Node*>::iterator end_pnt);
 #endif
 
+//-----------------------------------------------------------------------------
+// Rules for node-tag refinement
+//-----------------------------------------------------------------------------
 
 /// Make a newCellPlan according to cellPlan and nodeTag, posTag
 $rule pointwise(newCellPlan <- restart_tag_par, split_mode_par,
@@ -215,6 +218,9 @@ constraint(hexcells) {
   }
 }
 
+//-----------------------------------------------------------------------------
+// Rules for XML-region refinement
+//-----------------------------------------------------------------------------
 
 $rule pointwise(newCellPlan <- xmlfile_par, split_mode_par,
 cellPlan, hex2face, hex2node, hexOrientCode, isIndivisible,
@@ -385,6 +391,9 @@ cellPlanXMLDoc), constraint(hexcells) {
 #endif
 }
 
+//-----------------------------------------------------------------------------
+// Rules for parameter-region refinement
+//-----------------------------------------------------------------------------
 
 $rule pointwise(newCellPlan <- parfile_par, split_mode_par,
 cellPlan, hex2face, hex2node, hexOrientCode, isIndivisible,
@@ -511,86 +520,9 @@ constraint(hexcells) {
   }
 }
 
-
-/// Make a newCellPlan according to cellPlan and nodeTag, posTag
-$rule pointwise(priority::restart::balancedCellPlan <- beginWithMarker,
-restart_tag_par, split_mode_par, cellPlan, balancedCellPlan1, nodeTag,
-hex2face, hex2node, hexOrientCode, isIndivisible,
-(lower, upper, boundary_map)->(facePlan, balancedFacePlan1, nodeTag),
-(lower, upper, boundary_map)->face2node->(pos, posTag),
-(lower, upper, boundary_map)->face2edge->edge2node->pos,
-(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1,
-                                          nodeTag),
-(lower, upper, boundary_map)->fileNumber(face2node)),
-constraint(hexcells) {
-  // dummy parameter to trick Loci scheduler
-  if(!$isIndivisible) {
-    std::list<Node*> node_list ;
-    std::list<Edge*> edge_list ;
-    std::list<QuadFace*> face_list ;
-    std::list<Node*> bnode_list ;
-
-    HexCell* aCell = build_resplit_hex_cell($lower.begin(), $lower.size(),
-                                            $upper.begin(), $upper.size(),
-                                            $boundary_map.begin(), $boundary_map.size(),
-                                            $hex2face,
-                                            $hex2node,
-                                            $hexOrientCode,
-                                            $*face2node,
-                                            $*face2edge,
-                                            $*edge2node,
-                                            $*pos,
-                                            $*edgePlan,
-                                            $*facePlan,
-                                            $*balancedEdgePlan1,
-                                            $*balancedFacePlan1,
-                                            $*posTag,
-                                            $*nodeTag,
-                                            bnode_list,
-                                            node_list,
-                                            edge_list,
-                                            face_list,
-                                            $*fileNumber(face2node),
-                                            $cellPlan,
-                                            $nodeTag);
-
-    std::vector<HexCell*> cells ; //leaves collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
-
-    // re-collect leaves according to tree structure
-    std::list<HexCell*> leaves ;
-    aCell->sort_leaves(leaves) ;
-
-    // first if any cell need derefine
-    std::set<HexCell*> dparents ;
-
-    for(std::list<HexCell*>::const_iterator li = leaves.begin(); li != leaves.end(); li++) {
-      if((*li)->get_tagged() == 2) {
-        HexCell* parent = (*li)->getParentCell() ;
-        if(parent!=0 && parent->needDerefine()) {
-          dparents.insert(parent) ;
-        }
-      }
-    }
-
-    // derefine the cells
-    for(std::set<HexCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
-      (*si)->derefine() ;
-    }
-
-    $balancedCellPlan = aCell->make_cellplan() ;
-
-    // clean up
-    if(aCell != 0) {
-      delete aCell ;
-      aCell = 0 ;
-    }
-    cleanup_list(node_list, edge_list, face_list) ;
-    cleanup_list(bnode_list) ;
-    reduce_vector($balancedCellPlan) ;
-  }
-}
-
+//-----------------------------------------------------------------------------
+// Rules for cell-tag refinement
+//-----------------------------------------------------------------------------
 
 /// Make a newCellPlan according to cellPlan and fineCellTag
 $rule pointwise(newCellPlan <- restart_tag_par, split_mode_par,
@@ -737,81 +669,5 @@ constraint(hexcells) {
     }
     cleanup_list(bnode_list, edge_list, face_list) ;
     reduce_vector($newCellPlan) ;
-  }
-}
-
-
-// Make a newCellPlan according to cellPlan and fineCellTag
-$rule pointwise(priority::restart::balancedCellPlan <- beginWithMarker,
-restart_tag_par, split_mode_par, cellPlan, balancedCellPlan1, fineCellTag,
-hex2face, hex2node, hexOrientCode, isIndivisible,
-(lower, upper, boundary_map)->(facePlan, balancedFacePlan1),
-(lower, upper, boundary_map)->face2node->pos,
-(lower, upper, boundary_map)->face2edge->edge2node->pos,
-(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1),
-(lower, upper, boundary_map)->fileNumber(face2node)),
-constraint(hexcells) {
-  //dummy parameter to trick Loci scheduler
-  if(!$isIndivisible) {
-    std::list<Node*> node_list ;
-    std::list<Edge*> edge_list ;
-    std::list<QuadFace*> face_list ;
-    std::list<Node*> bnode_list ;
-
-    HexCell* aCell = build_resplit_hex_cell_ctag($lower.begin(), $lower.size(),
-                                                 $upper.begin(), $upper.size(),
-                                                 $boundary_map.begin(), $boundary_map.size(),
-                                                 $hex2face,
-                                                 $hex2node,
-                                                 $hexOrientCode,
-                                                 $*face2node,
-                                                 $*face2edge,
-                                                 $*edge2node,
-                                                 $*pos,
-                                                 $*edgePlan,
-                                                 $*facePlan,
-                                                 $*balancedEdgePlan1,
-                                                 $*balancedFacePlan1,
-                                                 bnode_list,
-                                                 node_list,
-                                                 edge_list,
-                                                 face_list,
-                                                 $*fileNumber(face2node),
-                                                 $cellPlan,
-                                                 $fineCellTag);
-
-    std::vector<HexCell*> cells ; //leaves collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
-
-    // re-collect leaves according to tree structure
-    std::list<HexCell*> leaves ;
-    aCell->sort_leaves(leaves) ;
-
-    // first if any cell need derefine
-    std::set<HexCell*> dparents ;
-    for(std::list<HexCell*>::const_iterator li = leaves.begin(); li != leaves.end(); li++) {
-      if((*li)->getTag() == 2) {
-        HexCell* parent = (*li)->getParentCell() ;
-        if(parent!=0 && parent->needDerefine_ctag()) {
-          dparents.insert(parent) ;
-        }
-      }
-    }
-
-    // derefine the cells
-    for(std::set<HexCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
-      (*si)->derefine() ;
-    }
-
-    $balancedCellPlan = aCell->make_cellplan() ;
-
-    //clean up
-    if(aCell != 0) {
-      delete aCell ;
-      aCell = 0 ;
-    }
-    cleanup_list(node_list, edge_list, face_list) ;
-    cleanup_list(bnode_list) ;
-    reduce_vector($balancedCellPlan) ;
   }
 }

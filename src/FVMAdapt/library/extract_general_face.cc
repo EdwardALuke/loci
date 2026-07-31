@@ -18,22 +18,21 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-#include <queue>
-#include <vector>
-#include <utility>
+
 #include <list>
+#include <queue>
+#include <utility>
+#include <vector>
+
+#include <Loci.h>
+
 #include "diamondcell.h"
 #include "plan_operations.h"
-#include <Loci.h>
-#include <algorithm>
-$include "FVM.lh"
-$include "fvmadapt_internal.lh"
-using std::list;
-using std::queue;
 
 using std::cerr;
 using std::endl;
-using std::cout;
+using std::list;
+using std::queue;
 
 // This file extracts a facePlan from a cellPlan, and then merges two facePlan together
 // the extracting algrithm uses the numbering system of DiamondCell and is faster than
@@ -173,50 +172,4 @@ std::vector<char> extract_general_face(const Entity* lower, int lower_size,
   }
   cleanup_list(node_list, edge_list, face_list) ;
   return facePlan ;
-}
-
-
-$rule pointwise(facePlan <- (cl, cr)->cellPlan, face2node,
-(cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
-(cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos), //dummy
-constraint((cl, cr)->gnrlcells) {
-  $facePlan.clear() ;
-  std::vector<char> facePlanL = extract_general_face($cl->$lower.begin(), $cl->$lower.size(),
-                                                     $cl->$upper.begin(), $cl->$upper.size(),
-                                                     $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
-                                                     $*face2node,
-                                                     $*face2edge,
-                                                     $*edge2node,
-                                                     $cl->$cellPlan,
-                                                     _e_,
-                                                     $*fileNumber(pos)) ;
-
-  std::vector<char> facePlanR = extract_general_face($cr->$lower.begin(), $cr->$lower.size(),
-                                                     $cr->$upper.begin(), $cr->$upper.size(),
-                                                     $cr->$boundary_map.begin(), $cr->$boundary_map.size(),
-                                                     $*face2node,
-                                                     $*face2edge,
-                                                     $*edge2node,
-                                                     $cr->$cellPlan,
-                                                     _e_, $*fileNumber(pos)) ;
-
-  $facePlan = merge_faceplan(facePlanL, facePlanR, $face2node.size()) ;
-  reduce_vector($facePlan) ;
-}
-
-
-$rule pointwise(facePlan <- cl->cellPlan,
-cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
-cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),//dummy
-constraint(boundary_faces, cl->gnrlcells) {
-  $facePlan = extract_general_face($cl->$lower.begin(), $cl->$lower.size(),
-                                   $cl->$upper.begin(), $cl->$upper.size(),
-                                   $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
-                                   $*face2node,
-                                   $*face2edge,
-                                   $*edge2node,
-                                   $cl->$cellPlan,
-                                   _e_,
-                                   $*fileNumber(pos)) ;
-  reduce_vector($facePlan) ;
 }

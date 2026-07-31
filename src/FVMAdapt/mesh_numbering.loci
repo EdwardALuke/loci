@@ -17,16 +17,17 @@
 //# You should have received a copy of the Lesser GNU General Public License
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
-//#############################################################################
 #include <Loci.h>
-#include <map>
-#include "defines.h"
+#include <algorithm>
 #include <list>
+#include <map>
 #include <string>
 #include <vector>
-#include <algorithm>
+
+#include "defines.h"
 
 $include "FVM.lh"
+$include "fvmadapt_internal.lh"
 
 using std::cerr ;
 using std::cout ;
@@ -39,10 +40,14 @@ using std::string;
 using std::unique ;
 using std::vector ;
 
-using Loci::MPI_processes;
-
+using Loci::MPI_processes ;
 
 $type X store<Loci::real_t> ;
+
+//-----------------------------------------------------------------------------
+// Generic file numbering
+//-----------------------------------------------------------------------------
+
 $rule pointwise(fileNumber(X)), constraint(X), option(disable_threading),
 prelude {
   if(Loci::MPI_processes == 1) {
@@ -67,5 +72,31 @@ prelude {
   }
 } ;
 
+//-----------------------------------------------------------------------------
+// Original-node count
+//-----------------------------------------------------------------------------
 
+$rule unit(num_original_nodes), constraint(UNIVERSE) {
+  //parameter, no loop,
+  $num_original_nodes = 0;
+}
 
+$rule apply(num_original_nodes <- pos, num_original_nodes)[Loci::Summation] {
+  int count = 1;
+  join($num_original_nodes, count);
+}
+
+//-----------------------------------------------------------------------------
+// Original-face count
+//-----------------------------------------------------------------------------
+
+$rule unit(num_original_faces), constraint(UNIVERSE) {
+  // parameter, no loop,
+  $num_original_faces = 0 ;
+}
+
+$rule apply(num_original_faces <- face2node, num_original_faces)[Loci::Summation],
+constraint(faces) {
+  int count = 1 ;
+  join($num_original_faces, count) ;
+}

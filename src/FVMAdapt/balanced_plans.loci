@@ -1,0 +1,431 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <algorithm>
+#include <bitset>
+#include <list>
+#include <queue>
+#include <utility>
+#include <vector>
+
+#include <Loci.h>
+#include "defines.h"
+#include "diamondcell.h"
+#include "face.h"
+#include "hex_defines.h"
+#include "plan_operations.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+using std::bitset ;
+using std::cerr ;
+using std::cout ;
+using std::endl ;
+using std::list ;
+using std::queue ;
+using std::vector ;
+using namespace Loci ;
+
+//-----------------------------------------------------------------------------
+// Rules for general-cell face plans
+//-----------------------------------------------------------------------------
+
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan, face2node,
+(cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+(cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(interior_faces, (cl, cr)->gnrlcells) {
+  $balancedFacePlan.clear() ;
+
+  std::vector<char> facePlanL = extract_general_face($cl->$lower.begin(),
+                                                     $cl->$lower.size(),
+                                                     $cl->$upper.begin(),
+                                                     $cl->$upper.size(),
+                                                     $cl->$boundary_map.begin(),
+                                                     $cl->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cl->$balancedCellPlan,
+                                                     _e_,
+                                                     $*fileNumber(pos)) ;
+
+  std::vector<char> facePlanR = extract_general_face($cr->$lower.begin(),
+                                                     $cr->$lower.size(),
+                                                     $cr->$upper.begin(),
+                                                     $cr->$upper.size(),
+                                                     $cr->$boundary_map.begin(),
+                                                     $cr->$boundary_map.size(),
+                                                     $*face2node,
+                                                     $*face2edge,
+                                                     $*edge2node,
+                                                     $cr->$balancedCellPlan,
+                                                     _e_,
+                                                     $*fileNumber(pos)) ;
+
+  $balancedFacePlan = merge_faceplan(facePlanL, facePlanR, $face2node.size()) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+$rule pointwise(balancedFacePlan <- cl->balancedCellPlan,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(boundary_faces, cl->gnrlcells) {
+  $balancedFacePlan = extract_general_face($cl->$lower.begin(),
+                                           $cl->$lower.size(),
+                                           $cl->$upper.begin(),
+                                           $cl->$upper.size(),
+                                           $cl->$boundary_map.begin(),
+                                           $cl->$boundary_map.size(),
+                                           $*face2node,
+                                           $*face2edge,
+                                           $*edge2node,
+                                           $cl->$balancedCellPlan,
+                                           _e_,
+                                           $*fileNumber(pos)) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for hex-cell face plans
+//-----------------------------------------------------------------------------
+
+/// This rule first extracts faceplan from cl and cr, then merge them into one final plan
+/// in the face's local coordinates system
+///
+/// To merge the plans,  use a queue of ranges to simulate the tree splitting
+/// process, and put the inner eges in list xEdge and yEdges according to their directions.
+///
+/// Then sort and unique xEdge and yEdge. and then merge all the overlapped edges
+///
+/// The last step is compose a new refinement plan according to xEdges and yEdges. Search
+/// the inner edges of a parent cell, the result implies the split code. repeat the same process for
+/// each child.
+
+/// Merge refinement face plans from the hexahedral cells adjacent to
+/// an interior face.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+(cl, cr)->hexOrientCode, fl, fr),
+constraint(interior_faces, (cl, cr)->hexcells) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$balancedCellPlan,
+                                                 DIRECTION($fl)) ;
+  std::vector<char> facePlanR = extract_hex_face($cr->$balancedCellPlan,
+                                                 DIRECTION($fr)) ;
+  $balancedFacePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl],
+                                       facePlanR, $cr->$hexOrientCode[$fr]) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+/// Extract the refinement face plan from the hexahedral cell adjacent to a
+/// boundary face.
+$rule pointwise(balancedFacePlan <- cl->balancedCellPlan,
+cl->hexOrientCode, fl),
+constraint(boundary_faces, cl->hexcells) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$balancedCellPlan,
+                                                 DIRECTION($fl)) ;
+  $balancedFacePlan = merge_quad_face(facePlanL,
+                                       $cl->$hexOrientCode[$fl]) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for prism-cell face plans
+//-----------------------------------------------------------------------------
+
+/// This rule first extracts faceplan from cl and cr, then merge them into one final plan
+/// in the face's local coordinates system
+///
+/// To merge the plans, use a queue of ranges to simulate the tree splitting
+/// process, and put the inner eges in list xEdge and yEdges according to their directions.
+///
+/// Then sort and unique xEdge and yEdge. and then merge all the overlapped edges
+///
+/// The last step is compose a new refinement plan according to xEdges and yEdges. Search
+/// the inner edges of a parent cell, the result implies the split code. repeat the same process for
+/// each child.
+
+/// Merge refinement face plans from the prism cells adjacent to an
+/// interior face.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+(cl, cr)->prismOrientCode, fl, fr),
+constraint((cl, cr)->prisms) {
+  if($fl < 2) {
+    $balancedFacePlan = merge_prism_tri_face_plans(
+      $cl->$balancedCellPlan, $fl, $cl->$prismOrientCode[$fl],
+      $cr->$balancedCellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+  }else {
+    $balancedFacePlan = merge_prism_quad_face_plans(
+      $cl->$balancedCellPlan, $fl, $cl->$prismOrientCode[$fl],
+      $cr->$balancedCellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+  }
+  reduce_vector($balancedFacePlan) ;
+}
+
+/// Extract the refinement face plan from the prism cell adjacent to a
+/// boundary face.
+$rule pointwise(balancedFacePlan <- cl->balancedCellPlan,
+cl->prismOrientCode, fl),
+constraint(boundary_faces, cl->prisms) {
+  if($fl < 2) {
+    $balancedFacePlan = extract_oriented_prism_tri_face_plan(
+      $cl->$balancedCellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+  }else {
+    $balancedFacePlan = extract_oriented_prism_quad_face_plan(
+      $cl->$balancedCellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+  }
+  reduce_vector($balancedFacePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for mixed-topology face plans
+//-----------------------------------------------------------------------------
+
+/// Merge refinement face plans between a general cell on the left and a
+/// hexahedral cell on the right.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+cr->hexOrientCode, fr,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cl->gnrlcells, cr->hexcells) {
+  $balancedFacePlan.clear() ;
+
+  std::vector<char> localPlanL = extract_general_face($cl->$lower.begin(),
+                                                      $cl->$lower.size(),
+                                                      $cl->$upper.begin(),
+                                                      $cl->$upper.size(),
+                                                      $cl->$boundary_map.begin(),
+                                                      $cl->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cl->$balancedCellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+
+  std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
+  std::vector<char> facePlanR = extract_hex_face($cr->$balancedCellPlan,
+                                                 DIRECTION($fr)) ;
+
+  $balancedFacePlan = merge_quad_face(facePlanL, char(0),
+                                       facePlanR, $cr->$hexOrientCode[$fr]) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+/// Merge refinement face plans between a hexahedral cell on the left and a
+/// general cell on the right.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+cl->hexOrientCode, fl,
+cr->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cr->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cr->gnrlcells, cl->hexcells) {
+  $balancedFacePlan.clear() ;
+
+  std::vector<char> localPlanR = extract_general_face($cr->$lower.begin(),
+                                                      $cr->$lower.size(),
+                                                      $cr->$upper.begin(),
+                                                      $cr->$upper.size(),
+                                                      $cr->$boundary_map.begin(),
+                                                      $cr->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cr->$balancedCellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+  std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
+  std::vector<char> facePlanL = extract_hex_face($cl->$balancedCellPlan,
+                                                 DIRECTION($fl)) ;
+
+  $balancedFacePlan = merge_quad_face(facePlanR, char(0),
+                                       facePlanL, $cl->$hexOrientCode[$fl]) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+/// Merge refinement face plans between a general cell on the left and a
+/// prism cell on the right.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+face2node, cr->prismOrientCode, fr,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cl->gnrlcells, cr->prisms) {
+  $balancedFacePlan.clear() ;
+
+  std::vector<char> localPlanL = extract_general_face($cl->$lower.begin(),
+                                                      $cl->$lower.size(),
+                                                      $cl->$upper.begin(),
+                                                      $cl->$upper.size(),
+                                                      $cl->$boundary_map.begin(),
+                                                      $cl->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cl->$balancedCellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+
+  if ($fr < 2) {
+    std::vector<char> facePlanR =
+      extract_oriented_prism_tri_face_plan(
+        $cr->$balancedCellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+    $balancedFacePlan = merge_faceplan(localPlanL, facePlanR,
+                                        $face2node.size()) ;
+  }else {
+    std::vector<char> facePlanR = extract_prism_face($cr->$balancedCellPlan,
+                                                     $fr) ;
+    std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
+    $balancedFacePlan = merge_quad_face(facePlanL, char(0),
+                                         facePlanR,
+                                         $cr->$prismOrientCode[$fr]) ;
+  }
+  reduce_vector($balancedFacePlan) ;
+}
+
+/// Merge refinement face plans between a prism cell on the left and a
+/// general cell on the right.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+face2node, cl->prismOrientCode, fl,
+cr->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+cr->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cr->gnrlcells, cl->prisms) {
+  $balancedFacePlan.clear() ;
+
+  std::vector<char> localPlanR = extract_general_face($cr->$lower.begin(),
+                                                      $cr->$lower.size(),
+                                                      $cr->$upper.begin(),
+                                                      $cr->$upper.size(),
+                                                      $cr->$boundary_map.begin(),
+                                                      $cr->$boundary_map.size(),
+                                                      $*face2node,
+                                                      $*face2edge,
+                                                      $*edge2node,
+                                                      $cr->$balancedCellPlan,
+                                                      _e_,
+                                                      $*fileNumber(pos)) ;
+
+  if ($fl < 2) {
+    std::vector<char> facePlanL =
+      extract_oriented_prism_tri_face_plan(
+        $cl->$balancedCellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+    $balancedFacePlan = merge_faceplan(facePlanL, localPlanR,
+                                        $face2node.size()) ;
+  } else {
+    std::vector<char> facePlanL = extract_prism_face($cl->$balancedCellPlan,
+                                                     $fl) ;
+    std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
+
+    $balancedFacePlan = merge_quad_face(facePlanR, char(0),
+                                         facePlanL,
+                                         $cl->$prismOrientCode[$fl]) ;
+  }
+  reduce_vector($balancedFacePlan) ;
+}
+
+/// Merge refinement face plans between a hexahedral cell on the left and a
+/// prism cell on the right.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+cr->prismOrientCode, cl->hexOrientCode, fl, fr),
+constraint(cl->hexcells, cr->prisms) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$balancedCellPlan,
+                                                 DIRECTION($fl)) ;
+  std::vector<char> facePlanR = extract_prism_face($cr->$balancedCellPlan,
+                                                   $fr) ;
+  $balancedFacePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl],
+                                       facePlanR, $cr->$prismOrientCode[$fr]) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+/// Merge refinement face plans between a prism cell on the left and a
+/// hexahedral cell on the right.
+$rule pointwise(balancedFacePlan <- (cl, cr)->balancedCellPlan,
+cl->prismOrientCode, cr->hexOrientCode, fl, fr),
+constraint(cr->hexcells, cl->prisms) {
+  std::vector<char> facePlanR = extract_hex_face($cr->$balancedCellPlan,
+                                                 DIRECTION($fr)) ;
+  std::vector<char> facePlanL = extract_prism_face($cl->$balancedCellPlan,
+                                                   $fl) ;
+  $balancedFacePlan = merge_quad_face(facePlanL, $cl->$prismOrientCode[$fl],
+                                       facePlanR, $cr->$hexOrientCode[$fr]) ;
+  reduce_vector($balancedFacePlan) ;
+}
+
+//-----------------------------------------------------------------------------
+// Rules for edge plans
+//-----------------------------------------------------------------------------
+
+// Intermediate set of integer edge split coordinates implied by balancedFacePlan.
+// Multiple faces can contribute to the same edge; apply rules merge these sets.
+$type balancedPointSet store<SetLong> ;
+
+$rule unit(balancedPointSet), constraint(edge2node->pos) {
+  $balancedPointSet = SetLong() ;
+}
+
+/// Project the balanced face plan onto its boundary edges for union merging.
+$rule apply(face2edge->balancedPointSet<-balancedFacePlan, is_quadface,
+face2node->pos,face2edge->edge2node->pos, face2edge->balancedPointSet)[SetLongUnionOp],
+constraint(faces) {
+  if($is_quadface && $face2node.size() != 4) {
+    cerr << "WARNING: quadrilateral face must have four nodes" << endl ;
+    Loci::Abort() ;
+  }
+
+  if($balancedFacePlan.size() == 0) { return ; }
+
+  const int edgeCount =
+    $is_quadface ? $face2edge.size() : $face2node.size() ;
+  std::vector<bool> edgeReversed(edgeCount, false) ;
+
+  if($is_quadface) {
+    for(int i=0; i<edgeCount; i++) {
+      if(i == 0 && $face2edge[0]->$edge2node[0] == $face2node[1]) {
+        edgeReversed[i] = true ;
+      }else if(i == 1 &&
+               $face2edge[1]->$edge2node[0] == $face2node[2]) {
+        edgeReversed[i] = true ;
+      }else if(i == 2 &&
+               $face2edge[2]->$edge2node[0] == $face2node[2]) {
+        edgeReversed[i] = true ;
+      }else if(i == 3 &&
+               $face2edge[3]->$edge2node[0] == $face2node[3]) {
+        edgeReversed[i] = true ;
+      }
+    }
+  }else {
+    for(int i=0; i<edgeCount; i++) {
+      edgeReversed[i] =
+        !($face2edge[i]->$edge2node[0] == $face2node[i] &&
+          $face2edge[i]->$edge2node[1] ==
+            $face2node[i==(edgeCount-1)?0:i+1]) ;
+    }
+  }
+
+  const std::vector<SetLong> edgeSplits =
+    project_face_plan_to_edge_splits(
+      $balancedFacePlan, $is_quadface, edgeReversed) ;
+  for(int i=0; i<edgeCount; i++) {
+    if(edgeSplits[i].aset.empty()) { continue ; }
+    join($face2edge[i]->$balancedPointSet, edgeSplits[i]) ;
+  }
+}
+
+$rule pointwise(balancedEdgePlan<-balancedPointSet) {
+  if($balancedPointSet.aset.empty()) { return ; }
+  encode_edge_plan($balancedPointSet, $balancedEdgePlan) ;
+}

@@ -56,39 +56,9 @@ bool mark_node(xmlNode* root_element,
                std::list<Node*>::iterator end_pnt);
 #endif
 
-/// Read the XML region once for all cell topologies.
-$rule blackbox(cellPlanXMLDoc <- xmlfile_par), prelude {
-#ifdef USE_LIBXML2
-  xmlDoc* doc = xmlReadFile((*$xmlfile_par).c_str(), NULL, 0) ;
-  if(doc==NULL) {
-    cerr << "WARNING: fail to parse xml file" << endl ;
-    Loci::Abort() ;
-  }
-  xmlNode* root_element = xmlDocGetRootElement(doc) ;
-  if(root_element == NULL) {
-    xmlFreeDoc(doc) ;
-    cerr << "WARNING: fail to parse xml file" << endl ;
-    Loci::Abort() ;
-  }
-  *$cellPlanXMLDoc = std::shared_ptr<xmlDoc>(doc, [](xmlDoc* owned_doc) {
-    xmlFreeDoc(owned_doc) ;
-  }) ;
-#else
-  cerr << "adaptation code not compiled with libxml!  XML features not available!" ;
-  Loci::Abort() ;
-#endif
-} ;
-
-/// Read the parameter sources once for all cell topologies.
-$rule blackbox(cellPlanSources <- parfile_par), prelude {
-  vector<source_par> sources ;
-  readPar(*$parfile_par, sources) ;
-  if(sources.size()==0) {
-    cerr << "WARNING: fail to read par file" << endl ;
-    Loci::Abort() ;
-  }
-  *$cellPlanSources = sources ;
-} ;
+//-----------------------------------------------------------------------------
+// Rules for node-tag refinement
+//-----------------------------------------------------------------------------
 
 /// This rule make a newCellPlan according to cellPlan
 /// and nodeTag, posTag
@@ -248,6 +218,9 @@ norestart_tag_par), constraint(gnrlcells) {
   }
 }
 
+//-----------------------------------------------------------------------------
+// Rules for XML-region refinement
+//-----------------------------------------------------------------------------
 
 /// This rule make a newCellPlan according to  xml file and input plan file
 $rule pointwise(newCellPlan <- xmlfile_par, restart_xml_par,
@@ -449,6 +422,9 @@ constraint(gnrlcells) {
 #endif
 }
 
+//-----------------------------------------------------------------------------
+// Rules for parameter-region refinement
+//-----------------------------------------------------------------------------
 
 /// Make a newCellPlan according to par file and input plan file
 $rule pointwise(newCellPlan <- parfile_par, restart_par_par,
@@ -586,87 +562,9 @@ constraint(gnrlcells) {
   }
 }
 
-
-/// Dummy parameter to trick Loci scheduler
-$rule pointwise(priority::restart::balancedCellPlan <- beginWithMarker,
-restart_tag_par, cellPlan, balancedCellPlan1, nodeTag, isIndivisible,
-(lower, upper, boundary_map)->(facePlan, balancedFacePlan1, is_quadface, nodeTag),
-(lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos)),
-(lower, upper, boundary_map)->face2edge->edge2node->pos,
-(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1, nodeTag)),
-constraint(gnrlcells) {
-
-  if(!$isIndivisible) {
-    std::list<Node*> node_list ;
-    std::list<Edge*> edge_list ;
-    std::list<Face*> face_list ;
-    std::list<Node*> bnode_list ;
-
-    Cell* aCell = build_resplit_general_cell($lower.begin(), $lower.size(),
-                                             $upper.begin(), $upper.size(),
-                                             $boundary_map.begin(), $boundary_map.size(),
-                                             $*is_quadface,
-                                             $*face2node,
-                                             $*face2edge,
-                                             $*edge2node,
-                                             $*pos,
-                                             $*edgePlan,
-                                             $*facePlan,
-                                             $*balancedEdgePlan1,
-                                             $*balancedFacePlan1,
-                                             $*posTag,
-                                             $*nodeTag,
-                                             bnode_list,
-                                             node_list,
-                                             edge_list,
-                                             face_list,
-                                             $*fileNumber(pos),
-                                             $cellPlan,
-                                             $nodeTag);
-
-    std::vector<DiamondCell*> cells ; //leaves collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
-
-    // re-collect leaves according to tree structure
-    std::list<DiamondCell*> leaves ;
-    aCell->sort_leaves(leaves) ;
-
-    // first if any cell need derefine
-    std::set<DiamondCell*> dparents ;
-    bool check_root = false ;
-
-    // mark the cell that will be eliminated
-    for(std::list<DiamondCell*>::const_iterator li = leaves.begin(); li != leaves.end(); li++) {
-      if((*li)->get_tagged() ==2) {
-        DiamondCell* parent = (*li)->getParentCell() ;
-        if(parent==0) { check_root = true ; }
-        if(parent!=0 && parent->needDerefine()) {
-          dparents.insert(parent) ;
-        }
-      }
-    }
-
-    // derefine the cells
-    for(std::set<DiamondCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
-      (*si)->derefine() ;
-    }
-    if(check_root) {
-      if(aCell->needDerefine()) aCell->derefine() ;
-    }
-
-    $balancedCellPlan = aCell->make_cellplan() ;
-
-    // clean up
-    if(aCell != 0) {
-      delete aCell ;
-      aCell = 0 ;
-    }
-    cleanup_list(node_list, edge_list, face_list) ;
-    cleanup_list(bnode_list) ;
-    reduce_vector($balancedCellPlan) ;
-  }
-}
-
+//-----------------------------------------------------------------------------
+// Rules for cell-tag refinement
+//-----------------------------------------------------------------------------
 
 /// Make a newCellPlan according to cellPlan and fineCellTag
 $rule pointwise(newCellPlan <- restart_tag_par, cellPlan, fineCellTag,
@@ -813,84 +711,5 @@ norestart_tag_par), constraint(gnrlcells) {
     cleanup_list(node_list, edge_list, face_list) ;
     cleanup_list(bnode_list) ;
     reduce_vector($newCellPlan) ;
-  }
-}
-
-
-/// Dummy parameter to trick Loci scheduler
-$rule pointwise(priority::restart::balancedCellPlan <- beginWithMarker,
-restart_tag_par, cellPlan, balancedCellPlan1, fineCellTag, isIndivisible,
-(lower, upper, boundary_map)->(facePlan, balancedFacePlan1, is_quadface),
-(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
-(lower, upper, boundary_map)->face2edge->edge2node->pos,
-(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1)),
-constraint(gnrlcells) {
-
-  if(!$isIndivisible) {
-    std::list<Node*> node_list ;
-    std::list<Edge*> edge_list ;
-    std::list<Face*> face_list ;
-    std::list<Node*> bnode_list ;
-
-    Cell* aCell = build_resplit_general_cell_ctag($lower.begin(), $lower.size(),
-                                                  $upper.begin(), $upper.size(),
-                                                  $boundary_map.begin(), $boundary_map.size(),
-                                                  $*is_quadface,
-                                                  $*face2node,
-                                                  $*face2edge,
-                                                  $*edge2node,
-                                                  $*pos,
-                                                  $*edgePlan,
-                                                  $*facePlan,
-                                                  $*balancedEdgePlan1,
-                                                  $*balancedFacePlan1,
-                                                  bnode_list,
-                                                  node_list,
-                                                  edge_list,
-                                                  face_list,
-                                                  $*fileNumber(pos),
-                                                  $cellPlan,
-                                                  $fineCellTag);
-
-    std::vector<DiamondCell*> cells ; //leaves collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
-
-    // recollect leaves according to tree structure
-    std::list<DiamondCell*> leaves ;
-    aCell->sort_leaves(leaves) ;
-
-    // first if any cell need derefine
-    std::set<DiamondCell*> dparents ;
-    bool check_root = false ;
-
-    // mark the cell that will be eliminated
-    for(std::list<DiamondCell*>::const_iterator li= leaves.begin(); li != leaves.end(); li++) {
-      if((*li)->getTag() ==2) {
-        DiamondCell* parent = (*li)->getParentCell() ;
-        if(parent==0)check_root = true ;
-        if(parent!=0 && parent->needDerefine_ctag()) {
-          dparents.insert(parent) ;
-        }
-      }
-    }
-
-    // derefine the cells
-    for(std::set<DiamondCell*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
-      (*si)->derefine() ;
-    }
-    if(check_root) {
-      if(aCell->needDerefine_ctag()) { aCell->derefine() ; }
-    }
-
-    $balancedCellPlan = aCell->make_cellplan() ;
-
-    // clean up
-    if(aCell != 0) {
-      delete aCell ;
-      aCell = 0 ;
-    }
-    cleanup_list(node_list, edge_list, face_list) ;
-    cleanup_list(bnode_list) ;
-    reduce_vector($balancedCellPlan) ;
   }
 }
