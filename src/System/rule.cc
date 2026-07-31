@@ -844,6 +844,34 @@ namespace Loci {
     return ks ;
   }
 
+  void gpu2cpu_param_apply_rule::compute(const sequence & seq) {
+    if(joinop != 0) {
+      storeRepP tp = target.Rep() ;
+      storeRepP sp = source.Rep() ;
+      entitySet e = interval(0,0) ;
+      sequence s = sequence(e) ;
+      joinop->SetArgs(tp, sp) ;
+      joinop->Join(s) ;
+    } else {
+      cerr << "gpu2cpu_param_apply_rule: join operator is null" << endl ;
+      Loci::Abort() ;
+    }
+  }
+
+  rule_implP gpu2cpu_param_apply_rule::new_rule_impl() const {
+    rule_implP clone = new gpu2cpu_param_apply_rule(target_name, source_name, target.Rep(), joinop) ;
+    for(list_iter li = rvlist.begin(); li != rvlist.end(); ++li) { 
+      std::map<variable, variable> rvm = *li;
+      clone->rename_vars(rvm) ;
+    }
+    return clone ;
+  }
+
+  void gpu2cpu_param_apply_rule::rename_vars(std::map<variable, variable>  &rvm) {
+    rvlist.push_back(rvm) ;
+    rule_impl::prot_rename_vars(rvm) ;
+  }
+
   rule::rule_db *rule::rdb = 0 ;
 
 

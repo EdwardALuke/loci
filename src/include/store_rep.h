@@ -259,7 +259,7 @@ namespace Loci {
   
   
   enum store_type { STORE, PARAMETER, MAP, CONSTRAINT, BLACKBOX,
-                    GPUSTORE, GPUPARAMETER, GPUMAP} ;
+                    GPUSTORE, GPUPARAMETER, GPUMAP, ABSTRACTSTORE } ;
 
   class Map ;
   class dMap ;
@@ -486,6 +486,110 @@ namespace Loci {
 			 (rep->RepType() == Loci::GPUMAP) ||
 			 (rep->RepType() == Loci::GPUPARAMETER) )) ;
   }
+
+
+  class abstractStoreRepI : public storeRep {
+    storeRepP defer_rep ;
+
+  public:
+    abstractStoreRepI() {
+      defer_rep = storeRepP(0) ;
+    }
+    abstractStoreRepI(const entitySet &p) {
+      defer_rep = storeRepP(0) ;
+    }
+    virtual ~abstractStoreRepI() { }
+    int get_alloc_id() const override ;
+    void allocate(const entitySet &p) override ;
+    store_type RepType() const override ;
+    entitySet domain() const override ;
+    void shift(int_type offset) override ;
+    void set_elem_size(int sz) override ;
+    void setIsMat(bool im) override ;
+    storeRep * new_store(const entitySet &p) const override ;
+    storeRep * new_store(const entitySet &p, const int *cnt) const override ;
+    storeRepP remap(const dMap &m) const override ;
+    storeRepP freeze() override ;
+    storeRepP thaw() override ;
+    void copy(storeRepP &st, const entitySet &context) override ;
+    void gather(const dMap &m, storeRepP &st, const entitySet &context) override ;
+    void scatter(const dMap &m, storeRepP &st, const entitySet &context) override ;
+    int pack_size(const entitySet &e, entitySet &packed) override ;
+    int pack_size(const entitySet &e) override ;
+    int estimated_pack_size(const entitySet &e) override ;
+    void pack(void *ptr, int &loc, int &size, const entitySet &e) override ;
+    void unpack(void *ptr, int &loc, int &size, const sequence &seq) override ;
+
+    std::ostream & Print(std::ostream &s) const override ;
+    std::istream & Input(std::istream &s) override ;
+    void readhdf5(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char *name, frame_info &fi, entitySet &en) override ;
+    void writehdf5(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char *name, entitySet &en) const override ;
+#ifdef H5_HAVE_PARALLEL
+    void readhdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, frame_info &fi, entitySet &en, hid_t xfer_plist_id) override ;
+    void writehdf5P(hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension, const char* name, entitySet& en, hid_t xfer_plist_id) const override ;
+#endif
+    DatatypeP getType() override ;
+    frame_info get_frame_info() override ;
+    storeRepP getRep() override ;
+    storeRepP getRep() const override ;
+    int getDomainKeySpace() const override ;
+    void setDomainKeySpace(int v) override ;
+  } ;
+
+  class abstractStore : public store_instance {
+    typedef abstractStoreRepI storeType ;
+    abstractStore(abstractStore const & src) {
+      setRep(src.Rep()) ;
+    }
+    abstractStore & operator=(abstractStore const & src) {
+      setRep(src.Rep()) ;
+      return *this ;
+    }
+  public:
+    abstractStore() {
+      setRep(new storeType) ;
+    }
+    abstractStore(storeRepP rp) {
+      setRep(rp) ;
+    }
+    virtual ~abstractStore() { }
+    abstractStore & operator=(storeRepP sp) {
+      setRep(sp) ;
+      return *this ;
+    }
+    instance_type access() const override
+      { return READ_WRITE ; }
+    void notification() override { } ;
+  } ;
+
+  class const_abstractStore : public store_instance {
+    typedef abstractStoreRepI storeType ;
+    const_abstractStore(abstractStore const & src) {
+      setRep(src.Rep());
+    }
+    const_abstractStore(const_abstractStore const & src) {
+      setRep(src.Rep()) ;
+    }
+    const_abstractStore & operator=(abstractStore const & src) {
+      setRep(src.Rep());
+      return *this ;
+    }
+    const_abstractStore & operator=(const_abstractStore const & src) {
+      setRep(src.Rep()) ;
+      return *this ;
+    }
+  public:
+    const_abstractStore() {
+      setRep(new storeType) ;
+    }
+    const_abstractStore(storeRepP rp) {
+      setRep(rp) ;
+    }
+    virtual ~const_abstractStore() { }
+    instance_type access() const override
+      { return READ_ONLY ; }
+    void notification() override { } ;
+  } ;
 
   /** ************************************************************************
    *

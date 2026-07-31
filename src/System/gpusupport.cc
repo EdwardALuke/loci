@@ -984,84 +984,92 @@ namespace Loci {
 #endif
   }
 
-  inline variable makeGPUVAR(variable v) {
-    variable::info vinfo = v.get_info() ;
-    string vname = string("__GPU__") + vinfo.name ;
-    vinfo.name = vname ;
-    return variable(vinfo) ;
-  }
-  rule_db rename_gpu_containers(fact_db  &facts,
-				const rule_db &rdb)  {
-
+  rule_db rename_gpu_containers(fact_db  &facts, const rule_db &rdb) {
     rule_db gpu_rdb ;
 
     variableSet gpuInputs ;
     variableSet gpuOutputs ;
+    variableSet gpuReduceParams ;
     variableSet gpuMaps ;
     variableSet inputs  ;
     variableSet outputs = facts.get_typed_variables();
+    variableSet reduceParams ;
     ruleSet gpurules, mixedrules ;
     ruleSet rset = rdb.all_rules() ;
+    std::map<variable, rule> param2unit ;
 
     map<variable,ruleSet> vargenerators ;
     for(ruleSet::const_iterator rsi = rset.begin(); rsi != rset.end();++rsi) {
       rule_implP rp = rsi->get_rule_implP() ;
+
       if(rp == 0) {
-	// Not a rule with an implementation so no GPU container
-	// types
-	gpu_rdb.add_rule(*rsi) ;
+        // Not a rule with an implementation so no GPU container
+        // types
+        gpu_rdb.add_rule(*rsi) ;
         continue ;
       }
-      variableSet targets = rsi->targets() ;
+
       bool hasGPUVar = false ;
       bool hasCPUVar = false ;
+
+      variableSet targets = rsi->targets() ;
       for(variableSet::const_iterator vsi = targets.begin(); vsi !=
-	    targets.end(); ++vsi) {
-	variable vt = vsi->drop_assign() ;
-	variable vbase = vt.new_offset(0) ;
-	vargenerators[vbase] += *rsi ;
-	storeRepP sp = rp->get_store(*vsi) ;
-	if(isGPU(sp)) {
-	    gpuOutputs += *vsi ;
-	  hasGPUVar = true ;
-	} else {
-	  outputs += *vsi ;
-	  hasCPUVar = true ;
-	}
+            targets.end(); ++vsi) {
+        variable vt = vsi->drop_assign() ;
+        variable vbase = vt.new_offset(0) ;
+        vargenerators[vbase] += *rsi ;
+        storeRepP sp = rp->get_store(*vsi) ;
+        if(isGPU(sp)) {
+          if(isPARAMETER(sp) &&
+             (rp->get_rule_class() == rule_impl::UNIT ||
+              rp->get_rule_class() == rule_impl::APPLY)) {
+            gpuReduceParams += *vsi ;
+          } else {
+            gpuOutputs += *vsi ;
+          }
+          hasGPUVar = true ;
+        } else {
+          if(isPARAMETER(sp) &&
+             (rp->get_rule_class() == rule_impl::UNIT ||
+              rp->get_rule_class() == rule_impl::APPLY)) {
+            reduceParams += *vsi ;
+          }
+          outputs += *vsi ;
+          hasCPUVar = true ;
+        }
       }
+
       variableSet sources = rsi->sources() ;
       for(variableSet::const_iterator vsi = sources.begin(); vsi !=
-	    sources.end(); ++vsi) {
-	storeRepP sp = rp->get_store(*vsi) ;
-	if(isGPU(sp)) {
-	  if(isMAP(sp))
-	    gpuMaps += *vsi ;
-	  else
-	    gpuInputs += *vsi ;
-	  hasGPUVar = true ;
-	} else if(sp != 0) {
-	  inputs += *vsi ;
-	  hasCPUVar = true ;
-	}
+            sources.end(); ++vsi) {
+        storeRepP sp = rp->get_store(*vsi) ;
+        if(isGPU(sp)) {
+          if(isMAP(sp))
+            gpuMaps += *vsi ;
+          else
+            gpuInputs += *vsi ;
+          hasGPUVar = true ;
+        } else if(sp != 0) {
+          inputs += *vsi ;
+          hasCPUVar = true ;
+        }
       }
       if(hasGPUVar) {
-	if(hasCPUVar) {
-	  mixedrules += rule(rp) ;
-	} else {
-	  gpurules += rule(rp) ;
-	}
-	gpurules += rule(rp) ;
+        if(hasCPUVar) {
+          mixedrules += rule(rp) ;
+        } else {
+          gpurules += rule(rp) ;
+        }
       } else {
-	gpu_rdb.add_rule(*rsi) ;
+        gpu_rdb.add_rule(*rsi) ;
       }
-      
     }
 
     if(mixedrules != EMPTY) {
       for(ruleSet::const_iterator iter = mixedrules.begin();
-	  iter != mixedrules.end(); ++iter) {
-	cerr << "ERROR: rule " << *iter
-	     << " contains both CPU and GPU containers!" << endl ;
+            iter != mixedrules.end(); ++iter) {
+        cerr << "ERROR: rule " << *iter
+             << " contains both CPU and GPU containers!" << endl ;
       }
       Loci::Abort() ;
     }
@@ -1073,143 +1081,241 @@ namespace Loci {
         Loci::Abort() ;
       }
     }
-    
+
     variableSet loopVarBase ;
     for(auto rsi = gpurules.begin(); rsi != gpurules.end();++rsi) {
       if(rsi->type() == rule::BUILD) {
-	//	cout << "BUILD: " << *rsi << endl ;
-	variableSet targets = rsi->targets() ;
-	for(variableSet::const_iterator vsi = targets.begin(); vsi !=
-	      targets.end(); ++vsi) {
+        //cout << "BUILD: " << *rsi << endl ;
+        variableSet targets = rsi->targets() ;
+        for(variableSet::const_iterator vsi = targets.begin(); vsi !=
+              targets.end(); ++vsi) {
           variable vt = vsi->drop_assign() ;
           variable vbase = vt.new_offset(0) ;
-	  loopVarBase += vbase ;
-	  //	  cout << "vt = " << vt << " vbase = " << vbase <<" *vsi = " << *vsi << endl ;
-	}
+          loopVarBase += vbase ;
+        }
       }
-      //      if(rsi->type() == rule::COLLAPSE) {
-      //	cout << "COLLAPSE: " << *rsi << endl ;
-      //      }      
+      //if(rsi->type() == rule::COLLAPSE) {
+      //  cout << "COLLAPSE: " << *rsi << endl ;
+      //}
     }
     if(MPI_rank == 0 && loopVarBase!=EMPTY)
       cout << "gpu looping vars = " << loopVarBase <<endl ;
-    ruleSet processed ;
 
-    variableSet cpu2gpu = gpuInputs ;
-    variableSet gpu2cpu = gpuOutputs ;
+    ruleSet processed ;
 
     for(auto vi = loopVarBase.begin(); vi != loopVarBase.end(); ++vi) {
       ruleSet generators = vargenerators[*vi] ;
-      for(auto ri=generators.begin(); ri!=generators.end();++ri) {
-	if(!gpurules.inSet(*ri)) {
-	  cerr << "rule "<<*ri << " should generate a gpu variable"
-	       << endl ;
-	  processed += *ri ;
-	  continue ;
-	}
-	if(processed.inSet(*ri))
-	  continue ;
-	processed += *ri ;
-	rule_implP rp = ri->get_rule_implP() ;
-	map<variable,variable> vm ;
-	variableSet targets = ri->targets() ;
-	gpu2cpu -= targets ;
-	cpu2gpu -= targets ;
-	for(auto vsi = targets.begin(); vsi != targets.end(); ++vsi) {
+      for(auto ri = generators.begin(); ri != generators.end(); ++ri) {
+        if(!gpurules.inSet(*ri)) {
+          cerr << "rule "<< *ri << " should generate a gpu variable"
+               << endl ;
+          processed += *ri ;
+          continue ;
+        }
+        if(processed.inSet(*ri))
+          continue ;
+        processed += *ri ;
+        rule_implP rp = ri->get_rule_implP() ;
+
+        map<variable,variable> vm ;
+        variableSet targets = ri->targets() ;
+        gpuInputs -= targets ;
+        gpuOutputs -= targets ;
+        gpuReduceParams -= targets ;
+        for(auto vsi = targets.begin(); vsi != targets.end(); ++vsi) {
           variable vt = vsi->drop_assign() ;
           variable vbase = vt.new_offset(0) ;
-	  gpu2cpu += vbase ;
-	  storeRepP sp = rp->get_store(*vsi) ;
-	  if(sp!=0) {
-	    vm[*vsi] = makeGPUVAR(*vsi) ;
-	  } else {
-	    vm[*vsi] = *vsi ;
-	  }
-	}
-	variableSet sources = ri->sources() ;
-	for(auto vsi = sources.begin(); vsi != sources.end(); ++vsi) {
-	  storeRepP sp = rp->get_store(*vsi) ;
-	  if(sp!=0) {
-	    vm[*vsi] = makeGPUVAR(*vsi) ;
-	  } else {
-	    vm[*vsi] = *vsi ;
-	  }
-	}
-	rp->rename_vars(vm) ;
-	rule r = rule(rp) ;
-	gpu_rdb.add_rule(r) ;
-	//	cout << "r1=" << r << endl ;
+
+          storeRepP sp = rp->get_store(*vsi) ;
+
+          if(sp!=0) {
+            if((rp->get_rule_class() == rule_impl::UNIT ||
+                rp->get_rule_class() == rule_impl::APPLY) &&
+               isPARAMETER(sp)) {
+              gpuReduceParams += vbase ;
+              vm[*vsi] = makeREDUCEVAR(makeGPUVAR(*vsi)) ;
+            } else {
+              gpuOutputs += vbase ;
+              vm[*vsi] = makeGPUVAR(*vsi) ;
+            }
+          } else {
+            vm[*vsi] = *vsi ;
+          }
+        }
+
+        variableSet sources = ri->sources() ;
+        for(auto vsi = sources.begin(); vsi != sources.end(); ++vsi) {
+          storeRepP sp = rp->get_store(*vsi) ;
+          if(sp!=0) {
+            vm[*vsi] = makeGPUVAR(*vsi) ;
+          } else {
+            vm[*vsi] = *vsi ;
+          }
+        }
+
+        rp->rename_vars(vm) ;
+        rule r = rule(rp) ;
+        gpu_rdb.add_rule(r) ;
       }
     }
     gpurules -= processed ;
-    
+
     for(ruleSet::const_iterator rsi = gpurules.begin(); rsi != gpurules.end();++rsi) {
       rule_implP rp = rsi->get_rule_implP() ;
-      
+
       map<variable,variable> vm ;
       variableSet targets = rsi->targets() ;
       for(variableSet::const_iterator vsi = targets.begin(); vsi !=
-	    targets.end(); ++vsi) {
-	storeRepP sp = rp->get_store(*vsi) ;
-	if(sp!=0) {
-	  vm[*vsi] = makeGPUVAR(*vsi) ;
-	} else {
-	  vm[*vsi] = *vsi ;
-	}
+            targets.end(); ++vsi) {
+        storeRepP sp = rp->get_store(*vsi) ;
+
+        if(sp!=0) {
+          if((rp->get_rule_class() == rule_impl::UNIT ||
+              rp->get_rule_class() == rule_impl::APPLY) &&
+             isPARAMETER(sp)) {
+            vm[*vsi] = makeGPUVAR(makeREDUCEVAR(*vsi)) ;
+          } else {
+            vm[*vsi] = makeGPUVAR(*vsi) ;
+          }
+        } else {
+          vm[*vsi] = *vsi ;
+        }
       }
       variableSet sources = rsi->sources() ;
       for(variableSet::const_iterator vsi = sources.begin(); vsi !=
-	    sources.end(); ++vsi) {
-	storeRepP sp = rp->get_store(*vsi) ;
-	if(sp!=0) {
-	  vm[*vsi] = makeGPUVAR(*vsi) ;
-	} else {
-	  vm[*vsi] = *vsi ;
-	}
+            sources.end(); ++vsi) {
+        storeRepP sp = rp->get_store(*vsi) ;
+        if(sp!=0) {
+          vm[*vsi] = makeGPUVAR(*vsi) ;
+        } else {
+          vm[*vsi] = *vsi ;
+        }
       }
       rp->rename_vars(vm) ;
       gpu_rdb.add_rule(rule(rp)) ;
     }
 
-   
-
     if(gpuMaps != EMPTY && MPI_rank==0)
       cout << "gpuMaps = " << gpuMaps << endl ;
-    //    cout << "inputs = " << inputs << endl ;
-    //    cout << "outputs = " << outputs << endl ;
-    //    cout << "gpuInputs = " << gpuInputs << endl ;
-    //    cout << "gpuOutputs = " << gpuOutputs << endl ;
+    //cout << "inputs = " << inputs << endl ;
+    //cout << "outputs = " << outputs << endl ;
+    //cout << "gpuInputs = " << gpuInputs << endl ;
+    //cout << "gpuOutputs = " << gpuOutputs << endl ;
+    //cout << "gpuReduceParams = " << gpuReduceParams << endl ;
 
-    //cpu2gpu -= gpuOutputs ;
+    if((gpuReduceParams - reduceParams) != EMPTY) {
+      cerr << "gpu unit/apply on params must also have cpu unit rule" << endl ;
+      Loci::Abort() ;
+    }
+
+    variableSet cpu2gpu = gpuInputs ;
+    cpu2gpu -= gpuOutputs ;
     cpu2gpu &= outputs ;
-    //    gpu2cpu -= gpuInputs ;
-    gpu2cpu -= cpu2gpu ;
-    //    gpu2cpu &= inputs ;
-    for(variableSet::const_iterator vsi = cpu2gpu.begin(); vsi !=
-	  cpu2gpu.end(); ++vsi) {
-      rule r = create_rule(*vsi,makeGPUVAR(*vsi),"cpu2gpu") ;
-      gpu_rdb.add_rule(r) ;
-      //      cout << "r=" << r << endl ;
-    }
-    for(variableSet::const_iterator vsi = gpuMaps.begin(); vsi !=
-	  gpuMaps.end(); ++vsi) {
-      rule r = create_rule(*vsi,makeGPUVAR(*vsi),"map2gpu") ;
-      gpu_rdb.add_rule(r) ;
-      //      cout << "r=" << r << endl ;
-    }
-    for(variableSet::const_iterator vsi = gpu2cpu.begin(); vsi !=
-	  gpu2cpu.end(); ++vsi) {
-      rule r = create_rule(makeGPUVAR(*vsi),*vsi,"gpu2cpu") ;
-      gpu_rdb.add_rule(r) ;
-      //      cout << "r=" << r << endl ;
-    }    
+
+    variableSet gpu2cpu = inputs ;
+    gpu2cpu -= outputs ;
+    gpu2cpu &= gpuOutputs ;
+
+    variableSet globalreduce = gpuReduceParams ;
+    globalreduce &= reduceParams ;
 
     variableSet overlap = cpu2gpu ;
     overlap &= gpu2cpu ;
     if(overlap != EMPTY) {
       cerr << "warning, loops formed in interactions between gpu and cpu kernels" << endl ;
-      cerr << "offending variables is " << overlap << endl ;
+      cerr << "offending variables are " << overlap << endl ;
     }
+
+    for(variableSet::const_iterator vsi = cpu2gpu.begin(); vsi !=
+          cpu2gpu.end(); ++vsi) {
+      rule r = create_rule(*vsi,makeGPUVAR(*vsi),"cpu2gpu") ;
+      gpu_rdb.add_rule(r) ;
+      //cout << "r=" << r << endl ;
+    }
+
+    for(variableSet::const_iterator vsi = gpuMaps.begin(); vsi !=
+          gpuMaps.end(); ++vsi) {
+      rule r = create_rule(*vsi,makeGPUVAR(*vsi),"map2gpu") ;
+      gpu_rdb.add_rule(r) ;
+      //cout << "r=" << r << endl ;
+    }
+
+    for(variableSet::const_iterator vsi = gpu2cpu.begin(); vsi !=
+          gpu2cpu.end(); ++vsi) {
+      rule r = create_rule(makeGPUVAR(*vsi),*vsi,"gpu2cpu") ;
+      gpu_rdb.add_rule(r) ;
+      //cout << "r=" << r << endl ;
+    }
+
+    for(variableSet::const_iterator vsi = globalreduce.begin();
+          vsi != globalreduce.end(); ++vsi) {
+      variable cpuvar = *vsi ;
+      variable cpupartvar = makeREDUCEVAR(cpuvar) ;
+      variable gpupartvar = makeGPUVAR(cpupartvar) ;
+
+      rule r = create_rule(gpupartvar,cpupartvar,"gpu2cpu") ;
+      gpu_rdb.add_rule(r) ;
+
+      storeRepP cpuvar_type(0) ;
+      CPTR<joiner> join_op(0) ;
+
+      // Search through cpu unit/apply rules that produce the cpu reduction
+      // variable. The type provided by the cpu unit rule is used as store type
+      // for the cpu partial variable. The joiner provided by the first cpu
+      // apply rule in the ruleSet is used to set joiner for combining cpu
+      // partial variable with cpu reduction variable.
+      std::map<variable, ruleSet>::const_iterator v2rsi = vargenerators.find(cpuvar) ;
+      if(v2rsi != vargenerators.end()) {
+        for(ruleSet::const_iterator rsi = v2rsi->second.begin();
+            rsi != v2rsi->second.end(); ++rsi) {
+          if(rsi->type() != rule::INTERNAL) {
+            rule_implP rp = rsi->get_rule_implP() ;
+            if(rp->get_rule_class() == rule_impl::UNIT) {
+              if(cpuvar_type == 0) {
+                storeRepP sp = rp->get_store(cpuvar) ;
+                if(!isGPU(sp)) {
+                  cpuvar_type = sp ;
+                }
+              }
+            } else if(rp->get_rule_class() == rule_impl::APPLY) {
+              if(join_op == 0) {
+                CPTR<joiner> join = rp->get_joiner() ;
+                if(join != 0) {
+                  storeRepP sp = join->getTargetRep() ;
+                  if(!isGPU(sp)) {
+                    join_op = join->clone() ;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Not having a cpu unit rule for a gpu reduction variable is an error.
+      // In this case, the scheduler will subsequently fail because it cannot
+      // determine the type the partial reduction variable.
+      if(cpuvar_type == 0) {
+        cerr << "no cpu unit rule for gpu reduction variable " << cpuvar << endl ;
+        Loci::Abort() ;
+      }
+
+      // Not having a cpu apply rule for a gpu reduction variable is an error.
+      // The joiner needs to be compatible with the cpu parameters.
+      if(join_op == 0) {
+        cerr << "no cpu apply rule for gpu reduction variable " << cpuvar << endl ;
+        Loci::Abort() ;
+      }
+
+      // Create a special apply rule to combine the gpu partial reduction
+      // variable with the cpu reduction variable, which then completes the
+      // reduction across all MPI ranks.
+      gpu2cpu_param_apply_rule * rapply = new gpu2cpu_param_apply_rule(
+        cpuvar.str(), cpupartvar.str(), cpuvar_type, join_op
+      ) ;
+      gpu_rdb.add_rule(rapply) ;
+    }
+
     return gpu_rdb ;
   }
 

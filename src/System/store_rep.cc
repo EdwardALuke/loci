@@ -159,5 +159,256 @@ namespace Loci {
     dispatch_notify() ;
   }
 
-  
+  int abstractStoreRepI::get_alloc_id() const {
+    if(defer_rep != 0) {
+      return defer_rep->get_alloc_id() ;
+    } else {
+      return storeRep::get_alloc_id() ;
+    }
+  }
+
+  void abstractStoreRepI::allocate(const entitySet &p) {
+    if(defer_rep != 0) {
+      defer_rep->allocate(p) ;
+    }
+  }
+
+  store_type abstractStoreRepI::RepType() const {
+    if(defer_rep != 0) {
+      return defer_rep->RepType() ;
+    } else {
+      return ABSTRACTSTORE ;
+    }
+  }
+
+  entitySet abstractStoreRepI::domain() const {
+    if(defer_rep != 0) {
+      return defer_rep->domain() ;
+    } else {
+      return EMPTY ;
+    }
+  }
+
+  void abstractStoreRepI::shift(int_type offset) {
+    if(defer_rep != 0) {
+      defer_rep->shift(offset) ;
+    }
+  }
+
+  void abstractStoreRepI::set_elem_size(int sz) {
+    if(defer_rep != 0) {
+      defer_rep->set_elem_size(sz) ;
+    } else {
+      storeRep::set_elem_size(sz) ;
+    }
+  }
+
+  void abstractStoreRepI::setIsMat(bool im) {
+    if(defer_rep != 0) {
+      defer_rep->setIsMat(im) ;
+    } else {
+      storeRep::setIsMat(im) ;
+    }
+  }
+
+  storeRep * abstractStoreRepI::new_store(const entitySet &p) const {
+    if(defer_rep != 0) {
+      return defer_rep->new_store(p) ;
+    } else {
+      return new abstractStoreRepI ;
+    }
+  }
+
+  storeRep * abstractStoreRepI::new_store(const entitySet &p, const int *cnt) const {
+    if(defer_rep != 0) {
+      return defer_rep->new_store(p, cnt) ;
+    } else {
+      return new abstractStoreRepI ;
+    }
+  }
+
+  storeRepP abstractStoreRepI::remap(const dMap &m) const {
+    if(defer_rep != 0) {
+      return defer_rep->remap(m) ;
+    } else {
+      return storeRepP(new abstractStoreRepI) ;
+    }
+  }
+
+  storeRepP abstractStoreRepI::freeze() {
+    if(defer_rep != 0) {
+      return defer_rep->freeze() ;
+    } else {
+      return storeRepP(this) ;
+    }
+  }
+
+  storeRepP abstractStoreRepI::thaw() {
+    if(defer_rep != 0) {
+      return defer_rep->thaw() ;
+    } else {
+      return storeRepP(this) ;
+    }
+  }
+
+  void abstractStoreRepI::copy(storeRepP &sp, const entitySet &context) {
+    if(defer_rep != 0) {
+      defer_rep->copy(sp, context) ;
+    }
+  }
+
+  void abstractStoreRepI::gather(const dMap &m, storeRepP &st, const entitySet &context) {
+    if(defer_rep != 0) {
+      defer_rep->gather(m, st, context) ;
+    }
+  }
+
+  void abstractStoreRepI::scatter(const dMap &m, storeRepP &st, const entitySet &context) {
+    if(defer_rep != 0) {
+      defer_rep->scatter(m, st, context) ;
+    }
+  }
+
+  int abstractStoreRepI::pack_size(const entitySet &e, entitySet &packed) {
+    if(defer_rep != 0) {
+      return defer_rep->pack_size(e, packed) ;
+    } else {
+      return 0 ;
+    }
+  }
+
+  int abstractStoreRepI::pack_size(const entitySet &e) {
+    if(defer_rep != 0) {
+      return defer_rep->pack_size(e) ;
+    } else {
+      return 0 ;
+    }
+  }
+
+  int abstractStoreRepI::estimated_pack_size(const entitySet &e) {
+    if(defer_rep != 0) {
+      return defer_rep->estimated_pack_size(e) ;
+    } else {
+      return 0 ;
+    }
+  }
+
+  void abstractStoreRepI::pack(
+    void *ptr, int &loc, int &size, const entitySet &e
+  ) {
+    if(defer_rep != 0) {
+      defer_rep->pack(ptr, loc, size, e) ;
+    }
+  }
+
+  void abstractStoreRepI::unpack(void *ptr, int &loc, int &size, const sequence &seq) {
+    if(defer_rep != 0) {
+      defer_rep->unpack(ptr, loc, size, seq) ;
+    }
+  }
+
+  std::ostream & abstractStoreRepI::Print(std::ostream &s) const {
+    if(defer_rep != 0) {
+      defer_rep->Print(s) ;
+    }
+    return s ;
+  }
+
+  std::istream & abstractStoreRepI::Input(std::istream &s) {
+    if(defer_rep != 0) {
+      defer_rep->Input(s) ;
+    }
+    return s ;
+  }
+
+  void abstractStoreRepI::readhdf5(
+    hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
+    const char *name, frame_info &fi, entitySet &en
+  ) {
+    if(defer_rep != 0) {
+      defer_rep->readhdf5(group_id, dataspace, dataset, dimension, name, fi, en) ;
+    }
+  }
+
+  void abstractStoreRepI::writehdf5(
+    hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
+    const char *name, entitySet &en
+  ) const {
+    if(defer_rep != 0) {
+      defer_rep->writehdf5(group_id, dataspace, dataset, dimension, name, en) ;
+    }
+  }
+
+#ifdef H5_HAVE_PARALLEL
+  void abstractStoreRepI::readhdf5P(
+    hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
+    const char* name, frame_info &fi, entitySet &en, hid_t xfer_plist_id
+  ) {
+    if(defer_rep != 0) {
+      defer_rep->readhdf5P(group_id, dataspace, dataset, dimension,
+        name, fi, en, xfer_plist_id) ;
+    }
+  }
+#endif
+
+#ifdef H5_HAVE_PARALLEL
+  void abstractStoreRepI::writehdf5P(
+    hid_t group_id, hid_t dataspace, hid_t dataset, hsize_t dimension,
+    const char* name, entitySet& en, hid_t xfer_plist_id
+  ) const {
+    if(defer_rep != 0) {
+      defer_rep->writehdf5P(group_id, dataspace, dataset, dimension,
+        name, en, xfer_plist_id) ;
+    }
+  }
+#endif
+
+  DatatypeP abstractStoreRepI::getType() {
+    if(defer_rep != 0) {
+      return defer_rep->getType() ;
+    } else {
+      return DatatypeP(0) ;
+    }
+  }
+
+  frame_info abstractStoreRepI::get_frame_info() {
+    if(defer_rep != 0) {
+      return defer_rep->get_frame_info() ;
+    } else {
+      return frame_info() ;
+    }
+  }
+
+  storeRepP abstractStoreRepI::getRep() {
+    if(defer_rep != 0) {
+      return defer_rep->getRep() ;
+    } else {
+      return storeRep::getRep() ;
+    }
+  }
+
+  storeRepP abstractStoreRepI::getRep() const {
+    if(defer_rep != 0) {
+      return defer_rep->getRep() ;
+    } else {
+      return storeRep::getRep() ;
+    }
+  }
+
+  int abstractStoreRepI::getDomainKeySpace() const {
+    if(defer_rep != 0) {
+      return defer_rep->getDomainKeySpace() ;
+    } else {
+      return storeRep::getDomainKeySpace() ;
+    }
+  }
+
+  void abstractStoreRepI::setDomainKeySpace(int v) {
+    if(defer_rep != 0) {
+      defer_rep->setDomainKeySpace(v) ;
+    } else {
+      storeRep::setDomainKeySpace(v) ;
+    }
+  }
+
 }
