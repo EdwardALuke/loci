@@ -54,7 +54,21 @@ namespace Loci {
   
   class fact_db ;
   class sched_db ;
-  
+
+  inline variable makeGPUVAR(variable v) {
+    variable::info vinfo = v.get_info() ;
+    std::string vname = std::string("__GPU__") + vinfo.name ;
+    vinfo.name = vname ;
+    return variable(vinfo) ;
+  }
+
+  inline variable makeREDUCEVAR(variable v) {
+    variable::info vinfo = v.get_info() ;
+    std::string vname = vinfo.name + std::string("Partial") ;
+    vinfo.name = vname ;
+    return variable(vinfo) ;
+  }
+
   class joiner : public CPTR_type {
   public:
     virtual CPTR<joiner> clone() = 0 ;
@@ -243,31 +257,6 @@ namespace Loci {
   typedef rule_impl::rule_implP rule_implP ;
   
   
-  template <class TCopyRuleImpl> class copy_rule_impl : public TCopyRuleImpl {
-    typedef std::list<std::map<variable, variable> > rename_varList ;
-    typedef std::list<std::map<variable, variable> >::const_iterator list_iter;
-    rename_varList rvlist ;
-  public:
-    virtual rule_implP new_rule_impl() const ;
-    virtual void rename_vars(std::map<variable, variable> &rvm) ;
-  } ; 
-  
-  template <class TCopyRuleImpl> rule_implP copy_rule_impl<TCopyRuleImpl>::new_rule_impl() const {
-    rule_implP realrule_impl = new copy_rule_impl<TCopyRuleImpl> ;
-    for(list_iter li = rvlist.begin(); li != rvlist.end(); ++li) { 
-      std::map<variable, variable> rvm = *li;
-      realrule_impl->rename_vars(rvm) ;
-    }
-    return realrule_impl ;
-  }
-
-  template <class TCopyRuleImpl> 
-    void copy_rule_impl<TCopyRuleImpl>::rename_vars(std::map<variable,variable> &rvm) {
-    rvlist.push_back(rvm) ;
-    rule_impl::prot_rename_vars(rvm) ;
-  }
-
-
   // this is the new rule type for setting default
   // values in the facts database. It should not have
   // any inputs
@@ -627,6 +616,46 @@ namespace Loci {
       return CPTR<joiner>(jp) ;
     }
 
+  } ;
+
+  class gpu2cpu_param_apply_rule: public rule_impl {
+    typedef std::list<std::map<variable, variable> > rename_varList ;
+    typedef std::list<std::map<variable, variable> >::const_iterator list_iter;
+
+    rename_varList rvlist ;
+    std::string target_name ;
+    std::string source_name ;
+    abstractStore target ;
+    const_abstractStore source ;
+    CPTR<joiner> joinop ;
+
+    public:
+    gpu2cpu_param_apply_rule(
+      std::string const & target_name, std::string const & source_name,
+      storeRepP var_type, CPTR<joiner> joinop
+    ) : target_name(target_name), source_name(source_name),
+        target(var_type->new_store(EMPTY)), source(var_type->new_store(EMPTY)),
+        joinop(joinop) {
+      rule_class(APPLY) ;
+      name_store(target_name, target) ;
+      name_store(source_name, source) ;
+      output(target_name) ;
+      input(source_name) ;
+    }
+
+    void set_joiner(CPTR<joiner> op) {
+      joinop = op ;
+    }
+
+    CPTR<joiner> get_joiner() override {
+      return joinop ;
+    }
+
+    void compute(const sequence & seq) override ;
+
+    rule_implP new_rule_impl() const override ;
+
+    void rename_vars(std::map<variable, variable>  &rvm) override ;
   } ;
 
   template<typename Op, typename T>
@@ -1205,6 +1234,49 @@ namespace Loci {
   } ;
   extern register_rule_impl_list register_rule_list ;    
   extern rule_impl_list global_rule_list ;    
+
+  // Loci uses global declarations of register_rule instance to register rules
+  // in global rule list. This process takes place before main() is called. At
+  // this instance in the program lifecycle, proper initialization of standard
+  // library is not guaranteed. Therefore, a state-less instance of
+  // register_rule<T> is created and added to register_rule_list. register_rule
+  // knows only about type of the rule class, T. Instantiation of T occurs only
+  // when register_rule<T>::get_func() is invoked when populating the global
+  // rule list after main() starts. register_rule<T>::get_func() relies on
+  // copy_rule_impl<T> to enable generation of deep-copyable instance of type
+  // T. Class copy_rule_impl<T> encapsulates the process of generating clones
+  // of the rule implementation as it undergoes generalizations, promotions
+  // etc. as the schedule evolves. At every instantiation of concrete rule
+  // implementation class, copy_rule_impl starts from a fresh copy using the
+  // default constructor of the rule implementation class, and then applies 
+  // variable renaming on this instance in the same order. Therefore, each rule
+  // class is expected to initialize its named-stores, inputs, outputs,
+  // constraints, etc. in the default constructor.
+
+  template <class TCopyRuleImpl> class copy_rule_impl : public TCopyRuleImpl {
+    typedef std::list<std::map<variable, variable> > rename_varList ;
+    typedef std::list<std::map<variable, variable> >::const_iterator list_iter;
+    rename_varList rvlist ;
+  public:
+    virtual rule_implP new_rule_impl() const ;
+    virtual void rename_vars(std::map<variable, variable> &rvm) ;
+  } ; 
+  
+  template <class TCopyRuleImpl> rule_implP copy_rule_impl<TCopyRuleImpl>::new_rule_impl() const {
+    rule_implP realrule_impl = new copy_rule_impl<TCopyRuleImpl> ;
+    for(list_iter li = rvlist.begin(); li != rvlist.end(); ++li) { 
+      std::map<variable, variable> rvm = *li;
+      realrule_impl->rename_vars(rvm) ;
+    }
+    return realrule_impl ;
+  }
+
+  template <class TCopyRuleImpl> 
+    void copy_rule_impl<TCopyRuleImpl>::rename_vars(std::map<variable,variable> &rvm) {
+    rvlist.push_back(rvm) ;
+    rule_impl::prot_rename_vars(rvm) ;
+  }
+
   template<class T> class register_rule : public register_rule_type {
   public:
     register_rule() { register_rule_list.push_rule(this) ; }
