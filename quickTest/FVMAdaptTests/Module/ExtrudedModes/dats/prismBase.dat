@@ -1,0 +1,15 @@
+fixture=thin_prism
+mode=base
+cells=2
+faces=9
+nodes=8
+convexity=pass
+volume.Main=0.08
+cell_type.hex=0
+cell_type.prism=2
+cell_type.tetrahedron=0
+cell_type.pyramid=0
+cell_type.general=0
+coordinate_planes.x=2
+coordinate_planes.y=2
+coordinate_planes.z=2
