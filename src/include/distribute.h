@@ -39,7 +39,7 @@
 
 #include <Map.h>
 #include <DMap.h>
-#include "partition.h"
+#include <partition.h>
 #include <store_rep.h>
 #include <store_def.h>
 #include <storeVec_def.h>
@@ -556,7 +556,7 @@ namespace Loci {
   std::string gen_local_name(const std::string& prefix,
                              const std::string& suffix="");
 
-  class  entityPartitionInfo  {
+  class  entityPartitionInfo {
   public:
     entityPartitionInfo(entitySet &scope,
                         Map &l2g_in,

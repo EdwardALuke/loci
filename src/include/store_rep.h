@@ -312,6 +312,7 @@ namespace Loci {
 
   class  entityPartitionInfo ;
 
+  /// A convenience pointer to the data partitioner interface
   typedef std::shared_ptr<entityPartitionInfo> entityPartitionInfoP ;
   
   class storeRep : public NPTR_type {
@@ -370,8 +371,8 @@ namespace Loci {
     virtual frame_info get_frame_info() = 0 ;
     virtual int getDomainKeySpace() const { return domainKeySpace ; }
     virtual void setDomainKeySpace(int v) { domainKeySpace = v ; }
-    virtual void setPartitionInfo(entityPartitionInfoP p) { ptn = p ; }
-    virtual entityPartitionInfoP getPartitionInfo() { return ptn; }
+    void setPartitionInfo(entityPartitionInfoP p) { ptn = p ; }
+    entityPartitionInfoP getPartitionInfo() { return ptn; }
   } ;
 
 

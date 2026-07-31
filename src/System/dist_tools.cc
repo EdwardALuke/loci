@@ -756,7 +756,7 @@ namespace Loci {
 
     //----------------------------------------------------------------------
     // reorder facts to local numbering
-    reorder_facts(facts, df->g2lv[0]) ; 
+    reorder_facts(facts) ; 
 
     //----------------------------------------------------------------------
     end_time =  MPI_Wtime() ;

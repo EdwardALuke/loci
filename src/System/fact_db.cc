@@ -27,6 +27,7 @@
 #include <Tools/debugger.h>
 #include <DStore.h>
 #include "dist_tools.h"
+#include "distribute.h"
 
 #include <Loci_Datatypes.h>
 
@@ -915,9 +916,19 @@ namespace Loci {
   
   /////////////////////////////////////////////////////////////////////////////
   
-  void reorder_facts(fact_db &facts, dMap &remap) {
+  void reorder_facts(fact_db &facts) {
     variableSet vars = facts.get_typed_variables() ;
     fact_db::distribute_infoP df = facts.get_distribute_info()  ;
+
+    entitySet scope = df->my_entities ;
+    vector<dataPartitionP> ptnlist ;
+    for(size_t i=0;i<facts.init_ptn.size();++i) {
+      dataPartitionP p = std::make_shared<dataPartitionGeneral>
+        (facts.init_ptn[i],MPI_COMM_WORLD) ;
+      ptnlist.push_back(p) ;
+    }
+    entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
+      (scope,df->l2g,df->key_domain,df->l2f,ptnlist) ;
     for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
       storeRepP p = facts.get_variable(*vi) ;
       if(p->domain() == ~EMPTY) {
@@ -928,6 +939,7 @@ namespace Loci {
         int kd = p->getDomainKeySpace() ;
         entitySet rdom = p->domain() & df->g2lv[kd].domain() ;
         storeRepP fp = (p->remap(df->g2lv[kd]))->freeze() ;
+        fp->setPartitionInfo(distinfop) ;
         facts.replace_fact(*vi,fp) ;
         p = facts.get_variable(*vi) ;
       } else {
@@ -936,6 +948,8 @@ namespace Loci {
         int rd = mp->getRangeKeySpace() ;
         storeRepP fp = (mp->MapRemap(df->g2lv[kd],
                                      df->g2lv[rd]))->freeze() ;
+        
+        fp->setPartitionInfo(distinfop) ;
         facts.replace_fact(*vi,fp) ;
         p = facts.get_variable(*vi) ;
         mp = MapRepP(p->getRep()) ;
@@ -984,6 +998,20 @@ namespace Loci {
     df->g2lv.push_back(g2l) ;
     df->g2fv.push_back(g2l) ;
     facts.put_distribute_info(df) ;
+
+    entitySet scope = df->my_entities ;
+    vector<dataPartitionP> ptnlist ;
+    for(size_t i=0;i<facts.init_ptn.size();++i) {
+      dataPartitionP p = std::make_shared<dataPartitionGeneral>
+        (facts.init_ptn[i],MPI_COMM_WORLD) ;
+      ptnlist.push_back(p) ;
+    }
+    entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
+      (scope,df->l2g,df->key_domain,df->l2f,ptnlist) ;
+    for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
+      storeRepP p = facts.get_variable(*vi) ;
+      p->setPartitionInfo(distinfop) ;
+    }
   }
 
   void fact_db::set_variable_type(variable v, storeRepP st) {
