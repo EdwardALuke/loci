@@ -40,16 +40,47 @@ $include "fvmadapt_internal.lh"
 $type isFolded store<bool> ;
 
 $rule pointwise(isFolded<-face2node->pos), constraint(faces) {
-    $isFolded = 0 ;
-    int numNode = $face2node.size() ;
-    if(numNode <= 3) { return ; }
+  $isFolded = 0 ;
+  int numNode = $face2node.size() ;
+  if(numNode <= 3) { return ; }
 
-    std::vector<vect3d> edge(numNode -1) ;
-    std::vector<double> norms(numNode-2) ;
+  std::vector<vect3d> edge(numNode -1) ;
+  std::vector<double> norms(numNode-2) ;
 
+  // defines edges from node i+1 to node 0
+  for(int i=0; i<numNode-1; i++) {
+    edge[i] = $face2node[i+1]->$pos - $face2node[0]->$pos ;
+  }
+
+  // defines area of triangle
+  for(int i=0; i<numNode-2; i++) {
+    edge[i] = cross(edge[i], edge[i+1]) ;
+  }
+
+  double maxAngle = 0.0 ;
+  double total_area = 0.0 ;
+
+  for(int i=0; i<numNode-2; i++) {
+    norms[i] = norm(edge[i]) ;
+    total_area += norms[i] ;
+  }
+
+  for(int i=0; i<numNode-3; i++) {
+    if(norms[i] <= NORMALIZE_ZERO_THRESHOLD || norms[i+1] <= NORMALIZE_ZERO_THRESHOLD || norms[i]/total_area < 0.001) {
+      continue ;
+    }else {
+      double dot_value = dot(edge[i]/norms[i], edge[i+1]/norms[i+1]) ;
+      // if(abs(dot_value) <1.0e-8 ) dot_value = abs(dot_value) ; //prevent error cause folded face
+      maxAngle = max(acos(min(dot_value,1.0)), maxAngle) ;
+    }
+  }
+  $isFolded = (maxAngle > Globals::fold) ;
+
+  // if not folded, check again
+  if($isFolded == 0) {
     // defines edges from node i+1 to node 0
     for(int i=0; i<numNode-1; i++) {
-      edge[i] = $face2node[i+1]->$pos - $face2node[0]->$pos ;
+      edge[i] = $face2node[i]->$pos - $face2node[numNode-1]->$pos ;
     }
 
     // defines area of triangle
@@ -58,7 +89,7 @@ $rule pointwise(isFolded<-face2node->pos), constraint(faces) {
     }
 
     double maxAngle = 0.0 ;
-    double total_area = 0.0 ;
+    double total_area  = 0.0 ;
 
     for(int i=0; i<numNode-2; i++) {
       norms[i] = norm(edge[i]) ;
@@ -70,44 +101,13 @@ $rule pointwise(isFolded<-face2node->pos), constraint(faces) {
         continue ;
       }else {
         double dot_value = dot(edge[i]/norms[i], edge[i+1]/norms[i+1]) ;
-        // if(abs(dot_value) <1.0e-8 ) dot_value = abs(dot_value) ; //prevent error cause folded face
+        //if(abs(dot_value) <1.0e-8 ) dot_value = abs(dot_value) ; //prevent error cause folded face
         maxAngle = max(acos(min(dot_value,1.0)), maxAngle) ;
       }
     }
     $isFolded = (maxAngle > Globals::fold) ;
-
-    // if not folded, check again
-    if($isFolded == 0) {
-      // defines edges from node i+1 to node 0
-      for(int i=0; i<numNode-1; i++) {
-        edge[i] = $face2node[i]->$pos - $face2node[numNode-1]->$pos ;
-      }
-
-      // defines area of triangle
-      for(int i=0; i<numNode-2; i++) {
-        edge[i] = cross(edge[i], edge[i+1]) ;
-      }
-
-      double maxAngle = 0.0 ;
-      double total_area  = 0.0 ;
-
-      for(int i=0; i<numNode-2; i++) {
-        norms[i] = norm(edge[i]) ;
-        total_area += norms[i] ;
-      }
-
-      for(int i=0; i<numNode-3; i++) {
-        if(norms[i] <= NORMALIZE_ZERO_THRESHOLD || norms[i+1] <= NORMALIZE_ZERO_THRESHOLD || norms[i]/total_area < 0.001) {
-          continue ;
-        }else {
-          double dot_value = dot(edge[i]/norms[i], edge[i+1]/norms[i+1]) ;
-          //if(abs(dot_value) <1.0e-8 ) dot_value = abs(dot_value) ; //prevent error cause folded face
-          maxAngle = max(acos(min(dot_value,1.0)), maxAngle) ;
-        }
-      }
-      $isFolded = (maxAngle > Globals::fold) ;
-    }
-    //if(isFolded[f]) cerr << " folded face exist " << f << endl;
+  }
+  //if(isFolded[f]) cerr << " folded face exist " << f << endl;
 }
 
 $rule unit(isIndivisible), constraint(geom_cells) {

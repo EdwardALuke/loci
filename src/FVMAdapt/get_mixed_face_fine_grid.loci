@@ -321,192 +321,192 @@ cr->(prism2node, prism2face, prismOrientCode), fr,
 (cl, cr)->(upper, lower, boundary_map)->face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))),
 constraint(cl->gnrlcells, cr->prisms) {
-    std::vector<QuadFace*> fine_qfaces ;
-    std::vector<Face*> fine_gfaces ;
-    QuadFace* aqFace = 0 ;
-    Face* agFace = 0 ;
-    unsigned int num_leaves = 0 ;
+  std::vector<QuadFace*> fine_qfaces ;
+  std::vector<Face*> fine_gfaces ;
+  QuadFace* aqFace = 0 ;
+  Face* agFace = 0 ;
+  unsigned int num_leaves = 0 ;
 
-    std::list<Node*> bnode_list, node_list ;
-    std::list<Edge*> edge_list ;
-    std::list<int32> faceVertex ;
-    int c1, c2 ;
+  std::list<Node*> bnode_list, node_list ;
+  std::list<Edge*> edge_list ;
+  std::list<int32> faceVertex ;
+  int c1, c2 ;
 
-    if($face2node.size() == 4) {
-      aqFace = build_quad_face($face2node.begin(),
+  if($face2node.size() == 4) {
+    aqFace = build_quad_face($face2node.begin(),
+                              $face2edge.begin(),
+                              $*edge2node,
+                              $*pos,
+                              $*balancedEdgePlan,
+                              $*balanced_node_offset,
+                              $*fileNumber(pos),
+                              bnode_list,
+                              edge_list);
+
+    if($balancedFacePlan.size() == 0) {
+      // num of fine faces is 1
+      aqFace->set_f2n(faceVertex) ;
+      vector<vector<int> >(1).swap($fine_faces) ;
+      int vec_size = faceVertex.size() + 2 ;
+      vector<int>(vec_size).swap($fine_faces[0]) ;
+
+      // get c1, c2(local numbering start with 1)
+      c1 = $cl->$balanced_cell_offset + 1 ;
+      c2 = $cr->$balanced_cell_offset + 1 ;
+
+      $fine_faces[0][0] = c1 ;
+      $fine_faces[0][1] = c2 ;
+
+      std::list<int32>::const_iterator nptr = faceVertex.begin() ;
+      for(int i=2; i<vec_size; i++, nptr++) {
+        $fine_faces[0][i] = *nptr ;
+      }
+
+      // clean up
+      if(aqFace != 0) { delete aqFace ; }
+      cleanup_list(bnode_list, edge_list) ;
+      return ;
+    }
+
+    //split the face
+    aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list,
+                    fine_qfaces);
+    num_leaves = fine_qfaces.size() ;
+  }else {
+    agFace = build_general_face($face2node.begin(),$face2node.size(),
                                 $face2edge.begin(),
                                 $*edge2node,
                                 $*pos,
-                                $*balancedEdgePlan,
                                 $*balanced_node_offset,
-                                $*fileNumber(pos),
+                                $*balancedEdgePlan,
                                 bnode_list,
-                                edge_list);
+                                edge_list,
+                                $*fileNumber(pos));
 
-      if($balancedFacePlan.size() == 0) {
-        // num of fine faces is 1
-        aqFace->set_f2n(faceVertex) ;
-        vector<vector<int> >(1).swap($fine_faces) ;
-        int vec_size = faceVertex.size() + 2 ;
-        vector<int>(vec_size).swap($fine_faces[0]) ;
+    if($balancedFacePlan.size() == 0) {
+      // num of fine faces is 1
+      agFace->set_f2n(faceVertex) ;
+      vector<vector<int> >(1).swap($fine_faces) ;
+      int vec_size = faceVertex.size() + 2 ;
+      vector<int>(vec_size).swap($fine_faces[0]) ;
 
-        // get c1, c2(local numbering start with 1)
-        c1 = $cl->$balanced_cell_offset + 1 ;
-        c2 = $cr->$balanced_cell_offset + 1 ;
+      // get c1, c2(local numbering start with 1)
+      c1 = $cl->$balanced_cell_offset + 1 ;
 
-        $fine_faces[0][0] = c1 ;
-        $fine_faces[0][1] = c2 ;
+      std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
+                                           $balancedFacePlan,
+                                           $cr->$prismOrientCode[$fr],
+                                           $fr);
 
-        std::list<int32>::const_iterator nptr = faceVertex.begin() ;
-        for(int i=2; i<vec_size; i++, nptr++) {
-          $fine_faces[0][i] = *nptr ;
-        }
-
-        // clean up
-        if(aqFace != 0) { delete aqFace ; }
-        cleanup_list(bnode_list, edge_list) ;
-        return ;
+      if( CR.size()!= 1) {
+        cerr << "WARNING: CR has the incorrect size" << endl ;
+        Loci::Abort() ;
       }
 
-      //split the face
-      aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list,
-                      fine_qfaces);
-      num_leaves = fine_qfaces.size() ;
-    }else {
-      agFace = build_general_face($face2node.begin(),$face2node.size(),
-                                  $face2edge.begin(),
-                                  $*edge2node,
-                                  $*pos,
-                                  $*balanced_node_offset,
-                                  $*balancedEdgePlan,
-                                  bnode_list,
-                                  edge_list,
-                                  $*fileNumber(pos));
+      c2 = $cr->$balanced_cell_offset + CR[0] ;
 
-      if($balancedFacePlan.size() == 0) {
-        // num of fine faces is 1
-        agFace->set_f2n(faceVertex) ;
-        vector<vector<int> >(1).swap($fine_faces) ;
-        int vec_size = faceVertex.size() + 2 ;
-        vector<int>(vec_size).swap($fine_faces[0]) ;
+      $fine_faces[0][0] = c1 ;
+      $fine_faces[0][1] = c2 ;
 
-        // get c1, c2(local numbering start with 1)
-        c1 = $cl->$balanced_cell_offset + 1 ;
-
-        std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
-                                             $balancedFacePlan,
-                                             $cr->$prismOrientCode[$fr],
-                                             $fr);
-
-        if( CR.size()!= 1) {
-          cerr << "WARNING: CR has the incorrect size" << endl ;
-          Loci::Abort() ;
-        }
-
-        c2 = $cr->$balanced_cell_offset + CR[0] ;
-
-        $fine_faces[0][0] = c1 ;
-        $fine_faces[0][1] = c2 ;
-
-        std::list<int32>::const_iterator nptr = faceVertex.begin() ;
-        for(int i=2; i<vec_size; i++, nptr++) {
-          $fine_faces[0][i] = *nptr ;
-        }
-
-        // clean up
-        if(agFace != 0) { delete agFace ; }
-        cleanup_list(bnode_list, edge_list) ;
-        return ;
+      std::list<int32>::const_iterator nptr = faceVertex.begin() ;
+      for(int i=2; i<vec_size; i++, nptr++) {
+        $fine_faces[0][i] = *nptr ;
       }
 
-      //split the face
-      agFace->resplit($balancedFacePlan, node_list, edge_list, fine_gfaces) ;
-      num_leaves = fine_gfaces.size() ;
+      // clean up
+      if(agFace != 0) { delete agFace ; }
+      cleanup_list(bnode_list, edge_list) ;
+      return ;
     }
 
-    // and index the node_list
-    int nindex = 0 ;
-    for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++) {
-      (*np)->index = $balanced_node_offset + nindex ;
-    }
-
-    //get CL and CR
-    std::vector<int32> CL = get_c1_general($cl->$lower.begin(), $cl->$lower.size(),
-                                          $cl->$upper.begin(), $cl->$upper.size(),
-                                          $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
-                                          ($face2node.size() == 4),
-                                          $*face2node,
-                                          $*face2edge,
-                                          $*edge2node,
-                                          $cl->$balancedCellPlan,
-                                          $balancedFacePlan,
-                                          _e_,
-                                          $*fileNumber(pos));
-
-    if(num_leaves != CL.size()) {
-      cerr << "WARNING: CL has the incorrect size" << endl ;
-      Loci::Abort() ;
-    }
-
-    std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
-                                         $balancedFacePlan,
-                                         $cr->$prismOrientCode[$fr],
-                                         $fr);
-
-    if(num_leaves != CR.size()) {
-      cerr << "WARNING: CR has the incorrect size" << endl ;
-      Loci::Abort() ;
-    }
-
-    // set the size of fine_faces[f]
-    vector<std::vector<int> >(num_leaves).swap($fine_faces) ;
-
-    // set fine_faces[f]
-    for(unsigned int fptr=0; fptr<num_leaves; fptr++) {
-    // set c1
-    if($cl->$balancedCellPlan.size() == 0) {
-      c1= $cl->$balanced_cell_offset + 1 ;
-    }else {
-      c1= $cl->$balanced_cell_offset + CL[fptr] ;
-    }
-    // set c2
-    if($cr->$balancedCellPlan.size() == 0) {
-      c2 = $cr->$balanced_cell_offset + 1 ;
-    }else {
-      c2 = $cr->$balanced_cell_offset + CR[fptr] ;
-    }
-
-    //set faceVertex
-    faceVertex.clear() ;
-    if($face2node.size() == 4) {
-      fine_qfaces[fptr]->set_f2n(faceVertex) ;
-    }else {
-      fine_gfaces[fptr]->set_f2n(faceVertex) ;
-    }
-
-    int vec_size = faceVertex.size() + 2 ;
-    vector<int>(vec_size).swap($fine_faces[fptr]) ;
-    $fine_faces[fptr][0] = c1 ;
-    $fine_faces[fptr][1] = c2 ;
-    std::list<int32>::const_iterator nptr = faceVertex.begin() ;
-
-    for(int i = 2; i < vec_size; i++,nptr++) {
-      $fine_faces[fptr][i] = *nptr ;
-    }
+    //split the face
+    agFace->resplit($balancedFacePlan, node_list, edge_list, fine_gfaces) ;
+    num_leaves = fine_gfaces.size() ;
   }
 
-  // clean up
-  if(aqFace != 0) {
-    delete aqFace ;
-    aqFace = 0 ;
+  // and index the node_list
+  int nindex = 0 ;
+  for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++) {
+    (*np)->index = $balanced_node_offset + nindex ;
   }
 
-  if(agFace != 0) {
-    delete agFace ;
-    agFace = 0 ;
+  //get CL and CR
+  std::vector<int32> CL = get_c1_general($cl->$lower.begin(), $cl->$lower.size(),
+                                        $cl->$upper.begin(), $cl->$upper.size(),
+                                        $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
+                                        ($face2node.size() == 4),
+                                        $*face2node,
+                                        $*face2edge,
+                                        $*edge2node,
+                                        $cl->$balancedCellPlan,
+                                        $balancedFacePlan,
+                                        _e_,
+                                        $*fileNumber(pos));
+
+  if(num_leaves != CL.size()) {
+    cerr << "WARNING: CL has the incorrect size" << endl ;
+    Loci::Abort() ;
   }
-  cleanup_list(node_list) ;
-  cleanup_list(bnode_list, edge_list) ;
+
+  std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
+                                       $balancedFacePlan,
+                                       $cr->$prismOrientCode[$fr],
+                                       $fr);
+
+  if(num_leaves != CR.size()) {
+    cerr << "WARNING: CR has the incorrect size" << endl ;
+    Loci::Abort() ;
+  }
+
+  // set the size of fine_faces[f]
+  vector<std::vector<int> >(num_leaves).swap($fine_faces) ;
+
+  // set fine_faces[f]
+  for(unsigned int fptr=0; fptr<num_leaves; fptr++) {
+  // set c1
+  if($cl->$balancedCellPlan.size() == 0) {
+    c1= $cl->$balanced_cell_offset + 1 ;
+  }else {
+    c1= $cl->$balanced_cell_offset + CL[fptr] ;
+  }
+  // set c2
+  if($cr->$balancedCellPlan.size() == 0) {
+    c2 = $cr->$balanced_cell_offset + 1 ;
+  }else {
+    c2 = $cr->$balanced_cell_offset + CR[fptr] ;
+  }
+
+  //set faceVertex
+  faceVertex.clear() ;
+  if($face2node.size() == 4) {
+    fine_qfaces[fptr]->set_f2n(faceVertex) ;
+  }else {
+    fine_gfaces[fptr]->set_f2n(faceVertex) ;
+  }
+
+  int vec_size = faceVertex.size() + 2 ;
+  vector<int>(vec_size).swap($fine_faces[fptr]) ;
+  $fine_faces[fptr][0] = c1 ;
+  $fine_faces[fptr][1] = c2 ;
+  std::list<int32>::const_iterator nptr = faceVertex.begin() ;
+
+  for(int i = 2; i < vec_size; i++,nptr++) {
+    $fine_faces[fptr][i] = *nptr ;
+  }
+}
+
+// clean up
+if(aqFace != 0) {
+  delete aqFace ;
+  aqFace = 0 ;
+}
+
+if(agFace != 0) {
+  delete agFace ;
+  agFace = 0 ;
+}
+cleanup_list(node_list) ;
+cleanup_list(bnode_list, edge_list) ;
 }
 
 

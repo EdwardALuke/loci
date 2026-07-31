@@ -533,57 +533,57 @@ isIndivisible, parfile_par,
 cellPlanSources),
 constraint(gnrlcells) {
 
-    const vector<source_par>& sources = *($*cellPlanSources) ;
-    if(!$isIndivisible) {
-      std::list<Edge*> edge_list ;
-      std::list<Face*> face_list ;
-      std::list<Node*> bnode_list ;
-      std::queue<DiamondCell*> Q ;
+  const vector<source_par>& sources = *($*cellPlanSources) ;
+  if(!$isIndivisible) {
+    std::list<Edge*> edge_list ;
+    std::list<Face*> face_list ;
+    std::list<Node*> bnode_list ;
+    std::queue<DiamondCell*> Q ;
 
-      Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
-                                       $upper.begin(), $upper.size(),
-                                       $boundary_map.begin(), $boundary_map.size(),
-                                       $*face2node,
-                                       $*face2edge,
-                                       $*edge2node,
-                                       $*pos,
-                                       bnode_list,
-                                       edge_list,
-                                       face_list,
-                                       $*fileNumber(pos));
+    Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
+                                     $upper.begin(), $upper.size(),
+                                     $boundary_map.begin(), $boundary_map.size(),
+                                     $*face2node,
+                                     $*face2edge,
+                                     $*edge2node,
+                                     $*pos,
+                                     bnode_list,
+                                     edge_list,
+                                     face_list,
+                                     $*fileNumber(pos));
 
-      DiamondCell* current ;
-      if(aCell->get_tagged(sources) ==1) {
-        aCell->split(bnode_list, edge_list, face_list) ;
-        for(int i=0; i<aCell->numNode; i++) {
-          Q.push(aCell->child[i]) ;
-        }
+    DiamondCell* current ;
+    if(aCell->get_tagged(sources) ==1) {
+      aCell->split(bnode_list, edge_list, face_list) ;
+      for(int i=0; i<aCell->numNode; i++) {
+        Q.push(aCell->child[i]) ;
+      }
 
-        while(!Q.empty()) {
-          current =Q.front() ;
-          if(current->get_tagged(sources) == 1 ) {
-            current->split(bnode_list, edge_list, face_list) ;
-            for(int i=0; i <2*current->getNfold()+2; i++) {
-              Q.push(current->getChildCell(i)) ;
-            }
+      while(!Q.empty()) {
+        current =Q.front() ;
+        if(current->get_tagged(sources) == 1 ) {
+          current->split(bnode_list, edge_list, face_list) ;
+          for(int i=0; i <2*current->getNfold()+2; i++) {
+            Q.push(current->getChildCell(i)) ;
           }
-          Q.pop() ;
         }
-        aCell->rebalance_cells(bnode_list, edge_list, face_list) ;
+        Q.pop() ;
       }
-
-      // write new cellPlan
-      $newCellPlan = aCell->make_cellplan() ;
-
-      //clean up
-      if(aCell != 0) {
-        delete aCell ;
-        aCell = 0 ;
-      }
-
-      cleanup_list(bnode_list, edge_list, face_list) ;
-      reduce_vector($newCellPlan) ;
+      aCell->rebalance_cells(bnode_list, edge_list, face_list) ;
     }
+
+    // write new cellPlan
+    $newCellPlan = aCell->make_cellplan() ;
+
+    //clean up
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
+    }
+
+    cleanup_list(bnode_list, edge_list, face_list) ;
+    reduce_vector($newCellPlan) ;
+  }
 }
 
 

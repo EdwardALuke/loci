@@ -78,67 +78,67 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
    *			6	(1,  1,  0)
    *			7	( 1,  1,  1)
    */
-    /** lower:	Mapping from cells to faces */
-    /** upper:	Mapping from cells to faces */
-    /** boundary_map: Mapping from cells to faces */
-    /** f2n:	Mapping from faces to nodes */
-  $rule pointwise(hexOrientCode, hex2face, hex2node <-
-  (upper, lower, boundary_map)->(face2node, fileNumber(face2node))),
-  constraint(hexcells) {
-      // Collect the entity designations of all nodes in the nodes array
-      Entity nodes[8];
-      for(size_t i=0;i<8;++i)
-        nodes[i] = 0 ;
+/** lower:	Mapping from cells to faces */
+/** upper:	Mapping from cells to faces */
+/** boundary_map: Mapping from cells to faces */
+/** f2n:	Mapping from faces to nodes */
+$rule pointwise(hexOrientCode, hex2face, hex2node <-
+(upper, lower, boundary_map)->(face2node, fileNumber(face2node))),
+constraint(hexcells) {
+  // Collect the entity designations of all nodes in the nodes array
+  Entity nodes[8];
+  for(size_t i=0;i<8;++i)
+    nodes[i] = 0 ;
 
-      // Collect the entity designations of all faces in the faces array
-        Entity faces[6];
-      // Determine the relative orientations of the faces
-      char orient[6];
-      //first create vectors for reordering
-      vector<Entity> vlower($lower.size());
-      vector<Entity> vupper($upper.size());
-      vector<Entity> vboundary_map($boundary_map.size());
-      int nf =0;
-      for (int f=0; f<$lower.size(); f++) vlower[nf++] =$lower[f];
-      nf =0;
-      for (int f=0; f<$upper.size(); f++) vupper[nf++] =$upper[f];
-      nf =0;
-      for (int f=0; f<$boundary_map.size(); f++) vboundary_map[nf++] =$boundary_map[f];
-      reorder_faces($*fileNumber(face2node), vlower, vupper, vboundary_map);
+  // Collect the entity designations of all faces in the faces array
+  Entity faces[6];
+  // Determine the relative orientations of the faces
+  char orient[6];
+  //first create vectors for reordering
+  vector<Entity> vlower($lower.size());
+  vector<Entity> vupper($upper.size());
+  vector<Entity> vboundary_map($boundary_map.size());
+  int nf =0;
+  for (int f=0; f<$lower.size(); f++) vlower[nf++] =$lower[f];
+  nf =0;
+  for (int f=0; f<$upper.size(); f++) vupper[nf++] =$upper[f];
+  nf =0;
+  for (int f=0; f<$boundary_map.size(); f++) vboundary_map[nf++] =$boundary_map[f];
+  reorder_faces($*fileNumber(face2node), vlower, vupper, vboundary_map);
 
-      // Initialize topology deduction data structures
-      //this piece of code should work for parallel sine entityset not used
-      nf=0;
-      for (int f=0; f<$lower.size(); f++) {
+  // Initialize topology deduction data structures
+  //this piece of code should work for parallel sine entityset not used
+  nf=0;
+  for (int f=0; f<$lower.size(); f++) {
 	orient[nf] = 'r';
 	$hex2face[nf] = f;
 	$hexOrientCode[nf] = 0;
 	faces[nf++] = vlower[f];
-      }
-      for (int f=0; f<$upper.size(); f++) {
+  }
+  for (int f=0; f<$upper.size(); f++) {
 	orient[nf] = 'l';
 	$hex2face[nf] = f + 6;
 	$hexOrientCode[nf] = 0;
 	faces[nf++] = vupper[f];
-      }
-      for (int f=0; f<$boundary_map.size(); f++) {
+  }
+  for (int f=0; f<$boundary_map.size(); f++) {
 	orient[nf] = 'l';
 	$hex2face[nf] = f + 12;
 	$hexOrientCode[nf] = 0;
 	faces[nf++] = vboundary_map[f];
-      }
+  }
 
 
 
-      // The first node of faces[0] will be nodes[0]
-      nodes[0] = $*face2node[faces[0]][0];
-      $hex2node[0] = 0;
-      // The third node of faces[0] will be nodes[3]
-      nodes[3] = $*face2node[faces[0]][2];
-      $hex2node[3] = 2;
-      // Determine the orientation of the first face.
-      // If orient[0]=='r', then faces[0] has an inward facing normal.
-      if (orient[0] == 'r') {
+  // The first node of faces[0] will be nodes[0]
+  nodes[0] = $*face2node[faces[0]][0];
+  $hex2node[0] = 0;
+  // The third node of faces[0] will be nodes[3]
+  nodes[3] = $*face2node[faces[0]][2];
+  $hex2node[3] = 2;
+  // Determine the orientation of the first face.
+  // If orient[0]=='r', then faces[0] has an inward facing normal.
+  if (orient[0] == 'r') {
 	// The second node of faces[0] will be nodes[1]
 	nodes[1] = $*face2node[faces[0]][1];
 	$hex2node[1] = 1;
@@ -147,10 +147,10 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	$hex2node[2] = 3;
 	// Set the rotation parameter to zero (no rotations, no flip)
 	$hexOrientCode[0] = 0; //qh: this is right for DOWN
-      }
-      // Otherwise, it's an outward facing normal, and we need to
-      // reverse the direction of the first four nodes.
-      else {
+  }
+  // Otherwise, it's an outward facing normal, and we need to
+  // reverse the direction of the first four nodes.
+  else {
 	// The fourth node of faces[0] will be nodes[1]
 	nodes[1] = $*face2node[faces[0]][3];
 	$hex2node[1] = 3;
@@ -159,10 +159,10 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	$hex2node[2] = 1;
 	// Set the rotation parameter to four (no rotations, one flip)
 	$hexOrientCode[0] = 4; //qh: this is right for DOWN
-      }
-      // Next, let's flag the other two faces which share nodes[0].
-      // First up, faces[1] (eta=-1) will share nodes[0] and nodes[1]
-      for (int f=1; f<6; f++) {
+  }
+  // Next, let's flag the other two faces which share nodes[0].
+  // First up, faces[1] (eta=-1) will share nodes[0] and nodes[1]
+  for (int f=1; f<6; f++) {
 	for (int n=0; n<4; n++) {
 	  if ($*face2node[faces[f]][n] == nodes[0]) {
 	    // If the next node in the face2node map is nodes[1]
@@ -174,8 +174,8 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 		throw -1;
 	      }
 	      // (n rotations, one flip)
-              // rot[cc][1] = n + 4;//qh: need change here
-              $hexOrientCode[1] = n ; //qh: if 'l', no flip
+          // rot[cc][1] = n + 4;//qh: need change here
+          $hexOrientCode[1] = n ; //qh: if 'l', no flip
 	      // Make this face, faces[1]
 	      std::swap($hex2face[1], $hex2face[f]);
 	      std::swap(faces[1], faces[f]);
@@ -196,8 +196,8 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 		throw -1;
 	      }
 	      // (n rotations, no flip)
-              //  rot[cc][1] = n;//qh: need change here
-              $hexOrientCode[1] = n + 4; //qh: if 'r', flip
+          //  rot[cc][1] = n;//qh: need change here
+          $hexOrientCode[1] = n + 4; //qh: if 'r', flip
 	      // Make this face, faces[1]
 	      std::swap($hex2face[1], $hex2face[f]);
 	      std::swap(faces[1], faces[f]);
@@ -211,9 +211,9 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	    }
 	  }
 	}
-      }
-      // Next, faces[2] (xi=-1) will share nodes[0] and nodes[2]
-      for (int f=2; f<6; f++) {
+  }
+  // Next, faces[2] (xi=-1) will share nodes[0] and nodes[2]
+  for (int f=2; f<6; f++) {
 	for (int n=0; n<4; n++) {
 	  if ($*face2node[faces[f]][n] == nodes[0]) {
 	    // If the next node in the face2node map is nodes[2]
@@ -268,9 +268,9 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	    }
 	  }
 	}
-      }
-      // Now, faces[3] (xi=1) which will share nodes[1] and nodes[3]
-      for (int f=3; f<6; f++) {
+  }
+  // Now, faces[3] (xi=1) which will share nodes[1] and nodes[3]
+  for (int f=3; f<6; f++) {
 	for (int n=0; n<4; n++) {
 	  if ($*face2node[faces[f]][n] == nodes[1]) {
 	    // If the next node in the face2node map is nodes[3]
@@ -324,9 +324,9 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	    }
 	  }
 	}
-      }
-      // And faces[4] (eta=1) which will share nodes[2] and nodes[3]
-      for (int f=4; f<6; f++) {
+  }
+  // And faces[4] (eta=1) which will share nodes[2] and nodes[3]
+  for (int f=4; f<6; f++) {
 	for (int n=0; n<4; n++) {
 	  if ($*face2node[faces[f]][n] == nodes[2]) {
 	    // If the next node in the face2node map is nodes[3]
@@ -348,8 +348,8 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 		throw -1;
 	      }
 	      // (n rotations, one flip)
-              // rot[cc][4] = n + 4; //qh:change here
-              $hexOrientCode[4] = n;//qh: for FRONT face, if'r', no flip
+          // rot[cc][4] = n + 4; //qh:change here
+          $hexOrientCode[4] = n;//qh: for FRONT face, if'r', no flip
 	      // Make this face, faces[4]
 	      std::swap($hex2face[4], $hex2face[f]);
 	      std::swap(faces[4], faces[f]);
@@ -377,7 +377,7 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	      }
 	      // (n rotations, no flip)
 	      //rot[cc][4] = n; //qh:need change here
-              $hexOrientCode[4] = n + 4; //qh: for FRONT face, if 'l', flip
+          $hexOrientCode[4] = n + 4; //qh: for FRONT face, if 'l', flip
 	      // Make this face, faces[4]
 	      std::swap($hex2face[4], $hex2face[f]);
 	      std::swap(faces[4], faces[f]);
@@ -388,9 +388,9 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	    }
 	  }
 	}
-      }
-      // And finally faces[5] (zeta=1), should be the only one remaining
-      for (int n=0; n<4; n++) {
+  }
+  // And finally faces[5] (zeta=1), should be the only one remaining
+  for (int n=0; n<4; n++) {
 	// faces[5] should share nodes[4], nodes[5], nodes[6], and nodes[7]
 	if ($*face2node[faces[5]][n] == nodes[4]) {
 	  // If the next node in the face2node map is nodes[5]
@@ -414,8 +414,8 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	    // (n rotations, no flip)
 	    $hexOrientCode[5] = n;
 	    // Node n of faces[5] is nodes[4]
-            // hex2node[cc][4] = 5*8 + n;//qh:
-            $hex2node[4] =  n;//qh: changed next 4 lines
+        // hex2node[cc][4] = 5*8 + n;//qh:
+        $hex2node[4] =  n;//qh: changed next 4 lines
 	    // Node (n+1)%4 of faces[5] is nodes[5]
 	    $hex2node[5] =  (n+1)%4;
 	    // Node (n+2)%4 of faces[5] is nodes[7]
@@ -443,8 +443,8 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	    // (n rotations, one flip)
 	    $hexOrientCode[5] = n + 4;
 	    // Node n of faces[5] is nodes[4]
-            // hex2node[cc][4] = 5*8 + n;//qh:
-            $hex2node[4] =  n; //qh: changed next 4 lines
+        // hex2node[cc][4] = 5*8 + n;//qh:
+        $hex2node[4] =  n; //qh: changed next 4 lines
 	    // Node (n+1)%4 of faces[5] is nodes[6]
 	    $hex2node[6] =  (n+1)%4;
 	    // Node (n+2)%4 of faces[5] is nodes[7]
@@ -454,99 +454,99 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
 	  }
 	}
 
-      }
+  }
 
-            //qh:: switch to my numbering system
-      Array<char, 6>h2f_temp;
-      h2f_temp = $hex2face;
-      Array<char, 6> rot_temp;
-      rot_temp = $hexOrientCode;
+        //qh:: switch to my numbering system
+  Array<char, 6>h2f_temp;
+  h2f_temp = $hex2face;
+  Array<char, 6> rot_temp;
+  rot_temp = $hexOrientCode;
 
-      $hex2face[0] = h2f_temp[3];
-      $hexOrientCode[0] = rot_temp[3];
+  $hex2face[0] = h2f_temp[3];
+  $hexOrientCode[0] = rot_temp[3];
 
-      $hex2face[1] = h2f_temp[2];
-      $hexOrientCode[1] = rot_temp[2];
+  $hex2face[1] = h2f_temp[2];
+  $hexOrientCode[1] = rot_temp[2];
 
-      $hex2face[2] = h2f_temp[4];
-      $hexOrientCode[2] = rot_temp[4];
+  $hex2face[2] = h2f_temp[4];
+  $hexOrientCode[2] = rot_temp[4];
 
-      $hex2face[3] = h2f_temp[1];
-      $hexOrientCode[3] = rot_temp[1];
+  $hex2face[3] = h2f_temp[1];
+  $hexOrientCode[3] = rot_temp[1];
 
-      $hex2face[4] = h2f_temp[5];
-      $hexOrientCode[4] = rot_temp[5];
+  $hex2face[4] = h2f_temp[5];
+  $hexOrientCode[4] = rot_temp[5];
 
-      $hex2face[5] = h2f_temp[0];
-      $hexOrientCode[5] = rot_temp[0];
+  $hex2face[5] = h2f_temp[0];
+  $hexOrientCode[5] = rot_temp[0];
 
-      //for print out
-      /*
-      if(true){
-        for (int i = 0; i < 8; i++){
-          hex2node[cc][i] += '0';
-        }
-        for(int i = 0; i < 6; i++){
-          hex2face[cc][i] = hex2face[cc][i]%6 + '0';
-          rot[cc][i] += '0';
-        }
-      }
-      */
+  //for print out
+  /*
+  if(true){
+    for (int i = 0; i < 8; i++){
+      hex2node[cc][i] += '0';
     }
-
-
-  $rule pointwise(fr <- cr->hex2face,
-  cr->(lower, upper, boundary_map)->fileNumber(face2node),
-  cr->(lower, upper, boundary_map)),
-  constraint(cr->hexcells) {
-      // Collect the entity designations of all faces in the faces array
-      Array<Entity, 6> faces = collect_hex_faces($cr->$lower.begin(),$cr->$lower.size(),
-                                                 $cr->$upper.begin(),$cr->$upper.size(),
-                                                 $cr->$boundary_map.begin(), $cr->$boundary_map.size(),
-                                                 $cr->$hex2face, $*fileNumber(face2node));
-
-      // Store the original location of each face entity in faces
-      int f;
-      for ( f=0; f<6; f++) {
-        if ($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
-          $fr = f;
-          break;
-        }
-      }
-      if(f ==6){
-        cerr << "WARNING: can not find fr" << endl;
-        Loci::Abort();
-      }
-      //for print out
-      /*      if(true){
-        fr[ff] += '0';
-        }*/
+    for(int i = 0; i < 6; i++){
+      hex2face[cc][i] = hex2face[cc][i]%6 + '0';
+      rot[cc][i] += '0';
     }
+  }
+  */
+}
 
- $rule pointwise(fl <- cl->hex2face,
- cl->(lower, upper, boundary_map),
- cl->(lower, upper, boundary_map)->fileNumber(face2node)),
- constraint(cl->hexcells) {
-      // Collect the entity designations of all faces in the faces array
-     Array<Entity, 6> faces = collect_hex_faces($cl->$lower.begin(), $cl->$lower.size(),
-                                                $cl->$upper.begin(), $cl->$upper.size(),
-                                                $cl->$boundary_map.begin(),$cl->$boundary_map.size(),
-                                                $cl->$hex2face,$*fileNumber(face2node));
 
-      // Store the original location of each face entity in faces
-      int f;
-      for ( f=0; f<6; f++) {
-        if ($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
-          $fl = f;
-          break;
-        }
-      }
-      if(f ==6){
-        cerr << "WARNING: can not find fl" << endl;
-        Loci::Abort();
-      }
-      //for print out
-      /* if(true){
-        fl[ff] += '0';
-        }*/
+$rule pointwise(fr <- cr->hex2face,
+cr->(lower, upper, boundary_map)->fileNumber(face2node),
+cr->(lower, upper, boundary_map)),
+constraint(cr->hexcells) {
+  // Collect the entity designations of all faces in the faces array
+  Array<Entity, 6> faces = collect_hex_faces($cr->$lower.begin(),$cr->$lower.size(),
+                                             $cr->$upper.begin(),$cr->$upper.size(),
+                                             $cr->$boundary_map.begin(), $cr->$boundary_map.size(),
+                                             $cr->$hex2face, $*fileNumber(face2node));
+
+  // Store the original location of each face entity in faces
+  int f;
+  for ( f=0; f<6; f++) {
+    if ($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
+      $fr = f;
+      break;
     }
+  }
+  if(f ==6){
+    cerr << "WARNING: can not find fr" << endl;
+    Loci::Abort();
+  }
+  //for print out
+  /*      if(true){
+    fr[ff] += '0';
+    }*/
+}
+
+$rule pointwise(fl <- cl->hex2face,
+cl->(lower, upper, boundary_map),
+cl->(lower, upper, boundary_map)->fileNumber(face2node)),
+constraint(cl->hexcells) {
+  // Collect the entity designations of all faces in the faces array
+  Array<Entity, 6> faces = collect_hex_faces($cl->$lower.begin(), $cl->$lower.size(),
+                                            $cl->$upper.begin(), $cl->$upper.size(),
+                                            $cl->$boundary_map.begin(),$cl->$boundary_map.size(),
+                                            $cl->$hex2face,$*fileNumber(face2node));
+
+  // Store the original location of each face entity in faces
+  int f;
+  for ( f=0; f<6; f++) {
+    if ($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
+      $fl = f;
+      break;
+    }
+  }
+  if(f ==6){
+    cerr << "WARNING: can not find fl" << endl;
+    Loci::Abort();
+  }
+  //for print out
+  /* if(true){
+    fl[ff] += '0';
+    }*/
+}

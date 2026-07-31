@@ -279,9 +279,9 @@ option(disable_threading) {
 $type inner_nodes store<Loci::FineNodes> ;
 
 $rule pointwise(inner_nodes),constraint(UNIVERSE), prelude {
-   $[Once] {
-     cerr << "AMR API has changed, program needs to be updated to support AMR!"
-          << endl ;
-   }
-   Loci::Abort() ;
+  $[Once] {
+    cerr << "AMR API has changed, program needs to be updated to support AMR!"
+         << endl ;
+  }
+  Loci::Abort() ;
 } ;

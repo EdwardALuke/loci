@@ -52,117 +52,117 @@ prism2face, prism2node, prismOrientCode,
 (lower, upper, boundary_map)->fileNumber(face2node)),
 constraint(prisms) {
 
-    if($balancedCellPlan.size() == 0) {
-      vector<vector<int> >().swap($fine_faces_cell) ;
-      return ;
+  if($balancedCellPlan.size() == 0) {
+    vector<vector<int> >().swap($fine_faces_cell) ;
+    return ;
+  }
+
+  std::list<Node*> bnode_list ; //boundary node
+  std::list<Edge*> edge_list ;
+  std::list<QuadFace*> qface_list ;
+  std::list<Face*> gface_list ;
+  std::list<Node*> node_list ; //inner node
+  int c1, c2 ;
+
+  // build a Cell
+  Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                 $upper.begin(), $upper.size(),
+                                 $boundary_map.begin(), $boundary_map.size(),
+                                 $prism2face,
+                                 $prism2node,
+                                 $prismOrientCode,
+                                 $*face2node,
+                                 $*face2edge,
+                                 $*edge2node,
+                                 $*pos,
+                                 $*balancedEdgePlan,
+                                 $*balancedFacePlan,
+                                 $*balanced_node_offset,
+                                 $*fileNumber(face2node),
+                                 $*fileNumber(pos),
+                                 bnode_list,
+                                 edge_list,
+                                 qface_list,
+                                 gface_list);
+
+  std::vector<Prism*> cells ;
+  aCell->resplit($balancedCellPlan, node_list, edge_list, qface_list, gface_list, cells) ;
+
+  // and index the nodes
+  int nindex = 0 ;
+  for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++) {
+    (*np)->index = $balanced_node_offset + nindex ;
+  }
+
+  // set up inner faces
+  std::map<QuadFace*, NeibIndex> inner_qfaces ;
+  std::map<Face*, NeibIndex> inner_gfaces ;
+  set_prism_faces(cells,inner_qfaces, inner_gfaces) ;
+
+  // put inner faces into fine_faces[cc]
+  std::vector<std::vector<int> >(inner_qfaces.size()+inner_gfaces.size()).swap($fine_faces_cell) ;
+
+  int fptr = 0 ;
+  for(std::map<QuadFace*, NeibIndex>::const_iterator pf = inner_qfaces.begin();
+      pf != inner_qfaces.end(); pf++,fptr++) {
+
+    // face2node is store in faceVertex
+    std::list<int32> faceVertex ;
+
+    //for each face, set up face2node
+    pf->first->set_f2n(faceVertex) ;
+
+    // transfer c1 , c2 from local(inside a original cell) numbering  to file numbering
+    c2 = (pf->second).c2 + $balanced_cell_offset ;
+    c1 = (pf->second).c1 + $balanced_cell_offset ;
+
+    // put c1, c2 and faceVertex into one vector
+    int vec_size = faceVertex.size() + 2 ;
+    std::vector<int>(vec_size).swap($fine_faces_cell[fptr]) ;
+    $fine_faces_cell[fptr][0] = c1 ;
+    $fine_faces_cell[fptr][1] = c2 ;
+
+    std::list<int32>::const_iterator nptr = faceVertex.begin() ;
+    for(int i=2; i<vec_size; i++,nptr++) {
+      $fine_faces_cell[fptr][i] = *nptr ;
     }
+  }
 
-    std::list<Node*> bnode_list ; //boundary node
-    std::list<Edge*> edge_list ;
-    std::list<QuadFace*> qface_list ;
-    std::list<Face*> gface_list ;
-    std::list<Node*> node_list ; //inner node
-    int c1, c2 ;
+  for(std::map<Face*, NeibIndex>::const_iterator pf = inner_gfaces.begin();
+      pf != inner_gfaces.end(); pf++,fptr++) {
 
-   // build a Cell
-   Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                   $upper.begin(), $upper.size(),
-                                   $boundary_map.begin(), $boundary_map.size(),
-                                   $prism2face,
-                                   $prism2node,
-                                   $prismOrientCode,
-                                   $*face2node,
-                                   $*face2edge,
-                                   $*edge2node,
-                                   $*pos,
-                                   $*balancedEdgePlan,
-                                   $*balancedFacePlan,
-                                   $*balanced_node_offset,
-                                   $*fileNumber(face2node),
-                                   $*fileNumber(pos),
-                                   bnode_list,
-                                   edge_list,
-                                   qface_list,
-                                   gface_list);
+    // face2node is store in faceVertex
+    std::list<int32> faceVertex ;
 
-    std::vector<Prism*> cells ;
-    aCell->resplit($balancedCellPlan, node_list, edge_list, qface_list, gface_list, cells) ;
+    // for each face, set up face2node
+    pf->first->set_f2n(faceVertex) ;
 
-    // and index the nodes
-    int nindex = 0 ;
-    for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++) {
-      (*np)->index = $balanced_node_offset + nindex ;
+    // transfer c1 , c2 from local(inside a original cell) numbering  to file numbering
+    c2 = (pf->second).c2 + $balanced_cell_offset ;
+    c1 = (pf->second).c1 + $balanced_cell_offset ;
+
+    // put c1, c2 and faceVertex into one vector
+    int vec_size = faceVertex.size() + 2 ;
+    std::vector<int>(vec_size).swap($fine_faces_cell[fptr]) ;
+    $fine_faces_cell[fptr][0] = c1 ;
+    $fine_faces_cell[fptr][1] = c2 ;
+
+    std::list<int32>::const_iterator nptr = faceVertex.begin() ;
+    for(int i = 2; i < vec_size; i++,nptr++) {
+      $fine_faces_cell[fptr][i] = *nptr ;
     }
+  }
 
-    // set up inner faces
-    std::map<QuadFace*, NeibIndex> inner_qfaces ;
-    std::map<Face*, NeibIndex> inner_gfaces ;
-    set_prism_faces(cells,inner_qfaces, inner_gfaces) ;
+  // clean up
+  if(aCell != 0) {
+    delete aCell ;
+    aCell = 0 ;
+  }
 
-    // put inner faces into fine_faces[cc]
-    std::vector<std::vector<int> >(inner_qfaces.size()+inner_gfaces.size()).swap($fine_faces_cell) ;
-
-    int fptr = 0 ;
-    for(std::map<QuadFace*, NeibIndex>::const_iterator pf = inner_qfaces.begin();
-        pf != inner_qfaces.end(); pf++,fptr++) {
-
-      // face2node is store in faceVertex
-      std::list<int32> faceVertex ;
-
-      //for each face, set up face2node
-      pf->first->set_f2n(faceVertex) ;
-
-      // transfer c1 , c2 from local(inside a original cell) numbering  to file numbering
-      c2 = (pf->second).c2 + $balanced_cell_offset ;
-      c1 = (pf->second).c1 + $balanced_cell_offset ;
-
-      // put c1, c2 and faceVertex into one vector
-      int vec_size = faceVertex.size() + 2 ;
-      std::vector<int>(vec_size).swap($fine_faces_cell[fptr]) ;
-      $fine_faces_cell[fptr][0] = c1 ;
-      $fine_faces_cell[fptr][1] = c2 ;
-
-      std::list<int32>::const_iterator nptr = faceVertex.begin() ;
-      for(int i=2; i<vec_size; i++,nptr++) {
-        $fine_faces_cell[fptr][i] = *nptr ;
-      }
-    }
-
-    for(std::map<Face*, NeibIndex>::const_iterator pf = inner_gfaces.begin();
-        pf != inner_gfaces.end(); pf++,fptr++) {
-
-      // face2node is store in faceVertex
-      std::list<int32> faceVertex ;
-
-      // for each face, set up face2node
-      pf->first->set_f2n(faceVertex) ;
-
-      // transfer c1 , c2 from local(inside a original cell) numbering  to file numbering
-      c2 = (pf->second).c2 + $balanced_cell_offset ;
-      c1 = (pf->second).c1 + $balanced_cell_offset ;
-
-      // put c1, c2 and faceVertex into one vector
-      int vec_size = faceVertex.size() + 2 ;
-      std::vector<int>(vec_size).swap($fine_faces_cell[fptr]) ;
-      $fine_faces_cell[fptr][0] = c1 ;
-      $fine_faces_cell[fptr][1] = c2 ;
-
-      std::list<int32>::const_iterator nptr = faceVertex.begin() ;
-      for(int i = 2; i < vec_size; i++,nptr++) {
-        $fine_faces_cell[fptr][i] = *nptr ;
-      }
-    }
-
-    // clean up
-    if(aCell != 0) {
-      delete aCell ;
-      aCell = 0 ;
-    }
-
-    // aCell will clean up these
-    cleanup_list(bnode_list, edge_list, qface_list) ;
-    cleanup_list(gface_list) ;
-    cleanup_list(node_list) ;
+  // aCell will clean up these
+  cleanup_list(bnode_list, edge_list, qface_list) ;
+  cleanup_list(gface_list) ;
+  cleanup_list(node_list) ;
 }
 
 

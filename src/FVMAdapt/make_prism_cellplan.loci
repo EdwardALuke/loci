@@ -66,117 +66,117 @@ cellPlan, nodeTag, prism2face, prism2node, prismOrientCode, isIndivisible,
 (lower, upper, boundary_map)->face2edge->edge2node->pos,
 (lower, upper, boundary_map)->face2edge->(edgePlan, nodeTag)),
 constraint(prisms) {
-    if(!$isIndivisible){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-      int nindex;
+  if(!$isIndivisible){
+    std::list<Node*> node_list;
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
+    int nindex;
 
-    
-  
 
-                                                 
-      Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $prism2face,
-                                      $prism2node,
-                                      $prismOrientCode,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      $*edgePlan,
-                                      $*facePlan,
-                                      $*posTag,
-                                      $*nodeTag,
-                                      bnode_list,
-                                      edge_list,
-                                      qface_list,
-                                      gface_list,
-                                      $*fileNumber(face2node)
-                                      );
-    
-  
-  
- 
- 
- 
-    
-   
-      std::vector<Prism*> cells;
-    
-      aCell->resplit( $cellPlan,
-                      node_list,
-                      edge_list,
-                      qface_list,
-                      gface_list,
-                      cells);
-    
-      nindex = 0;
-      for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++){
-        (*np)->tag = $nodeTag[nindex++];
-      }
-      
-    
-      int numCells = cells.size();
-      bool cell_split = false; //if any cell split, the whole big cell rebalance
-    
-      if(numCells != 0){//aCell is not a leaf
-        for(int i = 0; i < numCells; i++){
-          if((cells[i]->get_tagged())==1) {
-            cells[i]->setSplitCode($split_mode_par, Globals::tolerance);
-            if(cells[i]->getMySplitCode()!=0) {
-              if($split_mode_par == 2){
-                double min_edge_length =cells[i]->get_min_edge_length();
-                int split_level = Globals::levels;
-                if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));  
-                cells[i]->resplit(min(Globals::levels,split_level),node_list, edge_list, qface_list, gface_list);
-                cell_split = true;
-              }else{
-                cell_split = true;
-                cells[i]->split(node_list, edge_list, qface_list, gface_list);
-              }
+
+
+
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    $*edgePlan,
+                                    $*facePlan,
+                                    $*posTag,
+                                    $*nodeTag,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node)
+                                    );
+
+
+
+
+
+
+
+
+    std::vector<Prism*> cells;
+
+    aCell->resplit( $cellPlan,
+                    node_list,
+                    edge_list,
+                    qface_list,
+                    gface_list,
+                    cells);
+
+    nindex = 0;
+    for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++){
+      (*np)->tag = $nodeTag[nindex++];
+    }
+
+
+    int numCells = cells.size();
+    bool cell_split = false; //if any cell split, the whole big cell rebalance
+
+    if(numCells != 0){//aCell is not a leaf
+      for(int i = 0; i < numCells; i++){
+        if((cells[i]->get_tagged())==1) {
+          cells[i]->setSplitCode($split_mode_par, Globals::tolerance);
+          if(cells[i]->getMySplitCode()!=0) {
+            if($split_mode_par == 2){
+              double min_edge_length =cells[i]->get_min_edge_length();
+              int split_level = Globals::levels;
+              if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
+              cells[i]->resplit(min(Globals::levels,split_level),node_list, edge_list, qface_list, gface_list);
+              cell_split = true;
+            }else{
+              cell_split = true;
+              cells[i]->split(node_list, edge_list, qface_list, gface_list);
             }
           }
         }
-        
-      }else{//aCell is a leaf
-   
-        if(aCell->get_tagged() == 1)  aCell->setSplitCode($split_mode_par, Globals::tolerance);
-        if(aCell->getMySplitCode() != 0 ){
-          if($split_mode_par == 2){
-            double min_edge_length =aCell->get_min_edge_length();
-            int split_level = Globals::levels;
-            if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-            aCell->resplit(min(Globals::levels, split_level), node_list, edge_list, qface_list, gface_list); 
-          }
-          else{
-            aCell->split(node_list, edge_list, qface_list, gface_list);
-          }
+      }
+
+    }else{//aCell is a leaf
+
+      if(aCell->get_tagged() == 1)  aCell->setSplitCode($split_mode_par, Globals::tolerance);
+      if(aCell->getMySplitCode() != 0 ){
+        if($split_mode_par == 2){
+          double min_edge_length =aCell->get_min_edge_length();
+          int split_level = Globals::levels;
+          if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
+          aCell->resplit(min(Globals::levels, split_level), node_list, edge_list, qface_list, gface_list);
+        }
+        else{
+          aCell->split(node_list, edge_list, qface_list, gface_list);
         }
       }
-      
-    
-      if(cell_split){
-        aCell->rebalance_cells($split_mode_par,node_list, edge_list, qface_list, gface_list);
-        $newCellPlan = aCell->make_cellplan();
-      }else{
-        //write new cellPlan
-        $newCellPlan = aCell->make_cellplan();
-      }
-      
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, qface_list);
-      cleanup_list(bnode_list);
-      cleanup_list(gface_list);
-      reduce_vector($newCellPlan);
     }
+
+
+    if(cell_split){
+      aCell->rebalance_cells($split_mode_par,node_list, edge_list, qface_list, gface_list);
+      $newCellPlan = aCell->make_cellplan();
+    }else{
+      //write new cellPlan
+      $newCellPlan = aCell->make_cellplan();
+    }
+
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(node_list, edge_list, qface_list);
+    cleanup_list(bnode_list);
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
+  }
 }
 
 $rule pointwise(newCellPlan <- norestart_tag_par, split_mode_par,
@@ -185,55 +185,55 @@ isIndivisible, prism2face, prism2node, prismOrientCode,
 (lower, upper, boundary_map)->face2edge->edge2node->pos,
 (lower, upper, boundary_map)->fileNumber(face2node)),
 constraint(prisms) {
-    if(!$isIndivisible){
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-     
-    
-      Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $prism2face,
-                                      $prism2node,
-                                      $prismOrientCode,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      $*posTag,
-                                      bnode_list,
-                                      edge_list,
-                                      qface_list,
-                                      gface_list,
-                                      $*fileNumber(face2node));
+  if(!$isIndivisible){
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
 
 
-      if(aCell->get_tagged() == 1) aCell->setSplitCode($split_mode_par, Globals::tolerance);
-  
-  
-      
-      //write new cellPlan
-      if((aCell->getMySplitCode()) != 0  && $split_mode_par == 2){
-        double min_edge_length =aCell->get_min_edge_length();
-        int split_level =  Globals::levels;
-        if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-        $newCellPlan =  aCell->make_cellplan(min(Globals::levels, split_level));
-      }
-      else if(aCell->getMySplitCode() != 0   && $split_mode_par != 2){
-        $newCellPlan.push_back(aCell->getMySplitCode());
-      }
-    
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, qface_list);
-      cleanup_list(gface_list);
-      reduce_vector($newCellPlan);
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    $*posTag,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node));
+
+
+    if(aCell->get_tagged() == 1) aCell->setSplitCode($split_mode_par, Globals::tolerance);
+
+
+
+    //write new cellPlan
+    if((aCell->getMySplitCode()) != 0  && $split_mode_par == 2){
+      double min_edge_length =aCell->get_min_edge_length();
+      int split_level =  Globals::levels;
+      if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
+      $newCellPlan =  aCell->make_cellplan(min(Globals::levels, split_level));
     }
+    else if(aCell->getMySplitCode() != 0   && $split_mode_par != 2){
+      $newCellPlan.push_back(aCell->getMySplitCode());
+    }
+
+    //clean up
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(bnode_list, edge_list, qface_list);
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
+  }
 }
 
 //this rule make  a newCellPlan according to cellPlan 
@@ -246,114 +246,114 @@ cellPlan, prism2face, prism2node, prismOrientCode, isIndivisible,
 (lower, upper, boundary_map)->face2edge->edgePlan,
 cellPlanXMLDoc), constraint(prisms) {
 #ifdef USE_LIBXML2
-    xmlNode* root_element = xmlDocGetRootElement($*cellPlanXMLDoc->get());
-    if(!$isIndivisible){
-   
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-      std::queue<Prism*> Q;
+  xmlNode* root_element = xmlDocGetRootElement($*cellPlanXMLDoc->get());
+  if(!$isIndivisible){
 
-    
-  
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
+    std::queue<Prism*> Q;
 
-                                                 
-      Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $prism2face,
-                                      $prism2node,
-                                      $prismOrientCode,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      $*edgePlan,
-                                      $*facePlan,
-                                      bnode_list,
-                                      edge_list,
-                                      qface_list,
-                                      gface_list,
-                                      $*fileNumber(face2node)
-                                      );
-    
-  
-  
-      if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-        cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-        Loci::Abort();
-      }
- 
- 
- 
-    
-   
-      std::vector<Prism*> cells;
-      std::list<Node*>::iterator former_pnt = bnode_list.end(); 
-      aCell->resplit( $cellPlan,
-                      bnode_list,
-                      edge_list,
-                      qface_list,
-                      gface_list,
-                      cells);
-      former_pnt--;
-      if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-        cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-        Loci::Abort();
-      }
-    
-    
-      Prism* current;
-      int numCells = cells.size();
-    
-      if(numCells != 0){
-        for(int i = 0; i < numCells; i++)Q.push(cells[i]);
-      }
-      else{
-        Q.push(aCell);
-      }
 
-      while(!Q.empty()){
-        current =Q.front();
-        //calculate min_edge_length of the cell
-        
 
-      
-      
-        if( current->getMySplitCode()==0 && current->get_tagged() == 1)current->setSplitCode($split_mode_par, Globals::tolerance);
-        if(current->getMySplitCode()!=0){
-          std::list<Node*>::iterator former_pnt = bnode_list.end();
-          current->split(bnode_list, edge_list, qface_list, gface_list);
-        
 
-          former_pnt--;
-          if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-            cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-            Loci::Abort();
-          }
-          for(int i = 0; i < current->numChildren(); i++){
-            Q.push(current->getChildCell(i));
-          }
-        }
-        Q.pop();
-      }
-      aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
 
-      //write new cellPlan
-      $newCellPlan = aCell->make_cellplan();
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, qface_list);
-    
-      cleanup_list(gface_list);
-      reduce_vector($newCellPlan);
-    
-    
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    $*edgePlan,
+                                    $*facePlan,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node)
+                                    );
+
+
+
+    if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
+      cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
+      Loci::Abort();
     }
+
+
+
+
+
+    std::vector<Prism*> cells;
+    std::list<Node*>::iterator former_pnt = bnode_list.end();
+    aCell->resplit( $cellPlan,
+                    bnode_list,
+                    edge_list,
+                    qface_list,
+                    gface_list,
+                    cells);
+    former_pnt--;
+    if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
+      cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
+      Loci::Abort();
+    }
+
+
+    Prism* current;
+    int numCells = cells.size();
+
+    if(numCells != 0){
+      for(int i = 0; i < numCells; i++)Q.push(cells[i]);
+    }
+    else{
+      Q.push(aCell);
+    }
+
+    while(!Q.empty()){
+      current =Q.front();
+      //calculate min_edge_length of the cell
+
+
+
+
+      if( current->getMySplitCode()==0 && current->get_tagged() == 1)current->setSplitCode($split_mode_par, Globals::tolerance);
+      if(current->getMySplitCode()!=0){
+        std::list<Node*>::iterator former_pnt = bnode_list.end();
+        current->split(bnode_list, edge_list, qface_list, gface_list);
+
+
+        former_pnt--;
+        if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
+          cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
+          Loci::Abort();
+        }
+        for(int i = 0; i < current->numChildren(); i++){
+          Q.push(current->getChildCell(i));
+        }
+      }
+      Q.pop();
+    }
+    aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
+
+    //write new cellPlan
+    $newCellPlan = aCell->make_cellplan();
+    //clean up
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(bnode_list, edge_list, qface_list);
+
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
+
+
+  }
 #endif
 }
 
@@ -364,72 +364,72 @@ isIndivisible, prism2face, prism2node, prismOrientCode,
 (lower, upper, boundary_map)->fileNumber(face2node),
 cellPlanXMLDoc), constraint(prisms) {
 #ifdef USE_LIBXML2
-    xmlNode* root_element = xmlDocGetRootElement($*cellPlanXMLDoc->get());
-    if(!$isIndivisible){
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-      std::queue<Prism*> Q; 
-    
-      Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $prism2face,
-                                      $prism2node,
-                                      $prismOrientCode,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      bnode_list,
-                                      edge_list,
-                                      qface_list,
-                                      gface_list,
-                                      $*fileNumber(face2node));
-      if( !mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-        cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-        Loci::Abort();
-      }
-      Q.push(aCell);
-  
-      Prism* current;
-      while(!Q.empty()){
-        current =Q.front();
-     
-     
-        if(current->getMySplitCode()==0 && current->get_tagged() == 1) current->setSplitCode($split_mode_par, Globals::tolerance);
-        if(current->getMySplitCode()!=0){
-          std::list<Node*>::iterator former_pnt = bnode_list.end();
-          former_pnt--;
-          current->split(bnode_list, edge_list, qface_list, gface_list);
-      
-          if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
-            cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
-            Loci::Abort();
-          }
-          for(int i = 0; i < current->numChildren(); i++){
-            Q.push(current->getChildCell(i));
-          }
-        }
-        Q.pop();
-      }
-      aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
+  xmlNode* root_element = xmlDocGetRootElement($*cellPlanXMLDoc->get());
+  if(!$isIndivisible){
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
+    std::queue<Prism*> Q;
 
-           
-      $newCellPlan =  aCell->make_cellplan();
-   
-    
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, qface_list);
-      cleanup_list(gface_list);
-      reduce_vector($newCellPlan);
-   
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node));
+    if( !mark_node(root_element, bnode_list.begin(), bnode_list.end())){
+      cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
+      Loci::Abort();
     }
+    Q.push(aCell);
+
+    Prism* current;
+    while(!Q.empty()){
+      current =Q.front();
+
+
+      if(current->getMySplitCode()==0 && current->get_tagged() == 1) current->setSplitCode($split_mode_par, Globals::tolerance);
+      if(current->getMySplitCode()!=0){
+        std::list<Node*>::iterator former_pnt = bnode_list.end();
+        former_pnt--;
+        current->split(bnode_list, edge_list, qface_list, gface_list);
+
+        if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())){
+          cerr << "WARNING: fail to mark nodes, please check xml file" << endl;
+          Loci::Abort();
+        }
+        for(int i = 0; i < current->numChildren(); i++){
+          Q.push(current->getChildCell(i));
+        }
+      }
+      Q.pop();
+    }
+    aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
+
+
+    $newCellPlan =  aCell->make_cellplan();
+
+
+    //clean up
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(bnode_list, edge_list, qface_list);
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
+
+  }
 #endif
 }
 
@@ -442,90 +442,90 @@ cellPlan, prism2face, prism2node, prismOrientCode, isIndivisible,
 (lower, upper, boundary_map)->face2edge->edgePlan,
 cellPlanSources), constraint(prisms) {
 
-    if(!$isIndivisible){
-   
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-      std::queue<Prism*> Q;
+  if(!$isIndivisible){
 
-    
-  
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
+    std::queue<Prism*> Q;
 
-                                                 
-      Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $prism2face,
-                                      $prism2node,
-                                      $prismOrientCode,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      $*edgePlan,
-                                      $*facePlan,
-                                      bnode_list,
-                                      edge_list,
-                                      qface_list,
-                                      gface_list,
-                                      $*fileNumber(face2node)
-                                      );
-    
-  
-  
-    
- 
- 
- 
-    
-   
-      std::vector<Prism*> cells;
-      aCell->resplit( $cellPlan,
-                      bnode_list,
-                      edge_list,
-                      qface_list,
-                      gface_list,
-                      cells);
-   
-    
-      Prism* current;
-      int numCells = cells.size();
-    
-      if(numCells != 0){
-        for(int i = 0; i < numCells; i++)Q.push(cells[i]);
-      }
-      else{
-        Q.push(aCell);
-      }
 
-      while(!Q.empty()){
-        current =Q.front();
-        if(current->get_tagged(*($*cellPlanSources))){
-          current->split(bnode_list, edge_list, qface_list, gface_list);
-          for(int i = 0; i < current->numChildren(); i++){
-            Q.push(current->getChildCell(i));
-          }
-        }
-        Q.pop();
-      }
-      aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
 
-      //write new cellPlan
-      $newCellPlan = aCell->make_cellplan();
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, qface_list);
-    
-      cleanup_list(gface_list);
-      reduce_vector($newCellPlan);
-    
-    
+
+
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    $*edgePlan,
+                                    $*facePlan,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node)
+                                    );
+
+
+
+
+
+
+
+
+
+    std::vector<Prism*> cells;
+    aCell->resplit( $cellPlan,
+                    bnode_list,
+                    edge_list,
+                    qface_list,
+                    gface_list,
+                    cells);
+
+
+    Prism* current;
+    int numCells = cells.size();
+
+    if(numCells != 0){
+      for(int i = 0; i < numCells; i++)Q.push(cells[i]);
     }
+    else{
+      Q.push(aCell);
+    }
+
+    while(!Q.empty()){
+      current =Q.front();
+      if(current->get_tagged(*($*cellPlanSources))){
+        current->split(bnode_list, edge_list, qface_list, gface_list);
+        for(int i = 0; i < current->numChildren(); i++){
+          Q.push(current->getChildCell(i));
+        }
+      }
+      Q.pop();
+    }
+    aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
+
+    //write new cellPlan
+    $newCellPlan = aCell->make_cellplan();
+    //clean up
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(bnode_list, edge_list, qface_list);
+
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
+
+
+  }
 }
 
 $rule pointwise(newCellPlan <- norestart_par_par, split_mode_par, parfile_par,
@@ -534,60 +534,60 @@ isIndivisible, prism2face, prism2node, prismOrientCode,
 (lower, upper, boundary_map)->face2edge->edge2node->pos,
 (lower, upper, boundary_map)->fileNumber(face2node), cellPlanSources),
 constraint(prisms) {
-    if(!$isIndivisible){
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-      std::queue<Prism*> Q; 
-    
-      Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $prism2face,
-                                      $prism2node,
-                                      $prismOrientCode,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      bnode_list,
-                                      edge_list,
-                                      qface_list,
-                                      gface_list,
-                                      $*fileNumber(face2node));
-   
-      Q.push(aCell);
-  
-      Prism* current;
-      while(!Q.empty()){
-        current =Q.front();
-     
-     
-        if(current->get_tagged(*($*cellPlanSources))){
-          current->split(bnode_list, edge_list, qface_list, gface_list);
-          for(int i = 0; i < current->numChildren(); i++){
-            Q.push(current->getChildCell(i));
-          }
+  if(!$isIndivisible){
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
+    std::queue<Prism*> Q;
+
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node));
+
+    Q.push(aCell);
+
+    Prism* current;
+    while(!Q.empty()){
+      current =Q.front();
+
+
+      if(current->get_tagged(*($*cellPlanSources))){
+        current->split(bnode_list, edge_list, qface_list, gface_list);
+        for(int i = 0; i < current->numChildren(); i++){
+          Q.push(current->getChildCell(i));
         }
-        Q.pop();
       }
-      aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
-   
-   
-      $newCellPlan =  aCell->make_cellplan();
-     
-    
-      //clean up
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(bnode_list, edge_list, qface_list);
-      cleanup_list(gface_list);
-      reduce_vector($newCellPlan);
-   
+      Q.pop();
     }
+    aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, qface_list, gface_list);
+
+
+    $newCellPlan =  aCell->make_cellplan();
+
+
+    //clean up
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(bnode_list, edge_list, qface_list);
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
+
+  }
 
 }
 
@@ -603,90 +603,90 @@ prism2face, prism2node, prismOrientCode, isIndivisible,
 constraint(prisms) {
   //dummy parameter to trick Loci scheduler
    
-    if(!$isIndivisible){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-     
-
-    
-  
-
-                                                 
-      Prism* aCell = build_resplit_prism_cell($lower.begin(), $lower.size(),
-                                              $upper.begin(), $upper.size(),
-                                              $boundary_map.begin(), $boundary_map.size(),
-                                              $prism2face,
-                                              $prism2node,
-                                              $prismOrientCode,
-                                              $*face2node,
-                                              $*face2edge,
-                                              $*edge2node,
-                                              $*pos,
-                                              $*edgePlan,
-                                              $*facePlan,
-                                              $*balancedEdgePlan1,
-                                              $*balancedFacePlan1,
-                                              $*posTag,
-                                              $*nodeTag,
-                                              bnode_list,
-                                              node_list,
-                                              edge_list,
-                                              qface_list,
-                                              gface_list,
-                                              $*fileNumber(face2node),
-                                              $cellPlan,
-                                              $nodeTag
-                                              );
-    
-  
-  
- 
- 
- 
+  if(!$isIndivisible){
+    std::list<Node*> node_list;
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
 
 
-      std::vector<Prism*> cells;//collected according to cellPlan1
-      aCell->resplit( $balancedCellPlan1,
-                      node_list,
-                      edge_list,
-                      qface_list,
-                      gface_list,
-                      cells);
-      //recollect leaves according to tree structure
-      std::list<Prism*> leaves;
-      aCell->sort_leaves(leaves);
-      //first if any cell need derefine
-      std::set<Prism*> dparents;
-      for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++){
-        if((*li)->get_tagged() ==2){
-          Prism* parent = (*li)->getParentCell();
-          if(parent!=0 && parent->needDerefine()){
-            dparents.insert(parent);
-          }
+
+
+
+
+    Prism* aCell = build_resplit_prism_cell($lower.begin(), $lower.size(),
+                                            $upper.begin(), $upper.size(),
+                                            $boundary_map.begin(), $boundary_map.size(),
+                                            $prism2face,
+                                            $prism2node,
+                                            $prismOrientCode,
+                                            $*face2node,
+                                            $*face2edge,
+                                            $*edge2node,
+                                            $*pos,
+                                            $*edgePlan,
+                                            $*facePlan,
+                                            $*balancedEdgePlan1,
+                                            $*balancedFacePlan1,
+                                            $*posTag,
+                                            $*nodeTag,
+                                            bnode_list,
+                                            node_list,
+                                            edge_list,
+                                            qface_list,
+                                            gface_list,
+                                            $*fileNumber(face2node),
+                                            $cellPlan,
+                                            $nodeTag
+                                            );
+
+
+
+
+
+
+
+
+    std::vector<Prism*> cells;//collected according to cellPlan1
+    aCell->resplit( $balancedCellPlan1,
+                    node_list,
+                    edge_list,
+                    qface_list,
+                    gface_list,
+                    cells);
+    //recollect leaves according to tree structure
+    std::list<Prism*> leaves;
+    aCell->sort_leaves(leaves);
+    //first if any cell need derefine
+    std::set<Prism*> dparents;
+    for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++){
+      if((*li)->get_tagged() ==2){
+        Prism* parent = (*li)->getParentCell();
+        if(parent!=0 && parent->needDerefine()){
+          dparents.insert(parent);
         }
       }
-               
-      //derefine the cells
-      for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
-        (*si)->derefine();
-      }
-     
-    
-      $balancedCellPlan = aCell->make_cellplan();
-      
-      
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, qface_list);
-      cleanup_list(bnode_list);
-      cleanup_list(gface_list);
-      reduce_vector($balancedCellPlan);
     }
+
+    //derefine the cells
+    for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
+      (*si)->derefine();
+    }
+
+
+    $balancedCellPlan = aCell->make_cellplan();
+
+
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(node_list, edge_list, qface_list);
+    cleanup_list(bnode_list);
+    cleanup_list(gface_list);
+    reduce_vector($balancedCellPlan);
+  }
 }
 
 
@@ -701,169 +701,169 @@ cellPlan, fineCellTag, prism2face, prism2node, prismOrientCode, isIndivisible,
 (lower, upper, boundary_map)->face2edge->edge2node->pos,
 (lower, upper, boundary_map)->face2edge->edgePlan),
 constraint(prisms) {
-    if(!$isIndivisible){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
+  if(!$isIndivisible){
+    std::list<Node*> node_list;
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
 
 
-    
-  
 
-                                                 
-      Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $prism2face,
-                                      $prism2node,
-                                      $prismOrientCode,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      $*edgePlan,
-                                      $*facePlan,
-                                      bnode_list,
-                                      edge_list,
-                                      qface_list,
-                                      gface_list,
-                                      $*fileNumber(face2node)
-                                      );
-    
-  
-  
- 
- 
- 
-    
-   
-      std::vector<Prism*> cells;
-    
-      aCell->resplit( $cellPlan,
-                      node_list,
-                      edge_list,
-                      qface_list,
-                      gface_list,
-                      cells);
-    
-    
-    
-      int numCells = cells.size();
-      bool cell_split = false; //if any cell split, the whole big cell rebalance
-    
-      if(numCells != 0){//aCell is not a leaf
-        for(int i = 0; i < numCells; i++){
-          if($fineCellTag[i]==1) {
-            cells[i]->setSplitCode($split_mode_par, Globals::tolerance);
-            if(cells[i]->getMySplitCode()!=0) {
-              if($split_mode_par == 2){
-                double min_edge_length =cells[i]->get_min_edge_length();
-                int split_level = Globals::levels;
-                if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));  
-                cells[i]->resplit(min(Globals::levels,split_level),node_list, edge_list, qface_list, gface_list);
-                cell_split = true;
-              }else{
-                cell_split = true;
-                cells[i]->split(node_list, edge_list, qface_list, gface_list);
-              }
-            }
-          }
-        }
 
-      }else{//aCell is a leaf
-        if($fineCellTag[0]==1) {
-          aCell->setSplitCode($split_mode_par, Globals::tolerance);
-          if(aCell->getMySplitCode() != 0 ){
+
+
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    $*edgePlan,
+                                    $*facePlan,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node)
+                                    );
+
+
+
+
+
+
+
+
+    std::vector<Prism*> cells;
+
+    aCell->resplit( $cellPlan,
+                    node_list,
+                    edge_list,
+                    qface_list,
+                    gface_list,
+                    cells);
+
+
+
+    int numCells = cells.size();
+    bool cell_split = false; //if any cell split, the whole big cell rebalance
+
+    if(numCells != 0){//aCell is not a leaf
+      for(int i = 0; i < numCells; i++){
+        if($fineCellTag[i]==1) {
+          cells[i]->setSplitCode($split_mode_par, Globals::tolerance);
+          if(cells[i]->getMySplitCode()!=0) {
             if($split_mode_par == 2){
-              double min_edge_length =aCell->get_min_edge_length();
+              double min_edge_length =cells[i]->get_min_edge_length();
               int split_level = Globals::levels;
               if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-              aCell->resplit(min(Globals::levels, split_level), node_list, edge_list, qface_list, gface_list); 
-            }
-            else{
-              aCell->split(node_list, edge_list, qface_list, gface_list);
+              cells[i]->resplit(min(Globals::levels,split_level),node_list, edge_list, qface_list, gface_list);
+              cell_split = true;
+            }else{
+              cell_split = true;
+              cells[i]->split(node_list, edge_list, qface_list, gface_list);
             }
           }
         }
       }
-      
-    
-        if(cell_split){
-          aCell->rebalance_cells($split_mode_par,node_list, edge_list, qface_list, gface_list);
-          $newCellPlan = aCell->make_cellplan();
-        }else{
-          //write new cellPlan
-          $newCellPlan = aCell->make_cellplan();
+
+    }else{//aCell is a leaf
+      if($fineCellTag[0]==1) {
+        aCell->setSplitCode($split_mode_par, Globals::tolerance);
+        if(aCell->getMySplitCode() != 0 ){
+          if($split_mode_par == 2){
+            double min_edge_length =aCell->get_min_edge_length();
+            int split_level = Globals::levels;
+            if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
+            aCell->resplit(min(Globals::levels, split_level), node_list, edge_list, qface_list, gface_list);
+          }
+          else{
+            aCell->split(node_list, edge_list, qface_list, gface_list);
+          }
         }
-      
-        if(aCell != 0){
-          delete aCell;
-          aCell = 0;
-        }
-        cleanup_list(node_list, edge_list, qface_list);
-        cleanup_list(bnode_list);
-        cleanup_list(gface_list);
-        reduce_vector($newCellPlan);
       }
+    }
+
+
+    if(cell_split){
+      aCell->rebalance_cells($split_mode_par,node_list, edge_list, qface_list, gface_list);
+      $newCellPlan = aCell->make_cellplan();
+    }else{
+      //write new cellPlan
+      $newCellPlan = aCell->make_cellplan();
+    }
+
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(node_list, edge_list, qface_list);
+    cleanup_list(bnode_list);
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
+  }
 }
   //this rule make  a newCellPlan according to  cellTag
 $rule pointwise(newCellPlan <- norestart_tag_par, split_mode_par,
-  isIndivisible, cellTag, prism2face, prism2node, prismOrientCode,
-  (lower, upper, boundary_map)->face2node->pos,
-  (lower, upper, boundary_map)->face2edge->edge2node->pos,
-  (lower, upper, boundary_map)->fileNumber(face2node)),
-  constraint(prisms) {
-      if(!$isIndivisible){
-        std::list<Edge*> edge_list;
-        std::list<QuadFace*> qface_list;
-        std::list<Face*> gface_list;
-        std::list<Node*> bnode_list;
-     
-    
-        Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                        $upper.begin(), $upper.size(),
-                                        $boundary_map.begin(), $boundary_map.size(),
-                                        $prism2face,
-                                        $prism2node,
-                                        $prismOrientCode,
-                                        $*face2node,
-                                        $*face2edge,
-                                        $*edge2node,
-                                        $*pos,
-                                        bnode_list,
-                                        edge_list,
-                                        qface_list,
-                                        gface_list,
-                                        $*fileNumber(face2node));
+isIndivisible, cellTag, prism2face, prism2node, prismOrientCode,
+(lower, upper, boundary_map)->face2node->pos,
+(lower, upper, boundary_map)->face2edge->edge2node->pos,
+(lower, upper, boundary_map)->fileNumber(face2node)),
+constraint(prisms) {
+  if(!$isIndivisible){
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
 
 
-        if($cellTag ==1)aCell->setSplitCode($split_mode_par, Globals::tolerance);
-  
-  
-      
-        //write new cellPlan
-        if((aCell->getMySplitCode()) != 0  && $split_mode_par == 2){
-          double min_edge_length =aCell->get_min_edge_length();
-          int split_level =  Globals::levels;
-          if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
-          $newCellPlan =  aCell->make_cellplan(min(Globals::levels, split_level));
-        }
-        else if(aCell->getMySplitCode() != 0   && $split_mode_par != 2){
-          $newCellPlan.push_back(aCell->getMySplitCode());
-        }
-    
-        //clean up
-        if(aCell != 0){
-          delete aCell;
-          aCell = 0;
-        }
-        cleanup_list(bnode_list, edge_list, qface_list);
-        cleanup_list(gface_list);
-        reduce_vector($newCellPlan);
-      }
+    Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
+                                    $upper.begin(), $upper.size(),
+                                    $boundary_map.begin(), $boundary_map.size(),
+                                    $prism2face,
+                                    $prism2node,
+                                    $prismOrientCode,
+                                    $*face2node,
+                                    $*face2edge,
+                                    $*edge2node,
+                                    $*pos,
+                                    bnode_list,
+                                    edge_list,
+                                    qface_list,
+                                    gface_list,
+                                    $*fileNumber(face2node));
+
+
+    if($cellTag ==1)aCell->setSplitCode($split_mode_par, Globals::tolerance);
+
+
+
+    //write new cellPlan
+    if((aCell->getMySplitCode()) != 0  && $split_mode_par == 2){
+      double min_edge_length =aCell->get_min_edge_length();
+      int split_level =  Globals::levels;
+      if(Globals::tolerance > 0.0) split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0));
+      $newCellPlan =  aCell->make_cellplan(min(Globals::levels, split_level));
+    }
+    else if(aCell->getMySplitCode() != 0   && $split_mode_par != 2){
+      $newCellPlan.push_back(aCell->getMySplitCode());
+    }
+
+    //clean up
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(bnode_list, edge_list, qface_list);
+    cleanup_list(gface_list);
+    reduce_vector($newCellPlan);
   }
+}
 
 
 $rule pointwise(priority::restart::balancedCellPlan <- beginWithMarker,
@@ -877,86 +877,86 @@ prism2face, prism2node, prismOrientCode, isIndivisible,
 constraint(prisms) {
   //dummy parameter to trick Loci scheduler
    
-    if(!$isIndivisible){
-      std::list<Node*> node_list;
-      std::list<Edge*> edge_list;
-      std::list<QuadFace*> qface_list;
-      std::list<Face*> gface_list;
-      std::list<Node*> bnode_list;
-     
-
-    
-  
-
-                                                 
-      Prism* aCell = build_resplit_prism_cell_ctag($lower.begin(), $lower.size(),
-                                                   $upper.begin(), $upper.size(),
-                                                   $boundary_map.begin(), $boundary_map.size(),
-                                                   $prism2face,
-                                                   $prism2node,
-                                                   $prismOrientCode,
-                                                   $*face2node,
-                                                   $*face2edge,
-                                                   $*edge2node,
-                                                   $*pos,
-                                                   $*edgePlan,
-                                                   $*facePlan,
-                                                   $*balancedEdgePlan1,
-                                                   $*balancedFacePlan1,
-                                                   bnode_list,
-                                                   node_list,
-                                                   edge_list,
-                                                   qface_list,
-                                                   gface_list,
-                                                   $*fileNumber(face2node),
-                                                   $cellPlan,
-                                                   $fineCellTag
-                                                   );
-    
-  
-  
- 
- 
- 
+  if(!$isIndivisible){
+    std::list<Node*> node_list;
+    std::list<Edge*> edge_list;
+    std::list<QuadFace*> qface_list;
+    std::list<Face*> gface_list;
+    std::list<Node*> bnode_list;
 
 
-      std::vector<Prism*> cells;//collected according to cellPlan1
-      aCell->resplit( $balancedCellPlan1,
-                      node_list,
-                      edge_list,
-                      qface_list,
-                      gface_list,
-                      cells);
-      //recollect leaves according to tree structure
-      std::list<Prism*> leaves;
-      aCell->sort_leaves(leaves);
-      //first if any cell need derefine
-      std::set<Prism*> dparents;
-      for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++){
-        if((*li)->getTag() ==2){
-          Prism* parent = (*li)->getParentCell();
-          if(parent!=0 && parent->needDerefine_ctag()){
-            dparents.insert(parent);
-          }
+
+
+
+
+    Prism* aCell = build_resplit_prism_cell_ctag($lower.begin(), $lower.size(),
+                                                 $upper.begin(), $upper.size(),
+                                                 $boundary_map.begin(), $boundary_map.size(),
+                                                 $prism2face,
+                                                 $prism2node,
+                                                 $prismOrientCode,
+                                                 $*face2node,
+                                                 $*face2edge,
+                                                 $*edge2node,
+                                                 $*pos,
+                                                 $*edgePlan,
+                                                 $*facePlan,
+                                                 $*balancedEdgePlan1,
+                                                 $*balancedFacePlan1,
+                                                 bnode_list,
+                                                 node_list,
+                                                 edge_list,
+                                                 qface_list,
+                                                 gface_list,
+                                                 $*fileNumber(face2node),
+                                                 $cellPlan,
+                                                 $fineCellTag
+                                                 );
+
+
+
+
+
+
+
+
+    std::vector<Prism*> cells;//collected according to cellPlan1
+    aCell->resplit( $balancedCellPlan1,
+                    node_list,
+                    edge_list,
+                    qface_list,
+                    gface_list,
+                    cells);
+    //recollect leaves according to tree structure
+    std::list<Prism*> leaves;
+    aCell->sort_leaves(leaves);
+    //first if any cell need derefine
+    std::set<Prism*> dparents;
+    for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++){
+      if((*li)->getTag() ==2){
+        Prism* parent = (*li)->getParentCell();
+        if(parent!=0 && parent->needDerefine_ctag()){
+          dparents.insert(parent);
         }
       }
-               
-      //derefine the cells
-      for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
-        (*si)->derefine();
-      }
-     
-    
-      $balancedCellPlan = aCell->make_cellplan();
-      
-      
-      if(aCell != 0){
-        delete aCell;
-        aCell = 0;
-      }
-      cleanup_list(node_list, edge_list, qface_list);
-      cleanup_list(bnode_list);
-      cleanup_list(gface_list);
-      reduce_vector($balancedCellPlan);
     }
+
+    //derefine the cells
+    for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
+      (*si)->derefine();
+    }
+
+
+    $balancedCellPlan = aCell->make_cellplan();
+
+
+    if(aCell != 0){
+      delete aCell;
+      aCell = 0;
+    }
+    cleanup_list(node_list, edge_list, qface_list);
+    cleanup_list(bnode_list);
+    cleanup_list(gface_list);
+    reduce_vector($balancedCellPlan);
+  }
 }
