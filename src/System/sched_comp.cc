@@ -48,7 +48,7 @@ using std::ostream ;
 using std::cerr ;
 using std::endl ;
 
-//#define HACK ; 
+//#define HACK ;
 
 namespace Loci {
   extern void create_digraph_dot_file(const digraph&, const char*) ;
@@ -93,7 +93,7 @@ namespace Loci {
     //variableSet all_chomped_vars = variableSet(EMPTY) ;
     variableSet all_chomped_vars ;
   }
-  
+
   class error_compiler : public rule_compiler {
   public:
     error_compiler() {}
@@ -101,11 +101,11 @@ namespace Loci {
     { cerr << "Internal consistency error" << endl ; Loci::Abort();}
     virtual void set_var_existence(fact_db &facts, sched_db &scheds)
     { cerr << "Internal consistency error" << endl ; Loci::Abort();}
-    virtual void process_var_requests(fact_db &facts, sched_db &scheds) 
+    virtual void process_var_requests(fact_db &facts, sched_db &scheds)
     { cerr << "Internal consistency error" << endl ; Loci::Abort();}
     virtual executeP create_execution_schedule(fact_db &facts, sched_db &scheds)
     { cerr << "Internal consistency error" << endl ; Loci::Abort();
-    return executeP(0);}
+      return executeP(0);}
   } ;
 
   int get_supernode_num(int rid) {
@@ -113,7 +113,7 @@ namespace Loci {
     string rqualifier = r.get_info().qualifier() ;
     string head = rqualifier.substr(0,2) ;
     if(head != "SN") return -1 ;
-    
+
     string number = rqualifier.substr(2,rqualifier.size()-2) ;
     stringstream ss ;
     ss << number ;
@@ -122,9 +122,9 @@ namespace Loci {
 
     return ret ;
   }
- 
+
   graph_compiler::graph_compiler(decomposed_graph &deco,variableSet
-				 initial_vars) {
+                                 initial_vars) {
     fact_db_comm = new barrier_compiler(initial_vars) ;
     multiLevelGraph &mlg = deco.mlg ;
     vector<int> levels ;
@@ -181,19 +181,19 @@ namespace Loci {
             rule_process[*ri] = new generalize_compiler(*ri) ;
           else if(ri->get_info().qualifier() == "priority")
             rule_process[*ri] = new priority_compiler(*ri) ;
-	  else if(ri->get_info().qualifier() == "gpu2cpu") 
-	    rule_process[*ri] = new gpu2cpu_compiler(*ri) ;
-	  else if(ri->get_info().qualifier() == "cpu2gpu")
-	    rule_process[*ri] = new cpu2gpu_compiler(*ri) ;
-	  else if(ri->get_info().qualifier() == "map2gpu")
-	    rule_process[*ri] = new map2gpu_compiler(*ri) ;
+          else if(ri->get_info().qualifier() == "gpu2cpu")
+            rule_process[*ri] = new gpu2cpu_compiler(*ri) ;
+          else if(ri->get_info().qualifier() == "cpu2gpu")
+            rule_process[*ri] = new cpu2gpu_compiler(*ri) ;
+          else if(ri->get_info().qualifier() == "map2gpu")
+            rule_process[*ri] = new map2gpu_compiler(*ri) ;
           else if(ri->get_info().qualifier() == "ALLOCATE")
             rule_process[*ri] = new allocate_var_compiler(ri->targets()) ;
           else
             rule_process[*ri] = new error_compiler ;
         } else {
-	    if(ri->get_info().rule_impl->get_rule_class()
-                  == rule_impl::CONSTRAINT_RULE) // a constraint rule
+          if(ri->get_info().rule_impl->get_rule_class()
+             == rule_impl::CONSTRAINT_RULE) // a constraint rule
             rule_process[*ri] = new constraint_compiler(*ri) ;
           else if(ri->get_info().rule_impl->get_rule_class()
                   == rule_impl::MAP_RULE) // a map rule (to be revised)
@@ -245,7 +245,7 @@ namespace Loci {
         // DAG supernode
         rule_process[snrule] = new dag_compiler(rule_process,gr,id) ;
       }
-    } 
+    }
   }
 
   void graph_compiler::top_down_visit(visitor& v) {
@@ -257,7 +257,7 @@ namespace Loci {
       (ri->second)->accept(v) ;
     }
   }
-  
+
   void graph_compiler::bottom_up_visit(visitor& v) {
     for(vector<rule>::const_iterator ii=super_rules.begin();
         ii!=super_rules.end();++ii) {
@@ -267,7 +267,7 @@ namespace Loci {
       (ri->second)->accept(v) ;
     }
   }
-  
+
   fact_db *exec_current_fact_db = 0 ;
 
   //#define COMPILE_PROGRESS
@@ -320,7 +320,7 @@ namespace Loci {
         LociInputVarsSize += srp->pack_size(srp->domain()) ;
       }
     }
-    
+
     // get the input variables
     // get all the variables in the multilevel graph
     getAllVarVisitor allvarV ;
@@ -355,8 +355,8 @@ namespace Loci {
                << " (chomping size: "
                << chomping_size << "KB)"
                << endl ;
-      
-      //	  timer_token chomping_subgraph_searching_timer = new timer_token;
+
+      //          timer_token chomping_subgraph_searching_timer = new timer_token;
       cst = MPI_Wtime() ;
 
       chompPPVisitor cppv(facts,
@@ -372,12 +372,12 @@ namespace Loci {
                            reduceV.get_apply2unit()) ;
       top_down_visit(crv) ;
       cet = MPI_Wtime() ;
-		
+
       if(show_chomp)
         crv.visualize(cout) ;
       if(chomp_verbose)
         crv.summary(cout) ;
-      
+
       dagCheckVisitor dagcV1(true) ;
       top_down_visit(dagcV1) ;
 
@@ -392,7 +392,7 @@ namespace Loci {
       // get inter/intra supernode information
       snInfoVisitor snv ;
       top_down_visit(snv) ;
-      
+
       // get all untyped variables
       unTypedVarVisitor untypevarV(recv.get_recur_vars_s2t(),
                                    recv.get_recur_vars_t2s(),
@@ -473,7 +473,7 @@ namespace Loci {
       if(!dmm_no_deallocation) {
         top_down_visit(div) ;
       }
-      
+
       // decorate the graph to insert allocation rules
       allocGraphVisitor agv(aiv.get_alloc_table(),
                             snv.get_loop_sn(),
@@ -491,7 +491,7 @@ namespace Loci {
                                          ) ;
         top_down_visit(mpadv) ;
       }
-      
+
       // decorate the graph to insert deletion rules
       deleteGraphVisitor dgv(div.get_delete_table(),
                              div.get_recur_source_other_rules()) ;
@@ -499,20 +499,20 @@ namespace Loci {
         top_down_visit(dgv) ;
 
       det2 = MPI_Wtime() ;
-	  
+
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
-      cerr << "[Graph Compile Phase] Passed Memory "
-           << "Management Decoration!" << endl ;
+      if(Loci::MPI_rank==0)
+        cerr << "[Graph Compile Phase] Passed Memory "
+             << "Management Decoration!" << endl ;
 #endif
-      
+
       // check if the decorated graphs are acyclic
       dagCheckVisitor dagcV(true) ;
       top_down_visit(dagcV) ;
 
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
-      cerr << "[Graph Compile Phase] Passed Graph Cycle Check!" << endl ;
+      if(Loci::MPI_rank==0)
+        cerr << "[Graph Compile Phase] Passed Graph Cycle Check!" << endl ;
 #endif
 
       if(show_dmm_verbose && !in_internal_query) {
@@ -543,7 +543,7 @@ namespace Loci {
              << "but are not in the multilevel graph: "
              << typed_not_in_graph << endl << endl ;
         }
-        
+
         variableSet allocated_vars ;
         map<int,variableSet> alloc_table = aiv.get_alloc_table() ;
         map<int,variableSet>::const_iterator miter ;
@@ -558,9 +558,9 @@ namespace Loci {
         dag_compiler* dc = dynamic_cast<dag_compiler*>(&(*(ri->second))) ;
         digraph gr = dc->dag_gr ;
         digraph grt = gr.transpose() ;
-        
+
         digraph::vertexSet input_vars ;
-        digraph::vertexSet all_vertices = grt.get_all_vertices() ;  
+        digraph::vertexSet all_vertices = grt.get_all_vertices() ;
         for(digraph::vertexSet::const_iterator vi=all_vertices.begin();
             vi!=all_vertices.end();++vi) {
           if(grt[*vi] == EMPTY)
@@ -568,13 +568,13 @@ namespace Loci {
         }
         vars -= extract_vars(input_vars) ;
         vars &= allgraphv ;
-        
+
         if(vars != EMPTY) {
           os << "These are typed variables in the multilevel "
              << "graph, but are not scheduled to be allocated: "
              << vars << endl << endl ;
         }
-        
+
         // report some allocation and deletion info
         allocDeleteStat adstat(aiv.get_alloc_table(),
                                div.get_delete_table(),
@@ -592,15 +592,15 @@ namespace Loci {
         os<<recv.get_rename_s2t()<<endl ;
         os << endl ;
       } // end of if(show_dmm_verbose)
-      
+
     } // end of if(use_dynamic_memory)
-    
+
     // visualize each decorated graph
     if(show_decoration) {
       graphVisualizeVisitor visV ;
       top_down_visit(visV) ;
     }
-    
+
     if(use_chomp) {
       // compile all the chomp_compilers.
       // Note that all the chomping compilers
@@ -618,24 +618,24 @@ namespace Loci {
       compChompVisitor compchompv(reduceV.get_reduceInfo()) ;
       top_down_visit(compchompv) ;
 #ifdef COMPILE_PROGRESS
-    if(Loci::MPI_rank==0)
-      cerr << "[Graph Compile Phase] Passed Chomping Compilation!" << endl ;
-#endif    
+      if(Loci::MPI_rank==0)
+        cerr << "[Graph Compile Phase] Passed Chomping Compilation!" << endl ;
+#endif
     }
 
-    //orderVisitor ov ;    
+    //orderVisitor ov ;
     //bottom_up_visit(ov) ;
-	
+
     schedst = MPI_Wtime() ;
-   
-    if(randomized_memory_greedy_schedule && (!in_internal_query)){ 
+
+    if(randomized_memory_greedy_schedule && (!in_internal_query)){
       if(Loci::MPI_rank == 0)
         if(!in_internal_query)
           cout << "graph scheduling... (randomized memory greedy)" << endl ;
-      
+
       sched_db local_scheds =  scheds;
       fact_db local_facts = facts ;
-      
+
       compGreedyPrio cgp2 ;
       graphSchedulerVisitor gsv2(cgp2) ;
       top_down_visit(gsv2) ;
@@ -643,12 +643,12 @@ namespace Loci {
                           reduceV.get_reduceInfo()) ;
       bottom_up_visit(av2) ;
       existential_analysis(local_facts, local_scheds);
-    
+
       map<variable, double> var_info;
       int num_vars = all_vars.size();
       double* local_sizes = new double[num_vars];
       double* global_sizes = new double[num_vars];
-      
+
       //collect the info
       int id = 0;
       for(variableSet::const_iterator
@@ -657,45 +657,45 @@ namespace Loci {
         storeRepP st = facts.get_variable(*mi);
         local_sizes[id++] = st->estimated_pack_size(eset);
       }
-      
+
       for(id = 0; id < num_vars; id++)global_sizes[id] = 0;
-       MPI_Allreduce(local_sizes,
-                     global_sizes,
-                     num_vars, MPI_DOUBLE,
-                     MPI_MAX,MPI_COMM_WORLD) ;
-       id = 0;
-       for(variableSet::const_iterator
-             mi=all_vars.begin();mi!=all_vars.end();++mi) {
-         var_info[*mi]= global_sizes[id++];
-       }
-       delete [] local_sizes;
-       delete [] global_sizes;
-       
-       SchedClearVisitor scv;
-       top_down_visit(scv) ;
-       MemGreedyScheduler mgs(facts,
-                              scheds,
-                              recv.get_recur_vars_s2t(),
-                              recv.get_recur_vars_t2s(),
-                              var_info);
-      
-       top_down_visit(mgs) ;
-      
+      MPI_Allreduce(local_sizes,
+                    global_sizes,
+                    num_vars, MPI_DOUBLE,
+                    MPI_MAX,MPI_COMM_WORLD) ;
+      id = 0;
+      for(variableSet::const_iterator
+            mi=all_vars.begin();mi!=all_vars.end();++mi) {
+        var_info[*mi]= global_sizes[id++];
+      }
+      delete [] local_sizes;
+      delete [] global_sizes;
+
+      SchedClearVisitor scv;
+      top_down_visit(scv) ;
+      MemGreedyScheduler mgs(facts,
+                             scheds,
+                             recv.get_recur_vars_s2t(),
+                             recv.get_recur_vars_t2s(),
+                             var_info);
+
+      top_down_visit(mgs) ;
+
     }else if(!memory_greedy_schedule) {
       if(Loci::MPI_rank == 0)
         if(!in_internal_query)
           cout << "graph scheduling... (computation greedy)" << endl ;
-      
+
       compGreedyPrio cgp ;
       graphSchedulerVisitor gsv(cgp) ;
       top_down_visit(gsv) ;
-      
-      
+
+
     } else {
       if(Loci::MPI_rank == 0)
         if(!in_internal_query)
           cout << "graph scheduling... (memory greedy)" << endl ;
-      
+
       memGreedyPrio mgp(facts) ;
       graphSchedulerVisitor gsv(mgp) ;
       top_down_visit(gsv) ;
@@ -706,10 +706,10 @@ namespace Loci {
 #endif
 
     schedet = MPI_Wtime() ;
-    
-  assembleVisitor av(reduceV.get_all_reduce_vars(),
-                     reduceV.get_reduceInfo()) ;
-  bottom_up_visit(av) ;
+
+    assembleVisitor av(reduceV.get_all_reduce_vars(),
+                       reduceV.get_reduceInfo()) ;
+    bottom_up_visit(av) ;
 
 
 
@@ -737,17 +737,17 @@ namespace Loci {
       cerr << "[Graph Compile Phase] Graph Compile Phase End!" << endl ;
 #endif
   }
-  
+
   void graph_compiler::existential_analysis(fact_db &facts, sched_db &scheds) {
     fact_db_comm->set_var_existence(facts, scheds) ;
     (rule_process[baserule])->set_var_existence(facts, scheds) ;
     variableSet var_requests = baserule.targets() ;
     variableSet::const_iterator vi ;
     entitySet my_entities = ~EMPTY ;
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      my_entities = d->my_entities ;
-    }
+
+    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    my_entities = d->my_entities ;
+
     for(vi=var_requests.begin();vi!=var_requests.end();++vi) {
       entitySet vexist = scheds.variable_existence(*vi)&my_entities ;
       scheds.variable_request(*vi,vexist) ;
@@ -756,7 +756,7 @@ namespace Loci {
     (rule_process[baserule])->process_var_requests(facts, scheds) ;
     fact_db_comm->process_var_requests(facts, scheds) ;
   }
-  
+
   class allocate_all_vars : public execute_modules {
     variableSet vars ;
     bool is_alloc_all ;
@@ -772,8 +772,8 @@ namespace Loci {
     virtual string getName() {return "allocate_all_vars";};
     virtual void dataCollate(collectData &data_collector) const {} ;
   } ;
-  
-  
+
+
   allocate_all_vars::allocate_all_vars(fact_db &facts, sched_db &scheds,
                                        const variableSet& alloc,
                                        bool is_alloc_all)
@@ -784,75 +784,75 @@ namespace Loci {
   void allocate_all_vars::fill_in_requests(fact_db &facts, sched_db &scheds) {
     //    variableSet vars = facts.get_typed_variables() ;
     variableSet::const_iterator vi,vii ;
-    
+
     for(vi=vars.begin();vi!=vars.end();++vi) {
       storeRepP srp = facts.get_variable(*vi) ;
       variableSet aliases = scheds.get_aliases(*vi) ;
       entitySet requests, existence ;
       for(vii=aliases.begin();vii!=aliases.end();++vii) {
-	existence += scheds.variable_existence(*vii) ;
-	requests += scheds.get_variable_requests(*vii) ;
+        existence += scheds.variable_existence(*vii) ;
+        requests += scheds.get_variable_requests(*vii) ;
       }
       v_requests[*vi] = requests ;
       v_existence[*vi] = existence ;
     }
   }
-  
+
   void allocate_all_vars::execute(fact_db &facts, sched_db& scheds) {
     //exec_current_fact_db = &facts ;
     //variableSet vars = facts.get_typed_variables() ;
-    variableSet::const_iterator vi ;  
+    variableSet::const_iterator vi ;
     double total_size = 0 ;
     entitySet dom, total, unused ;
     double total_wasted = 0 ;
-    
+
     //#define DIAGNOSTICS
 #ifdef DIAGNOSTICS
     for(vi=vars.begin();vi!=vars.end();++vi) {
       storeRepP srp = facts.get_variable(*vi) ;
       if(isSTORE(srp)) {
-	dom = v_requests[*vi] ;
-	total = interval(dom.Min(), dom.Max()) ;
-	unused = total - dom ;
-	total_size += srp->pack_size(dom) ; 
-	total_wasted += srp->pack_size(unused) ;
+        dom = v_requests[*vi] ;
+        total = interval(dom.Min(), dom.Max()) ;
+        unused = total - dom ;
+        total_size += srp->pack_size(dom) ;
+        total_wasted += srp->pack_size(unused) ;
       }
     }
     for(vi=vars.begin();vi!=vars.end();++vi) {
       storeRepP srp = facts.get_variable(*vi) ;
       if(isSTORE(srp)) {
-	dom = v_requests[*vi] ;
-	double size, wasted_space ;
-	total = interval(dom.Min(), dom.Max()) ;
-	unused = total - dom ;
-	size = srp->pack_size(dom) ;
-	wasted_space = srp->pack_size(unused) ;
-	Loci::debugout << " ****************************************************" << endl ;
-	Loci::debugout << " Total_size = " << total_size << endl ;
-	Loci::debugout << "Variable = "  << *vi << endl ;
-	Loci::debugout << "Domain = " << dom << endl ;
-	Loci::debugout << "Size allocated = " << size << endl ; 
-	if(facts.isDistributed() )  {
-	  Loci::fact_db::distribute_infoP d ;
-	  d   = facts.get_distribute_info() ;
-	  entitySet my_entities = d->my_entities ; 
-	  entitySet clone = dom - my_entities ;
-	  double clone_size = srp->pack_size(clone) ;
-	  Loci::debugout << "----------------------------------------------------" << endl;
-	  Loci::debugout << " My_entities = " << my_entities << endl ;
-	  Loci::debugout << " Clone entities = " << clone << endl ;
-	  Loci::debugout << "Memory required for the  clone region  = " << clone_size << endl ;
-	  Loci::debugout << "Percentage of clone memory required (of size allocated)  = " << double(double(100*clone_size) / size)<< endl ;
-	  Loci::debugout << "Percentage of clone memory required (of total size allocated)  = " << double(double(100*clone_size) / total_size)<< endl ;
-	  Loci::debugout << "----------------------------------------------------" << endl;
-	}
-	Loci::debugout << "Percentage of total memory allocated  = " << double(double(100*size) / (total_size+total_wasted)) << endl ;
-	Loci::debugout << "----------------------------------------------------" << endl;
-	Loci::debugout << "Total wasted size = " << total_wasted << endl ;
-	Loci::debugout << "Unused entities = " << unused << endl ;
-	Loci::debugout << "Wasted space = " << wasted_space << endl ;
-	Loci::debugout << "Percentage of total memory wasted  = " << double(double(100*wasted_space) / (total_size + total_wasted)) << endl ;
-	Loci::debugout << " ***************************************************" << endl << endl << endl ;
+        dom = v_requests[*vi] ;
+        double size, wasted_space ;
+        total = interval(dom.Min(), dom.Max()) ;
+        unused = total - dom ;
+        size = srp->pack_size(dom) ;
+        wasted_space = srp->pack_size(unused) ;
+        Loci::debugout << " ****************************************************" << endl ;
+        Loci::debugout << " Total_size = " << total_size << endl ;
+        Loci::debugout << "Variable = "  << *vi << endl ;
+        Loci::debugout << "Domain = " << dom << endl ;
+        Loci::debugout << "Size allocated = " << size << endl ;
+
+        Loci::fact_db::distribute_infoP d ;
+        d   = facts.get_distribute_info() ;
+        entitySet my_entities = d->my_entities ;
+        entitySet clone = dom - my_entities ;
+        double clone_size = srp->pack_size(clone) ;
+        Loci::debugout << "----------------------------------------------------" << endl;
+        Loci::debugout << " My_entities = " << my_entities << endl ;
+        Loci::debugout << " Clone entities = " << clone << endl ;
+        Loci::debugout << "Memory required for the  clone region  = " << clone_size << endl ;
+        Loci::debugout << "Percentage of clone memory required (of size allocated)  = " << double(double(100*clone_size) / size)<< endl ;
+        Loci::debugout << "Percentage of clone memory required (of total size allocated)  = " << double(double(100*clone_size) / total_size)<< endl ;
+        Loci::debugout << "----------------------------------------------------" << endl;
+
+        Loci::debugout << "Percentage of total memory allocated  = " << double(double(100*size) / (total_size+total_wasted)) << endl ;
+        Loci::debugout << "----------------------------------------------------" << endl;
+        Loci::debugout << "Total wasted size = " << total_wasted << endl ;
+        Loci::debugout << "Unused entities = " << unused << endl ;
+        Loci::debugout << "Wasted space = " << wasted_space << endl ;
+        Loci::debugout << "Percentage of total memory wasted  = " << double(double(100*wasted_space) / (total_size + total_wasted)) << endl ;
+        Loci::debugout << " ***************************************************" << endl << endl << endl ;
       }
     }
 #endif
@@ -866,7 +866,7 @@ namespace Loci {
       entitySet alloc_dom = v_requests[*vi] + srp->domain() ;
 #endif
       if(srp->domain() == EMPTY) {
-	srp->allocate(alloc_dom) ;
+        srp->allocate(alloc_dom) ;
       }
       else {
         if(profile_memory_usage) {
@@ -883,16 +883,16 @@ namespace Loci {
             }
           }
         }
-	if(isSTORE(srp)) {
-	  entitySet tmp = interval(alloc_dom.Min(), alloc_dom.Max()) ;
-	  if(verbose && tmp.size() >= 2*srp->domain().size())
-	    Loci::debugout << "Variable = " << *vi << "  more than twice the space allocated :  allocated over " << alloc_dom << " size = " << tmp.size()  << "  while domain is only  " << srp->domain() << " size = " << srp->domain().size() << endl ;
-	  if(alloc_dom != srp->domain()) {
-	    if(verbose)
-	      Loci::debugout << "reallocating " << *vi << "  over  " << alloc_dom << " initially it was over  " << srp->domain() << endl ;
-	    srp->allocate(alloc_dom) ;
-	  }
-	} 
+        if(isSTORE(srp)) {
+          entitySet tmp = interval(alloc_dom.Min(), alloc_dom.Max()) ;
+          if(verbose && tmp.size() >= 2*srp->domain().size())
+            Loci::debugout << "Variable = " << *vi << "  more than twice the space allocated :  allocated over " << alloc_dom << " size = " << tmp.size()  << "  while domain is only  " << srp->domain() << " size = " << srp->domain().size() << endl ;
+          if(alloc_dom != srp->domain()) {
+            if(verbose)
+              Loci::debugout << "reallocating " << *vi << "  over  " << alloc_dom << " initially it was over  " << srp->domain() << endl ;
+            srp->allocate(alloc_dom) ;
+          }
+        }
       }
       // do memory profiling
       if(profile_memory_usage) {
@@ -910,11 +910,11 @@ namespace Loci {
           }
         }
       }
-      
+
     }
     total_memory_usage = total_size + total_wasted ;
   }
-  
+
   void allocate_all_vars::Print(std::ostream &s) const {
     if(is_alloc_all)
       s << "allocate all variables" << endl ;
@@ -953,18 +953,18 @@ namespace Loci {
     // no threading schedule generated for internal query
     if(!in_internal_query) {
       if(threading_pointwise || threading_global_reduction
-          || threading_local_reduction || threading_chomping) {
+         || threading_local_reduction || threading_chomping) {
         thread_control =
           new ThreadControl_pthread(num_threads,facts,scheds);
         schedule->append_list(new StartThreads());
       }
     }
 #endif
-    
+
     top_level_schedule = (rule_process[baserule])->
       create_execution_schedule(facts, scheds) ;
 
-    if(top_level_schedule == 0) 
+    if(top_level_schedule == 0)
       return executeP(0) ;
 
     schedule->append_list(top_level_schedule) ;
@@ -972,12 +972,12 @@ namespace Loci {
 #ifdef PTHREADS
     if(!in_internal_query) {
       if(threading_pointwise || threading_global_reduction
-          || threading_local_reduction || threading_chomping) {
+         || threading_local_reduction || threading_chomping) {
         schedule->append_list(new ShutDownThreads());
       }
     }
 #endif
-    
+
     if(!use_dynamic_memory)
       if(profile_memory_usage) {
         variableSet profile_vars = facts.get_typed_variables() ;
@@ -992,10 +992,10 @@ namespace Loci {
           // if use chomping, then chomped vars don't need to be profiled
           profile_vars -= all_chomped_vars ;
         }
-        
+
         schedule->append_list(new execute_memProfileAlloc(profile_vars)) ;
       }
-    
+
     return executeP(schedule) ;
   }
 
@@ -1009,14 +1009,14 @@ namespace Loci {
     variableSet candidates ;
     for(ruleSet::const_iterator ri=del_rules.begin();ri!=del_rules.end();++ri)
       candidates += ri->targets() ;
-    
+
     digraph::vertexSet killvertices = digraph::vertexSet(del_rules) ;
     killvertices += digraph::vertexSet(work) ;
     gr.remove_vertices(killvertices) ;
     //digraph grt = gr.transpose() ;
   }
-  
-  
+
+
   // this is the function to compute all maps
   // in the stationary time level
 
@@ -1038,7 +1038,7 @@ namespace Loci {
     //create_digraph_dot_file(gr,"dependgr.dot") ;
     //std::string cmd = "dotty dependgr.dot" ;
     //system(cmd.c_str()) ;
-    
+
     // If graph is empty, we just return without any further actions
     if(gr.get_target_vertices() == EMPTY)
       return ;
@@ -1143,10 +1143,10 @@ namespace Loci {
       // perform the global -> local renumbering
       // since the fact_db facts is in global numbering state
 #ifdef RENUMBER
-      if((MPI_processes > 1)) 
+      if((MPI_processes > 1))
         get_clone(clone, par_rdb) ;
       else
-        Loci::serial_freeze(clone) ; 
+        Loci::serial_freeze(clone) ;
 #else
       Loci::serial_freeze(clone) ;
 #endif
@@ -1157,7 +1157,7 @@ namespace Loci {
       // then we remove in the rule database the rules
       // that generate the relations
       par_rdb.remove_rules(all_rules) ;
-      
+
       // Okay, now we need to put back the computed relations
       // to the original fact_db and restore the global numbering
 #ifdef RENUMBER
@@ -1187,7 +1187,7 @@ namespace Loci {
           }
         facts.create_intensional_fact(*vi2,srp) ;
       }
-#endif      
+#endif
     }else { // if(has_map), then we need to make successive queries
       for(vector<pair<ruleSet,variableSet> >::const_iterator
             vi=relations.begin();vi!=relations.end();++vi) {
@@ -1196,10 +1196,10 @@ namespace Loci {
         // perform the global -> local renumbering
         // since the fact_db facts is in global numbering state
 #ifdef RENUMBER
-        if((MPI_processes > 1)) 
+        if((MPI_processes > 1))
           get_clone(clone, par_rdb) ;
         else
-          Loci::serial_freeze(clone) ; 
+          Loci::serial_freeze(clone) ;
 #else
         Loci::serial_freeze(clone) ;
 #endif
@@ -1213,7 +1213,7 @@ namespace Loci {
         // then we remove in the rule database the rules
         // that generate the relations
         par_rdb.remove_rules(relationRules) ;
-      
+
         // Okay, now we need to put back the computed relations
         // to the original fact_db and restore the global numbering
 #ifdef RENUMBER
@@ -1248,7 +1248,7 @@ namespace Loci {
             }
           facts.create_intensional_fact(*vi2,srp) ;
         }
-#endif        
+#endif
       }
     } // end of if(!has_map)
     // finally we remove all the rules that derived from
@@ -1262,15 +1262,15 @@ namespace Loci {
         vi!=empty_constraints.end();++vi) {
       ruleSet empty_rules = extract_rules(gr[vi->ident()]) ;
       for(ruleSet::const_iterator ri=empty_rules.begin();
-	  ri != empty_rules.end();++ri) {
-	if(!(ri->type() != rule::INTERNAL 
-	     &&ri->get_rule_implP()->get_rule_class()==rule_impl::SUPER_RULE)) {
-	  del_rules += *ri ;
-	}
+          ri != empty_rules.end();++ri) {
+        if(!(ri->type() != rule::INTERNAL
+             &&ri->get_rule_implP()->get_rule_class()==rule_impl::SUPER_RULE)) {
+          del_rules += *ri ;
+        }
       }
       //      del_rules += extract_rules(gr[vi->ident()]) ;
     }
-    
+
     par_rdb.remove_rules(del_rules) ;
 
     in_internal_query = false ;

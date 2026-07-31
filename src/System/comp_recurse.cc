@@ -46,7 +46,7 @@ namespace Loci {
   }
 
   void impl_recurse_compiler::set_var_existence(fact_db &facts, sched_db &scheds) {
-    
+
 #ifdef VERBOSE
     debugout << "set var existence for recursive impl rule " << impl << endl ;
 #endif
@@ -61,14 +61,12 @@ namespace Loci {
     warn(impl.type() == rule::INTERNAL) ;
 
     entitySet my_entities = ~EMPTY ;
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      variableSet recurse_vars = variableSet(impl.sources() & impl.targets()) ;
 
-      barrier_existential_rule_analysis(recurse_vars,facts, scheds) ;
+    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    variableSet recurse_vars = variableSet(impl.sources() & impl.targets()) ;
+    barrier_existential_rule_analysis(recurse_vars,facts, scheds) ;
+    my_entities = d->my_entities ;
 
-      my_entities = d->my_entities ;
-    }
     entitySet sources = ~EMPTY ;
     entitySet constraints = ~EMPTY ;
 
@@ -176,16 +174,13 @@ namespace Loci {
     entitySet initial = sdelta ;
     entitySet domain = fctrl.nr_sources + sdelta ;
 
-    if(facts.isDistributed()) {
-      variable rename_var = rvar ;
-      if(finfo.targets.begin()->assign.size() != 0) {
-        rename_var = finfo.targets.begin()->assign[0].second ;
-      }
-      entitySet start=scheds.variable_existence(rename_var) ;
-      domain += start - my_entities ;
-      sdelta += start - my_entities ;
+    variable rename_var = rvar ;
+    if(finfo.targets.begin()->assign.size() != 0) {
+      rename_var = finfo.targets.begin()->assign[0].second ;
     }
-
+    entitySet start=scheds.variable_existence(rename_var) ;
+    domain += start - my_entities ;
+    sdelta += start - my_entities ;
 
     for(int j=read_maps.size()-1;j>=0;--j) {
       entitySet newdomain = scheds.preimage(rmap.mapvar[j],domain).first ;
@@ -215,7 +210,7 @@ namespace Loci {
       comp_sdelta &= my_entities;
       entitySet comp_tdelta = comp_sdelta;
       for(size_t j=0;j<tmap.mapvec.size();++j)
-	comp_tdelta = tmap.mapvec[j]->image(comp_tdelta) ;
+        comp_tdelta = tmap.mapvec[j]->image(comp_tdelta) ;
       comp_generated = comp_tdelta;
     }
     sdelta &= fctrl.nr_sources ;
@@ -234,19 +229,19 @@ namespace Loci {
     entitySet generated = tdelta ;
     const entitySet nr_sources = fctrl.nr_sources ;
     entitySet exists_alloc = nr_sources ;
-    if(facts.isDistributed()) {
-      entitySet working = exists_alloc ;
-      for(size_t j=0;j<read_maps.size();++j) {
-        MapRepP mp = MapRepP(read_maps[j].Rep()) ;
-        working = mp->image(working) ;
-      }
-      exists_alloc += working ;
-      working = exists_alloc ;
-      for(size_t j=0;j<tmap.mapvec.size();++j) {
-        working = tmap.mapvec[j]->image(working) ;
-      }
-      exists_alloc += working ;
+
+    entitySet working = exists_alloc ;
+    for(size_t j=0;j<read_maps.size();++j) {
+      MapRepP mp = MapRepP(read_maps[j].Rep()) ;
+      working = mp->image(working) ;
     }
+    exists_alloc += working ;
+    working = exists_alloc ;
+    for(size_t j=0;j<tmap.mapvec.size();++j) {
+      working = tmap.mapvec[j]->image(working) ;
+    }
+    exists_alloc += working ;
+
     exists_alloc += tdelta ;
     exists_alloc += initial ;
     store<bool> exists ;
@@ -379,9 +374,9 @@ namespace Loci {
     if(duplicate_work) {
       comp_sources &= my_entities;
       for(entitySet::const_iterator
-	    ei=comp_sources.begin();ei!=comp_sources.end();++ei) {
-	if(exists[*ei])
-	  comp_generated += *ei ;
+            ei=comp_sources.begin();ei!=comp_sources.end();++ei) {
+        if(exists[*ei])
+          comp_generated += *ei ;
       }
     }
 
@@ -404,42 +399,40 @@ namespace Loci {
     create += send_entitySet(create,facts) ;
     create += fill_entitySet(create,facts) ;
     scheds.set_existential_info(rvar,impl,create) ;
-   
+
   }
 
   void impl_recurse_compiler::process_var_requests(fact_db &facts, sched_db &scheds) {
     entitySet my_entities = ~EMPTY ;
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      my_entities = d->my_entities ;
-    }
+
+    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    my_entities = d->my_entities ;
+
     process_rule_requests(impl,facts, scheds) ;
-    if(facts.isDistributed()) {
 
-      // For the relaxed recursion we need to adjust our variable request
-      variableSet tvars = impl.targets() ;
-      variable rvar = *(tvars.begin()) ;
-      variable rename_var = rvar ;
-      const rule_impl::info &finfo = impl.get_info().desc ;
-      if(finfo.targets.begin()->assign.size() != 0) {
-        rename_var = finfo.targets.begin()->assign[0].second ;
-      }
-      entitySet request = scheds.get_variable_requests(rvar) ;
-      request -= my_entities ;
-      scheds.variable_request(rename_var,request) ;
-
-      //Find duplication of variables that are associtated with
-      //rules that compute tvars
-      if(duplicate_work)
-	set_duplication_of_variables(tvars, scheds, facts);
-
-      list<comm_info> request_comm ;
-      variableSet recurse_vars = variableSet(impl.sources() & impl.targets()) ;
-      request_comm = barrier_process_rule_requests(recurse_vars, facts, scheds) ;
-      // list<comm_info> clist = sort_comm(request_comm,facts) ;
-      // scheds.update_comm_info_list(clist, sched_db::RECURSE_CLIST);
+    // For the relaxed recursion we need to adjust our variable request
+    variableSet tvars = impl.targets() ;
+    variable rvar = *(tvars.begin()) ;
+    variable rename_var = rvar ;
+    const rule_impl::info &finfo = impl.get_info().desc ;
+    if(finfo.targets.begin()->assign.size() != 0) {
+      rename_var = finfo.targets.begin()->assign[0].second ;
     }
-     
+    entitySet request = scheds.get_variable_requests(rvar) ;
+    request -= my_entities ;
+    scheds.variable_request(rename_var,request) ;
+
+    //Find duplication of variables that are associtated with
+    //rules that compute tvars
+    if(duplicate_work)
+      set_duplication_of_variables(tvars, scheds, facts);
+
+    list<comm_info> request_comm ;
+    variableSet recurse_vars = variableSet(impl.sources() & impl.targets()) ;
+    request_comm = barrier_process_rule_requests(recurse_vars, facts, scheds) ;
+    // list<comm_info> clist = sort_comm(request_comm,facts) ;
+    // scheds.update_comm_info_list(clist, sched_db::RECURSE_CLIST);
+
   }
 
   executeP impl_recurse_compiler::create_execution_schedule(fact_db &facts, sched_db &scheds) {
@@ -454,15 +447,14 @@ namespace Loci {
 
   void recurse_compiler::set_var_existence(fact_db &facts, sched_db &scheds) {
     entitySet my_entities = ~EMPTY ;
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      
-      std::vector<std::pair<variable,entitySet> > pre_send_entities
-        = barrier_existential_rule_analysis(recurse_vars,facts, scheds) ;
-      scheds.update_send_entities(pre_send_entities, sched_db::RECURSE_PRE);
-      my_entities = d->my_entities ;
-      
-    }
+
+    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+
+    std::vector<std::pair<variable,entitySet> > pre_send_entities
+      = barrier_existential_rule_analysis(recurse_vars,facts, scheds) ;
+    scheds.update_send_entities(pre_send_entities, sched_db::RECURSE_PRE);
+    my_entities = d->my_entities ;
+
 
     control_set.clear() ;
     recurse_send_entities.clear();
@@ -537,9 +529,9 @@ namespace Loci {
       for(si=finfo.constraints.begin();si!=finfo.constraints.end();++si) {
         warn((si->var & tvars) != EMPTY) ;
 #ifdef DEBUG
-	if((si->var & tvars) != EMPTY) {
-	  cerr << "fset=" << fset << endl ;
-	}
+        if((si->var & tvars) != EMPTY) {
+          cerr << "fset=" << fset << endl ;
+        }
 #endif
         constraints &= vmap_source_exist(*si,facts, scheds) ;
         fctrl.use_constraints = true ;
@@ -684,10 +676,7 @@ namespace Loci {
         tvar_computed[*vi] = tvar_update[*vi] ;
       }
       int deltar = 0 ;
-      if(!facts.isDistributed())
-        deltar = deltas ;
-      else
-        MPI_Allreduce(&deltas,&deltar, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD) ;
+      MPI_Allreduce(&deltas,&deltar, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD) ;
       if(deltar != 0)
         finished = false ;
     }
@@ -698,10 +687,10 @@ namespace Loci {
           mi!=fctrl.generated.end();++mi) {
 
         entitySet create = mi->second;
-	if(duplicate_work) {
-	  scheds.set_my_proc_able_entities(mi->first, *fi, create);
-	  scheds.add_policy(mi->first, sched_db::NEVER);
-	}
+        if(duplicate_work) {
+          scheds.set_my_proc_able_entities(mi->first, *fi, create);
+          scheds.add_policy(mi->first, sched_db::NEVER);
+        }
         create += send_entitySet(create,facts) ;
         create += fill_entitySet(create,facts) ;
 
@@ -712,176 +701,156 @@ namespace Loci {
 
   void recurse_compiler::process_var_requests(fact_db &facts, sched_db &scheds) {
     entitySet my_entities = ~EMPTY ;
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      my_entities = d->my_entities ;
-    }
+
+    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    my_entities = d->my_entities ;
 
     ruleSet::const_iterator fi ;
-    if(facts.isDistributed()) {
-      list<comm_info> request_comm ;
-      map<variable, entitySet> orig_requests ;
-      for(variableSet::const_iterator vi=recurse_vars.begin();
-          vi!=recurse_vars.end();
-          ++vi) {
-        orig_requests[*vi] = scheds.get_variable_requests(*vi) ;
-      }
-      request_comm = barrier_process_rule_requests(recurse_vars, facts,  scheds) ;
 
-      vector<pair<variable,entitySet> >::const_iterator vi ;
-      vector<pair<variable,entitySet> > send_requested ;
+    list<comm_info> request_comm ;
+    map<variable, entitySet> orig_requests ;
+    for(variableSet::const_iterator vi=recurse_vars.begin();
+        vi!=recurse_vars.end();
+        ++vi) {
+      orig_requests[*vi] = scheds.get_variable_requests(*vi) ;
+    }
+    request_comm = barrier_process_rule_requests(recurse_vars, facts,  scheds) ;
 
-      map<variable,entitySet> var_requests, recurse_entities,recurse_comm ;
-      for(variableSet::const_iterator vi=recurse_vars.begin() ;
-          vi!=recurse_vars.end();
-          ++vi) {
-        var_requests[*vi] = scheds.get_variable_requests(*vi) ;
-        ruleSet::const_iterator ri ;
-        for(ri=recurse_rules.begin();ri!=recurse_rules.end();++ri) {
-          recurse_entities[*vi] += scheds.get_existential_info(*vi,*ri) ;
-        }
-      }
-      
-      std::vector<std::pair<variable,entitySet> > pre_send_entities =
-        scheds.get_send_entities(recurse_vars, sched_db::RECURSE_PRE);
-      for(vi=pre_send_entities.begin();vi!=pre_send_entities.end();++vi) {
-        variable v = vi->first ;
-        entitySet send_set = vi->second - recurse_entities[v] ;
-        send_requested.push_back(make_pair(v,send_set &
-                                           scheds.get_variable_requests(v))) ;
-      }
-      list<comm_info> pre_plist = put_precomm_info(send_requested, facts) ;
-      scheds.update_comm_info_list(pre_plist, sched_db::RECURSE_PRE_PLIST);
-      for(fi=recurse_rules.begin();fi!=recurse_rules.end();++fi) {
-        fcontrol &fctrl = control_set[*fi] ;
-        entitySet control = process_rule_requests(*fi,facts, scheds) ;
-        list<entitySet>::iterator ci ;
-        entitySet total ;
-        for(ci=fctrl.control_list.begin();ci!=fctrl.control_list.end();++ci) {
-          *ci -= total ;
-          total += *ci ;
-        }
-      }
-      map<rule, list<entitySet>::reverse_iterator> rpos ;
+    vector<pair<variable,entitySet> >::const_iterator vi ;
+    vector<pair<variable,entitySet> > send_requested ;
 
-
+    map<variable,entitySet> var_requests, recurse_entities,recurse_comm ;
+    for(variableSet::const_iterator vi=recurse_vars.begin() ;
+        vi!=recurse_vars.end();
+        ++vi) {
+      var_requests[*vi] = scheds.get_variable_requests(*vi) ;
       ruleSet::const_iterator ri ;
-      for(ri=recurse_rules.begin();ri!=recurse_rules.end();++ri)
-        rpos[*ri] = control_set[*ri].control_list.rbegin() ;
-
-      map<variable,vector<entitySet> > recurse_send_req ;
-      map<variable,entitySet> all_requests ;
-      bool finished = false ;
-      do {
-        map<variable,entitySet> vreq_map ;
-        for(ri=recurse_rules.begin();ri!=recurse_rules.end();++ri) {
-          entitySet &context = *rpos[*ri] ;
-
-          fcontrol &fctrl = control_set[*ri] ;
-          for(size_t i=0;i<fctrl.target_maps.size();++i) {
-            entitySet ct = var_requests[fctrl.target_maps[i].v] ;
-            for(int j=int(fctrl.target_maps[i].mapvec.size())-1;j>=0;--j)
-              ct = fctrl.target_maps[i].mapvec[j]->preimage(ct).first ;
-            context &= ct ;
-          }
-          for(size_t i=0;i<fctrl.recursion_maps.size();++i) {
-            entitySet rq = context ;
-            for(size_t j=0;j<fctrl.recursion_maps[i].mapvec.size();j++)
-              rq = fctrl.recursion_maps[i].mapvec[j]->image(rq) ;
-            vreq_map[fctrl.recursion_maps[i].v] += rq  ;
-          }
-
-
-          rpos[*ri]++ ;
-          if(rpos[*ri] == control_set[*ri].control_list.rend())
-            finished = true ;
-
-          for(variableSet::const_iterator vi = recurse_vars.begin();
-              vi!=recurse_vars.end();
-              ++vi) {
-            all_requests[*vi] += vreq_map[*vi] ;
-            entitySet remain = vreq_map[*vi] & recurse_entities[*vi] ;
-
-            remain -= my_entities ;
-            recurse_send_req[*vi].push_back(remain) ;
-          }
-        }
-      } while(!finished) ;
-
-      for(variableSet::const_iterator vi = recurse_vars.begin();
-          vi!=recurse_vars.end();
-          ++vi) {
-        std::reverse(recurse_send_req[*vi].begin(),recurse_send_req[*vi].end()) ;
-        entitySet req_loc ;
-        for(vector<entitySet>::iterator vei=recurse_send_req[*vi].begin();
-            vei!=recurse_send_req[*vi].end();
-            ++vei) {
-          *vei -= req_loc ;
-          list<comm_info> req_comm ;
-          send_requests(*vei,*vi,facts,req_comm) ;
-          send_req_var[*vi].push_back(sort_comm(req_comm,facts)) ;
-          req_loc += *vei ;
-        }
-        recurse_comm[*vi] = req_loc ;
-      }
-
-      list<comm_info> pre_req_comm ;
-      list<comm_info>::const_iterator li ;
-      for(li=request_comm.begin();li!=request_comm.end();++li) {
-        entitySet presend = li->send_set - recurse_entities[li->v] ;
-        entitySet prerecv = entitySet(li->recv_set) - recurse_entities[li->v] ;
-        if(presend != EMPTY || prerecv != EMPTY) {
-          comm_info precomm = *li ;
-          precomm.send_set = presend ;
-          precomm.recv_set = sequence(prerecv) ;
-          pre_req_comm.push_back(precomm) ;
-        }
-      }
-      // Add communications for requests that come from recursive rules
-      // for results from non-recursive rules.
-      for(variableSet::const_iterator vi = recurse_vars.begin();
-          vi!= recurse_vars.end();
-          ++vi) {
-        variable v = *vi ;
-        entitySet pre_req = all_requests[v] & ~recurse_entities[v] & ~orig_requests[v]  & ~my_entities ;
-        send_requests(pre_req,v,facts,pre_req_comm) ;
-      }
-
-
-      list<comm_info> post_req_comm ;
-      for(variableSet::const_iterator vi = recurse_vars.begin();
-          vi!= recurse_vars.end();
-          ++vi) {
-        variable v = *vi ;
-        entitySet requests = orig_requests[v] ;
-        requests &= recurse_entities[v] ;
-        requests -= recurse_comm[*vi] ;
-
-        send_requests(requests,v,facts,post_req_comm) ;
-      }
-      list<comm_info> pre_clist = sort_comm(pre_req_comm,facts) ;
-      list<comm_info> post_clist = sort_comm(post_req_comm,facts) ;
-      scheds.update_comm_info_list(pre_clist, sched_db::RECURSE_PRE_CLIST);
-      scheds.update_comm_info_list(post_clist, sched_db::RECURSE_POST_CLIST);
-    } else {
-      for(fi=recurse_rules.begin();fi!=recurse_rules.end();++fi) {
-        fcontrol &fctrl = control_set[*fi] ;
-        entitySet control = process_rule_requests(*fi,facts, scheds) ;
-        list<entitySet>::iterator ci ;
-        entitySet total ;
-        for(ci=fctrl.control_list.begin();ci!=fctrl.control_list.end();++ci) {
-          *ci -= total ;
-          total += *ci ;
-        }
-        do {
-          if(fctrl.control_list.back() == EMPTY)
-            fctrl.control_list.pop_back() ;
-          if(!fctrl.control_list.empty())
-            fctrl.control_list.back() &= control ;
-        } while(!fctrl.control_list.empty() && fctrl.control_list.back() == EMPTY) ;
+      for(ri=recurse_rules.begin();ri!=recurse_rules.end();++ri) {
+        recurse_entities[*vi] += scheds.get_existential_info(*vi,*ri) ;
       }
     }
 
+    std::vector<std::pair<variable,entitySet> > pre_send_entities =
+      scheds.get_send_entities(recurse_vars, sched_db::RECURSE_PRE);
+    for(vi=pre_send_entities.begin();vi!=pre_send_entities.end();++vi) {
+      variable v = vi->first ;
+      entitySet send_set = vi->second - recurse_entities[v] ;
+      send_requested.push_back(make_pair(v,send_set &
+                                         scheds.get_variable_requests(v))) ;
+    }
+    list<comm_info> pre_plist = put_precomm_info(send_requested, facts) ;
+    scheds.update_comm_info_list(pre_plist, sched_db::RECURSE_PRE_PLIST);
+    for(fi=recurse_rules.begin();fi!=recurse_rules.end();++fi) {
+      fcontrol &fctrl = control_set[*fi] ;
+      entitySet control = process_rule_requests(*fi,facts, scheds) ;
+      list<entitySet>::iterator ci ;
+      entitySet total ;
+      for(ci=fctrl.control_list.begin();ci!=fctrl.control_list.end();++ci) {
+        *ci -= total ;
+        total += *ci ;
+      }
+    }
+    map<rule, list<entitySet>::reverse_iterator> rpos ;
+
+
+    ruleSet::const_iterator ri ;
+    for(ri=recurse_rules.begin();ri!=recurse_rules.end();++ri)
+      rpos[*ri] = control_set[*ri].control_list.rbegin() ;
+
+    map<variable,vector<entitySet> > recurse_send_req ;
+    map<variable,entitySet> all_requests ;
+    bool finished = false ;
+    do {
+      map<variable,entitySet> vreq_map ;
+      for(ri=recurse_rules.begin();ri!=recurse_rules.end();++ri) {
+        entitySet &context = *rpos[*ri] ;
+
+        fcontrol &fctrl = control_set[*ri] ;
+        for(size_t i=0;i<fctrl.target_maps.size();++i) {
+          entitySet ct = var_requests[fctrl.target_maps[i].v] ;
+          for(int j=int(fctrl.target_maps[i].mapvec.size())-1;j>=0;--j)
+            ct = fctrl.target_maps[i].mapvec[j]->preimage(ct).first ;
+          context &= ct ;
+        }
+        for(size_t i=0;i<fctrl.recursion_maps.size();++i) {
+          entitySet rq = context ;
+          for(size_t j=0;j<fctrl.recursion_maps[i].mapvec.size();j++)
+            rq = fctrl.recursion_maps[i].mapvec[j]->image(rq) ;
+          vreq_map[fctrl.recursion_maps[i].v] += rq  ;
+        }
+
+
+        rpos[*ri]++ ;
+        if(rpos[*ri] == control_set[*ri].control_list.rend())
+          finished = true ;
+
+        for(variableSet::const_iterator vi = recurse_vars.begin();
+            vi!=recurse_vars.end();
+            ++vi) {
+          all_requests[*vi] += vreq_map[*vi] ;
+          entitySet remain = vreq_map[*vi] & recurse_entities[*vi] ;
+
+          remain -= my_entities ;
+          recurse_send_req[*vi].push_back(remain) ;
+        }
+      }
+    } while(!finished) ;
+
+    for(variableSet::const_iterator vi = recurse_vars.begin();
+        vi!=recurse_vars.end();
+        ++vi) {
+      std::reverse(recurse_send_req[*vi].begin(),recurse_send_req[*vi].end()) ;
+      entitySet req_loc ;
+      for(vector<entitySet>::iterator vei=recurse_send_req[*vi].begin();
+          vei!=recurse_send_req[*vi].end();
+          ++vei) {
+        *vei -= req_loc ;
+        list<comm_info> req_comm ;
+        send_requests(*vei,*vi,facts,req_comm) ;
+        send_req_var[*vi].push_back(sort_comm(req_comm,facts)) ;
+        req_loc += *vei ;
+      }
+      recurse_comm[*vi] = req_loc ;
+    }
+
+    list<comm_info> pre_req_comm ;
+    list<comm_info>::const_iterator li ;
+    for(li=request_comm.begin();li!=request_comm.end();++li) {
+      entitySet presend = li->send_set - recurse_entities[li->v] ;
+      entitySet prerecv = entitySet(li->recv_set) - recurse_entities[li->v] ;
+      if(presend != EMPTY || prerecv != EMPTY) {
+        comm_info precomm = *li ;
+        precomm.send_set = presend ;
+        precomm.recv_set = sequence(prerecv) ;
+        pre_req_comm.push_back(precomm) ;
+      }
+    }
+    // Add communications for requests that come from recursive rules
+    // for results from non-recursive rules.
+    for(variableSet::const_iterator vi = recurse_vars.begin();
+        vi!= recurse_vars.end();
+        ++vi) {
+      variable v = *vi ;
+      entitySet pre_req = all_requests[v] & ~recurse_entities[v] & ~orig_requests[v]  & ~my_entities ;
+      send_requests(pre_req,v,facts,pre_req_comm) ;
+    }
+
+
+    list<comm_info> post_req_comm ;
+    for(variableSet::const_iterator vi = recurse_vars.begin();
+        vi!= recurse_vars.end();
+        ++vi) {
+      variable v = *vi ;
+      entitySet requests = orig_requests[v] ;
+      requests &= recurse_entities[v] ;
+      requests -= recurse_comm[*vi] ;
+
+      send_requests(requests,v,facts,post_req_comm) ;
+    }
+    list<comm_info> pre_clist = sort_comm(pre_req_comm,facts) ;
+    list<comm_info> post_clist = sort_comm(post_req_comm,facts) ;
+    scheds.update_comm_info_list(pre_clist, sched_db::RECURSE_PRE_CLIST);
+    scheds.update_comm_info_list(post_clist, sched_db::RECURSE_POST_CLIST);
   }
 
   executeP recurse_compiler::create_execution_schedule(fact_db &facts, sched_db &scheds ) {
@@ -890,25 +859,24 @@ namespace Loci {
     bool num_threads_counted = false;
 #endif
     CPTR<execute_sequence> el = new execute_sequence ;
-    if(facts.isDistributed()) {
-      list<comm_info> pre_clist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_PRE_CLIST);
-      list<comm_info> pre_plist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_PRE_PLIST);
-     
-      execute_comm2::inc_comm_step() ;
-      if(!pre_plist.empty()) {
-        //executeP exec_commp = new execute_comm(pre_plist, facts);
-        executeP exec_commp2 = new execute_comm2(pre_plist, facts);
-        el->append_list(exec_commp2) ;
-        //el->append_list(exec_commp) ;
-      }
 
-      execute_comm2::inc_comm_step() ;
-      if(!pre_clist.empty()) {
-        //executeP exec_commc = new execute_comm(pre_clist, facts);
-        executeP exec_commc2 = new execute_comm2(pre_clist, facts);
-        el->append_list(exec_commc2) ;
-        //el->append_list(exec_commc) ;
-      }
+    list<comm_info> pre_clist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_PRE_CLIST);
+    list<comm_info> pre_plist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_PRE_PLIST);
+
+    execute_comm2::inc_comm_step() ;
+    if(!pre_plist.empty()) {
+      //executeP exec_commp = new execute_comm(pre_plist, facts);
+      executeP exec_commp2 = new execute_comm2(pre_plist, facts);
+      el->append_list(exec_commp2) ;
+      //el->append_list(exec_commp) ;
+    }
+
+    execute_comm2::inc_comm_step() ;
+    if(!pre_clist.empty()) {
+      //executeP exec_commc = new execute_comm(pre_clist, facts);
+      executeP exec_commc2 = new execute_comm2(pre_clist, facts);
+      el->append_list(exec_commc2) ;
+      //el->append_list(exec_commc) ;
     }
 
     map<rule, list<entitySet>::const_iterator> rpos ;
@@ -970,51 +938,48 @@ namespace Loci {
         }
       }
       if(!finished) {
-        if(facts.isDistributed()) {
-          list<comm_info> plist = put_precomm_info(*sei, facts) ;
-          execute_comm2::inc_comm_step() ;
-          if(!plist.empty()) {
-            //executeP exec_comm = new execute_comm(plist,facts);
-            executeP exec_comm2 = new execute_comm2(plist,facts);
-            el->append_list(exec_comm2) ;
-            //el->append_list(exec_comm) ;
-          }
-
-          // Make sure to request any variables communicated so that
-          // the space is allocated.  This is a hack that should be
-          // reworked later.
-          for(list<comm_info>::const_iterator li=plist.begin();
-              li!=plist.end();
-              ++li) {
-            entitySet all = li->send_set ;
-            all += entitySet(li->recv_set) ;
-
-            scheds.variable_request(li->v,all) ;
-          }
+        list<comm_info> plist = put_precomm_info(*sei, facts) ;
+        execute_comm2::inc_comm_step() ;
+        if(!plist.empty()) {
+          //executeP exec_comm = new execute_comm(plist,facts);
+          executeP exec_comm2 = new execute_comm2(plist,facts);
+          el->append_list(exec_comm2) ;
+          //el->append_list(exec_comm) ;
         }
+
+        // Make sure to request any variables communicated so that
+        // the space is allocated.  This is a hack that should be
+        // reworked later.
+        for(list<comm_info>::const_iterator li=plist.begin();
+            li!=plist.end();
+            ++li) {
+          entitySet all = li->send_set ;
+          all += entitySet(li->recv_set) ;
+
+          scheds.variable_request(li->v,all) ;
+        }
+
         sei++ ;
       }
     } while(!finished) ;
 
-    if(facts.isDistributed()) {
-       list<comm_info> post_clist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_POST_CLIST);
-      
-      execute_comm2::inc_comm_step() ;
-      if(!post_clist.empty()) {
-        executeP exec_comm2 = new execute_comm2(post_clist, facts);
-        el->append_list(exec_comm2) ;
-      }
-      // Make sure to request any variables communicated so that
-      // the space is allocated.  This is a hack that should be
-      // reworked later.
-      for(list<comm_info>::const_iterator li=post_clist.begin();
-          li!=post_clist.end();
-          ++li) {
-        entitySet all = li->send_set ;
-        all += entitySet(li->recv_set) ;
+    list<comm_info> post_clist =  scheds.get_comm_info_list(recurse_vars, facts, sched_db::RECURSE_POST_CLIST);
 
-        scheds.variable_request(li->v,all) ;
-      }
+    execute_comm2::inc_comm_step() ;
+    if(!post_clist.empty()) {
+      executeP exec_comm2 = new execute_comm2(post_clist, facts);
+      el->append_list(exec_comm2) ;
+    }
+    // Make sure to request any variables communicated so that
+    // the space is allocated.  This is a hack that should be
+    // reworked later.
+    for(list<comm_info>::const_iterator li=post_clist.begin();
+        li!=post_clist.end();
+        ++li) {
+      entitySet all = li->send_set ;
+      all += entitySet(li->recv_set) ;
+
+      scheds.variable_request(li->v,all) ;
     }
 
     if(el->size() == 0)

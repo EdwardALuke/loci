@@ -116,7 +116,7 @@ namespace Loci {
   int current_rule_id = 0 ;
   int rule_count = 0;
 
-  
+
   execute_rule::execute_rule(rule fi, sequence seq, fact_db &facts, const sched_db &scheds)  {
     rp = fi.get_rule_implP() ;
     rule_tag = fi ;
@@ -178,10 +178,10 @@ namespace Loci {
 #endif
   }
 
-  inline void 
+  inline void
   execute_rule::execute_kernel(const sequence& s)
   { rp->compute(s); }
-  
+
   inline void
   execute_rule::execute_prelude(const sequence& s)
   { rp->prelude(s); }
@@ -244,15 +244,15 @@ namespace Loci {
 
 #ifdef PTHREADS
     ++num_total_pointwise;
-    bool threadable = 
+    bool threadable =
       impl.get_info().rule_impl->thread_rule() &&
-      (impl.get_info().rule_impl->get_rule_class() 
-                       == rule_impl::POINTWISE ||
+      (impl.get_info().rule_impl->get_rule_class()
+       == rule_impl::POINTWISE ||
        impl.get_info().rule_impl->get_rule_class()
-                       == rule_impl::UNIT);
+       == rule_impl::UNIT);
     rule_implP ti = impl.get_rule_implP() ;
     for (variableSet::const_iterator vi=targets.begin();
-        vi!=targets.end();++vi) {
+         vi!=targets.end();++vi) {
       storeRepP tr = ti->get_store(*vi);
       if (isPARAMETER(tr)) {
         threadable = false;
@@ -282,15 +282,15 @@ namespace Loci {
   }
 
 
-  
+
   // blackbox_compiler code
   void
   blackbox_compiler::set_var_existence(fact_db& facts, sched_db& scheds) {
     //    existential_blackboxrule_analysis(impl, facts, scheds) ;
     // set UNIVERSE existence for all targets
-     variableSet targets = impl.targets() ;
-     for(variableSet::const_iterator vi=targets.begin();vi!=targets.end();++vi)
-       scheds.set_existential_info(*vi, impl, ~EMPTY) ;
+    variableSet targets = impl.targets() ;
+    for(variableSet::const_iterator vi=targets.begin();vi!=targets.end();++vi)
+      scheds.set_existential_info(*vi, impl, ~EMPTY) ;
   }
 
   void blackbox_compiler::process_var_requests(fact_db& facts, sched_db& scheds) {
@@ -373,13 +373,11 @@ namespace Loci {
 
       entitySet my_entities = ~EMPTY ;
 
-      if(facts.isDistributed()) {
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-        fact_db::distribute_infoP d = facts.get_distribute_info() ;
-        my_entities = d->my_entities ;
-      }
-      
+      fact_db::distribute_infoP d = facts.get_distribute_info() ;
+      my_entities = d->my_entities ;
+
       //      debugout << "constraints = " << constraints << endl ;
       // Now complement (entities we own)
       constraints = (~constraints) & my_entities ;
@@ -420,13 +418,11 @@ namespace Loci {
 
       entitySet my_entities = ~EMPTY ;
 
-      if(facts.isDistributed()) {
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-        fact_db::distribute_infoP d = facts.get_distribute_info() ;
-        my_entities = d->my_entities ;
-      }
-      
+      fact_db::distribute_infoP d = facts.get_distribute_info() ;
+      my_entities = d->my_entities ;
+
       // Now complement (entities we own)
       constraints = constraints & my_entities ;
 
@@ -464,13 +460,11 @@ namespace Loci {
 
       entitySet my_entities = ~EMPTY ;
 
-      if(facts.isDistributed()) {
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-        fact_db::distribute_infoP d = facts.get_distribute_info() ;
-        my_entities = d->my_entities ;
-      }
-      
+      fact_db::distribute_infoP d = facts.get_distribute_info() ;
+      my_entities = d->my_entities ;
+
       // Now complement (entities we own)
       constraints = constraints & my_entities ;
 
@@ -508,13 +502,11 @@ namespace Loci {
 
       entitySet my_entities = ~EMPTY ;
 
-      if(facts.isDistributed()) {
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-        fact_db::distribute_infoP d = facts.get_distribute_info() ;
-        my_entities = d->my_entities ;
-      }
-      
+      fact_db::distribute_infoP d = facts.get_distribute_info() ;
+      my_entities = d->my_entities ;
+
       // Now complement (entities we own)
       constraints = constraints & my_entities ;
 
@@ -581,8 +573,7 @@ namespace Loci {
   } ;
 
   register_rule<AND4_rule> register_AND4_rule ;
-    
-  
+
+
 }
 
-// ... the end ...

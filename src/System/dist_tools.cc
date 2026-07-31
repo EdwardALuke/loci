@@ -839,10 +839,6 @@ namespace Loci {
    *
    ** ************************************************************************/
   vector<entitySet> overlapSets(const entitySet &e, fact_db &facts) {
-    if(!facts.isDistributed()) {
-      vector<entitySet> list(0) ;
-      return list ;
-    }
     fact_db::distribute_infoP d = facts.get_distribute_info() ;
     vector<entitySet> list(d->xmit.size()) ;
     for(size_t i=0;i<d->xmit.size();++i) 
@@ -862,11 +858,6 @@ namespace Loci {
    *
    ** ************************************************************************/
   vector<int> shareSetSizes(const vector<vector<entitySet> > &ve, fact_db &facts) {
-    if(!facts.isDistributed()) {
-      vector<int> copySizes(ve.size()) ;
-      return copySizes ;
-    }
-    
     fact_db::distribute_infoP d = facts.get_distribute_info() ;
     int nsets = ve.size() ;
     vector<int> copySizes(nsets*d->copy.size()) ;
@@ -897,10 +888,6 @@ namespace Loci {
    *
    ** ************************************************************************/
   inline vector<int> shareSetSizes(const vector<entitySet> &ve, fact_db &facts) {
-    if(!facts.isDistributed()) {
-      vector<int> copySizes(0) ;
-      return copySizes ;
-    }
     vector<vector<entitySet> > vev(1,ve) ;
     return shareSetSizes(vev,facts) ;
   }
@@ -918,8 +905,6 @@ namespace Loci {
    ** ************************************************************************/
   entitySet fill_entitySet(const entitySet& e, fact_db &facts) {
     entitySet re ;
-    if(!facts.isDistributed())
-      return re ;
 
     fact_db::distribute_infoP d = facts.get_distribute_info() ;
     vector<entitySet> sendSets = overlapSets(e,facts) ;
@@ -1004,8 +989,6 @@ namespace Loci {
   vector<entitySet> fill_entitySet(const vector<entitySet> & ve, fact_db &facts) {
     int nsets = ve.size() ;
     vector<entitySet> rev(nsets) ;
-    if(!facts.isDistributed())
-      return rev ;
     if(nsets == 0) 
       return rev ;
     
@@ -1130,90 +1113,89 @@ namespace Loci {
   //are received from which processor.
   vector<entitySet> send_entitySetv(const entitySet& e, fact_db &facts) {
     vector<entitySet> re(MPI_processes);
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
 
-      int **send_buffer = 0 ;
-      int **recv_buffer = 0 ;
-      int *recv_size = 0 ;
+    fact_db::distribute_infoP d = facts.get_distribute_info() ;
 
-      if(d->xmit.size() > 0) {
-        recv_buffer = new int*[d->xmit.size()] ;
-        recv_size = new int[d->xmit.size()] ;
+    int **send_buffer = 0 ;
+    int **recv_buffer = 0 ;
+    int *recv_size = 0 ;
 
-        recv_buffer[0] = new int[2*d->xmit_total_size] ;
-        recv_size[0] = 2*d->xmit[0].size ;
+    if(d->xmit.size() > 0) {
+      recv_buffer = new int*[d->xmit.size()] ;
+      recv_size = new int[d->xmit.size()] ;
 
-        for(size_t i=1;i<d->xmit.size();++i) {
-          recv_buffer[i] = recv_buffer[i-1]+2*d->xmit[i-1].size ;
-          recv_size[i] = 2*d->xmit[i].size ;
-        }
+      recv_buffer[0] = new int[2*d->xmit_total_size] ;
+      recv_size[0] = 2*d->xmit[0].size ;
+
+      for(size_t i=1;i<d->xmit.size();++i) {
+        recv_buffer[i] = recv_buffer[i-1]+2*d->xmit[i-1].size ;
+        recv_size[i] = 2*d->xmit[i].size ;
       }
-
-      if(d->copy.size() > 0 ) {
-        send_buffer = new int*[d->copy.size()] ;
-        send_buffer[0] = new int[2*d->copy_total_size] ;
-        for(size_t i=1;i<d->copy.size();++i)
-          send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size ;
-      }
-      Map l2g ;
-      l2g = d->l2g.Rep() ;
-      store<unsigned char> key_domain ;
-      key_domain = d->key_domain.Rep() ;
-
-      MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
-      MPI_Status *status = new MPI_Status[d->xmit.size()] ;
-
-      for(size_t i=0;i<d->xmit.size();++i)
-	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
-                  MPI_COMM_WORLD, &recv_request[i] ) ;
-
-      /*By intersecting the given entitySet with the clone region
-	entities we can find out which entities are to be sent */
-      for(size_t i=0;i<d->copy.size();++i) {
-        entitySet temp = e & d->copy[i].entities ;
-
-        int j=0 ;
-        for(entitySet::const_iterator ei=temp.begin();ei!=temp.end();++ei) {
-	  send_buffer[i][j++] = key_domain[*ei] ;
-          send_buffer[i][j++] = l2g[*ei] ;
-	}
-
-        int send_size = temp.size() ;
-        MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
-                 1,MPI_COMM_WORLD) ;
-      }
-
-      if(d->xmit.size() > 0) {
-#ifdef DEBUG
-	int err =
-#endif
-          MPI_Waitall(d->xmit.size(), recv_request, status) ;
-	FATAL(err != MPI_SUCCESS) ;
-      }
-
-      for(size_t i=0;i<d->xmit.size();++i) {
-        int recieved ;
-	MPI_Get_count(&status[i], MPI_INT, &recieved) ;
-        for(int j=0;j<recieved;++j) {
-	  int kd = recv_buffer[i][j++] ;
-          re[d->xmit[i].proc] += d->g2lv[kd][recv_buffer[i][j]] ;
-	}
-      }
-
-      if(d->xmit.size() > 0) {
-        delete [] recv_size ;
-        delete [] recv_buffer[0] ;
-        delete [] recv_buffer ;
-      }
-      if(d->copy.size() > 0) {
-        delete [] send_buffer[0] ;
-        delete [] send_buffer ;
-      }
-      delete [] recv_request ;
-      delete [] status ;
-
     }
+
+    if(d->copy.size() > 0 ) {
+      send_buffer = new int*[d->copy.size()] ;
+      send_buffer[0] = new int[2*d->copy_total_size] ;
+      for(size_t i=1;i<d->copy.size();++i)
+        send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size ;
+    }
+    Map l2g ;
+    l2g = d->l2g.Rep() ;
+    store<unsigned char> key_domain ;
+    key_domain = d->key_domain.Rep() ;
+
+    MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
+    MPI_Status *status = new MPI_Status[d->xmit.size()] ;
+
+    for(size_t i=0;i<d->xmit.size();++i)
+      MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
+                MPI_COMM_WORLD, &recv_request[i] ) ;
+
+    /*By intersecting the given entitySet with the clone region
+      entities we can find out which entities are to be sent */
+    for(size_t i=0;i<d->copy.size();++i) {
+      entitySet temp = e & d->copy[i].entities ;
+
+      int j=0 ;
+      for(entitySet::const_iterator ei=temp.begin();ei!=temp.end();++ei) {
+        send_buffer[i][j++] = key_domain[*ei] ;
+        send_buffer[i][j++] = l2g[*ei] ;
+      }
+
+      int send_size = temp.size() ;
+      MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
+               1,MPI_COMM_WORLD) ;
+    }
+
+    if(d->xmit.size() > 0) {
+#ifdef DEBUG
+      int err =
+#endif
+        MPI_Waitall(d->xmit.size(), recv_request, status) ;
+      FATAL(err != MPI_SUCCESS) ;
+    }
+
+    for(size_t i=0;i<d->xmit.size();++i) {
+      int recieved ;
+      MPI_Get_count(&status[i], MPI_INT, &recieved) ;
+      for(int j=0;j<recieved;++j) {
+        int kd = recv_buffer[i][j++] ;
+        re[d->xmit[i].proc] += d->g2lv[kd][recv_buffer[i][j]] ;
+      }
+    }
+
+    if(d->xmit.size() > 0) {
+      delete [] recv_size ;
+      delete [] recv_buffer[0] ;
+      delete [] recv_buffer ;
+    }
+    if(d->copy.size() > 0) {
+      delete [] send_buffer[0] ;
+      delete [] send_buffer ;
+    }
+    delete [] recv_request ;
+    delete [] status ;
+
     return re ;
   }
   /*! ev: the entittySets that I send if they are in my clone region
@@ -1221,95 +1203,93 @@ namespace Loci {
   vector<entitySet> send_entitySet(const vector<entitySet>& ev,
                                    fact_db &facts) {
     vector<entitySet> re(ev.size()) ;
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    fact_db::distribute_infoP d = facts.get_distribute_info() ;
 
-      const int evsz = ev.size() ;
-      int **send_buffer = 0 ;
-      int **recv_buffer = 0 ;
-      int *recv_size = 0 ;
+    const int evsz = ev.size() ;
+    int **send_buffer = 0 ;
+    int **recv_buffer = 0 ;
+    int *recv_size = 0 ;
 
-      if(d->xmit.size() > 0) {
-        recv_buffer = new int*[d->xmit.size()] ;
-        recv_size = new int[d->xmit.size()] ;
+    if(d->xmit.size() > 0) {
+      recv_buffer = new int*[d->xmit.size()] ;
+      recv_size = new int[d->xmit.size()] ;
 
-        recv_buffer[0] = new int[2*d->xmit_total_size*evsz+evsz*d->xmit.size()] ;
-        recv_size[0] = 2*d->xmit[0].size*evsz + evsz ;
+      recv_buffer[0] = new int[2*d->xmit_total_size*evsz+evsz*d->xmit.size()] ;
+      recv_size[0] = 2*d->xmit[0].size*evsz + evsz ;
 
-        for(size_t i=1;i<d->xmit.size();++i) {
-          recv_buffer[i] = recv_buffer[i-1]+(2*d->xmit[i-1].size*evsz+evsz) ;
-          recv_size[i] = 2*d->xmit[i].size*evsz+evsz ;
-        }
+      for(size_t i=1;i<d->xmit.size();++i) {
+        recv_buffer[i] = recv_buffer[i-1]+(2*d->xmit[i-1].size*evsz+evsz) ;
+        recv_size[i] = 2*d->xmit[i].size*evsz+evsz ;
       }
-
-      if(d->copy.size() > 0 ) {
-        send_buffer = new int*[d->copy.size()] ;
-        send_buffer[0] = new int[2*d->copy_total_size*evsz+evsz*d->copy.size()] ;
-        for(size_t i=1;i<d->copy.size();++i)
-          send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size*evsz+evsz ;
-      }
-      Map l2g ;
-      l2g = d->l2g.Rep();
-      store<unsigned char> key_domain ;
-      key_domain = d->key_domain.Rep() ;
-
-      MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
-      MPI_Status *status = new MPI_Status[d->xmit.size()] ;
-
-      for(size_t i=0;i<d->xmit.size();++i)
-	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
-                  MPI_COMM_WORLD, &recv_request[i] ) ;
-
-      for(size_t i=0;i<d->copy.size();++i) {
-        int j=evsz ;
-        for(int k=0;k<evsz;++k) {
-          entitySet temp = ev[k] & d->copy[i].entities ;
-          send_buffer[i][k] = temp.size() ;
-
-          for(entitySet::const_iterator ei=temp.begin();ei!=temp.end();++ei) {
-	    send_buffer[i][j++] = key_domain[*ei] ;
-            send_buffer[i][j++] = l2g[*ei] ;
-	  }
-        }
-        int send_size = j ;
-        MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
-                 1,MPI_COMM_WORLD) ;
-      }
-
-      if(d->xmit.size() > 0) {
-#ifdef DEBUG
-	int err =
-#endif
-          MPI_Waitall(d->xmit.size(), recv_request, status) ;
-      	FATAL(err != MPI_SUCCESS) ;
-      }
-      for(size_t i=0;i<d->xmit.size();++i) {
-#ifdef DEBUG
-        int recieved ;
-	MPI_Get_count(&status[i], MPI_INT, &recieved) ;
-#endif
-        int j=evsz ;
-        for(int k=0;k<evsz;++k)
-          for(int l=0;l<recv_buffer[i][k];++l) {
-	    int kd = recv_buffer[i][j++] ;
-            re[k] += d->g2lv[kd][recv_buffer[i][j++]] ;
-	  }
-        WARN(j!=recieved) ;
-      }
-
-      if(d->xmit.size() > 0) {
-        delete [] recv_size ;
-        delete [] recv_buffer[0] ;
-        delete [] recv_buffer ;
-      }
-      if(d->copy.size() > 0) {
-        delete [] send_buffer[0] ;
-        delete [] send_buffer ;
-      }
-      delete [] recv_request ;
-      delete [] status ;
-
     }
+
+    if(d->copy.size() > 0 ) {
+      send_buffer = new int*[d->copy.size()] ;
+      send_buffer[0] = new int[2*d->copy_total_size*evsz+evsz*d->copy.size()] ;
+      for(size_t i=1;i<d->copy.size();++i)
+        send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size*evsz+evsz ;
+    }
+    Map l2g ;
+    l2g = d->l2g.Rep();
+    store<unsigned char> key_domain ;
+    key_domain = d->key_domain.Rep() ;
+
+    MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
+    MPI_Status *status = new MPI_Status[d->xmit.size()] ;
+
+    for(size_t i=0;i<d->xmit.size();++i)
+      MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
+                MPI_COMM_WORLD, &recv_request[i] ) ;
+
+    for(size_t i=0;i<d->copy.size();++i) {
+      int j=evsz ;
+      for(int k=0;k<evsz;++k) {
+        entitySet temp = ev[k] & d->copy[i].entities ;
+        send_buffer[i][k] = temp.size() ;
+
+        for(entitySet::const_iterator ei=temp.begin();ei!=temp.end();++ei) {
+          send_buffer[i][j++] = key_domain[*ei] ;
+          send_buffer[i][j++] = l2g[*ei] ;
+        }
+      }
+      int send_size = j ;
+      MPI_Send(send_buffer[i],send_size, MPI_INT, d->copy[i].proc,
+               1,MPI_COMM_WORLD) ;
+    }
+
+    if(d->xmit.size() > 0) {
+#ifdef DEBUG
+      int err =
+#endif
+        MPI_Waitall(d->xmit.size(), recv_request, status) ;
+      FATAL(err != MPI_SUCCESS) ;
+    }
+    for(size_t i=0;i<d->xmit.size();++i) {
+#ifdef DEBUG
+      int recieved ;
+      MPI_Get_count(&status[i], MPI_INT, &recieved) ;
+#endif
+      int j=evsz ;
+      for(int k=0;k<evsz;++k)
+        for(int l=0;l<recv_buffer[i][k];++l) {
+          int kd = recv_buffer[i][j++] ;
+          re[k] += d->g2lv[kd][recv_buffer[i][j++]] ;
+        }
+      WARN(j!=recieved) ;
+    }
+
+    if(d->xmit.size() > 0) {
+      delete [] recv_size ;
+      delete [] recv_buffer[0] ;
+      delete [] recv_buffer ;
+    }
+    if(d->copy.size() > 0) {
+      delete [] send_buffer[0] ;
+      delete [] send_buffer ;
+    }
+    delete [] recv_request ;
+    delete [] status ;
+
     return re ;
   }
 

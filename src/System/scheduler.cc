@@ -802,11 +802,9 @@ namespace Loci {
       //For regular execution it won't affect the schedule but for duplication of work,
       //it is required for saving communication.
       if(isMAP(vp)) {
-	if(facts.isDistributed()) {
-	  entitySet exist = scheds.variable_existence(*vi);
-	  exist = fill_entitySet(exist, facts);
-	  scheds.set_variable_existence(*vi, exist);
-	}
+        entitySet exist = scheds.variable_existence(*vi);
+        exist = fill_entitySet(exist, facts);
+        scheds.set_variable_existence(*vi, exist);
       }
       if(variable(*vi).time().level_name() == "*" ) {
 	if(isSTORE(vp)) {
@@ -816,10 +814,8 @@ namespace Loci {
 	  string sig = oss.str() ;
 	  rule r(sig) ;
 	  if(par_rdb.rules_by_target(*vi) == EMPTY) {
-	    if(facts.isDistributed()) {
-	      scheds.set_existential_info(*vi, r, scheds.variable_existence(*vi));
-	      initial_vars += *vi ;
-	    }
+            scheds.set_existential_info(*vi, r, scheds.variable_existence(*vi));
+            initial_vars += *vi ;
 	  }
 	}
       }
@@ -1555,11 +1551,9 @@ bool operator <(const timingData &d) const {
       //existence. For regular execution it won't affect the schedule but
       //for duplication of work, it is required for saving communication.
       if(isMAP(vp)) {
-	if(facts.isDistributed()) {
-	  entitySet exist = scheds.variable_existence(*vi);
-	  exist = fill_entitySet(exist, facts);
-	  scheds.set_variable_existence(*vi, exist);
-	}
+        entitySet exist = scheds.variable_existence(*vi);
+        exist = fill_entitySet(exist, facts);
+        scheds.set_variable_existence(*vi, exist);
       }
       if(variable(*vi).time().level_name() == "*" ) {
 	if(isSTORE(vp)) {
@@ -1569,11 +1563,9 @@ bool operator <(const timingData &d) const {
 	  string sig = oss.str() ;
 	  rule r(sig) ;
 	  if(par_rdb.rules_by_target(*vi) == EMPTY) {
-	    if(facts.isDistributed()) {
-	      scheds.set_existential_info(*vi, r,
-                                          scheds.variable_existence(*vi));
-	      initial_vars += *vi ;
-	    }
+            scheds.set_existential_info(*vi, r,
+                                        scheds.variable_existence(*vi));
+            initial_vars += *vi ;
 	  }
 	}
       }

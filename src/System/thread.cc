@@ -52,7 +52,7 @@ namespace Loci {
   }
 
   // these two functions are intended to provide a global atomic
-  // region of execution (the ideal use of them is to use the 
+  // region of execution (the ideal use of them is to use the
   // Loci preprocessor to hide these calls from the users)
   void global_atomic_region_begin()
   {
@@ -65,7 +65,7 @@ namespace Loci {
     if (thread_control)
       thread_control->atomic_end();
   }
-  
+
   // this function generates a unique name on each process/thread
   std::string gen_local_name(const string& prefix,
                              const string& suffix)
@@ -115,7 +115,7 @@ namespace Loci {
       }
     }
 
-    return partition;    
+    return partition;
   }
   // this is the entitySet version.
   std::vector<entitySet> sequential_equal_cut(const entitySet& s, int n)
@@ -137,7 +137,7 @@ namespace Loci {
       }
     }
 
-    return partition;    
+    return partition;
   }
 
   sequence randomize_seq(const sequence& s)
@@ -162,7 +162,7 @@ namespace Loci {
   // 1) for all the blocks, we need to run them through the maps to
   //    calculate the target set they will compute, we will maintain
   //    such a map from blocks to their targets
-  // 2) we will calculate all the pairs of block targets that are 
+  // 2) we will calculate all the pairs of block targets that are
   //    actually in conflict (the target sets intersect or overlap),
   //    refering back to the blocks, if two block targets overlap,
   //    then these two blocks are in conflict and cannot be scheduled
@@ -184,7 +184,7 @@ namespace Loci {
   // a comparison utility for block IDs
   inline bool block_id_cmp(const TBlockID& bid1, const TBlockID& bid2)
   { return bid1.first==bid2.first ? bid1.second<bid2.second
-                                  : bid1.first<bid2.first; }
+      : bid1.first<bid2.first; }
 
   // this creates an empty conflict lock, just for the purpose of debugging
   ReductionLock ThreadPartition_simple::generate_empty_conflict_lock() const
@@ -206,9 +206,9 @@ namespace Loci {
   // might execute a series of reduction rules together as a group.
   // this situation would happen for example, in the chomping graphs
   ReductionLock ThreadPartition_simple::generate_conflict_lock
-    (const std::vector<std::vector<int> >& blocks_id,
-     const std::vector<vmap_info>& map_info,
-     fact_db& facts, sched_db& scheds) const
+  (const std::vector<std::vector<int> >& blocks_id,
+   const std::vector<vmap_info>& map_info,
+   fact_db& facts, sched_db& scheds) const
   {
     // first create a vector for all the block mapping results.
     map<TBlockID,entitySet> bmapr;
@@ -221,7 +221,7 @@ namespace Loci {
         entitySet block_reach;
 
         for(size_t i=0;i<map_info.size();++i)
-          block_reach += 
+          block_reach +=
             vmap_target_exist(map_info[i],facts,blocks[t][tb],scheds);
 
         bmapr[make_pair(t,tb)] = block_reach;
@@ -238,16 +238,16 @@ namespace Loci {
     int max_non_local_conflicts = 0;
 #endif
     for(map<TBlockID,entitySet>::const_iterator
-        mi=bmapr.begin();mi!=bmapr.end();++mi) {
+          mi=bmapr.begin();mi!=bmapr.end();++mi) {
       vector<TBlockID> conflicts;
       TBlockID self = mi->first;
       const entitySet& self_targets = mi->second;
       for(map<TBlockID,entitySet>::const_iterator
-          mi2=bmapr.begin();mi2!=bmapr.end();++mi2) {
+            mi2=bmapr.begin();mi2!=bmapr.end();++mi2) {
         TBlockID other = mi2->first;
         const entitySet& other_targets = mi2->second;
         if( (self_targets & other_targets) != EMPTY)
-          conflicts.push_back(other); 
+          conflicts.push_back(other);
       }
       sort(conflicts.begin(), conflicts.end());
 #ifdef SHOW_LOCK_STAT
@@ -262,7 +262,7 @@ namespace Loci {
 #endif
         rl.lock_pattern[self.first][self.second].
           push_back(&(ReductionLock::locks[conflicts[c].first]
-                                          [conflicts[c].second]));
+                      [conflicts[c].second]));
       }
 #ifdef SHOW_LOCK_STAT
       if(max_non_local_conflicts < non_local_conflicts)
@@ -274,7 +274,7 @@ namespace Loci {
     std::cerr << "======== Thread Unit Lock Stat:" << endl;
     std::cerr << "== max conflicts: " << max_conflicts << endl;
     std::cerr << "== max non-local conflicts: " << max_non_local_conflicts
-      << endl;
+              << endl;
 #endif
 
     return rl;
@@ -312,7 +312,7 @@ namespace Loci {
     //
     // Right now, we will just cut the extra entities equally and
     // append them to the end of the original domain partition.
-    // 
+    //
     entitySet extra = ss - whole_entities;
     vector<sequence> extra_seq_ptn =
       sequential_equal_cut(sequence(extra), thread_num);
@@ -325,7 +325,7 @@ namespace Loci {
 
   vector<int>
   ThreadPartition_simple::partition_by_blocks(int t, const sequence& s)
-  const 
+    const
   {
     const std::vector<entitySet>& bs = blocks[t];
     vector<int> pb;
@@ -339,18 +339,18 @@ namespace Loci {
   }
 
   sequence
-    ThreadPartition_simple::refine_seq_by_block
-    (int t, int b, const sequence& s) const
-    {
-      entitySet e = entitySet(s);
-      return sequence(blocks[t][b] & e);
-    }
+  ThreadPartition_simple::refine_seq_by_block
+  (int t, int b, const sequence& s) const
+  {
+    entitySet e = entitySet(s);
+    return sequence(blocks[t][b] & e);
+  }
   entitySet
-    ThreadPartition_simple::refine_seq_by_block
-    (int t, int b, const entitySet& s) const
-    {
-      return blocks[t][b] & s;
-    }
+  ThreadPartition_simple::refine_seq_by_block
+  (int t, int b, const entitySet& s) const
+  {
+    return blocks[t][b] & s;
+  }
 
   namespace {
     // small comparison utility used in thread entities partition
@@ -369,7 +369,7 @@ namespace Loci {
   // locality according to the mesh topology.
   //
   // first of all, the cells are cut sequentially into "p" parts, this
-  // assumes that cells have already been organized in a spatially 
+  // assumes that cells have already been organized in a spatially
   // related way (such as by using a space-filling curve typed arrangement).
   //
   // then each cell partition will also own the faces and nodes that
@@ -387,14 +387,14 @@ namespace Loci {
   // thread blocks both in such a way to try to minimize inter-domain
   // and inter-block communications.  after we created the "p" partitions,
   // we will then group "b" such partitions together to form a thread
-  // partition, where "b" is the number of blocks per thread.  notice 
-  // that we will sequentially group each "b" partitions for reasons 
+  // partition, where "b" is the number of blocks per thread.  notice
+  // that we will sequentially group each "b" partitions for reasons
   // that such grouping will also preserve the cells partition locality
   // (and hence the faces and nodes as well) so that the grouped thread
   // domain locality is also preserved.
   //
   // Also note: this function only partitions the cells, faces, and nodes,
-  // it does not try to partition any other entities, such as the 
+  // it does not try to partition any other entities, such as the
   // boundary faces, etc.  all other entities are partitioned afterwards
   // in a separate step (mainly because the topological relationship
   // between those entities is less clear for a locality type partition).
@@ -402,19 +402,19 @@ namespace Loci {
   // entities.
   //
   void ThreadPartition_simple::partition_topology
-    (constraint& geom_cells, const Map& cl, const Map& cr,
-     const multiMap& face2node,
-     // limit is the total entities that this MPI process owns, i.e.,
-     // we cannot include entities within any of the partitions 
-     // that are beyond this limit.
-     // p is the number of partitions, ptn is the output of partition
-     const entitySet& limit, int p, vector<entitySet>& ptn)
+  (constraint& geom_cells, const Map& cl, const Map& cr,
+   const multiMap& face2node,
+   // limit is the total entities that this MPI process owns, i.e.,
+   // we cannot include entities within any of the partitions
+   // that are beyond this limit.
+   // p is the number of partitions, ptn is the output of partition
+   const entitySet& limit, int p, vector<entitySet>& ptn)
   {
     entitySet cells = *geom_cells;
     cells &= limit;
     vector<entitySet> cell_ptn(p);
 
-    // compute per thread size 
+    // compute per thread size
     int psize = cells.size();
     int div = psize/p;
     int rem = psize%p;
@@ -483,7 +483,7 @@ namespace Loci {
     // the way we will assign faces on the partition boundary to threads
     // is to try to balance the size of the face partition.  for example,
     // if face "f" sits on the partition boundary of partition 1 (p1) and
-    // partition 2 (p2), then we will assign f to p1 if the current face 
+    // partition 2 (p2), then we will assign f to p1 if the current face
     // partition size of t1 is smaller than that of p2, and vice versa.
     // if the face partition of p1 and p2 are of equal size, then f
     // is assigned to either partition.  note: the face partition size of
@@ -563,7 +563,7 @@ namespace Loci {
       else
         partition_boundary_nodes += *ei;
     }
-    
+
     // then work on the partition boundary nodes to try to balance
     // the node partition size among all the threads.
     for(ei=partition_boundary_nodes.begin();
@@ -574,7 +574,7 @@ namespace Loci {
         map<Entity,int>::const_iterator mi = face_2_ptn.find(*fi);
         // only work on faces that are owned by the local MPI process
         if(mi != face_2_ptn.end()) {
-          int proc = mi->second; 
+          int proc = mi->second;
           node_ptn_size.push_back(make_pair(proc,node_ptn[proc].size()));
         }
       }
@@ -607,13 +607,8 @@ namespace Loci {
     // first get all of the entities assigned to the local MPI process
     // if fact database is distributed, then we will trim the entities
     // down to those that are owned by the local process
-    if(facts.isDistributed()) {
-      fact_db::distribute_infoP d = facts.get_distribute_info();
-      whole_entities = d->my_entities;
-    } else {
-      // note, this probably needs to be fixed for big mode
-      whole_entities = facts.get_init_ptn(0)[Loci::MPI_rank] ;
-    }
+    fact_db::distribute_infoP d = facts.get_distribute_info();
+    whole_entities = d->my_entities;
 
     // we will partition the entities among all the work threads.
     // this partition works by first partitioning the cells using a
@@ -632,7 +627,7 @@ namespace Loci {
     multiMap face2node(facts.get_variable("face2node"));
     store<string> boundary_tags(facts.get_variable("boundary_tags"));
 
-    int p = thread_num * initial_block_num; 
+    int p = thread_num * initial_block_num;
     vector<entitySet> init_ptn;
     partition_topology
       (geom_cells,cl,cr,face2node,whole_entities,p,init_ptn);
@@ -646,7 +641,7 @@ namespace Loci {
     vector<int> valid_ptn; // the index of non-empty init_ptn
     for(size_t i=0;i<init_ptn.size();++i)
       if(init_ptn[i].size() != 0) {
-        real_blocks++; 
+        real_blocks++;
         valid_ptn.push_back(i);
       }
 
@@ -664,7 +659,7 @@ namespace Loci {
       for(int i=0;i<thread_num;++i) {
         real_block_num[i] = 1;
         vector<entitySet> b; b.push_back(ptn[i]);
-        blocks[i] = b; 
+        blocks[i] = b;
       }
       total_blocks = thread_num;
 
@@ -672,8 +667,8 @@ namespace Loci {
       for(size_t i=0;i<blocks.size();++i) {
         ReductionLock::locks[i] = new pthread_spinlock_t[blocks[i].size()];
         for(size_t k=0;k<blocks[i].size();++k) {
-          if(pthread_spin_init(&(ReductionLock::locks[i][k]), 
-                PTHREAD_PROCESS_PRIVATE)) {
+          if(pthread_spin_init(&(ReductionLock::locks[i][k]),
+                               PTHREAD_PROCESS_PRIVATE)) {
             // need better error handling later...
             Loci::Abort();
           }
@@ -681,7 +676,7 @@ namespace Loci {
       }
       // give some warning at least
       Loci::debugout << "Thread domain creation given very small input..."
-        << endl;
+                     << endl;
       Loci::debugout
         << "    creating really small partitions and single block per thread"
         << endl;
@@ -709,7 +704,7 @@ namespace Loci {
           real_block_num[i] = nb;
       }
       Loci::debugout << "Thread partition readjusted block numbers..."
-        << endl;
+                     << endl;
       cout << "Thread partition readjusted block numbers..." << endl;
     } else {
       // this is the normal case where we can supply the initially
@@ -725,7 +720,7 @@ namespace Loci {
     entitySet ptned;
     for(size_t i=0;i<init_ptn.size();++i)
       ptned += init_ptn[i];
-    
+
     entitySet remaining = whole_entities - ptned;
 
     vector<entitySet> remain_ptn(real_blocks);
@@ -758,8 +753,8 @@ namespace Loci {
     for(size_t i=0;i<blocks.size();++i) {
       ReductionLock::locks[i] = new pthread_spinlock_t[blocks[i].size()];
       for(size_t k=0;k<blocks[i].size();++k) {
-        if(pthread_spin_init(&(ReductionLock::locks[i][k]), 
-              PTHREAD_PROCESS_PRIVATE)) {
+        if(pthread_spin_init(&(ReductionLock::locks[i][k]),
+                             PTHREAD_PROCESS_PRIVATE)) {
           // need better error handling later...
           Loci::Abort();
         }
@@ -780,11 +775,11 @@ namespace Loci {
   }
 
   const vector<entitySet>&
-   ThreadPartition_simple::get_thread_block_list(int t) const
-  { 
+  ThreadPartition_simple::get_thread_block_list(int t) const
+  {
     if (t<0 || t>=thread_num)
       throw ThreadException("ThreadPartition_simple: invalid thread ID!");
-    return blocks[t]; 
+    return blocks[t];
   }
 
   ThreadControl_pthread::~ThreadControl_pthread()
@@ -828,7 +823,7 @@ namespace Loci {
   }
 
   // these two functions build the termination tree
-  
+
   void ThreadControl_pthread::
   build_term_tree(int pid, int depth, size_t& myid)
   {
@@ -837,8 +832,8 @@ namespace Loci {
 
     size_t me = myid;
     finish_notification[me].done = false;
-    if(pthread_spin_init(&(finish_notification[me].done_lock), 
-          PTHREAD_PROCESS_PRIVATE)) {
+    if(pthread_spin_init(&(finish_notification[me].done_lock),
+                         PTHREAD_PROCESS_PRIVATE)) {
       // need better error handling later...
       Loci::Abort();
     }
@@ -877,9 +872,9 @@ namespace Loci {
     if(p < limit)
       build_partner(p, limit, stride, partner);
   }
-  
+
   ThreadControl_pthread::ThreadControl_pthread
-    (int n, fact_db& facts, sched_db& scheds)
+  (int n, fact_db& facts, sched_db& scheds)
     :active(false),stop(false),work(0),factsP(0),schedsP(0),tnum(n)
   {
     thread_args.resize(n);
@@ -929,7 +924,7 @@ namespace Loci {
     if(pthread_barrier_init(&barrier, 0, tnum)) {
       cerr << "ThreadControl barrier init failed!!!" << endl;
       Loci::Abort();
-    }    
+    }
 
     // then we need to create a thread entitySet manager
     tpn = new ThreadPartition_simple(tnum);
@@ -947,33 +942,33 @@ namespace Loci {
   { return tpn->partition_by_blocks(t,s); }
 
   sequence
-    ThreadControl_pthread::refine_seq_by_block
-    (int t, int b, const sequence& s) const
-    { return tpn->refine_seq_by_block(t,b,s); }
+  ThreadControl_pthread::refine_seq_by_block
+  (int t, int b, const sequence& s) const
+  { return tpn->refine_seq_by_block(t,b,s); }
   entitySet
-    ThreadControl_pthread::refine_seq_by_block
-    (int t, int b, const entitySet& s) const
-    { return tpn->refine_seq_by_block(t,b,s); }
+  ThreadControl_pthread::refine_seq_by_block
+  (int t, int b, const entitySet& s) const
+  { return tpn->refine_seq_by_block(t,b,s); }
 
   ReductionLock
-    ThreadControl_pthread::create_empty_conflict_lock() const
-    { 
-      return tpn->generate_empty_conflict_lock();
-    }
+  ThreadControl_pthread::create_empty_conflict_lock() const
+  {
+    return tpn->generate_empty_conflict_lock();
+  }
   ReductionLock
-    ThreadControl_pthread::create_conflict_lock
-    (const vector<vector<int> >& blocks, const vmap_info& map_info,
-     fact_db& facts, sched_db& scheds) const
-    { 
-      vector<vmap_info> vm; vm.push_back(map_info);
-      return tpn->generate_conflict_lock(blocks,vm,facts,scheds);
-    }
+  ThreadControl_pthread::create_conflict_lock
+  (const vector<vector<int> >& blocks, const vmap_info& map_info,
+   fact_db& facts, sched_db& scheds) const
+  {
+    vector<vmap_info> vm; vm.push_back(map_info);
+    return tpn->generate_conflict_lock(blocks,vm,facts,scheds);
+  }
   ReductionLock
-    ThreadControl_pthread::create_conflict_lock
-    (const vector<vector<int> >& blocks,
-     const vector<vmap_info>& map_info, fact_db& facts, sched_db& scheds)
+  ThreadControl_pthread::create_conflict_lock
+  (const vector<vector<int> >& blocks,
+   const vector<vmap_info>& map_info, fact_db& facts, sched_db& scheds)
     const
-    { return tpn->generate_conflict_lock(blocks,map_info,facts,scheds);}
+  { return tpn->generate_conflict_lock(blocks,map_info,facts,scheds);}
 
   void ThreadControl_pthread::create_threads()
   {
@@ -1020,13 +1015,13 @@ namespace Loci {
 
   // determine if the calling thread is leading thread or not.
   // the leading thread in the pthread implementation is defined
-  // to be either the main control thread or the leading work 
+  // to be either the main control thread or the leading work
   // thread.  This is valid since in our design, the main control
   // thread will never work together with any of the work threads.
   bool ThreadControl_pthread::is_leading_thread() const
   {
     pthread_t sid = pthread_self();
-    return (pthread_equal(sid,main_pid) || 
+    return (pthread_equal(sid,main_pid) ||
             pthread_equal(sid,lead_work_pid));
   }
 
@@ -1050,10 +1045,10 @@ namespace Loci {
     // // we want to set the CPU affinity of threads so that
     // // each thread is attached to a specific CPU and wont migrate (hopefully)
     // cpu_set_t cpuset;
-    
+
     // CPU_ZERO(&cpuset);
     // CPU_SET(Loci::MPI_rank*self->tnum + tid, &cpuset);
-    
+
     // if( (pthread_setaffinity_np(pthread_self(),
     //                             sizeof(cpu_set_t), &cpuset)) != 0)
     //   cerr << "WARNING: pthread CPU affinity setting failed!" << endl;
@@ -1133,7 +1128,7 @@ namespace Loci {
     }
     active = false;
   }
-  
+
   void ThreadControl_pthread::
   restart(std::vector<ThreadedEMP>& w)
   {
@@ -1144,7 +1139,7 @@ namespace Loci {
     active = true;
     sem_post(&worker_block[0]);
   }
-  
+
   void ThreadControl_pthread::wait_threads()
   {
     if(!active)
@@ -1153,7 +1148,7 @@ namespace Loci {
     sem_wait(&main_block);
     active = false;
   }
-  
+
   void ThreadControl_pthread::
   sequential_restart(std::vector<ThreadedEMP>& w)
   {
@@ -1170,8 +1165,8 @@ namespace Loci {
     }
   }
 
-  //pthread_mutex_t copy_mutex = PTHREAD_MUTEX_INITIALIZER; 
-  
+  //pthread_mutex_t copy_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 } // end of namespace Loci
 
 #else
@@ -1184,7 +1179,7 @@ namespace Loci {
   }
 
   // these two functions are intended to provide a global atomic
-  // region of execution (the ideal use of them is to use the 
+  // region of execution (the ideal use of them is to use the
   // Loci preprocessor to hide these calls from the users)
   void global_atomic_region_begin()
   {
