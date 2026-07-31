@@ -60,7 +60,8 @@ copy_with_symlinks() {
                   -o -name '*.tex' -o -name '*.pdf' \
                   -o -name '*.png' -o -name '*.svg' -o -name '*.gif' \
                   -o -name '*.html' \
-                  -o -name '*.css' -o -name '*.js' -o -name '*.obj' \
+                  -o -name '*.css' -o -name '*.js' -o -name '*.xml' \
+                  -o -name '*.obj' \
                   -o -name '*.sty' -o -name '*.txt' -o -name '*.dat' \
                   -o -name '*.vog' -o -name '*.vars' -o -name Makefile \
                   -o -name Loci -o -name overset \) -print0)

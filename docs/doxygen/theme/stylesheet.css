@@ -2058,3 +2058,15 @@ body {
         background-color: var(--scrollbar-background-color);
 }
 
+/* Add breathing room between prose sections in generated documentation pages. */
+.contents .textblock > h1 {
+	margin-top: 2.25rem;
+}
+
+.contents .textblock > h2 {
+	margin-top: 1.75rem;
+}
+
+.contents .textblock > h3 {
+	margin-top: 1.5rem;
+}
