@@ -126,11 +126,12 @@ constraint(gnrlcells) {
   cleanup_list(bnode_list) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for balancing hex cell plans
 //-----------------------------------------------------------------------------
 
-// This file balances hex cellPlan between cells
+// These rules balance hex cellPlan between cells
 
 /// Initializes cellUnchanged. Initially newCellPlan is the plan made from
 /// postag and nodeTag, and after each cell is balanced.
@@ -207,13 +208,14 @@ constraint(hexcells) {
   cleanup_list(bnode_list) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for balancing prism cell plans
 //-----------------------------------------------------------------------------
 
-// This file balances prism cellPlan between cells
+// These rules balance prism cellPlan between cells
 
-/// Tnitializes cellUnchanged, initially newCellPlan
+/// Initializes cellUnchanged, initially newCellPlan
 /// is the plan made from postag and nodeTag, and after each cell is balanced
 $rule pointwise(cellUnchanged{n=0}, tmpCellPlan{n=0} <- newCellPlan),
 constraint(prisms) {
@@ -293,6 +295,7 @@ constraint(prisms) {
   cleanup_list(bnode_list) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for balancing general-cell face plans
 //-----------------------------------------------------------------------------
@@ -344,6 +347,7 @@ constraint(boundary_faces, cl->gnrlcells) {
   reduce_vector($tmpFacePlan) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for balancing hex-cell face plans
 //-----------------------------------------------------------------------------
@@ -372,7 +376,6 @@ constraint(interior_faces, (cl, cr)->hexcells) {
   reduce_vector($tmpFacePlan) ;
 }
 
-
 $rule pointwise(tmpFacePlan <- cl->tmpCellPlan, cl->hexOrientCode, fl),
 constraint(boundary_faces, cl->hexcells) {
   std::vector<char> facePlanL =
@@ -381,21 +384,23 @@ constraint(boundary_faces, cl->hexcells) {
   reduce_vector($tmpFacePlan) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for balancing prism-cell face plans
 //-----------------------------------------------------------------------------
 
-/// This rule first extracts faceplan from cl and cr, then merges them into one final plan
-/// in the face's local coordinates system
+/// This rule first extracts faceplan from cl and cr, then merges them into one
+/// final plan in the face's local coordinates system
 ///
 /// To merge the plans, use a queue of ranges to simulate the tree splitting
-/// process, and put the inner eges in list xEdge and yEdges according to their directions.
+/// process, and put the inner eges in list xEdge and yEdges according to their
+/// directions.
 ///
-/// then sort and unique xEdge and yEdge. and then merge all the overlapped edges
+/// Then sort and unique xEdge and yEdge. and then merge all the overlapped edges
 ///
-/// The last step is compose a new refinement plan according to xEdges and yEdges. Search
-/// the inner edges of a parent cell, the result implies the split code. repeat the same process for
-/// each child.
+/// The last step is compose a new refinement plan according to xEdges and yEdges.
+/// Search the inner edges of a parent cell, the result implies the split code.
+/// Repeat the same process for each child.
 $rule pointwise(tmpFacePlan <- (cl, cr)->tmpCellPlan,
 (cl, cr)->prismOrientCode, fl, fr),
 constraint((cl, cr)->prisms) {
@@ -423,6 +428,7 @@ constraint(boundary_faces, cl->prisms) {
   }
   reduce_vector($tmpFacePlan) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for balancing mixed-topology face plans
@@ -593,6 +599,7 @@ constraint(cr->hexcells, cl->prisms) {
   reduce_vector($tmpFacePlan) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for balancing edge plans
 //-----------------------------------------------------------------------------
@@ -600,7 +607,6 @@ constraint(cr->hexcells, cl->prisms) {
 $type tmpPointSet store<SetLong> ;
 
 $rule unit(tmpPointSet), constraint(edge2node->pos) { }
-
 
 /// Project the face refinement plan onto its boundary edges for union merging.
 $rule apply(face2edge->tmpPointSet <- tmpFacePlan, is_quadface,
@@ -621,14 +627,11 @@ face2edge->tmpPointSet)[SetLongUnionOp], constraint(faces) {
     for(int i=0; i<edgeCount; i++) {
       if(i == 0 && $face2edge[0]->$edge2node[0] == $face2node[1]) {
         edgeReversed[i] = true ;
-      }else if(i == 1 &&
-               $face2edge[1]->$edge2node[0] == $face2node[2]) {
+      }else if(i == 1 && $face2edge[1]->$edge2node[0] == $face2node[2]) {
         edgeReversed[i] = true ;
-      }else if(i == 2 &&
-               $face2edge[2]->$edge2node[0] == $face2node[2]) {
+      }else if(i == 2 && $face2edge[2]->$edge2node[0] == $face2node[2]) {
         edgeReversed[i] = true ;
-      }else if(i == 3 &&
-               $face2edge[3]->$edge2node[0] == $face2node[3]) {
+      }else if(i == 3 && $face2edge[3]->$edge2node[0] == $face2node[3]) {
         edgeReversed[i] = true ;
       }
     }
@@ -642,8 +645,7 @@ face2edge->tmpPointSet)[SetLongUnionOp], constraint(faces) {
   }
 
   const std::vector<SetLong> edgeSplits =
-    project_face_plan_to_edge_splits(
-      $tmpFacePlan, $is_quadface, edgeReversed) ;
+    project_face_plan_to_edge_splits($tmpFacePlan, $is_quadface, edgeReversed) ;
   for(int i=0; i<edgeCount; i++) {
     if(edgeSplits[i].aset.empty()) { continue ; }
     join($face2edge[i]->$tmpPointSet, edgeSplits[i]) ;
@@ -655,6 +657,7 @@ $rule pointwise(tmpEdgePlan <- tmpPointSet) {
   encode_edge_plan($tmpPointSet, $tmpEdgePlan) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for detecting global convergence
 //-----------------------------------------------------------------------------
@@ -663,7 +666,7 @@ $rule pointwise(tmpEdgePlan <- tmpPointSet) {
 /// is finished.
 
 /// Initializes parameter finishBalancing to true.
-$rule unit(finishBalancing),constraint(geom_cells) {
+$rule unit(finishBalancing), constraint(geom_cells) {
   $finishBalancing = true ;
 }
 
@@ -673,7 +676,8 @@ constraint(geom_cells) {
   join($finishBalancing, $cellUnchanged) ;
 }
 
-/// Collapse rule for when  balancing is finished. Copies newCellPlan to balanceCellPlan.
+/// Collapse rule for when balancing is finished. Copies newCellPlan to
+/// balanceCellPlan.
 $rule pointwise(balancedCellPlan1<-tmpCellPlan{n}, finishBalancing{n}),
 constraint(geom_cells), conditional(finishBalancing{n}) {
   $balancedCellPlan1 = $tmpCellPlan{n} ;

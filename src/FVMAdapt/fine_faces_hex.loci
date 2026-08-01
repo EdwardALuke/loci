@@ -62,7 +62,7 @@ constraint(hexcells) {
   std::list<Node*> node_list ; //inner node
   int c1, c2 ;
 
-  // build a Cell
+  // Build a Cell
   HexCell* aCell = build_hex_cell($lower.begin(), $lower.size(),
                                   $upper.begin(), $upper.size(),
                                   $boundary_map.begin(), $boundary_map.size(),
@@ -86,7 +86,7 @@ constraint(hexcells) {
 
   aCell->resplit($balancedCellPlan, node_list, edge_list, face_list, cells) ;
 
-  // and index the nodes
+  // Index the nodes
   int nindex = 0 ;
   for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++, nindex++) {
     (*np)->index = $balanced_node_offset + nindex ;
@@ -200,13 +200,14 @@ constraint((cl, cr)->hexcells) {
     for(int i=2; i<vec_size; i++, nptr++) {
       $fine_faces[0][i] = *nptr ;
     }
+
     // clean up
     if(aFace != 0) { delete aFace ; }
     cleanup_list(bnode_list, edge_list) ;
     return ;
   }
 
-  //split the face
+  // split the face
   std::vector<QuadFace*> leaves ;
 
   aFace->resplit($balancedFacePlan, char(0), node_list, edge_list, leaves) ;
@@ -221,7 +222,7 @@ constraint((cl, cr)->hexcells) {
   std::vector<int32> CL = get_c1_hex($cl->$balancedCellPlan,
                                      $balancedFacePlan,
                                      $cl->$hexOrientCode[$fl],
-                                     $fl);
+                                     $fl) ;
 
   if(leaves.size() != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -231,9 +232,9 @@ constraint((cl, cr)->hexcells) {
   std::vector<int32> CR = get_c1_hex($cr->$balancedCellPlan,
                                      $balancedFacePlan,
                                      $cr->$hexOrientCode[$fr],
-                                     $fr);
+                                     $fr) ;
 
-  if(leaves.size() != CR.size()){
+  if(leaves.size() != CR.size()) {
     cerr << "WARNING: CR has the incorrect size" << endl ;
     Loci::Abort() ;
   }
@@ -249,6 +250,7 @@ constraint((cl, cr)->hexcells) {
     }else {
       c1 = $cl->$balanced_cell_offset + CL[fptr] ;
     }
+
     // set c2
     if($cr->$balancedCellPlan.size() == 0) {
       c2 = $cr->$balanced_cell_offset + 1 ;
@@ -281,7 +283,7 @@ constraint((cl, cr)->hexcells) {
 }
 
 
-//get  fine_faces of boundary faces
+/// Get fine_faces of boundary faces
 $rule pointwise(fine_faces <- balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
 cl->(balancedCellPlan, balanced_cell_offset, hex2face, hex2node,
@@ -311,7 +313,7 @@ constraint(cl->hexcells, boundary_faces) {
                                     edge_list);
 
   if($balancedFacePlan.size() == 0) {
-    //num of fine faces is 1
+    // num of fine faces is 1
     vector< std::vector<int> >(1).swap($fine_faces) ;
 
     aFace->set_f2n(faceVertex) ;
@@ -341,7 +343,7 @@ constraint(cl->hexcells, boundary_faces) {
       $fine_faces[0][i] = *nptr ;
     }
 
-    //clean up
+    // clean up
     if(aFace != 0) {
       delete aFace ;
       aFace = 0 ;
@@ -364,7 +366,7 @@ constraint(cl->hexcells, boundary_faces) {
   std::vector<int32> CL = get_c1_hex($cl->$balancedCellPlan,
                                      $balancedFacePlan,
                                      $cl->$hexOrientCode[$fl],
-                                     $fl);
+                                     $fl) ;
 
   if(leaves.size() != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -372,6 +374,7 @@ constraint(cl->hexcells, boundary_faces) {
   }
 
   vector<vector<int> >(leaves.size()).swap($fine_faces) ;
+
   // set face_vertices
   for(unsigned int fptr=0; fptr<leaves.size(); fptr++) {
     faceVertex.clear() ;

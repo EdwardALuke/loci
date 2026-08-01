@@ -53,7 +53,7 @@ using Loci::storeRepP ;
 #ifdef USE_LIBXML2
 bool mark_node(xmlNode* root_element,
                std::list<Node*>::iterator begin_pnt,
-               std::list<Node*>::iterator end_pnt);
+               std::list<Node*>::iterator end_pnt) ;
 #endif
 
 //-----------------------------------------------------------------------------
@@ -93,7 +93,7 @@ constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     std::vector<HexCell*> cells ;
     aCell->resplit( $cellPlan, node_list, edge_list, face_list, cells) ;
@@ -190,7 +190,7 @@ constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     if(aCell->get_tagged() == 1) {
       aCell->setSplitCode($split_mode_par, Globals::tolerance) ;
@@ -217,6 +217,7 @@ constraint(hexcells) {
     reduce_vector($newCellPlan) ;
   }
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for XML-region refinement
@@ -252,7 +253,7 @@ cellPlanXMLDoc), constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
       cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
@@ -344,7 +345,7 @@ cellPlanXMLDoc), constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
       cerr<< "WARNING: fail to mark nodes, please check xml file" << endl ;
@@ -365,7 +366,7 @@ cellPlanXMLDoc), constraint(hexcells) {
 
         former_pnt-- ;
         if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
-          cerr<< "WARNING: fail to mark nodes, please check xml file" << endl ;
+          cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
           Loci::Abort() ;
         }
 
@@ -377,7 +378,7 @@ cellPlanXMLDoc), constraint(hexcells) {
     }
     aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, face_list) ;
 
-    //write new cellPlan
+    // write new cellPlan
     $newCellPlan = aCell->make_cellplan() ;
 
     // clean up
@@ -390,6 +391,7 @@ cellPlanXMLDoc), constraint(hexcells) {
   }
 #endif
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for parameter-region refinement
@@ -424,7 +426,7 @@ cellPlanSources), constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     std::vector<HexCell*> cells ;
     aCell->resplit( $cellPlan, bnode_list, edge_list, face_list, cells) ;
@@ -443,7 +445,7 @@ cellPlanSources), constraint(hexcells) {
       current =Q.front() ;
       if(current->get_tagged(*($*cellPlanSources))) {
         current->split(bnode_list, edge_list, face_list) ;
-        for(int i=0; i<current->numChildren(); i++){
+        for(int i=0; i<current->numChildren(); i++) {
           Q.push(current->getChildCell(i)) ;
         }
       }
@@ -490,7 +492,7 @@ constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     Q.push(aCell) ;
     HexCell* current ;
@@ -507,7 +509,7 @@ constraint(hexcells) {
     }
     aCell->rebalance_cells($split_mode_par, bnode_list, edge_list, face_list) ;
 
-    //write new cellPlan
+    // write new cellPlan
     $newCellPlan =  aCell->make_cellplan() ;
 
     // clean up
@@ -519,6 +521,7 @@ constraint(hexcells) {
     reduce_vector($newCellPlan) ;
   }
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for cell-tag refinement
@@ -554,14 +557,14 @@ constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     std::vector<HexCell*> cells ;
     aCell->resplit( $cellPlan, node_list, edge_list, face_list, cells) ;
 
     int numCells = cells.size() ;
-    bool cell_split = false ; //if any cell split, the whole big cell rebalance
-    if(numCells != 0) { //aCell is not a leaf
+    bool cell_split = false ; // if any cell split, the whole big cell rebalance
+    if(numCells != 0) { // aCell is not a leaf
       for(int i=0; i<numCells; i++) {
         if($fineCellTag[i]==1) {
           cells[i]->setSplitCode($split_mode_par, Globals::tolerance) ;
@@ -581,7 +584,7 @@ constraint(hexcells) {
           }
         }
       }
-    }else { //aCell is a leaf
+    }else { // aCell is a leaf
       if($fineCellTag[0]==1) {
         aCell->setSplitCode($split_mode_par, Globals::tolerance) ;
       }
@@ -644,7 +647,7 @@ constraint(hexcells) {
                                     bnode_list,
                                     edge_list,
                                     face_list,
-                                    $*fileNumber(face2node));
+                                    $*fileNumber(face2node)) ;
 
     if($cellTag == 1) {
       aCell->setSplitCode($split_mode_par, Globals::tolerance) ;

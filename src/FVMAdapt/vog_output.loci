@@ -55,7 +55,7 @@ vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,enti
                                                    const_store<int> &cell_offset,
                                                    const_store<int> & num_fine_cells,
                                                    int num_original_nodes,
-                                                   int num_original_faces);
+                                                   int num_original_faces) ;
 
 
 $type node_output param<bool> ;
@@ -257,9 +257,6 @@ $rule blackbox(volTagInput<-meshfile_par),prelude {
     *$volTagInput = vector<pair<string,entitySet> >() ;
   }
 } ;
-
-
-
 
 
 $rule singleton(volTag_blackbox <- volTagInput, balanced_num_fine_cells,

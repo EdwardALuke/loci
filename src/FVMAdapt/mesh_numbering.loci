@@ -17,6 +17,7 @@
 //# You should have received a copy of the Lesser GNU General Public License
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
+//#############################################################################
 #include <Loci.h>
 #include <algorithm>
 #include <list>
@@ -53,7 +54,7 @@ prelude {
   if(Loci::MPI_processes == 1) {
     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si) {
       $fileNumber(X)[*si] = *si ;
-      //if(*si < 0) cout << "negative file Number " << *si << endl;
+      //if(*si < 0) cout << "negative file Number " << *si << endl ;
     }
     return ;
   }
@@ -68,9 +69,10 @@ prelude {
   for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
     int kd = key_domain[*si] ;
     $fileNumber(X)[*si] = df->g2fv[kd][l2g[*si]] ;
-    //if(fileNumX[*si] < 0) cout << "negative file Number " << fileNumX[*si] << endl;
+    //if(fileNumX[*si] < 0) cout << "negative file Number " << fileNumX[*si] << endl ;
   }
 } ;
+
 
 //-----------------------------------------------------------------------------
 // Original-node count
@@ -78,13 +80,14 @@ prelude {
 
 $rule unit(num_original_nodes), constraint(UNIVERSE) {
   //parameter, no loop,
-  $num_original_nodes = 0;
+  $num_original_nodes = 0 ;
 }
 
 $rule apply(num_original_nodes <- pos, num_original_nodes)[Loci::Summation] {
-  int count = 1;
-  join($num_original_nodes, count);
+  int count = 1 ;
+  join($num_original_nodes, count) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Original-face count

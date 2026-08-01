@@ -32,20 +32,24 @@ $type quadrangles Constraint ;
 
 // dummy rules to create constraint quadface
 
-$rule pointwise(quadfaces),
-constraint(boundary_faces, cl->hexcells) {}
+$rule pointwise(quadfaces), constraint(boundary_faces, cl->hexcells) {}
+
 
 $rule pointwise(quadfaces),
 constraint(boundary_faces, quadrangles, cl->prisms) {}
 
+
 $rule pointwise(priority::cr::quadfaces),
 constraint(interior_faces, quadrangles, cl->prisms) {}
+
 
 $rule pointwise(priority::cr::quadfaces),
 constraint(interior_faces, cl->hexcells) {}
 
+
 $rule pointwise(cr::quadfaces),
 constraint(interior_faces, quadrangles, cr->prisms) {}
+
 
 $rule pointwise(cr::quadfaces),
 constraint(interior_faces, cr->hexcells) {}
@@ -58,6 +62,6 @@ $rule pointwise(quadfaces::is_quadface), constraint(faces) {
 
 
 $rule pointwise(priority::quadfaces::is_quadface), constraint(quadfaces) {
-  //std::cout << "quadface in a rule: " << seq.size() << " myID " << Loci::MPI_rank << std::endl;
+  //std::cout << "quadface in a rule: " << seq.size() << " myID " << Loci::MPI_rank << std::endl ;
   $is_quadface = true ;
 }

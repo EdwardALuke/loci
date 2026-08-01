@@ -55,19 +55,23 @@ $type cellweight_output store<bool> ;
 // Rules for current cell-plan input
 //-----------------------------------------------------------------------------
 
+/// Load the current cell plan from a plan file and restore serialized empty
+/// plans.
 $rule pointwise(cellPlan <- planfile_par), constraint(geom_cells),
 option(disable_threading), prelude {
-  hid_t file_id;
-  entitySet dom = entitySet(seq);
+  hid_t file_id ;
+  entitySet dom = entitySet(seq) ;
   file_id = H5Fopen((*$planfile_par).c_str(), H5F_ACC_RDONLY,
-                    H5P_DEFAULT);
+                    H5P_DEFAULT) ;
 
   Loci::readContainer(file_id,"cellPlan",$cellPlan.Rep(),dom) ;
-  H5Fclose(file_id);
+  H5Fclose(file_id) ;
 }compute {
-  if($cellPlan.size() == 1 && $cellPlan[0] == 'C') $cellPlan.resize(0);
+  if($cellPlan.size() == 1 && $cellPlan[0] == 'C') { $cellPlan.resize(0) ; }
 }
 
+/// Load the current cell plan from the transfer database and map it to local
+/// cell order.
 $rule pointwise(cellPlan <- planDB_par), constraint(geom_cells),
 option(disable_threading), prelude {
   entitySet dom = entitySet(seq);
@@ -92,15 +96,21 @@ option(disable_threading), prelude {
   }
 
   FORALL(dom,cc) {
-    if($cellPlan[cc].size() == 1 && $cellPlan[cc][0] == 'C')
-      $cellPlan[cc].resize(0);
+    if($cellPlan[cc].size() == 1 && $cellPlan[cc][0] == 'C') {
+      $cellPlan[cc].resize(0) ;
+    }
   } ENDFORALL ;
 } ;
+
 
 //-----------------------------------------------------------------------------
 // Rules for balanced cell-plan input
 //-----------------------------------------------------------------------------
 
+/// Load a balanced cell plan from the transfer database when
+/// balanced_planDB_par exists. The existence of this input fact is what
+/// controls whether this rule is active or not. This rule handles loading
+/// a balanced cell plan from the transfer database.
 $rule pointwise(priority::refmesh::balancedCellPlan <- balanced_planDB_par),
 constraint(geom_cells), option(disable_threading), prelude {
   entitySet dom = entitySet(seq);
@@ -125,12 +135,15 @@ constraint(geom_cells), option(disable_threading), prelude {
   }
 
   FORALL(dom,cc) {
-    if($balancedCellPlan[cc].size() == 1 && $balancedCellPlan[cc][0] == 'C')
-      $balancedCellPlan[cc].resize(0);
+    if($balancedCellPlan[cc].size() == 1 && $balancedCellPlan[cc][0] == 'C') {
+      $balancedCellPlan[cc].resize(0) ;
+    }
   } ENDFORALL ;
 } ;
 
-
+/// Load a balanced cell plan from a file when balanced_planfile_par is
+/// provided to the module. This rule handled loading a balanced cell plan
+/// from an HDF5 file.
 $rule pointwise(priority::refmesh::balancedCellPlan <- balanced_planfile_par),
 constraint(geom_cells), option(disable_threading), prelude {
   hid_t file_id;
@@ -145,28 +158,30 @@ constraint(geom_cells), option(disable_threading), prelude {
     $balancedCellPlan.resize(0);
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for parent cell-plan input
 //-----------------------------------------------------------------------------
 
-/// Read in plan from former cycle
+/// Load the previous mesh's cell plan from a file for cell-to-parent mapping.
 $rule pointwise(parentPlan <- parent_planfile_par), constraint(geom_cells),
 option(disable_threading), prelude {
-  hid_t file_id;
-  entitySet dom = entitySet(seq);
+  hid_t file_id ;
+  entitySet dom = entitySet(seq) ;
   file_id = H5Fopen((*$parent_planfile_par).c_str(), H5F_ACC_RDONLY,
-                    H5P_DEFAULT);
+                    H5P_DEFAULT) ;
 
   Loci::readContainer(file_id,"cellPlan",$parentPlan.Rep(),dom) ;
-  H5Fclose(file_id);
+  H5Fclose(file_id) ;
 }compute {
-  if($parentPlan.size() == 1 && $parentPlan[0] == 'C') $parentPlan.resize(0);
+  if($parentPlan.size() == 1 && $parentPlan[0] == 'C') { $parentPlan.resize(0) ; }
 }
 
-/// Read in plan from former cycle
+/// Load the previous mesh's cell plan from the transfer database for
+/// cell-to-parent mapping.
 $rule pointwise(parentPlan <- parent_planDB_par), constraint(geom_cells),
 option(disable_threading), prelude {
-  entitySet dom = entitySet(seq);
+  entitySet dom = entitySet(seq) ;
   store<std::vector<char> > readPlan ;
 
   readPlan = Loci::DataXFER_DB.getItem((*$parent_planDB_par).c_str()) ;
@@ -188,15 +203,19 @@ option(disable_threading), prelude {
   }
 
   FORALL(dom,cc) {
-    if($parentPlan[cc].size() == 1 && $parentPlan[cc][0] == 'C')
-      $parentPlan[cc].resize(0);
+    if($parentPlan[cc].size() == 1 && $parentPlan[cc][0] == 'C') {
+      $parentPlan[cc].resize(0) ;
+    }
   } ENDFORALL ;
 } ;
+
 
 //-----------------------------------------------------------------------------
 // Rules for cell-plan output
 //-----------------------------------------------------------------------------
 
+/// Prepare a balanced cell plan for output, using 'C' to represent an empty
+/// plan.
 $rule pointwise(tmpPlan <- balancedCellPlan), option(disable_threading) {
   if($balancedCellPlan.size() == 0) {
     $tmpPlan.push_back('C') ;
@@ -205,22 +224,29 @@ $rule pointwise(tmpPlan <- balancedCellPlan), option(disable_threading) {
   }
 }
 
+/// Write the prepared cell plans to the file specified by plan_outfile_par.
 $rule pointwise(cellplan_output <- tmpPlan, plan_outfile_par),
 constraint(geom_cells), option(disable_threading), prelude {
-  hid_t file_id;
+  hid_t file_id ;
 
   file_id = Loci::hdf5CreateFile((*$plan_outfile_par).c_str(),H5F_ACC_TRUNC,
                                  H5P_DEFAULT, H5P_DEFAULT) ;
 
-  if(Loci::MPI_rank == 0)cout << "writing cellplan into " << *$plan_outfile_par << endl;
+  if(Loci::MPI_rank == 0) {
+    cout << "writing cellplan into " << *$plan_outfile_par << endl ;
+  }
   Loci::writeContainer(file_id,"cellPlan",$tmpPlan.Rep()) ;
   Loci::hdf5CloseFile(file_id) ;
-  if(Loci::MPI_rank == 0) cout << "Finish writing cellPlan " << endl;
+  if(Loci::MPI_rank == 0) {
+    cout << "Finish writing cellPlan " << endl ;
+  }
 } ;
 
+/// Store the prepared cell plans in the transfer database under the key
+/// specified by plan_outDB_par.
 $rule pointwise(cellplan_output <- tmpPlan, plan_outDB_par),
 constraint(geom_cells), option(disable_threading), prelude {
-  entitySet dom = entitySet(seq);
+  entitySet dom = entitySet(seq) ;
 
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
   if(dist==0) {
@@ -245,33 +271,22 @@ constraint(geom_cells), option(disable_threading), prelude {
 // Rules for cell-weight output
 //-----------------------------------------------------------------------------
 
-// class cellweight_output_file : public pointwise_rule {
-//   //this rule is not used by chem, cellweight_writeDB is actually used
-//   const_store<int> num_fine_cells;
-//   const_param<string> outfile_par ;
-//   store<bool> cellweight_output ;
+//$type cellweight_outfile_par param<std::string> ;
+/// Cell-weight file output is currently unused. Online adaptation stores these
+/// weights in the transfer database through the rule below.
+//$rule pointwise(cellweight_output <- cellweight_outfile_par,
+//balanced_num_fine_cells), constraint(geom_cells), option(disable_threading),
+//prelude {
+//  hid_t file_id ;
+//  file_id = Loci::hdf5CreateFile((*$cellweight_outfile_par).c_str(),
+//                                 H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT) ;
+//  Loci::writeContainer(file_id,"cellweights",
+//                       $balanced_num_fine_cells.Rep()) ;
+//  Loci::hdf5CloseFile(file_id) ;
+//} ;
 
-// public:
-//   cellweight_output_file(){
-//     name_store("cellweight_outfile_par", outfile_par);
-//     name_store("cellweight_output", cellweight_output);
-//     name_store("balanced_num_fine_cells", num_fine_cells);
-//     input("(cellweight_outfile_par,balanced_num_fine_cells)");
-//     output("cellweight_output");
-//     constraint("geom_cells");
-//     disable_threading();
-//   }
-//   virtual void compute(const sequence &seq) {
-
-//     hid_t file_id;
-//     file_id = Loci::hdf5CreateFile((*outfile_par).c_str(),H5F_ACC_TRUNC,
-//                                    H5P_DEFAULT, H5P_DEFAULT) ;
-//     Loci::writeContainer(file_id,"cellweights",num_fine_cells.Rep()) ;
-//     Loci::hdf5CloseFile(file_id) ;
-//   }
-// } ;
-// register_rule<cellweight_output_file> register_cellweight_output_file;
-
+/// Store each cell's final fine-cell count in the transfer database for use
+/// as a mesh-partitioning weight.
 $rule pointwise(cellweight_output <- balanced_num_fine_cells,
 cellweight_outDB_par), constraint(geom_cells), option(disable_threading),
 prelude {

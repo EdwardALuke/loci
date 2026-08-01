@@ -17,6 +17,7 @@
 //# You should have received a copy of the Lesser GNU General Public License
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
+//#############################################################################
 #include <iostream>
 #include <fstream>
 #include <queue>
@@ -37,9 +38,6 @@
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 
-// #include <iostream>
-// #include <fstream>
-
 using Loci::storeRepP ;
 using std::queue ;
 using std::vector ;
@@ -50,13 +48,6 @@ using std::set ;
 using std::map ;
 using std::string ;
 using std::ofstream ;
-
-// using std::vector;
-// using std::cerr;
-// using std::cout;
-// using std::endl;
-// using std::string;
-// using std::ofstream;
 
 typedef Loci::vector3d<double> vect3d ;
 
@@ -83,13 +74,10 @@ namespace Loci {
 // General-cell, face, and edge counts
 //-----------------------------------------------------------------------------
 
-////////////////////////////////////////////////////////////////////////////////////////
-//                                   set_general_nums.cc                              //
-//                                by: Qiuhan Xue                                      //
-//                                                                                    //
-// This file set up the numbers of inner nodes, the number of fine cells in each      //
-// original cell                                                                      //
-////////////////////////////////////////////////////////////////////////////////////////
+//  set_general_nums.cc
+//  by: Qiuhan Xue
+// This file set up the numbers of inner nodes, the number of fine cells in each
+// original cell
 
 $rule pointwise(balanced_num_inner_nodes <- balancedCellPlan,
 (lower, upper, boundary_map)->(is_quadface, balancedFacePlan),
@@ -98,13 +86,14 @@ $rule pointwise(balanced_num_inner_nodes <- balancedCellPlan,
 (lower, upper, boundary_map)->face2edge->edge2node->pos),
 constraint(gnrlcells) {
 
+  // No need to do anything if plan is balanced.
   if($balancedCellPlan.size() == 0) {
     $balanced_num_inner_nodes = 0 ;
     return ;
   }
 
-  std::list<Node*> bnode_list ; //boundary node
-  std::list<Node*> node_list ; //inner node
+  std::list<Node*> bnode_list ; // boundary node
+  std::list<Node*> node_list ; // inner node
   std::list<Edge*> edge_list ;
   std::list<Face*> face_list ;
 
@@ -128,13 +117,13 @@ constraint(gnrlcells) {
 
   $balanced_num_inner_nodes = node_list.size() ;
 
-  //clean up
+  // clean up
   if(aCell != 0) {
     delete aCell ;
     aCell = 0 ;
   }
 
-  //aCell will clean up these
+  // aCell will clean up these
   cleanup_list(node_list, edge_list, face_list) ;
   cleanup_list(bnode_list) ;
 }
@@ -172,15 +161,13 @@ constraint(gnrlcells) {
     aCell = 0 ;
   }
 
-  //aCell will clean up these
+  // aCell will clean up these
   cleanup_list(node_list, edge_list, face_list) ;
 }
 
 
 $rule pointwise(quadface::balanced_num_inner_nodes <- balancedFacePlan,
-face2edge->balancedEdgePlan,
-face2edge->edge2node->pos,
-face2node->pos),
+face2edge->balancedEdgePlan, face2edge->edge2node->pos, face2node->pos),
 constraint(faces) {
   if($balancedFacePlan.size() == 0) {
     $balanced_num_inner_nodes = 0 ;
@@ -202,7 +189,7 @@ constraint(faces) {
   aFace->resplit($balancedFacePlan, node_list, edge_list) ;
   $balanced_num_inner_nodes = node_list.size() ;
 
-  //clean up
+  // clean up
   if(aFace != 0) {
     delete aFace ;
     aFace = 0 ;
@@ -273,13 +260,13 @@ constraint(hexcells) {
 
   $balanced_num_inner_nodes = node_list.size() ;
 
-  //clean up
+  // clean up
   if(aCell != 0) {
     delete aCell ;
     aCell = 0 ;
   }
 
-  //aCell will clean up these
+  // aCell will clean up these
   cleanup_list(bnode_list, edge_list, face_list) ;
   cleanup_list(node_list) ;
 }
@@ -304,7 +291,6 @@ constraint(quadfaces) {
   std::list<Node*> node_list ;
   std::list<Edge*> edge_list ;
 
-
   QuadFace* aFace = build_quad_face($face2node.begin(),
                                     $face2edge.begin(),
                                     $*edge2node,
@@ -313,15 +299,11 @@ constraint(quadfaces) {
                                     bnode_list,
                                     edge_list) ;
 
-  aFace->resplit($balancedFacePlan,
-                 char(0),
-                 node_list,
-                 edge_list) ;
-
+  aFace->resplit($balancedFacePlan, char(0), node_list, edge_list) ;
 
   $balanced_num_inner_nodes = node_list.size() ;
 
-  //clean up
+  // clean up
   if(aFace != 0) {
     delete aFace ;
     aFace = 0 ;
@@ -329,8 +311,8 @@ constraint(quadfaces) {
 
   cleanup_list(bnode_list, edge_list) ;
   cleanup_list(node_list) ;
-
 }
+
 
 //-----------------------------------------------------------------------------
 // Prism-cell counts
@@ -401,14 +383,17 @@ constraint(prisms) {
     $balanced_num_fine_cells = 1 ;
     return ;
   }
+
   Prism* aCell = new Prism ;
   $balanced_num_fine_cells = aCell->empty_resplit($balancedCellPlan) ;
-  //clean up
+
+  // clean up
   if(aCell != 0) {
     delete aCell ;
     aCell = 0 ;
   }
 }
+
 
 //-----------------------------------------------------------------------------
 // Accepted-plan node and cell offsets
@@ -460,7 +445,7 @@ num_original_nodes), option(disable_threading), prelude {
   local_faces = (*my_entities) & (*faces) ;
   local_geom_cells = (*my_entities) & (*geom_cells) ;
 
-  //each process computes its node  offset
+  // each process computes its node  offset
 
   int noffset = *$num_original_nodes ;
 
@@ -468,7 +453,7 @@ num_original_nodes), option(disable_threading), prelude {
   int num_local_nodes = 0 ;
   std::vector<int> local_nodes_sizes ;
   storeRepP localVar = $balanced_node_offset.Rep() ;
-  //put into block to make the memory for store<int> freeed after it's used
+  // put into block to make the memory for store<int> freeed after it's used
   {
     store<int> edge_num_inner_nodes ;
     edge_num_inner_nodes =
@@ -495,7 +480,7 @@ num_original_nodes), option(disable_threading), prelude {
                           dist,
                           MPI_COMM_WORLD) ;
   }
-  //finish with edge nodes
+  // finish with edge nodes
   int total_num_edge_nodes = 0 ;
   for(int i = 0; i < num_procs; i++) {
     total_num_edge_nodes += local_nodes_sizes[i] ;
@@ -523,7 +508,7 @@ num_original_nodes), option(disable_threading), prelude {
       noffset += local_nodes_sizes[i] ;
     }
 
-    //compute the store values
+    // compute the store values
     store<int> cell_file_offset ;
     cell_file_offset.allocate(cell_num_inner_nodes.domain()) ;
     FORALL(cell_num_inner_nodes.domain(), ei) {
@@ -531,15 +516,15 @@ num_original_nodes), option(disable_threading), prelude {
       noffset += cell_num_inner_nodes[ei] ;
     }ENDFORALL ;
 
-    //File2Local use the offset value set by Local2File
+    // File2Local use the offset value set by Local2File
     Loci::File2LocalOrder(localVar, local_geom_cells,
                           cell_file_offset.Rep(), offset,
                           dist,
                           MPI_COMM_WORLD) ;
-    //finish with cell nodes
+    // finish with cell nodes
   }
 
-  //update noffset
+  // update noffset
   int total_num_cell_nodes = 0 ;
   for(int i = 0; i < num_procs; i++) {
     total_num_cell_nodes += local_nodes_sizes[i] ;
@@ -547,7 +532,7 @@ num_original_nodes), option(disable_threading), prelude {
   noffset = *$num_original_nodes + total_num_edge_nodes +
   total_num_cell_nodes ;
 
-  //repeat for faces
+  // repeat for faces
   offset = 0 ;
 
   // Create container vardist that is ordered across processors in the
@@ -569,7 +554,7 @@ num_original_nodes), option(disable_threading), prelude {
       noffset += local_nodes_sizes[i] ;
     }
 
-    //compute the store values
+    // compute the store values
     store<int> face_file_offset ;
     face_file_offset.allocate(face_num_inner_nodes.domain()) ;
     FORALL(face_num_inner_nodes.domain(), ei) {
@@ -632,7 +617,7 @@ option(disable_threading), prelude {
       coffset += local_cells_sizes[i] ;
     }
 
-    //compute the store values
+    // compute the store values
     store<int> cell_file_offset ;
     cell_file_offset.allocate(file_num_fine_cells.domain()) ;
     FORALL(file_num_fine_cells.domain(), ei) {

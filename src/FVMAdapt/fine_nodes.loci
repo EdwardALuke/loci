@@ -17,6 +17,7 @@
 //# You should have received a copy of the Lesser GNU General Public License
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
+//#############################################################################
 #include <iostream>
 #include <vector>
 
@@ -38,11 +39,11 @@ using Loci::storeRepP ;
 // General-cell-created nodes
 //-----------------------------------------------------------------------------
 
-//by: Qiuhan Xue
+// by: Qiuhan Xue
 //
 // This file generate inner_nodes  according refinement plans. The
-//original grid is general element. Isotropic refinement is used. the rules should be
-//usedAfter node_offset and cell_offset has been set up.
+// original grid is general element. Isotropic refinement is used. the rules should be
+// used After node_offset and cell_offset has been set up.
 // FineFaces is defined as c1, c2,followed by face2node.
 
 
@@ -78,7 +79,7 @@ constraint(gnrlcells) {
                                    bnode_list,
                                    edge_list,
                                    face_list,
-                                   $*fileNumber(pos));
+                                   $*fileNumber(pos)) ;
 
   std::vector<DiamondCell*> cells ;
 
@@ -103,13 +104,14 @@ constraint(gnrlcells) {
   cleanup_list(node_list) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Hex-cell-created nodes
 //-----------------------------------------------------------------------------
 
-//by: Qiuhan Xue
+// by: Qiuhan Xue
 //
-// This file generate inner_nodes  according refinement plans. The
+// These rules generate inner_nodes  according refinement plans. The
 // original grid is hexcell element. Anisotropic refinement is used. the rules should be
 // used After node_offset and cell_offset has been set up.
 // FineFaces is defined as c1, c2,followed by face2node.
@@ -151,7 +153,7 @@ constraint(hexcells) {
                                   bnode_list,
                                   edge_list,
                                   face_list,
-                                  $*fileNumber(face2node));
+                                  $*fileNumber(face2node)) ;
 
   std::vector<HexCell*> cells ;
 
@@ -175,13 +177,14 @@ constraint(hexcells) {
   cleanup_list(node_list) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Prism-cell-created nodes
 //-----------------------------------------------------------------------------
 
 // by: Qiuhan Xue
 //
-// This file generate inner_nodes and fine_faces according refinement plans. The
+// These rules generate inner_nodes and fine_faces according refinement plans. The
 // original grid is prism element. Anisotropic refinement is used. the rules should be
 // used After node_offset and cell_offset has been set up.
 // FineFaces is defined as c1, c2,followed by face2node.
@@ -202,13 +205,13 @@ constraint(prisms) {
     return ;
   }
 
-  std::list<Node*> bnode_list ; //boundary node
+  std::list<Node*> bnode_list ; // boundary node
   std::list<Edge*> edge_list ;
   std::list<QuadFace*> qface_list ;
   std::list<Face*> gface_list ;
-  std::list<Node*> node_list ; //inner node
+  std::list<Node*> node_list ; // inner node
 
-  //build a Cell
+  // build a Cell
   Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
                                   $upper.begin(), $upper.size(),
                                   $boundary_map.begin(), $boundary_map.size(),
@@ -250,6 +253,7 @@ constraint(prisms) {
   cleanup_list(node_list) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Face-created nodes
 //-----------------------------------------------------------------------------
@@ -280,10 +284,10 @@ constraint(faces) {
     aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list) ;
 
     // put node_list into inner_nodes[f]
-    vector<vect3d>(node_list.size()).swap($inner_nodes_face);
-    int nindex = 0;
+    vector<vect3d>(node_list.size()).swap($inner_nodes_face) ;
+    int nindex = 0 ;
     for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++){
-      $inner_nodes_face[nindex] = (*np)->p;
+      $inner_nodes_face[nindex] = (*np)->p ;
     }
 
     // clean up
@@ -317,6 +321,7 @@ constraint(faces) {
   cleanup_list(node_list) ;
   cleanup_list(bnode_list, edge_list) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Edge-created nodes

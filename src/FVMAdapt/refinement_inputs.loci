@@ -94,7 +94,7 @@ vector<char> read_tags_txt(string filename,MPI_Comm &comm) {
     ifstream inFileScan ;
     inFileScan.open(filename.c_str(),std::ios::in) ;
     if(!inFileScan) {
-      cerr <<"cannot open '" << filename << "' for input" << endl ;
+      cerr << "cannot open '" << filename << "' for input" << endl ;
       Loci::Abort() ;
     }
 
@@ -156,8 +156,8 @@ vector<char> read_tags_hdf5(string filename, string varname, MPI_Comm &comm) {
     hid_t group_id = 0 ;
     group_id = H5Gopen(file_id, varname.c_str(),H5P_DEFAULT) ;
 
-    //process 0 read in its local tag
-    hid_t dataset =  H5Dopen(group_id, "data",H5P_DEFAULT) ;
+    // process 0 read in its local tag
+    hid_t dataset = H5Dopen(group_id, "data",H5P_DEFAULT) ;
     hid_t dataspace = H5Dget_space(dataset) ;
 
     // Get size of tag file
@@ -270,7 +270,7 @@ void communicateFileData(vector<char> &filedata,
       vector<pair<int,char> > tmp(dmsz) ;
       returndata.swap(tmp) ;
     }
-    for(int i=0;i<dmsz;++i) {
+    for(int i=0; i<dmsz; ++i) {
       returndata[i].first = datamap[i].second ;
       returndata[i].second = filedata[datamap[i].first] ;
     }
@@ -283,14 +283,14 @@ void communicateFileData(vector<char> &filedata,
   MPI_Allgather(&lsize,1,MPI_INT,&sizes[0],1,MPI_INT,comm) ;
   vector<int> offsets(p+1) ;
   offsets[0] = 0 ;
-  for(int i=0;i<p;++i) {
+  for(int i=0; i<p; ++i) {
     offsets[i+1] = offsets[i]+sizes[i] ;
   }
   vector<int> datamapoffsets(p+1,dmsz) ;
   datamapoffsets[0] =0 ;
 
   int cnt=1 ;
-  for(int i=0;cnt < p && i<=dmsz;++i) {
+  for(int i=0; cnt<p && i<=dmsz;++i) {
     if(i == dmsz) {
       datamapoffsets[cnt] = i ;
     }else {
@@ -310,6 +310,7 @@ void communicateFileData(vector<char> &filedata,
   for(int i=0;i<p;++i) {
     reqsizes[i] = datamapoffsets[i+1]-datamapoffsets[i] ;
   }
+
   // convert requested item to local numbering on that processor.
   vector<int> reqitem(dmsz) ;
   for(int i=0;i<p;++i) {
@@ -815,6 +816,7 @@ $rule blackbox(cellPlanXMLDoc <- xmlfile_par), prelude {
   Loci::Abort() ;
 #endif
 } ;
+
 
 /// Read the parameter sources once for all cell topologies.
 $rule blackbox(cellPlanSources <- parfile_par), prelude {

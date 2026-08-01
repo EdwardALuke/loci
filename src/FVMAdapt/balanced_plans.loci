@@ -145,6 +145,7 @@ constraint(boundary_faces, cl->hexcells) {
   reduce_vector($balancedFacePlan) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for prism-cell face plans
 //-----------------------------------------------------------------------------
@@ -192,6 +193,7 @@ constraint(boundary_faces, cl->prisms) {
   }
   reduce_vector($balancedFacePlan) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for mixed-topology face plans
@@ -364,6 +366,7 @@ constraint(cr->hexcells, cl->prisms) {
                                        facePlanR, $cr->$hexOrientCode[$fr]) ;
   reduce_vector($balancedFacePlan) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for edge plans

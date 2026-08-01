@@ -48,10 +48,9 @@ using namespace Loci ;
 // Rules for general-cell face plans
 //-----------------------------------------------------------------------------
 
-// This file extracts a facePlan from a cellPlan, and then merges two facePlan together
+// These rules extract a facePlan from a cellPlan, and then merges two facePlan together
 // the extracting algrithm uses the numbering system of DiamondCell and is faster than
 // straight forward approach
-
 
 $rule pointwise(facePlan <- (cl, cr)->cellPlan, face2node,
 (cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
@@ -98,6 +97,7 @@ constraint(boundary_faces, cl->gnrlcells) {
   reduce_vector($facePlan) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for hex-cell face plans
 //-----------------------------------------------------------------------------
@@ -131,6 +131,7 @@ constraint(boundary_faces, cl->hexcells) {
   $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl]) ;
   reduce_vector($facePlan) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for prism-cell face plans
@@ -174,6 +175,7 @@ constraint(boundary_faces, cl->prisms) {
   }
   reduce_vector($facePlan) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for mixed-topology face plans
@@ -331,24 +333,21 @@ constraint(cr->hexcells, cl->prisms) {
   reduce_vector($facePlan) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for edge plans
 //-----------------------------------------------------------------------------
 
 $type planname_par param<std::string> ;
-$type pointSet store<SetLong> ;
-
-
 $rule singleton(planname_par <- planfile_par) {
   $planname_par = $planfile_par ;
 }
-
 
 $rule singleton(planname_par <- planDB_par) {
   $planname_par = $planDB_par ;
 }
 
-
+$type pointSet store<SetLong> ;
 $rule unit(pointSet <- planname_par), constraint(edge2node->pos) { }
 
 /// Project the face refinement plan onto its boundary edges for union merging.
@@ -362,22 +361,18 @@ constraint(faces) {
     Loci::Abort() ;
   }
 
-  const int edgeCount =
-    $is_quadface ? $face2edge.size() : $face2node.size() ;
+  const int edgeCount = $is_quadface ? $face2edge.size() : $face2node.size() ;
   std::vector<bool> edgeReversed(edgeCount, false) ;
 
   if($is_quadface) {
     for(int i=0; i<edgeCount; i++) {
       if(i == 0 && $face2edge[0]->$edge2node[0] == $face2node[1]) {
         edgeReversed[i] = true ;
-      }else if(i == 1 &&
-               $face2edge[1]->$edge2node[0] == $face2node[2]) {
+      }else if(i == 1 && $face2edge[1]->$edge2node[0] == $face2node[2]) {
         edgeReversed[i] = true ;
-      }else if(i == 2 &&
-               $face2edge[2]->$edge2node[0] == $face2node[2]) {
+      }else if(i == 2 && $face2edge[2]->$edge2node[0] == $face2node[2]) {
         edgeReversed[i] = true ;
-      }else if(i == 3 &&
-               $face2edge[3]->$edge2node[0] == $face2node[3]) {
+      }else if(i == 3 && $face2edge[3]->$edge2node[0] == $face2node[3]) {
         edgeReversed[i] = true ;
       }
     }

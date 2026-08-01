@@ -53,14 +53,14 @@ using Loci::storeRepP ;
 #ifdef USE_LIBXML2
 bool mark_node(xmlNode* root_element,
                std::list<Node*>::iterator begin_pnt,
-               std::list<Node*>::iterator end_pnt);
+               std::list<Node*>::iterator end_pnt) ;
 #endif
 
 //-----------------------------------------------------------------------------
 // Rules for node-tag refinement
 //-----------------------------------------------------------------------------
 
-/// This rule make a newCellPlan according to cellPlan
+/// This rule makes a newCellPlan according to cellPlan
 /// and nodeTag, posTag
 $rule pointwise(newCellPlan <- restart_tag_par, cellPlan, nodeTag,
 isIndivisible,
@@ -92,7 +92,7 @@ constraint(gnrlcells) {
                                      bnode_list,
                                      edge_list,
                                      face_list,
-                                     $*fileNumber(pos));
+                                     $*fileNumber(pos)) ;
 
     // calculate min_edge_length of the cell
     double min_edge_length =aCell->get_min_edge_length() ;
@@ -105,8 +105,8 @@ constraint(gnrlcells) {
     }
 
     // split the cell Globals::levels times
-    int numCells = cells.size();
-    bool cell_split = false;
+    int numCells = cells.size() ;
+    bool cell_split = false ;
     if(numCells != 0) { // aCell is not a leaf
       for(int i=0; i<numCells; i++) {
         if((cells[i]->get_tagged())==1) {
@@ -161,7 +161,7 @@ constraint(gnrlcells) {
 }
 
 
-/// This rule make a newCellPlan according to posTag
+/// This rule makes a newCellPlan according to posTag
 $rule pointwise(newCellPlan <- isIndivisible,
 (lower, upper, boundary_map)->face2node->(pos, posTag, fileNumber(pos)),
 (lower, upper, boundary_map)->face2edge->edge2node->pos,
@@ -183,7 +183,7 @@ norestart_tag_par), constraint(gnrlcells) {
                                      bnode_list,
                                      edge_list,
                                      face_list,
-                                     $*fileNumber(pos));
+                                     $*fileNumber(pos)) ;
 
     // calculate min_edge_length of the cell
     double min_edge_length =aCell->get_min_edge_length() ;
@@ -217,6 +217,7 @@ norestart_tag_par), constraint(gnrlcells) {
     reduce_vector($newCellPlan) ;
   }
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for XML-region refinement
@@ -253,7 +254,7 @@ constraint(gnrlcells) {
                                      bnode_list,
                                      edge_list,
                                      face_list,
-                                     $*fileNumber(pos));
+                                     $*fileNumber(pos)) ;
 
     if(!mark_node(root_element, bnode_list.begin(), bnode_list.end())) {
       cerr << "WARNING: fail to mark nodes, please check xml file" << endl ;
@@ -335,7 +336,7 @@ constraint(gnrlcells) {
 }
 
 
-/// This rule make a newCellPlan according to xml file
+/// This rule makes a newCellPlan according to xml file
 $rule pointwise(newCellPlan <- norestart_xml_par,
 isIndivisible, xmlfile_par,
 (lower, upper, boundary_map)->face2node->pos,
@@ -361,7 +362,7 @@ constraint(gnrlcells) {
                                      bnode_list,
                                      edge_list,
                                      face_list,
-                                     $*fileNumber(pos));
+                                     $*fileNumber(pos)) ;
 
     DiamondCell* current ;
 
@@ -421,6 +422,7 @@ constraint(gnrlcells) {
   }
 #endif
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for parameter-region refinement
@@ -526,7 +528,7 @@ constraint(gnrlcells) {
                                      bnode_list,
                                      edge_list,
                                      face_list,
-                                     $*fileNumber(pos));
+                                     $*fileNumber(pos)) ;
 
     DiamondCell* current ;
     if(aCell->get_tagged(sources) ==1) {
@@ -562,6 +564,7 @@ constraint(gnrlcells) {
   }
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for cell-tag refinement
 //-----------------------------------------------------------------------------
@@ -582,19 +585,19 @@ constraint(gnrlcells) {
     std::list<Node*> bnode_list ;
 
     Cell* aCell = build_general_cell($lower.begin(), $lower.size(),
-                                      $upper.begin(), $upper.size(),
-                                      $boundary_map.begin(), $boundary_map.size(),
-                                      $*is_quadface,
-                                      $*face2node,
-                                      $*face2edge,
-                                      $*edge2node,
-                                      $*pos,
-                                      $*edgePlan,
-                                      $*facePlan,
-                                      bnode_list,
-                                      edge_list,
-                                      face_list,
-                                      $*fileNumber(pos));
+                                     $upper.begin(), $upper.size(),
+                                     $boundary_map.begin(), $boundary_map.size(),
+                                     $*is_quadface,
+                                     $*face2node,
+                                     $*face2edge,
+                                     $*edge2node,
+                                     $*pos,
+                                     $*edgePlan,
+                                     $*facePlan,
+                                     bnode_list,
+                                     edge_list,
+                                     face_list,
+                                     $*fileNumber(pos)) ;
 
     // calculate min_edge_length of the cell
     double min_edge_length = aCell->get_min_edge_length() ;
@@ -680,7 +683,7 @@ norestart_tag_par), constraint(gnrlcells) {
                                       bnode_list,
                                       edge_list,
                                       face_list,
-                                      $*fileNumber(pos));
+                                      $*fileNumber(pos)) ;
 
     // calculate min_edge_length of the cell
     double min_edge_length =aCell->get_min_edge_length() ;

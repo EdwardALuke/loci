@@ -40,7 +40,7 @@ using Loci::storeRepP ;
 // FineFaces is defined as c1, c2,followed by face2node.
 
 
-//get fine_faces of prism cells
+/// Get fine_faces of prism cells
 $rule pointwise(fine_faces_cell <- balancedCellPlan,
 balanced_node_offset, balanced_cell_offset,
 prism2face, prism2node, prismOrientCode,
@@ -66,24 +66,24 @@ constraint(prisms) {
 
   // build a Cell
   Prism* aCell = build_prism_cell($lower.begin(), $lower.size(),
-                                 $upper.begin(), $upper.size(),
-                                 $boundary_map.begin(), $boundary_map.size(),
-                                 $prism2face,
-                                 $prism2node,
-                                 $prismOrientCode,
-                                 $*face2node,
-                                 $*face2edge,
-                                 $*edge2node,
-                                 $*pos,
-                                 $*balancedEdgePlan,
-                                 $*balancedFacePlan,
-                                 $*balanced_node_offset,
-                                 $*fileNumber(face2node),
-                                 $*fileNumber(pos),
-                                 bnode_list,
-                                 edge_list,
-                                 qface_list,
-                                 gface_list);
+                                  $upper.begin(), $upper.size(),
+                                  $boundary_map.begin(), $boundary_map.size(),
+                                  $prism2face,
+                                  $prism2node,
+                                  $prismOrientCode,
+                                  $*face2node,
+                                  $*face2edge,
+                                  $*edge2node,
+                                  $*pos,
+                                  $*balancedEdgePlan,
+                                  $*balancedFacePlan,
+                                  $*balanced_node_offset,
+                                  $*fileNumber(face2node),
+                                  $*fileNumber(pos),
+                                  bnode_list,
+                                  edge_list,
+                                  qface_list,
+                                  gface_list) ;
 
   std::vector<Prism*> cells ;
   aCell->resplit($balancedCellPlan, node_list, edge_list, qface_list, gface_list, cells) ;
@@ -166,7 +166,7 @@ constraint(prisms) {
 }
 
 
-// Get fine_faces of interior faces
+/// Get fine_faces of interior faces
 $rule pointwise(fine_faces <- balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
 (cl, cr)->(balancedCellPlan, balanced_cell_offset,
@@ -234,7 +234,7 @@ constraint((cl, cr)->prisms) {
                                 $*balancedEdgePlan,
                                 bnode_list,
                                 edge_list,
-                                $*fileNumber(pos));
+                                $*fileNumber(pos)) ;
 
     if($balancedFacePlan.size() == 0) {
       // num of fine faces is 1
@@ -274,6 +274,7 @@ constraint((cl, cr)->prisms) {
       for(int i=2; i<vec_size; i++, nptr++) {
         $fine_faces[0][i] = *nptr ;
       }
+
       // clean up
       if(agFace != 0) { delete agFace ; }
       cleanup_list(bnode_list, edge_list) ;
@@ -305,7 +306,7 @@ constraint((cl, cr)->prisms) {
   std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cr->$prismOrientCode[$fr],
-                                       $fr);
+                                       $fr) ;
 
   if(num_leaves != CR.size()) {
     cerr << "WARNING: CR has the incorrect size" << endl ;
@@ -323,6 +324,7 @@ constraint((cl, cr)->prisms) {
     }else {
       c1 = $cl->$balanced_cell_offset + CL[fptr] ;
     }
+
     // set c2
     if($cr->$balancedCellPlan.size() == 0) {
       c2 = $cr->$balanced_cell_offset + 1 ;
@@ -439,7 +441,7 @@ constraint(cl->prisms, boundary_faces) {
                                 $*balancedEdgePlan,
                                 bnode_list,
                                 edge_list,
-                                $*fileNumber(pos));
+                                $*fileNumber(pos)) ;
 
     if($balancedFacePlan.size() == 0) {
       // num of fine faces is 1
@@ -454,7 +456,7 @@ constraint(cl->prisms, boundary_faces) {
       std::vector<int32> CL = get_c1_prism($cl->$balancedCellPlan,
                                           $balancedFacePlan,
                                           $cl->$prismOrientCode[$fl],
-                                          $fl);
+                                          $fl) ;
 
       if(CL.size()!= 1) {
         cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -470,6 +472,7 @@ constraint(cl->prisms, boundary_faces) {
       for(int i=2; i<vec_size; i++, nptr++) {
         $fine_faces[0][i] = *nptr ;
       }
+
       // clean up
       if(agFace != 0) {
         delete agFace ;
@@ -484,8 +487,8 @@ constraint(cl->prisms, boundary_faces) {
     num_leaves = fine_gfaces.size() ;
   }
 
-  //and index the node_list
-  int nindex = 0;
+  / and index the node_list
+  int nindex = 0 ;
   for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++) {
       (*np)->index = $balanced_node_offset + nindex ;
   }
@@ -494,7 +497,7 @@ constraint(cl->prisms, boundary_faces) {
   std::vector<int32> CL = get_c1_prism($cl->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cl->$prismOrientCode[$fl],
-                                       $fl);
+                                       $fl) ;
 
   if(num_leaves != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -510,6 +513,7 @@ constraint(cl->prisms, boundary_faces) {
     }else {
       fine_gfaces[fptr]->set_f2n(faceVertex) ;
     }
+
     // set c1
     if($cl->$balancedCellPlan.size() == 0) {
       c1 = $cl->$balanced_cell_offset + 1 ;

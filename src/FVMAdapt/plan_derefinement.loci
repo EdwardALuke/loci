@@ -107,6 +107,7 @@ constraint(boundary_faces, cl->gnrlcells) {
   reduce_vector($balancedFacePlan1) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for hex-cell face plans
 //-----------------------------------------------------------------------------
@@ -148,6 +149,7 @@ constraint(boundary_faces, cl->hexcells) {
                                         $cl->$hexOrientCode[$fl]) ;
   reduce_vector($balancedFacePlan1) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for prism-cell face plans
@@ -195,6 +197,7 @@ constraint(boundary_faces, cl->prisms) {
   }
   reduce_vector($balancedFacePlan1) ;
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for mixed-topology face plans
@@ -283,7 +286,7 @@ constraint(cl->gnrlcells, cr->prisms) {
                                                       _e_,
                                                       $*fileNumber(pos)) ;
 
-  if ($fr < 2) {
+  if($fr < 2) {
     std::vector<char> facePlanR =
       extract_oriented_prism_tri_face_plan(
         $cr->$balancedCellPlan1, $fr, $cr->$prismOrientCode[$fr]) ;
@@ -322,13 +325,13 @@ constraint(cr->gnrlcells, cl->prisms) {
                                                       _e_,
                                                       $*fileNumber(pos)) ;
 
-  if ($fl < 2) {
+  if($fl < 2) {
     std::vector<char> facePlanL =
       extract_oriented_prism_tri_face_plan(
         $cl->$balancedCellPlan1, $fl, $cl->$prismOrientCode[$fl]) ;
     $balancedFacePlan1 = merge_faceplan(facePlanL, localPlanR,
                                         $face2node.size()) ;
-  } else {
+  }else {
     std::vector<char> facePlanL = extract_prism_face($cl->$balancedCellPlan1,
                                                      $fl) ;
     std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
@@ -368,6 +371,7 @@ constraint(cr->hexcells, cl->prisms) {
   reduce_vector($balancedFacePlan1) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for edge plans
 //-----------------------------------------------------------------------------
@@ -391,22 +395,18 @@ constraint(faces) {
 
   if($balancedFacePlan1.size() == 0) { return ; }
 
-  const int edgeCount =
-    $is_quadface ? $face2edge.size() : $face2node.size() ;
+  const int edgeCount = $is_quadface ? $face2edge.size() : $face2node.size() ;
   std::vector<bool> edgeReversed(edgeCount, false) ;
 
   if($is_quadface) {
     for(int i=0; i<edgeCount; i++) {
       if(i == 0 && $face2edge[0]->$edge2node[0] == $face2node[1]) {
         edgeReversed[i] = true ;
-      }else if(i == 1 &&
-               $face2edge[1]->$edge2node[0] == $face2node[2]) {
+      }else if(i == 1 && $face2edge[1]->$edge2node[0] == $face2node[2]) {
         edgeReversed[i] = true ;
-      }else if(i == 2 &&
-               $face2edge[2]->$edge2node[0] == $face2node[2]) {
+      }else if(i == 2 && $face2edge[2]->$edge2node[0] == $face2node[2]) {
         edgeReversed[i] = true ;
-      }else if(i == 3 &&
-               $face2edge[3]->$edge2node[0] == $face2node[3]) {
+      }else if(i == 3 && $face2edge[3]->$edge2node[0] == $face2node[3]) {
         edgeReversed[i] = true ;
       }
     }
@@ -433,6 +433,7 @@ $rule pointwise(balancedEdgePlan1<-balancedPointSet1) {
   encode_edge_plan($balancedPointSet1, $balancedEdgePlan1) ;
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for the no-derefinement pass-through
 //-----------------------------------------------------------------------------
@@ -440,7 +441,7 @@ $rule pointwise(balancedEdgePlan1<-balancedPointSet1) {
 $rule pointwise(balancedCellPlan <- balancedCellPlan1, beginWithMarker),
 option(disable_threading) {
   // dummy parameter to trick Loci scheduler
-  $balancedCellPlan = $balancedCellPlan1;
+  $balancedCellPlan = $balancedCellPlan1 ;
 }
 
 //-----------------------------------------------------------------------------
@@ -482,10 +483,10 @@ constraint(gnrlcells) {
                                              face_list,
                                              $*fileNumber(pos),
                                              $cellPlan,
-                                             $nodeTag);
+                                             $nodeTag) ;
 
-    std::vector<DiamondCell*> cells ; //leaves collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
+    std::vector<DiamondCell*> cells ; // leaves collected according to cellPlan1
+    aCell->resplit($balancedCellPlan1, node_list, edge_list, face_list, cells) ;
 
     // re-collect leaves according to tree structure
     std::list<DiamondCell*> leaves ;
@@ -527,6 +528,7 @@ constraint(gnrlcells) {
   }
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for general-cell derefinement from cell tags
 //-----------------------------------------------------------------------------
@@ -564,10 +566,10 @@ constraint(gnrlcells) {
                                                   face_list,
                                                   $*fileNumber(pos),
                                                   $cellPlan,
-                                                  $fineCellTag);
+                                                  $fineCellTag) ;
 
-    std::vector<DiamondCell*> cells ; //leaves collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
+    std::vector<DiamondCell*> cells ; // leaves collected according to cellPlan1
+    aCell->resplit($balancedCellPlan1, node_list, edge_list, face_list, cells) ;
 
     // recollect leaves according to tree structure
     std::list<DiamondCell*> leaves ;
@@ -608,6 +610,7 @@ constraint(gnrlcells) {
     reduce_vector($balancedCellPlan) ;
   }
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for hex-cell derefinement from node tags
@@ -653,9 +656,9 @@ constraint(hexcells) {
                                             face_list,
                                             $*fileNumber(face2node),
                                             $cellPlan,
-                                            $nodeTag);
+                                            $nodeTag) ;
 
-    std::vector<HexCell*> cells ; //leaves collected according to cellPlan1
+    std::vector<HexCell*> cells ; // leaves collected according to cellPlan1
     aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
 
     // re-collect leaves according to tree structure
@@ -691,6 +694,7 @@ constraint(hexcells) {
     reduce_vector($balancedCellPlan) ;
   }
 }
+
 
 //-----------------------------------------------------------------------------
 // Rules for hex-cell derefinement from cell tags
@@ -733,10 +737,10 @@ constraint(hexcells) {
                                                  face_list,
                                                  $*fileNumber(face2node),
                                                  $cellPlan,
-                                                 $fineCellTag);
+                                                 $fineCellTag) ;
 
-    std::vector<HexCell*> cells ; //leaves collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1, node_list, edge_list, face_list, cells) ;
+    std::vector<HexCell*> cells ; // leaves collected according to cellPlan1
+    aCell->resplit($balancedCellPlan1, node_list, edge_list, face_list, cells) ;
 
     // re-collect leaves according to tree structure
     std::list<HexCell*> leaves ;
@@ -771,6 +775,7 @@ constraint(hexcells) {
   }
 }
 
+
 //-----------------------------------------------------------------------------
 // Rules for prism-cell derefinement from node tags
 //-----------------------------------------------------------------------------
@@ -782,22 +787,16 @@ prism2face, prism2node, prismOrientCode, isIndivisible,
                               balancedFacePlan1, nodeTag),
 (lower, upper, boundary_map)->face2node->(pos, posTag),
 (lower, upper, boundary_map)->face2edge->edge2node->pos,
-(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1,
-                                          nodeTag)),
+(lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1, nodeTag)),
 constraint(prisms) {
-  //dummy parameter to trick Loci scheduler
+  // dummy parameter to trick Loci scheduler
 
   if(!$isIndivisible){
-    std::list<Node*> node_list;
-    std::list<Edge*> edge_list;
-    std::list<QuadFace*> qface_list;
-    std::list<Face*> gface_list;
-    std::list<Node*> bnode_list;
-
-
-
-
-
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<QuadFace*> qface_list ;
+    std::list<Face*> gface_list ;
+    std::list<Node*> bnode_list ;
 
     Prism* aCell = build_resplit_prism_cell($lower.begin(), $lower.size(),
                                             $upper.begin(), $upper.size(),
@@ -823,55 +822,45 @@ constraint(prisms) {
                                             $*fileNumber(face2node),
                                             $cellPlan,
                                             $nodeTag
-                                            );
+                                            ) ;
 
+    std::vector<Prism*> cells ; // collected according to cellPlan1
+    aCell->resplit($balancedCellPlan1, node_list, edge_list, qface_list, gface_list, cells) ;
 
+    // re-collect leaves according to tree structure
+    std::list<Prism*> leaves ;
+    aCell->sort_leaves(leaves) ;
 
-
-
-
-
-
-    std::vector<Prism*> cells;//collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1,
-                    node_list,
-                    edge_list,
-                    qface_list,
-                    gface_list,
-                    cells);
-    //recollect leaves according to tree structure
-    std::list<Prism*> leaves;
-    aCell->sort_leaves(leaves);
-    //first if any cell need derefine
-    std::set<Prism*> dparents;
-    for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++){
-      if((*li)->get_tagged() ==2){
-        Prism* parent = (*li)->getParentCell();
-        if(parent!=0 && parent->needDerefine()){
-          dparents.insert(parent);
+    // first if any cell need derefine
+    std::set<Prism*> dparents ;
+    for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++) {
+      if((*li)->get_tagged() ==2) {
+        Prism* parent = (*li)->getParentCell() ;
+        if(parent!=0 && parent->needDerefine()) {
+          dparents.insert(parent) ;
         }
       }
     }
 
-    //derefine the cells
-    for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
-      (*si)->derefine();
+    // derefine the cells
+    for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
+      (*si)->derefine() ;
     }
 
+    $balancedCellPlan = aCell->make_cellplan() ;
 
-    $balancedCellPlan = aCell->make_cellplan();
-
-
-    if(aCell != 0){
-      delete aCell;
-      aCell = 0;
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
     }
-    cleanup_list(node_list, edge_list, qface_list);
-    cleanup_list(bnode_list);
-    cleanup_list(gface_list);
-    reduce_vector($balancedCellPlan);
+    cleanup_list(node_list, edge_list, qface_list) ;
+    cleanup_list(bnode_list) ;
+    cleanup_list(gface_list) ;
+    reduce_vector($balancedCellPlan) ;
   }
 }
+
+
 //-----------------------------------------------------------------------------
 // Rules for prism-cell derefinement from cell tags
 //-----------------------------------------------------------------------------
@@ -885,19 +874,14 @@ prism2face, prism2node, prismOrientCode, isIndivisible,
 (lower, upper, boundary_map)->face2edge->edge2node->pos,
 (lower, upper, boundary_map)->face2edge->(edgePlan, balancedEdgePlan1)),
 constraint(prisms) {
-  //dummy parameter to trick Loci scheduler
+  // dummy parameter to trick Loci scheduler
 
   if(!$isIndivisible){
-    std::list<Node*> node_list;
-    std::list<Edge*> edge_list;
-    std::list<QuadFace*> qface_list;
-    std::list<Face*> gface_list;
-    std::list<Node*> bnode_list;
-
-
-
-
-
+    std::list<Node*> node_list ;
+    std::list<Edge*> edge_list ;
+    std::list<QuadFace*> qface_list ;
+    std::list<Face*> gface_list ;
+    std::list<Node*> bnode_list ;
 
     Prism* aCell = build_resplit_prism_cell_ctag($lower.begin(), $lower.size(),
                                                  $upper.begin(), $upper.size(),
@@ -921,52 +905,41 @@ constraint(prisms) {
                                                  $*fileNumber(face2node),
                                                  $cellPlan,
                                                  $fineCellTag
-                                                 );
+                                                 ) ;
 
+    std::vector<Prism*> cells ; // collected according to cellPlan1
+    aCell->resplit( $balancedCellPlan1, node_list, edge_list, qface_list, gface_list, cells) ;
 
+    // re-collect leaves according to tree structure
+    std::list<Prism*> leaves ;
+    aCell->sort_leaves(leaves) ;
 
-
-
-
-
-
-    std::vector<Prism*> cells;//collected according to cellPlan1
-    aCell->resplit( $balancedCellPlan1,
-                    node_list,
-                    edge_list,
-                    qface_list,
-                    gface_list,
-                    cells);
-    //recollect leaves according to tree structure
-    std::list<Prism*> leaves;
-    aCell->sort_leaves(leaves);
-    //first if any cell need derefine
-    std::set<Prism*> dparents;
-    for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++){
-      if((*li)->getTag() ==2){
-        Prism* parent = (*li)->getParentCell();
-        if(parent!=0 && parent->needDerefine_ctag()){
-          dparents.insert(parent);
+    // first if any cell need derefine
+    std::set<Prism*> dparents ;
+    for(std::list<Prism*>::const_iterator li = leaves.begin(); li != leaves.end(); li++) {
+      if((*li)->getTag() == 2) {
+        Prism* parent = (*li)->getParentCell() ;
+        if(parent!=0 && parent->needDerefine_ctag()) {
+          dparents.insert(parent) ;
         }
       }
     }
 
-    //derefine the cells
-    for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++){
-      (*si)->derefine();
+    // derefine the cells
+    for(std::set<Prism*>::const_iterator si = dparents.begin(); si!= dparents.end(); si++) {
+      (*si)->derefine() ;
     }
 
+    $balancedCellPlan = aCell->make_cellplan() ;
 
-    $balancedCellPlan = aCell->make_cellplan();
-
-
-    if(aCell != 0){
-      delete aCell;
-      aCell = 0;
+    if(aCell != 0) {
+      delete aCell ;
+      aCell = 0 ;
     }
-    cleanup_list(node_list, edge_list, qface_list);
-    cleanup_list(bnode_list);
-    cleanup_list(gface_list);
-    reduce_vector($balancedCellPlan);
+
+    cleanup_list(node_list, edge_list, qface_list) ;
+    cleanup_list(bnode_list) ;
+    cleanup_list(gface_list) ;
+    reduce_vector($balancedCellPlan) ;
   }
 }

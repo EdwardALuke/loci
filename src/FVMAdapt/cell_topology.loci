@@ -48,450 +48,516 @@ Array<Entity, 5> collect_prism_faces( const Entity* lower, int lower_size,
 // Rules for hexahedral-cell topology
 //-----------------------------------------------------------------------------
 
-/* create_hexcellmaps
-   * Create an ordering for the faces and nodes of a hex cell.
-   *
-   * hex2face	This is an array of 6 integers which give an ordering
-   *		to the entities which appear in the cell2face map.
-   *		This ordering explicity maps the faces to the local
-   *		coordinates of the hex cell as follows.
-   *			0	xi = 1
-   *			1	xi  = 0
-   *			2	eta   = 1
-   *			3	eta   =  0
-   *			4	zeta  =  1
-   *			5	zeta =  0
-   *
-   * hex2node	This is an array of 8 integers which give an ordering
-   *		to the entities which appear in the face2node maps
-   *		of hex2face[4] and hex2face[5].  The  entries 0, 2, 4, 6
-   *		refer to nodes of hex2face[5] (zeta=0), while the entries
-   *		1, 3, ,5 7 refer to nodes of hex2face[4] (zeta=1).
-   *		This ordering explicitly maps the nodes to the local
-   *		coordinates of the hex cell as follows.
-   *			0	(0, 0, 0)
-   *			1	( 0, 0, 1)
-   *			2	(0,  1, 0)
-   *			3	( 0,  1, 1)
-   *			4	(1, 0,  0)
-   *			5	(1, 0,  1)
-   *			6	(1,  1,  0)
-   *			7	( 1,  1,  1)
-   */
-/** lower:	Mapping from cells to faces */
-/** upper:	Mapping from cells to faces */
-/** boundary_map: Mapping from cells to faces */
-/** f2n:	Mapping from faces to nodes */
+// create_hexcellmaps
+// Create an ordering for the faces and nodes of a hex cell.
+//
+//  hex2face	This is an array of 6 integers which give an ordering
+//  to the entities which appear in the cell2face map.
+//  This ordering explicity maps the faces to the local
+//  coordinates of the hex cell as follows.
+//  0	xi = 1
+//  1	xi  = 0
+//  2	eta   = 1
+//  3	eta   =  0
+//  4	zeta  =  1
+//  5	zeta =  0
+//
+//  hex2node	This is an array of 8 integers which give an ordering
+//  to the entities which appear in the face2node maps
+//  of hex2face[4] and hex2face[5].  The  entries 0, 2, 4, 6
+//  refer to nodes of hex2face[5] (zeta=0), while the entries
+//  1, 3, ,5 7 refer to nodes of hex2face[4] (zeta=1).
+//  This ordering explicitly maps the nodes to the local
+//  coordinates of the hex cell as follows.
+//  0	(0, 0, 0)
+//  1	( 0, 0, 1)
+//  2	(0,  1, 0)
+//  3	( 0,  1, 1)
+//  4	(1, 0,  0)
+//  5	(1, 0,  1)
+//  6	(1,  1,  0)
+//  7	( 1,  1,  1)
+
+
+/// Build the local face and node orderings and face-orientation codes for each
+/// hexahedral cell.
 $rule pointwise(hexOrientCode, hex2face, hex2node <-
 (upper, lower, boundary_map)->(face2node, fileNumber(face2node))),
 constraint(hexcells) {
   // Collect the entity designations of all nodes in the nodes array
-  Entity nodes[8];
-  for(size_t i=0;i<8;++i)
+  Entity nodes[8] ;
+  for(size_t i=0; i<8; ++i) {
     nodes[i] = 0 ;
+  }
 
   // Collect the entity designations of all faces in the faces array
-  Entity faces[6];
+  Entity faces[6] ;
+
   // Determine the relative orientations of the faces
-  char orient[6];
-  //first create vectors for reordering
-  vector<Entity> vlower($lower.size());
-  vector<Entity> vupper($upper.size());
-  vector<Entity> vboundary_map($boundary_map.size());
-  int nf =0;
-  for (int f=0; f<$lower.size(); f++) vlower[nf++] =$lower[f];
-  nf =0;
-  for (int f=0; f<$upper.size(); f++) vupper[nf++] =$upper[f];
-  nf =0;
-  for (int f=0; f<$boundary_map.size(); f++) vboundary_map[nf++] =$boundary_map[f];
-  reorder_faces($*fileNumber(face2node), vlower, vupper, vboundary_map);
+  char orient[6] ;
+
+  // first create vectors for reordering
+  vector<Entity> vlower($lower.size()) ;
+  vector<Entity> vupper($upper.size()) ;
+  vector<Entity> vboundary_map($boundary_map.size()) ;
+  int nf=0 ;
+  for(int f=0; f<$lower.size(); f++) {
+    vlower[nf++] =$lower[f] ;
+  }
+
+  nf=0 ;
+  for(int f=0; f<$upper.size(); f++) {
+    vupper[nf++] =$upper[f] ;
+  }
+
+  nf=0 ;
+  for(int f=0; f<$boundary_map.size(); f++) {
+    vboundary_map[nf++] =$boundary_map[f] ;
+  }
+  reorder_faces($*fileNumber(face2node), vlower, vupper, vboundary_map) ;
 
   // Initialize topology deduction data structures
-  //this piece of code should work for parallel sine entityset not used
-  nf=0;
-  for (int f=0; f<$lower.size(); f++) {
-	orient[nf] = 'r';
-	$hex2face[nf] = f;
-	$hexOrientCode[nf] = 0;
-	faces[nf++] = vlower[f];
-  }
-  for (int f=0; f<$upper.size(); f++) {
-	orient[nf] = 'l';
-	$hex2face[nf] = f + 6;
-	$hexOrientCode[nf] = 0;
-	faces[nf++] = vupper[f];
-  }
-  for (int f=0; f<$boundary_map.size(); f++) {
-	orient[nf] = 'l';
-	$hex2face[nf] = f + 12;
-	$hexOrientCode[nf] = 0;
-	faces[nf++] = vboundary_map[f];
+  // this piece of code should work for parallel sine entityset not used
+  nf=0 ;
+  for(int f=0; f<$lower.size(); f++) {
+	  orient[nf] = 'r' ;
+	  $hex2face[nf] = f ;
+	  $hexOrientCode[nf] = 0 ;
+	  faces[nf++] = vlower[f] ;
   }
 
+  for(int f=0; f<$upper.size(); f++) {
+	  orient[nf] = 'l' ;
+	  $hex2face[nf] = f + 6 ;
+	  $hexOrientCode[nf] = 0 ;
+	  faces[nf++] = vupper[f] ;
+  }
 
+  for(int f=0; f<$boundary_map.size(); f++) {
+	  orient[nf] = 'l' ;
+	  $hex2face[nf] = f + 12 ;
+	  $hexOrientCode[nf] = 0 ;
+	  faces[nf++] = vboundary_map[f] ;
+  }
 
   // The first node of faces[0] will be nodes[0]
-  nodes[0] = $*face2node[faces[0]][0];
-  $hex2node[0] = 0;
+  nodes[0] = $*face2node[faces[0]][0] ;
+  $hex2node[0] = 0 ;
+
   // The third node of faces[0] will be nodes[3]
-  nodes[3] = $*face2node[faces[0]][2];
-  $hex2node[3] = 2;
+  nodes[3] = $*face2node[faces[0]][2] ;
+  $hex2node[3] = 2 ;
+
   // Determine the orientation of the first face.
   // If orient[0]=='r', then faces[0] has an inward facing normal.
   if (orient[0] == 'r') {
-	// The second node of faces[0] will be nodes[1]
-	nodes[1] = $*face2node[faces[0]][1];
-	$hex2node[1] = 1;
-	// The fourth node of faces[0] will be nodes[2]
-	nodes[2] = $*face2node[faces[0]][3];
-	$hex2node[2] = 3;
-	// Set the rotation parameter to zero (no rotations, no flip)
-	$hexOrientCode[0] = 0; //qh: this is right for DOWN
+	  // The second node of faces[0] will be nodes[1]
+	  nodes[1] = $*face2node[faces[0]][1];
+	  $hex2node[1] = 1;
+
+    // The fourth node of faces[0] will be nodes[2]
+	  nodes[2] = $*face2node[faces[0]][3];
+	  $hex2node[2] = 3;
+	  // Set the rotation parameter to zero (no rotations, no flip)
+	  $hexOrientCode[0] = 0; //qh: this is right for DOWN
+  }else {
+    // Otherwise, it's an outward facing normal, and we need to
+    // reverse the direction of the first four nodes.
+
+    // The fourth node of faces[0] will be nodes[1]
+	  nodes[1] = $*face2node[faces[0]][3];
+	  $hex2node[1] = 3;
+	  // The second node of faces[0] will be nodes[2]
+	  nodes[2] = $*face2node[faces[0]][1];
+	  $hex2node[2] = 1;
+	  // Set the rotation parameter to four (no rotations, one flip)
+	  $hexOrientCode[0] = 4; //qh: this is right for DOWN
   }
-  // Otherwise, it's an outward facing normal, and we need to
-  // reverse the direction of the first four nodes.
-  else {
-	// The fourth node of faces[0] will be nodes[1]
-	nodes[1] = $*face2node[faces[0]][3];
-	$hex2node[1] = 3;
-	// The second node of faces[0] will be nodes[2]
-	nodes[2] = $*face2node[faces[0]][1];
-	$hex2node[2] = 1;
-	// Set the rotation parameter to four (no rotations, one flip)
-	$hexOrientCode[0] = 4; //qh: this is right for DOWN
-  }
+
   // Next, let's flag the other two faces which share nodes[0].
   // First up, faces[1] (eta=-1) will share nodes[0] and nodes[1]
-  for (int f=1; f<6; f++) {
-	for (int n=0; n<4; n++) {
-	  if ($*face2node[faces[f]][n] == nodes[0]) {
-	    // If the next node in the face2node map is nodes[1]
-	    // then this face has an outward facing normal.
-	    if ($*face2node[faces[f]][(n+1)%4] == nodes[1]) {
-	      // Double check our deduction
-	      if (orient[f] != 'l') {
-		cerr << "WARNING[1a]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, one flip)
-          // rot[cc][1] = n + 4;//qh: need change here
-          $hexOrientCode[1] = n ; //qh: if 'l', no flip
-	      // Make this face, faces[1]
-	      std::swap($hex2face[1], $hex2face[f]);
-	      std::swap(faces[1], faces[f]);
-	      std::swap(orient[1], orient[f]);
-	      // Store the other corners of the face in the node list
-	      nodes[5] = $*face2node[faces[1]][(n+2)%4];
-	      nodes[4] = $*face2node[faces[1]][(n+3)%4];
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	    // If the previous node in the face2node map is nodes[1]
-	    // then this face has an inward facing normal.
-	    else if ($*face2node[faces[f]][(n+3)%4] == nodes[1]) {
-	      // Double check our deduction
-	      if (orient[f] != 'r') {
-		cerr << "WARNING[1A]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, no flip)
-          //  rot[cc][1] = n;//qh: need change here
-          $hexOrientCode[1] = n + 4; //qh: if 'r', flip
-	      // Make this face, faces[1]
-	      std::swap($hex2face[1], $hex2face[f]);
-	      std::swap(faces[1], faces[f]);
-	      std::swap(orient[1], orient[f]);
-	      // Store the other corners of the face in the node list
-	      nodes[5] = $*face2node[faces[1]][(n+2)%4];
-	      nodes[4] = $*face2node[faces[1]][(n+1)%4];
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	  }
-	}
+  for(int f=1; f<6; f++) {
+    for(int n=0; n<4; n++) {
+      if($*face2node[faces[f]][n] == nodes[0]) {
+        // If the next node in the face2node map is nodes[1]
+        // then this face has an outward facing normal.
+        if($*face2node[faces[f]][(n+1)%4] == nodes[1]) {
+          // Double check our deduction
+          if (orient[f] != 'l') {
+            cerr << "WARNING[1a]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // (n rotations, one flip)
+          // rot[cc][1] = n + 4 ; // qh: need change here
+          $hexOrientCode[1] = n ; // qh: if 'l', no flip
+
+          // Make this face, faces[1]
+          std::swap($hex2face[1], $hex2face[f]) ;
+          std::swap(faces[1], faces[f]) ;
+          std::swap(orient[1], orient[f]) ;
+
+          // Store the other corners of the face in the node list
+          nodes[5] = $*face2node[faces[1]][(n+2)%4] ;
+          nodes[4] = $*face2node[faces[1]][(n+3)%4] ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }else if($*face2node[faces[f]][(n+3)%4] == nodes[1]) {
+          // If the previous node in the face2node map is nodes[1]
+          // then this face has an inward facing normal.
+
+          // Double check our deduction
+          if (orient[f] != 'r') {
+            cerr << "WARNING[1A]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+          // (n rotations, no flip)
+          // rot[cc][1] = n ; // qh: need change here
+          $hexOrientCode[1] = n + 4 ; // qh: if 'r', flip
+
+          // Make this face, faces[1]
+          std::swap($hex2face[1], $hex2face[f]) ;
+          std::swap(faces[1], faces[f]) ;
+          std::swap(orient[1], orient[f]) ;
+
+          // Store the other corners of the face in the node list
+          nodes[5] = $*face2node[faces[1]][(n+2)%4] ;
+          nodes[4] = $*face2node[faces[1]][(n+1)%4] ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }
+      }
+    }
   }
+
   // Next, faces[2] (xi=-1) will share nodes[0] and nodes[2]
-  for (int f=2; f<6; f++) {
-	for (int n=0; n<4; n++) {
-	  if ($*face2node[faces[f]][n] == nodes[0]) {
-	    // If the next node in the face2node map is nodes[2]
-	    // then this face has an inward facing normal.
-	    if ($*face2node[faces[f]][(n+1)%4] == nodes[2]) {
-	      // Double check our deduction
-	      if (orient[f] != 'r') {
-		cerr << "WARNING[2a]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[4] is also shared with faces[1]
-	      if ($*face2node[faces[f]][(n+3)%4] != nodes[4]) {
-		cerr << "WARNING[2b]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, no flip)
-	      $hexOrientCode[2] = n;
-	      // Make this face, faces[2]
-	      std::swap($hex2face[2], $hex2face[f]);
-	      std::swap(faces[2], faces[f]);
-	      std::swap(orient[2], orient[f]);
-	      // Store the remaining corner of this face in the node list
-	      nodes[6] = $*face2node[faces[2]][(n+2)%4];
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	    // If the previous node in the face2node map is nodes[2]
-	    // then this face has an outward facing normal.
-	    else if ($*face2node[faces[f]][(n+3)%4] == nodes[2]) {
-	      // Double check our deduction
-	      if (orient[f] != 'l') {
-		cerr << "WARNING[2A]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[4] is also shared with faces[1]
-	      if ($*face2node[faces[f]][(n+1)%4] != nodes[4]) {
-		cerr << "WARNING[2B]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, one flip)
-	      $hexOrientCode[2] = n + 4;
-	      // Make this face, faces[2]
-	      std::swap($hex2face[2], $hex2face[f]);
-	      std::swap(faces[2], faces[f]);
-	      std::swap(orient[2], orient[f]);
-	      // Store the remaining corner of this face in the node list
-	      nodes[6] = $*face2node[faces[2]][(n+2)%4];
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	  }
-	}
+  for(int f=2; f<6; f++) {
+    for(int n=0; n<4; n++) {
+      if($*face2node[faces[f]][n] == nodes[0]) {
+        // If the next node in the face2node map is nodes[2]
+        // then this face has an inward facing normal.
+        if($*face2node[faces[f]][(n+1)%4] == nodes[2]) {
+          // Double check our deduction
+          if(orient[f] != 'r') {
+            cerr << "WARNING[2a]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[4] is also shared with faces[1]
+          if($*face2node[faces[f]][(n+3)%4] != nodes[4]) {
+            cerr << "WARNING[2b]: Coincident node test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // (n rotations, no flip)
+          $hexOrientCode[2] = n ;
+
+          // Make this face, faces[2]
+          std::swap($hex2face[2], $hex2face[f]) ;
+          std::swap(faces[2], faces[f]) ;
+          std::swap(orient[2], orient[f]) ;
+
+          // Store the remaining corner of this face in the node list
+          nodes[6] = $*face2node[faces[2]][(n+2)%4] ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }else if($*face2node[faces[f]][(n+3)%4] == nodes[2]) {
+          // If the previous node in the face2node map is nodes[2]
+          // then this face has an outward facing normal.
+
+          // Double check our deduction
+          if(orient[f] != 'l') {
+            cerr << "WARNING[2A]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[4] is also shared with faces[1]
+          if($*face2node[faces[f]][(n+1)%4] != nodes[4]) {
+            cerr << "WARNING[2B]: Coincident node test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // (n rotations, one flip)
+          $hexOrientCode[2] = n + 4 ;
+
+          // Make this face, faces[2]
+          std::swap($hex2face[2], $hex2face[f]) ;
+          std::swap(faces[2], faces[f]) ;
+          std::swap(orient[2], orient[f]) ;
+
+          // Store the remaining corner of this face in the node list
+          nodes[6] = $*face2node[faces[2]][(n+2)%4] ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }
+      }
+    }
   }
+
   // Now, faces[3] (xi=1) which will share nodes[1] and nodes[3]
-  for (int f=3; f<6; f++) {
-	for (int n=0; n<4; n++) {
-	  if ($*face2node[faces[f]][n] == nodes[1]) {
-	    // If the next node in the face2node map is nodes[3]
-	    // then this face has an outward facing normal
-	    if ($*face2node[faces[f]][(n+1)%4] == nodes[3]) {
-	      // Double check our deduction
-	      if (orient[f] != 'l') {
-		cerr << "WARNING[3a]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[5] is also shared with faces[1]
-	      if ($*face2node[faces[f]][(n+3)%4] != nodes[5]) {
-		cerr << "WARNING[3b]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, no flip)
-	      $hexOrientCode[3] = n;
-	      // Make this face, faces[3]
-	      std::swap($hex2face[3], $hex2face[f]);
-	      std::swap(faces[3], faces[f]);
-	      std::swap(orient[3], orient[f]);
-	      // Store the opposite corner in nodes[7]
-	      nodes[7] = $*face2node[faces[3]][(n+2)%4];
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	    // Otherwise the normal is inward facing
-	    else if ($*face2node[faces[f]][(n+3)%4] == nodes[3]) {
-	      // Double check our deduction
-	      if (orient[f] != 'r') {
-		cerr << "WARNING[3A]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[5] is also shared with faces[1]
-	      if ($*face2node[faces[f]][(n+1)%4] != nodes[5]) {
-		cerr << "WARNING[3B]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, one flip)
-	      $hexOrientCode[3] = n + 4;
-	      // Make this face, faces[3]
-	      std::swap($hex2face[3], $hex2face[f]);
-	      std::swap(faces[3], faces[f]);
-	      std::swap(orient[3], orient[f]);
-	      // Store the opposite corner in nodes[7]
-	      nodes[7] = $*face2node[faces[3]][(n+2)%4];
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	  }
-	}
+  for(int f=3; f<6; f++) {
+    for(int n=0; n<4; n++) {
+      if($*face2node[faces[f]][n] == nodes[1]) {
+        // If the next node in the face2node map is nodes[3]
+        // then this face has an outward facing normal
+        if($*face2node[faces[f]][(n+1)%4] == nodes[3]) {
+          // Double check our deduction
+          if(orient[f] != 'l') {
+            cerr << "WARNING[3a]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[5] is also shared with faces[1]
+          if($*face2node[faces[f]][(n+3)%4] != nodes[5]) {
+            cerr << "WARNING[3b]: Coincident node test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // (n rotations, no flip)
+          $hexOrientCode[3] = n ;
+
+          // Make this face, faces[3]
+          std::swap($hex2face[3], $hex2face[f]) ;
+          std::swap(faces[3], faces[f]) ;
+          std::swap(orient[3], orient[f]) ;
+
+          // Store the opposite corner in nodes[7]
+          nodes[7] = $*face2node[faces[3]][(n+2)%4] ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }else if($*face2node[faces[f]][(n+3)%4] == nodes[3]) {
+          // Otherwise the normal is inward facing
+
+          // Double check our deduction
+          if(orient[f] != 'r') {
+            cerr << "WARNING[3A]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[5] is also shared with faces[1]
+          if($*face2node[faces[f]][(n+1)%4] != nodes[5]) {
+            cerr << "WARNING[3B]: Coincident node test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // (n rotations, one flip)
+          $hexOrientCode[3] = n + 4 ;
+
+          // Make this face, faces[3]
+          std::swap($hex2face[3], $hex2face[f]) ;
+          std::swap(faces[3], faces[f]) ;
+          std::swap(orient[3], orient[f]) ;
+
+          // Store the opposite corner in nodes[7]
+          nodes[7] = $*face2node[faces[3]][(n+2)%4] ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }
+      }
+    }
   }
+
   // And faces[4] (eta=1) which will share nodes[2] and nodes[3]
-  for (int f=4; f<6; f++) {
-	for (int n=0; n<4; n++) {
-	  if ($*face2node[faces[f]][n] == nodes[2]) {
-	    // If the next node in the face2node map is nodes[3]
-	    // then this face has an inward facing normal
-	    if ($*face2node[faces[f]][(n+1)%4] == nodes[3]) {
-	      // Double check our deduction
-	      if (orient[f] != 'r') {
-		cerr << "WARNING[4a]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[6] is also shared with faces[2]
-	      if ($*face2node[faces[f]][(n+3)%4] != nodes[6]) {
-		cerr << "WARNING[4b]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[7] is also shared with faces[3]
-	      if ($*face2node[faces[f]][(n+2)%4] != nodes[7]) {
-		cerr << "WARNING[4c]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, one flip)
-          // rot[cc][4] = n + 4; //qh:change here
-          $hexOrientCode[4] = n;//qh: for FRONT face, if'r', no flip
-	      // Make this face, faces[4]
-	      std::swap($hex2face[4], $hex2face[f]);
-	      std::swap(faces[4], faces[f]);
-	      std::swap(orient[4], orient[f]);
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	    // Otherwise the normal is outward facing
-	    else if ($*face2node[faces[f]][(n+3)%4] == nodes[3]) {
-	      // Double check our deduction
-	      if (orient[f] != 'l') {
-		cerr << "WARNING[4A]: Face orientation test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[6] is also shared with faces[2]
-	      if ($*face2node[faces[f]][(n+1)%4] != nodes[6]) {
-		cerr << "WARNING[4B]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // nodes[7] is also shared with faces[3]
-	      if ($*face2node[faces[f]][(n+2)%4] != nodes[7]) {
-		cerr << "WARNING[4C]: Coincident node test failed!" << endl;
-		throw -1;
-	      }
-	      // (n rotations, no flip)
-	      //rot[cc][4] = n; //qh:need change here
-          $hexOrientCode[4] = n + 4; //qh: for FRONT face, if 'l', flip
-	      // Make this face, faces[4]
-	      std::swap($hex2face[4], $hex2face[f]);
-	      std::swap(faces[4], faces[f]);
-	      std::swap(orient[4], orient[f]);
-	      // Expedite the exit from these loops
-	      n = 4;
-	      f = 6;
-	    }
-	  }
-	}
+  for(int f=4; f<6; f++) {
+    for(int n=0; n<4; n++) {
+      if($*face2node[faces[f]][n] == nodes[2]) {
+        // If the next node in the face2node map is nodes[3]
+        // then this face has an inward facing normal
+        if($*face2node[faces[f]][(n+1)%4] == nodes[3]) {
+          // Double check our deduction
+          if(orient[f] != 'r') {
+            cerr << "WARNING[4a]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[6] is also shared with faces[2]
+          if($*face2node[faces[f]][(n+3)%4] != nodes[6]) {
+            cerr << "WARNING[4b]: Coincident node test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[7] is also shared with faces[3]
+          if($*face2node[faces[f]][(n+2)%4] != nodes[7]) {
+            cerr << "WARNING[4c]: Coincident node test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // (n rotations, one flip)
+          // rot[cc][4] = n + 4 ; // qh:change here
+          $hexOrientCode[4] = n ; // qh: for FRONT face, if'r', no flip
+
+          // Make this face, faces[4]
+          std::swap($hex2face[4], $hex2face[f]) ;
+          std::swap(faces[4], faces[f]) ;
+          std::swap(orient[4], orient[f]) ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }else if($*face2node[faces[f]][(n+3)%4] == nodes[3]) {
+          // Otherwise the normal is outward facing
+
+          // Double check our deduction
+          if(orient[f] != 'l') {
+            cerr << "WARNING[4A]: Face orientation test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[6] is also shared with faces[2]
+          if($*face2node[faces[f]][(n+1)%4] != nodes[6]) {
+            cerr << "WARNING[4B]: Coincident node test failed!" << endl ;
+            throw -1 ;
+          }
+
+          // nodes[7] is also shared with faces[3]
+          if($*face2node[faces[f]][(n+2)%4] != nodes[7]) {
+            cerr << "WARNING[4C]: Coincident node test failed!" << endl;
+            throw -1;
+          }
+
+          // (n rotations, no flip)
+          //rot[cc][4] = n ; // qh:need change here
+          $hexOrientCode[4] = n + 4 ; // qh: for FRONT face, if 'l', flip
+
+          // Make this face, faces[4]
+          std::swap($hex2face[4], $hex2face[f]) ;
+          std::swap(faces[4], faces[f]) ;
+          std::swap(orient[4], orient[f]) ;
+
+          // Expedite the exit from these loops
+          n = 4 ;
+          f = 6 ;
+        }
+      }
+    }
   }
+
   // And finally faces[5] (zeta=1), should be the only one remaining
-  for (int n=0; n<4; n++) {
-	// faces[5] should share nodes[4], nodes[5], nodes[6], and nodes[7]
-	if ($*face2node[faces[5]][n] == nodes[4]) {
-	  // If the next node in the face2node map is nodes[5]
-	  // then this face has an outward facing normal
-	  if ($*face2node[faces[5]][(n+1)%4] == nodes[5]) {
-	    // Double check our deduction
-	    if (orient[5] != 'l') {
-	      cerr << "WARNING[5a]: Face orientation test failed!" << endl;
-	      throw -1;
-	    }
-	    // nodes[6] is also shared with faces[2]
-	    if ($*face2node[faces[5]][(n+3)%4] != nodes[6]) {
-	      cerr << "WARNING[5b]: Coincident node test failed!" << endl;
-	      throw -1;
-	    }
-	    // nodes[7] is also shared with faces[3]
-	    if ($*face2node[faces[5]][(n+2)%4] != nodes[7]) {
-	      cerr << "WARNING[5c]: Coincident node test failed!" << endl;
-	      throw -1;
-	    }
-	    // (n rotations, no flip)
-	    $hexOrientCode[5] = n;
-	    // Node n of faces[5] is nodes[4]
-        // hex2node[cc][4] = 5*8 + n;//qh:
-        $hex2node[4] =  n;//qh: changed next 4 lines
-	    // Node (n+1)%4 of faces[5] is nodes[5]
-	    $hex2node[5] =  (n+1)%4;
-	    // Node (n+2)%4 of faces[5] is nodes[7]
-	    $hex2node[7] = (n+2)%4;
-	    // Node (n+3)%4 of faces[5] is nodes[6]
-	    $hex2node[6] =  (n+3)%4;
-	  }
-	  // Otherwise the normal is inward facing
-	  else if ($*face2node[faces[5]][(n+3)%4] == nodes[5]) {
-	    // Double check our deduction
-	    if (orient[5] != 'r') {
-	      cerr << "WARNING[5A]: Face orientation test failed!" << endl;
-	      throw -1;
-	    }
-	    // nodes[6] is also shared with faces[2]
-	    if ($*face2node[faces[5]][(n+1)%4] != nodes[6]) {
-	      cerr << "WARNING[5B]: Coincident node test failed!" << endl;
-	      throw -1;
-	    }
-	    // nodes[7] is also shared with faces[3]
-	    if ($*face2node[faces[5]][(n+2)%4] != nodes[7]) {
-	      cerr << "WARNING[5C]: Coincident node test failed!" << endl;
-	      throw -1;
-	    }
-	    // (n rotations, one flip)
-	    $hexOrientCode[5] = n + 4;
-	    // Node n of faces[5] is nodes[4]
-        // hex2node[cc][4] = 5*8 + n;//qh:
-        $hex2node[4] =  n; //qh: changed next 4 lines
-	    // Node (n+1)%4 of faces[5] is nodes[6]
-	    $hex2node[6] =  (n+1)%4;
-	    // Node (n+2)%4 of faces[5] is nodes[7]
-	    $hex2node[7] =  (n+2)%4;
-	    // Node (n+3)%4 of faces[5] is nodes[5]
-	    $hex2node[5] =  (n+3)%4;
-	  }
-	}
+  for(int n=0; n<4; n++) {
+    // faces[5] should share nodes[4], nodes[5], nodes[6], and nodes[7]
+    if($*face2node[faces[5]][n] == nodes[4]) {
+      // If the next node in the face2node map is nodes[5]
+      // then this face has an outward facing normal
+      if($*face2node[faces[5]][(n+1)%4] == nodes[5]) {
+        // Double check our deduction
+        if(orient[5] != 'l') {
+          cerr << "WARNING[5a]: Face orientation test failed!" << endl ;
+          throw -1 ;
+        }
 
+        // nodes[6] is also shared with faces[2]
+        if($*face2node[faces[5]][(n+3)%4] != nodes[6]) {
+          cerr << "WARNING[5b]: Coincident node test failed!" << endl ;
+          throw -1 ;
+        }
+
+        // nodes[7] is also shared with faces[3]
+        if($*face2node[faces[5]][(n+2)%4] != nodes[7]) {
+          cerr << "WARNING[5c]: Coincident node test failed!" << endl ;
+          throw -1 ;
+        }
+
+        // (n rotations, no flip)
+        $hexOrientCode[5] = n ;
+
+        // Node n of faces[5] is nodes[4]
+        // hex2node[cc][4] = 5*8 + n ; // qh:
+        $hex2node[4] =  n ; // qh: changed next 4 lines
+
+        // Node (n+1)%4 of faces[5] is nodes[5]
+        $hex2node[5] = (n+1)%4 ;
+
+        // Node (n+2)%4 of faces[5] is nodes[7]
+        $hex2node[7] = (n+2)%4 ;
+
+        // Node (n+3)%4 of faces[5] is nodes[6]
+        $hex2node[6] = (n+3)%4 ;
+      }else if($*face2node[faces[5]][(n+3)%4] == nodes[5]) {
+        // Otherwise the normal is inward facing
+
+        // Double check our deduction
+        if(orient[5] != 'r') {
+          cerr << "WARNING[5A]: Face orientation test failed!" << endl ;
+          throw -1 ;
+        }
+
+        // nodes[6] is also shared with faces[2]
+        if($*face2node[faces[5]][(n+1)%4] != nodes[6]) {
+          cerr << "WARNING[5B]: Coincident node test failed!" << endl ;
+          throw -1 ;
+        }
+
+        // nodes[7] is also shared with faces[3]
+        if($*face2node[faces[5]][(n+2)%4] != nodes[7]) {
+          cerr << "WARNING[5C]: Coincident node test failed!" << endl ;
+          throw -1 ;
+        }
+
+        // (n rotations, one flip)
+        $hexOrientCode[5] = n + 4 ;
+
+        // Node n of faces[5] is nodes[4]
+        // hex2node[cc][4] = 5*8 + n ; // qh:
+        $hex2node[4] =  n ; // qh: changed next 4 lines
+
+        // Node (n+1)%4 of faces[5] is nodes[6]
+        $hex2node[6] = (n+1)%4 ;
+
+        // Node (n+2)%4 of faces[5] is nodes[7]
+        $hex2node[7] = (n+2)%4 ;
+
+        // Node (n+3)%4 of faces[5] is nodes[5]
+        $hex2node[5] = (n+3)%4 ;
+      }
+    }
   }
 
-        //qh:: switch to my numbering system
-  Array<char, 6>h2f_temp;
-  h2f_temp = $hex2face;
-  Array<char, 6> rot_temp;
-  rot_temp = $hexOrientCode;
+  // qh:: switch to my numbering system
+  Array<char, 6>h2f_temp ;
+  h2f_temp = $hex2face ;
+  Array<char, 6> rot_temp ;
+  rot_temp = $hexOrientCode ;
 
-  $hex2face[0] = h2f_temp[3];
-  $hexOrientCode[0] = rot_temp[3];
+  $hex2face[0] = h2f_temp[3] ;
+  $hexOrientCode[0] = rot_temp[3] ;
 
-  $hex2face[1] = h2f_temp[2];
-  $hexOrientCode[1] = rot_temp[2];
+  $hex2face[1] = h2f_temp[2] ;
+  $hexOrientCode[1] = rot_temp[2] ;
 
-  $hex2face[2] = h2f_temp[4];
-  $hexOrientCode[2] = rot_temp[4];
+  $hex2face[2] = h2f_temp[4] ;
+  $hexOrientCode[2] = rot_temp[4] ;
 
-  $hex2face[3] = h2f_temp[1];
-  $hexOrientCode[3] = rot_temp[1];
+  $hex2face[3] = h2f_temp[1] ;
+  $hexOrientCode[3] = rot_temp[1] ;
 
-  $hex2face[4] = h2f_temp[5];
-  $hexOrientCode[4] = rot_temp[5];
+  $hex2face[4] = h2f_temp[5] ;
+  $hexOrientCode[4] = rot_temp[5] ;
 
-  $hex2face[5] = h2f_temp[0];
-  $hexOrientCode[5] = rot_temp[0];
+  $hex2face[5] = h2f_temp[0] ;
+  $hexOrientCode[5] = rot_temp[0] ;
 
   //for print out
-  /*
-  if(true){
-    for (int i = 0; i < 8; i++){
-      hex2node[cc][i] += '0';
-    }
-    for(int i = 0; i < 6; i++){
-      hex2face[cc][i] = hex2face[cc][i]%6 + '0';
-      rot[cc][i] += '0';
-    }
-  }
-  */
+  //if(true){
+  //  for (int i = 0; i < 8; i++){
+  //    hex2node[cc][i] += '0';
+  //  }
+  //  for(int i = 0; i < 6; i++){
+  //    hex2face[cc][i] = hex2face[cc][i]%6 + '0';
+  //    rot[cc][i] += '0';
+  //  }
+  // }
 }
 
 
@@ -503,24 +569,24 @@ constraint(cr->hexcells) {
   Array<Entity, 6> faces = collect_hex_faces($cr->$lower.begin(),$cr->$lower.size(),
                                              $cr->$upper.begin(),$cr->$upper.size(),
                                              $cr->$boundary_map.begin(), $cr->$boundary_map.size(),
-                                             $cr->$hex2face, $*fileNumber(face2node));
+                                             $cr->$hex2face, $*fileNumber(face2node)) ;
 
   // Store the original location of each face entity in faces
-  int f;
-  for ( f=0; f<6; f++) {
-    if ($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
-      $fr = f;
-      break;
+  int f ;
+  for(f=0; f<6; f++) {
+    if($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
+      $fr = f ;
+      break ;
     }
   }
-  if(f ==6){
-    cerr << "WARNING: can not find fr" << endl;
-    Loci::Abort();
+  if(f ==6) {
+    cerr << "WARNING: can not find fr" << endl ;
+    Loci::Abort() ;
   }
-  //for print out
-  /*      if(true){
-    fr[ff] += '0';
-    }*/
+  // for print out
+  //if(true){
+  //  fr[ff] += '0' ;
+  //}
 }
 
 $rule pointwise(fl <- cl->hex2face,
@@ -531,24 +597,24 @@ constraint(cl->hexcells) {
   Array<Entity, 6> faces = collect_hex_faces($cl->$lower.begin(), $cl->$lower.size(),
                                             $cl->$upper.begin(), $cl->$upper.size(),
                                             $cl->$boundary_map.begin(),$cl->$boundary_map.size(),
-                                            $cl->$hex2face,$*fileNumber(face2node));
+                                            $cl->$hex2face,$*fileNumber(face2node)) ;
 
   // Store the original location of each face entity in faces
-  int f;
-  for ( f=0; f<6; f++) {
-    if ($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
-      $fl = f;
-      break;
+  int f ;
+  for(f=0; f<6; f++) {
+    if($*fileNumber(face2node)[_e_] == $*fileNumber(face2node)[faces[f]]) {
+      $fl = f ;
+      break ;
     }
   }
-  if(f ==6){
-    cerr << "WARNING: can not find fl" << endl;
-    Loci::Abort();
+  if(f ==6) {
+    cerr << "WARNING: can not find fl" << endl ;
+    Loci::Abort() ;
   }
   //for print out
-  /* if(true){
-    fl[ff] += '0';
-    }*/
+  //if(true){
+  //  fl[ff] += '0' ;
+  //}
 }
 
 
@@ -588,12 +654,12 @@ constraint(prisms) {
   for(int f=0; f<$boundary_map.size(); f++) { vboundary_map[nf++] =$boundary_map[f] ; }
   reorder_faces($*fileNumber(face2node), vlower, vupper, vboundary_map) ;
 
-
   // Collect the entity designations of all nodes in the nodes array
   Entity nodes[6] ;
   for(size_t i=0; i<6; ++i) {
     nodes[i] = 0 ;
   }
+
   // Collect the entity designations of all faces in the faces array
   Entity trifaces[2] ;
   Entity quadfaces[3] ;
@@ -671,7 +737,6 @@ constraint(prisms) {
   nodes[0] = $*face2node[trifaces[0]][0] ;
   $prism2node[0] = 0 ;
 
-
   // Determine the orientation of the first face.
   // If orient[0]=='r', then faces[0] has an inward facing normal.
   if(orient_tri[0] == 'r') {
@@ -708,12 +773,13 @@ constraint(prisms) {
       if($*face2node[quadfaces[f]][n] == nodes[0]) {
         // If the next node in the face2node map is nodes[1]
         // then this face has an outward facing normal.
-        if ($*face2node[quadfaces[f]][(n+1)%4] == nodes[1]) {
+        if($*face2node[quadfaces[f]][(n+1)%4] == nodes[1]) {
           // Double check our deduction
-          if (orient_quad[f] != 'l') {
+          if(orient_quad[f] != 'l') {
             cerr << "WARNING[1a]: Face orientation test failed!" << endl ;
             throw -1 ;
           }
+
           // (n rotations)
           quadrot[0] = n ; // no flip
 
@@ -734,11 +800,11 @@ constraint(prisms) {
           // then this face has an inward facing normal.
 
           // Double check our deduction
-          if (orient_quad[f] != 'r') {
+          if(orient_quad[f] != 'r') {
             cerr << "WARNING[1A]: Face orientation test failed!" << endl ;
             throw -1 ;
           }
-          quadrot[0] = n + 4 ; //qh: if 'r', flip
+          quadrot[0] = n + 4 ; // qh: if 'r', flip
 
           // Make this face, faces[1]
           std::swap(prism2quadface[0], prism2quadface[f]) ;
@@ -765,10 +831,11 @@ constraint(prisms) {
         // then this face has an outward facing normal.
         if($*face2node[quadfaces[f]][(n+1)%4] == nodes[0]) {
           // Double check our deduction
-          if (orient_quad[f] != 'l') {
+          if(orient_quad[f] != 'l') {
             cerr << "WARNING[2a]: Face orientation test failed!" << endl ;
             throw -1 ;
           }
+
           // (n rotations, no flip)
           quadrot[2] = n ;
 
@@ -776,6 +843,7 @@ constraint(prisms) {
           std::swap(prism2quadface[2], prism2quadface[f]) ;
           std::swap(quadfaces[2], quadfaces[f]) ;
           std::swap(orient_quad[2], orient_quad[f]) ;
+
           // Store the remaining corner of this face in the node list
           nodes[3] = $*face2node[quadfaces[2]][(n+2)%4] ;
           nodes[5] = $*face2node[quadfaces[2]][(n+3)%4] ;
@@ -788,7 +856,7 @@ constraint(prisms) {
           // then this face has an inward facing normal.
 
           // Double check our deduction
-          if (orient_quad[f] != 'r') {
+          if(orient_quad[f] != 'r') {
             cerr << "WARNING[2A]: Face orientation test failed!" << endl ;
             throw -1 ;
           }
@@ -820,7 +888,7 @@ constraint(prisms) {
       // then this face has an outward facing normal
       if($*face2node[trifaces[1]][(n+1)%3] == nodes[4]) {
         // Double check our deduction
-        if (orient_tri[1] != 'l') {
+        if(orient_tri[1] != 'l') {
           cerr << "WARNING[4a]: Face orientation test failed!" << endl ;
           throw -1 ;
         }
@@ -832,7 +900,7 @@ constraint(prisms) {
 
         // (n rotations, no flip)
         trirot[1] = n ;
-        $prism2node[3] = n ; //qh: changed next 4 lines
+        $prism2node[3] = n ; // qh: changed next 4 lines
         $prism2node[4] = (n+1)%3 ;
         $prism2node[5] = (n+2)%3 ;
         n = 4 ;
@@ -840,12 +908,13 @@ constraint(prisms) {
         // Otherwise the normal is inward facing
 
         // Double check our deduction
-        if (orient_tri[1] != 'r') {
+        if(orient_tri[1] != 'r') {
           cerr << "WARNING[4A]: Face orientation test failed!" << endl ;
           throw -1 ;
         }
+
         // nodes[4] is also shared with trifaces[1]
-        if ($*face2node[trifaces[1]][(n+2)%3] != nodes[4]) {
+        if($*face2node[trifaces[1]][(n+2)%3] != nodes[4]) {
           cerr << "WARNING[4B]: Coincident node test failed!" << endl ;
           throw -1 ;
         }
@@ -891,13 +960,13 @@ constraint(prisms) {
         // Otherwise the normal is inward facing
 
         // Double check our deduction
-        if (orient_quad[1] != 'r') {
+        if(orient_quad[1] != 'r') {
           cerr << "WARNING[5A]: Face orientation test failed!" << endl ;
           throw -1 ;
         }
 
         // nodes[6] is also shared with faces[2]
-        if ($*face2node[quadfaces[1]][(n+2)%4] != nodes[5]) {
+        if($*face2node[quadfaces[1]][(n+2)%4] != nodes[5]) {
           cerr << "WARNING[5B]: Coincident node test failed!" << endl ;
           throw -1 ;
         }
@@ -907,6 +976,7 @@ constraint(prisms) {
           cerr << "WARNING[5C]: Coincident node test failed!" << endl ;
           throw -1 ;
         }
+
         // (n rotations, one flip)
         quadrot[1] = n + 4 ;
       }
@@ -923,7 +993,7 @@ constraint(prisms) {
     $prismOrientCode[i+2] = quadrot[i] ;
   }
 
-  //for print out
+  // for print out
   if(false) {
     cout << "cc " << _e_ << endl ;
     cout << " prism2node: "  ;
@@ -936,6 +1006,7 @@ constraint(prisms) {
       cout << int(prism2triface[i]+ int(0)) << "; " << int(trirot[i]+int(0)) <<  "           " ;
     }
     cout << endl ;
+
     for(int i=0; i<3; i++) {
       cout << int(prism2quadface[i]) << "; " << int(quadrot[i]) <<  "           " ;
     }
@@ -972,6 +1043,7 @@ constraint(cr->prisms) {
   //}
 }
 
+
 $rule pointwise(fl <- cl->prism2face,
 cl->(lower, upper, boundary_map),
 cl->(lower, upper, boundary_map)->fileNumber(face2node)),
@@ -980,7 +1052,7 @@ constraint(cl->prisms) {
   Array<Entity, 5> faces = collect_prism_faces($cl->$lower.begin(), $cl->$lower.size(),
                                                 $cl->$upper.begin(), $cl->$upper.size(),
                                                 $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
-                                                $cl->$prism2face, $*fileNumber(face2node));
+                                                $cl->$prism2face, $*fileNumber(face2node)) ;
 
   // Store the original location of each face entity in faces
   int f ;

@@ -107,27 +107,27 @@ $rule pointwise(isFolded<-face2node->pos), constraint(faces) {
     }
     $isFolded = (maxAngle > Globals::fold) ;
   }
-  //if(isFolded[f]) cerr << " folded face exist " << f << endl;
+  //if(isFolded[f]) cerr << " folded face exist " << f << endl ;
 }
 
 $rule unit(isIndivisible), constraint(geom_cells) {
-  $isIndivisible = false;
+  $isIndivisible = false ;
 }
 
 $rule apply(cl->isIndivisible<-isFolded)[Loci::LogicalOr],
 constraint(interior_faces) {
-  //  join(isIndivisible[cl[f]], isFolded[f]);
-  join($cl->$isIndivisible, $isFolded);
+  //join(isIndivisible[cl[f]], isFolded[f]) ;
+  join($cl->$isIndivisible, $isFolded) ;
 }
 
 $rule apply(cr->isIndivisible<-isFolded)[Loci::LogicalOr],
 constraint(interior_faces) {
-  // join(isIndivisible[cr[f]], isFolded[f]);
-  join($cr->$isIndivisible, $isFolded);
+  //join(isIndivisible[cr[f]], isFolded[f]) ;
+  join($cr->$isIndivisible, $isFolded) ;
 }
 
 $rule apply(cl->isIndivisible<-isFolded)[Loci::LogicalOr],
 constraint(boundary_faces) {
-  //join(isIndivisible[cl[f]], isFolded[f]);
-  join($cl->$isIndivisible, $isFolded);
+  //join(isIndivisible[cl[f]], isFolded[f]) ;
+  join($cl->$isIndivisible, $isFolded) ;
 }

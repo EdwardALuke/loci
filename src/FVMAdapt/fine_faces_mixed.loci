@@ -141,6 +141,7 @@ constraint(cl->gnrlcells, cr->hexcells) {
     }else {
       c1= $cl->$balanced_cell_offset + CL[fptr] ;
     }
+
     // set c2
     if($cr->$balancedCellPlan.size() == 0) {
       c2 = $cr->$balanced_cell_offset + 1 ;
@@ -149,17 +150,17 @@ constraint(cl->gnrlcells, cr->hexcells) {
     }
 
     //set faceVertex
-    faceVertex.clear();
-    leaves[fptr]->set_f2n(faceVertex);
+    faceVertex.clear() ;
+    leaves[fptr]->set_f2n(faceVertex) ;
 
-    int vec_size = faceVertex.size() +2;
-    vector<int>(vec_size).swap($fine_faces[fptr]);
-    $fine_faces[fptr][0] = c1;
-    $fine_faces[fptr][1] = c2;
-    std::list<int32>::const_iterator nptr = faceVertex.begin();
+    int vec_size = faceVertex.size() + 2 ;
+    vector<int>(vec_size).swap($fine_faces[fptr]) ;
+    $fine_faces[fptr][0] = c1 ;
+    $fine_faces[fptr][1] = c2 ;
+    std::list<int32>::const_iterator nptr = faceVertex.begin() ;
 
-    for(int i = 2; i < vec_size; i++,nptr++){
-      $fine_faces[fptr][i] = *nptr;
+    for(int i=2; i<vec_size; i++,nptr++) {
+      $fine_faces[fptr][i] = *nptr ;
     }
   }
 
@@ -206,7 +207,7 @@ constraint(cr->gnrlcells, cl->hexcells) {
     std::vector<int32> CL = get_c1_hex($cl->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cl->$hexOrientCode[$fl],
-                                       $fl);
+                                       $fl) ;
 
     if(CL.size()!= 1) {
       cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -214,28 +215,30 @@ constraint(cr->gnrlcells, cl->hexcells) {
     }
 
     c1 = $cl->$balanced_cell_offset + CL[0] ;
-    c2 = $cr->$balanced_cell_offset+1 ;
+    c2 = $cr->$balanced_cell_offset + 1 ;
 
     $fine_faces[0][0] = c1 ;
     $fine_faces[0][1] = c2 ;
 
     std::list<int32>::const_iterator nptr = faceVertex.begin() ;
-    for(int i = 2; i < vec_size; i++, nptr++) {
+    for(int i=2; i<vec_size; i++, nptr++) {
       $fine_faces[0][i] = *nptr ;
     }
 
     // clean up
-    if(aFace != 0) delete aFace ;
+    if(aFace != 0){
+      delete aFace ;
+    }
     cleanup_list(bnode_list, edge_list) ;
     return ;
   }
 
-  //split the face
-  std::vector<QuadFace*> leaves;
+  // split the face
+  std::vector<QuadFace*> leaves ;
   aFace->resplit($balancedFacePlan, char(0), node_list, edge_list, leaves) ;
 
   // and index the node_list
-  int nindex = 0;
+  int nindex = 0 ;
   for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++) {
     (*np)->index = $balanced_node_offset + nindex ;
   }
@@ -244,7 +247,7 @@ constraint(cr->gnrlcells, cl->hexcells) {
   std::vector<int32> CL = get_c1_hex($cl->$balancedCellPlan,
                                       $balancedFacePlan,
                                       $cl->$hexOrientCode[$fl],
-                                      $fl);
+                                      $fl) ;
 
   if(leaves.size() != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -261,7 +264,7 @@ constraint(cr->gnrlcells, cl->hexcells) {
                                           $cr->$balancedCellPlan,
                                           $balancedFacePlan,
                                           _e_,
-                                           $*fileNumber(pos));
+                                           $*fileNumber(pos)) ;
 
   if(leaves.size() != CR.size()) {
     cerr << "WARNING: CR has the incorrect size" << endl ;
@@ -334,14 +337,14 @@ constraint(cl->gnrlcells, cr->prisms) {
 
   if($face2node.size() == 4) {
     aqFace = build_quad_face($face2node.begin(),
-                              $face2edge.begin(),
-                              $*edge2node,
-                              $*pos,
-                              $*balancedEdgePlan,
-                              $*balanced_node_offset,
-                              $*fileNumber(pos),
-                              bnode_list,
-                              edge_list);
+                             $face2edge.begin(),
+                             $*edge2node,
+                             $*pos,
+                             $*balancedEdgePlan,
+                             $*balanced_node_offset,
+                             $*fileNumber(pos),
+                             bnode_list,
+                             edge_list) ;
 
     if($balancedFacePlan.size() == 0) {
       // num of fine faces is 1
@@ -370,7 +373,7 @@ constraint(cl->gnrlcells, cr->prisms) {
 
     //split the face
     aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list,
-                    fine_qfaces);
+                    fine_qfaces) ;
     num_leaves = fine_qfaces.size() ;
   }else {
     agFace = build_general_face($face2node.begin(),$face2node.size(),
@@ -381,7 +384,7 @@ constraint(cl->gnrlcells, cr->prisms) {
                                 $*balancedEdgePlan,
                                 bnode_list,
                                 edge_list,
-                                $*fileNumber(pos));
+                                $*fileNumber(pos)) ;
 
     if($balancedFacePlan.size() == 0) {
       // num of fine faces is 1
@@ -396,7 +399,7 @@ constraint(cl->gnrlcells, cr->prisms) {
       std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
                                            $balancedFacePlan,
                                            $cr->$prismOrientCode[$fr],
-                                           $fr);
+                                           $fr) ;
 
       if( CR.size()!= 1) {
         cerr << "WARNING: CR has the incorrect size" << endl ;
@@ -419,7 +422,7 @@ constraint(cl->gnrlcells, cr->prisms) {
       return ;
     }
 
-    //split the face
+    // split the face
     agFace->resplit($balancedFacePlan, node_list, edge_list, fine_gfaces) ;
     num_leaves = fine_gfaces.size() ;
   }
@@ -430,18 +433,18 @@ constraint(cl->gnrlcells, cr->prisms) {
     (*np)->index = $balanced_node_offset + nindex ;
   }
 
-  //get CL and CR
+  // get CL and CR
   std::vector<int32> CL = get_c1_general($cl->$lower.begin(), $cl->$lower.size(),
-                                        $cl->$upper.begin(), $cl->$upper.size(),
-                                        $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
-                                        ($face2node.size() == 4),
-                                        $*face2node,
-                                        $*face2edge,
-                                        $*edge2node,
-                                        $cl->$balancedCellPlan,
-                                        $balancedFacePlan,
-                                        _e_,
-                                        $*fileNumber(pos));
+                                         $cl->$upper.begin(), $cl->$upper.size(),
+                                         $cl->$boundary_map.begin(), $cl->$boundary_map.size(),
+                                         ($face2node.size() == 4),
+                                         $*face2node,
+                                         $*face2edge,
+                                         $*edge2node,
+                                         $cl->$balancedCellPlan,
+                                         $balancedFacePlan,
+                                         _e_,
+                                         $*fileNumber(pos)) ;
 
   if(num_leaves != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -451,7 +454,7 @@ constraint(cl->gnrlcells, cr->prisms) {
   std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cr->$prismOrientCode[$fr],
-                                       $fr);
+                                       $fr) ;
 
   if(num_leaves != CR.size()) {
     cerr << "WARNING: CR has the incorrect size" << endl ;
@@ -465,10 +468,11 @@ constraint(cl->gnrlcells, cr->prisms) {
   for(unsigned int fptr=0; fptr<num_leaves; fptr++) {
   // set c1
   if($cl->$balancedCellPlan.size() == 0) {
-    c1= $cl->$balanced_cell_offset + 1 ;
+    c1 = $cl->$balanced_cell_offset + 1 ;
   }else {
-    c1= $cl->$balanced_cell_offset + CL[fptr] ;
+    c1 = $cl->$balanced_cell_offset + CL[fptr] ;
   }
+
   // set c2
   if($cr->$balancedCellPlan.size() == 0) {
     c2 = $cr->$balanced_cell_offset + 1 ;
@@ -476,7 +480,7 @@ constraint(cl->gnrlcells, cr->prisms) {
     c2 = $cr->$balanced_cell_offset + CR[fptr] ;
   }
 
-  //set faceVertex
+  // set faceVertex
   faceVertex.clear() ;
   if($face2node.size() == 4) {
     fine_qfaces[fptr]->set_f2n(faceVertex) ;
@@ -539,7 +543,7 @@ constraint(cr->gnrlcells, cl->prisms) {
                              $*balanced_node_offset,
                              $*fileNumber(pos),
                              bnode_list,
-                             edge_list);
+                             edge_list) ;
 
     if($balancedFacePlan.size() == 0) {
       // num of fine faces is 1
@@ -556,9 +560,10 @@ constraint(cr->gnrlcells, cl->prisms) {
       $fine_faces[0][1] = c2 ;
 
       std::list<int32>::const_iterator nptr = faceVertex.begin() ;
-      for(int i = 2; i < vec_size; i++, nptr++) {
+      for(int i=2; i<vec_size; i++, nptr++) {
         $fine_faces[0][i] = *nptr ;
       }
+
       // clean up
       if(aqFace != 0) { delete aqFace ; }
       cleanup_list(bnode_list, edge_list) ;
@@ -577,7 +582,7 @@ constraint(cr->gnrlcells, cl->prisms) {
                                 $*balancedEdgePlan,
                                 bnode_list,
                                 edge_list,
-                                $*fileNumber(pos));
+                                $*fileNumber(pos)) ;
 
     if($balancedFacePlan.size() == 0) {
       // num of fine faces is 1
@@ -592,7 +597,7 @@ constraint(cr->gnrlcells, cl->prisms) {
       std::vector<int32> CL = get_c1_prism($cl->$balancedCellPlan,
                                            $balancedFacePlan,
                                            $cl->$prismOrientCode[$fl],
-                                           $fl);
+                                           $fl) ;
 
       if(CL.size()!=1) {
         cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -600,7 +605,7 @@ constraint(cr->gnrlcells, cl->prisms) {
       }
 
       c1 = $cl->$balanced_cell_offset + CL[0] ;
-      c2 = $cr->$balanced_cell_offset+1 ;
+      c2 = $cr->$balanced_cell_offset + 1 ;
 
       $fine_faces[0][0] = c1 ;
       $fine_faces[0][1] = c2 ;
@@ -631,7 +636,7 @@ constraint(cr->gnrlcells, cl->prisms) {
   std::vector<int32> CL = get_c1_prism($cl->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cl->$prismOrientCode[$fl],
-                                       $fl);
+                                       $fl) ;
 
   if(num_leaves != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -648,23 +653,24 @@ constraint(cr->gnrlcells, cl->prisms) {
                                          $cr->$balancedCellPlan,
                                          $balancedFacePlan,
                                          _e_,
-                                         $*fileNumber(pos));
-  if(num_leaves != CR.size()){
+                                         $*fileNumber(pos)) ;
+  if(num_leaves != CR.size()) {
     cerr << "WARNING: CR has the incorrect size" << endl ;
     Loci::Abort() ;
   }
 
-  //set the size of fine_faces[f]
+  // set the size of fine_faces[f]
   vector<std::vector<int> >(num_leaves).swap($fine_faces) ;
 
-  //set fine_faces[f]
-  for( unsigned int fptr=0; fptr<num_leaves; fptr++) {
+  // set fine_faces[f]
+  for(unsigned int fptr=0; fptr<num_leaves; fptr++) {
     // set c1
     if($cl->$balancedCellPlan.size() == 0) {
-      c1= $cl->$balanced_cell_offset + 1 ;
+      c1 = $cl->$balanced_cell_offset + 1 ;
     }else {
-      c1= $cl->$balanced_cell_offset + CL[fptr] ;
+      c1 = $cl->$balanced_cell_offset + CL[fptr] ;
     }
+
     // set c2
     if($cr->$balancedCellPlan.size() == 0) {
       c2 = $cr->$balanced_cell_offset + 1 ;
@@ -686,7 +692,7 @@ constraint(cr->gnrlcells, cl->prisms) {
     $fine_faces[fptr][1] = c2 ;
     std::list<int32>::const_iterator nptr = faceVertex.begin() ;
 
-    for(int i = 2; i < vec_size; i++,nptr++) {
+    for(int i=2; i<vec_size; i++,nptr++) {
       $fine_faces[fptr][i] = *nptr ;
     }
   }
@@ -743,7 +749,7 @@ constraint(cl->hexcells, cr->prisms) {
     std::vector<int32> CL = get_c1_hex($cl->$balancedCellPlan,
                                         $balancedFacePlan,
                                         $cl->$hexOrientCode[$fl],
-                                        $fl);
+                                        $fl) ;
 
     if(CL.size()!= 1) {
       cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -775,14 +781,14 @@ constraint(cl->hexcells, cr->prisms) {
   // and index the node_list
   int nindex = 0 ;
   for(std::list<Node*>::const_iterator np = node_list.begin(); np!= node_list.end(); np++,nindex++) {
-    (*np)->index = $balanced_node_offset + nindex;
+    (*np)->index = $balanced_node_offset + nindex ;
   }
 
   // get CL and CR
   std::vector<int32> CL = get_c1_hex($cl->$balancedCellPlan,
                                      $balancedFacePlan,
                                      $cl->$hexOrientCode[$fl],
-                                     $fl);
+                                     $fl) ;
 
   if(leaves.size() != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -792,7 +798,7 @@ constraint(cl->hexcells, cr->prisms) {
   std::vector<int32> CR = get_c1_prism($cr->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cr->$prismOrientCode[$fr],
-                                       $fr);
+                                       $fr) ;
 
   if(leaves.size() != CR.size()) {
     cerr << "WARNING: CR has the incorrect size" << endl ;
@@ -810,6 +816,7 @@ constraint(cl->hexcells, cr->prisms) {
     }else {
       c1 = $cl->$balanced_cell_offset + CL[fptr] ;
     }
+
     // set c2
     if($cr->$balancedCellPlan.size() == 0) {
       c2 = $cr->$balanced_cell_offset + 1 ;
@@ -876,7 +883,7 @@ constraint(cr->hexcells, cl->prisms) {
     std::vector<int32> CR = get_c1_hex($cr->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cr->$hexOrientCode[$fr],
-                                       $fr);
+                                       $fr) ;
 
     if(CR.size()!= 1) {
       cerr << "WARNING: CR has the incorrect size" << endl ;
@@ -915,7 +922,7 @@ constraint(cr->hexcells, cl->prisms) {
   std::vector<int32> CL = get_c1_prism($cl->$balancedCellPlan,
                                        $balancedFacePlan,
                                        $cl->$prismOrientCode[$fl],
-                                       $fl);
+                                       $fl) ;
 
   if(leaves.size() != CL.size()) {
     cerr << "WARNING: CL has the incorrect size" << endl ;
@@ -925,7 +932,7 @@ constraint(cr->hexcells, cl->prisms) {
   std::vector<int32> CR = get_c1_hex($cr->$balancedCellPlan,
                                      $balancedFacePlan,
                                      $cr->$hexOrientCode[$fr],
-                                     $fr);
+                                     $fr) ;
 
   if(leaves.size() != CR.size()) {
     cerr << "WARNING: CR has the incorrect size" << endl ;
@@ -943,6 +950,7 @@ constraint(cr->hexcells, cl->prisms) {
     }else {
       c1 = $cl->$balanced_cell_offset + CL[fptr] ;
     }
+
     // set c2
     if($cr->$balancedCellPlan.size() == 0) {
       c2 = $cr->$balanced_cell_offset + 1 ;
