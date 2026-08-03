@@ -22,7 +22,8 @@
 include $(LOCI_BASE)/Loci.conf
 include $(LOCI_BASE)/version.conf
 
-INCLUDES = -I../../contrib/doctest -I$(LOCI_BASE)/include
+INCLUDES = -I../../contrib/doctest -I$(LOCI_BASE)/include \
+           -I$(LOCI_BASE)/FVMAdapt/library
 LIB_PATH = $(LOCI_BASE)/lib:$(LD_LIBRARY_PATH)
 DY_PATH = $(LOCI_BASE)/lib:$(DYLD_LIBRARY_PATH)
 SOURCES = test_fvmadapt_core.cc test_adaptation_behavior.cc \

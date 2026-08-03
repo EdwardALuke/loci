@@ -13,7 +13,7 @@
 
 #include "fvmadapt_core.h"
 
-#include <FVMAdapt/refinement_state.h>
+#include "refinement_state_internal.h"
 
 #include <doctest.h>
 
@@ -54,15 +54,15 @@ TEST_CASE("accepted cell plans expose final-leaf refinement depth") {
     std::vector<int> depths ;
 
     CHECK(hex.empty_resplit(std::vector<char>()) == 1) ;
-    REQUIRE(Loci::getLeafRefinementDepths(&hex, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(&hex, depths)) ;
     CHECK(depths == std::vector<int>(1, 0)) ;
 
     CHECK(prism.empty_resplit(std::vector<char>()) == 1) ;
-    REQUIRE(Loci::getLeafRefinementDepths(&prism, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(&prism, depths)) ;
     CHECK(depths == std::vector<int>(1, 0)) ;
 
     CHECK(general.root->empty_resplit(std::vector<char>()) == 1) ;
-    REQUIRE(Loci::getLeafRefinementDepths(general.root, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(general.root, depths)) ;
     CHECK(depths == std::vector<int>(1, 0)) ;
   }
 
@@ -74,15 +74,15 @@ TEST_CASE("accepted cell plans expose final-leaf refinement depth") {
     std::vector<int> depths ;
 
     const int hexLeaves = hex.empty_resplit(state_plan({7})) ;
-    REQUIRE(Loci::getLeafRefinementDepths(&hex, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(&hex, depths)) ;
     check_depth_range(depths, hexLeaves, 1, 1) ;
 
     const int prismLeaves = prism.empty_resplit(state_plan({3})) ;
-    REQUIRE(Loci::getLeafRefinementDepths(&prism, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(&prism, depths)) ;
     check_depth_range(depths, prismLeaves, 1, 1) ;
 
     const int generalLeaves = general.root->empty_resplit(state_plan({1})) ;
-    REQUIRE(Loci::getLeafRefinementDepths(general.root, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(general.root, depths)) ;
     check_depth_range(depths, generalLeaves, 1, 1) ;
   }
 
@@ -94,18 +94,18 @@ TEST_CASE("accepted cell plans expose final-leaf refinement depth") {
     std::vector<int> depths ;
 
     const int hexLeaves = hex.empty_resplit(state_plan({1, 1, 0})) ;
-    REQUIRE(Loci::getLeafRefinementDepths(&hex, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(&hex, depths)) ;
     check_depth_range(depths, hexLeaves, 1, 2) ;
     CHECK(depths == std::vector<int>({1, 2, 2})) ;
 
     const int prismLeaves = prism.empty_resplit(state_plan({1, 1, 0})) ;
-    REQUIRE(Loci::getLeafRefinementDepths(&prism, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(&prism, depths)) ;
     check_depth_range(depths, prismLeaves, 1, 2) ;
     CHECK(depths == std::vector<int>({1, 2, 2})) ;
 
     const int generalLeaves =
       general.root->empty_resplit(state_plan({1, 1, 0, 0, 0})) ;
-    REQUIRE(Loci::getLeafRefinementDepths(general.root, depths)) ;
+    REQUIRE(Loci::detail::getLeafRefinementDepths(general.root, depths)) ;
     check_depth_range(depths, generalLeaves, 1, 2) ;
   }
 }
@@ -116,24 +116,24 @@ TEST_CASE("accepted cell plans expose final-leaf refinement depth") {
 TEST_CASE("old/new cell relations classify the latest adaptation result") {
   std::vector<int> result ;
 
-  REQUIRE(Loci::classifyAdaptResult(
+  REQUIRE(Loci::detail::classifyAdaptResult(
     std::vector<std::pair<int32, int32> >({{1, 1}, {2, 2}}),
     1, 2, result)) ;
   CHECK(result == std::vector<int>({Loci::adapt_result::retained,
                                     Loci::adapt_result::retained})) ;
 
-  REQUIRE(Loci::classifyAdaptResult(
+  REQUIRE(Loci::detail::classifyAdaptResult(
     std::vector<std::pair<int32, int32> >({{1, 1}, {2, 1}}),
     1, 2, result)) ;
   CHECK(result == std::vector<int>({Loci::adapt_result::refined,
                                     Loci::adapt_result::refined})) ;
 
-  REQUIRE(Loci::classifyAdaptResult(
+  REQUIRE(Loci::detail::classifyAdaptResult(
     std::vector<std::pair<int32, int32> >({{1, 1}, {1, 2}}),
     1, 1, result)) ;
   CHECK(result == std::vector<int>(1, Loci::adapt_result::derefined)) ;
 
-  REQUIRE(Loci::classifyAdaptResult(
+  REQUIRE(Loci::detail::classifyAdaptResult(
     std::vector<std::pair<int32, int32> >({{5, 8}, {6, 9}, {7, 9}}),
     5, 3, result)) ;
   CHECK(result == std::vector<int>({Loci::adapt_result::retained,
@@ -147,12 +147,12 @@ TEST_CASE("old/new cell relations classify the latest adaptation result") {
 TEST_CASE("invalid old/new cell relations are rejected") {
   std::vector<int> result ;
 
-  CHECK_FALSE(Loci::classifyAdaptResult(
+  CHECK_FALSE(Loci::detail::classifyAdaptResult(
     std::vector<std::pair<int32, int32> >({{1, 1}}), 1, 2, result)) ;
-  CHECK_FALSE(Loci::classifyAdaptResult(
+  CHECK_FALSE(Loci::detail::classifyAdaptResult(
     std::vector<std::pair<int32, int32> >({{1, 1}, {1, 1}}),
     1, 1, result)) ;
-  CHECK_FALSE(Loci::classifyAdaptResult(
+  CHECK_FALSE(Loci::detail::classifyAdaptResult(
     std::vector<std::pair<int32, int32> >(
       {{1, 1}, {1, 2}, {2, 1}, {2, 2}}),
     1, 2, result)) ;
