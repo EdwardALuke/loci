@@ -1,0 +1,21 @@
+//#############################################################################
+//#
+//# Copyright 2008-2026, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# This program is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//#############################################################################
+
+/// Number of refinement-tree edges between an active cell and its base cell.
+$type refinementDepth store<int> ;
+
+/// Base-VOG file number of the cell whose plan produced an active cell.
+$type rootCellFileNumber store<int> ;
+
+/// Latest online transition: derefined (-1), retained (0), or refined (1).
+$type adaptResult store<int> ;

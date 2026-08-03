@@ -148,6 +148,16 @@ $type balanced_cell_offset store<int> ;
 /// Leaf-index pairs relating the balanced and parent refinement trees.
 $type indexMap store<std::vector<pair<int32, int32> > > ;
 
+/// Old/new leaf pairs used for solution transfer and transition reporting.
+$type cell2parent store<std::vector<pair<int32, int32> > > ;
+
+/// Accepted-leaf state retained until the generated grid is assembled.
+$type fineRefinementDepth store<std::vector<int> > ;
+$type fineAdaptResult store<std::vector<int> > ;
+
+/// Base-cell provenance retained until the generated grid is assembled.
+$type planRootFileNumber store<int> ;
+
 // Generated refined mesh
 
 /// Coordinates of nodes created inside original cells, faces, and edges.

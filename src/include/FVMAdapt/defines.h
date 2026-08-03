@@ -201,6 +201,8 @@ namespace Loci {
 }
 
 namespace Loci {
+  struct refinedCellState ;
+
   
   typedef std::vector<vect3d> FineNodes;
   
@@ -434,6 +436,19 @@ namespace Loci {
                                  std::vector<pair<int,string> >& boundary_ids,
                                  std::vector<pair<string,entitySet> >& volTags,
 				 Loci::storeRepP cellwts = 0) ;
+
+  bool setupFVMGridFromContainer(fact_db &facts,
+                                 std::vector<entitySet>& local_nodes,
+                                 std::vector<entitySet>& local_faces,
+                                 std::vector<entitySet>& local_cells,
+                                 store<vector3d<double> >& tmp_pos,
+                                 Map& tmp_cl,
+                                 Map& tmp_cr,
+                                 multiMap& tmp_face2node,
+                                 std::vector<pair<int,string> >& boundary_ids,
+                                 std::vector<pair<string,entitySet> >& volTags,
+                                 Loci::storeRepP cellwts,
+                                 const refinedCellState* cellState) ;
   
   
   inline std::ostream &operator <<(std::ostream &s, const std::vector<std::pair<int32,int32> > &v) {

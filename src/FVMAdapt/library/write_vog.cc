@@ -965,7 +965,7 @@ namespace Loci {
       refine_facts.create_fact("cellweight_outDB_par",cellweight_outDB_par);
         
       if(!Loci::makeQuery(refine_rules,refine_facts,
-			  "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox")) {
+			  "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox,fineRefinementDepth,fineAdaptResult,planRootFileNumber,balanced_cell_offset")) {
 	std::cerr << "adapt query failed!" << std::endl;
 	Loci::Abort();
       }
@@ -1014,6 +1014,16 @@ namespace Loci {
 		   gridDataP->local_faces,
 		   gridDataP->local_cells
 		   );
+
+    if(!collectRefinedCellState(gridDataP->cellState,
+                                refine_facts,
+                                gridDataP->local_cells,
+                                num_nodes+num_faces,
+                                true)) {
+      if(Loci::MPI_rank == 0)
+        cerr << "Unable to assemble refined-cell state" << endl ;
+      Loci::Abort() ;
+    }
 
     //update volume tags
     {
@@ -1104,7 +1114,7 @@ namespace Loci {
     refine_facts.create_fact("balanced_planDB_par",balanced_planDB_par) ;
 	      
     if(!Loci::makeQuery(refine_rules,refine_facts,
-			"inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces,fine_faces_cell,volTag_blackbox")) {
+			"inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces,fine_faces_cell,volTag_blackbox,fineRefinementDepth,planRootFileNumber,balanced_cell_offset")) {
       std::cerr << "adapt query failed!" << std::endl;
       Loci::Abort();
     }
@@ -1150,6 +1160,16 @@ namespace Loci {
 		   gridDataP->local_faces,
 		   gridDataP->local_cells
 		   );
+
+    if(!collectRefinedCellState(gridDataP->cellState,
+                                refine_facts,
+                                gridDataP->local_cells,
+                                num_nodes+num_faces,
+                                false)) {
+      if(Loci::MPI_rank == 0)
+        cerr << "Unable to assemble refined-cell state" << endl ;
+      Loci::Abort() ;
+    }
 
     if(Loci::MPI_rank ==0)cerr<< "num_faces: " << num_faces << " before chem run" <<  endl;
     if(Loci::MPI_rank ==0)cerr<< "num_cells: " << num_cells << " before chem run" <<  endl;
@@ -1712,6 +1732,81 @@ namespace Loci{
                         entitySet bcsurfset,
                         fact_db &facts) ;
 
+  static bool installCellStateSerial(fact_db& facts,
+                                     const refinedCellState& source,
+                                     const entitySet& sourceCells,
+                                     const entitySet& destinationCells) {
+    if(source.refinementDepth.domain() != sourceCells ||
+       source.rootCellFileNumber.domain() != sourceCells ||
+       (source.hasAdaptResult && source.adaptResult.domain() != sourceCells) ||
+       sourceCells.size() != destinationCells.size())
+      return false ;
+
+    store<int> refinementDepth ;
+    store<int> rootCellFileNumber ;
+    store<int> adaptResult ;
+    refinementDepth.allocate(destinationCells) ;
+    rootCellFileNumber.allocate(destinationCells) ;
+    if(source.hasAdaptResult)
+      adaptResult.allocate(destinationCells) ;
+
+    entitySet::const_iterator sourceCell = sourceCells.begin() ;
+    entitySet::const_iterator destinationCell = destinationCells.begin() ;
+    while(sourceCell != sourceCells.end() &&
+          destinationCell != destinationCells.end()) {
+      refinementDepth[*destinationCell] = source.refinementDepth[*sourceCell] ;
+      rootCellFileNumber[*destinationCell] =
+        source.rootCellFileNumber[*sourceCell] ;
+      if(source.hasAdaptResult)
+        adaptResult[*destinationCell] = source.adaptResult[*sourceCell] ;
+      ++sourceCell ;
+      ++destinationCell ;
+    }
+
+    facts.create_fact("refinementDepth", refinementDepth) ;
+    facts.create_fact("rootCellFileNumber", rootCellFileNumber) ;
+    if(source.hasAdaptResult)
+      facts.create_fact("adaptResult", adaptResult) ;
+    return true ;
+  }
+
+  static bool installCellStateParallel(
+    fact_db& facts,
+    const refinedCellState& source,
+    const entitySet& sourceCells,
+    const vector<entitySet>& cellPtn,
+    const vector<entitySet>& cellPtnT,
+    const entitySet& destinationCells) {
+    if(source.refinementDepth.domain() != sourceCells ||
+       source.rootCellFileNumber.domain() != sourceCells ||
+       (source.hasAdaptResult && source.adaptResult.domain() != sourceCells))
+      return false ;
+
+    store<int> refinementDepth ;
+    store<int> rootCellFileNumber ;
+    store<int> adaptResult ;
+    refinementDepth.allocate(destinationCells) ;
+    rootCellFileNumber.allocate(destinationCells) ;
+    redistribute_container(cellPtn, cellPtnT, destinationCells,
+                           source.refinementDepth.Rep(),
+                           refinementDepth.Rep()) ;
+    redistribute_container(cellPtn, cellPtnT, destinationCells,
+                           source.rootCellFileNumber.Rep(),
+                           rootCellFileNumber.Rep()) ;
+    if(source.hasAdaptResult) {
+      adaptResult.allocate(destinationCells) ;
+      redistribute_container(cellPtn, cellPtnT, destinationCells,
+                             source.adaptResult.Rep(),
+                             adaptResult.Rep()) ;
+    }
+
+    facts.create_fact("refinementDepth", refinementDepth) ;
+    facts.create_fact("rootCellFileNumber", rootCellFileNumber) ;
+    if(source.hasAdaptResult)
+      facts.create_fact("adaptResult", adaptResult) ;
+    return true ;
+  }
+
   bool inputFVMGrid(fact_db &facts,
                     vector<entitySet>& local_nodes,
                     vector<entitySet>& local_faces,
@@ -1722,7 +1817,8 @@ namespace Loci{
                     multiMap& tmp_face2node,
                     vector<pair<int,string> >& boundary_ids,
                     vector<pair<string,entitySet> >& volTags,
-                    storeRepP cellwts) {
+                    storeRepP cellwts,
+                    const refinedCellState* cellState) {
     double t1 = MPI_Wtime() ;
     // Identify boundary tags
     if(Loci::MPI_processes == 1) {
@@ -1776,6 +1872,13 @@ namespace Loci{
       facts.create_fact("face2node",face2node) ;
       facts.create_fact("boundary_names", boundary_names) ;
       facts.create_fact("boundary_tags", boundary_tags) ;
+
+      if(cellState != 0 &&
+         !installCellStateSerial(facts, *cellState, local_cells[0], cells)) {
+        if(MPI_rank == 0)
+          cerr << "Unable to install refined-cell state" << endl ;
+        return false ;
+      }
 
       int cells_base = local_cells[0].Min() ;
       for(size_t i=0;i<volTags.size();++i) {
@@ -2011,6 +2114,15 @@ namespace Loci{
 
     entitySet cells = facts.get_distributed_alloc(cell_alloc,0).first ;//Fix This
 
+    if(cellState != 0 &&
+       !installCellStateParallel(facts, *cellState,
+                                 local_cells[MPI_rank],
+                                 cell_ptn, cell_ptn_t, cells)) {
+      if(MPI_rank == 0)
+        cerr << "Unable to install refined-cell state" << endl ;
+      return false ;
+    }
+
     Loci::debugout << "nodes = " << nodes << ", size= "
                    << nodes.size() << endl;
     Loci::debugout << "faces = " << faces << ", size = "
@@ -2090,13 +2202,39 @@ namespace Loci{
                                  vector<entitySet>& local_nodes,
                                  vector<entitySet>& local_faces,
                                  vector<entitySet>& local_cells,
-                                 store<vector3d<double> >& t_pos,
+                                 store<vector3d<double> >& tmp_pos,
                                  Map& tmp_cl,
                                  Map& tmp_cr,
                                  multiMap& tmp_face2node,
                                  vector<pair<int,string> >& boundary_ids,
                                  vector<pair<string,entitySet> >& volTags,
 				 storeRepP cellwts) {
+    return setupFVMGridFromContainer(facts,
+                                     local_nodes,
+                                     local_faces,
+                                     local_cells,
+                                     tmp_pos,
+                                     tmp_cl,
+                                     tmp_cr,
+                                     tmp_face2node,
+                                     boundary_ids,
+                                     volTags,
+                                     cellwts,
+                                     0) ;
+  }
+
+  bool setupFVMGridFromContainer(fact_db &facts,
+                                 vector<entitySet>& local_nodes,
+                                 vector<entitySet>& local_faces,
+                                 vector<entitySet>& local_cells,
+                                 store<vector3d<double> >& t_pos,
+                                 Map& tmp_cl,
+                                 Map& tmp_cr,
+                                 multiMap& tmp_face2node,
+                                 vector<pair<int,string> >& boundary_ids,
+                                 vector<pair<string,entitySet> >& volTags,
+                                 storeRepP cellwts,
+                                 const refinedCellState* cellState) {
        
     if(!inputFVMGrid(facts,
                      local_nodes,
@@ -2107,7 +2245,7 @@ namespace Loci{
                      tmp_cr,
                      tmp_face2node,
                      boundary_ids,
-                     volTags,cellwts))
+                     volTags, cellwts, cellState))
       return false ;
     REPORTMEM() ;
 

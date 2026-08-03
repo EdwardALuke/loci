@@ -1,0 +1,157 @@
+//#############################################################################
+//#
+//# Copyright 2008-2026, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# This program is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//#############################################################################
+
+#include <algorithm>
+#include <iostream>
+#include <list>
+#include <limits>
+#include <vector>
+
+#include <Loci.h>
+#include <Tools/tools.h>
+
+#include "diamondcell.h"
+#include "hexcell.h"
+#include "prism.h"
+#include "refinement_state.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+using std::cerr ;
+using std::endl ;
+
+//-----------------------------------------------------------------------------
+// Base-cell provenance
+//-----------------------------------------------------------------------------
+
+/// Preserves the file number of the base cell that owns each accepted plan.
+$rule pointwise(planRootFileNumber <- fileNumber(geom_cells),
+num_original_nodes, num_original_faces),
+constraint(geom_cells), option(disable_threading), prelude {
+  const entitySet roots = entitySet(seq) ;
+  int localFirstFileNumber = std::numeric_limits<int>::max() ;
+  FORALL(roots, cell) {
+    localFirstFileNumber = std::min(localFirstFileNumber,
+                                    $fileNumber(geom_cells)[cell]) ;
+  } ENDFORALL ;
+
+  int firstFileNumber = localFirstFileNumber ;
+  MPI_Allreduce(&localFirstFileNumber, &firstFileNumber, 1, MPI_INT,
+                MPI_MIN, MPI_COMM_WORLD) ;
+
+  // Serial entity numbering includes the VOG face prefix; distributed
+  // key-domain numbering may not. Preserve cell order and restore the prefix.
+  const int firstCellFileNumber =
+    *$num_original_nodes+*$num_original_faces ;
+  FORALL(roots, cell) {
+    $planRootFileNumber[cell] = firstCellFileNumber+
+      $fileNumber(geom_cells)[cell]-firstFileNumber ;
+  } ENDFORALL ;
+} ;
+
+
+//-----------------------------------------------------------------------------
+// Accepted-leaf refinement depth
+//-----------------------------------------------------------------------------
+
+/// Replays a general-cell plan and records the depth of every accepted leaf.
+$rule pointwise(fineRefinementDepth <- balancedCellPlan,
+balanced_num_fine_cells,
+(lower, upper, boundary_map)->face2node->fileNumber(pos),
+(lower, upper, boundary_map)->face2edge->edge2node->fileNumber(pos)),
+constraint(gnrlcells) {
+  std::list<Node*> nodeList ;
+  std::list<Edge*> edgeList ;
+  std::list<Face*> faceList ;
+
+  Cell* cell = build_general_cell($lower.begin(), $lower.size(),
+                                  $upper.begin(), $upper.size(),
+                                  $boundary_map.begin(), $boundary_map.size(),
+                                  $*face2node,
+                                  $*face2edge,
+                                  $*edge2node,
+                                  nodeList,
+                                  edgeList,
+                                  faceList,
+                                  $*fileNumber(pos)) ;
+
+  const int leafCount = cell->empty_resplit($balancedCellPlan) ;
+  std::vector<int> depths ;
+  const bool valid = Loci::getLeafRefinementDepths(cell, depths) &&
+    leafCount == $balanced_num_fine_cells &&
+    depths.size() == size_t($balanced_num_fine_cells) ;
+
+  delete cell ;
+  cleanup_list(nodeList, edgeList, faceList) ;
+
+  if(!valid) {
+    cerr << "Unable to derive general-cell refinement depth from the "
+         << "accepted plan" << endl ;
+    Loci::Abort() ;
+  }
+  depths.swap($fineRefinementDepth) ;
+}
+
+
+/// Replays a hexahedral plan and records the depth of every accepted leaf.
+$rule pointwise(fineRefinementDepth <- balancedCellPlan,
+balanced_num_fine_cells), constraint(hexcells) {
+  HexCell cell ;
+  const int leafCount = cell.empty_resplit($balancedCellPlan) ;
+  std::vector<int> depths ;
+  if(!Loci::getLeafRefinementDepths(&cell, depths) ||
+     leafCount != $balanced_num_fine_cells ||
+     depths.size() != size_t($balanced_num_fine_cells)) {
+    cerr << "Unable to derive hexahedral refinement depth from the "
+         << "accepted plan" << endl ;
+    Loci::Abort() ;
+  }
+  depths.swap($fineRefinementDepth) ;
+}
+
+
+/// Replays a prism plan and records the depth of every accepted leaf.
+$rule pointwise(fineRefinementDepth <- balancedCellPlan,
+balanced_num_fine_cells), constraint(prisms) {
+  Prism cell ;
+  const int leafCount = cell.empty_resplit($balancedCellPlan) ;
+  std::vector<int> depths ;
+  if(!Loci::getLeafRefinementDepths(&cell, depths) ||
+     leafCount != $balanced_num_fine_cells ||
+     depths.size() != size_t($balanced_num_fine_cells)) {
+    cerr << "Unable to derive prism refinement depth from the accepted plan"
+         << endl ;
+    Loci::Abort() ;
+  }
+  depths.swap($fineRefinementDepth) ;
+}
+
+
+//-----------------------------------------------------------------------------
+// Latest accepted transition
+//-----------------------------------------------------------------------------
+
+/// Classifies each accepted leaf from the old/new cell relation.
+$rule pointwise(fineAdaptResult <- cell2parent, balanced_cell_offset,
+balanced_num_fine_cells), constraint(geom_cells) {
+  std::vector<int> result ;
+  if(!Loci::classifyAdaptResult($cell2parent,
+                                $balanced_cell_offset+1,
+                                $balanced_num_fine_cells,
+                                result)) {
+    cerr << "Unable to classify the accepted cell transition" << endl ;
+    Loci::Abort() ;
+  }
+  result.swap($fineAdaptResult) ;
+}

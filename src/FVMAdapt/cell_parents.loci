@@ -71,7 +71,6 @@ namespace Loci {
 }
 
 $type parent_cell_offset store<int> ;
-$type cell2parent store<std::vector<pair<int32, int32> > > ;
 $type cell2parent_file_par param<std::string> ;
 $type cell2parent_output store<bool> ;
 $type cell2parent_DB store<bool> ;

@@ -21,6 +21,7 @@
 #ifndef GRID_INTERFACE_H
 #define GRID_INTERFACE_H
 #include <store_rep.h>
+#include <FVMAdapt/refinement_state.h>
 #include <memory>
 
 namespace Loci {
@@ -64,6 +65,7 @@ namespace Loci {
     vector<entitySet> local_cells;
     vector<pair<int,string> > boundary_ids;
     vector<pair<string,entitySet> > volTags;
+    refinedCellState cellState;
   } ;
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
