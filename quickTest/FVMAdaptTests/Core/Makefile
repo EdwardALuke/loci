@@ -25,7 +25,8 @@ include $(LOCI_BASE)/version.conf
 INCLUDES = -I../../contrib/doctest -I$(LOCI_BASE)/include
 LIB_PATH = $(LOCI_BASE)/lib:$(LD_LIBRARY_PATH)
 DY_PATH = $(LOCI_BASE)/lib:$(DYLD_LIBRARY_PATH)
-SOURCES = test_fvmadapt_core.cc test_adaptation_behavior.cc fixtures.cc \
+SOURCES = test_fvmadapt_core.cc test_adaptation_behavior.cc \
+          test_refinement_state.cc fixtures.cc \
           core_utils.cc plan_checks.cc replay_trace.cc example_artifacts.cc
 OBJS = $(SOURCES:.cc=.o)
 

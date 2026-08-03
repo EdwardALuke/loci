@@ -1,0 +1,291 @@
+//#############################################################################
+//#
+//# Copyright 2008-2026, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# This program is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//#############################################################################
+
+#include <Loci.h>
+#include <LociGridReaders.h>
+#include <FVMAdapt/gridInterface.h>
+#include <FVMAdapt/refinement_state.h>
+
+$include "FVM.lh"
+$include "FVMAdapt/refinement_state.lh"
+
+using namespace Loci ;
+
+/// Root-cell file number expected after the adapted-grid handoff.
+$type expectedRootFileNumber param<int> ;
+$type expectedRefinementDepth param<int> ;
+$type expectedAdaptResult param<int> ;
+
+/// Confirm that refinement-state facts can drive an ordinary cell rule.
+$type refinementStateChecked store<bool> ;
+$rule pointwise(refinementStateChecked <- refinementDepth,
+                rootCellFileNumber, adaptResult, expectedRootFileNumber,
+                expectedRefinementDepth, expectedAdaptResult),
+constraint(geom_cells) {
+  $refinementStateChecked =
+    ($refinementDepth == $expectedRefinementDepth &&
+     $rootCellFileNumber == $expectedRootFileNumber &&
+     $adaptResult == $expectedAdaptResult) ;
+}
+
+namespace {
+  bool derive_source_root_file_number(fact_db& facts,
+                                      int& root_file_number) {
+    store<vector3d<double> > pos ;
+    pos = facts.get_variable("pos") ;
+    multiMap face2node ;
+    face2node = facts.get_variable("face2node") ;
+    constraint geom_cells ;
+    geom_cells = facts.get_variable("geom_cells") ;
+
+    int local_sizes[3] = {
+      int(pos.domain().size()),
+      int(face2node.domain().size()),
+      int((*geom_cells).size())
+    } ;
+    int global_sizes[3] = {0, 0, 0} ;
+    MPI_Allreduce(local_sizes,global_sizes,3,MPI_INT,MPI_SUM,
+                  MPI_COMM_WORLD) ;
+    if(global_sizes[2] != 1)
+      return false ;
+    // In VOG file order, cells follow the nodes and faces.
+    root_file_number = global_sizes[0]+global_sizes[1] ;
+    return true ;
+  }
+
+  bool verify_state(fact_db& facts,
+                    rule_db& rules,
+                    int expected_root_file_number,
+                    int expected_depth,
+                    int expected_result,
+                    int expected_cell_count) {
+    param<int> expected_root ;
+    param<int> expected_refinement_depth ;
+    param<int> expected_adapt_result ;
+    *expected_root = expected_root_file_number ;
+    *expected_refinement_depth = expected_depth ;
+    *expected_adapt_result = expected_result ;
+    facts.create_fact("expectedRootFileNumber",expected_root) ;
+    facts.create_fact("expectedRefinementDepth",expected_refinement_depth) ;
+    facts.create_fact("expectedAdaptResult",expected_adapt_result) ;
+
+    if(!Loci::makeQuery(rules,facts,"refinementStateChecked")) {
+      if(MPI_rank == 0)
+        std::cerr << "Unable to schedule the refinement-state consumer rule"
+                  << std::endl ;
+      return false ;
+    }
+
+    constraint geom_cells ;
+    geom_cells = facts.get_variable("geom_cells") ;
+    const entitySet cells = *geom_cells ;
+
+    store<int> refinement_depth ;
+    store<int> root_cell_file_number ;
+    store<int> adapt_result_value ;
+    store<bool> checked ;
+    refinement_depth = facts.get_variable("refinementDepth") ;
+    root_cell_file_number = facts.get_variable("rootCellFileNumber") ;
+    adapt_result_value = facts.get_variable("adaptResult") ;
+    checked = facts.get_variable("refinementStateChecked") ;
+
+    bool local_ok =
+      refinement_depth.domain() == cells &&
+      root_cell_file_number.domain() == cells &&
+      adapt_result_value.domain() == cells &&
+      checked.domain() == cells ;
+
+    if(local_ok) {
+      FORALL(cells,cc) {
+        if(!checked[cc])
+          std::cerr << "Rank " << MPI_rank << ", cell " << cc
+                    << ": depth=" << refinement_depth[cc]
+                    << ", root=" << root_cell_file_number[cc]
+                    << ", expected root=" << expected_root_file_number
+                    << ", result=" << adapt_result_value[cc] << std::endl ;
+        local_ok = local_ok && checked[cc] ;
+      } ENDFORALL ;
+    }
+
+    int local_count = cells.size() ;
+    int global_count = 0 ;
+    int local_pass = local_ok ? 1 : 0 ;
+    int global_pass = 0 ;
+    MPI_Allreduce(&local_count,&global_count,1,MPI_INT,MPI_SUM,
+                  MPI_COMM_WORLD) ;
+    MPI_Allreduce(&local_pass,&global_pass,1,MPI_INT,MPI_MIN,
+                  MPI_COMM_WORLD) ;
+
+    if(global_count != expected_cell_count) {
+      if(MPI_rank == 0)
+        std::cerr << "Expected " << expected_cell_count
+                  << " adapted prism cells, found " << global_count
+                  << std::endl ;
+      global_pass = 0 ;
+    }
+    return global_pass != 0 ;
+  }
+}
+
+int main(int argc, char* argv[]) {
+  Loci::Init(&argc,&argv) ;
+
+  bool passed = true ;
+  if(argc != 2) {
+    if(MPI_rank == 0)
+      std::cerr << "usage: test_refinement_state <case>" << std::endl ;
+    passed = false ;
+  }
+
+  if(passed) {
+    const std::string case_name(argv[1]) ;
+
+    fact_db source_facts ;
+    if(!Loci::setupFVMGrid(source_facts,case_name+".vog")) {
+      if(MPI_rank == 0)
+        std::cerr << "Unable to read " << case_name << ".vog" << std::endl ;
+      passed = false ;
+    }
+    rule_db test_rules ;
+    test_rules.add_rules(global_rule_list) ;
+    int source_root_file_number = 0 ;
+    if(passed &&
+       !derive_source_root_file_number(source_facts,
+                                       source_root_file_number)) {
+      if(MPI_rank == 0)
+        std::cerr << "Unable to derive the root cell's file number"
+                  << std::endl ;
+      passed = false ;
+    }
+
+    store<char> tags ;
+    if(passed) {
+      constraint geom_cells ;
+      geom_cells = source_facts.get_variable("geom_cells") ;
+      tags.allocate(*geom_cells) ;
+      FORALL(*geom_cells,cc) {
+        tags[cc] = 1 ;
+      } ENDFORALL ;
+    }
+
+    rule_db refmesh_rules ;
+    if(passed)
+      Loci::load_module("fvmadapt",refmesh_rules) ;
+
+    CPTR<refinedGridData> grid_data = 0 ;
+    if(passed) {
+      Loci::onlineRefineMesh(grid_data,refmesh_rules,2,0,tags.Rep(),
+                             case_name) ;
+      if(grid_data == 0) {
+        if(MPI_rank == 0)
+          std::cerr << "onlineRefineMesh returned no grid" << std::endl ;
+        passed = false ;
+      }
+    }
+
+    fact_db refined_facts ;
+    if(passed &&
+       !Loci::setupFVMGridFromContainer(refined_facts,
+                                        grid_data->local_nodes,
+                                        grid_data->local_faces,
+                                        grid_data->local_cells,
+                                        grid_data->new_pos,
+                                        grid_data->new_cl,
+                                        grid_data->new_cr,
+                                        grid_data->new_face2node,
+                                        grid_data->boundary_ids,
+                                        grid_data->volTags,
+                                        0,
+                                        &grid_data->cellState)) {
+      if(MPI_rank == 0)
+        std::cerr << "Unable to install the adapted grid" << std::endl ;
+      passed = false ;
+    }
+
+    if(passed)
+      passed = verify_state(refined_facts,
+                            test_rules,
+                            source_root_file_number,
+                            1,
+                            Loci::adapt_result::refined,
+                            6) ;
+
+    // In serial, a second call reuses the accepted plan. Derefining all six
+    // leaves exercises the restart relation and returns the original prism.
+    // The existing Prism regression separately tracks the empty-rank restart
+    // crash, so this test keeps its second cycle serial.
+    const char derefine_tag = 2 ; // Internal form of a negative text tag.
+    store<char> derefine_tags ;
+    if(passed && MPI_processes == 1) {
+      constraint geom_cells ;
+      geom_cells = refined_facts.get_variable("geom_cells") ;
+      derefine_tags.allocate(*geom_cells) ;
+      FORALL(*geom_cells,cc) {
+        derefine_tags[cc] = derefine_tag ;
+      } ENDFORALL ;
+    }
+
+    CPTR<refinedGridData> round_trip_grid = 0 ;
+    if(passed && MPI_processes == 1) {
+      Loci::onlineRefineMesh(round_trip_grid,
+                             refmesh_rules,
+                             2,
+                             1,
+                             derefine_tags.Rep(),
+                             case_name) ;
+      if(round_trip_grid == 0) {
+        if(MPI_rank == 0)
+          std::cerr << "Second onlineRefineMesh call returned no grid"
+                    << std::endl ;
+        passed = false ;
+      }
+    }
+
+    fact_db round_trip_facts ;
+    if(passed && MPI_processes == 1 &&
+       !Loci::setupFVMGridFromContainer(round_trip_facts,
+                                        round_trip_grid->local_nodes,
+                                        round_trip_grid->local_faces,
+                                        round_trip_grid->local_cells,
+                                        round_trip_grid->new_pos,
+                                        round_trip_grid->new_cl,
+                                        round_trip_grid->new_cr,
+                                        round_trip_grid->new_face2node,
+                                        round_trip_grid->boundary_ids,
+                                        round_trip_grid->volTags,
+                                        0,
+                                        &round_trip_grid->cellState)) {
+      if(MPI_rank == 0)
+        std::cerr << "Unable to install the round-trip grid" << std::endl ;
+      passed = false ;
+    }
+
+    if(passed && MPI_processes == 1)
+      passed = verify_state(round_trip_facts,
+                            test_rules,
+                            source_root_file_number,
+                            0,
+                            Loci::adapt_result::derefined,
+                            1) ;
+  }
+
+  int local_pass = passed ? 1 : 0 ;
+  int global_pass = 0 ;
+  MPI_Allreduce(&local_pass,&global_pass,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+  if(MPI_rank == 0)
+    std::cout << "FVMAdapt refinement-state handoff: "
+              << (global_pass ? "PASSED" : "FAILED") << std::endl ;
+
+  Loci::Finalize() ;
+  return global_pass ? 0 : 1 ;
+}

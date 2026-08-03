@@ -1,4 +1,4 @@
-TESTS = RefMesh UniformHex Prism Mixed PlanInputs ExtrudedModes
+TESTS = RefMesh UniformHex Prism Mixed PlanInputs ExtrudedModes RefinementState
 TEST_RESULTS = $(addsuffix /TestResults,$(TESTS))
 
 .PHONY: default $(TESTS) clean distclean FRC
