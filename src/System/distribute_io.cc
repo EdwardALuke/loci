@@ -1378,6 +1378,32 @@ namespace Loci {
   }
 
   // convert domain in local numbering into key space
+  int getKeyDomain(entitySet dom, entityPartitionInfoP ptn) {
+    MPI_Comm comm= ptn->comm ;
+    int kdl = 0 ;
+    entitySet searchdom = dom & ptn->key_domain.domain() ;
+    FORALL(searchdom,i) {
+      int key = ptn->key_domain[i] ;
+      kdl = std::max<int>(key,kdl) ;
+    } ENDFORALL ;
+    int kd=-1 ;
+    MPI_Allreduce(&kdl,&kd,1,MPI_INT,MPI_MAX,comm) ;
+
+    bool failure = false ;
+    FORALL(searchdom,i) {
+      int key = ptn->key_domain[i] ;
+      if(kd != key){
+        failure = true ;
+      }
+    } ENDFORALL ;
+
+
+    kdl = failure?-1:kd ;
+    MPI_Allreduce(&kdl,&kd,1,MPI_INT,MPI_MIN,comm) ;
+    return kd ;
+  }
+
+  // convert domain in local numbering into key space
   int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm) {
     int kdl = 0 ;
     entitySet searchdom = dom & dist->key_domain.domain() ;
@@ -1411,6 +1437,148 @@ namespace Loci {
   // distribution info pointer (dist)
   // MPI Communicator
   storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset,
+                            entityPartitionInfoP ptn) {
+    // Get local numbering of entities owned by this processor, only write
+    // out these entities.
+    dom = ptn->my_entities & dom ;
+    MPI_Comm comm = ptn->comm ;
+    int kd =  getKeyDomain(dom, ptn) ;
+    if(kd< 0) {
+      cerr << "Local2FileOrder not in single keyspace!" << endl ;
+      kd = 0 ;
+    }
+    // Now get global to file numbering
+    Map l2f ;
+    l2f = ptn->l2f.Rep() ;
+
+    // Compute map from local numbering to file numbering
+    Map newnum ;
+    newnum.allocate(dom) ;
+    FORALL(dom,i) {
+      newnum[i] = l2f[i] ; 
+    } ENDFORALL ;
+
+    int imx = std::numeric_limits<int>::min() ;
+    int imn = std::numeric_limits<int>::max() ;
+
+    // Find bounds in file numbering from this processor
+    FORALL(dom,i) {
+      imx = max(newnum[i],imx) ;
+      imn = min(newnum[i],imn) ;
+    } ENDFORALL ;
+
+    // Find overall bounds
+    imx = GLOBAL_MAX(imx) ;
+    imn = GLOBAL_MIN(imn) ;
+
+    // Get number of processors
+    int p = 0 ;
+    MPI_Comm_size(comm,&p) ;
+    int prank = 0 ;
+    MPI_Comm_rank(comm,&prank) ;
+    // Get partitioning of file numbers across processors
+    vector<entitySet> out_ptn = simplePartition(imn,imx,comm) ;
+
+    // Now compute where to send data to put in file ordering
+    vector<entitySet> send_sets(p) ;
+    vector<sequence> send_seqs(p) ;
+
+    // Loop over processors and compute sets of entities to send
+    // To efficiently compute this mapping, first sort the transpose
+    // of the newnum map to quickly find the set of entities to send
+    // without searching entire newnum map for each processor
+    vector<pair<int,int> > file2num(dom.size()) ;
+    size_t cnt = 0 ;
+    FORALL(dom,ii) {
+      file2num[cnt].first = newnum[ii] ;
+      file2num[cnt].second = ii ;
+      cnt++ ;
+    } ENDFORALL ;
+    sort(file2num.begin(),file2num.end()) ;
+
+    // Check each processor, find out which sets to send
+    cnt = 0 ;
+    for(int i=0;i<p;++i) {
+      int mxi = out_ptn[i].Max() ;
+      while(cnt < file2num.size() && file2num[cnt].first <= mxi) {
+        send_sets[i] += file2num[cnt].second ;
+        cnt++ ;
+      }
+      sequence s ;
+      FORALL(send_sets[i],j) {
+        s+= newnum[j] ;
+      } ENDFORALL ;
+      send_seqs[i] = s ;
+    }
+
+    //Get the sequences of where we place the data when we receive it
+    vector<sequence> recv_seqs = transposeSeq(send_seqs) ;
+
+
+    // shift by the offset
+    offset = out_ptn[prank].Min() ;
+    for(int i=0;i<p;++i)
+      recv_seqs[i] <<= offset ;
+
+    // Compute allocation domain
+    entitySet file_dom ;
+    for(int i=0;i<p;++i)
+      file_dom += entitySet(recv_seqs[i]) ;
+
+    // allocate store over shifted domain
+    storeRepP qcol_rep ;
+    qcol_rep = sp->new_store(file_dom) ;
+
+    // Now communicate the container
+    vector<int> send_sizes(p),recv_sizes(p) ;
+
+    for(int i=0;i<p;++i)
+      send_sizes[i] = sp->pack_size(send_sets[i]) ;
+
+    MPI_Alltoall(&send_sizes[0],1,MPI_INT,
+                 &recv_sizes[0],1,MPI_INT,
+                 comm) ;
+
+    vector<int> send_dspl(p),recv_dspl(p) ;
+    send_dspl[0] = 0 ;
+    recv_dspl[0] = 0 ;
+    for(int i=1;i<p;++i) {
+      send_dspl[i] = send_dspl[i-1] + send_sizes[i-1] ;
+      recv_dspl[i] = recv_dspl[i-1] + recv_sizes[i-1] ;
+    }
+    int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
+    int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
+
+    vector<unsigned char> send_store(send_sz) ;
+    vector<unsigned char> recv_store(recv_sz) ;
+
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+               send_sets[i]) ;
+    }
+
+    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
+                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+                  comm) ;
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                       recv_seqs[i]) ;
+    }
+    return qcol_rep ;
+  }
+
+  // Convert container from local numbering to file numbering
+  // pass in store rep pointer: sp
+  // entitySet to write: dom
+  // return offset in file numbering (each processor will allocate from zero,
+  // add offset to domain to get actual file numbering)
+  // distribution info pointer (dist)
+  // MPI Communicator
+  storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset,
                             fact_db::distribute_infoP dist, MPI_Comm comm) {
 
 
@@ -1419,16 +1587,6 @@ namespace Loci {
     constraint my_entities ;
     my_entities = dist->my_entities ;
     dom = *my_entities & dom ;
-
-    // Get mapping from local to global numbering
-    Map l2g ;
-    l2g = dist->l2g.Rep() ;
-    // Compute domain in global numbering
-    entitySet dom_global = l2g.image(dom) ;
-
-    // This shouldn't happen
-    FATAL(dom.size() != dom_global.size()) ;
-
     int kd =  getKeyDomain(dom, dist, comm) ;
     if(kd< 0) {
       cerr << "Local2FileOrder not in single keyspace!" << endl ;
@@ -1869,10 +2027,6 @@ namespace Loci {
   void redistribute_write_container(hid_t file_id, std::string vname,
                                     storeRepP var, fact_db &facts) {
     fact_db::distribute_infoP dist = facts.get_distribute_info() ;
-    if(dist == 0) {
-      writeContainerRAW(file_id,vname,var,MPI_COMM_WORLD) ;
-      return ;
-    }
 
     hid_t group_id = 0 ;
 
@@ -1889,7 +2043,15 @@ namespace Loci {
       // Create container vardist that is ordered across processors in the
       // file numbering, the domain of this container shifted by offset
       // is the actual file numbering.
-      storeRepP vardist = Local2FileOrder(var,dom,offset,dist,MPI_COMM_WORLD) ;
+      entityPartitionInfoP ptn = var->getPartitionInfo() ;
+      if(ptn == 0) {
+        cerr << "Warning, container '" << vname
+             << "' does not have partition information." << endl ;
+        if(exec_current_fact_db != 0)
+          ptn = exec_current_fact_db->getPartitionInfo() ;
+      }
+      storeRepP vardist = Local2FileOrder(var,dom,offset,ptn) ;
+
       // Write out container that has been distributed in the file numbering
       if(use_parallel_io)
         pio::write_storeP(group_id,vardist,vardist->domain(),offset,MPI_COMM_WORLD) ;
@@ -2524,25 +2686,18 @@ namespace Loci {
 
 
   void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist) {
-    if(dist == 0) {
-      l2f.allocate(dom) ;
-      FORALL(dom,ii) {
-        l2f[ii] = ii-dom.Min() ;
-      } ENDFORALL ;
-    } else {
-      l2f.allocate(dom) ;
+    l2f.allocate(dom) ;
 
-      int mnl = std::numeric_limits<int>::max() ;
-      FORALL(dom,ii) {
-        l2f[ii] = dist->l2f[ii] ; 
-        mnl = min(mnl,l2f[ii]) ;
-      } ENDFORALL ;
-      int mn=mnl ;
-      MPI_Allreduce(&mnl,&mn,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
-      FORALL(dom,ii) {
-        l2f[ii] -= mn ;
-      } ENDFORALL ;
-    }
+    int mnl = std::numeric_limits<int>::max() ;
+    FORALL(dom,ii) {
+      l2f[ii] = dist->l2f[ii] ; 
+      mnl = min(mnl,l2f[ii]) ;
+    } ENDFORALL ;
+    int mn=mnl ;
+    MPI_Allreduce(&mnl,&mn,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+    FORALL(dom,ii) {
+      l2f[ii] -= mn ;
+    } ENDFORALL ;
   }
 
   void FindSimpleDistribution(entitySet dom, const Map &l2f,

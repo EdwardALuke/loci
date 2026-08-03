@@ -928,13 +928,15 @@ namespace Loci {
       ptnlist.push_back(p) ;
     }
     entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
-      (scope,df->l2g,df->key_domain,df->l2f,ptnlist) ;
+      (scope,df->l2g,df->key_domain,df->l2f,ptnlist,MPI_COMM_WORLD) ;
+    facts.setPartitionInfo(distinfop) ;
     for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
       storeRepP p = facts.get_variable(*vi) ;
       if(p->domain() == ~EMPTY) {
         // For universal set, keep set universal
         facts.replace_fact(*vi,p->freeze()) ;
         p = facts.get_variable(*vi) ;
+        p->setPartitionInfo(distinfop) ;
       } else if(!isMAP(p)) {
         int kd = p->getDomainKeySpace() ;
         entitySet rdom = p->domain() & df->g2lv[kd].domain() ;
@@ -1007,7 +1009,8 @@ namespace Loci {
       ptnlist.push_back(p) ;
     }
     entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
-      (scope,df->l2g,df->key_domain,df->l2f,ptnlist) ;
+      (scope,df->l2g,df->key_domain,df->l2f,ptnlist,MPI_COMM_WORLD) ;
+    facts.setPartitionInfo(distinfop) ;
     for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
       storeRepP p = facts.get_variable(*vi) ;
       p->setPartitionInfo(distinfop) ;

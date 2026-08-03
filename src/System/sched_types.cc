@@ -35,9 +35,15 @@ using std::ofstream ;
 namespace Loci {
 
   extern std::ofstream debugout ;
-    // Create variable types in fact database
+  // Create variable types in fact database
   // This is a necessary precursor to binding rules to the database
   void set_var_types(fact_db &facts, const digraph &dg, sched_db &scheds) {
+
+    // Build the partition info from the fact db, this is a bit of a hack
+    // right now.  Question: How should we associate local numberings with
+    // variables.  Right now we still assume that there is only one numbering
+    // for all variables in the fact_db.
+    entityPartitionInfoP distinfop = facts.getPartitionInfo() ;
 
     // Get all the variables and rules represented in the graph
     variableSet all_vars = extract_vars(dg.get_all_vertices()) ;
@@ -46,6 +52,7 @@ namespace Loci {
     // generate a particular variable
     digraph dgt = dg.transpose() ;
     
+
     // We need to account for iteration variables
     // So we can allocate them (No rules explicitly allocate them)
     variableSet iteration_variables ;
@@ -123,6 +130,7 @@ namespace Loci {
       param<int> timevar ;
       *timevar = 0 ;
       storeRepP st = timevar.Rep() ;
+      st->setPartitionInfo(distinfop) ;
       scheds.set_variable_type(*vi,st, facts) ;
     }
 
@@ -336,6 +344,7 @@ namespace Loci {
 	    abort() ;
 	  }
 	  st = st->new_store(EMPTY) ;
+          st->setPartitionInfo(distinfop) ;
 	  scheds.set_variable_type(v,st, facts) ;
 	} else {
 
@@ -395,8 +404,9 @@ namespace Loci {
         storeRepP rule_type = ri->get_rule_implP()->get_store(*vi)->getRep() ;
         if(typed_vars.inSet(*vi)) {
           storeRepP fact_type = facts.get_variable(*vi)->getRep() ;
-	    auto &rule_type_dr = *rule_type ;
-	    auto &fact_type_dr = *fact_type ;
+
+          auto &rule_type_dr = *rule_type ;
+          auto &fact_type_dr = *fact_type ;
           if(typeid(rule_type_dr) != typeid(fact_type_dr)) {
             cerr << "variable type mismatch for variable " << *vi << " in rule "
                  << *ri << endl ;

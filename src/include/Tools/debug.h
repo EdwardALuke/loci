@@ -30,6 +30,7 @@
 
 #include <ostream>
 #include <iostream>
+#include <fstream>
 #ifdef NO_CSTDLIB
 #include <stdlib.h>
 #else
@@ -87,6 +88,7 @@ using std::abort ;
 #endif // DEBUG
 
 namespace Loci {
+  extern std::ofstream debugout ;
   long getmaxrss() ;
   // memory profile function
   inline double currentMem(void) { return ::Loci::getmaxrss()*1024.0 ;  }    

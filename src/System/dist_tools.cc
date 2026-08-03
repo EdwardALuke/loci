@@ -755,10 +755,6 @@ namespace Loci {
     start = MPI_Wtime() ;
 
     //----------------------------------------------------------------------
-    // reorder facts to local numbering
-    reorder_facts(facts) ; 
-
-    //----------------------------------------------------------------------
     end_time =  MPI_Wtime() ;
     debugout << "  Time taken for reordering =  " << end_time - start << endl ;
 
@@ -823,6 +819,10 @@ namespace Loci {
       total += df->copy[i].size ;
     df->copy_total_size = total ;
     facts.put_distribute_info(df) ;
+    //----------------------------------------------------------------------
+    // reorder facts to local numbering
+    reorder_facts(facts) ; 
+
     // this needs to be an intensional fact
     facts.create_intensional_fact("my_entities",my_entities);
 

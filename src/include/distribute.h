@@ -557,23 +557,32 @@ namespace Loci {
                              const std::string& suffix="");
 
   class  entityPartitionInfo {
+    entityPartitionInfo() {}
   public:
+    // Entities owned by this processor in local numbering
+    entitySet my_entities ;
+    // Map from local to global numbering
+    Map l2g ;
+    // Key space for each local entity
+    store<unsigned char> key_domain ;
+    // Mpa from local to file numbering
+    Map l2f ;
+    // Partition for global numbering of each key space
+    std::vector<dataPartitionP> keyspacePartitions ;
+    // MPI communicator for distribution
+    MPI_Comm comm ;
     entityPartitionInfo(entitySet &scope,
                         Map &l2g_in,
                         store<unsigned char> &key_domain_in,
                         Map &l2f_in,
-                        std::vector<dataPartitionP> &ptnlist):
-      my_entities(scope),keyspacePartitions(ptnlist) {
+                        std::vector<dataPartitionP> &ptnlist,
+                        MPI_Comm comm_in):
+      my_entities(scope),keyspacePartitions(ptnlist),comm(comm_in) {
       l2g.setRep(l2g_in.Rep()) ;
       l2f.setRep(l2f_in.Rep()) ;
       key_domain.setRep(key_domain_in.Rep()) ;
     }
       
-    entitySet my_entities ;
-    Map l2g ;
-    store<unsigned char> key_domain ;
-    Map l2f ;
-    std::vector<dataPartitionP> keyspacePartitions ;
   } ;
   
 

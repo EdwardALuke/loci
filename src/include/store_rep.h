@@ -371,8 +371,8 @@ namespace Loci {
     virtual frame_info get_frame_info() = 0 ;
     virtual int getDomainKeySpace() const { return domainKeySpace ; }
     virtual void setDomainKeySpace(int v) { domainKeySpace = v ; }
-    void setPartitionInfo(entityPartitionInfoP p) { ptn = p ; }
-    entityPartitionInfoP getPartitionInfo() { return ptn; }
+    virtual void setPartitionInfo(entityPartitionInfoP p) { ptn = p ; }
+    virtual entityPartitionInfoP getPartitionInfo() const { return ptn; }
   } ;
 
 
@@ -384,7 +384,8 @@ namespace Loci {
     void setDomainKeySpace(int v) { rep->setDomainKeySpace(v) ; }
     enum instance_type { READ_WRITE, READ_ONLY } ;
     void setRep(const storeRepP &p)
-      { rep = p ; rep.set_notify(this); notification() ; }
+    { rep = p ; rep->setPartitionInfo(p->getPartitionInfo()) ;
+      rep.set_notify(this); notification() ; }
     storeRepP Rep() { return rep->getRep(); }
     storeRepP Rep() const { return rep->getRep(); }
     storeRepP getRep() {return rep->getRep() ;}
@@ -456,8 +457,12 @@ namespace Loci {
     }
     virtual int getDomainKeySpace() const { return Rep()->getDomainKeySpace() ; }
     virtual void setDomainKeySpace(int v) { Rep()->setDomainKeySpace(v) ; }
-    virtual void setPartitionInfo(entityPartitionInfoP p) { ptn = p ; }
-    virtual entityPartitionInfoP getPartitionInfo() { return ptn; }
+    virtual void setPartitionInfo(entityPartitionInfoP p) {
+      ptn = p ; Rep()->setPartitionInfo(p) ;
+    }
+    virtual entityPartitionInfoP getPartitionInfo() const {
+      return Rep()->getPartitionInfo();
+    }
     
   } ;
   typedef NPTR<store_ref> store_refP ;

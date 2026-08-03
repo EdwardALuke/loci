@@ -97,7 +97,8 @@ namespace Loci {
 
     typedef CPTR<distribute_info> distribute_infoP ;
     distribute_infoP distributed_info ;
-
+    entityPartitionInfoP partition_info ;
+    
     std::set<std::vector<variableSet> > intensive_output_maps;
 
     
@@ -246,6 +247,9 @@ namespace Loci {
     std::pair<entitySet, entitySet> get_distributed_alloc(const std::vector<int> &remap_entities, size_t kd);
     std::pair<entitySet, entitySet> get_distributed_alloc(int size, int offset, size_t kd);
     int is_distributed_start() {return true || dist_from_start ;}
+    void setPartitionInfo(entityPartitionInfoP p) { partition_info = p ; }
+    entityPartitionInfoP getPartitionInfo() const { return partition_info; }
+    
 #ifdef LOCI_COMPAT_MODE1
     std::vector<entitySet>& get_init_ptn() {return init_ptn[0] ;}
     std::pair<entitySet, entitySet> get_distributed_alloc(int size) {

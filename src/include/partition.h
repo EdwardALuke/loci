@@ -29,9 +29,9 @@
 #include <memory>
 #include <vector>
 #include <entitySet.h>
+#include <Tools/debug.h>
 
 namespace Loci {
-
   /// Abstract base class to define data partioner interface
   class dataPartition {
   public:
