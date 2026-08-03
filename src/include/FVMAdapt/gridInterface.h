@@ -21,6 +21,7 @@
 #ifndef GRID_INTERFACE_H
 #define GRID_INTERFACE_H
 #include <store_rep.h>
+#include <FVMAdapt/defines.h>
 #include <FVMAdapt/refinement_state.h>
 #include <memory>
 

@@ -43,6 +43,7 @@
 #include "FVMAdapt/defines.h"
 #include "FVMAdapt/dataxferDB.h"
 #include "FVMAdapt/gridInterface.h"
+#include "refinement_state_internal.h"
 
 using std::cerr;
 using std::cout;
@@ -1015,11 +1016,38 @@ namespace Loci {
 		   gridDataP->local_cells
 		   );
 
-    if(!collectRefinedCellState(gridDataP->cellState,
-                                refine_facts,
-                                gridDataP->local_cells,
-                                num_nodes+num_faces,
-                                true)) {
+    storeRepP fineDepthRep =
+      refine_facts.get_variable("fineRefinementDepth") ;
+    storeRepP fineResultRep =
+      refine_facts.get_variable("fineAdaptResult") ;
+    storeRepP cellOffsetRep =
+      refine_facts.get_variable("balanced_cell_offset") ;
+    storeRepP rootFileNumberRep =
+      refine_facts.get_variable("planRootFileNumber") ;
+    storeRepP geomCellsRep = refine_facts.get_variable("geom_cells") ;
+    if(fineDepthRep == 0 || fineResultRep == 0 || cellOffsetRep == 0 ||
+       rootFileNumberRep == 0 || geomCellsRep == 0) {
+      if(Loci::MPI_rank == 0)
+        cerr << "Missing a required refined-cell state fact" << endl ;
+      Loci::Abort() ;
+    }
+
+    const_store<vector<int> > fineDepth(fineDepthRep) ;
+    const_store<vector<int> > fineResult(fineResultRep) ;
+    const_store<int> cellOffset(cellOffsetRep) ;
+    const_store<int> rootFileNumber(rootFileNumberRep) ;
+    constraint geomCells ;
+    geomCells = geomCellsRep ;
+    const entitySet sourceCells = *geomCells & fineDepth.domain() ;
+
+    if(!detail::collectRefinedCellState(gridDataP->cellState,
+                                        fineDepth,
+                                        &fineResult,
+                                        cellOffset,
+                                        rootFileNumber,
+                                        sourceCells,
+                                        gridDataP->local_cells,
+                                        num_nodes+num_faces)) {
       if(Loci::MPI_rank == 0)
         cerr << "Unable to assemble refined-cell state" << endl ;
       Loci::Abort() ;
@@ -1161,11 +1189,35 @@ namespace Loci {
 		   gridDataP->local_cells
 		   );
 
-    if(!collectRefinedCellState(gridDataP->cellState,
-                                refine_facts,
-                                gridDataP->local_cells,
-                                num_nodes+num_faces,
-                                false)) {
+    storeRepP fineDepthRep =
+      refine_facts.get_variable("fineRefinementDepth") ;
+    storeRepP cellOffsetRep =
+      refine_facts.get_variable("balanced_cell_offset") ;
+    storeRepP rootFileNumberRep =
+      refine_facts.get_variable("planRootFileNumber") ;
+    storeRepP geomCellsRep = refine_facts.get_variable("geom_cells") ;
+    if(fineDepthRep == 0 || cellOffsetRep == 0 ||
+       rootFileNumberRep == 0 || geomCellsRep == 0) {
+      if(Loci::MPI_rank == 0)
+        cerr << "Missing a required refined-cell state fact" << endl ;
+      Loci::Abort() ;
+    }
+
+    const_store<vector<int> > fineDepth(fineDepthRep) ;
+    const_store<int> cellOffset(cellOffsetRep) ;
+    const_store<int> rootFileNumber(rootFileNumberRep) ;
+    constraint geomCells ;
+    geomCells = geomCellsRep ;
+    const entitySet sourceCells = *geomCells & fineDepth.domain() ;
+
+    if(!detail::collectRefinedCellState(gridDataP->cellState,
+                                        fineDepth,
+                                        0,
+                                        cellOffset,
+                                        rootFileNumber,
+                                        sourceCells,
+                                        gridDataP->local_cells,
+                                        num_nodes+num_faces)) {
       if(Loci::MPI_rank == 0)
         cerr << "Unable to assemble refined-cell state" << endl ;
       Loci::Abort() ;

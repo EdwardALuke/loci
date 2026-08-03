@@ -11,7 +11,7 @@
 //#
 //#############################################################################
 
-#include "refinement_state.h"
+#include "refinement_state_internal.h"
 
 #include "diamondcell.h"
 #include "hexcell.h"
@@ -113,6 +113,7 @@ namespace {
 }
 
 namespace Loci {
+  namespace detail {
 
   bool getLeafRefinementDepths(const Cell* root,
                                std::vector<int>& depths) {
@@ -206,58 +207,35 @@ namespace Loci {
     return true ;
   }
 
-  bool collectRefinedCellState(refinedCellState& state,
-                               fact_db& facts,
-                               const std::vector<entitySet>& localCells,
-                               int cellBase,
-                               bool includeAdaptResult) {
+  bool collectRefinedCellState(
+    refinedCellState& state,
+    const const_store<std::vector<int> >& fineDepth,
+    const const_store<std::vector<int> >* fineResult,
+    const const_store<int>& cellOffset,
+    const const_store<int>& rootFileNumber,
+    const entitySet& sourceCells,
+    const std::vector<entitySet>& localCells,
+    Entity cellBase) {
     if(localCells.size() != size_t(MPI_processes)) {
       std::cerr << "Refined-cell partitions do not cover every MPI rank"
                 << std::endl ;
       return false ;
     }
 
-    storeRepP fineDepthRep = facts.get_variable("fineRefinementDepth") ;
-    storeRepP fineResultRep = includeAdaptResult ?
-      facts.get_variable("fineAdaptResult") : storeRepP(0) ;
-    storeRepP cellOffsetRep = facts.get_variable("balanced_cell_offset") ;
-    storeRepP rootFileNumberRep = facts.get_variable("planRootFileNumber") ;
-    storeRepP geomCellsRep = facts.get_variable("geom_cells") ;
-    if(fineDepthRep == 0 ||
-       (includeAdaptResult && fineResultRep == 0) ||
-       cellOffsetRep == 0 || rootFileNumberRep == 0 || geomCellsRep == 0) {
-      std::cerr << "Rank " << MPI_rank
-                << " is missing a required refined-cell state fact"
-                << std::endl ;
-      return false ;
-    }
-
-    store<std::vector<int> > fineDepth ;
-    fineDepth = fineDepthRep ;
-    store<std::vector<int> > fineResult ;
-    if(includeAdaptResult)
-      fineResult = fineResultRep ;
-    store<int> cellOffset ;
-    cellOffset = cellOffsetRep ;
-    store<int> rootFileNumber ;
-    rootFileNumber = rootFileNumberRep ;
-    constraint geomCells ;
-    geomCells = geomCellsRep ;
-
-    entitySet sourceCells = *geomCells & fineDepth.domain() ;
+    const bool includeAdaptResult = fineResult != 0 ;
 
     std::vector<std::vector<int> > outgoing(MPI_processes) ;
     FORALL(sourceCells, cell) {
       if(!cellOffset.domain().inSet(cell) ||
          !rootFileNumber.domain().inSet(cell) ||
-         (includeAdaptResult && !fineResult.domain().inSet(cell))) {
+         (includeAdaptResult && !fineResult->domain().inSet(cell))) {
         std::cerr << "Rank " << MPI_rank
                   << " is missing refined-cell state for source cell "
                   << cell << std::endl ;
         return false ;
       }
       if(includeAdaptResult &&
-         fineDepth[cell].size() != fineResult[cell].size()) {
+         fineDepth[cell].size() != (*fineResult)[cell].size()) {
         std::cerr << "Rank " << MPI_rank
                   << " found mismatched depth and result vectors for cell "
                   << cell << std::endl ;
@@ -276,7 +254,7 @@ namespace Loci {
         outgoing[destination].push_back(fineDepth[cell][leaf]) ;
         outgoing[destination].push_back(rootFileNumber[cell]) ;
         outgoing[destination].push_back(includeAdaptResult ?
-                                         fineResult[cell][leaf] : 0) ;
+                                         (*fineResult)[cell][leaf] : 0) ;
       }
     } ENDFORALL ;
 
@@ -350,4 +328,5 @@ namespace Loci {
     }
     return true ;
   }
-}
+} // namespace detail
+} // namespace Loci

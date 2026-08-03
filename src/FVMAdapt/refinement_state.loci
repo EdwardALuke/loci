@@ -11,7 +11,6 @@
 //#
 //#############################################################################
 
-#include <algorithm>
 #include <iostream>
 #include <list>
 #include <limits>
@@ -23,7 +22,7 @@
 #include "diamondcell.h"
 #include "hexcell.h"
 #include "prism.h"
-#include "refinement_state.h"
+#include "library/refinement_state_internal.h"
 
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
@@ -35,30 +34,30 @@ using std::endl ;
 // Base-cell provenance
 //-----------------------------------------------------------------------------
 
+$type firstGeomCellFileNumber param<int> ;
+
+/// Supplies the identity for the first geometric-cell file number.
+$rule unit(firstGeomCellFileNumber), constraint(UNIVERSE) {
+  $firstGeomCellFileNumber = std::numeric_limits<int>::max() ;
+}
+
+
+/// Finds the first geometric-cell file number across the distributed mesh.
+$rule apply(firstGeomCellFileNumber <- fileNumber(geom_cells))[Loci::Minimum],
+constraint(geom_cells) {
+  join($firstGeomCellFileNumber, $fileNumber(geom_cells)) ;
+}
+
+
 /// Preserves the file number of the base cell that owns each accepted plan.
 $rule pointwise(planRootFileNumber <- fileNumber(geom_cells),
-num_original_nodes, num_original_faces),
-constraint(geom_cells), option(disable_threading), prelude {
-  const entitySet roots = entitySet(seq) ;
-  int localFirstFileNumber = std::numeric_limits<int>::max() ;
-  FORALL(roots, cell) {
-    localFirstFileNumber = std::min(localFirstFileNumber,
-                                    $fileNumber(geom_cells)[cell]) ;
-  } ENDFORALL ;
-
-  int firstFileNumber = localFirstFileNumber ;
-  MPI_Allreduce(&localFirstFileNumber, &firstFileNumber, 1, MPI_INT,
-                MPI_MIN, MPI_COMM_WORLD) ;
-
+firstGeomCellFileNumber, num_original_nodes, num_original_faces),
+constraint(geom_cells) {
   // Serial entity numbering includes the VOG face prefix; distributed
   // key-domain numbering may not. Preserve cell order and restore the prefix.
-  const int firstCellFileNumber =
-    *$num_original_nodes+*$num_original_faces ;
-  FORALL(roots, cell) {
-    $planRootFileNumber[cell] = firstCellFileNumber+
-      $fileNumber(geom_cells)[cell]-firstFileNumber ;
-  } ENDFORALL ;
-} ;
+  $planRootFileNumber = $num_original_nodes+$num_original_faces+
+    $fileNumber(geom_cells)-$firstGeomCellFileNumber ;
+}
 
 
 //-----------------------------------------------------------------------------
@@ -88,7 +87,7 @@ constraint(gnrlcells) {
 
   const int leafCount = cell->empty_resplit($balancedCellPlan) ;
   std::vector<int> depths ;
-  const bool valid = Loci::getLeafRefinementDepths(cell, depths) &&
+  const bool valid = Loci::detail::getLeafRefinementDepths(cell, depths) &&
     leafCount == $balanced_num_fine_cells &&
     depths.size() == size_t($balanced_num_fine_cells) ;
 
@@ -110,7 +109,7 @@ balanced_num_fine_cells), constraint(hexcells) {
   HexCell cell ;
   const int leafCount = cell.empty_resplit($balancedCellPlan) ;
   std::vector<int> depths ;
-  if(!Loci::getLeafRefinementDepths(&cell, depths) ||
+  if(!Loci::detail::getLeafRefinementDepths(&cell, depths) ||
      leafCount != $balanced_num_fine_cells ||
      depths.size() != size_t($balanced_num_fine_cells)) {
     cerr << "Unable to derive hexahedral refinement depth from the "
@@ -127,7 +126,7 @@ balanced_num_fine_cells), constraint(prisms) {
   Prism cell ;
   const int leafCount = cell.empty_resplit($balancedCellPlan) ;
   std::vector<int> depths ;
-  if(!Loci::getLeafRefinementDepths(&cell, depths) ||
+  if(!Loci::detail::getLeafRefinementDepths(&cell, depths) ||
      leafCount != $balanced_num_fine_cells ||
      depths.size() != size_t($balanced_num_fine_cells)) {
     cerr << "Unable to derive prism refinement depth from the accepted plan"
@@ -146,10 +145,10 @@ balanced_num_fine_cells), constraint(prisms) {
 $rule pointwise(fineAdaptResult <- cell2parent, balanced_cell_offset,
 balanced_num_fine_cells), constraint(geom_cells) {
   std::vector<int> result ;
-  if(!Loci::classifyAdaptResult($cell2parent,
-                                $balanced_cell_offset+1,
-                                $balanced_num_fine_cells,
-                                result)) {
+  if(!Loci::detail::classifyAdaptResult($cell2parent,
+                                        $balanced_cell_offset+1,
+                                        $balanced_num_fine_cells,
+                                        result)) {
     cerr << "Unable to classify the accepted cell transition" << endl ;
     Loci::Abort() ;
   }

@@ -13,14 +13,7 @@
 #ifndef FVMADAPT_REFINEMENT_STATE_H
 #define FVMADAPT_REFINEMENT_STATE_H
 
-#include "defines.h"
-
-#include <utility>
-#include <vector>
-
-class Cell ;
-class HexCell ;
-class Prism ;
+#include <store.h>
 
 namespace Loci {
 
@@ -42,28 +35,6 @@ namespace Loci {
 
     refinedCellState() : hasAdaptResult(false) {}
   } ;
-
-  /// Gather accepted leaves by their plan-assigned index and report tree depth.
-  bool getLeafRefinementDepths(const Cell* root,
-                               std::vector<int>& depths) ;
-  bool getLeafRefinementDepths(const HexCell* root,
-                               std::vector<int>& depths) ;
-  bool getLeafRefinementDepths(const Prism* root,
-                               std::vector<int>& depths) ;
-
-  /// Classify each new leaf from the cardinality of the old/new relation.
-  bool classifyAdaptResult(
-    const std::vector<std::pair<int32, int32> >& cell2parent,
-    int firstNewCell,
-    int numberOfNewCells,
-    std::vector<int>& result) ;
-
-  /// Flatten rule-derived state and place it on the generated-cell partition.
-  bool collectRefinedCellState(refinedCellState& state,
-                               fact_db& facts,
-                               const std::vector<entitySet>& localCells,
-                               int cellBase,
-                               bool includeAdaptResult) ;
 }
 
 #endif
