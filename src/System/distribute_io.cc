@@ -88,23 +88,14 @@ namespace Loci {
   vector<entitySet> simplePartition(int mn, int mx, MPI_Comm comm) {
     int p = 1 ;
     MPI_Comm_size(comm,&p) ;
-    vector<int> pl = simplePartitionVec(mn,mx,p) ;
-    vector<entitySet> ptn(p) ;
-    for(int i=0;i<p;++i)
-      ptn[i] = interval(pl[i],pl[i+1]-1) ;
-    return ptn ;
-  }
-
-  // Partition file numbers without turning an empty range into an interval.
-  static vector<entitySet> partitionFileNumbers(int mn, int mx, int p) {
     vector<entitySet> ptn(p) ;
     if(mn > mx)
       return ptn ;
 
-    vector<int> bounds = simplePartitionVec(mn,mx,p) ;
+    vector<int> pl = simplePartitionVec(mn,mx,p) ;
     for(int i=0;i<p;++i)
-      if(bounds[i] < bounds[i+1])
-        ptn[i] = interval(bounds[i],bounds[i+1]-1) ;
+      if(pl[i] < pl[i+1])
+        ptn[i] = interval(pl[i],pl[i+1]-1) ;
     return ptn ;
   }
 
@@ -678,7 +669,7 @@ namespace Loci {
       // Allocate buffer for largest processor buffer size
       std::vector<int> sort_max ;
       int local_size = 1 ;
-      if(prank > 0 && dom != EMPTY)
+      if(prank > 0)
         local_size = qrep->pack_size(dom) ;
       sort_max = all_collect_sizes(local_size,comm) ;
       int total_size = *std::max_element(sort_max.begin(), sort_max.end() );
@@ -712,14 +703,11 @@ namespace Loci {
       if(prank != 0) {
         // Client processor code, pack data into send buffer
         MPI_Status status ;
-        int tot_size = 0 ;
-        if(dom != EMPTY) {
-          tot_size = qrep->pack_size(dom) ;
-          if(tot_size != 0) {
-            int loc_pack = 0 ;
-            qrep->pack(&tmp_send_buf[0], loc_pack, total_size, dom) ;
-          }
-        }
+        int send_size_buf ;
+        send_size_buf = qrep->pack_size(dom) ;
+        int tot_size = send_size_buf ;
+        int loc_pack = 0 ;
+        qrep->pack(&tmp_send_buf[0], loc_pack, total_size, dom) ;
         // Wait for signal to send message to root processor
         int flag = 0 ;
         MPI_Recv(&flag,1, MPI_INT, 0, 10, comm, &status) ;
@@ -774,8 +762,7 @@ namespace Loci {
 
             int loc_unpack = 0 ;
             sequence tmp_seq = sequence(tmpset) ;
-            t_qrep->unpack(&tmp_send_buf[0], loc_unpack, recv_total_size,
-                           tmp_seq) ;
+            t_qrep->unpack(&tmp_send_buf[0], loc_unpack, total_size, tmp_seq) ;
             dimension = arr_sizes[i] ;
             count = dimension ;
 
@@ -956,8 +943,7 @@ namespace Loci {
       std::vector<int> interval_sizes ;
       entitySet dom ;
       if(q_dom != EMPTY) {
-        vector<entitySet> ptn =
-          partitionFileNumbers(q_dom.Min(),q_dom.Max(),np) ;
+        vector<entitySet> ptn = simplePartition(q_dom.Min(),q_dom.Max(),comm) ;
         for(int i=0;i<np;++i) {
           entitySet qset = ptn[i] &q_dom ;
           interval_sizes.push_back(qset.size()) ;
@@ -1007,7 +993,7 @@ namespace Loci {
       int max_tmp_size = *std::max_element(tmp_sizes.begin(), tmp_sizes.end()) ;
       int max_eset_size = *std::max_element(interval_sizes.begin(), interval_sizes.end()) ;
       int* tmp_int  ;
-      tmp_int = new int[max(max_tmp_size,1)] ;
+      tmp_int = new int[max_tmp_size] ;
       std::vector<int> arr_sizes = all_collect_sizes(array_size,comm) ;
       //      size_t tot_arr_size = 0 ;
       //      for(int i = 0; i < np; ++i)
@@ -1036,7 +1022,7 @@ namespace Loci {
           MPI_Send(tmp_int, tmp_sizes[prank], MPI_INT, 0, 10, comm) ;
         int total_size = 0 ;
         MPI_Recv(&total_size, 1, MPI_INT, 0, 11,comm, &status) ;
-        tmp_buf = new unsigned char[max(total_size,1)] ;
+        tmp_buf = new unsigned char[total_size] ;
         MPI_Recv(tmp_buf, total_size, MPI_PACKED, 0, 12, comm, &status) ;
         if(dom != EMPTY && total_size != 0) {
           sequence tmp_seq = sequence(dom) ;
@@ -1495,18 +1481,13 @@ namespace Loci {
     imx = GLOBAL_MAX(imx) ;
     imn = GLOBAL_MIN(imn) ;
 
-    if(imn > imx) {
-      offset = 0 ;
-      return sp->new_store(EMPTY) ;
-    }
-
     // Get number of processors
     int p = 0 ;
     MPI_Comm_size(comm,&p) ;
     int prank = 0 ;
     MPI_Comm_rank(comm,&prank) ;
-    // Get partitioning of file numbers across processors.
-    vector<entitySet> out_ptn = partitionFileNumbers(imn,imx,p) ;
+    // Get partitioning of file numbers across processors
+    vector<entitySet> out_ptn = simplePartition(imn,imx,comm) ;
 
     // Now compute where to send data to put in file ordering
     vector<entitySet> send_sets(p) ;
@@ -1564,8 +1545,7 @@ namespace Loci {
     vector<int> send_sizes(p),recv_sizes(p) ;
 
     for(int i=0;i<p;++i)
-      send_sizes[i] = send_sets[i] == EMPTY
-                        ? 0 : sp->pack_size(send_sets[i]) ;
+      send_sizes[i] = sp->pack_size(send_sets[i]) ;
 
     MPI_Alltoall(&send_sizes[0],1,MPI_INT,
                  &recv_sizes[0],1,MPI_INT,
@@ -1770,11 +1750,11 @@ namespace Loci {
 
     int p = 0 ;
     MPI_Comm_size(comm,&p) ;
-    int mn = std::numeric_limits<int>::max() ;
-    int mx = std::numeric_limits<int>::min() ;
+    int mn = input->domain().Min() ;
+    int mx = input->domain().Max() ;
     if(input->domain() != EMPTY) {
-      mn = input->domain().Min() + offset ;
-      mx = input->domain().Max() + offset ;
+      mn += offset ;
+      mx += offset ;
     }
     vector<int> allmx(p) ;
     vector<int> allmn(p) ;
@@ -1794,7 +1774,7 @@ namespace Loci {
       int fn = file_requests[i].first ;
       while(proc < p && (fn < allmn[proc] || fn > allmx[proc]))
         proc++ ;
-      if(proc == p || fn < allmn[proc] || fn > allmx[proc]) {
+      if(fn < allmn[proc] || fn > allmx[proc]) {
         cerr << "Unable to find processor that contains entity!" << endl ;
         Abort() ;
       }
@@ -1828,8 +1808,7 @@ namespace Loci {
 
 
     for(int i=0;i<p;++i)
-      send_sizes[i] = send_sets[i] == EMPTY
-                        ? 0 : input->pack_size(send_sets[i]) ;
+      send_sizes[i] = input->pack_size(send_sets[i]) ;
 
     MPI_Alltoall(&send_sizes[0],1,MPI_INT,&recv_sizes[0],1,MPI_INT, comm) ;
 

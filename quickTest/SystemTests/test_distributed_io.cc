@@ -1,5 +1,6 @@
 #include <Loci.h>
 #include <distribute_io.h>
+#include <mpi_containerIO.h>
 
 #include <cstdio>
 #include <iostream>
@@ -51,6 +52,29 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  int local_failures = 0;
+
+  /// Verify that ranks without assigned file numbers receive empty partitions.
+  const std::vector<entitySet> partitions =
+    Loci::simplePartition(42, 42, MPI_COMM_WORLD);
+  entitySet partitioned = EMPTY;
+  int partition_entries = 0;
+  int empty_partitions = 0;
+  for(std::vector<entitySet>::const_iterator ptn = partitions.begin();
+      ptn != partitions.end(); ++ptn) {
+    partitioned += *ptn;
+    partition_entries += ptn->size();
+    if(*ptn == EMPTY)
+      ++empty_partitions;
+  }
+  if(partitions.size() != 3 ||
+     partitioned != entitySet(interval(42, 42)) ||
+     partition_entries != 1 || empty_partitions != 2) {
+    std::cerr << "simplePartition did not preserve empty MPI partitions"
+              << std::endl;
+    local_failures = 1;
+  }
+
   /// Exercise distributed serial-HDF5 output when some ranks own no entities.
   Loci::use_parallel_io = false;
   const char *filename = "test_distributed_io.h5";
@@ -82,7 +106,6 @@ int main(int argc, char **argv) {
   Loci::hdf5CloseFile(file_id);
   MPI_Barrier(MPI_COMM_WORLD);
 
-  int local_failures = 0;
   if(MPI_rank == 0) {
     store<std::vector<char> > written;
     file_id = Loci::hdf5OpenFile(filename, H5F_ACC_RDONLY, H5P_DEFAULT,
