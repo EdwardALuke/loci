@@ -1416,7 +1416,7 @@ namespace Loci {
     // out these entities.
     dom = ptn->my_entities & dom ;
     MPI_Comm comm = ptn->getCommunicator() ; ;
-    int kd =  ptn.getKeyDomain(dom) ;
+    int kd =  ptn->getKeyDomain(dom) ;
     if(kd< 0) {
       cerr << "Local2FileOrder not in single keyspace!" << endl ;
       kd = 0 ;
