@@ -39,6 +39,15 @@ TESTS = $(AUTOMATIC_TESTS)
 TestResults: $(TESTS)
 	cat $(TESTS) > TestResults; rm $(TESTS)
 
+test_distributed_io.test: %.test: %.o
+	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
+	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) $(MPI_RUN) -np 3 ./$*.exe > $*.log 2>&1 || true)
+	@tail -n 1 $*.log > $*.log1
+	@echo -n SystemTests/$*":" > $@
+	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
+	@rm $*.log1 $*.exe
+	@cat $@
+
 %.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
 	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) ./$*.exe > $*.log || true)
@@ -52,7 +61,7 @@ clean:
 	rm -fr *.o *.exe *.d *.log *.log1
 
 # Junk files that are created while editing and running cases
-JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) 
+JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) $(wildcard *.h5)
 # ".cc" files created from .loci files
 LOCI_LPP_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
 
