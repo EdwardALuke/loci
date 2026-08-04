@@ -46,6 +46,31 @@ using std::sort ;
 
 namespace Loci {
 
+  int entityPartitionInfo::getKeyDomain(entitySet dom) const {
+    //    MPI_Comm comm = getCommunicator() ;
+    int kdl = 0 ;
+    entitySet searchdom = dom & key_domain.domain() ;
+    FORALL(searchdom,i) {
+      int key = key_domain[i] ;
+      kdl = std::max<int>(key,kdl) ;
+    } ENDFORALL ;
+    int kd=-1 ;
+    MPI_Allreduce(&kdl,&kd,1,MPI_INT,MPI_MAX,comm) ;
+
+    bool failure = false ;
+    FORALL(searchdom,i) {
+      int key = key_domain[i] ;
+      if(kd != key){
+        failure = true ;
+      }
+    } ENDFORALL ;
+    
+    
+    kdl = failure?-1:kd ;
+    MPI_Allreduce(&kdl,&kd,1,MPI_INT,MPI_MIN,comm) ;
+    return kd ;
+  }
+
   std::vector<std::pair<int,entitySet> >
   dataPartitionGeneral::partitionEntitySet(entitySet set) {
     int p = 1 ;

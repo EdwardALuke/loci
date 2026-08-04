@@ -582,7 +582,13 @@ namespace Loci {
       l2f.setRep(l2f_in.Rep()) ;
       key_domain.setRep(key_domain_in.Rep()) ;
     }
-      
+
+    /// return entities this processor owns in local numbering
+    entitySet myEntities() const { return my_entities ; }
+    MPI_Comm getCommunicator() const { return comm ; }
+    storeRepP getLocal2GlobalMap() const { return l2g.Rep() ; }
+    storeRepP getLocal2FileMap() const { return l2f.Rep() ; }
+    int getKeyDomain(entitySet dom) const ;
   } ;
   
 

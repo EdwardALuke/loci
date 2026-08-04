@@ -1378,32 +1378,6 @@ namespace Loci {
   }
 
   // convert domain in local numbering into key space
-  int getKeyDomain(entitySet dom, entityPartitionInfoP ptn) {
-    MPI_Comm comm= ptn->comm ;
-    int kdl = 0 ;
-    entitySet searchdom = dom & ptn->key_domain.domain() ;
-    FORALL(searchdom,i) {
-      int key = ptn->key_domain[i] ;
-      kdl = std::max<int>(key,kdl) ;
-    } ENDFORALL ;
-    int kd=-1 ;
-    MPI_Allreduce(&kdl,&kd,1,MPI_INT,MPI_MAX,comm) ;
-
-    bool failure = false ;
-    FORALL(searchdom,i) {
-      int key = ptn->key_domain[i] ;
-      if(kd != key){
-        failure = true ;
-      }
-    } ENDFORALL ;
-
-
-    kdl = failure?-1:kd ;
-    MPI_Allreduce(&kdl,&kd,1,MPI_INT,MPI_MIN,comm) ;
-    return kd ;
-  }
-
-  // convert domain in local numbering into key space
   int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm) {
     int kdl = 0 ;
     entitySet searchdom = dom & dist->key_domain.domain() ;
@@ -1441,15 +1415,15 @@ namespace Loci {
     // Get local numbering of entities owned by this processor, only write
     // out these entities.
     dom = ptn->my_entities & dom ;
-    MPI_Comm comm = ptn->comm ;
-    int kd =  getKeyDomain(dom, ptn) ;
+    MPI_Comm comm = ptn->getCommunicator() ; ;
+    int kd =  ptn.getKeyDomain(dom) ;
     if(kd< 0) {
       cerr << "Local2FileOrder not in single keyspace!" << endl ;
       kd = 0 ;
     }
     // Now get global to file numbering
     Map l2f ;
-    l2f = ptn->l2f.Rep() ;
+    l2f = ptn->getLocal2FileMap() ;
 
     // Compute map from local numbering to file numbering
     Map newnum ;
