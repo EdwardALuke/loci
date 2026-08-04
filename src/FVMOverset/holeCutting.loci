@@ -21,6 +21,7 @@
 #include <Loci.h>
 #include <Tools/tools.h>
 #include "FVMOverset/overset.h"
+#include "FVMMod/geometry/geomPrimitives.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -36,6 +37,7 @@ using std::vector ;
 using std::map ;
 #include <set>
 using std::set ;
+using Loci::rigid_transform;
 
 $include "FVM.lh"
 $include "FVMOverset/overset.lh"
@@ -557,7 +559,8 @@ namespace Loci {
         Loci::CPTR<geometry_type> gp = ii->second ;
 
         // Transform geometry to global coordinates
-        map<string,vector<componentXform> >::const_iterator mi ;
+        //map<string,vector<componentXform> >::const_iterator mi ;
+        map<string,vector<rigid_transform> >::const_iterator mi ;
         mi = $componentTransformMap->find(ii->first) ;
         if(mi != $componentTransformMap->end()) {
           int sz = mi->second.size() ;

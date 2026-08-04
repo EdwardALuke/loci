@@ -21,6 +21,7 @@
 #include <Loci.h>
 #include <interpolate.h>
 #include "FVMOverset/overset.h"
+#include "FVMMod/geometry/geomPrimitives.h"
 #include <Tools/tools.h>
 #include <iostream>
 #include <fstream>

@@ -21,7 +21,7 @@
 #include <Loci.h>
 #include <Tools/tools.h>
 #include "FVMOverset/overset.h"
-#include "FVMMod/geomPrimitives.h"
+#include "FVMMod/geometry/geomPrimitives.h"
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -37,7 +37,7 @@ using std::vector ;
 using std::map ;
 #include <set>
 using std::set ;
-
+using Loci::rigid_transform ;
 
 $include "FVM.lh"
 $include "FVMOverset/overset.lh"
@@ -632,332 +632,362 @@ namespace Loci {
 
   // } ;
 
-  $rule apply(componentGeomtetryData<-componetGeometry), 
+  $rule apply(componentGeometryData<-componentGeometry)[Loci::NullOp],
         prelude  {
     std::vector<Loci::CPTR<geometry_type> > geomList ;
     std::vector<std::string> geomNames ;
-    const options_list &ol = *$oversetGeometry ;
+    const options_list &ol = *$componentGeometry ;
     options_list::option_namelist nl = ol.getOptionNameList() ;
     options_list::option_namelist::const_iterator nli ;
     for(nli=nl.begin();nli!=nl.end();++nli) {
-      geomNames.push_back(*nli) ;
-      Loci::option_value_type ovt = ol.getOptionValueType(*nli) ;
+     // note this needs another loop for multiple overset sub descriptions
+      string tag = *nli;
+      geomNames.push_back(tag) ;
+      Loci::option_value_type ovt = ol.getOptionValueType(tag) ;
       if(ovt != Loci::FUNCTION) {
         cerr << "expecting geometry function in oversetGeometry!"<< endl ;
         Loci::Abort() ;
       }
-      options_list::arg_list value_list ;
-      string fname ;
-      ol.getOption(*nli,fname,value_list) ;
-      options_list fol ;
-      fol.Input(value_list) ;
-      if(fname == "hex") {
-        vector3d<real_t> p0(0,0,0) ;
-        if(fol.optionExists("p0"))
-          fol.getOptionUnits("p0","m",p0) ;
-        else
-          cerr << "p0 not defined in hex geometry"<< endl ;
-        vector3d<real_t> p1(0,0,0) ;
-        if(fol.optionExists("p1"))
-          fol.getOptionUnits("p1","m",p1) ;
-        else
-          cerr << "p1 not defined in hex geometry"<< endl ;
-        vector3d<real_t> p2(0,0,0) ;
-        if(fol.optionExists("p2"))
-          fol.getOptionUnits("p2","m",p2) ;
-        else
-          cerr << "p2 not defined in hex geometry"<< endl ;
-        vector3d<real_t> p3(0,0,0) ;
-        if(fol.optionExists("p3"))
-          fol.getOptionUnits("p3","m",p3) ;
-        else
-          cerr << "p3 not defined in hex geometry"<< endl ;
-        vector3d<real_t> p4(0,0,0) ;
-        if(fol.optionExists("p4"))
-          fol.getOptionUnits("p4","m",p4) ;
-        else
-          cerr << "p4 not defined in hex geometry"<< endl ;
-        vector3d<real_t> p5(0,0,0) ;
-        if(fol.optionExists("p5"))
-          fol.getOptionUnits("p5","m",p5) ;
-        else
-          cerr << "p5 not defined in hex geometry"<< endl ;
-        vector3d<real_t> p6(0,0,0) ;
-        if(fol.optionExists("p6"))
-          fol.getOptionUnits("p6","m",p6) ;
-        else
-          cerr << "p6 not defined in hex geometry"<< endl ;
-        vector3d<real_t> p7(0,0,0) ;
-        if(fol.optionExists("p7"))
-          fol.getOptionUnits("p7","m",p7) ;
-        else
-          cerr << "p7 not defined in hex geometry"<< endl ;
-        vect3d pts[8] ;
-        pts[0] = p0 ;
-        pts[1] = p1 ;
-        pts[2] = p2 ;
-        pts[3] = p3 ;
-        pts[4] = p4 ;
-        pts[5] = p5 ;
-        pts[6] = p6 ;
-        pts[7] = p7 ;
-        geomList.push_back(new hexFunc(pts)) ;
-
-      } else if(fname == "cylinder") {
-        if(fol.optionExists("center")) {
-          vector3d<real_t> center(0,0,0) ;
-          fol.getOptionUnits("center","m",center) ;
-          real_t radius= 0 ;
-          fol.getOptionUnits("radius","m",radius) ;
-          real_t thickness = 0;
-          if (fol.optionExists("thickness")) // for hollow cylinders
-            fol.getOptions("thickness");
-          geomList.push_back(new hollowGeneralCylinderFunc(center,radius,radius,thickness)) ;
-        }
-        if(fol.optionExists("p1")) {
-          if(!fol.optionExists("p2") || fol.optionExists("center")) {
-            cerr << "geometry definition cylinder should either include 'center' or 'p1' and 'p2' to define cylinder location and end caps." << endl ;
-            Loci::Abort() ;
-          }
-          vector3d<real_t> p1(0,0,0) ;
-          fol.getOptionUnits("p1","m",p1) ;
-          vector3d<real_t> p2(0,0,0) ;
-          fol.getOptionUnits("p2","m",p2) ;
-          real_t radius = 0 ;
-          fol.getOptionUnits("radius","m",radius) ;
-          if (fol.optionExists("thickness")) // for hollow cylinders
-            fol.getOptions("thickness");
-          geomList.push_back(new hollowGenernalCylinderFunc(p1,p2,radius,radius,thickness)) ;
-        }
-      } else if(fname == "cone") {        
-         if(fol.optionExists("center")) {
-          vector3d<real_t> center(0,0,0) ;
-          fol.getOptionUnits("center","m",center) ;
-          real_t radius = 0 ;
-          fol.getOptionUnits("radius","m",radius) ;
-          if (fol.optionExists("thickness")) // for hollow cones
-            fol.getOptions("thickness",thickness);
-          geomList.push_back(new hollowGenernalCylinderFunc(center,radius,0.0,thickness)) ;
-        }
-        if(fol.optionExists("p1")) {
-          if(!fol.optionExists("p2") || fol.optionExists("center")) {
-            cerr << "geometry definition cylinder should either include 'center' or 'p1' and 'p2' to define cylinder location and end caps." << endl ;
-            Loci::Abort() ;
-          }
-          vector3d<real_t> p1(0,0,0) ;
-          fol.getOptionUnits("p1","m",p1) ;
-          vector3d<real_t> p2(0,0,0) ;
-          fol.getOptionUnits("p2","m",p2) ;
-          real_t radius = 0 ;
-          fol.getOptionUnits("radius","m",radius) ;
-          thickness = 0;
-          if (fol.optionExists("thickness")) // for hollow cones
-            fol.getOptions("thickness",thickness);
-          geomList.push_back(new hollowGenernalCylinderFunc(p1,p2,radius, 0.0, thickness)) ;
-        }
-     } else if(fname == "frustum") {        
-         if(fol.optionExists("center")) {
-          vector3d<real_t> center(0,0,0) ;
-          fol.getOptionUnits("center","m",center) ;
-          real_t radius = 0 ;
-          fol.getOptionUnits("radius","m",radius) ;
-          thickness = 0;
-          if (fol.optionExists("thickness")) // for hollow frustums
-            fol.getOptions("thickness",thickness);
-          geomList.push_back(new hollowGenernalCylinderFunc(center,radius, 0.5*radius,thickness)) ;
-        }
-        if(fol.optionExists("p1")) {
-          if(!fol.optionExists("p2") || fol.optionExists("center")) {
-            cerr << "geometry definition cylinder should either include 'center' or 'p1' and 'p2' to define cylinder location and end caps." << endl ;
-            Loci::Abort() ;
-          }
-          vector3d<real_t> p1(0,0,0) ;
-          fol.getOptionUnits("p1","m",p1) ;
-          vector3d<real_t> p2(0,0,0) ;
-          fol.getOptionUnits("p2","m",p2) ;
-          real_t radius_base = 0 ;
-          fol.getOptionUnits("radius_base","m",radius_base) ;
-          real_t radius_top = 0 ;
-          fol.getOptionUnits("radius_top","m",radius_top) ;
-          if (fol.optionExists("thickness")) // for hollow frustums
-            fol.getOptions("thickness",thickness);
-          geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius_base, radius_top, thickness)) ;
-        }
-      } else if(fname == "sector") {        
-          vector3d<real_t> p1(0,0,0) ;
-          fol.getOptionUnits("p1","m",p1) ;
-          vector3d<real_t> p2(0,0,0) ;
-          fol.getOptionUnits("p2","m",p2) ;
-          real_t angle = 360; // assume full revolution
-          fol.getOptions("angle",angle);
-          angle *=M_PI/180; // converting to radians 
-          real_t position;
-          fol.getOptions("position",position);
-          vector3d<real_t> orientation(0,0,0) ;
-          fol.getOptions("orientation",orientation) ;
-          vector<vector3d<real>> vertices;
-           if(ol.optionExists("points")) {
-          Loci::option_value_type ovt= ol.getOptionValueType("points") ;
-          if(ovt != Loci::LIST) {
-            cerr << "list for geometry of component '" << tag
+      // Get list of composite geometries/shapes for this tag, loop over entries 
+      // for this tagged body
+      if (ol.optionExists("shapes")){
+        Loci::option_value_type ovs =ol.getOptionValueType("shapes");
+        if (ovs !=Loci::LIST){
+          cerr << "shape list for geometry of component '" << tag
                  << "' must be a list" << endl ;
             Loci::Abort() ;
-          }
-
-          Loci::options_list::arg_list value_list ;
-          ol.getOption("points",value_list) ;
-          int sz = value_list.size() ;
-          for(int i=0;i<sz;++i) {
-            if(value_list[i].type_of() != FUNCTION) {
-              cerr << "points should be a list of vertices in component '"
-                   << tag << "'" << endl ;
-            }
-            string name ;
-            value_list[i].get_value(name) ;
-            if(name != "vertex") {
-              cerr << "points for sector expecting a 'vertex'', not '"
-                   << name << "'" << endl ;
-              Loci::Abort() ;
-            }
-            options_list::arg_list fvalues ;
-            value_list[i].get_value(fvalues) ;
-            options_list fol ;
-            fol.Input(fvalues) ;
-            vector3d<real_t> pl;
-           if(fol.optionExists("v")) {
-              fol.getOptionUnits("v","meter",pl) ;
-            } else {
-              cerr << "vertex does not define point 'v=' in component '"
-                   << tag << "'" << endl ;
-              Loci::Abort() ;
-            }
-            vertices.push_back(pl) ;
-          }
-          geomList.push_back(new sectorFunc(p1,p2,vertices,angle,position,orientation)) ;
         }
-      } else if(fname == "revolution") { // maintain backwards compatibility    
-          // note: TBD to integrate/modify sector to support old style-offset    
-          vector3d<real_t> p1(0,0,0) ;
-          fol.getOptionUnits("p1","m",p1) ;
-          vector3d<real_t> p2(0,0,0) ;
-          fol.getOptionUnits("p2","m",p2) ;
-          real_t angle = 360; // assume full revolution
-          fol.getOptions("angle",angle);
-          angle *=M_PI/180; // converting to radians 
-          real_t position;
-          fol.getOptions("position",position);
-          vector3d<real_t> orientation(0,0,0) ;
-          fol.getOptions("orientation",orientation) ;
-          vector<vector3d<real>> vertices;
-           if(ol.optionExists("points")) {
-          Loci::option_value_type ovt= ol.getOptionValueType("points") ;
-          if(ovt != Loci::LIST) {
-            cerr << "list for geometry of component '" << tag
-                 << "' must be a list" << endl ;
+        Loci::options_list::arg_list value_list ;
+        ol.getOption("shapes",value_list);
+        int sz = value_list.size();
+        for (int i = 0;i<sz;++i){
+          if (value_list[i].type_of() !=FUNCTION) {
+            cerr << "shape list should be a list of shape descriptions in component '"
+                 << tag << "'" << endl;
+          }
+        
+          options_list::arg_list fname;
+          value_list[i].get_value(fname);
+          options_list fol;
+          fol.Input(fname);
+          if(fol.optionExists( "hex")) {
+            vector3d<real_t> p0(0,0,0) ;
+            if(fol.optionExists("p0"))
+              fol.getOptionUnits("p0","m",p0) ;
+            else
+              cerr << "p0 not defined in hex geometry"<< endl ;
+            vector3d<real_t> p1(0,0,0) ;
+            if(fol.optionExists("p1"))
+              fol.getOptionUnits("p1","m",p1) ;
+            else
+              cerr << "p1 not defined in hex geometry"<< endl ;
+            vector3d<real_t> p2(0,0,0) ;
+            if(fol.optionExists("p2"))
+              fol.getOptionUnits("p2","m",p2) ;
+            else
+              cerr << "p2 not defined in hex geometry"<< endl ;
+            vector3d<real_t> p3(0,0,0) ;
+            if(fol.optionExists("p3"))
+              fol.getOptionUnits("p3","m",p3) ;
+            else
+              cerr << "p3 not defined in hex geometry"<< endl ;
+            vector3d<real_t> p4(0,0,0) ;
+            if(fol.optionExists("p4"))
+              fol.getOptionUnits("p4","m",p4) ;
+            else
+              cerr << "p4 not defined in hex geometry"<< endl ;
+            vector3d<real_t> p5(0,0,0) ;
+            if(fol.optionExists("p5"))
+              fol.getOptionUnits("p5","m",p5) ;
+            else
+              cerr << "p5 not defined in hex geometry"<< endl ;
+            vector3d<real_t> p6(0,0,0) ;
+            if(fol.optionExists("p6"))
+              fol.getOptionUnits("p6","m",p6) ;
+            else
+              cerr << "p6 not defined in hex geometry"<< endl ;
+            vector3d<real_t> p7(0,0,0) ;
+            if(fol.optionExists("p7"))
+              fol.getOptionUnits("p7","m",p7) ;
+            else
+              cerr << "p7 not defined in hex geometry"<< endl ;
+            vector3d<real_t> pts[8] ;
+            pts[0] = p0 ;
+            pts[1] = p1 ;
+            pts[2] = p2 ;
+            pts[3] = p3 ;
+            pts[4] = p4 ;
+            pts[5] = p5 ;
+            pts[6] = p6 ;
+            pts[7] = p7 ;
+            geomList.push_back(new hexFunc(pts)) ;
+
+          } else if (fol.optionExists( "cylinder")) {
+            if(fol.optionExists("center")) {
+              vector3d<real_t> center(0,0,0) ;
+              fol.getOptionUnits("center","m",center) ;
+              real_t radius= 0.0 ;
+              fol.getOptionUnits("radius","m",radius) ;
+              real_t thickness = 0.0;
+              if (fol.optionExists("thickness")) // for hollow cylinders
+                fol.getOption("thickness");
+              geomList.push_back(new hollowGeneralCylinderFunc(center,radius,radius,thickness)) ;
+            } else {
+            if(fol.optionExists("p1")) {
+                if(!fol.optionExists("p2") || fol.optionExists("center")) {
+                  cerr << "geometry definition cylinder should either include 'center' or 'p1' and 'p2' to define cylinder location and end caps." << endl ;
+                  Loci::Abort() ;
+                }
+                vector3d<real_t> p1(0,0,0) ;
+                fol.getOptionUnits("p1","m",p1) ;
+                vector3d<real_t> p2(0,0,0) ;
+                fol.getOptionUnits("p2","m",p2) ;
+                real_t radius = 0.0 ;
+                fol.getOptionUnits("radius","m",radius) ;
+                real_t thickness = 0.0;
+                if (fol.optionExists("thickness")) // for hollow cylinders
+                  fol.getOption("thickness");
+                geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius,radius,radius,radius,thickness)) ;
+              }
+            }
+          } else if(fol.optionExists( "cone")) {        
+            if(fol.optionExists("center")) {
+              vector3d<real_t> center(0,0,0) ;
+              fol.getOptionUnits("center","m",center) ;
+              real_t radius = 0.0 ;
+              fol.getOptionUnits("radius","m",radius) ;
+              real_t thickness = 0.0;
+              if (fol.optionExists("thickness")) // for hollow cones
+                fol.getOption("thickness",thickness);
+              geomList.push_back(new hollowGeneralCylinderFunc(center,radius,0.0,thickness)) ;
+            } else {
+              if(fol.optionExists("p1")) {
+                if(!fol.optionExists("p2") || fol.optionExists("center")) {
+                  cerr << "geometry definition cylinder should either include 'center' or 'p1' and 'p2' to define cylinder location and end caps." << endl ;
+                  Loci::Abort() ;
+                }
+                vector3d<real_t> p1(0,0,0) ;
+                fol.getOptionUnits("p1","m",p1) ;
+                vector3d<real_t> p2(0,0,0) ;
+                fol.getOptionUnits("p2","m",p2) ;
+                real_t radius = 0.0 ;
+                fol.getOptionUnits("radius","m",radius) ;
+                real_t thickness = 0.0;
+                if (fol.optionExists("thickness")) // for hollow cones
+                  fol.getOption("thickness",thickness);
+                geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius, radius, radius, radius, thickness)) ;
+              }
+            }
+        } else if(fol.optionExists( "frustum")) {        
+            if(fol.optionExists("center")) {
+              vector3d<real_t> center(0,0,0) ;
+              fol.getOptionUnits("center","m",center) ;
+              real_t radius = 0.0 ;
+              fol.getOptionUnits("radius","m",radius) ;
+              real_t thickness = 0;
+              if (fol.optionExists("thickness")) // for hollow frustums
+                fol.getOption("thickness",thickness);
+              geomList.push_back(new hollowGeneralCylinderFunc(center,radius, 0.5*radius,thickness)) ;
+            } else if(fol.optionExists("p1")) {
+              if(!fol.optionExists("p2") || fol.optionExists("center")) {
+                cerr << "geometry definition cylinder should either include 'center' or 'p1' and 'p2' to define cylinder location and end caps." << endl ;
+                Loci::Abort() ;
+              }
+              vector3d<real_t> p1(0,0,0) ;
+              fol.getOptionUnits("p1","m",p1) ;
+              vector3d<real_t> p2(0,0,0) ;
+              fol.getOptionUnits("p2","m",p2) ;
+              real_t radius_base = 0.0 ;
+              fol.getOptionUnits("radius_base","m",radius_base) ;
+              real_t radius_top = 0. ;
+              fol.getOptionUnits("radius_top","m",radius_top) ;
+              real_t thickness = 0.0;
+              if (fol.optionExists("thickness")) // for hollow frustums
+                fol.getOption("thickness",thickness);
+              geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius_base, radius_top, radius_base, radius_top, thickness)) ;
+            }
+          } else if(fol.optionExists( "sector")) {        
+              vector3d<real_t> p1(0,0,0) ;
+              fol.getOptionUnits("p1","m",p1) ;
+              vector3d<real_t> p2(0,0,0) ;
+              fol.getOptionUnits("p2","m",p2) ;
+              real_t angle = 360; // assume full revolution
+              fol.getOption("angle",angle);
+              angle *=M_PI/180; // converting to radians 
+              real_t position;
+              fol.getOption("position",position);
+              vector3d<real_t> orientation(0,0,0) ;
+              fol.getOptionUnits("orientation","",orientation) ;
+              vector<vector3d<real_t>> vertices;
+              if(ol.optionExists("points")) {
+              Loci::option_value_type ovt= ol.getOptionValueType("points") ;
+              if(ovt != Loci::LIST) {
+                cerr << "list for geometry of component '" << tag
+                    << "' must be a list" << endl ;
+                Loci::Abort() ;
+              }
+
+              Loci::options_list::arg_list value_list ;
+              ol.getOption("points",value_list) ;
+              int sz = value_list.size() ;
+              for(int i=0;i<sz;++i) {
+                if(value_list[i].type_of() != FUNCTION) {
+                  cerr << "points should be a list of vertices in component '"
+                      << tag << "'" << endl ;
+                }
+                string name ;
+                value_list[i].get_value(name) ;
+                if(name != "vertex") {
+                  cerr << "points for sector expecting a 'vertex'', not '"
+                      << name << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                options_list::arg_list fvalues ;
+                value_list[i].get_value(fvalues) ;
+                options_list fol ;
+                fol.Input(fvalues) ;
+                vector3d<real_t> pl;
+              if(fol.optionExists("v")) {
+                  fol.getOptionUnits("v","meter",pl) ;
+                } else {
+                  cerr << "vertex does not define point 'v=' in component '"
+                      << tag << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                vertices.push_back(pl) ;
+              }
+            }
+            geomList.push_back(new sectorFunc(p1,p2,vertices,angle,position,orientation)) ;
+          } else if(fol.optionExists( "revolution")) { // maintain backwards compatibility    
+              // note: TBD to integrate/modify sector to support old style-offset    
+              vector3d<real_t> p1(0,0,0) ;
+              fol.getOptionUnits("p1","m",p1) ;
+              vector3d<real_t> p2(0,0,0) ;
+              fol.getOptionUnits("p2","m",p2) ;
+              real_t angle = 360; // assume full revolution
+              fol.getOption("angle",angle);
+              angle *=M_PI/180; // converting to radians 
+              real_t position;
+              fol.getOption("position",position);
+              vector3d<real_t> orientation(0,0,0) ;
+              fol.getOptionUnits("orientation","",orientation) ;
+              vector<vector3d<real_t>> vertices;
+              if(ol.optionExists("points")) {
+              Loci::option_value_type ovt= ol.getOptionValueType("points") ;
+              if(ovt != Loci::LIST) {
+                cerr << "list for geometry of component '" << tag
+                    << "' must be a list" << endl ;
+                Loci::Abort() ;
+              }
+
+              Loci::options_list::arg_list value_list ;
+              ol.getOption("points",value_list) ;
+              int sz = value_list.size() ;
+              for(int i=0;i<sz;++i) {
+                if(value_list[i].type_of() != FUNCTION) {
+                  cerr << "points should be a list of vertices in component '"
+                      << tag << "'" << endl ;
+                }
+                string name ;
+                value_list[i].get_value(name) ;
+                if(name != "vertex") {
+                  cerr << "points for sector expecting a 'vertex'', not '"
+                      << name << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                options_list::arg_list fvalues ;
+                value_list[i].get_value(fvalues) ;
+                options_list fol ;
+                fol.Input(fvalues) ;
+                vector3d<real_t> pl;
+                if(fol.optionExists("v")) {
+                  fol.getOptionUnits("v","meter",pl) ;
+                } else {
+                  cerr << "vertex does not define point 'v=' in component '"
+                      << tag << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                vertices.push_back(pl) ;
+              }
+            }
+            geomList.push_back(new sectorFunc(p1,p2,vertices,angle,position,orientation)) ;
+          } else if(fol.optionExists( "extrusion")) {        
+              vector3d<real_t> p1(0,0,0) ;
+              fol.getOptionUnits("p1","m",p1) ;
+              vector3d<real_t> p2(0,0,0) ;
+              fol.getOptionUnits("p2","m",p2) ;
+              real_t percentage;
+              fol.getOption("percentage",percentage);
+              vector<vector3d<real_t>> vertices;
+              if(ol.optionExists("points")) {
+              Loci::option_value_type ovt= ol.getOptionValueType("points") ;
+              if(ovt != Loci::LIST) {
+                cerr << "points for geometry of component '" << tag
+                    << "' must be a list" << endl ;
+                Loci::Abort() ;
+              }
+
+              Loci::options_list::arg_list value_list ;
+              ol.getOption("points",value_list) ;
+              int sz = value_list.size() ;
+              for(int i=0;i<sz;++i) {
+                if(value_list[i].type_of() != FUNCTION) {
+                  cerr << "points should be a list of vertices in component '"
+                      << tag << "'" << endl ;
+                }
+                string name ;
+                value_list[i].get_value(name) ;
+                if(name != "vertex") {
+                  cerr << "points for sector expecting a 'vertex'', not '"
+                      << name << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                options_list::arg_list fvalues ;
+                value_list[i].get_value(fvalues) ;
+                options_list fol ;
+                fol.Input(fvalues) ;
+                vector3d<real_t> pl;
+              if(fol.optionExists("v")) {
+                  fol.getOptionUnits("v","meter",pl) ;
+                } else {
+                  cerr << "vertex does not define point 'v=' in component '"
+                      << tag << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                vertices.push_back(pl) ;
+              }
+              geomList.push_back(new extrusionFunc(p1,p2,vertices,percentage)) ;
+            }
+          } else if(fol.optionExists( "sphere")) {
+            vector3d<real_t> center(0,0,0) ;
+            fol.getOptionUnits("center","m",center) ;
+            real_t radius = 0 ;
+            fol.getOptionUnits("radius","m",radius) ;
+            geomList.push_back(new sphereFunc(center,radius)) ;
+          } else if(fol.optionExists( "box")) {
+            vector3d<real_t> p1(0,0,0) ;
+            vector3d<real_t> p2(0,0,0) ;
+            fol.getOptionUnits("p1","m",p1) ;
+            fol.getOptionUnits("p2","m",p2) ;
+            geomList.push_back(new boxFunc(p1,p2)) ;
+          } else {
+            cerr << "unknown geometry '" << fname << "' in Overset Geometry" << endl ;
             Loci::Abort() ;
           }
-
-          Loci::options_list::arg_list value_list ;
-          ol.getOption("points",value_list) ;
-          int sz = value_list.size() ;
-          for(int i=0;i<sz;++i) {
-            if(value_list[i].type_of() != FUNCTION) {
-              cerr << "points should be a list of vertices in component '"
-                   << tag << "'" << endl ;
-            }
-            string name ;
-            value_list[i].get_value(name) ;
-            if(name != "vertex") {
-              cerr << "points for sector expecting a 'vertex'', not '"
-                   << name << "'" << endl ;
-              Loci::Abort() ;
-            }
-            options_list::arg_list fvalues ;
-            value_list[i].get_value(fvalues) ;
-            options_list fol ;
-            fol.Input(fvalues) ;
-            vector3d<real_t> pl;
-           if(fol.optionExists("v")) {
-              fol.getOptionUnits("v","meter",pl) ;
-            } else {
-              cerr << "vertex does not define point 'v=' in component '"
-                   << tag << "'" << endl ;
-              Loci::Abort() ;
-            }
-            vertices.push_back(pl) ;
-          }
-          geomList.push_back(new sectorFunc(p1,p2,vertices,angle,position,orientation)) ;
         }
-      } else if(fname == "extrusion") {        
-          vector3d<real_t> p1(0,0,0) ;
-          fol.getOptionUnits("p1","m",p1) ;
-          vector3d<real_t> p2(0,0,0) ;
-          fol.getOptionUnits("p2","m",p2) ;
-          vector<vector3d<real>> vertices;
-           if(ol.optionExists("points")) {
-          Loci::option_value_type ovt= ol.getOptionValueType("points") ;
-          if(ovt != Loci::LIST) {
-            cerr << "points for geometry of component '" << tag
-                 << "' must be a list" << endl ;
-            Loci::Abort() ;
-          }
-
-          Loci::options_list::arg_list value_list ;
-          ol.getOption("points",value_list) ;
-          int sz = value_list.size() ;
-          for(int i=0;i<sz;++i) {
-            if(value_list[i].type_of() != FUNCTION) {
-              cerr << "points should be a list of vertices in component '"
-                   << tag << "'" << endl ;
-            }
-            string name ;
-            value_list[i].get_value(name) ;
-            if(name != "vertex") {
-              cerr << "points for sector expecting a 'vertex'', not '"
-                   << name << "'" << endl ;
-              Loci::Abort() ;
-            }
-            options_list::arg_list fvalues ;
-            value_list[i].get_value(fvalues) ;
-            options_list fol ;
-            fol.Input(fvalues) ;
-            vector3d<real_t> pl;
-           if(fol.optionExists("v")) {
-              fol.getOptionUnits("v","meter",pl) ;
-            } else {
-              cerr << "vertex does not define point 'v=' in component '"
-                   << tag << "'" << endl ;
-              Loci::Abort() ;
-            }
-            vertices.push_back(pl) ;
-          }
-          geomList.push_back(new extrusionFunc(p1,p2,vertices)) ;
-        }
-      } else if(fname == "sphere") {
-        vector3d<real_t> center(0,0,0) ;
-        fol.getOptionUnits("center","m",center) ;
-        real_t radius = 0 ;
-        fol.getOptionUnits("radius","m",radius) ;
-        geomList.push_back(new sphereFunc(center,radius)) ;
-      } else if(fname == "box") {
-        vector3d<real_t> p1(0,0,0) ;
-        vector3d<real_t> p2(0,0,0) ;
-        fol.getOptionUnits("p1","m",p1) ;
-        fol.getOptionUnits("p2","m",p2) ;
-        geomList.push_back(new boxFunc(p1,p2)) ;
-      } else {
-        cerr << "unknown geometry '" << fname << "' in immersedGeometry" << endl ;
-        Loci::Abort() ;
       }
-    }
-    if(geomList.size() == 0) {
-      cerr << "immersedGeometry must have at least one geometry definition"
-           << endl ;
-      Loci::Abort() ;
-    } else if(geomList.size() == 1) {
-      $componentGeomtryData = geomList[0] ;
-    } else {
-      $componentGeometryData = new compositeFunc(geomList) ;
+      // Aggregate subgeometries into a composite geometry, if available
+      if(geomList.size() == 0) {
+        cerr << "Overset Geometry must have at least one geometry definition"
+            << endl ;
+        Loci::Abort() ;
+      } else if(geomList.size() == 1) {
+        Loci::CPTR<geometry_type> comp = geomList[0];
+        (*$componentGeometryData)[tag] = comp ;
+      } else {
+        Loci::CPTR<geometry_type> comp = new compositeFunc(geomList) ;
+        (*$componentGeometryData)[tag] = comp; 
+      }
     }
   } ;
 
@@ -1031,7 +1061,8 @@ namespace Loci {
       if(mi == (*$componentGeometryData).end()) {
         tmp.push_back(Loci::CPTR<geometry_type>(0)) ;
       } else {
-        map<string,vector<componentXform> >::const_iterator mi2 ;
+        map<string,vector<rigid_transform>>::const_iterator mi2;
+       // map<string,vector<componentXform> >::const_iterator mi2 ;
         mi2 = (*$componentTransformMap).find((*$componentNameList)[i]) ;
         Loci::CPTR<geometry_type> gp = mi->second ;
         if(mi2 != (*$componentTransformMap).end()) {
