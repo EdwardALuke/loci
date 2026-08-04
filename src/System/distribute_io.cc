@@ -95,6 +95,19 @@ namespace Loci {
     return ptn ;
   }
 
+  // Partition file numbers without turning an empty range into an interval.
+  static vector<entitySet> partitionFileNumbers(int mn, int mx, int p) {
+    vector<entitySet> ptn(p) ;
+    if(mn > mx)
+      return ptn ;
+
+    vector<int> bounds = simplePartitionVec(mn,mx,p) ;
+    for(int i=0;i<p;++i)
+      if(bounds[i] < bounds[i+1])
+        ptn[i] = interval(bounds[i],bounds[i+1]-1) ;
+    return ptn ;
+  }
+
   //serial/parallel io
   hid_t hdf5CreateFile(const char *name, unsigned flags, hid_t create_id, hid_t access_id, MPI_Comm comm, size_t file_size_estimate)
   {
@@ -665,7 +678,7 @@ namespace Loci {
       // Allocate buffer for largest processor buffer size
       std::vector<int> sort_max ;
       int local_size = 1 ;
-      if(prank > 0)
+      if(prank > 0 && dom != EMPTY)
         local_size = qrep->pack_size(dom) ;
       sort_max = all_collect_sizes(local_size,comm) ;
       int total_size = *std::max_element(sort_max.begin(), sort_max.end() );
@@ -699,11 +712,14 @@ namespace Loci {
       if(prank != 0) {
         // Client processor code, pack data into send buffer
         MPI_Status status ;
-        int send_size_buf ;
-        send_size_buf = qrep->pack_size(dom) ;
-        int tot_size = send_size_buf ;
-        int loc_pack = 0 ;
-        qrep->pack(&tmp_send_buf[0], loc_pack, total_size, dom) ;
+        int tot_size = 0 ;
+        if(dom != EMPTY) {
+          tot_size = qrep->pack_size(dom) ;
+          if(tot_size != 0) {
+            int loc_pack = 0 ;
+            qrep->pack(&tmp_send_buf[0], loc_pack, total_size, dom) ;
+          }
+        }
         // Wait for signal to send message to root processor
         int flag = 0 ;
         MPI_Recv(&flag,1, MPI_INT, 0, 10, comm, &status) ;
@@ -740,6 +756,16 @@ namespace Loci {
           for(int i = 1; i < np; ++i) {
             MPI_Status status ;
             int recv_total_size ;
+            int flag = 1 ;
+            MPI_Send(&flag, 1, MPI_INT, i, 10, comm) ;
+            MPI_Recv(&recv_total_size, 1, MPI_INT, i, 11, comm,
+                     &status) ;
+            MPI_Recv(&tmp_send_buf[0], recv_total_size, MPI_PACKED, i, 12,
+                     comm, &status) ;
+
+            if(dom_vector[i] == EMPTY)
+              continue ;
+
             // Allocate over 0-size-1, this allows for greater scalability when
             // sets data exceeds 2gig
             entitySet tmpset = interval(0,dom_vector[i].size()-1);
@@ -747,13 +773,9 @@ namespace Loci {
             storeRepP t_qrep = qrep->new_store(tmpset) ;
 
             int loc_unpack = 0 ;
-            int flag = 1 ;
-            MPI_Send(&flag, 1, MPI_INT, i, 10, comm) ;
-            MPI_Recv(&recv_total_size, 1, MPI_INT, i, 11, comm, &status) ;
-            MPI_Recv(&tmp_send_buf[0], recv_total_size, MPI_PACKED, i, 12, comm, &status) ;
-
             sequence tmp_seq = sequence(tmpset) ;
-            t_qrep->unpack(&tmp_send_buf[0], loc_unpack, total_size, tmp_seq) ;
+            t_qrep->unpack(&tmp_send_buf[0], loc_unpack, recv_total_size,
+                           tmp_seq) ;
             dimension = arr_sizes[i] ;
             count = dimension ;
 
@@ -934,7 +956,8 @@ namespace Loci {
       std::vector<int> interval_sizes ;
       entitySet dom ;
       if(q_dom != EMPTY) {
-        vector<entitySet> ptn = simplePartition(q_dom.Min(),q_dom.Max(),comm) ;
+        vector<entitySet> ptn =
+          partitionFileNumbers(q_dom.Min(),q_dom.Max(),np) ;
         for(int i=0;i<np;++i) {
           entitySet qset = ptn[i] &q_dom ;
           interval_sizes.push_back(qset.size()) ;
@@ -948,8 +971,10 @@ namespace Loci {
         qrep->allocate(q_dom) ;
         return ;
       }
-      offset = dom.Min() ;
-      dom <<= offset ;
+      if(dom != EMPTY) {
+        offset = dom.Min() ;
+        dom <<= offset ;
+      }
       qrep->allocate(dom) ;
 
       frame_info fi = read_frame_infoS(group_id,dom.size(),comm) ;
@@ -982,7 +1007,7 @@ namespace Loci {
       int max_tmp_size = *std::max_element(tmp_sizes.begin(), tmp_sizes.end()) ;
       int max_eset_size = *std::max_element(interval_sizes.begin(), interval_sizes.end()) ;
       int* tmp_int  ;
-      tmp_int = new int[max_tmp_size] ;
+      tmp_int = new int[max(max_tmp_size,1)] ;
       std::vector<int> arr_sizes = all_collect_sizes(array_size,comm) ;
       //      size_t tot_arr_size = 0 ;
       //      for(int i = 0; i < np; ++i)
@@ -1011,11 +1036,13 @@ namespace Loci {
           MPI_Send(tmp_int, tmp_sizes[prank], MPI_INT, 0, 10, comm) ;
         int total_size = 0 ;
         MPI_Recv(&total_size, 1, MPI_INT, 0, 11,comm, &status) ;
-        tmp_buf = new unsigned char[total_size] ;
+        tmp_buf = new unsigned char[max(total_size,1)] ;
         MPI_Recv(tmp_buf, total_size, MPI_PACKED, 0, 12, comm, &status) ;
-        sequence tmp_seq = sequence(dom) ;
-        int loc_unpack = 0 ;
-        qrep->unpack(tmp_buf, loc_unpack, total_size, tmp_seq) ;
+        if(dom != EMPTY && total_size != 0) {
+          sequence tmp_seq = sequence(dom) ;
+          int loc_unpack = 0 ;
+          qrep->unpack(tmp_buf, loc_unpack, total_size, tmp_seq) ;
+        }
       } else {
         // processor zero
 
@@ -1051,7 +1078,6 @@ namespace Loci {
             curr_indx += interval_sizes[p] ;
             hsize_t dimension = arr_sizes[p] ;
             count = dimension ;
-            H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, &start, &stride, &count, NULL) ;
             entitySet tmp_set;
             if(local_set.size())
               tmp_set = interval(0, local_set.size()-1) ;
@@ -1074,6 +1100,17 @@ namespace Loci {
                 fi.second_level = vint ;
               }
             }
+            if(local_set == EMPTY) {
+              start += count ;
+              if(p) {
+                int empty_size = 0 ;
+                MPI_Send(&empty_size, 1, MPI_INT, p, 11, comm) ;
+                MPI_Send(tmp_int, 0, MPI_PACKED, p, 12, comm) ;
+              }
+              continue ;
+            }
+            H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, &start, &stride,
+                                &count, NULL) ;
             storeRepP t_sp ;
             int t = 0 ;
             if(p == 0)
@@ -1458,13 +1495,18 @@ namespace Loci {
     imx = GLOBAL_MAX(imx) ;
     imn = GLOBAL_MIN(imn) ;
 
+    if(imn > imx) {
+      offset = 0 ;
+      return sp->new_store(EMPTY) ;
+    }
+
     // Get number of processors
     int p = 0 ;
     MPI_Comm_size(comm,&p) ;
     int prank = 0 ;
     MPI_Comm_rank(comm,&prank) ;
-    // Get partitioning of file numbers across processors
-    vector<entitySet> out_ptn = simplePartition(imn,imx,comm) ;
+    // Get partitioning of file numbers across processors.
+    vector<entitySet> out_ptn = partitionFileNumbers(imn,imx,p) ;
 
     // Now compute where to send data to put in file ordering
     vector<entitySet> send_sets(p) ;
@@ -1486,6 +1528,8 @@ namespace Loci {
     // Check each processor, find out which sets to send
     cnt = 0 ;
     for(int i=0;i<p;++i) {
+      if(out_ptn[i] == EMPTY)
+        continue ;
       int mxi = out_ptn[i].Max() ;
       while(cnt < file2num.size() && file2num[cnt].first <= mxi) {
         send_sets[i] += file2num[cnt].second ;
@@ -1503,7 +1547,7 @@ namespace Loci {
 
 
     // shift by the offset
-    offset = out_ptn[prank].Min() ;
+    offset = out_ptn[prank] == EMPTY ? 0 : out_ptn[prank].Min() ;
     for(int i=0;i<p;++i)
       recv_seqs[i] <<= offset ;
 
@@ -1520,7 +1564,8 @@ namespace Loci {
     vector<int> send_sizes(p),recv_sizes(p) ;
 
     for(int i=0;i<p;++i)
-      send_sizes[i] = sp->pack_size(send_sets[i]) ;
+      send_sizes[i] = send_sets[i] == EMPTY
+                        ? 0 : sp->pack_size(send_sets[i]) ;
 
     MPI_Alltoall(&send_sizes[0],1,MPI_INT,
                  &recv_sizes[0],1,MPI_INT,
@@ -1536,14 +1581,16 @@ namespace Loci {
     int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
     int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
 
-    vector<unsigned char> send_store(send_sz) ;
-    vector<unsigned char> recv_store(recv_sz) ;
+    vector<unsigned char> send_store(max(send_sz,1)) ;
+    vector<unsigned char> recv_store(max(recv_sz,1)) ;
 
 
     for(int i=0;i<p;++i) {
-      int loc_pack = 0 ;
-      sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
-               send_sets[i]) ;
+      if(send_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                 send_sets[i]) ;
+      }
     }
 
     MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
@@ -1551,9 +1598,11 @@ namespace Loci {
                   comm) ;
 
     for(int i=0;i<p;++i) {
-      int loc_pack = 0 ;
-      qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
-                       recv_seqs[i]) ;
+      if(recv_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seqs[i]) ;
+      }
     }
     return qcol_rep ;
   }
@@ -1721,11 +1770,11 @@ namespace Loci {
 
     int p = 0 ;
     MPI_Comm_size(comm,&p) ;
-    int mn = input->domain().Min() ;
-    int mx = input->domain().Max() ;
+    int mn = std::numeric_limits<int>::max() ;
+    int mx = std::numeric_limits<int>::min() ;
     if(input->domain() != EMPTY) {
-      mn += offset ;
-      mx += offset ;
+      mn = input->domain().Min() + offset ;
+      mx = input->domain().Max() + offset ;
     }
     vector<int> allmx(p) ;
     vector<int> allmn(p) ;
@@ -1745,7 +1794,7 @@ namespace Loci {
       int fn = file_requests[i].first ;
       while(proc < p && (fn < allmn[proc] || fn > allmx[proc]))
         proc++ ;
-      if(fn < allmn[proc] || fn > allmx[proc]) {
+      if(proc == p || fn < allmn[proc] || fn > allmx[proc]) {
         cerr << "Unable to find processor that contains entity!" << endl ;
         Abort() ;
       }
@@ -1779,7 +1828,8 @@ namespace Loci {
 
 
     for(int i=0;i<p;++i)
-      send_sizes[i] = input->pack_size(send_sets[i]) ;
+      send_sizes[i] = send_sets[i] == EMPTY
+                        ? 0 : input->pack_size(send_sets[i]) ;
 
     MPI_Alltoall(&send_sizes[0],1,MPI_INT,&recv_sizes[0],1,MPI_INT, comm) ;
 
@@ -1793,12 +1843,15 @@ namespace Loci {
     int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
     int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
 
-    vector<unsigned char> send_store(send_sz), recv_store(recv_sz) ;
+    vector<unsigned char> send_store(max(send_sz,1)) ;
+    vector<unsigned char> recv_store(max(recv_sz,1)) ;
 
     for(int i=0;i<p;++i) {
-      int loc_pack = 0 ;
-      input->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
-                  send_sets[i]) ;
+      if(send_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        input->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                    send_sets[i]) ;
+      }
     }
 
     MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
@@ -1806,9 +1859,11 @@ namespace Loci {
                   comm) ;
 
     for(int i=0;i<p;++i) {
-      int loc_pack = 0 ;
-      result->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
-                     recv_seq[i]) ;
+      if(recv_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        result->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                       recv_seq[i]) ;
+      }
     }
   }
 
