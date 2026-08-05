@@ -1098,11 +1098,6 @@ void volumePartDerivedVars::processDerivedVars(const vector<string> &vars) {
 	derivedVars["u"] = VAR_U ;
       }
     }
-    if(vars[i] == "v" && !shadowPart->hasNodalScalarVar("v")) {
-      if(shadowPart->hasNodalVectorVar("v")) {
-	derivedVars["v"] = VAR_U ;
-      }
-    }
     if(vars[i] == "0" && !shadowPart->hasNodalScalarVar("0")) {
       if(shadowPart->hasNodalVectorVar("v")) {
 	derivedVars["0"] = VAR_0 ;
@@ -1121,11 +1116,6 @@ void volumePartDerivedVars::processDerivedVars(const vector<string> &vars) {
     if(vars[i] == "uS" && !shadowPart->hasNodalScalarVar("uS")) {
       if(shadowPart->hasNodalVectorVar("vS")) {
 	derivedVars["uS"] = VAR_US ;
-      }
-    }
-    if(vars[i] == "vS" && !shadowPart->hasNodalScalarVar("vS")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["vS"] = VAR_US ;
       }
     }
     if(vars[i] == "0S" && !shadowPart->hasNodalScalarVar("0S")) {
@@ -1855,11 +1845,6 @@ void surfacePartDerivedVars::processDerivedVars(const vector<string> &vars) {
 	derivedVars["u"] = VAR_U ;
       }
     }
-    if(vars[i] == "v" && !shadowPart->hasNodalScalarVar("v")) {
-      if(shadowPart->hasNodalVectorVar("v")) {
-	derivedVars["v"] = VAR_U ;
-      }
-    }
     if(vars[i] == "0" && !shadowPart->hasNodalScalarVar("0")) {
       if(shadowPart->hasNodalVectorVar("v")) {
 	derivedVars["0"] = VAR_0 ;
@@ -1878,11 +1863,6 @@ void surfacePartDerivedVars::processDerivedVars(const vector<string> &vars) {
     if(vars[i] == "uS" && !shadowPart->hasNodalScalarVar("uS")) {
       if(shadowPart->hasNodalVectorVar("vS")) {
 	derivedVars["uS"] = VAR_US ;
-      }
-    }
-    if(vars[i] == "vS" && !shadowPart->hasNodalScalarVar("vS")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["vS"] = VAR_US ;
       }
     }
     if(vars[i] == "0S" && !shadowPart->hasNodalScalarVar("0S")) {
