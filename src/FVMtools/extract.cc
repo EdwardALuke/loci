@@ -1098,6 +1098,11 @@ void volumePartDerivedVars::processDerivedVars(const vector<string> &vars) {
 	derivedVars["u"] = VAR_U ;
       }
     }
+    if(vars[i] == "v" && !shadowPart->hasNodalScalarVar("v")) {
+      if(shadowPart->hasNodalVectorVar("v")) {
+	derivedVars["v"] = VAR_U ;
+      }
+    }
     if(vars[i] == "0" && !shadowPart->hasNodalScalarVar("0")) {
       if(shadowPart->hasNodalVectorVar("v")) {
 	derivedVars["0"] = VAR_0 ;
@@ -1111,6 +1116,31 @@ void volumePartDerivedVars::processDerivedVars(const vector<string> &vars) {
     if(vars[i] == "2" && !shadowPart->hasNodalScalarVar("2")) {
       if(shadowPart->hasNodalVectorVar("v")) {
 	derivedVars["2"] = VAR_2 ;
+      }
+    }
+    if(vars[i] == "uS" && !shadowPart->hasNodalScalarVar("uS")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["uS"] = VAR_US ;
+      }
+    }
+    if(vars[i] == "vS" && !shadowPart->hasNodalScalarVar("vS")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["vS"] = VAR_US ;
+      }
+    }
+    if(vars[i] == "0S" && !shadowPart->hasNodalScalarVar("0S")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["0S"] = VAR_0S ;
+      }
+    }
+    if(vars[i] == "1S" && !shadowPart->hasNodalScalarVar("1S")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["1S"] = VAR_1S ;
+      }
+    }
+    if(vars[i] == "2S" && !shadowPart->hasNodalScalarVar("2S")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["2S"] = VAR_2S ;
       }
     }
     if(vars[i] == "x")
@@ -1279,6 +1309,35 @@ void volumePartDerivedVars::getNodalScalar(string varname, vector<float> &vals) 
 	    tmp[i] = v[i].y ;
 	    break ;
 	  case VAR_2:
+	    tmp[i] = v[i].z ;
+	    break ;
+	  default:
+	    tmp[i] = 0 ;
+	  }
+	}
+	vals.swap(tmp) ;
+      }
+      break ;
+    case VAR_US:
+    case VAR_0S:
+    case VAR_1S:
+    case VAR_2S:
+      {
+	vector<vector3d<float> > v ;
+	shadowPart->getNodalVector("vS",v) ;
+	vector<float> tmp(v.size()) ;
+	for(size_t i=0;i<v.size();++i) {
+	  switch(vartype) {
+	  case VAR_US:
+	    tmp[i] = norm(v[i]) ;
+	    break ;
+	  case VAR_0S:
+	    tmp[i] = v[i].x ;
+	    break ;
+	  case VAR_1S:
+	    tmp[i] = v[i].y ;
+	    break ;
+	  case VAR_2S:
 	    tmp[i] = v[i].z ;
 	    break ;
 	  default:
@@ -1796,6 +1855,11 @@ void surfacePartDerivedVars::processDerivedVars(const vector<string> &vars) {
 	derivedVars["u"] = VAR_U ;
       }
     }
+    if(vars[i] == "v" && !shadowPart->hasNodalScalarVar("v")) {
+      if(shadowPart->hasNodalVectorVar("v")) {
+	derivedVars["v"] = VAR_U ;
+      }
+    }
     if(vars[i] == "0" && !shadowPart->hasNodalScalarVar("0")) {
       if(shadowPart->hasNodalVectorVar("v")) {
 	derivedVars["0"] = VAR_0 ;
@@ -1809,6 +1873,31 @@ void surfacePartDerivedVars::processDerivedVars(const vector<string> &vars) {
     if(vars[i] == "2" && !shadowPart->hasNodalScalarVar("2")) {
       if(shadowPart->hasNodalVectorVar("v")) {
 	derivedVars["2"] = VAR_2 ;
+      }
+    }
+    if(vars[i] == "uS" && !shadowPart->hasNodalScalarVar("uS")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["uS"] = VAR_US ;
+      }
+    }
+    if(vars[i] == "vS" && !shadowPart->hasNodalScalarVar("vS")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["vS"] = VAR_US ;
+      }
+    }
+    if(vars[i] == "0S" && !shadowPart->hasNodalScalarVar("0S")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["0S"] = VAR_0S ;
+      }
+    }
+    if(vars[i] == "1S" && !shadowPart->hasNodalScalarVar("1S")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["1S"] = VAR_1S ;
+      }
+    }
+    if(vars[i] == "2S" && !shadowPart->hasNodalScalarVar("2S")) {
+      if(shadowPart->hasNodalVectorVar("vS")) {
+	derivedVars["2S"] = VAR_2S ;
       }
     }
     if(vars[i] == "x")
@@ -1968,6 +2057,35 @@ void surfacePartDerivedVars::getNodalScalar(string varname,
 	    tmp[i] = v[i].y ;
 	    break ;
 	  case VAR_2:
+	    tmp[i] = v[i].z ;
+	    break ;
+	  default:
+	    tmp[i] = 0 ;
+	  }
+	}
+	vals.swap(tmp) ;
+      }
+      break ;
+    case VAR_US:
+    case VAR_0S:
+    case VAR_1S:
+    case VAR_2S:
+      {
+	vector<vector3d<float> > v ;
+	shadowPart->getNodalVector("vS",v) ;
+	vector<float> tmp(v.size()) ;
+	for(size_t i=0;i<v.size();++i) {
+	  switch(vartype) {
+	  case VAR_US:
+	    tmp[i] = norm(v[i]) ;
+	    break ;
+	  case VAR_0S:
+	    tmp[i] = v[i].x ;
+	    break ;
+	  case VAR_1S:
+	    tmp[i] = v[i].y ;
+	    break ;
+	  case VAR_2S:
 	    tmp[i] = v[i].z ;
 	    break ;
 	  default:
@@ -2491,6 +2609,27 @@ void getDerivedVar(vector<float> &dval, string var_name,
       float m = norm(u[nd]) ;
       dval[c++] = m ;
     } ENDFORALL ;
+  } else if (var_name == "uS") {
+    fact_db facts ;
+    string filename = output_dir+"/vS_vec." + iteration +"_" + casename ;
+    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
+                                       H5F_ACC_RDONLY,
+                                       H5P_DEFAULT) ;
+    if(file_id < 0) {
+      cerr << "unable to open file '" << filename << "'!" << endl ;
+      return ;
+    }
+
+    store<vector3d<float> > u ;
+    readData(file_id,"vS",u.Rep(),EMPTY,facts) ;
+    Loci::hdf5CloseFile(file_id) ;
+
+    entitySet dom = u.domain() ;
+    int c = 0 ;
+    FORALL(dom,nd) {
+      float m = norm(u[nd]) ;
+      dval[c++] = m ;
+    } ENDFORALL ;
   } else if(var_name == "x" || var_name =="y" || var_name == "z") {
     store<vector3d<float> > pos ;
     string posname = getPosFile(output_dir,iteration,casename) ;
@@ -2557,7 +2696,40 @@ void getDerivedVar(vector<float> &dval, string var_name,
         dval[c++] = u[nd].z ;
       } ENDFORALL ;
     }
-  } else {
+  } else if(var_name == "0S" || var_name =="1S" || var_name == "2S") {
+    fact_db facts ;
+    string filename = output_dir+"/vS_vec." + iteration +"_" + casename ;
+    hid_t file_id = Loci::hdf5OpenFile(filename.c_str(),
+                                       H5F_ACC_RDONLY,
+                                       H5P_DEFAULT) ;
+    if(file_id < 0) {
+      cerr << "unable to open file '" << filename << "'!" << endl ;
+      return ;
+    }
+
+    store<vector3d<float> > u ;
+    readData(file_id,"vS",u.Rep(),EMPTY,facts) ;
+    Loci::hdf5CloseFile(file_id) ;
+
+    entitySet dom = u.domain() ;
+    int c = 0 ;
+    if(var_name == "0S") {
+      FORALL(dom,nd) {
+        dval[c++] = u[nd].x ;
+      } ENDFORALL ;
+    }
+    if(var_name == "1S") {
+      FORALL(dom,nd) {
+        dval[c++] = u[nd].y ;
+      } ENDFORALL ;
+    }
+    if(var_name == "2S") {
+      FORALL(dom,nd) {
+        dval[c++] = u[nd].z ;
+      } ENDFORALL ;
+    }
+  }
+  else {
     cerr << "don't know how to get derived variable " << var_name << endl ;
   }
 }
@@ -3391,6 +3563,14 @@ int main(int ac, char *av[]) {
       variable_type[i] = NODAL_DERIVED ;
       continue ;
     }
+    if(var == "uS") {
+      variable_type[i] = NODAL_DERIVED ;
+      continue ;
+    }
+    if(var == "0S" || var == "1S" || var == "2S") {
+      variable_type[i] = NODAL_DERIVED ;
+      continue ;
+    }
     if(var == "x" || var == "y" || var == "z") {
       variable_type[i] = NODAL_DERIVED ;
       continue ;
@@ -3606,6 +3786,18 @@ int main(int ac, char *av[]) {
     }
     if(varset.find("2") != varset.end()) {
       varset.insert("v") ;
+    }
+    if(varset.find("uS") != varset.end()) {
+      varset.insert("vS") ;
+    }
+    if(varset.find("0S") != varset.end()) {
+      varset.insert("vS") ;
+    }
+    if(varset.find("1S") != varset.end()) {
+      varset.insert("vS") ;
+    }
+    if(varset.find("2S") != varset.end()) {
+      varset.insert("vS") ;
     }
     vector<string> varlist ;
     std::set<string>::const_iterator vi ;
