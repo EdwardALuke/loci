@@ -10,8 +10,10 @@ using namespace Loci;
 
 namespace {
 
-  fact_db::distribute_infoP test_distribution(const entitySet &owned,
-                                               int file_number) {
+  /// Build the minimal metadata needed to map an owned entity to its file
+  /// number during distributed container I/O.
+  fact_db::distribute_infoP make_test_distribution(const entitySet &owned,
+                                                    int file_number) {
     fact_db::distribute_infoP dist = new fact_db::distribute_info;
     dist->myid = MPI_rank;
     dist->isDistributed = 1;
@@ -54,7 +56,12 @@ int main(int argc, char **argv) {
 
   int local_failures = 0;
 
-  /// Verify that ranks without assigned file numbers receive empty partitions.
+  /// Reproduce the empty-rank case with one stored value across three MPI
+  /// ranks. The checks cover partitioning, serial-HDF5 output, a globally
+  /// empty store, and redistribution back to the original owner.
+
+  /// Dividing one file number among three ranks should produce one populated
+  /// partition and two empty partitions without inventing file numbers.
   const std::vector<entitySet> partitions =
     Loci::simplePartition(42, 42, MPI_COMM_WORLD);
   entitySet partitioned = EMPTY;
@@ -75,7 +82,8 @@ int main(int argc, char **argv) {
     local_failures = 1;
   }
 
-  /// Exercise distributed serial-HDF5 output when some ranks own no entities.
+  /// Start the only value on rank two and assign it a different file number so
+  /// serial-HDF5 output must redistribute it while two ranks begin empty.
   Loci::use_parallel_io = false;
   const char *filename = "test_distributed_io.h5";
   const int source_rank = 2;
@@ -92,13 +100,14 @@ int main(int argc, char **argv) {
     values[local_entity] = expected;
 
   fact_db facts;
-  facts.put_distribute_info(test_distribution(owned, file_number));
+  facts.put_distribute_info(make_test_distribution(owned, file_number));
 
   hid_t file_id = Loci::hdf5CreateFile(filename, H5F_ACC_TRUNC,
                                        H5P_DEFAULT, H5P_DEFAULT);
   Loci::writeContainer(file_id, "values", values.Rep(), facts);
 
-  /// Exercise the same output path when every rank has an empty domain.
+  /// A globally empty store should remain empty on disk rather than becoming
+  /// a reversed interval.
   store<std::vector<char> > empty_values;
   empty_values.allocate(EMPTY);
   Loci::writeContainer(file_id, "empty_values", empty_values.Rep(), facts);
@@ -106,6 +115,7 @@ int main(int argc, char **argv) {
   Loci::hdf5CloseFile(file_id);
   MPI_Barrier(MPI_COMM_WORLD);
 
+  /// Inspect the file-numbered value and empty domain directly on rank zero.
   if(MPI_rank == 0) {
     store<std::vector<char> > written;
     file_id = Loci::hdf5OpenFile(filename, H5F_ACC_RDONLY, H5P_DEFAULT,
@@ -140,7 +150,7 @@ int main(int argc, char **argv) {
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  /// Read the file value back to its owning rank through the same metadata.
+  /// Map the file-numbered value back to its original entity on rank two.
   store<std::vector<char> > restored;
   restored.allocate(owned);
   file_id = Loci::hdf5OpenFile(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
