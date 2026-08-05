@@ -2,6 +2,9 @@
 #include <distribute_io.h>
 #include <mpi_containerIO.h>
 
+#define DOCTEST_CONFIG_IMPLEMENT
+#include <doctest.h>
+
 #include <cstdio>
 #include <iostream>
 #include <vector>
@@ -43,25 +46,11 @@ namespace {
 
 } // namespace
 
-int main(int argc, char **argv) {
-  Loci::Init(&argc, &argv);
+/// Dividing one file number among three ranks should produce one populated
+/// partition and two empty partitions without inventing file numbers.
+TEST_CASE("simplePartition leaves unassigned MPI ranks empty") {
+  CAPTURE(MPI_rank);
 
-  if(MPI_processes != 3) {
-    if(MPI_rank == 0)
-      std::cerr << "test_distributed_io requires exactly three MPI ranks"
-                << std::endl;
-    Loci::Finalize();
-    return 1;
-  }
-
-  int local_failures = 0;
-
-  /// Reproduce the empty-rank case with one stored value across three MPI
-  /// ranks. The checks cover partitioning, serial-HDF5 output, a globally
-  /// empty store, and redistribution back to the original owner.
-
-  /// Dividing one file number among three ranks should produce one populated
-  /// partition and two empty partitions without inventing file numbers.
   const std::vector<entitySet> partitions =
     Loci::simplePartition(42, 42, MPI_COMM_WORLD);
   entitySet partitioned = EMPTY;
@@ -74,16 +63,18 @@ int main(int argc, char **argv) {
     if(*ptn == EMPTY)
       ++empty_partitions;
   }
-  if(partitions.size() != 3 ||
-     partitioned != entitySet(interval(42, 42)) ||
-     partition_entries != 1 || empty_partitions != 2) {
-    std::cerr << "simplePartition did not preserve empty MPI partitions"
-              << std::endl;
-    local_failures = 1;
-  }
 
-  /// Start the only value on rank two and assign it a different file number so
-  /// serial-HDF5 output must redistribute it while two ranks begin empty.
+  CHECK(partitions.size() == 3);
+  CHECK(partitioned == entitySet(interval(42, 42)));
+  CHECK(partition_entries == 1);
+  CHECK(empty_partitions == 2);
+}
+
+/// Start the only value on rank two and assign it a different file number so
+/// serial-HDF5 output must redistribute it while two ranks begin empty.
+TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
+  CAPTURE(MPI_rank);
+
   Loci::use_parallel_io = false;
   const char *filename = "test_distributed_io.h5";
   const int source_rank = 2;
@@ -122,27 +113,19 @@ int main(int argc, char **argv) {
                                 MPI_COMM_SELF);
     Loci::readContainerRAW(file_id, "values", written.Rep(), MPI_COMM_SELF);
 
-    if(written.domain() != entitySet(interval(file_number, file_number)) ||
-       written[file_number] != expected) {
-      std::cerr << "distributed container output did not preserve its value"
-                << std::endl;
-      local_failures = 1;
-    }
+    const entitySet expected_file_domain =
+      entitySet(interval(file_number, file_number));
+    CHECK(written.domain() == expected_file_domain);
+    if(written.domain() == expected_file_domain)
+      CHECK(written[file_number] == expected);
 
     hid_t group_id = H5Gopen(file_id, "empty_values", H5P_DEFAULT);
-    if(group_id < 0) {
-      std::cerr << "empty distributed container group was not written"
-                << std::endl;
-      local_failures = 1;
-    } else {
+    CHECK(group_id >= 0);
+    if(group_id >= 0) {
       entitySet empty_domain;
       Loci::HDF5_ReadDomain(group_id, empty_domain);
       H5Gclose(group_id);
-      if(empty_domain != EMPTY) {
-        std::cerr << "empty distributed container has a nonempty file domain"
-                  << std::endl;
-        local_failures = 1;
-      }
+      CHECK(empty_domain == EMPTY);
     }
 
     Loci::hdf5CloseFile(file_id, MPI_COMM_SELF);
@@ -157,23 +140,41 @@ int main(int argc, char **argv) {
   Loci::readContainer(file_id, "values", restored.Rep(), owned, facts);
   Loci::hdf5CloseFile(file_id);
 
-  if(restored.domain() != owned ||
-     (MPI_rank == source_rank && restored[local_entity] != expected)) {
-    std::cerr << "distributed container input did not restore its value on rank "
-              << MPI_rank << std::endl;
-    local_failures = 1;
-  }
+  CHECK(restored.domain() == owned);
+  if(MPI_rank == source_rank && restored.domain().inSet(local_entity))
+    CHECK(restored[local_entity] == expected);
 
-  int failures = 0;
-  MPI_Allreduce(&local_failures, &failures, 1, MPI_INT, MPI_SUM,
-                MPI_COMM_WORLD);
   MPI_Barrier(MPI_COMM_WORLD);
   if(MPI_rank == 0)
     std::remove(filename);
+}
 
-  if(failures == 0 && MPI_rank == 0)
+int main(int argc, char **argv) {
+  Loci::Init(&argc, &argv);
+
+  if(MPI_processes != 3) {
+    if(MPI_rank == 0)
+      std::cerr << "test_distributed_io requires exactly three MPI ranks"
+                << std::endl;
+    Loci::Finalize();
+    return 1;
+  }
+
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  // Every rank must run every test case so their collectives stay aligned.
+  context.setOption("abort-after", 0);
+  const int local_failure = context.run() == 0 ? 0 : 1;
+  int failure = 0;
+  MPI_Allreduce(&local_failure, &failure, 1, MPI_INT, MPI_MAX,
+                MPI_COMM_WORLD);
+
+  std::cout.flush();
+  std::cerr.flush();
+  MPI_Barrier(MPI_COMM_WORLD);
+  if(failure == 0 && MPI_rank == 0)
     std::cout << "SUCCESS!" << std::endl;
 
   Loci::Finalize();
-  return failures == 0 ? 0 : 1;
+  return failure;
 }
