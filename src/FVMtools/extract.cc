@@ -1113,26 +1113,6 @@ void volumePartDerivedVars::processDerivedVars(const vector<string> &vars) {
 	derivedVars["2"] = VAR_2 ;
       }
     }
-    if(vars[i] == "uS" && !shadowPart->hasNodalScalarVar("uS")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["uS"] = VAR_US ;
-      }
-    }
-    if(vars[i] == "0S" && !shadowPart->hasNodalScalarVar("0S")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["0S"] = VAR_0S ;
-      }
-    }
-    if(vars[i] == "1S" && !shadowPart->hasNodalScalarVar("1S")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["1S"] = VAR_1S ;
-      }
-    }
-    if(vars[i] == "2S" && !shadowPart->hasNodalScalarVar("2S")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["2S"] = VAR_2S ;
-      }
-    }
     if(vars[i] == "x")
       derivedVars["x"] = VAR_X ;
     if(vars[i] == "y")
@@ -1299,35 +1279,6 @@ void volumePartDerivedVars::getNodalScalar(string varname, vector<float> &vals) 
 	    tmp[i] = v[i].y ;
 	    break ;
 	  case VAR_2:
-	    tmp[i] = v[i].z ;
-	    break ;
-	  default:
-	    tmp[i] = 0 ;
-	  }
-	}
-	vals.swap(tmp) ;
-      }
-      break ;
-    case VAR_US:
-    case VAR_0S:
-    case VAR_1S:
-    case VAR_2S:
-      {
-	vector<vector3d<float> > v ;
-	shadowPart->getNodalVector("vS",v) ;
-	vector<float> tmp(v.size()) ;
-	for(size_t i=0;i<v.size();++i) {
-	  switch(vartype) {
-	  case VAR_US:
-	    tmp[i] = norm(v[i]) ;
-	    break ;
-	  case VAR_0S:
-	    tmp[i] = v[i].x ;
-	    break ;
-	  case VAR_1S:
-	    tmp[i] = v[i].y ;
-	    break ;
-	  case VAR_2S:
 	    tmp[i] = v[i].z ;
 	    break ;
 	  default:
@@ -1860,26 +1811,6 @@ void surfacePartDerivedVars::processDerivedVars(const vector<string> &vars) {
 	derivedVars["2"] = VAR_2 ;
       }
     }
-    if(vars[i] == "uS" && !shadowPart->hasNodalScalarVar("uS")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["uS"] = VAR_US ;
-      }
-    }
-    if(vars[i] == "0S" && !shadowPart->hasNodalScalarVar("0S")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["0S"] = VAR_0S ;
-      }
-    }
-    if(vars[i] == "1S" && !shadowPart->hasNodalScalarVar("1S")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["1S"] = VAR_1S ;
-      }
-    }
-    if(vars[i] == "2S" && !shadowPart->hasNodalScalarVar("2S")) {
-      if(shadowPart->hasNodalVectorVar("vS")) {
-	derivedVars["2S"] = VAR_2S ;
-      }
-    }
     if(vars[i] == "x")
       derivedVars["x"] = VAR_X ;
     if(vars[i] == "y")
@@ -2037,35 +1968,6 @@ void surfacePartDerivedVars::getNodalScalar(string varname,
 	    tmp[i] = v[i].y ;
 	    break ;
 	  case VAR_2:
-	    tmp[i] = v[i].z ;
-	    break ;
-	  default:
-	    tmp[i] = 0 ;
-	  }
-	}
-	vals.swap(tmp) ;
-      }
-      break ;
-    case VAR_US:
-    case VAR_0S:
-    case VAR_1S:
-    case VAR_2S:
-      {
-	vector<vector3d<float> > v ;
-	shadowPart->getNodalVector("vS",v) ;
-	vector<float> tmp(v.size()) ;
-	for(size_t i=0;i<v.size();++i) {
-	  switch(vartype) {
-	  case VAR_US:
-	    tmp[i] = norm(v[i]) ;
-	    break ;
-	  case VAR_0S:
-	    tmp[i] = v[i].x ;
-	    break ;
-	  case VAR_1S:
-	    tmp[i] = v[i].y ;
-	    break ;
-	  case VAR_2S:
 	    tmp[i] = v[i].z ;
 	    break ;
 	  default:
