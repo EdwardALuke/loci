@@ -304,7 +304,8 @@ typedef Loci::CPTR<volumePartBase> volumePartP ;
 
 class volumePartDerivedVars : public volumePartBase {
   volumePartP shadowPart ;
-  enum derivedVar_t { VAR_M, VAR_P, VAR_logp, VAR_U, VAR_0, VAR_1, VAR_2,
+  enum derivedVar_t { VAR_M, VAR_P, VAR_logp,
+                      VAR_U, VAR_0, VAR_1, VAR_2,
 		      VAR_X, VAR_Y, VAR_Z } ;
   map<string,derivedVar_t> derivedVars ;
   float Pambient ;
@@ -420,7 +421,8 @@ typedef Loci::CPTR<surfacePartBase> surfacePartP ;
 
 class surfacePartDerivedVars : public surfacePartBase {
   surfacePartP shadowPart ;
-  enum derivedVar_t { VAR_M, VAR_P, VAR_logp, VAR_U, VAR_0, VAR_1, VAR_2,
+  enum derivedVar_t { VAR_M, VAR_P, VAR_logp,
+                      VAR_U, VAR_0, VAR_1, VAR_2,
 		      VAR_X, VAR_Y, VAR_Z } ;
   map<string,derivedVar_t> derivedVars ;
   float Pambient ;
