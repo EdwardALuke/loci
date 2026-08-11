@@ -699,7 +699,7 @@ void cuttingPlanePartConverter::exportPostProcessorFiles(string casename, string
   
 
   std::set<string> nodal_scalars ;
-  
+  std::set<string> nodal_vectors ;
   int nparts = volumePartList.size();
   vector<int> node_offset(nparts);
   size_t tot = 0;
@@ -711,7 +711,17 @@ void cuttingPlanePartConverter::exportPostProcessorFiles(string casename, string
     tot += volumePartList[i]->getNumNodes();
   }    
   int npnts = tot;
- 
+  tot = 0 ;
+  vector<int> node_offsetv(nparts);
+  for(size_t i=0;i<volumePartList.size();++i) {
+    vector<string> nvectors = volumePartList[i]->getNodalVectorVars() ;
+    for(size_t j=0;j<nvectors.size();++j) 
+      nodal_vectors.insert(nvectors[j]) ;
+    node_offsetv[i] = tot;
+    tot += volumePartList[i]->getNumNodes();
+  }
+  int vpnts = tot ;
+  
   //create mesh positions
   for(size_t i=0;i<volumePartList.size();++i) {
     vector<vector3d<float> > part_pos;
@@ -734,6 +744,51 @@ void cuttingPlanePartConverter::exportPostProcessorFiles(string casename, string
       }
     }
     cp.output_nodal_scalar(val_out, varname);
+  }
+
+  //output nodal vectors
+  for(si=nodal_vectors.begin();si!=nodal_vectors.end();++si) {
+    string varname = *si ;
+    vector<float > val_out(vpnts, 0.0);
+    for(size_t i =0;i<volumePartList.size();++i) {
+      if(volumePartList[i]->hasNodalVectorVar(varname)) {
+        vector<vector3d<float> >  val ;
+        volumePartList[i]->getNodalVector(varname,val) ;
+        for(size_t j = 0; j < val.size(); j++)
+	  val_out[j+node_offsetv[i]] = norm(val[j]) ;
+      }
+    }
+    cp.output_nodal_scalar(val_out, varname);
+    
+    for(size_t i =0;i<volumePartList.size();++i) {
+      if(volumePartList[i]->hasNodalVectorVar(varname)) {
+        vector<vector3d<float> >  val ;
+        volumePartList[i]->getNodalVector(varname,val) ;
+        for(size_t j = 0; j < val.size(); j++)
+	  val_out[j+node_offsetv[i]] = val[j].x ;
+      }
+    }
+    cp.output_nodal_scalar(val_out, string(varname+"_X"));
+
+    for(size_t i =0;i<volumePartList.size();++i) {
+      if(volumePartList[i]->hasNodalVectorVar(varname)) {
+        vector<vector3d<float> >  val ;
+        volumePartList[i]->getNodalVector(varname,val) ;
+        for(size_t j = 0; j < val.size(); j++)
+	  val_out[j+node_offsetv[i]] = val[j].y ;
+      }
+    }
+    cp.output_nodal_scalar(val_out, string(varname+"_Y"));
+
+    for(size_t i =0;i<volumePartList.size();++i) {
+      if(volumePartList[i]->hasNodalVectorVar(varname)) {
+        vector<vector3d<float> >  val ;
+        volumePartList[i]->getNodalVector(varname,val) ;
+        for(size_t j = 0; j < val.size(); j++)
+	  val_out[j+node_offsetv[i]] = val[j].z ;
+      }
+    }
+    cp.output_nodal_scalar(val_out, string(varname+"_Z"));
   }
   
   //write out tets
