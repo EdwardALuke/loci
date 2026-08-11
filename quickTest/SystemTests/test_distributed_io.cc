@@ -152,13 +152,23 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
 int main(int argc, char **argv) {
   Loci::Init(&argc, &argv);
 
+#ifdef MPI_STUBB
+  // If compiled using MPI stubbs, then it doesn't make sense to perform this
+  // test.
+  Loci::Finalize();
+  std::cout << "NULL test for distributed IO when compling with MPI_STUBBs"
+	    << std::endl ;
+  std::cout << "SUCCESS!" << std::endl;
+  return 0;
+#endif
+  
   if(MPI_processes != 3) {
     if(MPI_rank == 0)
       std::cerr << "test_distributed_io requires exactly three MPI ranks"
                 << std::endl;
     Loci::Finalize();
     return 1;
-  }
+   }
 
   doctest::Context context;
   context.applyCommandLine(argc, argv);
