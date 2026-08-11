@@ -29,6 +29,11 @@ using std::endl;
 using std::cout;
 using std::list;
 
+/**
+ * @file get_c1_prism.cc
+ * @brief Computes owner-cell ids for fine faces generated on a prism face.
+ */
+
 std::vector<char>  merge_tri_face_p(const  std::vector<char>& cellPlan1, int dd1, char orientCode1);
   
 
@@ -96,9 +101,22 @@ struct Prism_Face{
   Prism_Face(Prism* cc, Face* ff):c(cc), f(ff){}
 };
 
+/**
+ * Computes the first-cell id for each fine face leaf on a prism face.
+ *
+ * Quad prism side faces (`faceID >= 2`) are handled with integer face ranges.
+ * Triangular end faces (`faceID < 2`) are handled with Face tree traversal. The
+ * returned vector follows the fine-face order generated from @p facePlan.
+ *
+ * @param cellPlan   Breadth-first prism-cell refinement plan.
+ * @param facePlan   Breadth-first face refinement plan.
+ * @param orientCode Face orientation code for the selected prism face.
+ * @param faceID     Prism face index.
+ * @return Cell index for each fine face leaf.
+ */
 std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
                                 const std::vector<char>& facePlan,
-                                char orientCode, int dd){
+                                char orientCode, int faceID){
 
   std::vector<int32> c1;
  
@@ -106,7 +124,7 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
   aCell->empty_resplit(cellPlan); //only nfold and childCell is defined
 
   
-  if(dd >= 2){
+  if(faceID >= 2){
   int64 maxX = int64(1) << MAXLEVEL;
   int64 maxY = int64(1) << MAXLEVEL;
   
@@ -202,21 +220,21 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
     if(cellPlan.size() != 0) {
 
       std::queue<Prism_Quad> Q;
-      Q.push(Prism_Quad(aCell,rg, dd));
+      Q.push(Prism_Quad(aCell,rg, faceID));
       std::vector<pair<Range2d, int32> > faceMap;
       
       Prism* current = 0;
       //   Range2d currentF;
     
       char cellCode, faceCode;
-      int faceID;
+      int currentFaceID;
       int nfold;
       while(!Q.empty()){
         current = Q.front().c;
         currentF = Q.front().f;
         cellCode = current->mySplitCode;
         nfold = current-> getNfold();
-        faceID = Q.front().faceID;
+        currentFaceID = Q.front().faceID;
       
      
       
@@ -254,20 +272,20 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
       
           switch(faceCode){
           case 1:
-            Q.push(Prism_Quad(current->childCell[0],Range2d(pmin, p3), faceID));
-            Q.push(Prism_Quad(current->childCell[1], Range2d(p1, pmax), faceID));
+            Q.push(Prism_Quad(current->childCell[0],Range2d(pmin, p3), currentFaceID));
+            Q.push(Prism_Quad(current->childCell[1], Range2d(p1, pmax), currentFaceID));
             break;
-        
+
           case 2:
-            Q.push(Prism_Quad(current->childCell[faceID-2], Range2d(pmin, p4),2));
-            Q.push(Prism_Quad(current->childCell[(faceID-2)== nfold-1? 0:(faceID-1)],Range2d(p2, pmax), 5));
+            Q.push(Prism_Quad(current->childCell[currentFaceID-2], Range2d(pmin, p4),2));
+            Q.push(Prism_Quad(current->childCell[(currentFaceID-2)== nfold-1? 0:(currentFaceID-1)],Range2d(p2, pmax), 5));
             break;
-      
+
           case 3:
-            Q.push(Prism_Quad(current->childCell[faceID-2],Range2d(pmin, p5), 2));
-            Q.push(Prism_Quad(current->childCell[faceID-2+nfold],Range2d(p1, p4), 2));
-            Q.push(Prism_Quad(current->childCell[(faceID-2)== nfold-1? 0:(faceID-1)], Range2d(p2, p3),5));
-            Q.push(Prism_Quad(current->childCell[(faceID-2)== nfold-1? nfold:(faceID-1+nfold)],Range2d(p5, pmax), 5));
+            Q.push(Prism_Quad(current->childCell[currentFaceID-2],Range2d(pmin, p5), 2));
+            Q.push(Prism_Quad(current->childCell[currentFaceID-2+nfold],Range2d(p1, p4), 2));
+            Q.push(Prism_Quad(current->childCell[(currentFaceID-2)== nfold-1? 0:(currentFaceID-1)], Range2d(p2, p3),5));
+            Q.push(Prism_Quad(current->childCell[(currentFaceID-2)== nfold-1? nfold:(currentFaceID-1+nfold)],Range2d(p5, pmax), 5));
             break;
           default:
             cerr<<"WARNING: illegal cellCode" << endl;
@@ -278,7 +296,7 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
       Q.pop();
       }//while(Q.empty())
       c1 = contain_2d(faceMap, leaves);
-     //  cout << "orientCode " << char(orientCode+'0') << "  dd " << dd << " prism facePlan: ";
+     //  cout << "orientCode " << char(orientCode+'0') << "  faceID " << faceID << " prism facePlan: ";
 //       for(int i = 0 ; i < facePlan.size(); i++){
 //         cout << char(facePlan[i] + '0') << "  " ;
 //       }
@@ -305,8 +323,8 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
         c1.push_back(int32(1));
       }
     } 
-  }//if(dd>=2)
-  else{ //dd < 2
+  }//if(faceID>=2)
+  else{ //faceID < 2
     Face* aFace = new Face();
     aFace->numEdge = 3;
     std::vector<Face*> leaves;
@@ -333,7 +351,7 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
         //here if cellCode is put inside switch block, the c1 generated is not in the
         //same order as leaves
         while(cellCode == 1){
-          current = current->childCell[dd];
+          current = current->childCell[faceID];
           cellCode = current->mySplitCode;
         }
         switch(cellCode){
@@ -356,7 +374,7 @@ std::vector<int32> get_c1_prism(const std::vector<char>& cellPlan,
           break;
         case 3:
           for(int i = 0; i <current->nfold; i++){
-            Q.push(Prism_Face(current->childCell[dd==0?general_childID_orient_f2c(i, orientCode,current->nfold):
+            Q.push(Prism_Face(current->childCell[faceID==0?general_childID_orient_f2c(i, orientCode,current->nfold):
                                                  (general_childID_orient_f2c(i, orientCode, current->nfold)+current->nfold)],
                               currentF->child[i]));
           }

@@ -34,8 +34,14 @@ using std::cerr;
 using std::endl;
 using std::cout;
 
-//for prism, used in Face::split(), when face split with orientCode, to ensure the node_list
-// generated is exact the same as split without orientCode, the edgeID need to be oriented 
+/**
+ * @file face.cc
+ * @brief General polygon-face tree operations used by FVMAdapt.
+ *
+ * A Face can represent a triangular, quadrilateral, or more general polygonal
+ * face. Splitting creates one quadrilateral child face per parent edge by
+ * connecting edge midpoints to a new face-center node.
+ */
 
 int general_edgeID_orient_f2c(int i, char orientCode, int numEdge){
   if(numEdge == 4){
@@ -57,28 +63,26 @@ int general_edgeID_orient_f2c(int i, char orientCode, int numEdge){
         return (4-i)%3;
         break;
       }
-      
+
     }
   }
   cerr << "WARNING:reach dummy code" << endl;
   exit(0);
   return 0 ;
 }
-      
 
-//for prism only
+
 int general_childID_orient_c2f(int childID_c, char orientCode, int numEdge){
   if(numEdge == 3){
     if(orientCode/4 == 0)return (childID_c +orientCode)%3;
     else return (2-childID_c+ orientCode)%3;
-  }  
+  }
   else{
-    
+
     if(orientCode/4 == 0)return childID_c ;
     else return (4-childID_c)%4;
   }
 }
-
 
 
 int general_childID_orient_f2c(int childID_f, char orientCode, int numEdge){
@@ -86,15 +90,14 @@ int general_childID_orient_f2c(int childID_f, char orientCode, int numEdge){
   if(numEdge == 3){
     if(orientCode/4 == 0)return (childID_f+3 -orientCode)%3;
     else return (2-childID_f+ orientCode)%3;
-  }  
+  }
   else{
-    
+
     if(orientCode/4 == 0)return childID_f ;
     else return (4-childID_f)%4;
   }
 }
 
-  
 
 void Face::split(std::list<Node*>& node_list, std::list<Edge*>& edge_list){
   if(child != 0)return;
@@ -102,29 +105,29 @@ void Face::split(std::list<Node*>& node_list, std::list<Edge*>& edge_list){
   for(int i = 0; i < numEdge; i++){
     if(edge[i]->child == 0) edge[i]->split(node_list);
   }
-  
+
   //define facecenter is the center of edgecenters
   //calculate center and put it in node_list
   Node* facecenter = centroid();
   node_list.push_back(facecenter);
-  
+
   //get edgecenter
   std::vector<Node*> edgecenter(numEdge);
   getEdgeCenter(&edgecenter[0]);
-  
-  
+
+
   //define new edges(from facecenter to edgecenetr) and put them into edge_list
   std::vector<Edge*> newEdges(numEdge);
   for(int i = 0; i < numEdge; i++){
     newEdges[i] = new Edge(facecenter, edgecenter[i], this->getLevel()+1);
     edge_list.push_back(newEdges[i]);
   }
-  
+
   //define child
   child = new Face*[numEdge];
   for(int i = 0; i < numEdge; i++){
     child[i] = new Face(4);
-   
+
     if(needReverse[i]) {
       child[i]->edge[0] = edge[i]->child[1];
       child[i]->needReverse[0] = true;
@@ -136,7 +139,7 @@ void Face::split(std::list<Node*>& node_list, std::list<Edge*>& edge_list){
 
     child[i]->edge[1] = newEdges[i];
     child[i]->needReverse[1] = true;
-    
+
     child[i]->edge[2] = newEdges[i==0?(numEdge-1):(i-1)];
     child[i]->needReverse[2] = false;
 
@@ -151,8 +154,7 @@ void Face::split(std::list<Node*>& node_list, std::list<Edge*>& edge_list){
   }
 }
 
-//for build prism, when built prism cell, triangle face is built as node 0->1->2->0 and
-//node 3->4->->5->3, and it will split with orientCode
+
 void Face::split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>& edge_list){
   if(child!=0)return;
   //split edges
@@ -161,7 +163,7 @@ void Face::split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>&
     int edgeID = general_edgeID_orient_f2c(i, orientCode, numEdge);
     if(edge[edgeID]->child == 0) edge[edgeID]->split(node_list);
   }
-  
+
   //define facecenter is the center of edgecenters
   //calculate center and put it in node_list
   Node* facecenter = centroid();
@@ -171,20 +173,20 @@ void Face::split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>&
   //get edgecenter
   std::vector<Node*> edgecenter(numEdge);
   getEdgeCenter(&edgecenter[0]);
-  
-  
+
+
   //define new edges(from facecenter to edgecenetr) and put them into edge_list
   std::vector<Edge*> newEdges(numEdge);
   for(int i = 0; i < numEdge; i++){
     newEdges[i] = new Edge(facecenter, edgecenter[i], this->getLevel()+1);
     edge_list.push_back(newEdges[i]);
   }
-  
+
   //define child
   child = new Face*[numEdge];
   for(int i = 0; i < numEdge; i++){
     child[i] = new Face(4);
-   
+
     if(needReverse[i]) {
       child[i]->edge[0] = edge[i]->child[1];
       child[i]->needReverse[0] = true;
@@ -196,7 +198,7 @@ void Face::split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>&
 
     child[i]->edge[1] = newEdges[i];
     child[i]->needReverse[1] = true;
-    
+
     child[i]->edge[2] = newEdges[i==0?(numEdge-1):(i-1)];
     child[i]->needReverse[2] = false;
 
@@ -210,7 +212,6 @@ void Face::split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>&
     }
   }
 }
-
 
 
 int Face::get_num_leaves()const{
@@ -236,7 +237,7 @@ void Face::empty_split(){
   }
 }
 
-//define face2node
+
 void Face::set_f2n(std::list<int32>& f2n){
   f2n.clear();
   for(int i = 0; i < numEdge; i++){
@@ -244,8 +245,8 @@ void Face::set_f2n(std::list<int32>& f2n){
     //each edge sort leaves
     std::list<Edge*> edge_leaves;
     edge[i]->sort_leaves(edge_leaves);
-   
-    //if the edge needReverse, take the tail index value  
+
+    //if the edge needReverse, take the tail index value
     if(needReverse[i]){
       for(std::list<Edge*>::reverse_iterator ep = edge_leaves.rbegin();
           ep != edge_leaves.rend(); ep++){
@@ -256,12 +257,12 @@ void Face::set_f2n(std::list<int32>& f2n){
       for(std::list<Edge*>::iterator ep = edge_leaves.begin();
           ep != edge_leaves.end(); ep++){
         f2n.push_back((*ep)->head->index);
-      } 
-    } 
+      }
+    }
   }
 }
 
-// get all the leaves of this
+
 void Face::get_leaves(std::vector<Face*>& leaves){
   if(child == 0){
     leaves.push_back(this);
@@ -274,10 +275,10 @@ void Face::get_leaves(std::vector<Face*>& leaves){
   }
 }
 
-//if the intersection if leaves of f1 and the leaves of f2 is empty
+
 bool is_overlapped( Face* f1,  Face* f2){
   if(f1 == f2) return true;
-  
+
   std::vector<Face*> leaves1;
   f1->get_leaves(leaves1);
   std::vector<Face*> leaves2;
@@ -291,9 +292,6 @@ bool is_overlapped( Face* f1,  Face* f2){
 }
 
 
-
-
-//compile the facePlan according the tree structure of aFace
 std::vector<char> Face::make_faceplan(){
   std::vector<char> facePlan;
   std::queue<Face*> Q;
@@ -311,14 +309,15 @@ std::vector<char> Face::make_faceplan(){
       facePlan.push_back(0);
     }
     Q.pop();
-  }                 
+  }
   while(facePlan.size() != 0 && facePlan.back() == 0) facePlan.pop_back();
   reduce_vector(facePlan);
   return facePlan;
 }
 
-//build a Face from Loci data structures, the locations of nodes are defined
-//and edges are split according to edgePlan
+
+/// Build a Face from Loci data structures, the locations of nodes are defined
+/// and edges are split according to edgePlan
 Face* build_general_face( const Entity* face2node, int num_edge,
                           const Entity* face2edge,
                           const const_MapVec<2>& edge2node,
@@ -326,25 +325,24 @@ Face* build_general_face( const Entity* face2node, int num_edge,
                           const const_store<std::vector<char> >& edgePlan,
                           std::list<Node*>& bnode_list,
                           std::list<Edge*>& edge_list){
-  
 
   std::vector<Node*> node(num_edge);
-  
+
   for(int nindex = 0; nindex < num_edge; nindex++){
     node[nindex] = new Node(pos[face2node[nindex]]);
     bnode_list.push_back(node[nindex]);
   }
-  
+
   //define each edge and put it into edge_list
-  
+
   Edge** edge = new Edge*[num_edge];
   bool* needReverse = new bool[num_edge];
-  
+
   for(int eindex = 0; eindex < num_edge; eindex++){
     //define the edge
     edge[eindex] = new Edge();
     edge_list.push_back(edge[eindex]);
-    
+
     if(edge2node[face2edge[eindex]][0] == face2node[eindex]  && edge2node[face2edge[eindex]][1] == face2node[eindex==(num_edge-1)?0:eindex+1])
       {
         edge[eindex]->head = node[eindex];
@@ -356,18 +354,19 @@ Face* build_general_face( const Entity* face2node, int num_edge,
       edge[eindex]->head = node[eindex==(num_edge-1)?0:(eindex+1)];
       needReverse[eindex] = true;
     }
-    
+
     //replit the edge
     edge[eindex]->resplit(edgePlan[face2edge[eindex]], bnode_list);
   }
-  
+
   //define the face
   Face* aFace = new Face(num_edge, edge, needReverse);
- 
+
   return aFace;
 }
 
-//parallel version, build a face and index all the boundary nodes
+
+/// Parallel version, build a face and index all the boundary nodes
 Face* build_general_face( const Entity* face2node, int num_edge,
                           const Entity* face2edge,
                           const const_MapVec<2>& edge2node,
@@ -380,24 +379,24 @@ Face* build_general_face( const Entity* face2node, int num_edge,
 
   std::vector<Node*> node(num_edge);
   for(int nindex = 0; nindex < num_edge; nindex++){
-   
+
     node[nindex] = new Node(pos[face2node[nindex]], node_l2f[face2node[nindex]]);
     bnode_list.push_back(node[nindex]);
   }
-  
+
   //define each edge and put it into edge_list
-  
+
   Edge** edge = new Edge*[num_edge];
   bool* needReverse = new bool[num_edge];
-  
+
   //define edges and index its inner nodes
   std::list<Node*>::const_iterator bnode_begin = --(bnode_list.end());
-  
+
   for(int eindex = 0; eindex < num_edge; eindex++){
     //define the edge
     edge[eindex] = new Edge();
     edge_list.push_back(edge[eindex]);
-    
+
     if(edge2node[face2edge[eindex]][0] == face2node[eindex] && edge2node[face2edge[eindex]][1] == face2node[eindex==(num_edge-1)?0:eindex+1])
       {
         edge[eindex]->head = node[eindex];
@@ -409,25 +408,26 @@ Face* build_general_face( const Entity* face2node, int num_edge,
       edge[eindex]->head = node[eindex==(num_edge-1)?0:(eindex+1)];
       needReverse[eindex] = true;
     }
-    
+
     //replit the edge
     edge[eindex]->resplit(edgePlan[face2edge[eindex]], bnode_list);
     int nindex = node_offset[face2edge[eindex]];
-    
+
     for(std::list<Node*>::const_iterator np = ++bnode_begin; np!= bnode_list.end(); np++){
       (*np)->index =  nindex++;
     }
-    
+
     bnode_begin = --(bnode_list.end());
-    
+
   }
-  
+
   //define the face
   Face* aFace = new Face(num_edge, edge, needReverse);
   return aFace;
 }
 
-//this function is used in build_general_cell with quadface
+
+/// This function is used in build_general_cell with quadface
 Face* build_tmp_general_face( const Entity* face2node, int num_edge,
                               const Entity* face2edge,
                               const const_MapVec<2>& edge2node,
@@ -435,12 +435,8 @@ Face* build_tmp_general_face( const Entity* face2node, int num_edge,
                               std::list<Node*>& bnode_list,
                               std::list<Edge*>& edge_list){
 
-
-  
   std::vector<Node*> node(num_edge);
 
-  
- 
   vect3d p[4];
   int64 maxX = int64(1) << MAXLEVEL;
   int64 maxY = int64(1) << MAXLEVEL;
@@ -449,21 +445,20 @@ Face* build_tmp_general_face( const Entity* face2node, int num_edge,
   p[2] = vect3d(maxX, maxY, 0.0);
   p[3] = vect3d(0.0, maxY, 0.0);
     for(int nindex = 0; nindex < num_edge; nindex++){
-   
+
     node[nindex] = new Node(p[nindex]);
     bnode_list.push_back(node[nindex]);
   }
   //define each edge and put it into edge_list
-  
+
   Edge** edge = new Edge*[num_edge];
   bool* needReverse = new bool[num_edge];
-  
-    
+
   for(int eindex = 0; eindex < num_edge; eindex++){
     //define the edge
     edge[eindex] = new Edge();
     edge_list.push_back(edge[eindex]);
-    
+
     if(edge2node[face2edge[eindex]][0] == face2node[eindex] && edge2node[face2edge[eindex]][1] == face2node[eindex==(num_edge-1)?0:eindex+1])
       {
         edge[eindex]->head = node[eindex];
@@ -475,51 +470,34 @@ Face* build_tmp_general_face( const Entity* face2node, int num_edge,
       edge[eindex]->head = node[eindex==(num_edge-1)?0:(eindex+1)];
       needReverse[eindex] = true;
     }
-    
+
     //replit the edge
     edge[eindex]->resplit(edgePlan[face2edge[eindex]], bnode_list);
   }
-  
+
   //define the face
   Face* aFace = new Face(num_edge, edge, needReverse);
   return aFace;
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//this function split  a general face according to facePlan,
-//all fine quadface in faces
+// this function split  a general face according to facePlan,
+// all fine quadface in faces
 void Face::resplit(const std::vector<char>& facePlan,
                    std::list<Node*>& node_list,
                    std::list<Edge*>& edge_list,
                     std::vector<Face*>& fine_face){
-  
-                          
-  
+
   if(facePlan.size() == 0) {
     fine_face.push_back(this);
     reduce_vector(fine_face);
     return;
   }
-  
 
   //assume the first code in facePlan is 1
   std::queue<Face*> Q;
   Q.push(this);
-  
+
   Face* current;
   unsigned int index = 0;
   char currentCode;
@@ -529,35 +507,34 @@ void Face::resplit(const std::vector<char>& facePlan,
     if(index >= facePlan.size()){
       currentCode = 0;
     }
-    else{ 
+    else{
       //take a code from facePlan
       currentCode = facePlan[index];
-      index++;  
+      index++;
     }
-    
-    
+
     switch(currentCode)
       {
-        
+
         //0 no split,this is a leaf, output faces
       case 0:
         fine_face.push_back(current);
         break;
-        
+
       case 1:
         current->split(node_list, edge_list);
-        
+
         for(int i = 0; i < current->numEdge; i++){
-          Q.push(current->child[i]); 
-        }        
+          Q.push(current->child[i]);
+        }
         break;
-        
+
       default:
         cerr <<"WARNING: illegal splitcode in function Face::resplit()" << endl;
-     
+
         break;
       }
-    
+
     Q.pop();
   }
   reduce_vector(fine_face);
@@ -567,18 +544,15 @@ void Face::resplit(const std::vector<char>& facePlan,
 void Face::resplit(const std::vector<char>& facePlan,
                    std::list<Node*>& node_list,
                    std::list<Edge*>& edge_list){
-  
-                          
-  
+
   if(facePlan.size() == 0) {
     return;
   }
-  
 
   //assume the first code in facePlan is 1
   std::queue<Face*> Q;
   Q.push(this);
-  
+
   Face* current;
   unsigned int index = 0;
   char currentCode;
@@ -588,96 +562,91 @@ void Face::resplit(const std::vector<char>& facePlan,
     if(index >= facePlan.size()){
       currentCode = 0;
     }
-    else{ 
+    else{
       //take a code from facePlan
       currentCode = facePlan[index];
-      index++;  
+      index++;
     }
-    
-    
+
     switch(currentCode)
       {
-        
+
         //0 no split,this is a leaf, output faces
       case 0:
         break;
-        
+
       case 1:
         current->split(node_list, edge_list);
-        
+
         for(int i = 0; i < current->numEdge; i++){
-          Q.push(current->child[i]); 
-        }        
+          Q.push(current->child[i]);
+        }
         break;
-        
+
       default:
         cerr <<"WARNING: illegal splitcode in function Face::resplit()" << endl;
-     
+
         break;
       }
-    
+
     Q.pop();
   }
- 
 }
+
 //for build prism when built prism cell, triangle face is built as node 0->1->2->0 and
 //node 3->4->->5->3, and it will split with orientCode
 void Face::resplit(const std::vector<char>& facePlan,
                    char orientCode,
                    std::list<Node*>& node_list,
                    std::list<Edge*>& edge_list){
-  
-                          
-  
+
   if(facePlan.size() == 0) {
     return;
   }
-  
+
   std::queue<Face*> Q;
   Q.push(this);
-  
+
   Face* current;
   unsigned int index = 0;
   char currentCode;
-  
+
   while(!Q.empty()){
     current = Q.front();
     if(index >= facePlan.size()){
       currentCode = 0;
     }
-    else{ 
+    else{
       //take a code from facePlan
       currentCode = facePlan[index];
-      index++;  
+      index++;
     }
-    
-    
+
     switch(currentCode)
       {
-        
+
         //0 no split,this is a leaf, output faces
       case 0:
-        
+
         break;
-        
+
       case 1:
         current->split(orientCode, node_list, edge_list);
         //build as in cell, and  split as in face, so f2c
         for(int i = 0; i < current->numEdge; i++){
-          Q.push(current->child[general_childID_orient_f2c(i, orientCode, current->numEdge)]); 
-        }        
+          Q.push(current->child[general_childID_orient_f2c(i, orientCode, current->numEdge)]);
+        }
         break;
-        
+
       default:
         cerr <<"WARNING: illegal splitcode in function Face::reSplit(char orientCode)" << endl;
         break;
       }
-    
+
     Q.pop();
   }
 
 }
-
 
 void  Face::empty_resplit(const std::vector<char>& facePlan,
                           std::vector<Face*>& leaves){
@@ -686,12 +655,11 @@ void  Face::empty_resplit(const std::vector<char>& facePlan,
     reduce_vector(leaves);
     return ;
   }
-  
-  
+
   //assume the first code in facePlan is 1
   std::queue<Face*> Q;
   Q.push(this);
-  
+
   Face* current;
   unsigned int index = 0;
   char currentCode;
@@ -701,34 +669,33 @@ void  Face::empty_resplit(const std::vector<char>& facePlan,
     if(index >= facePlan.size()){
       currentCode = 0;
     }
-    else{ 
+    else{
       //take a code from facePlan
       currentCode = facePlan[index];
-      index++;  
+      index++;
     }
-    
-    
+
     switch(currentCode)
       {
-        
+
         //0 no split,this is a leaf, output faces
       case 0:
         leaves.push_back(current);
         break;
-        
+
       case 1:
         current->empty_split();
-        
+
         for(int i = 0; i < current->numEdge; i++){
-          Q.push(current->child[i]); 
-        }        
+          Q.push(current->child[i]);
+        }
         break;
-        
+
       default:
         cerr <<"WARNING: illegal splitcode in function Face::empty_resplit()" << endl;
         break;
       }
-    
+
     Q.pop();
   }
   return;
@@ -736,20 +703,18 @@ void  Face::empty_resplit(const std::vector<char>& facePlan,
 
 
 //this function split  a general face according to facePlan,
-
 int  Face::empty_resplit(const std::vector<char>& facePlan){
-  
+
   int num_face = 0;
-  
+
   if(facePlan.size() == 0) {
     return 1;
   }
-  
-  
+
   //assume the first code in facePlan is 1
   std::queue<Face*> Q;
   Q.push(this);
-  
+
   Face* current;
   unsigned int index = 0;
   char currentCode;
@@ -759,50 +724,49 @@ int  Face::empty_resplit(const std::vector<char>& facePlan){
     if(index >= facePlan.size()){
       currentCode = 0;
     }
-    else{ 
+    else{
       //take a code from facePlan
       currentCode = facePlan[index];
-      index++;  
+      index++;
     }
-    
-    
+
     switch(currentCode)
       {
-        
+
         //0 no split,this is a leaf, output faces
       case 0:
         num_face++;
         break;
-        
+
       case 1:
         current->empty_split();
-        
+
         for(int i = 0; i < current->numEdge; i++){
-          Q.push(current->child[i]); 
-        }        
+          Q.push(current->child[i]);
+        }
         break;
-        
+
       default:
         cerr <<"WARNING: illegal splitcode in function Face::empty_resplit()" << endl;
-      
+
         break;
       }
-    
+
     Q.pop();
   }
   return num_face;
 }
 
 
-//this function is for merge_general_face_pp, 
+// This function is for merge_general_face_pp,
 void Face::empty_resplit(const std::vector<char>& facePlan, char orientCode){
   if(facePlan.size() == 0) {
     return;
   }
-  
+
   std::queue<Face*> Q;
   Q.push(this);
-  
+
   Face* current;
   unsigned int index = 0;
   char currentCode;
@@ -812,25 +776,22 @@ void Face::empty_resplit(const std::vector<char>& facePlan, char orientCode){
     if(index >= facePlan.size()){
       currentCode = 0;
     }
-    else{ 
+    else{
       //take a code from facePlan
       currentCode = facePlan[index];
-      index++;  
+      index++;
     }
-    
-    
+
     if(currentCode == 1){
       current->empty_split();
       for(int i = 0; i < current->numEdge; i++){
-        Q.push(current->child[general_childID_orient_c2f(i, orientCode, current->numEdge)]); 
-      }        
+        Q.push(current->child[general_childID_orient_c2f(i, orientCode, current->numEdge)]);
+      }
     }
     else if(currentCode == 8) Q.push(current);
-    
+
     Q.pop();
   }
   return ;
 }
-
-
 

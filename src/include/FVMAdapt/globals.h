@@ -21,16 +21,18 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 #include "defines.h"
+
 class Globals{
 public:
   static double fold;
   static double tolerance;
   static int levels;
   static double factor;
-  //balance options:
-  //0: no edge's depth is greater than 1
-  //1: 0 and no cell has more than half of its face split
-  //2: 0 and 1 and no cell has two opposite faces split
+
+  /// Balance options:
+  /// 0: no edge's depth is greater than 1
+  /// 1: 0 and no cell has more than half of its face split
+  /// 2: 0 and 1 and no cell has two opposite faces split
   static int balance_option;
   static vect3d split;
   static vect3d nosplit;

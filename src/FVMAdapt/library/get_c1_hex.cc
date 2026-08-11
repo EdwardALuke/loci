@@ -34,6 +34,11 @@ using std::cout;
 using std:: endl;
 using std::ofstream;
 
+/**
+ * @file get_c1_hex.cc
+ * @brief Computes owner-cell ids for fine faces generated on a hex face.
+ */
+
 struct Cell_QuadFace {
   Cell_QuadFace(HexCell* cc, Range2d ff):c(cc), f(ff){};
   HexCell* c;
@@ -74,7 +79,6 @@ std::vector<int32> contain_2d(const std::vector<pair<Range2d, int32> >& faceMap,
 //   }//finish all faces
 // }
         
-
 
 
 
@@ -304,5 +308,3 @@ std::vector<int32> get_c1_hex(const std::vector<char>& cellPlan,
  return c1;
  
 }
-
-
