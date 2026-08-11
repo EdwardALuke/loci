@@ -92,7 +92,18 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
 
   fact_db facts;
   facts.put_distribute_info(make_test_distribution(owned, file_number));
-
+  fact_db::distribute_infoP df = facts.get_distribute_info() ;
+  vector<dataPartitionP> ptnlist ;
+  for(size_t i=0;i<facts.init_ptn.size();++i) {
+    dataPartitionP p = std::make_shared<dataPartitionGeneral>
+      (facts.init_ptn[i],MPI_COMM_WORLD) ;
+    ptnlist.push_back(p) ;
+  }
+  entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
+    (df->my_entities,df->l2g,df->key_domain,df->l2f,ptnlist,MPI_COMM_WORLD) ;
+  facts.setPartitionInfo(distinfop) ;
+  values.Rep()->setPartitionInfo(distinfop) ;
+  
   hid_t file_id = Loci::hdf5CreateFile(filename, H5F_ACC_TRUNC,
                                        H5P_DEFAULT, H5P_DEFAULT);
   Loci::writeContainer(file_id, "values", values.Rep(), facts);
@@ -101,6 +112,8 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
   /// a reversed interval.
   store<std::vector<char> > empty_values;
   empty_values.allocate(EMPTY);
+  empty_values.Rep()->setPartitionInfo(distinfop) ;
+
   Loci::writeContainer(file_id, "empty_values", empty_values.Rep(), facts);
 
   Loci::hdf5CloseFile(file_id);
@@ -136,6 +149,7 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
   /// Map the file-numbered value back to its original entity on rank two.
   store<std::vector<char> > restored;
   restored.allocate(owned);
+  restored.Rep()->setPartitionInfo(distinfop) ;
   file_id = Loci::hdf5OpenFile(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
   Loci::readContainer(file_id, "values", restored.Rep(), owned, facts);
   Loci::hdf5CloseFile(file_id);
