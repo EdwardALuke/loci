@@ -1886,8 +1886,29 @@ bool operator <(const timingData &d) const {
         for(variableSet::const_iterator vi=target.begin();
             vi!=target.end();++vi) {
           storeRepP srp = local_facts.get_variable(*vi) ;
-          // the results are clearly intensional facts
+          int varkey = 0 ;
+          if(srp->RepType() != Loci::PARAMETER) {
+            // Find the key space
+            entitySet vdom = srp->domain() ;
+            vdom &= df->key_domain.domain() ;
+            // Determine keyspace of container
+            int key_max = -1 ;
+            int key_min = 1024 ;
+            FORALL(vdom,ii) {
+              int k = df->key_domain[ii] ;
+              key_max = max(key_max,k) ;
+              key_min = min(key_min,k) ;
+            } ENDFORALL ;
+            varkey = key_max ;
+            MPI_Allreduce(&key_max,&varkey,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+            // Check that the container was in only a single keyspace
+            FATAL(key_max >= 0 && key_max != varkey) ;
+          }
+            // the results are clearly intensional facts
           facts.create_intensional_fact(*vi,srp->remap(l2g)) ;
+          // set key domain of the query variable
+          srp = facts.get_variable(*vi) ;
+          srp->setDomainKeySpace(varkey) ;
         }
       }else{
         for(variableSet::const_iterator vi=target.begin();

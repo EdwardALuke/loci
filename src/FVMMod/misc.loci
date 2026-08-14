@@ -58,17 +58,11 @@ namespace Loci {
   prelude {
     fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
 
-    if(Loci::MPI_processes > 1) {
-      Map l2g ;
-      l2g = df->l2g.Rep() ;
-      store<unsigned char> key_domain ;
-      key_domain = df->key_domain.Rep() ;
-      //        dMap g2f ;
-      //        g2f = df->g2f.Rep() ;
-      
+    if(df != 0) {
+      Map l2f ;
+      l2f = df->l2f.Rep() ;
       for(sequence::const_iterator si=seq.begin();si!= seq.end();++si) {
-        int kd = key_domain[*si] ;
-        $fileNumber(X)[*si] = df->g2fv[kd][l2g[*si]] ;
+        $fileNumber(X)[*si] = l2f[*si] ; 
       }
     } else {
       for(sequence::const_iterator si=seq.begin();si!= seq.end();++si)
