@@ -53,27 +53,20 @@ public:
     disable_threading() ;
   }
   void compute(const sequence &seq) {
-   if(Loci::MPI_processes == 1) {
+   fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
+   if(df == 0) {
     
      for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
        fileNumX[*si] = *si ;
-       // if(*si < 0) cout << "negative file Number " << *si << endl; 
      }
-     return;
+   } else {
+     Map l2f ;
+     l2f = df->l2f.Rep() ;
+     
+     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
+       fileNumX[*si] = l2f[*si] ; 
+     }
    }
-   fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
-    Map l2g ;
-    l2g = df->l2g.Rep() ;
-    store<unsigned char> key_domain ;
-    key_domain = df->key_domain.Rep() ;
-    //    dMap g2f ;
-    //    g2f = df->g2f.Rep() ;
-
-    for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
-      int kd = key_domain[*si] ;
-      fileNumX[*si] = df->g2fv[kd][l2g[*si]] ;
-      //if(fileNumX[*si] < 0) cout << "negative file Number " << fileNumX[*si] << endl; 
-    }
   }
   
 } ;
