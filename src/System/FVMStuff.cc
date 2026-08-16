@@ -3338,7 +3338,7 @@ namespace Loci{
       MPI_Comm_size(comm,&p) ;
       // edge splits not provided, compute them using uniform algorithmic
       // partition
-      if(edge_splits.size() == 0 && MPI_processes > 1) {
+      if(edge_splits.size() == 0 && p > 1) {
         Array<T,N> zero ;
         for(size_t i=0;i<N;++i)
           zero[i] = 0 ;
@@ -3368,6 +3368,14 @@ namespace Loci{
     /// file number node. Note, edges are duplicated by each face
     /// that shares the node.  Sorting will be used to identify
     /// unique edges.
+    ///
+    /// -- edge_key is an array of 5 values:
+    /// -- edge_key[0] - file number of first node defined by edge (lowest file number)
+    /// -- edge_key[1] - file number of second node defined by edge
+    /// -- edge_key[2] - global number of first node defined by edge
+    /// -- edge_key[3] - global number of second node defined by edge
+    /// -- edge_key[4] - global number of face that generated this edge
+    ///
     template<class T> void extract_edge_keys(std::vector<Array<T,5> > &edge_keys,
                                              entitySet fdom,
                                              entitySet ndom,
@@ -3460,6 +3468,14 @@ namespace Loci{
     /// for edges.  As we scan through the edge array, convert the key
     /// to global nubering for following steps, and then fill in
     /// field 2 with the edge file number
+    ///
+    /// -- After this step, edge_key is redefined as
+    /// -- edge_key[0] - global number of first node that forms edge
+    /// -- edge_key[1] - global number of second node that forms edge
+    /// -- edge_key[2] - number of edges in duplicate edge cluster
+    /// -- edge_key[3] - edge number in file numbering
+    /// -- edge_key[4] - global number of face generating this edge
+    //
     template<class T>
     size_t edge_file_numbering(std::vector<Array<T,5> > &edge_keys,
                                MPI_Comm comm) {
@@ -3527,7 +3543,8 @@ namespace Loci{
     void collect_edges(vector<pair<T,T> > &edgemap,
                        vector<T> &fileno,
                        const std::vector<Array<T,5> > &edge_keys) {
-      size_t edge_cnt = 0 ;
+#ifdef DEBUG
+      // In debug mode, check consistency of edge_keys size information
       for(size_t i=0;i<edge_keys.size();) {
         // search for cluster of edges
         size_t j = i+1 ;
@@ -3535,17 +3552,21 @@ namespace Loci{
           if((edge_keys[i][0] != edge_keys[j][0]) ||
              (edge_keys[i][1] != edge_keys[j][1]))
             break ;
-        edge_cnt++ ;
         int nedges = j-i ;
-        FATAL(nedges != edge_keys[i][3]);
+        FATAL(int(j-i) != edge_keys[i][3]);
         i = j ;
       }
-      {
-        vector<pair<T,T> > tmp(edge_cnt) ;
-        edgemap.swap(tmp) ;
-        vector<T> tmp2(edge_cnt) ;
-        fileno.swap(tmp2) ;
-      }
+#endif
+      // Count edges
+      size_t edge_cnt = 0 ;
+      for(size_t i=0;i<edge_keys.size();i+=edge_keys[i][3])  edge_cnt++ ;
+
+      // Allocate edgemap and fileno
+      vector<pair<T,T> > tmp(edge_cnt) ;
+      edgemap.swap(tmp) ;
+      vector<T> tmp2(edge_cnt) ;
+      fileno.swap(tmp2) ;
+      // Extract edge information from edge_keys
       edge_cnt = 0 ;
       for(size_t i=0;i<edge_keys.size();i+=edge_keys[i][3]) {
         edgemap[edge_cnt] = std::make_pair(edge_keys[i][0],edge_keys[i][1]) ;
@@ -3556,6 +3577,9 @@ namespace Loci{
 
     /// Change the edge_keys edge number annotation to use the numbering in the
     /// supplied edges set.
+    ///
+    /// -- changes edge_keys[2] to the edge number in global numbering
+    ///
     template<class T> void renumber_edge_keys(std::vector<Array<T,5> > &edge_keys, entitySet edges) {
       auto edge_global = edges.begin() ;
       for(size_t i=0;i<edge_keys.size();i+=edge_keys[i][3],++edge_global) {
@@ -3567,6 +3591,7 @@ namespace Loci{
       FATAL(edge_global != edges.end()) ;
     }
   }
+
   /// Create edge datastructure.  Note, that we need this datastructure
   /// to have a consistent numbering regardless of the partition of the
   /// entities, so we have to make reference to the original file numbering
@@ -3585,7 +3610,6 @@ namespace Loci{
   /// edges.  Finally we need to reconstruct the face2edge map which will be
   /// easier if we carry the face information that generated the edges through
   /// all of these sorting processes.
-  
   void createEdgesPar(fact_db &facts) {
     // First get node domain
     store<vector3d<double> > pos ;
