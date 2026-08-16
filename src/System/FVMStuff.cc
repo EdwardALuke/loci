@@ -3804,8 +3804,8 @@ namespace Loci{
       }
     }
   }
-
-  void createEdgesPar(fact_db &facts) {
+  
+  void createEdgesPar_old(fact_db &facts) {
     multiMap face2node ;
     face2node = facts.get_variable("face2node") ;
     entitySet faces = face2node.domain() ;
@@ -4300,6 +4300,429 @@ namespace Loci{
 
   } // end of createEdgesPar
 
+
+  /// Comparison that only pays attention to the first element in the array
+  template<class T, size_t N> inline bool split_sort_1(const Array<T,N> &k1,
+                                                    const Array<T,N> &k2) {
+    return k1[0] < k2[0] ;
+  }
+
+  /// Comparison that only pays attention to the first two elements in the array
+  template<class T, size_t N> inline bool split_sort_12(const Array<T,N> &k1,
+                                                     const Array<T,N> &k2) {
+    return k1[0] < k2[0] || (k1[0] == k2[0] && k1[1] < k2[1]) ;
+  }
+
+  /// Sort edge keys, if edge_splits is empty then generate the splits
+  /// from the data, otherwise use splits provided
+  template<class T, size_t N>
+  void edge_sort(std::vector<Array<T,N> > &edge_keys,
+                 std::vector<Array<T,N> > &edge_splits,
+                 MPI_Comm comm) {
+    std::sort(edge_keys.begin(),edge_keys.end(),split_sort_1<T,N>) ;
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+    // edge splits not provided, compute them using uniform algorithmic
+    // partition
+    if(edge_splits.size() == 0 && MPI_processes > 1) {
+      Array<T,N> zero ;
+      for(size_t i=0;i<N;++i)
+        zero[i] = 0 ;
+      std::vector<Array<T,N> > tmp(p-1,zero) ;
+      T emaxl = edge_keys[edge_keys.size()-1][0] ;
+      T eminl = edge_keys[0][0] ;
+      T emax = emaxl ;
+      MPI_Allreduce(&emaxl,&emax,1,MPI_INT,MPI_MAX,comm) ;
+      T emin = eminl ;
+      MPI_Allreduce(&eminl,&emin,1,MPI_INT,MPI_MIN,comm) ;
+      T delta = (emax/p)- (emin/p) + 1;
+      edge_splits.swap(tmp) ;
+      edge_splits[0][0] = emin+delta ;
+      for(int i=1;i<p-1;++i) {
+        edge_splits[i][0] = edge_splits[i-1][0] + delta ;
+      }
+    }
+    parSplitSort(edge_keys,edge_splits,split_sort_1<T,N>,comm) ;
+    std::sort(edge_keys.begin(),edge_keys.end(),split_sort_12<T,N>) ;
+  }
+
+  /// create edge keys from the face2node map.  The keys are stored
+  /// as the file numbering of the two edge nodes first, then the
+  /// global numbering second, and finally the face that generated
+  /// the edge. To ensure a consistent numbering with the VOG file,
+  /// edges are oriented from lowest file number node to largest
+  /// file number node. Note, edges are duplicated by each face
+  /// that shares the node.  Sorting will be used to identify
+  /// unique edges.
+  template<class T> void extract_edge_keys(std::vector<Array<T,5> > &edge_keys,
+                                           entitySet fdom,
+                                           entitySet ndom,
+                                           int nkeyspace,
+                                           multiMap &face2node,
+                                           fact_db &facts) {
+    // Find nodes that face2node accesses
+    entitySet node_access = Loci::MapRepP(face2node.Rep())->image(fdom) ;
+
+    std::vector<T> n2f ; // get node2file numbering data
+    std::vector<entitySet> node_ptn = facts.get_init_ptn(nkeyspace) ;
+
+    store<T> node_fnum;
+    node_fnum.allocate(ndom) ;
+    fact_db::distribute_infoP df = facts.get_distribute_info() ;
+
+    if(df != 0) {
+      dMap ng2f ;
+      ng2f = df->g2fv[nkeyspace].Rep() ;
+      FORALL(ndom,ii) {
+        node_fnum[ii] = ng2f[ii] ;
+      } ENDFORALL ;
+    } else {
+      FORALL(ndom,ii) {
+        node_fnum[ii] = ii ;
+      } ENDFORALL ;
+    }
+    
+    // gather nodal data needed for the computation.
+    std::map<int,int> g2l ;
+    getLocalContextMap(g2l,node_access) ;
+    gatherData(n2f,node_fnum,node_access,node_ptn) ;
+    // Create list of edge keys, first count how many edge keys we will
+    // generate
+    size_t edge_gen = 0 ;
+    FORALL(fdom,fc) {
+      int fsz = face2node[fc].size() ;
+      edge_gen += fsz ;
+    } ENDFORALL ;
+    // Allocate edge keys
+    {
+      vector<Array<T,5> > tmp(edge_gen) ;
+      edge_keys.swap(tmp) ;
+    }
+    size_t edge_local = 0 ;
+    // Loop over faces and create an edge key for each edge of the face
+    // Record both the global and file number for the two nodes that form
+    // the edge
+    FORALL(fdom,fc) {
+      int fsz = face2node[fc].size() ;
+      T face = fc ;
+      for(int i=1;i<fsz;++i) {
+        T gn1 = face2node[fc][i-1] ;
+        T fn1 = n2f[g2l[gn1]] ;
+        T gn2 = face2node[fc][i] ;
+        T fn2 = n2f[g2l[gn2]] ;
+        edge_keys[edge_local][0] = fn1 ;
+        edge_keys[edge_local][1] = fn2 ;
+        edge_keys[edge_local][2] = gn1 ;
+        edge_keys[edge_local][3] = gn2 ;
+        edge_keys[edge_local][4] = face ;
+        if(fn1 > fn2) {
+          std::swap(edge_keys[edge_local][0],edge_keys[edge_local][1]) ;
+          std::swap(edge_keys[edge_local][2],edge_keys[edge_local][3]) ;
+        }
+        edge_local++ ;
+      }
+      // Final edge
+      T gn1 = face2node[fc][0] ;
+      T fn1 = n2f[g2l[gn1]] ;
+      T gn2 = face2node[fc][fsz-1] ;
+      T fn2 = n2f[g2l[gn2]] ;
+      edge_keys[edge_local][0] = fn1 ;
+      edge_keys[edge_local][1] = fn2 ;
+      edge_keys[edge_local][2] = gn1 ;
+      edge_keys[edge_local][3] = gn2 ;
+      edge_keys[edge_local][4] = face ;
+      if(fn1 > fn2) {
+        std::swap(edge_keys[edge_local][0],edge_keys[edge_local][1]) ;
+        std::swap(edge_keys[edge_local][2],edge_keys[edge_local][3]) ;
+      }
+      edge_local++ ;
+    } ENDFORALL ;
+    FATAL(edge_local != edge_gen) ;
+  }    
+
+  extern int factdb_allocated_base ;
+
+  /// Scan through edges sorted to processors according to the file
+  /// numbering of nodes.  Use this to define a unique file ordering
+  /// for edges.  As we scan through the edge array, convert the key
+  /// to global nubering for following steps, and then fill in
+  /// field 2 with the edge file number
+  template<class T>
+  size_t edge_file_numbering(std::vector<Array<T,5> > &edge_keys,
+                           MPI_Comm comm) {
+    long long ecnt = 0 ;
+    for(size_t i=0;i<edge_keys.size();) {
+      // search for cluster of edges
+      size_t j = i+1 ;
+      for(;j<edge_keys.size();++j) {
+        if((edge_keys[i][0] != edge_keys[j][0]) ||
+           (edge_keys[i][1] != edge_keys[j][1]))
+          break ;
+      }
+      size_t nedges = j-i ;
+      for(size_t k=i;k<j;++k) {
+        // Convert key to global numbering 
+        edge_keys[k][0] = edge_keys[k][2] ;
+        edge_keys[k][1] = edge_keys[k][3] ;
+
+        FATAL(edge_keys[k][0] != edge_keys[i][0] ||
+              edge_keys[k][1] != edge_keys[i][1]) ;
+        // Use remaining space to store information about edges
+        // Edge file number (starting from zero on each processor
+        edge_keys[k][2] = ecnt ;
+        // Number of edges in cluster
+        edge_keys[k][3] = nedges ;
+      }
+      ecnt++ ;
+      i=j ;
+    }
+    // Fix local numbering to file numbering
+    long long ecnt_total = ecnt ;
+    MPI_Scan(&ecnt, &ecnt_total,1,MPI_LONG_LONG,MPI_SUM,comm) ;
+    long long offset = ecnt_total - ecnt + factdb_allocated_base ;
+    for(size_t i=0;i<edge_keys.size();++i) 
+      edge_keys[i][2] = (edge_keys[i][2]+offset) ;
+    return ecnt ;
+  }
+
+  /// Extract splits consistent with the partition set given, assumes
+  /// the set allocated to each processor is contiguous.
+  template<class T>
+  void get_splits(std::vector<Array<T,5> > &edge_splits,
+                  entitySet ndom,
+                  MPI_Comm comm) {
+    int p=1 ;
+    MPI_Comm_size(comm,&p) ;
+    { // Initialize splits
+      Array<T,5> zero ;
+      for(size_t i=0;i<5;++i)
+        zero[i] = 0 ;
+      std::vector<Array<T,5> > tmp(p-1,zero) ;
+      edge_splits.swap(tmp) ;
+    }
+    T val = ndom.Min() ;
+    std::vector<T> valp(p) ;
+    MPI_Allgather(&val,sizeof(T),MPI_BYTE,
+                  &valp[0],sizeof(T),MPI_BYTE,
+                  comm) ;
+    for(int i=0;i<p-1;++i)
+      edge_splits[i] = valp[i+1] ;
+  }
+
+  /// Collect edges from the sorted edge_keys
+  template<class T>
+  void collect_edges(vector<pair<T,T> > &edgemap,
+                     vector<T> &fileno,
+                     const std::vector<Array<T,5> > &edge_keys) {
+    size_t edge_cnt = 0 ;
+    for(size_t i=0;i<edge_keys.size();) {
+      // search for cluster of edges
+      size_t j = i+1 ;
+      for(;j<edge_keys.size();++j)
+        if((edge_keys[i][0] != edge_keys[j][0]) ||
+           (edge_keys[i][1] != edge_keys[j][1]))
+          break ;
+      edge_cnt++ ;
+      int nedges = j-i ;
+      FATAL(nedges != edge_keys[i][3]);
+      i = j ;
+    }
+    {
+      vector<pair<T,T> > tmp(edge_cnt) ;
+      edgemap.swap(tmp) ;
+      vector<T> tmp2(edge_cnt) ;
+      fileno.swap(tmp2) ;
+    }
+    edge_cnt = 0 ;
+    for(size_t i=0;i<edge_keys.size();i+=edge_keys[i][3]) {
+      edgemap[edge_cnt] = std::make_pair(edge_keys[i][0],edge_keys[i][1]) ;
+      fileno[edge_cnt] = edge_keys[i][2] ;
+      edge_cnt++ ;
+    }
+  }
+
+  /// Change the edge_keys edge number annotation to use the numbering in the
+  /// supplied edges set.
+  template<class T> void renumber_edge_keys(std::vector<Array<T,5> > &edge_keys, entitySet edges) {
+    auto edge_global = edges.begin() ;
+    for(size_t i=0;i<edge_keys.size();i+=edge_keys[i][3],++edge_global) {
+      for(int j=0;j<edge_keys[i][3];++j) 
+        edge_keys[i+j][2] = *edge_global ;
+    }
+    // Check to make sure that edge set is the same size as the number of edges in
+    // edge_keys
+    FATAL(edge_global != edges.end()) ;
+  }
+
+  /// Create edge datastructure.  Note, that we need this datastructure
+  /// to have a consistent numbering regardless of the partition of the
+  /// entities, so we have to make reference to the original file numbering
+  /// supplied by the VOG file.
+  ///
+  /// The general strategy is to loop over faces and create a list of edges.
+  /// This list will contain duplicate edges which will need to be removed.
+  /// To remove the duplicates we first represent the edges with an ordered
+  /// pair of the two defining nodes (numbered in the node file numbering)
+  /// sorted so that the lowest node number comes first.  Sorting this list
+  /// will produce a consistent ordering of edges where duplicate edges can
+  /// be removed.  This will define the file numbering of the edges, but this
+  /// will not be an efficient partition of edges.  So once the file numbering
+  /// is determined, the edges will need to be sorted a second time based
+  /// on the partitioning of nodes to get a proper global numbering of
+  /// edges.  Finally we need to reconstruct the face2edge map which will be
+  /// easier if we carry the face information that generated the edges through
+  /// all of these sorting processes.
+  
+  void createEdgesPar(fact_db &facts) {
+    // First get node domain
+    store<vector3d<double> > pos ;
+    pos = facts.get_variable("pos") ;
+    entitySet ndom = pos.domain() ;
+    int nkeyspace = pos.getDomainKeySpace() ;
+    
+    // Get face2node map
+    multiMap face2node ;
+    face2node = facts.get_variable("face2node") ;
+    entitySet fdom = face2node.domain() ;
+
+    // Extract edges from face2node
+    vector<Array<int,5> > edge_keys ;
+    extract_edge_keys(edge_keys, fdom, ndom, nkeyspace,
+                      face2node,facts) ;
+
+    // Sort edges based on file numbering of edge nodes
+    vector<Array<int,5> > edge_splits ;
+    edge_sort(edge_keys,edge_splits,MPI_COMM_WORLD) ;
+
+    // Find file numbering from edges, change layout of
+    // edge_keys to use global node numbering
+    edge_file_numbering(edge_keys,MPI_COMM_WORLD) ;
+    
+    // Now sort based on the global node numbering to improve locality
+    get_splits(edge_splits,ndom,MPI_COMM_WORLD) ;
+    edge_sort(edge_keys,edge_splits,MPI_COMM_WORLD) ;
+
+    // Collect edge information
+    vector<pair<int,int> > edge_list ;
+    vector<int> edge_fileno ;
+    collect_edges(edge_list,edge_fileno,edge_keys) ;
+
+    // Allocate entities for new edges
+    int num_edges = edge_list.size() ;
+    int ek = facts.getKeyDomain("Edges") ;
+    //    if(!useDomainKeySpaces) {
+    //      ek = 0 ;
+    //    }
+    if(Loci::MPI_processes < 2)
+      ek = 0 ;
+    int fk = face2node.Rep()->getDomainKeySpace() ;
+
+    entitySet edges = facts.get_distributed_alloc(num_edges,ek).first ;
+
+    
+    //create constraint edges
+    constraint edges_tag;
+    *edges_tag = edges;
+    edges_tag.Rep()->setDomainKeySpace(ek) ;
+    facts.create_fact("edges", edges_tag);
+    // Copy edge nodes into a MapVec
+    MapVec<2> edge ;
+    // Note, set range keyspace also (when we have a Nodes keyspace)
+    edge.Rep()->setDomainKeySpace(ek) ;
+    edge.allocate(edges) ;
+    int cnt = 0 ;
+    debugout << "Edges = " << edges << endl ;
+    // Pull edge2node data out of edge_list
+    for(auto ei=edges.begin();ei!=edges.end();++ei,++cnt) {
+      edge[*ei][0] = edge_list[cnt].first ;
+      edge[*ei][1] = edge_list[cnt].second ;
+    }
+
+    // Update file numbering map
+    fact_db::distribute_infoP df = facts.get_distribute_info() ;
+    if(df != 0) {
+      int cnt = 0 ;
+      for(auto ei=edges.begin();ei!=edges.end();++ei,++cnt) {
+        df->g2fv[ek][*ei] = edge_fileno[cnt] ; // Update global to file map
+      }
+    }
+
+    // Add edge2node to fact database
+    facts.create_fact("edge2node",edge) ;
+
+    // Now we are creating the face2edge map.  For this we are going to sort the
+    // edge_keys based on the global face number to return the data to the generating
+    // face.  Along the way we will be communicating the final global numbering of the
+    // created edges.  In this way we can create the face2edge map.
+
+    
+    // First change numbering in edge_keys from file numbering of edges to global numbering
+    renumber_edge_keys(edge_keys,edges) ;
+
+    // Swap the first entry in the key with the face global number
+    // and sort the data so that all of the edge data is returned to
+    // the face that generated it, only this time with the edge global
+    // number
+    for(size_t i=0;i<edge_keys.size();++i)
+      std::swap(edge_keys[i][0],edge_keys[i][4]) ;
+    // Sort based on new key to move edge_keys back to processor with generating face
+    get_splits(edge_splits,fdom,MPI_COMM_WORLD) ;
+    edge_sort(edge_keys,edge_splits,MPI_COMM_WORLD) ;
+
+    // Now prepare face2edge map, it should have the same number of entries as face2node
+    multiMap face2edge ;
+    store<int> count ;
+    count.allocate(fdom) ;
+    for(auto ei = fdom.begin(); ei!=fdom.end();++ei)
+      count[*ei] = face2node[*ei].size() ;
+    face2edge.allocate(count) ;
+
+    // Now we have to search over the edges generated by the face in edge_keys and find the
+    // specific edge to be consistent with face2node
+    auto fptr = fdom.begin() ;
+    for(size_t i=0;i<edge_keys.size();) {
+      // search for cluster edges tied to each face
+      size_t j = i+1 ;
+      for(;j<edge_keys.size();++j)
+        if((edge_keys[i][0] != edge_keys[j][0]))
+          break ;
+      int fsz = j-i ;
+      // We should have found a number of edges that matches the face2node size
+      FATAL(fsz != face2node[*fptr].size());
+      // Also our face should match the face given in the edge_keys
+      FATAL(*fptr != edge_keys[i][0]) ;
+
+      // Now scan over the candidate edges to find the matching edge
+      for(int f=0;f<fsz;++f) {
+        Entity n1 = face2node[*fptr][f] ;
+        Entity n2 = face2node[*fptr][(f+1==fsz)?0:f+1] ;
+        // e1 and e2 are the consistent edge node numbers
+        Entity e1 = min(n1,n2) ; 
+        Entity e2 = max(n1,n2) ;
+        int k=0 ;
+        for(k=0;k<fsz;++k) {
+          // m1 and m2 are the consistent edge node numbers from the search set.
+          int m1 = min(edge_keys[i+k][1],edge_keys[i+k][4]) ;
+          int m2 = max(edge_keys[i+k][1],edge_keys[i+k][4]) ;
+          // If we find it, grab the edge global number from the edge keys
+          if(e1 == m1 && e2 == m2) {
+            face2edge[*fptr][f] = edge_keys[i+k][2] ;
+            break ;
+          }
+        }
+        // Search failed to find corresponding edge, something wrong with data
+        FATAL(k==fsz) ;
+      }
+      // advance to the next face
+      fptr++ ;
+      i = j ;
+    }
+
+    // Add face2edge to the fact database
+    face2edge.Rep()->setDomainKeySpace(fk) ;
+    MapRepP(face2edge.Rep())->setRangeKeySpace(ek) ;
+    facts.create_fact("face2edge",face2edge) ;
+  } // end of createEdgesPar
 
   void setupOverset(fact_db &facts) {
     storeRepP sp = facts.get_variable("componentGeometry") ;
