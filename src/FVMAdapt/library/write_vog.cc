@@ -2501,6 +2501,9 @@ namespace Loci {
   
     //get face domains and allocate the maps 
     int face_min = std::numeric_limits<int>::lowest()+2048 ;
+    if(MPI_processes == 1)
+      face_min = numNodes ;
+    
     for(int i =0; i < MPI_rank; i++) face_min += face_sizes[i];
 
     int face_max = face_min + face_sizes[MPI_rank] -1;
@@ -2517,6 +2520,9 @@ namespace Loci {
     local_faces = all_collect_vectors(faces);
     //fill up the maps cl , cr and count 
     int cell_base = numNodes  ;
+    if(MPI_processes == 1)
+      cell_base += numFaces ;
+    
     int cell_max = std::numeric_limits<int>::min();
     int cell_min = std::numeric_limits<int>::max();
 
