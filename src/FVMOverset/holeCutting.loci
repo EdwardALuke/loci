@@ -37,7 +37,6 @@ using std::vector ;
 using std::map ;
 #include <set>
 using std::set ;
-using Loci::rigid_transform;
 
 $include "FVM.lh"
 $include "FVMOverset/overset.lh"
@@ -440,9 +439,10 @@ namespace Loci {
             int pi = -1 ;
             // If no geometry is defined, then by default the geometry
             // is everything.  Otherwise check to see if it is in geometry
+            bool inGeol;
+            $componentGeometryList[nd][i]->inGeometry(&$pos[nd],&inGeol,1);
             bool inGeom =
-              ($componentGeometryList[nd][i] == 0 ||
-              $componentGeometryList[nd][i]->inGeometry($pos[nd])) ;
+              ($componentGeometryList[nd][i] == 0 || inGeol) ;
             if(kdlist[i] != 0 && inGeom) {
               pi = kdlist[i]->find_closest(p,rmin) ;
             }
@@ -532,7 +532,9 @@ namespace Loci {
 
         // Mark an entity with an xblank of 2 if it is inside the geometry
         FORALL(e,nd) {
-          if(gp->inGeometry($pos[nd]))
+          bool inGeol;
+          gp->inGeometry(&$pos[nd],&inGeol,1);
+          if(inGeol)
             $xblank[nd] = 2 ;
         } ENDFORALL ;
       } else {
@@ -559,19 +561,20 @@ namespace Loci {
         Loci::CPTR<geometry_type> gp = ii->second ;
 
         // Transform geometry to global coordinates
-        //map<string,vector<componentXform> >::const_iterator mi ;
-        map<string,vector<rigid_transform> >::const_iterator mi ;
+        map<string,vector<componentXform> >::const_iterator mi ;
         mi = $componentTransformMap->find(ii->first) ;
         if(mi != $componentTransformMap->end()) {
           int sz = mi->second.size() ;
           for(int i=0;i<sz;++i) {
-            Loci::CPTR<geometry_type> ngp = gp->transform(mi->second[i]) ;
-//            Loci::CPTR<geometry_type> ngp = gp->applyXform(mi->second[i]) ;
+//            Loci::CPTR<geometry_type> ngp = gp->transform(mi->second[i]) ;
+            Loci::CPTR<geometry_type> ngp = gp->applyXform(mi->second[i]) ;
             gp = ngp ;
           }
         }
         FORALL(e,nd) {
-          if(gp->inGeometry($pos[nd]))
+          bool inGeol;
+          gp->inGeometry(&$pos[nd],&inGeol,1);
+          if(inGeol)
             $xblank[nd] = 2 ;
         } ENDFORALL ;
       } else {

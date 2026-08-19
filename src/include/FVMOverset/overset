@@ -193,8 +193,7 @@ namespace Loci {
 			 const std::map<std::string,real_t> &motion_info) const = 0 ;
 
     /// Get motion transform from a given state
-    virtual rigid_transform getXform(const std::vector<real_t> &state) const = 0 ;
-    //virtual componentXform getXform(const std::vector<real_t> &state) const = 0 ;
+    virtual componentXform getXform(const std::vector<real_t> &state) const = 0 ;
   } ;
 
   /// Find the time interval that we are splining

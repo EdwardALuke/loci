@@ -23,6 +23,7 @@
 
 #include <Loci.h>
 #include <Tools/tools.h>
+#include <FVMOverset/overset>
 #include <iostream>
 #include <cmath>
 #include <algorithm>
@@ -40,6 +41,7 @@ using std::vector ;
 using std::map ;
 #include <set>
 using std::set ;
+using Loci::componentXform;
 
 namespace Loci
 {
@@ -55,7 +57,8 @@ namespace Loci
                          const vector3d<real_t> loc[],int sz) const = 0 ;
     /// Transform geometry using rigid body transform
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const = 0 ;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const = 0;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const = 0; 
+    virtual void inGeometry(const vector3d<real_t> loc[], bool inGeom[],int sz) const = 0;
   } ;
 
 
@@ -78,12 +81,13 @@ namespace Loci
                          const vector3d<real_t> loc[], int sz) const ;
   
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const  ;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
   } ;
 
 
   /// Compute distance to composite geometry
-  void compositeFunc::getDist(real_t dist[], vector3d<real_t> n[],
+  inline void compositeFunc::getDist(real_t dist[], vector3d<real_t> n[],
                               const vector3d<real_t> loc[], int sz) const  {
     vector<real_t> dists(sz) ;
     vector<vector3d<real_t>> ns(sz) ;
@@ -105,8 +109,11 @@ namespace Loci
     }
   }
 
-  void compositeFunc::inGeometry(real_t dist[],bool inGeom [], int sz) const
+  inline void compositeFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
   {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
     for (int i = 0; i< sz; i++)
     {
         if (dist[i] < 0) inGeom[i] = true;
@@ -115,13 +122,19 @@ namespace Loci
   }
 
   /// Apply geometric transform to each element
-  Loci::CPTR<geometry_type> compositeFunc::transform(rigid_transform Tv) const {
+  inline Loci::CPTR<geometry_type> compositeFunc::transform(rigid_transform Tv) const {
     std::vector<Loci::CPTR<geometry_type> > newGeomList(geomList.size()) ;
     for(size_t i=0;i<geomList.size();++i)
       newGeomList[i] = geomList[i]->transform(Tv) ;
     return new compositeFunc(newGeomList) ;
   }
 
+  inline Loci::CPTR<geometry_type> compositeFunc::applyXform(componentXform xform) const {
+    std::vector<Loci::CPTR<geometry_type> > newGeomList(geomList.size()) ;
+    for(size_t i=0;i<geomList.size();++i)
+      newGeomList[i] = geomList[i]->applyXform(xform) ;
+    return new compositeFunc(newGeomList) ;
+  }
 
 class generalCylinderFunc : public geometry_type {
   protected:
@@ -139,10 +152,11 @@ class generalCylinderFunc : public geometry_type {
     }
     virtual void getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
 };
 
-void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], 
+inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], 
     const vector3d<real_t> loc[], int sz) const
 {
     // 1. Calculate the axis geometry
@@ -213,10 +227,15 @@ void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
   }
 }
 
-  Loci::CPTR<geometry_type> generalCylinderFunc::transform(rigid_transform Tv) const {
+  inline Loci::CPTR<geometry_type> generalCylinderFunc::transform(rigid_transform Tv) const {
     vector3d<real_t> np1 = Tv.transform(p1) ;
     vector3d<real_t> np2 = Tv.transform(p2) ;
-    
+    return new generalCylinderFunc(np1,np2,r1,r2) ;
+  }
+
+  inline Loci::CPTR<geometry_type> generalCylinderFunc::applyXform(componentXform xform) const {
+    vector3d<real_t> np1 = xform.applyXform(p1) ;
+    vector3d<real_t> np2 = xform.applyXform(p2) ;
     return new generalCylinderFunc(np1,np2,r1,r2) ;
   }
 
@@ -251,6 +270,18 @@ void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
 //     return new coneFunc(np1,np2,r) ;
 //   }
 
+  inline void generalCylinderFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
 class hollowGeneralCylinderFunc : public generalCylinderFunc {
     real_t r1in, r2in;
     real_t thickness;
@@ -264,11 +295,12 @@ class hollowGeneralCylinderFunc : public generalCylinderFunc {
 
     virtual void getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
 };
 
 // For the hollow cylinder, call twice to generalCylinder 
-void hollowGeneralCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
+inline void hollowGeneralCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
 {
   // Interior core
   real_t disti[sz]; 
@@ -295,15 +327,32 @@ void hollowGeneralCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], con
   }
 }
 
-  Loci::CPTR<geometry_type> hollowGeneralCylinderFunc::transform(rigid_transform Tv)  const {
+  inline void hollowGeneralCylinderFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline Loci::CPTR<geometry_type> hollowGeneralCylinderFunc::transform(rigid_transform Tv)  const {
     vector3d<real_t> np1 = Tv.transform(p1) ;
     vector3d<real_t> np2 = Tv.transform(p2) ;
-    
+    return new hollowGeneralCylinderFunc(np1,np2,r1,r2,r1in,r2in,thickness) ;
+  }
+
+  inline Loci::CPTR<geometry_type> hollowGeneralCylinderFunc::applyXform(componentXform xform)  const {
+    vector3d<real_t> np1 = xform.applyXform(p1) ;
+    vector3d<real_t> np2 = xform.applyXform(p2) ;
     return new hollowGeneralCylinderFunc(np1,np2,r1,r2,r1in,r2in,thickness) ;
   }
 
   // Internal 2D Polygon SDF with analytical normal calculation
-real_t sdPolygon2D(vector3d<real_t> q, const std::vector<vector3d<real_t>>& v, vector3d<real_t>& n2d) 
+inline real_t sdPolygon2D(vector3d<real_t> q, const std::vector<vector3d<real_t>>& v, vector3d<real_t>& n2d) 
 {
     int num = v.size();
     real_t s = 1.0;
@@ -363,10 +412,11 @@ real_t sdPolygon2D(vector3d<real_t> q, const std::vector<vector3d<real_t>>& v, v
     }
     virtual void getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
   };
 
-void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
+inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
 {
     // 1. Calculate the axis geometry
     vector3d<real_t> V = p2 - p1;
@@ -385,6 +435,7 @@ void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<rea
       q.y = dot(w, V); // Height along axis
       vector3d<real_t> radialVec = w - q.y*V;
       q.x = norm(radialVec); // Radius away from axis
+      q.z = 0.0;
       
       // 2. Transform the 3D Polygon Vertices into the exact same 2D profile space
       std::vector<vector3d<real_t>> poly2d;
@@ -410,7 +461,7 @@ void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<rea
       r *= ord;
       vector3d<real_t> z = cross(V,r);
 
-      vector3d<real_t> proj2d = vector3d(dot(radialVec,r),dot(radialVec,z),0.0);
+      vector3d<real_t> proj2d = vector3d<real_t>(dot(radialVec,r),dot(radialVec,z),0.0);
       
       // 4. Evaluate the transformed 2D Polygon Profile
       vector3d<real_t> n2d;
@@ -492,7 +543,19 @@ void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<rea
     }
   }
 
-  Loci::CPTR<geometry_type> sectorFunc::transform(rigid_transform Tv)  const {
+  inline void sectorFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline Loci::CPTR<geometry_type> sectorFunc::transform(rigid_transform Tv)  const {
     vector3d<real_t> np1 = Tv.transform(p1) ;
     vector3d<real_t> np2 = Tv.transform(p2) ;
     vector3d<real_t> nori = Tv.transform(sectorOrientation);
@@ -501,6 +564,20 @@ void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<rea
     for (size_t i = 0; i< polyVerts.size(); i++)
     {
         vector3d<real_t> pl = Tv.transform(polyVerts[i]);
+        pv.push_back(pl);
+    }
+    return new sectorFunc(np1, np2, pv, angle, sectorPosition, nori);
+  }
+
+  inline Loci::CPTR<geometry_type> sectorFunc::applyXform(componentXform xform)  const {
+    vector3d<real_t> np1 = xform.applyXform(p1) ;
+    vector3d<real_t> np2 = xform.applyXform(p2) ;
+    vector3d<real_t> nori = xform.applyXform(sectorOrientation);
+    vector<vector3d<real_t>> pv;
+    pv.reserve(polyVerts.size());
+    for (size_t i = 0; i< polyVerts.size(); i++)
+    {
+        vector3d<real_t> pl = xform.applyXform(polyVerts[i]);
         pv.push_back(pl);
     }
     return new sectorFunc(np1, np2, pv, angle, sectorPosition, nori);
@@ -527,10 +604,11 @@ class extrusionFunc : public geometry_type {
     }
     virtual void getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;    
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;    
   };
 
-void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
+inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
 {
      // 1. Calculate the main axis geometry (Y-axis of our local frame)
     vector3d<real_t> V = p2 - p1;
@@ -624,7 +702,19 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
   }
 }
 
-  Loci::CPTR<geometry_type> extrusionFunc::transform(rigid_transform Tv)  const {
+  inline void extrusionFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline Loci::CPTR<geometry_type> extrusionFunc::transform(rigid_transform Tv)  const {
     vector3d<real_t> np1 = Tv.transform(p1) ;
     vector3d<real_t> np2 = Tv.transform(p2) ;
 
@@ -633,6 +723,20 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     for (size_t i = 0; i< polyVerts.size(); i++)
     {
         vector3d<real_t> pl = Tv.transform(polyVerts[i]);
+        pv.push_back(pl);
+    }
+    return new extrusionFunc(np1, np2, pv, extrusionPercentage);
+  }
+
+  inline Loci::CPTR<geometry_type> extrusionFunc::applyXform(componentXform xform)  const {
+    vector3d<real_t> np1 = xform.applyXform(p1) ;
+    vector3d<real_t> np2 = xform.applyXform(p2) ;
+
+    vector<vector3d<real_t>> pv;
+    pv.reserve(polyVerts.size());
+    for (size_t i = 0; i< polyVerts.size(); i++)
+    {
+        vector3d<real_t> pl = xform.applyXform(polyVerts[i]);
         pv.push_back(pl);
     }
     return new extrusionFunc(np1, np2, pv, extrusionPercentage);
@@ -686,12 +790,13 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     virtual void getDist(real_t dist[],vector3d<real_t> n[],
                          const vector3d<real_t> loc[], int sz) const ;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
   } ;
 
   /// Get distance field by projecting onto points, then edges, then triangular
   /// faces of the decomposed hex
-  void hexFunc::getDist(real_t dist[],vector3d<real_t> n[],
+  inline void hexFunc::getDist(real_t dist[],vector3d<real_t> n[],
                         const vector3d<real_t> loc[], int sz) const {
     using namespace hexFuncInfo ;
     for(int i=0;i<sz;++i) { // loop over points
@@ -735,10 +840,29 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     }
   }
 
-  Loci::CPTR<geometry_type> hexFunc::transform(rigid_transform Tv) const {
+  inline void hexFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline Loci::CPTR<geometry_type> hexFunc::transform(rigid_transform Tv) const {
     vector3d<real_t> ncorners[8] ;
     for(int i=0;i<8;++i)
       ncorners[i] = Tv.transform(corners[i]) ;
+    return new hexFunc(ncorners) ;
+  }
+
+  inline Loci::CPTR<geometry_type> hexFunc::applyXform(componentXform xform) const {
+    vector3d<real_t> ncorners[8] ;
+    for(int i=0;i<8;++i)
+      ncorners[i] = xform.applyXform(corners[i]) ;
     return new hexFunc(ncorners) ;
   }
 
@@ -751,10 +875,11 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     virtual void getDist(real_t dist[], vector3d<real_t> n[],
                          const vector3d<real_t> loc[], int sz) const ;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
   } ;
 
-  void sphereFunc::getDist(real_t dist[], vector3d<real_t> n[],
+  inline void sphereFunc::getDist(real_t dist[], vector3d<real_t> n[],
                            const vector3d<real_t> loc[], int sz) const {
     for(int i=0;i<sz;++i) {
       vector3d<real_t> nl = loc[i]-center ;
@@ -765,8 +890,26 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     }
   }
 
-  Loci::CPTR<geometry_type> sphereFunc::transform(rigid_transform Tv)  const {
+  inline void sphereFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline Loci::CPTR<geometry_type> sphereFunc::transform(rigid_transform Tv)  const {
     vector3d<real_t> ct = Tv.transform(center) ;
+
+    return new sphereFunc(ct,radius) ;
+  }
+
+  inline Loci::CPTR<geometry_type> sphereFunc::applyXform(componentXform xform)  const {
+    vector3d<real_t> ct = xform.applyXform(center) ;
 
     return new sphereFunc(ct,radius) ;
   }
@@ -787,10 +930,11 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     virtual void getDist(real_t dist[], vector3d<real_t> n[],
                          const vector3d<real_t> loc[], int sz) const ;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
   } ;
 
-  void boxFunc::getDist(real_t dist[], vector3d<real_t> n[],
+  inline void boxFunc::getDist(real_t dist[], vector3d<real_t> n[],
                         const vector3d<real_t> loc[], int sz) const {
     for(int i=0;i<sz;++i) {
       vector3d<real_t> pt = loc[i] ;
@@ -833,7 +977,19 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     }
   }
 
-  Loci::CPTR<geometry_type> boxFunc::transform(rigid_transform Tv) const {
+  inline void boxFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline Loci::CPTR<geometry_type> boxFunc::transform(rigid_transform Tv) const {
     vector3d<real_t> ncorners[8] ;
     ncorners[0] = Tv.transform(vector3d<real_t>(pmin.x,pmin.y,pmax.z)) ;
     ncorners[1] = Tv.transform(vector3d<real_t>(pmax.x,pmin.y,pmax.z)) ;
@@ -843,6 +999,20 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     ncorners[5] = Tv.transform(vector3d<real_t>(pmax.x,pmin.y,pmin.z)) ;
     ncorners[6] = Tv.transform(vector3d<real_t>(pmin.x,pmax.y,pmin.z)) ;
     ncorners[7] = Tv.transform(vector3d<real_t>(pmax.x,pmax.y,pmin.z)) ;
+    return new hexFunc(ncorners) ;
+  }
+
+
+  inline Loci::CPTR<geometry_type> boxFunc::applyXform(componentXform xform) const {
+    vector3d<real_t> ncorners[8] ;
+    ncorners[0] = xform.applyXform(vector3d<real_t>(pmin.x,pmin.y,pmax.z)) ;
+    ncorners[1] = xform.applyXform(vector3d<real_t>(pmax.x,pmin.y,pmax.z)) ;
+    ncorners[2] = xform.applyXform(vector3d<real_t>(pmin.x,pmax.y,pmax.z)) ;
+    ncorners[3] = xform.applyXform(vector3d<real_t>(pmax.x,pmax.y,pmax.z)) ;
+    ncorners[4] = xform.applyXform(vector3d<real_t>(pmin.x,pmin.y,pmin.z)) ;
+    ncorners[5] = xform.applyXform(vector3d<real_t>(pmax.x,pmin.y,pmin.z)) ;
+    ncorners[6] = xform.applyXform(vector3d<real_t>(pmin.x,pmax.y,pmin.z)) ;
+    ncorners[7] = xform.applyXform(vector3d<real_t>(pmax.x,pmax.y,pmin.z)) ;
     return new hexFunc(ncorners) ;
   }
 
@@ -857,12 +1027,13 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     virtual void getDist(real_t dist[], vector3d<real_t> n[],
                          const vector3d<real_t> loc[], int sz) const ;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
-    virtual void inGeometry(real_t dist[],bool inGeom[],int sz) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[], bool inGeom[],int sz) const;
   } ;
 
-  void planelistFunc::getDist(real_t dist[], vector3d<real_t> n[],
+   inline void planelistFunc::getDist(real_t dist[], vector3d<real_t> n[],
                         const vector3d<real_t> loc[], int sz) const {
-    real_t maxdist;
+    real_t maxdist = 0.0;
     for(int i=0;i<sz;++i) {
       for(size_t j=0;j<pts.size();++j) {
         real_t loc_dist = dot(loc[i]-pts[j],normals[j]);
@@ -873,7 +1044,19 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
     }
   }
 
-  Loci::CPTR<geometry_type> planelistFunc::transform(rigid_transform Tv) const {
+  inline void planelistFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline Loci::CPTR<geometry_type> planelistFunc::transform(rigid_transform Tv) const {
     vector<vector3d<real_t> > ptmp ;
     vector<vector3d<real_t> > ntmp ;
     for(size_t i=0;i<pts.size();++i) {
@@ -882,6 +1065,22 @@ void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<
       vector3d<real_t> pt2 = pt1 + np1*normals[i] ;
       vector3d<real_t> p1 = Tv.transform(vector3d<real_t>(pt1.x,pt1.y,pt1.z)) ;
       vector3d<real_t> p2 = Tv.transform(vector3d<real_t>(pt2.x,pt2.y,pt2.z));
+      ptmp.push_back(p1) ;
+      vector3d<real_t> n1 = (p2-p1)/np1 ;
+      ntmp.push_back(n1) ;
+    }
+    return new planelistFunc(ptmp,ntmp) ;
+  }
+
+  inline Loci::CPTR<geometry_type> planelistFunc::applyXform(componentXform xform) const {
+    vector<vector3d<real_t> > ptmp ;
+    vector<vector3d<real_t> > ntmp ;
+    for(size_t i=0;i<pts.size();++i) {
+      vector3d<real_t> pt1 = pts[i] ;
+      real_t np1 = norm(pt1)+1 ;
+      vector3d<real_t> pt2 = pt1 + np1*normals[i] ;
+      vector3d<real_t> p1 = xform.applyXform(vector3d<real_t>(pt1.x,pt1.y,pt1.z)) ;
+      vector3d<real_t> p2 = xform.applyXform(vector3d<real_t>(pt2.x,pt2.y,pt2.z));
       ptmp.push_back(p1) ;
       vector3d<real_t> n1 = (p2-p1)/np1 ;
       ntmp.push_back(n1) ;

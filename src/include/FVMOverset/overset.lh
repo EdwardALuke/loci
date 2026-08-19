@@ -30,18 +30,16 @@ $type componentHierarchy param<Loci::options_list> ;
 $type componentGeometry param<Loci::options_list> ;
 
 /// Map of component names to their associated transform sequence ancestry
-$type componentTransformMap blackbox<std::map<std::string,std::vector<Loci::rigid_transform> > > ;
-//$type componentTransformMap blackbox<std::map<std::string,std::vector<Loci::componentXform> > > ;
+$type componentTransformMap blackbox<std::map<std::string,std::vector<Loci::componentXform> > > ;
 
 /// Map of component names to their associated motion definition defined by
 /// componentXform. Solvers provide the rules that set this variable.
-//$type componentMotionData blackbox<std::map<std::string,Loci::componentXform> > ;
-$type componentMotionData blackbox<std::map<std::string,Loci::rigid_transform> > ;
+$type componentMotionData blackbox<std::map<std::string,Loci::componentXform> > ;
+
 
 /// Map of component geometry names to their associated geometry types. Used for hole-cutting.
 $type componentGeometryData blackbox<std::map<std::string, Loci::CPTR<Loci::geometry_type> > > ;
-//$type componentGeometryData blackbox<std::vector<Loci::CPTR<Loci::geometry_type>>>;
-
+                            
 /// List of geometry types for each componentGeometry, after the transformation
 /// sequences have been applied. Used for hole-cutting.
 $type componentGeometryList blackbox<std::vector<Loci::CPTR<Loci::geometry_type> > > ;
@@ -81,8 +79,7 @@ $type componentID store<int> ;
 
 /// For a component X, stores the the sequence of transform ancestry to
 /// associated with that component.
-$type componentTransforms_X param<std::vector<Loci::rigid_transform> > ;
-//$type componentTransforms_X param<std::vector<Loci::componentXform> > ;
+$type componentTransforms_X param<std::vector<Loci::componentXform> > ;
 
 /// The motionType associated with component X
 $type motionBehavior_X blackbox<Loci::CPTR<Loci::motionType> > ;
@@ -95,8 +92,7 @@ $type motionInfo blackbox<std::map<std::string,Loci::real_t> > ;
 /// iterative solvers. If componentTransforms_X is defined at the timestep
 /// level, n, this variable can be used to store the transforms at various
 /// stages of an iterative solve.
-$type componentTransformsn_X param<std::vector<Loci::rigid_transform> > ;
-//$type componentTransformsn_X param<std::vector<Loci::componentXform> > ;
+$type componentTransformsn_X param<std::vector<Loci::componentXform> > ;
 
 $type componentName_X blackbox<std::string> ;
 $type componentNodes_X store<bool> ;

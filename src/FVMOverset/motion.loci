@@ -351,8 +351,7 @@ namespace Loci {
 
     /// For stationary motion, the transform is the identity transform, which
     /// is just the default componentXform.
-    rigid_transform getXform(const vector<real_t &state) const;
-//    componentXform getXform(const vector<real_t> &state) const ;
+    componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
   void stationaryMotion::initialState(vector<real_t> &state) const {
@@ -371,13 +370,9 @@ namespace Loci {
     return tmp ;
   }
 
-  rigid_transform getXform(const vector<real_t &state) const
-  {
-    return rigid_transform();
+  componentXform stationaryMotion::getXform(const vector<real_t> &state) const {
+    return componentXform() ;
   }
-  // componentXform stationaryMotion::getXform(const vector<real_t> &state) const {
-  //   return componentXform() ;
-  // }
 
   /// Rotation motion class for components that are rotating as a rigid body.
   class rotationMotion : public motionType {
@@ -401,8 +396,7 @@ namespace Loci {
     /// Given a state, returns a componentXform that describes the
     /// rotation of the component about the axis defined in the
     /// object.
-//    componentXform getXform(const vector<real_t> &state) const ;
-    rigid_transform getXform(const vector<real_t> &state) const;
+    componentXform getXform(const vector<real_t> &state) const ;
   } ;
 
   rotationMotion::rotationMotion(std::string name, options_list &ol) {
