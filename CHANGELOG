@@ -229,4 +229,19 @@
 	* Added VFAD type for vectorized FAD computations
 	* Added vectorized array type
 	* Added tests for FAD, VFAD and vectorized array types
-
+//-----------------------------------------------------------------------------
+	Version V 4.1.1 -> V 4.1.2
+	* Added support for units one to support reciprocals such as one/second
+	* Fixed issue with vtk64 extract 32 bit overflow problems
+	* Improved tmpcopy symbolic link copy functions
+	* Added improvements for extract_movie
+	* Fixed vogcheck failure on grids with negative volumes
+	* Improved memory behavior by vog grid converter code
+	* Added openfoam converter
+//-----------------------------------------------------------------------------
+	Version V 4.1.1 -> V 4.1.2
+	* Fixed for PETSc support for latest release API changes
+	* Fixed parsing Cmake Configuration from HDF5 installs in configure
+	* Added support for vector variables in extract -cut
+	* Fixed issues with --big support for FVMAdapt library code
+	* Fixed memory scaling in createEdgesPar
