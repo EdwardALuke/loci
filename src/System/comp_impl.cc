@@ -1164,6 +1164,19 @@ namespace Loci {
     } else {
       s << "[ ... ], l=" << exec_seq.size() << endl ;
     }
+    if(verbose) {
+      const auto targets = rp->get_info().targets ;
+      for(auto p = targets.begin();p!=targets.end();++p) {
+        if(p->assign.size()!=0) {
+          for(size_t i=0;i<p->assign.size();++i) {
+            printIndent(s) ;
+            s << " -- inplace " << p->assign[i].first
+              << " replaces " << p->assign[i].second << endl ;
+          }
+        }
+      }
+    }
+    
   }
 
   void execute_rule::dataCollate(collectData &data_collector) const {
