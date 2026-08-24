@@ -49,8 +49,7 @@ namespace Loci {
       const const_store<int>& cellOffset,
       const const_store<int>& rootFileNumber,
       const entitySet& sourceCells,
-      const std::vector<entitySet>& localCells,
-      Entity cellBase) ;
+      const std::vector<entitySet>& localCells) ;
 
   }
 }

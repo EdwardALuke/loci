@@ -214,10 +214,24 @@ namespace Loci {
     const const_store<int>& cellOffset,
     const const_store<int>& rootFileNumber,
     const entitySet& sourceCells,
-    const std::vector<entitySet>& localCells,
-    Entity cellBase) {
+    const std::vector<entitySet>& localCells) {
     if(localCells.size() != size_t(MPI_processes)) {
       std::cerr << "Refined-cell partitions do not cover every MPI rank"
+                << std::endl ;
+      return false ;
+    }
+
+    bool foundCell = false ;
+    Entity cellBase = 0 ;
+    for(size_t rank = 0; rank < localCells.size(); ++rank) {
+      if(localCells[rank].size() == 0)
+        continue ;
+      if(!foundCell || localCells[rank].Min() < cellBase)
+        cellBase = localCells[rank].Min() ;
+      foundCell = true ;
+    }
+    if(!foundCell) {
+      std::cerr << "Refined-cell partitions contain no generated cells"
                 << std::endl ;
       return false ;
     }

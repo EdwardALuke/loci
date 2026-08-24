@@ -61,7 +61,7 @@ namespace Loci {
     for(int i=0;i<p;++i) 
       bsizes[i] = psz + (i<rem?1:0) ;
 #ifdef DEBUG
-    int sum = 0 ;
+    long long sum = 0 ;
     for(int i=0;i<p;++i) 
       sum += bsizes[i] ;
     

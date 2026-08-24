@@ -1049,7 +1049,7 @@ namespace Loci {
       nRanks = splits_in.size()+1 ;
       std::vector<std::pair<interval, int> > tsplit(splits_in.size()+1) ;
       splits.swap(tsplit) ;
-      int cx = std::numeric_limits<Entity>::min() ;
+      int cx = std::numeric_limits<Entity>::lowest() ;
       for(size_t i=0;i<splits_in.size();++i) {
 	splits[i].first.first = cx ;
 	splits[i].first.second = splits_in[i] ;
@@ -1071,7 +1071,8 @@ namespace Loci {
       }
       entitySet negspace = ~totset ;
       for(size_t j=0;j<negspace.num_intervals();++j) {
-	splits.push_back(std::pair<interval,int>(negspace[j],-1)) ;
+	splits.push_back(std::pair<interval,int>(negspace[j],
+                                                 std::numeric_limits<int>::lowest())) ;
       }
       std::sort(splits.begin(),splits.end()) ;
       for(size_t i=0;i<splits.size()-1;++i)
