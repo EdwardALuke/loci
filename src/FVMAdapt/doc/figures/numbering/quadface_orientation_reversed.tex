@@ -1,0 +1,23 @@
+\documentclass[tikz,border=2.4mm]{standalone}
+\input{quadface_orientation_common.tex}
+
+\begin{document}
+\begin{tikzpicture}[
+  x={(20.3mm,-8.5mm)},
+  y={(15.3mm,11.3mm)},
+  z={(0mm,20mm)},
+  QuadFaceOrientation
+]
+  \DrawReferenceHex
+
+  \begin{scope}[shift={(3.18,0,0)}]
+    \DrawProjectedFaceBase
+    \DrawQuadNodeLabels{0}{3}{2}{1}
+    \QuadEdgeAD{0}
+    \QuadEdgeDC{1}
+    \QuadEdgeBC{2}
+    \QuadEdgeAB{3}
+    \DrawNormalMinus
+  \end{scope}
+\end{tikzpicture}
+\end{document}
