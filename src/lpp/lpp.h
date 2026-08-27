@@ -22,6 +22,7 @@
 #define LPP_H
 
 #include "Tools/variable.h"
+#include "template_engine.h"
 #include <list>
 #include <string>
 #include <algorithm>
@@ -78,6 +79,7 @@ class parseFile {
   std::vector<typedoc> access_types ;
   std::map<std::string,int> access_map ;
 
+  Loci::TemplateEngine cuda_templates ;
     
   void addAccess(const typedoc &doc) {
     std::string key = doc.getFileLoc() ;
@@ -186,6 +188,7 @@ public:
     data.lineno = 3 ;
     type_map[UNIVERSE] = data ;
   }
+  void initialize() ;
   void processFile(std::string file, std::ostream &outputFile,
 		   parseSharedInfo &parseInfo,int level = 0) ;
 } ;
