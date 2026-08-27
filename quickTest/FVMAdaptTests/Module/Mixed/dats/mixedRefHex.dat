@@ -1,0 +1,5 @@
+cells=9
+faces=40
+nodes=29
+convexity=pass
+volume.Main=1.5
