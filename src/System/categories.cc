@@ -102,7 +102,7 @@ namespace Loci {
           if(mp->getRangeKeySpace() == kd) {
             entitySet dom = my_entities & p->domain() ;
             entitySet image_dom = mp->image(dom) ;
-            image_dom += distribute_entitySet(image_dom, ptn) ;
+            image_dom = distribute_entitySet(image_dom, ptn) ;
             entitySet testSet = image_dom - total_entities ;
             int size = testSet.size() ;
             int tsize = 0 ;
