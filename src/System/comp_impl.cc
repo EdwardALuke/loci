@@ -371,12 +371,9 @@ namespace Loci {
       for(si=rinfo.constraints.begin();si!=rinfo.constraints.end();++si)
         constraints &= vmap_source_exist(*si,facts, scheds) ;
 
-      entitySet my_entities = ~EMPTY ;
-
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      my_entities = d->my_entities ;
+      entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
       //      debugout << "constraints = " << constraints << endl ;
       // Now complement (entities we own)
@@ -416,12 +413,9 @@ namespace Loci {
       for(si=rinfo.constraints.begin();si!=rinfo.constraints.end();++si)
         constraints |= vmap_source_exist(*si,facts, scheds) ;
 
-      entitySet my_entities = ~EMPTY ;
-
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      my_entities = d->my_entities ;
+      entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
       // Now complement (entities we own)
       constraints = constraints & my_entities ;
@@ -458,12 +452,9 @@ namespace Loci {
       for(si=rinfo.constraints.begin();si!=rinfo.constraints.end();++si)
         constraints |= vmap_source_exist(*si,facts, scheds) ;
 
-      entitySet my_entities = ~EMPTY ;
-
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      my_entities = d->my_entities ;
+      entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
       // Now complement (entities we own)
       constraints = constraints & my_entities ;
@@ -500,12 +491,9 @@ namespace Loci {
       for(si=rinfo.constraints.begin();si!=rinfo.constraints.end();++si)
         constraints |= vmap_source_exist(*si,facts, scheds) ;
 
-      entitySet my_entities = ~EMPTY ;
-
       // For the distributed memory case we restrict the sources and
       // constraints to be within my_entities.
-      fact_db::distribute_infoP d = facts.get_distribute_info() ;
-      my_entities = d->my_entities ;
+      entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
       // Now complement (entities we own)
       constraints = constraints & my_entities ;

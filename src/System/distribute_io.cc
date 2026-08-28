@@ -1437,7 +1437,7 @@ namespace Loci {
                             entityPartitionInfoP ptn) {
     // Get local numbering of entities owned by this processor, only write
     // out these entities.
-    dom = ptn->my_entities & dom ;
+    dom = ptn->myEntities() & dom ;
     MPI_Comm comm = ptn->getCommunicator() ; ;
     int kd =  ptn->getKeyDomain(dom) ;
     if(kd< 0) {
@@ -2053,10 +2053,20 @@ namespace Loci {
       // is the actual file numbering.
       entityPartitionInfoP ptn = var->getPartitionInfo() ;
       if(ptn == 0) {
-        cerr << "Warning, container '" << vname
-             << "' does not have partition information." << endl ;
+        if(MPI_rank == 0) {
+          cerr << "WARNING: '" << vname
+               << "' does not have partition information!" << endl 
+               << "       Error in redistribute_write_container()."
+               << endl ;
+        }
+        
         if(exec_current_fact_db != 0)
           ptn = exec_current_fact_db->getPartitionInfo() ;
+        else {
+          cerr << "Partition information not available for '"
+               << vname <<"'" << endl ;
+          Loci::Abort() ;
+        }
       }
       storeRepP vardist = Local2FileOrder(var,dom,offset,ptn) ;
 

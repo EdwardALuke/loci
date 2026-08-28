@@ -408,12 +408,14 @@ namespace Loci {
   }
 
   void reduce_param_compiler::set_var_existence(fact_db &facts, sched_db &scheds)  {
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
     for(size_t i = 0; i < unit_rules.size(); i++) {
       entitySet targets ;
       targets = scheds.get_existential_info(reduce_vars[i], unit_rules[i]) ;
       targets += send_entitySet(targets, facts) ;
-      targets &= d->my_entities ;
+      targets &= my_entities ;
       targets += fill_entitySet(targets, facts) ;
       scheds.set_existential_info(reduce_vars[i],unit_rules[i],targets) ;
     }
@@ -536,7 +538,6 @@ namespace Loci {
     std::list<comm_info> rlist;
     std::list<comm_info> clist;
 
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
     variableSet vars ;
     vars += reduce_var ;
 
@@ -577,7 +578,9 @@ namespace Loci {
 #ifdef VERBOSE
     if(shadow != EMPTY) {
       debugout << "shadow = " << shadow << endl ;
-      shadow -= d->my_entities ;
+      // For the distributed memory case we restrict the sources and
+      // constraints to be within my_entities.
+      shadow -= facts.getPartitionInfo()->my_entities ;
       debugout << "shadow/my_entites = " << shadow << endl ;
     }
 #endif

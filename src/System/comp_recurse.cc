@@ -60,12 +60,11 @@ namespace Loci {
     const rule_impl::info &finfo = impl.get_info().desc ;
     warn(impl.type() == rule::INTERNAL) ;
 
-    entitySet my_entities = ~EMPTY ;
-
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
     variableSet recurse_vars = variableSet(impl.sources() & impl.targets()) ;
     barrier_existential_rule_analysis(recurse_vars,facts, scheds) ;
-    my_entities = d->my_entities ;
 
     entitySet sources = ~EMPTY ;
     entitySet constraints = ~EMPTY ;
@@ -403,10 +402,9 @@ namespace Loci {
   }
 
   void impl_recurse_compiler::process_var_requests(fact_db &facts, sched_db &scheds) {
-    entitySet my_entities = ~EMPTY ;
-
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
-    my_entities = d->my_entities ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
     process_rule_requests(impl,facts, scheds) ;
 
@@ -446,15 +444,13 @@ namespace Loci {
   }
 
   void recurse_compiler::set_var_existence(fact_db &facts, sched_db &scheds) {
-    entitySet my_entities = ~EMPTY ;
-
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
     std::vector<std::pair<variable,entitySet> > pre_send_entities
       = barrier_existential_rule_analysis(recurse_vars,facts, scheds) ;
     scheds.update_send_entities(pre_send_entities, sched_db::RECURSE_PRE);
-    my_entities = d->my_entities ;
-
 
     control_set.clear() ;
     recurse_send_entities.clear();
@@ -700,10 +696,9 @@ namespace Loci {
   }
 
   void recurse_compiler::process_var_requests(fact_db &facts, sched_db &scheds) {
-    entitySet my_entities = ~EMPTY ;
-
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
-    my_entities = d->my_entities ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
     ruleSet::const_iterator fi ;
 

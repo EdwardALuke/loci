@@ -307,11 +307,13 @@ namespace Loci {
     variableSet var_requests = advance_vars ;
     variableSet::const_iterator vi ;
 
-    Loci::fact_db::distribute_infoP d = facts.get_distribute_info() ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
     for(vi=var_requests.begin();vi!=var_requests.end();++vi) {
       entitySet vexist = scheds.variable_existence(*vi) ;
-      vexist &= d->my_entities;
+      vexist &= my_entities;
       scheds.variable_request(*vi,vexist) ;
     }
 

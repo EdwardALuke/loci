@@ -87,6 +87,8 @@ namespace Loci {
     nspace_vec = f.nspace_vec ;
     extensional_facts = f.extensional_facts ;
 
+    // Modify this to do a deep copy 
+    partition_info = f.partition_info ;
     /* we cannot use the following direct assignment
        to copy the distributed_info from f since
        distributed_info is a NPTR pointer and is

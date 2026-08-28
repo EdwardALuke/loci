@@ -124,7 +124,7 @@ namespace Loci {
     FATAL(r.type() == rule::INTERNAL) ;
     entitySet sources = ~EMPTY ;
     entitySet constraints = ~EMPTY ;
-    entitySet my_entities = ~EMPTY ;
+
     const rule_impl::info &rinfo = r.get_info().desc ;
     set<vmap_info>::const_iterator si ;
     /*The function vmap_source_exist takes into consideration the maps
@@ -147,10 +147,11 @@ namespace Loci {
 
     // For the distributed memory case we restrict the sources and
     // constraints to be within my_entities.
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
-    sources &= d->my_entities ;
-    constraints &= d->my_entities ;
-    my_entities = d->my_entities ;
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
+
+    sources &= my_entities ;
+    constraints &= my_entities ;
+    my_entities = my_entities ;
 
     if(rinfo.constraints.begin() != rinfo.constraints.end())
       if((sources & constraints) != constraints) {
@@ -378,9 +379,12 @@ namespace Loci {
 
     entitySet filter = ~EMPTY ;
 
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
-    filter = d->my_entities ;
-    isect = d->my_entities ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
+
+    filter = my_entities ;
+    isect = my_entities ;
 
     for(vi=targets.begin();vi!=targets.end();++vi) {
       // This is a hack for the special case of a rule with OUTPUT
@@ -540,9 +544,12 @@ namespace Loci {
       comp_constraints = constraints;
     }
 
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
-    sources &= d->my_entities;
-    constraints &= d->my_entities;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
+
+    sources &= my_entities;
+    constraints &= my_entities;
 
     sources &= constraints ;
 
@@ -776,7 +783,7 @@ namespace Loci {
     FATAL(r.type() == rule::INTERNAL) ;
     entitySet sources = ~EMPTY ;
     entitySet constraints = ~EMPTY ;
-    entitySet my_entities = ~EMPTY ;
+
     const rule_impl::info &rinfo = r.get_info().desc ;
     set<vmap_info>::const_iterator si ;
     // get the sources
@@ -791,11 +798,12 @@ namespace Loci {
 
     // For the distributed memory case we restrict the sources and
     // constraints to be within my_entities.
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
-    sources &= d->my_entities ;
-    constraints &= d->my_entities ;
-    my_entities = d->my_entities ;
-    all_entities = d->my_entities ;
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
+
+    sources &= my_entities ;
+    constraints &= my_entities ;
+    my_entities = my_entities ;
+    all_entities = my_entities ;
 
     // we only check constraints requirement if and only
     // if the constraints is not "~EMPTY"
@@ -855,13 +863,14 @@ namespace Loci {
     // Here we compute the context of the rule.  This is the union of all of
     // the requests for the variables that this rule produces
     set<vmap_info>::const_iterator si ;
-    entitySet context,isect = ~EMPTY ;
+    entitySet context ;
 
-    entitySet filter = ~EMPTY ;
+    // For the distributed memory case we restrict the sources and
+    // constraints to be within my_entities.
+    entitySet my_entities = facts.getPartitionInfo()->myEntities() ;
 
-    fact_db::distribute_infoP d = facts.get_distribute_info() ;
-    filter = d->my_entities ;
-    isect = d->my_entities ;
+    entitySet filter = my_entities ;
+    entitySet isect = my_entities ;
 
     for(vi=targets.begin();vi!=targets.end();++vi) {
       // we will request all entities exist for all
@@ -2795,7 +2804,10 @@ namespace Loci {
         double original_comm_time = 0, duplication_comm_time = 0;
         double original_comp_time = 0, duplication_comp_time = 0;
 
+        // For the distributed memory case we restrict the sources and
+        // constraints to be within my_entities.
         fact_db::distribute_infoP d = facts.get_distribute_info();
+
         ruleSet r = scheds.get_existential_rules(v);
         bool reduction = false;
         for(ruleSet::const_iterator ri = r.begin();
