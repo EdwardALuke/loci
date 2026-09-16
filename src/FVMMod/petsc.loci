@@ -1883,7 +1883,7 @@ namespace Loci {
               petscScalarSystem(X))[Loci::NullOp],
   constraint(geom_cells), option(disable_threading),
   prelude {
-    if(seq.size() == 0) return ;
+    if (Loci::GLOBAL_AND((seq == EMPTY))) return;
     PetscScalarSystem & system = const_cast<PetscScalarSystem &>(*$petscScalarSystem(X)) ;
     PetscErrorCode err = system.solver.Solve(system.rhs, system.solution) ;
     if(err) {
@@ -1899,7 +1899,7 @@ namespace Loci {
                   petscScalarSystem(X)),
   constraint(geom_cells), option(disable_threading),
   prelude {
-    if(seq.size() == 0) return ;
+    if (Loci::GLOBAL_AND((seq == EMPTY))) return;
 
     PetscScalarSystem const & system = *$petscScalarSystem(X) ;
 
