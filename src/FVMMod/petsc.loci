@@ -2423,7 +2423,7 @@ namespace Loci {
                   petscBlockedSSystem(X), petscBlockSSize(X)),
   constraint(geom_cells), option(disable_threading),
   prelude {
-    if(seq.size() == 0) return ;
+    if(GLOBAL_AND(seq.size() == 0)) return ;
 
     PetscBlockedSystem const & system = *$petscBlockedSSystem(X) ;
 
@@ -2943,7 +2943,7 @@ namespace Loci {
               petscBlockedSystem(X))[Loci::NullOp],
   constraint(geom_cells), option(disable_threading),
   prelude {
-    if(seq.size() == 0) return ;
+    if(GLOBAL_AND(seq.size() == 0)) return ;
     PetscBlockedSystem & system = const_cast<PetscBlockedSystem &>(*$petscBlockedSystem(X)) ;
     PetscErrorCode err = system.solver.Solve(system.rhs, system.solution) ;
     if(err) {
@@ -2959,7 +2959,7 @@ namespace Loci {
                   petscBlockedSystem(X), petscBlockSize(X)),
   constraint(geom_cells), option(disable_threading),
   prelude {
-    if(seq.size() == 0) return ;
+    if(GLOBAL_AND(seq.size() == 0)) return ;
 
     PetscBlockedSystem const & system = *$petscBlockedSystem(X) ;
 
