@@ -112,7 +112,6 @@ CPTR<AST_Token> getNumberToken(std::istream &is, int &linecount) {
 	return AST_data ;
       }
       if(is.peek() >= '0' && is.peek() <= '9') { // octal number
-	cout << "is.peek() = " << is.peek() << endl ;
 	// octal number
 	while(is.peek() >= '0' && is.peek() <= '7') {
 	  numberdata += is.get() ;
