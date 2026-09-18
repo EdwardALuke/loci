@@ -24,6 +24,20 @@
 
 using std::cerr;
 using std::endl;
+
+/**
+ * @file transfer_fc.cc
+ *
+ * Map integer QuadFace refinement coordinates between face2node order and the
+ * face order used in a cell.
+ */
+
+/**
+ * Map a Range2d from face2node coordinates to the face coordinates used in
+ * the cell. maxPc gives the coordinate limits and orientCode is in [0, 8).
+ * Transform both corners, then reorder their components to form the minimum
+ * and maximum corners.
+ */
 Range2d  transfer_f2c(Range2d f, Point2d maxPc, char orientCode){
   Point2d p1 = transfer_f2c(f.minP, maxPc, orientCode);
   Point2d p2 = transfer_f2c(f.maxP, maxPc, orientCode);
@@ -32,7 +46,11 @@ Range2d  transfer_f2c(Range2d f, Point2d maxPc, char orientCode){
 }
   
 
-  
+/**
+ * Map an integer point from face2node coordinates to the face coordinates
+ * used in the cell. maxPc gives the coordinate limits and orientCode must be
+ * in [0, 8).
+ */
 Point2d  transfer_f2c(Point2d p, Point2d maxPc, char orientCode){
   
   Point2d pc;
@@ -84,7 +102,12 @@ Point2d  transfer_f2c(Point2d p, Point2d maxPc, char orientCode){
   }
   return pc; 
 }
-            
+
+/**
+ * Map an integer point from the face coordinates used in the cell to
+ * face2node coordinates. maxPf gives the coordinate limits and orientCode
+ * must be in [0, 8).
+ */
 Point2d transfer_c2f(Point2d p, Point2d maxPf, char orientCode){
   
   Point2d pf;
@@ -137,7 +160,5 @@ Point2d transfer_c2f(Point2d p, Point2d maxPf, char orientCode){
   }
   return pf; 
 }
-
-
 
 

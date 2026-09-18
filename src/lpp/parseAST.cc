@@ -157,6 +157,12 @@ string OPtoString(AST_type::elementType val) {
     return string(" ") ;
   case OP_BRACEBLOCK:
     return string(" ") ;
+  case OP_NEW:
+    return string(" new ") ;
+  case OP_DELETE:
+    return string(" delete ") ;
+  case OP_SIZEOF:
+    return string(" sizeof ") ;
   default:
     return string("/*error*/") ;
   }
@@ -230,6 +236,7 @@ std::string NTtoString(AST_type::elementType val) {
   case OP_TEMPLATE_CAST: return "OP_TEMPLATE_CAST" ;
   case OP_GROUP: return "OP_GROUP" ;
   case OP_GROUP_ERROR: return "OP_GROUP_ERROR";
+  case OP_BRACKETGROUP: return "OP_BRACKETGROUP" ;
   case OP_OPENPAREN: return "OP_OPENPAREN" ;
   case OP_CLOSEPAREN: return "OP_CLOSEPAREN" ;
   case OP_OPENBRACKET: return "OP_OPENBRACKET" ;
@@ -241,6 +248,9 @@ std::string NTtoString(AST_type::elementType val) {
   case OP_LOCI_CONTAINER: return "OP_LOCI_CONTAINER" ;
   case OP_TERM: return "OP_TERM" ;
   case OP_SPECIAL: return "OP_SPECIAL" ;
+  case OP_NEW: return "OP_NEW" ;
+  case OP_DELETE: return "OP_DELETE" ;
+  case OP_SIZEOF: return "OP_SIZEOF" ;
   case TK_BRACEBLOCK: return "TK_BRACEBLOCK" ;
   case TK_SCOPE: return "TK_SCOPE" ;
   case TK_AT: return "TK_AT" ;
@@ -379,12 +389,96 @@ std::string NTtoString(AST_type::elementType val) {
   case ND_CTRL_SWITCH: return "ND_CTRL_SWITCH" ;
   case ND_SIMPLE_STATEMENT: return "ND_SIMPLE_STATEMENT" ;
   case ND_BLOCK: return "ND_BLOCK" ;
+  case ND_BLOCK_RAW: return "ND_BLOCK_RAW" ;
   case ND_DECL: return "ND_DECL" ;
   case ND_TYPE_SPEC: return "ND_TYPE_SPEC" ;
   case ND_TERMINAL: return "ND_TERMINAL" ;
   case TK_SENTINEL: return "TK_SENTINEL" ;
   }
   return "UNKNOWN" ;
+}
+
+AST_type::ASTP parseTypeIdentifier(std::istream &is, int &linecount,
+                                   const string &fileName, varmap &typemap) {
+  AST_type::ASTList type_terms ;
+  bool type_parsing = true ;
+  bool is_builtin = false ;
+  bool is_defined = false ;
+
+  CPTR<AST_Token> token ;
+  while(type_parsing) {
+    token = getToken(is, linecount) ;
+    cerr << "token = " << token->text << endl ;
+
+    switch(token->nodeType) {
+    case TK_CHAR:
+    case TK_FLOAT:
+    case TK_DOUBLE:
+    case TK_INT:
+    case TK_VOID:
+    case TK_BOOL:
+    case TK_SHORT:
+    case TK_LONG:
+    case TK_SIGNED:
+    case TK_UNSIGNED:
+      {
+        type_terms.push_back(AST_type::ASTP(token)) ;
+        is_builtin = true ;
+      }
+      break ;
+    case TK_OPENTEMPLATE:
+      if(type_terms.size() > 0) {
+        AST_type::ASTP last = type_terms.back() ;
+        last = parseTemplateArguments(last, is, linecount, fileName, typemap) ;
+        type_terms[type_terms.size()-1] = last ;
+      } else {
+        ostringstream ss ;
+        ss << "type identifier cannot start with '<'" ;
+        return AST_type::ASTP(new AST_syntaxError(ss.str(), token->lineno, fileName)) ;
+      }
+      break ;
+    case TK_SCOPE:
+      // for leading '::' add the token as it is, otherwise ignore it and continue
+      // parsing the type identifier
+      if(type_terms.empty()) {
+        type_terms.push_back(AST_type::ASTP(token)) ;
+      }
+      is_defined = true ;
+      break ;
+    case TK_NAME:
+      type_terms.push_back(AST_type::ASTP(token)) ;
+      is_defined = true ;
+      break ;
+    default:
+      type_parsing = false ;
+      break ;
+    }
+  }
+  pushToken(token) ;
+
+  if(is_builtin && is_defined) {
+    ostringstream ss ;
+    ss << "mixed built-in and user-defined type" ;
+    return AST_type::ASTP(new AST_syntaxError(ss.str(), token->lineno, fileName)) ;
+  }
+
+  CPTR<AST_typeSpec> p = new AST_typeSpec ;
+  p->nodeType = ND_TYPE_SPEC ;
+
+  if(is_builtin) {
+    p->type_spec = type_terms ;
+  } else {
+    if(type_terms.size() > 1) {
+      CPTR<AST_exprOper> type_spec = new AST_exprOper ;
+      type_spec->nodeType = OP_SCOPE ;
+      type_spec->terms = type_terms ;
+      p->type_spec.push_back(AST_type::ASTP(type_spec)) ;
+    } else {
+      p->type_spec = type_terms ;
+    }
+  }
+
+  return AST_type::ASTP(p) ;
 }
 
 // Parse a type specification used in either a type declaration statement
@@ -420,6 +514,13 @@ AST_type::ASTP parseTypeSpecifier(std::istream &is, int &linecount,
            << ", file: " << __FILE__ << ":" << __LINE__
            << endl ;
 #endif
+      break ;
+    case TK_STAR:
+    case TK_TIMES:
+      type_spec.push_back(AST_type::ASTP(token)) ;
+      break ;
+    case TK_AND:
+      type_spec.push_back(AST_type::ASTP(token)) ;
       break ;
     case TK_CHAR:
     case TK_FLOAT:
@@ -558,6 +659,19 @@ AST_type::ASTP AST_Block::clone() const {
   return ASTP(p) ;
 }
 
+/// Acceptor method for AST node, passes node to visitor object for
+/// AST_BlockRaw
+void AST_BlockRaw::accept(AST_visitor &v) { v.visit(*this) ; }
+
+// Code to clone AST_BlockRaw node
+AST_type::ASTP AST_BlockRaw::clone() const {
+  CPTR<AST_BlockRaw> p = new AST_BlockRaw ;
+  p->nodeType = nodeType ;
+  cloneList(p->elements,elements) ;
+  p->identifiers = identifiers ;
+  return ASTP(p) ;
+}
+
 /// Acceptor method AST node, passes node to visitor object for
 /// AST_typeSpec node.
 void AST_typeSpec::accept(AST_visitor &v) {  v.visit(*this) ; }
@@ -604,6 +718,18 @@ AST_type::ASTP AST_controlStatement::clone() const {
   p->controlType = controlType->clone() ;
   cloneList(p->parts,parts) ;
   p->identifiers = identifiers ;
+  return ASTP(p) ;
+}
+
+/// Acceptor method AST node, passes node to visitor object for
+/// AST_LociDirective
+void AST_LociDirective::accept(AST_visitor & v) { v.visit(*this) ; }
+
+AST_type::ASTP AST_LociDirective::clone() const {
+  CPTR<AST_LociDirective> p = new AST_LociDirective ;
+  p->nodeType = nodeType ;
+  p->type = CPTR<AST_Token>(type->clone()) ;
+  p->body = body->clone() ;
   return ASTP(p) ;
 }
 
@@ -754,6 +880,7 @@ inline bool checkUnaryToken(AST_type::elementType e) {
   case TK_MINUS:
   case TK_NOT:
   case TK_AND:
+  case TK_TILDE:
   case TK_TIMES:
   case TK_INCREMENT:
   case TK_DECREMENT:
@@ -779,6 +906,8 @@ AST_type::elementType unaryOperator(AST_type::elementType e) {
     return OP_NOT ;
   case TK_AND:
     return OP_AMPERSAND ;
+  case TK_TILDE:
+    return OP_TILDE ;
   case TK_TIMES:
     return OP_STAR ;
   case TK_INCREMENT:
@@ -1343,6 +1472,48 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
       return AST_type::ASTP(unary) ;
     }
   }
+
+  // Check for throw expression
+  if(ASTEqual(openToken,TK_THROW)) {
+    pushToken(openToken) ;
+    return parseSpecialControlStatement(is,linecount,fileName,typemap) ;
+  }
+
+  // Check for new expression
+  if(ASTEqual(openToken,TK_NEW)) {
+    pushToken(openToken) ;
+    return parseNewExpression(is,linecount,fileName,typemap) ;
+  }
+
+  // Check for sizeof operator
+  if(ASTEqual(openToken,TK_SIZEOF)) {
+    CPTR<AST_Token> token = getToken(is, linecount) ;
+    if(!ASTEqual(token, TK_OPENPAREN)) {
+      ostringstream ss ;
+      ss << "expecting '(' after sizeof operator instead of '"
+         << token->text << "'" ;
+      return AST_type::ASTP(new AST_syntaxError(ss.str(),token->lineno,fileName)) ;
+    }
+    AST_type::ASTP type_expr = parseTypeIdentifier(is,linecount,fileName,typemap) ;
+    token = getToken(is,linecount) ;
+    if(!ASTEqual(token, TK_CLOSEPAREN)) {
+      ostringstream ss ;
+      ss << "expecting closing ')' after sizeof operator argument instead of '"
+         << token->text << "'" ;
+      return AST_type::ASTP(new AST_syntaxError(ss.str(),token->lineno,fileName)) ;
+    }
+
+    CPTR<AST_exprOper> sizeof_arg = new AST_exprOper ;
+    sizeof_arg->nodeType = OP_GROUP ;
+    sizeof_arg->terms.push_back(AST_type::ASTP(type_expr)) ;
+
+    CPTR<AST_exprOper> sizeof_expr = new AST_exprOper ;
+    sizeof_expr->nodeType = OP_SIZEOF ;
+    sizeof_expr->terms.push_back(AST_type::ASTP(sizeof_arg)) ;
+
+    return AST_type::ASTP(sizeof_expr) ;
+  }
+
   // Check if we are parsing a scoped name
   if(ASTEqual(openToken,TK_NAME) ||
      ASTEqual(openToken,TK_SCOPE)) {
@@ -1364,7 +1535,9 @@ AST_type::ASTP parseExpressionPartial(std::istream &is, int &linecount,
 
     return exp ;
   }
+
   pushToken(openToken) ;
+
   return 0 ;
 }
 
@@ -1517,6 +1690,7 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
          << endl ;
 #endif
   }
+
   // After getting the first term we are in a loop of searching for operators
   do {
 #ifdef VERBOSE
@@ -1786,8 +1960,8 @@ AST_type::ASTP parseExpressionOperator(AST_type::ASTP expr,
 /// precedence for binary operators, it passes other work to
 /// parseExpressionPartial
 AST_type::ASTP parseExpression(std::istream &is, int &linecount,
-			       const string &fileName,
-			       varmap &typemap,
+                               const string &fileName,
+                               varmap &typemap,
                                AST_type::operatorPrecedence prec) {
 #ifdef VERBOSE
   cerr << "in parseExpression"
@@ -1804,6 +1978,202 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,
 
 }
 
+AST_type::ASTP parseDeleteStatement(
+  std::istream &is, int &linecount, const string &fileName, varmap &typemap
+) {
+#ifdef VERBOSE
+  cerr << "in parseDeleteStatement"
+       << ", file: " << __FILE__ << ":" << __LINE__
+       << endl ;
+#endif
+
+  CPTR<AST_Token> deleteToken = getToken(is, linecount) ;
+  if(!ASTEqual(deleteToken, TK_DELETE)) {
+    pushToken(deleteToken) ;
+    ostringstream ss ;
+    ss << "expecting delete operator instead of " << deleteToken->text ;
+    return AST_type::ASTP(new AST_syntaxError(ss.str(), deleteToken->lineno, fileName)) ;
+  }
+
+  CPTR<AST_exprOper> delete_expr = new AST_exprOper ;
+  delete_expr->nodeType = OP_DELETE ;
+
+  CPTR<AST_Token> openToken = getToken(is, linecount) ;
+  if(ASTEqual(openToken, TK_OPENBRACKET)) {
+    CPTR<AST_Token> closeToken = getToken(is, linecount) ;
+    if(ASTEqual(closeToken, TK_CLOSEBRACKET)) {
+      CPTR<AST_exprOper> group = new AST_exprOper ;
+      group->nodeType = OP_BRACKETGROUP ;
+      delete_expr->terms.push_back(AST_type::ASTP(group)) ;
+    } else {
+      pushToken(closeToken) ;
+      ostringstream ss ;
+      ss << "expecting ']' instead of " << closeToken->text
+         <<  " to pair with '[' in array delete operator" ;
+      return AST_type::ASTP(new AST_syntaxError(ss.str(), closeToken->lineno, fileName)) ;
+    }
+  } else {
+    pushToken(openToken) ;
+  }
+
+  AST_type::ASTP ptr_expr = parseExpression(is, linecount, fileName, typemap) ;
+  if(ptr_expr == 0) {
+    ostringstream ss ;
+    ss << "expecting expression after delete operator" ;
+    return AST_type::ASTP(new AST_syntaxError(ss.str(), openToken->lineno, fileName)) ;
+  }
+
+  delete_expr->terms.push_back(ptr_expr) ;
+
+  CPTR<AST_Token> termToken = getToken(is,linecount) ;
+  AST_type::ASTP term = AST_type::ASTP(termToken) ;
+
+  if(!ASTEqual(term,TK_SEMICOLON)) {
+    pushToken(termToken) ;
+    ostringstream ss ;
+    ss << "expecting ';' instead of " << termToken->text ;
+    CPTR<AST_syntaxError> err = new AST_syntaxError(ss.str(), termToken->lineno, fileName) ;
+    delete_expr->terms.push_back(AST_type::ASTP(err)) ;
+  }
+
+  CPTR<AST_SimpleStatement> stmt = new AST_SimpleStatement(
+    AST_type::ASTP(delete_expr), term
+  ) ;
+
+  return AST_type::ASTP(stmt) ;
+}
+
+
+AST_type::ASTP parseNewExpression(
+  std::istream & is, int & linecount, const string & fileName, varmap & typemap
+) {
+  // Possible forms of new expressions:
+  // [X] new Type
+  // [X] new Type()
+  // [X] new Type(arguments)
+  // [X] new Type{arguments}
+  // [X] new Type[size]
+  // [X] new Type[size]{}
+  // [X] new Type[size]{initializers}
+  // [ ] new (address) Type(arguments)
+  // [ ] new (std::nothrow) Type
+  // [ ] new (std::nothrow) Type(arguments)
+  // [ ] new (std::nothrow) Type[size]
+
+  CPTR<AST_Token> newToken = getToken(is, linecount) ;
+  if(!ASTEqual(newToken, TK_NEW)) {
+    pushToken(newToken) ;
+    ostringstream ss ;
+    ss << "expecting new operator instead of " << newToken->text ;
+    return AST_type::ASTP(new AST_syntaxError(ss.str(), newToken->lineno, fileName)) ;
+  }
+
+  CPTR<AST_exprOper> new_expr = new AST_exprOper ;
+  new_expr->nodeType = OP_NEW ;
+
+  AST_type::ASTP new_type = parseTypeIdentifier(is, linecount, fileName, typemap) ;
+  new_expr->terms.push_back(new_type) ;
+
+  CPTR<AST_Token> openToken = getToken(is, linecount) ;
+  if(ASTEqual(openToken, TK_OPENPAREN)) {
+    CPTR<AST_Token> closeToken = getToken(is, linecount) ;
+    if(ASTEqual(closeToken, TK_CLOSEPAREN)) {
+      CPTR<AST_exprOper> group = new AST_exprOper ;
+      group->nodeType = OP_GROUP ;
+      new_expr->terms.push_back(AST_type::ASTP(group)) ;
+    } else {
+      pushToken(closeToken) ;
+      AST_type::ASTP ctor_args = parseExpression(is, linecount, fileName, typemap) ;
+      closeToken = getToken(is, linecount) ;
+      if(!ASTEqual(closeToken, TK_CLOSEPAREN)) {
+        pushToken(closeToken) ;
+        ostringstream ss ;
+        ss << "expecting ')' to close constructor argument list of new operator instead of '"
+           << closeToken->text << "'" ;
+        return AST_type::ASTP(new AST_syntaxError(ss.str(), closeToken->lineno, fileName)) ;
+      }
+      CPTR<AST_exprOper> group = new AST_exprOper ;
+      group->nodeType = OP_GROUP ;
+      group->terms.push_back(ctor_args) ;
+      new_expr->terms.push_back(AST_type::ASTP(group)) ;
+    }
+  } else if(ASTEqual(openToken, TK_OPENBRACE)) {
+    CPTR<AST_Token> closeToken = getToken(is, linecount) ;
+    if(ASTEqual(closeToken, TK_CLOSEBRACE)) {
+      CPTR<AST_exprOper> group = new AST_exprOper ;
+      group->nodeType = OP_BRACEBLOCK ;
+      new_expr->terms.push_back(AST_type::ASTP(group)) ;
+    } else {
+      pushToken(closeToken) ;
+      AST_type::ASTP init_args = parseExpression(is, linecount, fileName, typemap) ;
+      closeToken = getToken(is, linecount) ;
+      if(!ASTEqual(closeToken, TK_CLOSEBRACE)) {
+        pushToken(closeToken) ;
+        ostringstream ss ;
+        ss << "expecting '}' to close initializer list of new operator instead of '"
+           << closeToken->text << "'" ;
+        return AST_type::ASTP(new AST_syntaxError(ss.str(), closeToken->lineno, fileName)) ;
+      }
+      CPTR<AST_exprOper> group = new AST_exprOper ;
+      group->nodeType = OP_BRACEBLOCK ;
+      group->terms.push_back(init_args) ;
+      new_expr->terms.push_back(AST_type::ASTP(group)) ;
+    }
+  } else if(ASTEqual(openToken, TK_OPENBRACKET)) {
+    CPTR<AST_Token> closeToken = getToken(is, linecount) ;
+    if(ASTEqual(closeToken, TK_CLOSEBRACKET)) {
+      CPTR<AST_exprOper> group = new AST_exprOper ;
+      group->nodeType = OP_BRACKETGROUP ;
+      new_expr->terms.push_back(AST_type::ASTP(group)) ;
+    } else {
+      pushToken(closeToken) ;
+      AST_type::ASTP size_args = parseExpression(is, linecount, fileName, typemap) ;
+      closeToken = getToken(is, linecount) ;
+      if(!ASTEqual(closeToken, TK_CLOSEBRACKET)) {
+        pushToken(closeToken) ;
+        ostringstream ss ;
+        ss << "expecting ']' to close sizing argument of new operator instead of '"
+           << closeToken->text << "'" ;
+        return AST_type::ASTP(new AST_syntaxError(ss.str(), closeToken->lineno, fileName)) ;
+      }
+      CPTR<AST_exprOper> group = new AST_exprOper ;
+      group->nodeType = OP_BRACKETGROUP ;
+      group->terms.push_back(size_args) ;
+      new_expr->terms.push_back(AST_type::ASTP(group)) ;
+    }
+
+    openToken = getToken(is, linecount) ;
+    if(ASTEqual(openToken, TK_OPENBRACE)) {
+      closeToken = getToken(is, linecount) ;
+      if(ASTEqual(closeToken, TK_CLOSEBRACE)) {
+        CPTR<AST_exprOper> group = new AST_exprOper ;
+        group->nodeType = OP_BRACEBLOCK ;
+        new_expr->terms.push_back(AST_type::ASTP(group)) ;
+      } else {
+        pushToken(closeToken) ;
+        AST_type::ASTP init_args = parseExpression(is, linecount, fileName, typemap) ;
+        closeToken = getToken(is, linecount) ;
+        if(!ASTEqual(closeToken, TK_CLOSEBRACE)) {
+          pushToken(closeToken) ;
+          ostringstream ss ;
+          ss << "expecting ']' to close sizing argument of new operator instead of '"
+             << closeToken->text << "'" ;
+          return AST_type::ASTP(new AST_syntaxError(ss.str(), closeToken->lineno, fileName)) ;
+        }
+        CPTR<AST_exprOper> group = new AST_exprOper ;
+        group->nodeType = TK_BRACEBLOCK ;
+        group->terms.push_back(init_args) ;
+        new_expr->terms.push_back(AST_type::ASTP(group)) ;
+      }
+    } else {
+      pushToken(openToken) ;
+    }
+  } else {
+    pushToken(openToken) ;
+  }
+
+  return AST_type::ASTP(new_expr) ;
+}
 
 AST_type::ASTP parseCaseStatement(std::istream &is, int &linecount,
 				  const string &fileName,
@@ -1888,7 +2258,7 @@ AST_type::ASTP parseSwitchStatement(std::istream &is, int &linecount,
   }
 
   if(ASTEqual(token,TK_ERROR))
-    return AST_type::ASTP(new AST_syntaxError("failed to find closing brace in swithc statement",linecount,fileName)) ;
+    return AST_type::ASTP(new AST_syntaxError("failed to find closing brace in switch statement",linecount,fileName)) ;
 
   ctrl->parts.push_back(AST_type::ASTP(token)) ;
   return AST_type::ASTP(ctrl) ;
@@ -2123,11 +2493,51 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
   return AST_type::ASTP(getToken(is,linecount)) ;
 }
 
+AST_type::ASTP parseLociDirective(
+  std::istream & is, int & linecount, string const & filename,
+  varmap & typemap, bool parse_raw
+) {
+  CPTR<AST_Token> token = getToken(is, linecount) ;
+
+  if(!ASTEqual(token,TK_LOCI_DIRECTIVE)) {
+    pushToken(token) ;
+    return AST_type::ASTP(new AST_syntaxError(
+      "confused in Loci directive", token->lineno, filename
+    )) ;
+  }
+
+  CPTR<AST_Token> type = token ;
+
+  token = getToken(is, linecount) ;
+  if(!ASTEqual(token, TK_OPENBRACE)) {
+    pushToken(token) ;
+    return AST_type::ASTP(new AST_syntaxError(
+      "Loci directive must be followed by {...} block", token->lineno, filename
+    )) ;
+  }
+
+  pushToken(token) ;
+
+  AST_type::ASTP body ;
+  if(parse_raw) {
+    body = parseBlockRaw(is, linecount, filename, typemap) ;
+  } else {
+    body = parseBlock(is, linecount, filename, typemap) ;
+  }
+
+  CPTR<AST_LociDirective> loci_directive = new AST_LociDirective ;
+  loci_directive->nodeType = OP_LOCI_DIRECTIVE ;
+  loci_directive->type = type ;
+  loci_directive->body = body ;
+
+  return AST_type::ASTP(loci_directive) ;
+}
 
 string getIdentifierName(std::istream &is,
                          int &linecount,
                          const string &fileName,
-                         bool &isFunc) {
+                         bool &isFunc,
+                         bool &isObject) {
 #ifdef VERBOSE
   cerr << "in getIdentifierName"
        << ", file: " << __FILE__ << ":" << __LINE__
@@ -2135,6 +2545,7 @@ string getIdentifierName(std::istream &is,
 #endif
   vector<CPTR<AST_Token>>  token_stack ;
   isFunc = false ;
+  isObject = false ;
   string name ;
   CPTR<AST_Token> token = getToken(is,linecount) ;
   // parse the scoped name part
@@ -2186,7 +2597,10 @@ string getIdentifierName(std::istream &is,
   }
   if(ASTEqual(token,TK_OPENPAREN)) {
     isFunc=true ;
+  } else if(ASTEqual(token,TK_DOT) || ASTEqual(token,TK_ARROW)) {
+    isObject=true ;
   }
+
   token_stack.push_back(token) ;
   // Push tokens so that they can be parsed
   for(auto ii = token_stack.rbegin();ii!=token_stack.rend();++ii)
@@ -2228,11 +2642,12 @@ AST_type::ASTP parseDeclarationOrSimpleStatement(std::istream &is,
     return parseDeclaration(is,linecount,fileName,typemap) ;
 
   bool isFunc = false ;
-  string ident = getIdentifierName(is,linecount,fileName,isFunc) ;
+  bool isObject = false ;
+  string ident = getIdentifierName(is,linecount,fileName,isFunc,isObject) ;
 #ifdef VERBOASE
   cerr << "ident = " << ident << "isFunc = " << isFunc << endl ;
 #endif
-  if(isFunc)
+  if(isFunc || isObject)
     return parseSimpleStatement(is,linecount,fileName,typemap) ;
 
   auto ii = typemap.find(ident) ;
@@ -2335,7 +2750,6 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
                                                token->lineno,fileName)) ;
           AST_data->type_decl.push_back(p) ;
         } else {
-
           // right now only consider unscoped non-templated type names
           defined_type = true ;
           AST_data->type_decl.push_back(typedec) ;
@@ -2442,7 +2856,7 @@ AST_type::ASTP parseDeclaration(std::istream &is, int &linecount,
 }
 
 
-/// Parse return, continue, or break control statements
+/// Parse return, continue, break, or throw control statements
 AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,
 					    const string &fileName,
 					    varmap &typemap) {
@@ -2459,7 +2873,8 @@ AST_type::ASTP parseSpecialControlStatement(std::istream &is, int &linecount,
   AST_data->elements.push_back(AST_type::ASTP(token)) ;
   token = getToken(is,linecount) ;
   if(!ASTEqual(token,TK_SEMICOLON)) {
-    if(ASTEqual(AST_data->elements.back(),TK_RETURN)) {
+    if(ASTEqual(AST_data->elements.back(),TK_RETURN) ||
+       ASTEqual(AST_data->elements.back(),TK_THROW)) {
       pushToken(token) ;
       AST_type::ASTP exp =
         parseExpression(is,linecount,fileName,AST_data->identifiers) ;
@@ -2510,8 +2925,9 @@ AST_type::ASTP parseSimpleStatement(std::istream &is, int &linecount,
 // A loop statement
 // A if statement
 // A switch statement
-// A special control statement (e.g. break, control, or return
+// A special control statement (e.g. break, control, return, or throw
 // A simple statement (expression) followed by a semicolon
+// A Loci directive block
 // An empty statement
 AST_type::ASTP parseStatement(std::istream &is, int &linecount,
 			      const string &fileName,
@@ -2520,6 +2936,7 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
 
 #ifdef VERBOSE
   cerr << "in parseStatement, token = " << firstToken->text
+       << ", nodeType = " << NTtoString(firstToken->nodeType)
        << ", file: " << __FILE__ << ":" << __LINE__
        << endl ;
 #endif
@@ -2554,7 +2971,10 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
   case TK_BREAK:
   case TK_CONTINUE:
   case TK_RETURN:
+  case TK_THROW:
     return parseSpecialControlStatement(is,linecount,fileName,typemap) ;
+  case TK_DELETE:
+    return parseDeleteStatement(is,linecount,fileName,typemap) ;
   case TK_NAME:
   case TK_SCOPE:
     return parseDeclarationOrSimpleStatement(is,linecount,fileName,typemap) ;
@@ -2572,7 +2992,8 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
         pushToken(firstToken) ;
       }
       bool isFunc = false ;
-      string s = getIdentifierName(is,linecount,fileName,isFunc) ;
+      bool isObject = false ;
+      string s = getIdentifierName(is,linecount,fileName,isFunc,isObject) ;
       if(!isFunc) {
         typemap[s] = localIdentifier() ;
       }
@@ -2606,7 +3027,8 @@ AST_type::ASTP parseStatement(std::istream &is, int &linecount,
     {
       return parseSimpleStatement(is,linecount,fileName,typemap) ;
     }
-
+  case TK_LOCI_DIRECTIVE:
+    { return parseLociDirective(is,linecount,fileName,typemap,false) ; }
   case TK_MACRO:
     firstToken = getToken(is,linecount) ;
     return AST_type::ASTP(firstToken) ;
@@ -2661,13 +3083,69 @@ AST_type::ASTP parseBlock(std::istream &is, int &linecount,
   return AST_type::ASTP(AST_data) ;
 }
 
+AST_type::ASTP parseBlockRaw(
+  std::istream & is, int & linecount, string const & fileName, varmap & typemap
+) {
+  CPTR<AST_Token> openToken = getToken(is, linecount) ;
+  
+#ifdef VERBOSE
+  cerr << "in parseBlockRaw, token = " << openToken->text
+       << ", file: " << __FILE__ << ":" << __LINE__
+       << endl ;
+#endif
+
+  AST_type::elementType closeType = TK_CLOSEBRACE ;
+  switch(openToken->nodeType) {
+  case TK_OPENBRACE:
+    closeType = TK_CLOSEBRACE ;
+    break ;
+  default:
+    return AST_type::ASTP(openToken) ;
+  }
+  
+  CPTR<AST_BlockRaw> AST_data = new AST_BlockRaw ;
+  AST_data->identifiers = typemap ;
+  AST_data->nodeType = ND_BLOCK_RAW ;
+  AST_data->elements.push_back(AST_type::ASTP(openToken)) ;
+  CPTR<AST_Token> token = getToken(is,linecount) ;
+  while(!ASTEqual(token,closeType)) {
+    if(ASTEqual(token, TK_OPENBRACE)) {
+      pushToken(token) ;
+      AST_type::ASTP child_block = parseBlockRaw(
+        is, linecount, fileName, typemap
+      ) ;
+      AST_data->elements.push_back(child_block) ;
+    } else if(ASTEqual(token, TK_LOCI_DIRECTIVE)) {
+      pushToken(token) ;
+      AST_type::ASTP directive_raw = parseLociDirective(
+        is, linecount, fileName, typemap, true
+      ) ;
+      AST_data->elements.push_back(directive_raw) ;
+    } else {
+      AST_data->elements.push_back(AST_type::ASTP(token)) ;
+    }
+    token = getToken(is, linecount) ;
+    if(is.fail() || is.eof())
+      break ;
+  }
+  AST_data->elements.push_back(AST_type::ASTP(token)) ;
+  return AST_type::ASTP(AST_data) ;
+}
+
 void AST_visitor::visit(AST_SimpleStatement &s) {
   if(s.exp!=0)
     s.exp->accept(*this) ;
   if(s.Terminal!=0)
     s.Terminal->accept(*this) ;
 }
+
 void AST_visitor::visit(AST_Block &s) {
+  for(auto ii=s.elements.begin();ii!=s.elements.end();++ii)
+    if(*ii!=0)
+      (*ii)->accept(*this) ;
+}
+
+void AST_visitor::visit(AST_BlockRaw &s) {
   for(auto ii=s.elements.begin();ii!=s.elements.end();++ii)
     if(*ii!=0)
       (*ii)->accept(*this) ;
@@ -2700,6 +3178,13 @@ void AST_visitor::visit(AST_controlStatement &s) {
     if(*ii != 0)
       (*ii)->accept(*this) ;
   }
+}
+
+void AST_visitor::visit(AST_LociDirective &s) {
+  if(s.type != 0)
+    s.type->accept(*this) ;
+  if(s.body != 0)
+    s.body->accept(*this) ;
 }
 
 void AST_errorCheck::visit(AST_syntaxError &s) {
@@ -2827,6 +3312,15 @@ void AST_simplePrint::visit(AST_exprOper &s) {
 	(*ii)->accept(*this) ;
     out << ')' ;
     break ;
+  case OP_BRACKETGROUP:
+    out << '[' ;
+    for(auto ii = s.terms.begin(); ii != s.terms.end(); ++ii) {
+      if(*ii != 0) {
+        (*ii)->accept(*this) ;
+      }
+      out << ']' ;
+    }
+    break ;
   case OP_CAST:
     out << '(' ;
     if(s.terms.size() >= 1 && s.terms[0] != 0)
@@ -2919,6 +3413,7 @@ void AST_simplePrint::visit(AST_exprOper &s) {
   case OP_UNARY_MINUS:
   case OP_NOT:
   case OP_AMPERSAND:
+  case OP_TILDE:
   case OP_STAR:
   case OP_INCREMENT:
   case OP_DECREMENT:
@@ -2938,6 +3433,36 @@ void AST_simplePrint::visit(AST_exprOper &s) {
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
       out << op ;
+    }
+    break ;
+  case OP_NEW:
+    {
+      out << OPtoString(s) ;
+      for(auto ii = s.terms.begin(); ii != s.terms.end(); ++ii) {
+        if(*ii != 0) {
+          (*ii)->accept(*this) ;
+        }
+      }
+    }
+    break ;
+  case OP_DELETE:
+    {
+      out << OPtoString(s) ;
+      for(auto ii = s.terms.begin(); ii != s.terms.end(); ++ii) {
+        if(*ii != 0) {
+          (*ii)->accept(*this) ;
+        }
+      }
+    }
+    break ;
+  case OP_SIZEOF:
+    {
+      out << OPtoString(s) ;
+      for(auto ii = s.terms.begin(); ii != s.terms.end(); ++ii) {
+        if(*ii != 0) {
+          (*ii)->accept(*this) ;
+        }
+      }
     }
     break ;
   default:
@@ -3039,4 +3564,183 @@ void AST_condenseLeftAssociative::visit(AST_exprOper &e) {
   for(auto ii=e.terms.begin();ii!=e.terms.end();++ii)
     if(*ii != 0)
       (*ii)->accept(*this) ;
+}
+
+void AST_printObjectTree::visit(AST_exprOper &s) {
+  indent() ;
+  out << "AST_exprOper(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "terms" << endl ;
+
+  pushindent() ;
+  for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+    }
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_Token & s) {
+  indent() ;
+  out << "AST_Token(" << NTtoString(s.nodeType) << ", \"" << s.text << "\")" << endl ;
+}
+
+void AST_printObjectTree::visit(AST_Block & s) {
+  indent() ;
+  out << "AST_Block(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "elements" << endl ;
+
+  pushindent() ;
+  for(auto ii = s.elements.begin(); ii != s.elements.end(); ++ii)
+    if(*ii!=0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_BlockRaw & s) {
+  indent() ;
+  out << "AST_BlockRaw(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "elements" << endl ;
+
+  pushindent() ;
+  for(auto ii = s.elements.begin(); ii != s.elements.end(); ++ii)
+    if(*ii!=0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_typeSpec &s) {
+  indent() ;
+  out << "AST_typeSpec(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "type_spec" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.type_spec.begin();ii!=s.type_spec.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_declaration &s) {
+  indent() ;
+  out << "AST_declaration(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "type_decl" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.type_decl.begin();ii!=s.type_decl.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  indent() ;
+  out << "decls" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.decls.begin();ii!=s.decls.end();++ii)
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_SimpleStatement &s) {
+  indent() ;
+  out << "AST_SimpleStatement(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "exp" << endl ;
+
+  pushindent() ;
+  if(s.exp!=0)
+    s.exp->accept(*this) ;
+  popindent() ;
+
+  indent() ;
+  out << "terminal" << endl ;
+
+  pushindent() ;
+  if(s.Terminal!=0) 
+    s.Terminal->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_controlStatement &s) {
+  indent() ;
+  out << "AST_controlStatement(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "controlType" << endl ;
+
+  pushindent() ;
+  s.controlType->accept(*this) ;
+  popindent() ;
+
+  indent() ;
+  out << "parts" << endl ;
+
+  pushindent() ;
+  for(auto ii=s.parts.begin();ii!=s.parts.end();++ii) {
+    if(*ii != 0)
+      (*ii)->accept(*this) ;
+  }
+  popindent() ;
+
+  popindent() ;
+}
+
+void AST_printObjectTree::visit(AST_LociDirective &s) {
+  indent() ;
+  out << "AST_LociDirective(" << NTtoString(s.nodeType) << ")" << endl ;
+
+  pushindent() ;
+
+  indent() ;
+  out << "type" << endl ;
+
+  pushindent() ;
+  s.type->accept(*this) ;
+  popindent() ;
+
+  indent() ;
+  out << "body" << endl ;
+
+  pushindent() ;
+  s.body->accept(*this) ;
+  popindent() ;
+
+  popindent() ;
 }

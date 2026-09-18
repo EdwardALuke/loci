@@ -24,12 +24,18 @@
 #include "diamondcell.h"
 #include "defines.h"
 #include "hex_defines.h"
+#include "transfer_plan.h"
 using std::cerr;
 using std::endl;
 using std::swap;
 using std::cout;
 
-std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan);
+/**
+ * @file get_c1_general.cc
+ *
+ * Find the local fine-cell indices adjacent to fine faces of a general Cell.
+ */
+
 std::vector<int32> contain_2d(const std::vector<pair<Range2d, int32> >& faceMap,
                               const std::vector<Range2d>& leaves);
 
@@ -215,7 +221,15 @@ std::vector<int32> get_c1(const Entity* lower, int lower_size,
   
 }
 
-//need write another function get_c1_general from quadface to general cell
+/**
+ * Return the local fine-cell index adjacent to each fine face on face ff.
+ * Indices start at 1 within the original Cell and follow the leaf order of
+ * facePlan.
+ *
+ * For is_quadface, convert the four-way splits with transfer_plan_q2g(), call
+ * get_c1(), then match the original QuadFace leaf ranges to the resulting
+ * cell indices. Other faces use get_c1() directly.
+ */
 std::vector<int32> get_c1_general(const Entity* lower, int lower_size,
                                   const Entity* upper, int upper_size,
                                   const Entity* boundary_map, int boundary_map_size,

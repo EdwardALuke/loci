@@ -29,7 +29,22 @@ using std::endl;
 using std::vector;
 using std::ifstream;
 
+/**
+ * @file read_par.cc
+ * @brief Reads source-based refinement parameters and evaluates local spacing
+ *        requests.
+ */
 
+/**
+ * Reads source refinement parameters from a plain text file.
+ *
+ * The file starts with the number of sources. Each source then provides two
+ * endpoints followed by `r0`, `s0`, `r1`, `s1`, and `a`, matching the fields of
+ * source_par.
+ *
+ * @param filename Path to the source-parameter file.
+ * @param sources  Output vector replaced with the sources read from the file.
+ */
 void readPar(string filename, vector<source_par>& sources){
   sources.clear();
  
@@ -65,6 +80,18 @@ void readPar(string filename, vector<source_par>& sources){
   }
   inFile.close();  
 }
+
+/**
+ * Computes the shortest distance from a point to a line segment.
+ *
+ * Degenerate segments are treated as a single endpoint.
+ *
+ * @param p   Query point.
+ * @param p1  First segment endpoint.
+ * @param p2  Second segment endpoint.
+ * @return Euclidean distance from @p p to the segment with endpoints @p p1 and
+ *         @p p2.
+ */
 double get_distance(const vect3d& p, const vect3d& p1, const vect3d& p2){
   if( norm(p1-p2) < NORMALIZE_ZERO_THRESHOLD) return norm(p - p1);
   double dotp1 = dot(p2-p1, p-p1);
@@ -75,7 +102,15 @@ double get_distance(const vect3d& p, const vect3d& p1, const vect3d& p2){
   cerr<<"WARNING: get_distance reach dummy code" << endl;
   return norm(p-0.5*(p1+p2));
 }
-  
+
+/**
+ * Return the spacing requested by source s at point p. Let r be the distance
+ * to the segment from p1 to p2.
+ *
+ * Use s0 when r <= r0 and the projection of p lies strictly between the
+ * endpoints. Otherwise use s1 for r <= r1, or s1 * pow(r/r1, a) outside that
+ * distance.
+ */
 double get_spacing(const vect3d& p, const source_par& s){
  
   double r = get_distance(p, s.p1, s.p2);
@@ -85,6 +120,11 @@ double get_spacing(const vect3d& p, const source_par& s){
   if(r <= s.r1) return s.s1;
   return s.s1*pow(r/s.r1, s.a);
 }
+
+/**
+ * Return the mean of nodes[i]->p. An empty nodes vector reports an error and
+ * returns the zero vector.
+ */
 vect3d get_center(const vector<Node*>& nodes){
   vect3d center = vect3d(0.0, 0.0, 0.0);
   int num_nodes = nodes.size();
@@ -97,7 +137,11 @@ vect3d get_center(const vector<Node*>& nodes){
   center = (1.0/ num_nodes)*center;
   return center;
 }
-//min value of spacing on each nodes and on the center 
+
+/**
+ * Return the minimum source spacing sampled at the cell vertices and their
+ * mean position. If ss is empty, return numeric_limits<double>::max().
+ */
 double get_min_spacing(const vector<Node*>& nodes, const vector<source_par>& ss){
   vect3d center = get_center(nodes);
   double spacing = std::numeric_limits<double>::max();
@@ -111,6 +155,15 @@ double get_min_spacing(const vector<Node*>& nodes, const vector<source_par>& ss)
 }
 
 
+/**
+ * Return 1 if a source-spacing check requests refinement, otherwise 0.
+ *
+ * For a source with min_edge_len > r1/2, refine if either endpoint is inside
+ * the cell bounding box or the distance from the mean vertex position to the
+ * segment midpoint is less than min_edge_len + r1. Otherwise, refine if
+ * min_edge_len is at least twice the minimum spacing sampled at the vertices
+ * and their mean position.
+ */
 int tag_cell(const vector<Node*>& nodes, const vector<source_par>& sources, double min_edge_len){
 
 

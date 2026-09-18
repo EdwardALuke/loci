@@ -18,24 +18,36 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-#ifndef GLOBALS_H
-#define GLOBALS_H
-#include "defines.h"
 
-class Globals{
-public:
-  static double fold;
-  static double tolerance;
-  static int levels;
-  static double factor;
+#ifndef TEMPLATE_ENGINE_H
+#define TEMPLATE_ENGINE_H
 
-  /// Controls the additional face checks in balance_cell(). Boundary-edge
-  /// checks apply at all settings. Values 1 and 2 enable further checks on
-  /// split faces; the exact tests depend on the cell type and split_mode. See
-  /// @ref fvmadapt_plans_and_balancing.
-  static int balance_option;
-  static vect3d split;
-  static vect3d nosplit;
-};
+#include "template_ast.h"
+
+#include <map>
+#include <string>
+
+namespace Loci {
+
+  class TemplateEngine {
+    std::map<std::string, TemplateNodeList> templates_ ;
+
+  public:
+    static constexpr int kMaxPartialDepth = 64 ;
+
+    void define(std::string const & name, std::string const & text) ;
+    void define_from_file(std::string const & name, std::string const & path) ;
+    TemplateNodeList const * find(std::string const & name) const ;
+    std::string render(
+      std::string const & name, TemplateValue const & context
+    ) const ;
+    std::string render(
+      std::string const & name,
+      TemplateValue const & context,
+      TemplateNewlineHandler newline_handler
+    ) const ;
+  } ;
+
+} // end: namespace Loci
 
 #endif

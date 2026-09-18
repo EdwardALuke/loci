@@ -1,258 +1,683 @@
-% Created 2026-07-17 Fri 18:13
-% Intended LaTeX compiler: pdflatex
-\documentclass[11pt]{article}
+\documentclass[11pt,letterpaper]{article}
 
-\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{lmodern}
 \usepackage[T1]{fontenc}
-\usepackage{graphicx}
-\usepackage{longtable}
-\usepackage{wrapfig}
-\usepackage{rotating}
-\usepackage[normalem]{ulem}
-\usepackage{amsmath}
-\usepackage{amssymb}
-\usepackage{capt-of}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
 \usepackage{hyperref}
-\usepackage{fullpage}
-\author{Anup Zope}
-\date{\today}
-\title{C++ Text Template Engine}
-\hypersetup{
- pdfauthor={Anup Zope},
- pdftitle={C++ Text Template Engine},
- pdfkeywords={},
- pdfsubject={},
- pdfcreator={},
- pdflang={English}}
-\begin{document}
 
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  urlcolor=blue,
+  citecolor=black,
+  pdftitle={Loci Template Engine User Guide},
+  pdfauthor={Loci}
+}
+
+\definecolor{codebg}{RGB}{248,248,248}
+\definecolor{codeframe}{RGB}{200,200,200}
+
+\lstdefinestyle{cpp}{
+  language=C++,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape,
+  stringstyle=\ttfamily,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{codeframe},
+  backgroundcolor=\color{codebg},
+  xleftmargin=0.4em,
+  xrightmargin=0.4em,
+  morekeywords={override,nullptr,string}
+}
+
+\lstdefinestyle{tmpl}{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{codeframe},
+  backgroundcolor=\color{codebg},
+  xleftmargin=0.4em,
+  xrightmargin=0.4em,
+  mathescape=false
+}
+
+\lstdefinestyle{bnf}{
+  basicstyle=\ttfamily\footnotesize,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{codeframe},
+  backgroundcolor=\color{codebg},
+  xleftmargin=0.4em,
+  xrightmargin=0.4em,
+  mathescape=false
+}
+
+\lstset{style=cpp}
+\newcommand{\file}[1]{\texttt{#1}}
+\newcommand{\api}[1]{\texttt{#1}}
+\newcommand{\ns}{\texttt{Loci}}
+
+\title{Text Template Engine\\User Guide}
+\author{}
+\date{}
+
+\begin{document}
 \maketitle
 \tableofcontents
+\newpage
 
-\section{Section}
-\label{sec:org5374fa6}
+\section{Introduction}
 
-A C++ text template engine with \texttt{\$\$variable\$\$} substitution. It is created to
-streamline the process of generating biolerplace code required to generate CUDA
-enabled Loci rules from Loci preprocessor.
-\section{Features}
-\label{sec:org29f0111}
+The text template engine turns template text plus a JSON-like context into
+rendered text. It is a C++17 recursive-descent engine.
+
+The pipeline is:
+
+\begin{center}
+template text $\rightarrow$ lexer $\rightarrow$ parser $\rightarrow$ AST
+$\rightarrow$ \api{TemplateEngine::render}
+\end{center}
+
+Public headers:
+
+\begin{itemize}[nosep]
+  \item \file{template\_engine.h} --- define templates and render them
+  \item \file{template\_model.h} --- context values (\api{DictionaryTemplateValue},
+        \api{ArrayTemplateValue}, \api{SimpleTemplateValue})
+  \item \file{template\_ast.h} --- AST nodes and \api{TemplateScope}
+        (needed only if you walk trees yourself)
+\end{itemize}
+
+\section{Quick start}
+
+\begin{lstlisting}
+#include "template_engine.h"
+
+using namespace Loci;
+
+TemplateEngine engine;
+engine.define("hello", "Hi $[name]$\n");
+engine.define_from_file("hello", "hello.tmpl");
+
+DictionaryTemplateValue ctx;
+ctx["name"] = "Ada";
+
+std::string out = engine.render("hello", ctx);  // "Hi Ada\n"
+\end{lstlisting}
+
+\api{define} parses the fragment immediately and stores the AST under
+\texttt{name}. \api{define\_from\_file} reads the file in binary mode (CRLF or
+CR line endings are accepted; they lex as a single newline). Rendered strings
+use \texttt{\textbackslash n} unless a newline handler writes something else
+(Section~\ref{sec:newlines}).
+
+\section{Building a context}
+
+The context is a \api{TemplateValue} tree. Use dictionaries for objects,
+arrays for lists, and simple values for scalars.
+
+\begin{lstlisting}
+DictionaryTemplateValue rule;
+rule["class"] = "calculate_flux";
+rule["is_pointwise"] = 1;
+rule["is_unit"] = 0;
+
+ArrayTemplateValue inputs;
+DictionaryTemplateValue a;
+a["name"] = "a";
+DictionaryTemplateValue b;
+b["name"] = "b";
+inputs.append(a);
+inputs.append(b);
+rule["inputs"] = inputs;
+
+DictionaryTemplateValue ctx;
+ctx["rule"] = rule;
+ctx["ok"] = 1;
+\end{lstlisting}
+
+\subsection{Value kinds}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Type & Role \\
+\midrule
+\api{SimpleTemplateValue} & \texttt{int}, \texttt{double}, or \texttt{std::string} \\
+\api{DictionaryTemplateValue} & named members (object) \\
+\api{ArrayTemplateValue} & ordered items \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Assignment through \texttt{operator[]} replaces the member:
+
+\begin{lstlisting}
+ctx["name"] = "Ada";          // string
+ctx["count"] = 3;             // int
+ctx["ratio"] = 1.5;           // double
+ctx["rule"] = rule;           // nested object
+ctx["inputs"] = inputs;       // nested array
+\end{lstlisting}
+
+Arrays grow with \api{append}. Dictionaries also support \api{insert}.
+
+\subsection{Path lookup}
+
+Variable names and \texttt{if}/\texttt{each} paths are dotted names, resolved
+by \api{lookup\_path}. Each segment must be a dictionary key. Missing keys,
+empty segments, and indexing into a non-object return no value.
+
+\begin{lstlisting}[style=tmpl]
+$[rule.class]$          % "calculate_flux"
+$[rule.inputs]$         % the array (prints as its to_string)
+$[missing]$             % empty string
+\end{lstlisting}
+
+\section{Template syntax}
+
+There are two delimiter styles. They nest freely (an inline construct may
+appear inside a block body, and a block construct may appear inside an
+inline body). Closers must match the style of the opener they terminate.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+Construct & Inline (no extra newline) & Block (trailer newline or EOF) \\
+\midrule
+Variable & \texttt{\$[path]\$} & \texttt{\$\{path\}\$} \\
+If & \texttt{\$[if path]\$\ldots\$[endif]\$} &
+     \texttt{\$\{if path\}\$} \ldots\ \texttt{\$\{endif\}\$} \\
+Each & \texttt{\$[each path]\$\ldots\$[endeach]\$} &
+       \texttt{\$\{each path\}\$} \ldots\ \texttt{\$\{endeach\}\$} \\
+Partial & \texttt{\$[> name]\$} & \texttt{\$\{> name\}\$} \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Keywords that take a path require a trailing space after the keyword:
+\texttt{\$[if x]\$} is an if; \texttt{\$[ifx]\$} is a variable named
+\texttt{ifx}. The same rule applies to \texttt{elseif}, \texttt{each}, and
+\texttt{>}. \texttt{else}, \texttt{endif}, and \texttt{endeach} do not need
+that extra space.
+
+\subsection{Inline versus block trailers}
+
+An inline tag is closed by \texttt{]\$}. Nothing else is required.
+
+A block tag is closed by \texttt{\}\$} plus a \emph{trailer}:
 
 \begin{itemize}
-\item \texttt{\$\$variable\$\$} substitution from a hierarchical context
-\item \texttt{\$\$user.name\$\$} nested key paths
-\item \texttt{\$\$::path\$\$} root-scoped paths (always resolve from the render context root)
-\item \texttt{\$\$\#if condition\$\$...\$\$/if\$\$} conditionals with \texttt{\$\$\#else if condition\$\$} and
-optional \texttt{\$\$\#else\$\$}
-\item Logical conditions: \texttt{\&\&}, \texttt{||}, \texttt{!}, and parentheses (\texttt{\&\&} binds tighter than
-\texttt{||})
-\item \texttt{\$\$\#each list\$\$...\$\$/each\$\$} loops over arrays (exposes \texttt{\$\$@index\$\$} and
-\texttt{\$\$@size\$\$} per item)
-\item Nested \texttt{\$\$\#if\$\$} blocks and \texttt{\$\$\#if\$\$} inside \texttt{\$\$\#each\$\$}
-\item Named nested templates via \texttt{define()} and \texttt{\$\$> name\$\$} includes
-\item \texttt{\#} and \texttt{/} prefixes reserved for control statements; unknown directives fail
-at parse time with line and column
-\item User-defined C++ callbacks for newline character in template text
-\item Whitespace trimming inside placeholders
-\item Optional behavior for missing variables (empty string or keep placeholder)
-\item File-based template rendering
+  \item \textbf{Open} forms (\texttt{if}, \texttt{elseif}, \texttt{else},
+        \texttt{each}) must be followed by a newline. End of file after an
+        open trailer is an error.
+  \item \textbf{Complete} forms (variable, \texttt{endif}, \texttt{endeach},
+        partial) may be followed by a newline \emph{or} end of file.
 \end{itemize}
-\section{Usage}
-\label{sec:orge511e08}
 
-\begin{verbatim}
-#include "template.h"
+Spaces between \texttt{\}\$} and the trailer newline are allowed and not
+emitted.
 
-Loci::TemplateEngine engine;
+\subsection{Variables}
 
-Loci::TemplateContext context;
-context.set("greeting", "Hello");
-context.set("name", "World");
-context.set("active", "true");
-context.set("count", 3);
+A variable looks up \texttt{path} in the current scope and writes
+\api{to\_string} of the value. Missing paths write nothing.
 
-std::string output = engine.render("$$greeting$$, $$name$$!", context);
-// output: "Hello, World!"
-\end{verbatim}
+\begin{lstlisting}[style=tmpl]
+Hello $[name]$
+${title}$
+\end{lstlisting}
 
-\texttt{set()} has typed overloads for \texttt{std::string}, \texttt{const char*}, \texttt{bool}, \texttt{char},
-integer types, and floating-point types. Values are stored in the context
-variant and formatted when rendered (for example, \texttt{bool} renders as \texttt{1} or \texttt{0},
-floats use \texttt{std::to\_string}).
+\subsection{If / elseif / else / endif}
 
-Build a flat string map quickly with \texttt{from\_flat}:
+Conditions are truthy tests on a path. There are no comparison operators
+(\texttt{==}, \texttt{!=}, and similar are not part of the language).
 
-\begin{verbatim}
-auto context = Loci::TemplateContext::from_flat({
-  {"name", "World"},
-  {"active", "true"},
-});
-\end{verbatim}
-\subsection{Nested Keys}
-\label{sec:orgdd570af}
+A value is \textbf{falsy} when:
 
-\begin{verbatim}
-Loci::TemplateContext user;
-user.set("name", "Alice");
+\begin{itemize}[nosep]
+  \item the path is missing
+  \item the string form is empty, \texttt{"0"}, or \texttt{"false"}
+  \item the value is an empty array
+\end{itemize}
 
-Loci::TemplateContext context;
-context.set_object("user", user);
+Objects are always truthy. Non-empty arrays and other scalars are truthy.
 
-engine.render("Hello, $$user.name$$!", context);
-// output: "Hello, Alice!"
-\end{verbatim}
+The first truthy branch is rendered; otherwise the optional \texttt{else}
+body is rendered.
 
-\texttt{set\_object()} and \texttt{set\_array()} store nested data by value (deep copy). Use
-\texttt{set\_object} for objects and \texttt{set\_array} for lists of \texttt{TemplateContext} items.
-\subsection{Root scope (\texttt{::})}
-\label{sec:orgd17ee1c}
+\begin{lstlisting}[style=tmpl]
+$[if rule.is_pointwise]$then$[else]$else$[endif]$
 
-Prefix a path with \texttt{::} to resolve from the root context instead of the current
-loop scope. Use \texttt{.} to descend into nested objects:
+$[if rule.is_unit]$U$[elseif rule.is_pointwise]$P$[else]$E$[endif]$
 
-\begin{verbatim}
-// Inside a loop where the item also has "label":
-engine.render("$$#each rows$$$$label$$ / $$::label$$$$/each$$", context);
-// item label, then root label
-\end{verbatim}
+${if ok}$
+x
+${elseif other}$
+y
+${else}$
+z
+${endif}$
+\end{lstlisting}
 
-Works in variables (\texttt{\$\$::user.name\$\$}), conditionals (\texttt{\$\$\#if ::active\$\$}), and
-loops (\texttt{\$\$\#each ::items\$\$}).
+\subsection{Each / endeach}
 
-Inside a loop, unqualified paths resolve from the current item first, then fall
-back to root. Use \texttt{::} when a loop item shadows a root key.
-\subsection{Conditionals}
-\label{sec:org9ef13d3}
+\texttt{each} looks up a path that must be an array. Missing or non-array
+collections render nothing.
 
-\begin{verbatim}
-context.set("active", "true");
-engine.render("$$#if active$$On$$#else$$Off$$/if$$", context);
-// output: "On"
+Each iteration pushes two frames in front of the outer scope:
 
-context.set("active", "false");
-context.set("backup", "true");
-engine.render("$$#if active$$On$$#else if backup$$Fallback$$#else$$Off$$/if$$", context);
-// output: "Fallback"
-\end{verbatim}
+\begin{enumerate}[nosep]
+  \item a \textbf{meta} dictionary (\texttt{@index}, \texttt{@count},
+        \texttt{@first}, \texttt{@last})
+  \item the \textbf{item} itself
+\end{enumerate}
 
-\texttt{\$\$\#elseif condition\$\$} is also accepted as an alias for \texttt{\$\$\#else if
-condition\$\$}.
+Lookup walks the current frame, then parents. Item fields therefore shadow
+outer names; dotted paths still reach the outer context.
 
-Conditions support logical operators with parentheses for grouping:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Name & Value \\
+\midrule
+\texttt{@index} & 0-based index \\
+\texttt{@count} & array size \\
+\texttt{@first} & \texttt{1} on the first item, else \texttt{0} \\
+\texttt{@last}  & \texttt{1} on the last item, else \texttt{0} \\
+\bottomrule
+\end{tabular}
+\end{center}
 
-\begin{verbatim}
-engine.render("$$#if active && backup$$On$$/if$$", context);
-engine.render("$$#if ::published || draft$$Visible$$/if$$", context);
-engine.render("$$#if !(archived || hidden)$$Show$$/if$$", context);
-\end{verbatim}
+\begin{lstlisting}[style=tmpl]
+$[each rule.inputs]$($[name]$)$[endeach]$
+% -> (a)(b)
 
-Nested blocks are supported:
+$[each rule.inputs]$$[name]$:$[rule.class]$;$[endeach]$
+% -> a:calculate_flux;b:calculate_flux;
 
-\begin{verbatim}
-$$#if outer$$
-  $$#if ::inner$$
-    both true
-  $$/if$$
-$$/if$$
-\end{verbatim}
+$[each rule.inputs]$$[@index]$/$[@count]$;$[endeach]$
+% -> 0/2;1/2;
 
-Placeholders starting with \texttt{\#} or \texttt{/} are control statements only (\texttt{\#if},
-\texttt{\#else}, \texttt{\#each}, \texttt{/if}, \texttt{/each}, and so on). Anything else is a parse error,
-for example \texttt{\$\$/fi\$\$} reports \texttt{Unrecognized control statement '/fi' (did you
-mean '/if'?)} with a line and column.
+$[each rule.inputs]$
+$[if @first]$F$[endif]$$[name]$$[if @last]$L$[endif]$;
+$[endeach]$
+% -> Fa;bL;
+\end{lstlisting}
 
-\texttt{is\_true} treats non-empty strings as true except \texttt{false}, \texttt{0}, \texttt{no}, \texttt{off}.
-Non-empty arrays and objects are also true. Typed booleans and non-zero numbers
-are true in conditions.
-\subsection{Loops}
-\label{sec:org9a9f6d3}
+Block each is the same, with a required newline after the open tag:
 
-\begin{verbatim}
-Loci::TemplateContext a;
-a.set("name", "Alice");
-Loci::TemplateContext b;
-b.set("name", "Bob");
+\begin{lstlisting}[style=tmpl]
+${each rule.inputs}$
+$[name]$
+${endeach}$
+\end{lstlisting}
 
-Loci::TemplateContext context;
-context.set_array("users", {a, b});
+renders \texttt{a\textbackslash nb\textbackslash n} for the two-item example
+above. The newline after each item is the body's newline, not an extra
+separator invented by \texttt{each}.
 
-engine.render("$$#each users$$$$@index$$: $$name$$, $$/each$$", context);
-// output: "0: Alice, 1: Bob, "
-\end{verbatim}
+\subsection{Partials}
 
-Inside a loop, fields from the current item are in scope. \texttt{\$\$@index\$\$} is the
-zero-based index of the current item. \texttt{\$\$@size\$\$} is the number of items in the
-array being iterated.
+A partial tag inserts another template previously passed to
+\api{define} or \api{define\_from\_file}. Use \texttt{\$[> name]\$} inline
+or \texttt{\$\{> name\}\$} as a block. The name is a fragment name in the
+engine registry, not a path in the data model.
 
-\texttt{\$\$\#if\$\$} may appear inside a loop body; conditions follow the same scope rules
-as variables.
-\subsection{Nested templates}
-\label{sec:org18f0ee1}
+The partial runs with the \textbf{current} scope, so item fields, \texttt{@}
+meta, and outer paths still resolve.
 
-Break large templates into named pieces with \texttt{define()}, then include them with
-\texttt{\$\$> name\$\$}. Nested templates inherit the current render scope (including
-\texttt{\#each} item scope).
-
-\begin{verbatim}
-Loci::TemplateEngine engine;
-
-engine.define("status_line",
-  "$$#if published$$Status: Published$$#else$$Status: Draft$$/if$$\n");
-
-engine.define("task_row",
-  "$$@index$$. $$name$$\n");
-
-engine.define("task_list",
-  "Tasks:\n"
-  "$$#each tasks$$$$> task_row$$$$/each$$");
-
-engine.define("report",
-  "Report: $$title$$\n"
-  "$$> status_line$$"
-  "\n"
-  "$$> task_list$$");
-
-std::string output = engine.render_template("report", context);
-\end{verbatim}
-
-Includes are resolved at render time. Circular includes and unknown names throw.
-Use \texttt{has\_template("name")} to check registration.
-\subsubsection{Newline Callbacks}
-\label{sec:org6e35c5e}
-
-A named template can replace each literal newline as it is rendered:
-
-\begin{verbatim}
+\begin{lstlisting}
+engine.define("item_line", "$[name]$($[@index]$)");
 engine.define(
-  "declarations",
-  "$$#each inputs$$$$ctype$$ $$vname$$;\n$$/each$$",
-  [](const Loci::NewlineEvent& event) {
-    // The current #each item is available through event.context.
-    return "\n#line 42 \"rules.template\"\n";
+  "list_via_partial",
+  "$[each rule.inputs]$$[> item_line]$$[endeach]$"
+);
+engine.render("list_via_partial", ctx);  // "a(0)b(1)"
+\end{lstlisting}
+
+Limits:
+
+\begin{itemize}[nosep]
+  \item unknown name throws \texttt{undefined partial: \ldots}
+  \item a partial that includes itself (directly or through a cycle) throws
+        \texttt{recursive partial: \ldots}
+  \item nesting deeper than 64 throws
+        \texttt{partial recursion depth exceeded}
+\end{itemize}
+
+\section{Whitespace}
+
+Literal text, spaces, and newlines in the template are usually copied to the
+output. Block tags have extra rules so that indent used to format the
+template is not printed.
+
+\subsection{Leading spaces before block tags}
+
+At the document level, and inside block \texttt{if}/\texttt{each} bodies,
+spaces immediately before a \emph{block starter} are absorbed and not
+emitted. Block starters are:
+
+\begin{itemize}[nosep]
+  \item \texttt{\$\{} (block variable)
+  \item \texttt{\$\{if }
+  \item \texttt{\$\{each }
+  \item \texttt{\$\{> }
+\end{itemize}
+
+So this template:
+
+\begin{lstlisting}[style=tmpl]
+${if ok}$
+  ${if ok}$
+x
+${endif}$
+${endif}$
+\end{lstlisting}
+
+renders \texttt{x\textbackslash n}. The two spaces before the nested
+\texttt{\$\{if} are dropped. The same applies to nested \texttt{each} and
+block partials.
+
+Spaces before ordinary text in a body are kept:
+
+\begin{lstlisting}[style=tmpl]
+${if ok}$
+  x
+${endif}$
+\end{lstlisting}
+
+renders \texttt{\ \ x\textbackslash n}.
+
+\subsection{Spaces before clause closers}
+
+In a block body, spaces immediately before \texttt{elseif}, \texttt{else},
+\texttt{endif}, or \texttt{endeach} belong to that clause, not the body.
+They are not printed.
+
+\begin{lstlisting}[style=tmpl]
+${if a}$
+x
+  ${endif}$
+\end{lstlisting}
+
+is valid and renders \texttt{x\textbackslash n}.
+
+\subsection{Inline indent}
+
+Inline constructs do not absorb leading spaces. Spaces you write next to
+\texttt{\$[if} stay in the output.
+
+\section{Engine API}
+\label{sec:api}
+
+\begin{lstlisting}
+class TemplateEngine {
+public:
+  static constexpr int kMaxPartialDepth = 64;
+
+  void define(std::string const & name, std::string const & text);
+  void define_from_file(
+    std::string const & name, std::string const & path
+  );
+  TemplateNodeList const * find(std::string const & name) const;
+  std::string render(
+    std::string const & name, TemplateValue const & context
+  ) const;
+  std::string render(
+    std::string const & name,
+    TemplateValue const & context,
+    TemplateNewlineHandler newline_handler
+  ) const;
+};
+\end{lstlisting}
+
+\begin{description}
+  \item[\api{define}] Parse \texttt{text} and store it as \texttt{name}.
+        Replacing an existing name overwrites it.
+  \item[\api{define\_from\_file}] Read \texttt{path} and call \api{define}.
+  \item[\api{find}] Return the stored AST, or \texttt{nullptr} if undefined.
+  \item[\api{render}] Evaluate the named template against \texttt{context}.
+\end{description}
+
+\subsection{Errors}
+
+Parse and I/O failures are \api{std::runtime\_error}. Messages from
+\api{define} / \api{define\_from\_file} are prefixed with the fragment name:
+
+\begin{lstlisting}[style=tmpl]
+template "hello": expected endif, got ...
+template "hello": cannot read template file: missing.tmpl
+\end{lstlisting}
+
+Render-time failures include:
+
+\begin{lstlisting}[style=tmpl]
+undefined template: name
+undefined partial: name
+recursive partial: name
+partial recursion depth exceeded
+\end{lstlisting}
+
+\section{Newline handler}
+\label{sec:newlines}
+
+By default a newline node writes \api{std::endl}. The three-argument
+\api{render} replaces that write with a callback:
+
+\begin{lstlisting}
+engine.render("list", ctx,
+  [](std::ostream & s, char const * active_partial) {
+    if(active_partial) {
+      s << " | ";   // inside $[> ...]$
+    } else {
+      s << '\n';    // root template
+    }
   });
-\end{verbatim}
+\end{lstlisting}
 
-The callback runs once for every literal \texttt{\textbackslash{}n} in text emitted by that
-definition, including repeated loop bodies. Its return value replaces the
-newline; return \texttt{"\textbackslash{}n"} to preserve it unchanged. Newlines originating in
-variable values do not invoke the callback.
+\api{active\_partial} is \texttt{nullptr} in the root template and the
+partial's \api{define} name while that partial is active. The handler is
+\emph{not} an extra argument to every write; it only replaces newline nodes.
 
-Each nested template uses its own callback. A nested template without one
-emits ordinary newlines, and the caller's callback is restored when the
-include returns.
-\subsection{Render From File}
-\label{sec:org4bdac99}
+\section{Lexer caveats}
 
-\begin{verbatim}
-std::string output = engine.render_file("templates/report.txt", context);
-\end{verbatim}
-\subsection{Options}
-\label{sec:orgbddae7e}
+\begin{itemize}
+  \item \texttt{]\$} always closes an inline construct. A literal
+        \texttt{]} immediately before \texttt{\$[\ldots]\$} is lexed as
+        \texttt{]\$}, not as text plus an opener. Use another character, or
+        write \texttt{]\$\$[} when \texttt{]\$} and \texttt{\$[} must sit
+        next to each other.
+  \item A lone \texttt{\$} is ordinary text.
+  \item \texttt{\textbackslash r\textbackslash n} and lone \texttt{\textbackslash r}
+        each become one newline token. Rendered output is \texttt{\textbackslash n}
+        unless a newline handler says otherwise.
+\end{itemize}
 
-\begin{verbatim}
-Loci::RenderOptions options;
-options.keep_missing_placeholders = true;  // leave $$missing$$ unchanged
+\section{Worked example}
 
-Loci::TemplateEngine engine(options);
-\end{verbatim}
+A small end-to-end fragment that mixes if, each, and a partial:
+
+\begin{lstlisting}
+engine.define(
+  "e2e_item",
+  "$[if @first]$($[endif]$$[name]$$[if @last]$)$[endif]$"
+);
+engine.define(
+  "e2e",
+  "$[if rule.is_pointwise]$"
+  "$[rule.class]$:"
+  "$[each rule.inputs]$$[> e2e_item]$$[endeach]$"
+  "$[else]$no$[endif]$"
+);
+engine.render("e2e", ctx);
+// "calculate_flux:(ab)"
+\end{lstlisting}
+
+\appendix
+\section{Grammar}
+
+The BNF below matches the lexer and recursive-descent parser
+(\file{template\_parser.h}). Productions use ordered choice.
+
+\begin{lstlisting}[style=bnf]
+// Lexer tokens
+Text
+Space              // isspace, except CR/LF (those are Newline)
+Newline            // '\n' | '\r' | '\r' '\n'
+End
+BlockOpen          // "${"
+BlockClose         // "}$"
+InlineOpen         // "$["
+InlineClose        // "]$"
+BlockIfToken       // "${if "     (space after keyword required)
+BlockElseIfToken   // "${elseif "
+BlockElseToken     // "${else"    (no extra space required)
+BlockEndIfToken    // "${endif"
+BlockEachToken     // "${each "
+BlockEndEachToken  // "${endeach"
+BlockPartialToken  // "${> "
+InlineIfToken      // "$[if "
+InlineElseIfToken  // "$[elseif "
+InlineElseToken    // "$[else"
+InlineEndIfToken   // "$[endif"
+InlineEachToken    // "$[each "
+InlineEndEachToken // "$[endeach"
+InlinePartialToken // "$[> "
+
+Ws := (Space | Newline)*
+
+// parse()
+Document := Item*
+
+// parse_expression() -- ordered choice. Leading Space* is absorbed into
+// a block form when the next token is a block starter (BlockOpen,
+// BlockIfToken, BlockEachToken, BlockPartialToken); otherwise Space is
+// an Item.
+Item := BlockVariable
+      | BlockIf
+      | BlockEach
+      | BlockPartial
+      | InlineVariable
+      | InlineIf
+      | InlineEach
+      | InlinePartial
+      | Text
+      | Space
+      | Newline
+
+BlockVariable := Space*
+                 BlockOpen
+                 Ws Text Ws
+                 BlockClose
+                 Space* (Newline | End)
+
+InlineVariable := InlineOpen
+                  Ws Text Ws
+                  InlineClose
+
+BlockIf := Space*
+           BlockIfToken
+           Ws Text Ws
+           BlockClose
+           Space* Newline
+           IfBody
+           (Space*
+            BlockElseIfToken
+            Ws Text Ws
+            BlockClose
+            Space* Newline
+            IfBody)*
+           (Space*
+            BlockElseToken
+            Ws
+            BlockClose
+            Space* Newline
+            IfBody)?
+           Space*
+           BlockEndIfToken
+           Ws
+           BlockClose
+           Space* (Newline | End)
+
+InlineIf := InlineIfToken
+            Ws Text Ws
+            InlineClose
+            IfBody
+            (InlineElseIfToken
+             Ws Text Ws
+             InlineClose
+             IfBody)*
+            (InlineElseToken
+             Ws
+             InlineClose
+             IfBody)?
+            InlineEndIfToken
+            Ws
+            InlineClose
+
+BlockEach := Space*
+             BlockEachToken
+             Ws Text Ws
+             BlockClose
+             Space* Newline
+             EachBody
+             Space*
+             BlockEndEachToken
+             Ws
+             BlockClose
+             Space* (Newline | End)
+
+InlineEach := InlineEachToken
+              Ws Text Ws
+              InlineClose
+              EachBody
+              InlineEndEachToken
+              Ws
+              InlineClose
+
+InlinePartial := InlinePartialToken
+                 Ws Text Ws
+                 InlineClose
+
+BlockPartial := Space*
+                BlockPartialToken
+                Ws Text Ws
+                BlockClose
+                Space* (Newline | End)
+
+// IfBody / EachBody are Item* that stop before a same-style closer
+// (inline vs block). Opposite-style constructs nest as Item.
+// For block bodies, Space* immediately before:
+//   - elseif / else / endif / endeach  -> belongs to that clause
+//     (not the body)
+//   - a nested block starter (BlockOpen / BlockIf / BlockEach /
+//     BlockPartial) -> absorbed like document-level Item (not emitted)
+// Other Space* in the body (e.g. indent before Text) remains an Item.
+IfBody := Item*
+EachBody := Item*
+
+// End is valid only on complete block forms (BlockVariable, BlockEndIf,
+// BlockEndEach, BlockPartial). End after if/elseif/else/each open
+// trailers is an error (those require Newline).
+\end{lstlisting}
+
 \end{document}

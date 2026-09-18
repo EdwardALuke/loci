@@ -18,24 +18,33 @@
 //# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
 //#
 //#############################################################################
-#ifndef GLOBALS_H
-#define GLOBALS_H
-#include "defines.h"
+#ifndef TRANSFER_PLAN_H
+#define TRANSFER_PLAN_H
 
-class Globals{
-public:
-  static double fold;
-  static double tolerance;
-  static int levels;
-  static double factor;
+#include <vector>
 
-  /// Controls the additional face checks in balance_cell(). Boundary-edge
-  /// checks apply at all settings. Values 1 and 2 enable further checks on
-  /// split faces; the exact tests depend on the cell type and split_mode. See
-  /// @ref fvmadapt_plans_and_balancing.
-  static int balance_option;
-  static vect3d split;
-  static vect3d nosplit;
-};
+/**
+ * @file transfer_plan.h
+ *
+ * Convert plans between four-edge Face trees and QuadFace trees. Conversion
+ * to Face retains only four-way splits.
+ */
+
+
+/**
+ * Convert a four-edge Face plan to QuadFace order. Map split code 1 to code
+ * 3, reorder the children, and remove trailing zero entries. The contents of
+ * facePlan are not modified.
+ */
+std::vector<char> transfer_plan_g2q(std::vector<char>& facePlan) ;
+
+
+/**
+ * Convert the four-way splits of a QuadFace plan to four-edge Face order. Map
+ * code 3 to code 1 and reorder the children. Codes 1 and 2 become unsplit
+ * entries, and their descendants are omitted. Remove trailing zero entries
+ * before returning the plan.
+ */
+std::vector<char> transfer_plan_q2g(const std::vector<char>& facePlan) ;
 
 #endif
