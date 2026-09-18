@@ -1,3 +1,4 @@
+
 //#############################################################################
 //#
 //# Copyright 2008-2025, Mississippi State University
@@ -268,6 +269,62 @@ string cleanupComment(const string &s) {
   return cleancomment ;
 }
 
+string cleanupCommentQuoted(const std::string& s) {
+  auto begin = find_if_not(s.begin(), s.end(), spaceChar) ;
+  auto end = find_if_not(s.rbegin(), s.rend(), spaceChar).base() ;
+
+  while(begin < end) {
+     if(*begin == '"') {
+       ++begin ;
+     } else if(*begin == '\\' && begin+1 < end && begin[1] == '"') {
+       begin+=2 ;
+     } else {
+       break ;
+     }
+  }
+
+  while(begin < end) {
+    if(*(end-1) == '"') {
+      --end ;
+    } else if(end-2 >= begin && *(end-2) == '\\' && *(end-1) == '"') {
+      end -= 2 ;
+    } else {
+      break ;
+    }
+  }
+
+  string result ;
+  result.reserve(distance(begin, end)) ;
+
+  bool pendingSpace = false ;
+
+  for(; begin < end; ++begin) {
+    if(spaceChar(*begin)) {
+      pendingSpace = true ;
+      continue ;
+    }
+
+    if(pendingSpace && !result.empty())
+      result += ' ';
+
+    pendingSpace = false ;
+
+    switch (*begin) {
+    case '\\':
+      result += R"(\\)" ;
+      break ;
+    case '"':
+      result += R"(\")" ;
+      break ;
+    default:
+      if (*begin >= ' ' && *begin <= '~')
+        result += *begin ;
+      break ;
+    }
+  }
+
+  return result ;
+}
 
 int parseFile::killsp() {
   int l = line_no ;
@@ -622,6 +679,144 @@ public:
   string str() {
     return bracket_contents ;
   }
+  int num_lines() {
+    return lines ;
+  }
+} ;
+
+bool get_block(
+  istream & is, bool include_guard,
+  char const open_char, char const close_char, string & contents,
+  int & lines, ostream & err
+) {
+  enum class State {
+    Code, String, Char, LineComment, BlockComment
+  } ;
+
+  if(is.peek() != open_char) {
+    err << "expecting block start '" << open_char << "'" ;
+    return false ;
+  }
+
+  int open_count = 1 ;
+  contents.clear() ;
+  lines = 0 ;
+
+  char ch = is.get() ;
+  if(include_guard) {
+    contents += ch ;
+  }
+
+  State state = State::Code ;
+
+  while(is) {
+    ch = is.get() ;
+    switch(state) {
+    case State::Code:
+      if(ch == EOF) {
+        err << "unexpected end of block" ;
+        return false ;
+      } else if(ch == '"') {
+        contents += ch ;
+        state = State::String ;
+      } else if(ch == '\'') {
+        contents += ch ;
+        state = State::Char ;
+      } else if(ch == '/') {
+        contents += ch ;
+        if(is.peek() == '/') {
+          ch = is.get() ;
+          contents += ch ;
+          state = State::LineComment ;
+        } else if(is.peek() == '*') {
+          ch = is.get() ;
+          contents += ch ;
+          state = State::BlockComment ;
+        }
+      } else if(ch == open_char) {
+        contents += ch ;
+        ++open_count ;
+      } else if(ch == close_char) {
+        --open_count ;
+        if(open_count == 0) {
+          if(include_guard) {
+            contents += close_char ;
+          }
+          return true ;
+        }
+        contents += close_char ;
+      } else if(ch == '\n') {
+        contents += ch ;
+        ++lines ;
+      } else {
+        contents += ch ;
+      }
+      break ;
+    case State::String:
+      contents += ch ;
+      if(contents.back() == '\\') {
+        if(is.peek() == EOF) {
+          err << "unexpected end of block" ;
+          return false ;
+        }
+        ch = is.get() ;
+        contents += ch ;
+      } else if(contents.back() == '"') {
+        state = State::Code ;
+      }
+      break ;
+    case State::Char:
+      contents += ch ;
+      if(contents.back() == '\\') {
+        if(is.peek() == EOF) {
+          err << "unexpected end of block" ;
+          return false ;
+        }
+        contents += ch ;
+      } else if(contents.back() == '\'') {
+        state = State::Code ;
+      }
+      break ;
+    case State::LineComment:
+      contents += ch ;
+      if(contents.back() == '\n') {
+        ++lines ;
+        state = State::Code ;
+      }
+      break ;
+    case State::BlockComment:
+      contents += ch ;
+      if(contents.back() == '*' && is.peek() == '/') {
+        ch = is.get() ;
+        contents += ch ;
+        state = State::Code ;
+      }
+      break ;
+    }
+  }
+
+  err << "unexpected end of block" ;
+  return false ;
+}
+
+class nestedbracestuff : public parsebase {
+  string brace_contents ;
+
+public:
+  istream & get(istream & s) {
+    parsebase::killsp(s) ;
+    ostringstream err ;
+    err << "error parsing { ... } block: " ;
+    if(!get_block(s, true, '{', '}', brace_contents, lines, err)) {
+      throw parseError(err.str()) ;
+    }
+    return s ;
+  }
+
+  string str() {
+    return brace_contents ;
+  }
+
   int num_lines() {
     return lines ;
   }
@@ -1435,10 +1630,12 @@ class AST_printTree : public AST_visitor {
   virtual void visit(AST_exprOper &)  ;
   virtual void visit(AST_Token &) ;
   virtual void visit(AST_Block &) ;
+  virtual void visit(AST_BlockRaw &) ;
   virtual void visit(AST_typeSpec &) ;
   virtual void visit(AST_declaration &) ;
   virtual void visit(AST_SimpleStatement &) ;
   virtual void visit(AST_controlStatement &) ;
+  virtual void visit(AST_LociDirective &) ;
 } ;
 
 void AST_printTree::visit(AST_exprOper &s) {
@@ -1635,6 +1832,14 @@ void AST_printTree::visit(AST_Block &s) {
   popindent() ;
 }
 
+void AST_printTree::visit(AST_BlockRaw &s) {
+  pushindent(s) ;
+  for(auto ii=s.elements.begin();ii!=s.elements.end();++ii)
+    if(*ii!=0)
+      (*ii)->accept(*this) ;
+  popindent() ;
+}
+
 void AST_printTree::visit(AST_typeSpec &s) {
   pushindent(s) ;
   out << "[[" ;
@@ -1667,6 +1872,7 @@ void AST_printTree::visit(AST_SimpleStatement &s) {
     s.Terminal->accept(*this) ;
   popindent() ;
 }
+
 void AST_printTree::visit(AST_controlStatement &s) {
   pushindent(s) ;
   s.controlType->accept(*this) ;
@@ -1677,171 +1883,13 @@ void AST_printTree::visit(AST_controlStatement &s) {
   popindent() ;
 }
 
-/// Visitor that prints an AST using a simple substitution map
-class AST_printObjectTree : public AST_visitor {
-public:
-  ostream & out ;
-  int indent_level ;
-
-  void indent() {
-    for(int i = 0; i < indent_level; ++i)
-      out << "  " ;
-  }
-
-  void pushindent() {
-    indent_level++ ;
-  }
-
-  void popindent() {
-    indent_level-- ;
-  }
-
-  AST_printObjectTree(ostream & s): out(s), indent_level(0) {}
-
-  virtual void visit(AST_exprOper &)  ;
-  virtual void visit(AST_Token &) ;
-  virtual void visit(AST_Block &) ;
-  virtual void visit(AST_typeSpec &) ;
-  virtual void visit(AST_declaration &) ;
-  virtual void visit(AST_SimpleStatement &) ;
-  virtual void visit(AST_controlStatement &) ;
-} ;
-
-void AST_printObjectTree::visit(AST_exprOper &s) {
-  indent() ;
-  out << "AST_exprOper(" << NTtoString(s.nodeType) << ")" << endl ;
-
-  pushindent() ;
-
-  indent() ;
-  out << "terms" << endl ;
-
-  pushindent() ;
-  for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
-    if(*ii != 0)
-      (*ii)->accept(*this) ;
-    }
-  popindent() ;
-
-  popindent() ;
-}
-
-void AST_printObjectTree::visit(AST_Token & s) {
-  indent() ;
-  out << "AST_Token(" << NTtoString(s.nodeType) << ", \"" << s.text << "\")" << endl ;
-}
-
-void AST_printObjectTree::visit(AST_Block & s) {
-  indent() ;
-  out << "AST_Block(" << NTtoString(s.nodeType) << ")" << endl ;
-
-  pushindent() ;
-
-  indent() ;
-  out << "elements" << endl ;
-
-  pushindent() ;
-  for(auto ii = s.elements.begin(); ii != s.elements.end(); ++ii)
-    if(*ii!=0)
-      (*ii)->accept(*this) ;
-  popindent() ;
-
-  popindent() ;
-}
-
-void AST_printObjectTree::visit(AST_typeSpec &s) {
-  indent() ;
-  out << "AST_typeSpec(" << NTtoString(s.nodeType) << ")" << endl ;
-
-  pushindent() ;
-
-  indent() ;
-  out << "type_spec" << endl ;
-
-  pushindent() ;
-  for(auto ii=s.type_spec.begin();ii!=s.type_spec.end();++ii)
-    if(*ii != 0)
-      (*ii)->accept(*this) ;
-  popindent() ;
-
-  popindent() ;
-}
-
-void AST_printObjectTree::visit(AST_declaration &s) {
-  indent() ;
-  out << "AST_declaration(" << NTtoString(s.nodeType) << ")" << endl ;
-
-  pushindent() ;
-
-  indent() ;
-  out << "type_decl" << endl ;
-
-  pushindent() ;
-  for(auto ii=s.type_decl.begin();ii!=s.type_decl.end();++ii)
-    if(*ii != 0)
-      (*ii)->accept(*this) ;
-  popindent() ;
-
-  indent() ;
-  out << "decls" << endl ;
-
-  pushindent() ;
-  for(auto ii=s.decls.begin();ii!=s.decls.end();++ii)
-    if(*ii != 0)
-      (*ii)->accept(*this) ;
-  popindent() ;
-
-  popindent() ;
-}
-
-void AST_printObjectTree::visit(AST_SimpleStatement &s) {
-  indent() ;
-  out << "AST_SimpleStatement(" << NTtoString(s.nodeType) << ")" << endl ;
-
-  pushindent() ;
-
-  indent() ;
-  out << "exp" << endl ;
-
-  pushindent() ;
-  if(s.exp!=0)
-    s.exp->accept(*this) ;
-  popindent() ;
-
-  indent() ;
-  out << "terminal" << endl ;
-
-  pushindent() ;
-  if(s.Terminal!=0) 
-    s.Terminal->accept(*this) ;
-  popindent() ;
-
-  popindent() ;
-}
-
-void AST_printObjectTree::visit(AST_controlStatement &s) {
-  indent() ;
-  out << "AST_controlStatement(" << NTtoString(s.nodeType) << ")" << endl ;
-
-  pushindent() ;
-
-  indent() ;
-  out << "controlType" << endl ;
-
-  pushindent() ;
-  s.controlType->accept(*this) ;
-  popindent() ;
-
-  indent() ;
-  out << "parts" << endl ;
-
-  pushindent() ;
-  for(auto ii=s.parts.begin();ii!=s.parts.end();++ii) {
-    if(*ii != 0)
-      (*ii)->accept(*this) ;
-  }
-  popindent() ;
-
+void AST_printTree::visit(AST_LociDirective &s) {
+  pushindent(s) ;
+  out << "[[" ;
+  s.type->accept(*this) ;
+  out << "]][[" ;
+  s.body->accept(*this) ;
+  out << "]]" ;
   popindent() ;
 }
 
@@ -1878,6 +1926,7 @@ void AST_editLociMapArrayAccess::visit(AST_exprOper &op) {
 class AST_editLociVariableAccess : public AST_visitor {
 public:
   const std::map<variable,std::string> &vnames ;
+  const std::map<variable,std::string> &vtypes ;
   AST_type::ASTP entityIndex ;
   AST_type::ASTP convertLociVar(AST_type::ASTP var) {
     CPTR<AST_Token> p = CPTR<AST_Token>(var) ;
@@ -1907,8 +1956,10 @@ public:
     return arrayAccess(var,entityIndex) ;
   }
   
-  AST_editLociVariableAccess(const std::map<variable,std::string> &vnames_in):
-    vnames(vnames_in) {
+  AST_editLociVariableAccess(
+    const std::map<variable,std::string> &vnames_in,
+    const std::map<variable,std::string> &vtypes_in
+  ) : vnames(vnames_in), vtypes(vtypes_in) {
     CPTR<AST_Token> e = new AST_Token ;
     e->lineno = -1 ;
     e->text = "_e_" ;
@@ -1917,8 +1968,6 @@ public:
   }
   virtual void visit(AST_exprOper &) ;
 } ;
-
-
 
 void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;
@@ -1994,7 +2043,32 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   }
   for(size_t i=0;i<op.terms.size();++i) {
     if(ASTEqual(op.terms[i],TK_LOCI_VARIABLE)) {
-      op.terms[i] = addEntityIndex(convertLociVar(op.terms[i])) ;
+      bool is_param_like = false ;
+      CPTR<AST_Token> tok(op.terms[i]) ;
+      variable v(tok->text) ;
+      auto t = vtypes.find(v) ;
+      if(t != vtypes.end()) {
+        if(t->second == "param" ||
+           t->second == "blackbox" ||
+           t->second == "Constraint" ||
+           t->second == "constraint") {
+          is_param_like = true ;
+        }
+      }
+
+      if(is_param_like) {
+        CPTR<AST_exprOper> param_access = new AST_exprOper ;
+        param_access->nodeType = nodeTypes::OP_STAR ;
+        param_access->terms.push_back(convertLociVar(op.terms[i])) ;
+
+        CPTR<AST_exprOper> param_group = new AST_exprOper ;
+        param_group->nodeType = nodeTypes::OP_GROUP ;
+        param_group->terms.push_back(AST_type::ASTP(param_access)) ;
+
+        op.terms[i] = AST_type::ASTP(param_group) ;
+      } else {
+        op.terms[i] = addEntityIndex(convertLociVar(op.terms[i])) ;
+      }
     } else if(ASTEqual(op.terms[i],TK_LOCI_CONTAINER)) {
       op.terms[i] = convertLociVar(op.terms[i]); 
     } else {
@@ -2004,7 +2078,7 @@ void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   
 }
 
-class AST_editLociVariableAccess2 : public AST_visitor {
+class AST_editGPULociVariableAccess : public AST_visitor {
 public:
   const std::map<variable,std::string> &vnames ;
   const std::map<variable,std::string> &vtypes ;
@@ -2040,10 +2114,10 @@ public:
     return arrayAccess(var,entityIndex) ;
   }
   
-  AST_editLociVariableAccess2(
-                              const std::map<variable,std::string> &vnames_in,
-                              const std::map<variable,std::string> &vtypes_in):
-    vnames(vnames_in), vtypes(vtypes_in) {
+  AST_editGPULociVariableAccess(
+    const std::map<variable,std::string> &vnames_in,
+    const std::map<variable,std::string> &vtypes_in
+  ) : vnames(vnames_in), vtypes(vtypes_in) {
     CPTR<AST_Token> e = new AST_Token ;
     e->lineno = -1 ;
     e->text = "_e_" ;
@@ -2056,7 +2130,7 @@ public:
 
 
 
-void AST_editLociVariableAccess2::visit(AST_exprOper &op) {
+void AST_editGPULociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;
   
   const int sz = op.terms.size() ;
@@ -2162,6 +2236,279 @@ void AST_editLociVariableAccess2::visit(AST_exprOper &op) {
   }
 }
 
+class AST_editLociDirective : public AST_visitor {
+  string filename_ ;
+
+public:
+  AST_editLociDirective(string const & filename) : filename_(filename) { }
+  virtual void visit(AST_Block & s) ;
+  virtual void visit(AST_controlStatement & s) ;
+  AST_type::ASTP createLociDirectiveReplacement(AST_type::ASTP e) ;
+} ;
+
+AST_type::ASTP AST_editLociDirective::createLociDirectiveReplacement(AST_type::ASTP e) {
+  CPTR<AST_LociDirective> dir(e) ;
+  CPTR<AST_Token> dir_type_tok(dir->type) ;
+  CPTR<AST_Block> dir_body(dir->body) ;
+
+  string type ;
+  for(auto c: dir_type_tok->text) {
+    type += tolower(c) ;
+  }
+
+  if(type == "once") {
+    CPTR<AST_Token> ns = new AST_Token ;
+    ns->nodeType = nodeTypes::TK_NAME ;
+    ns->text = "Loci" ;
+    ns->lineno = dir_type_tok->lineno ;
+
+    CPTR<AST_Token> funname = new AST_Token ;
+    funname->nodeType = nodeTypes::TK_NAME ;
+    funname->text = "is_leading_execution" ;
+    funname->lineno = dir_type_tok->lineno ;
+
+    CPTR<AST_exprOper> scoped = new AST_exprOper ;
+    scoped->nodeType = nodeTypes::OP_SCOPE ;
+    scoped->terms.push_back(AST_type::ASTP(ns)) ;
+    scoped->terms.push_back(AST_type::ASTP(funname)) ;
+
+    CPTR<AST_exprOper> funcall = new AST_exprOper ;
+    funcall->nodeType = nodeTypes::OP_FUNC ;
+    funcall->terms.push_back(AST_type::ASTP(scoped)) ;
+
+    CPTR<AST_exprOper> conditional = new AST_exprOper ;
+    conditional->nodeType = nodeTypes::OP_GROUP ;
+    conditional->terms.push_back(AST_type::ASTP(funcall)) ;
+
+    CPTR<AST_Token> if_tok = new AST_Token ;
+    if_tok->nodeType = nodeTypes::TK_IF ;
+    if_tok->text = "if" ;
+    if_tok->lineno = dir_type_tok->lineno ;
+
+    AST_type::ASTP else_tok = 0 ;
+    AST_type::ASTP else_body = 0 ;
+
+    CPTR<AST_controlStatement> stmt = new AST_controlStatement ;
+    stmt->constructIf(
+      AST_type::ASTP(if_tok),AST_type::ASTP(conditional),
+      dir->body,else_tok,else_body
+    ) ;
+
+    return AST_type::ASTP(stmt) ;
+  } else if(type == "atomic") {
+    CPTR<AST_Token> type_scope1 = new AST_Token ;
+    type_scope1->nodeType = nodeTypes::TK_NAME ;
+    type_scope1->text = "Loci" ;
+    type_scope1->lineno = dir_type_tok->lineno ;
+
+    CPTR<AST_Token> type_scope2 = new AST_Token ;
+    type_scope2->nodeType = nodeTypes::TK_NAME ;
+    type_scope2->text = "atomic_region_helper" ;
+    type_scope2->lineno = dir_type_tok->lineno ;
+
+    CPTR<AST_exprOper> type = new AST_exprOper ;
+    type->nodeType = nodeTypes::OP_SCOPE ;
+    type->terms.push_back(AST_type::ASTP(type_scope1)) ;
+    type->terms.push_back(AST_type::ASTP(type_scope2)) ;
+
+    CPTR<AST_Token> varname = new AST_Token ;
+    varname->nodeType = nodeTypes::TK_NAME ;
+    varname->text = "L__ATOMIC_REGION" ;
+    varname->lineno = dir_type_tok->lineno ;
+
+    CPTR<AST_Token> term = new AST_Token ;
+    term->nodeType = nodeTypes::TK_SEMICOLON ;
+    term->text = ";" ;
+    term->lineno = dir_type_tok->lineno ;
+
+    CPTR<AST_declaration> atomic_region = new AST_declaration ;
+    atomic_region->type_decl.push_back(AST_type::ASTP(type)) ;
+    atomic_region->decls.push_back(AST_type::ASTP(varname)) ;
+    atomic_region->decls.push_back(AST_type::ASTP(term)) ;
+
+    dir_body->identifiers[varname->text] = localIdentifier() ;
+
+    dir_body->elements.insert(
+      dir_body->elements.begin()+1, AST_type::ASTP(atomic_region)
+    ) ;
+    return AST_type::ASTP(dir_body) ;
+  }
+
+  return e ;
+}
+
+void AST_editLociDirective::visit(AST_Block & s) {
+  size_t esz = s.elements.size() ;
+  for(size_t i = 0; i < esz; ++i) {
+    if(ASTEqual(s.elements[i], nodeTypes::OP_LOCI_DIRECTIVE)) {
+      s.elements[i] = createLociDirectiveReplacement(s.elements[i]) ;
+    } else {
+      s.elements[i]->accept(*this) ;
+    }
+  }
+}
+
+void AST_editLociDirective::visit(AST_controlStatement & s) {
+  size_t psz = s.parts.size() ;
+  for(size_t i = 0; i < psz; ++i) {
+    if(ASTEqual(s.parts[i], nodeTypes::OP_LOCI_DIRECTIVE)) {
+      s.parts[i] = createLociDirectiveReplacement(s.parts[i]) ;
+    } else {
+      s.parts[i]->accept(*this) ;
+    }
+  }
+}
+
+class AST_editPrelude : public AST_visitor {
+public:
+  std::string filename ;
+  const std::map<variable,std::string> &vnames ;
+  AST_editPrelude(
+    std::string const & filename_in,
+    const std::map<variable,std::string> &vnames_in
+  ) : filename(filename_in), vnames(vnames_in) { }
+  virtual void visit(AST_Token &) ;
+  virtual void visit(AST_BlockRaw &) ;
+} ;
+
+void AST_editPrelude::visit(AST_Token &s) {
+  if(ASTEqual(s, nodeTypes::TK_LOCI_VARIABLE)) {
+    variable v(s.text) ;
+    auto vmi = vnames.find(v) ;
+    if(vmi == vnames.end()) {
+      ostringstream ss ;
+      ss << "type error: variable " << v << " is unknown to this rule!" << endl ;
+      throw parseError(ss.str()) ;
+    }
+
+    s.text = vmi->second ;
+    s.nodeType = nodeTypes::TK_NAME ;
+  }
+}
+
+void AST_editPrelude::visit(AST_BlockRaw &s) {
+  using namespace nodeTypes ;
+
+  AST_type::ASTList new_elements ;
+  for(auto ii = s.elements.begin(); ii != s.elements.end(); ++ii) {
+    if((*ii)->nodeType == OP_LOCI_DIRECTIVE) {
+      CPTR<AST_LociDirective> dir(*ii) ;
+
+      if(!ASTEqual(dir->body, ND_BLOCK_RAW)) {
+        ostringstream ss ;
+        ss << "error processing prelude at " << filename << ":"
+           << dir->type->lineno
+           << ": expected raw block for body of Loci directive" ;
+        throw parseError(ss.str()) ;
+      }
+
+      CPTR<AST_BlockRaw> dir_body(dir->body) ;
+
+      string type ;
+      for(auto c : dir->type->text) {
+        type += tolower(c) ;
+      }
+
+      if(type == "once") {
+        CPTR<AST_Token> if_tok = new AST_Token ;
+        if_tok->nodeType = TK_IF ;
+        if_tok->text = "if" ;
+        if_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> open_tok = new AST_Token ;
+        open_tok->nodeType = TK_OPENPAREN ;
+        open_tok->text = "(" ;
+        open_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> loci_tok = new AST_Token ;
+        loci_tok->nodeType = TK_NAME ;
+        loci_tok->text = "Loci" ;
+        loci_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> scope_tok = new AST_Token ;
+        scope_tok->nodeType = TK_SCOPE ;
+        scope_tok->text = "::" ;
+        scope_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> le_tok = new AST_Token ;
+        le_tok->nodeType = TK_NAME ;
+        le_tok->text = "is_leading_execution" ;
+        le_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> close_tok = new AST_Token ;
+        close_tok->nodeType = TK_CLOSEPAREN ;
+        close_tok->text = ")" ;
+        close_tok->lineno = dir->type->lineno ;
+
+        dir->body->accept(*this) ;
+
+        new_elements.push_back(AST_type::ASTP(if_tok)) ;
+        new_elements.push_back(AST_type::ASTP(open_tok)) ;
+        new_elements.push_back(AST_type::ASTP(loci_tok)) ;
+        new_elements.push_back(AST_type::ASTP(scope_tok)) ;
+        new_elements.push_back(AST_type::ASTP(le_tok)) ;
+        new_elements.push_back(open_tok->clone()) ;
+        new_elements.push_back(close_tok->clone()) ;
+        new_elements.push_back(AST_type::ASTP(close_tok)) ;
+        new_elements.push_back(dir->body) ;
+      } else if(type == "atomic") {
+        CPTR<AST_Token> loci_tok = new AST_Token ;
+        loci_tok->nodeType = TK_NAME ;
+        loci_tok->text = "Loci" ;
+        loci_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> scope_tok = new AST_Token ;
+        scope_tok->nodeType = TK_SCOPE ;
+        scope_tok->text = "::" ;
+        scope_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> arh_tok = new AST_Token ;
+        arh_tok->nodeType = TK_NAME ;
+        arh_tok->text = "atomic_region_helper" ;
+        arh_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> var_tok = new AST_Token ;
+        var_tok->nodeType = TK_NAME ;
+        var_tok->text = "L__ATOMIC_REGION" ;
+        var_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_Token> term_tok = new AST_Token ;
+        term_tok->nodeType = TK_SEMICOLON ;
+        term_tok->text = ";" ;
+        term_tok->lineno = dir->type->lineno ;
+
+        CPTR<AST_BlockRaw> new_block = new AST_BlockRaw ;
+        size_t sz = dir_body->elements.size() ;
+        new_block->elements.push_back(dir_body->elements[0]) ;
+        new_block->elements.push_back(AST_type::ASTP(loci_tok)) ;
+        new_block->elements.push_back(AST_type::ASTP(scope_tok)) ;
+        new_block->elements.push_back(AST_type::ASTP(arh_tok)) ;
+        new_block->elements.push_back(AST_type::ASTP(var_tok)) ;
+        new_block->elements.push_back(AST_type::ASTP(term_tok)) ;
+        for(size_t i = 1; i < sz; ++i) {
+          new_block->elements.push_back(dir_body->elements[i]) ;
+        }
+        (*ii) = AST_type::ASTP(new_block) ;
+
+        (*ii)->accept(*this) ;
+        new_elements.push_back(*ii) ;
+      } else {
+        ostringstream ss ;
+        ss << "error processing prelude at " << filename << ":"
+           << dir->type->lineno
+           << ": unsupported Loci directive '" << dir->type->text << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else {
+      (*ii)->accept(*this) ;
+      new_elements.push_back(*ii) ;
+    }
+  }
+
+  s.elements.swap(new_elements) ;
+}
+
+
 void parseFile::process_Calculate2(std::ostream &outputFile,
                                    const map<variable,string> &vnames,
                                    const set<list<variable> > &validate_set,
@@ -2207,7 +2554,7 @@ void parseFile::process_Calculate2(std::ostream &outputFile,
   //  for(auto ii=vnames.begin();ii!=vnames.end();++ii) {
   //    cerr << ii->first << " " << ii->second << endl ;
   //  }
-  AST_editLociVariableAccess AST_editor(vnames) ;
+  AST_editLociVariableAccess AST_editor(vnames, vnames) ;
   ap->accept(AST_editor) ;
   
   outputFile << "    void calculate(Loci::Entity _e_) " << endl ;
@@ -3049,7 +3396,7 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   if(sized_outputs)
     throw parseError("cuda rules currently incompatible with storeVec, storeMat or multiStore types") ;
 
-  AST_editLociVariableAccess2 AST_editor(vnames, ctypetable) ;
+  AST_editGPULociVariableAccess AST_editor(vnames, ctypetable) ;
   ap->accept(AST_editor) ;
 
   string rule_debug_name ;
@@ -3280,6 +3627,8 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
     rule_ctx["constraints"] = constraints_ctx ;
   }
 
+  rule_ctx["option_disable_threading"] = 1 ;
+
   {
     DictionaryTemplateValue parametric_ctx ;
     if(parametric_var != "") {
@@ -3429,6 +3778,1579 @@ void parseFile::setup_cudaRule(std::ostream &outputFile, const string &comment,
   if(!use_prelude && sized_outputs && (rule_type != "apply")) 
     throw parseError("need prelude to size output type!") ;
 }
+
+void parseRuleLineInfo::clear() {
+  rule_type = 0 ;
+  signature = 0 ;
+  applyop = 0 ;
+  constraint = 0 ;
+  parametric = 0 ;
+  conditional = 0 ;
+  specialized = 0 ;
+  options.clear() ;
+  inplace.clear() ;
+  comments.clear() ;
+  prelude = 0 ;
+  compute = 0 ;
+}
+
+void parseRuleInfo::clear() {
+  is_gpu = 0 ;
+  rule_type.clear() ;
+  signature.clear() ;
+  applyop.clear() ;
+  constraint.clear() ;
+  parametric.clear() ;
+  conditional.clear() ;
+  is_specialized = 0 ;
+  options.clear() ;
+  inplace.clear() ;
+  comments.clear() ;
+  use_prelude = 0 ;
+  prelude.clear() ;
+  use_compute = 1 ;
+  template_name.clear() ;
+  compute.clear() ;
+  lines.clear() ;
+}
+
+void parseFile::render_rule(
+  ostream & outputFile,
+  parseSharedInfo const & parseInfo,
+  parseRuleInfo const & ruleInfo
+) {
+  using namespace Loci ;
+  string rule_text ;
+  try {    
+    if(ruleInfo.template_name.empty()) {
+      ostringstream ss ;
+      ss << "unsupported rule type " << ruleInfo.rule_type ;
+      throw std::runtime_error(ss.str()) ;
+    }
+
+    if(ruleInfo.is_gpu) {
+      parseRuleLineInfo const & lines = ruleInfo.lines ;
+      rule_text = cuda_templates.render(
+        ruleInfo.template_name, ruleInfo.ctx,
+        [this, lines](
+          std::ostream & s, char const * partial
+        ) {
+          if(!prettyOutput) {
+            s << std::endl << "#line " << lines.rule_type << " \""
+              << filename << "\"" << std::endl ;
+          } else {
+             s << std::endl ;
+          }
+        }
+      ) ;
+    } else {
+      parseRuleLineInfo const & lines = ruleInfo.lines ;
+      rule_text = cpu_templates.render(
+        ruleInfo.template_name, ruleInfo.ctx,
+        [this, lines](
+          std::ostream & s, char const * partial
+        ) {
+          if(!prettyOutput) {
+            s << std::endl << "#line " << lines.rule_type << " \""
+              << filename << "\"" << std::endl ;
+          } else {
+            s << std::endl ;
+          }
+        }
+      ) ;
+    }
+  } catch(std::runtime_error const & error) {
+    ostringstream ss ;
+    string const message = error.what() ;
+    ss << "error rendering rule: " << error.what() ;
+    throw parseError(ss.str()) ;
+  }
+  outputFile << rule_text << endl ;
+}
+
+void parseFile::process_and_validate_rule_info(
+  string const & comment, string const & docvarname,
+  parseSharedInfo const & parseInfo,
+  parseRuleInfo & ruleInfo
+) {
+  using namespace Loci ;
+
+  // if conditional variable is defined, it must be of type param<bool>
+  if(!ruleInfo.conditional.empty()) {
+    variable cond(ruleInfo.conditional) ;
+    auto mi = lookupVarType(cond) ;
+    if(!checkTypeValid(mi)) {
+      cerr << filename << ':' << ruleInfo.lines.conditional
+           << ":0: warning: type of conditional variable '"
+           << cond << "' not found!" << endl ;
+    } else {
+      string val = mi->second.container + mi->second.container_args ;
+      val.erase(std::remove_if(val.begin(), val.end(),
+        [](unsigned char c) { return isspace(c) ; }), val.end()) ;
+      if(val != "param<bool>") {
+        ostringstream ss ;
+        ss << "conditional variable must be typed as a param<bool> at line "
+           << ruleInfo.lines.conditional ;
+        throw parseError(ss.str()) ;
+      }
+    }
+  }
+
+  // check for correctness of inplace specification and create inplace pairs
+  vector<pair<variable, variable>> inplace_pairs ;
+  if(!ruleInfo.inplace.empty()) {
+    for(size_t i = 0; i < ruleInfo.inplace.size(); ++i) {
+      exprP p = expression::create(ruleInfo.inplace[i]) ;
+      exprList l = collect_associative_op(p, OP_OR) ;
+      if(l.size() != 2) {
+        ostringstream ss ;
+        ss << "inplace needs two variables with a '|' separator, at line "
+           << ruleInfo.lines.inplace[i] ;
+        throw parseError(ss.str()) ;
+      }
+
+      auto iter = l.begin() ;
+      variable v1(*iter++) ;
+      variable v2(*iter++) ;
+      inplace_pairs.push_back(std::make_pair(v1, v2)) ;
+    }
+  }
+
+  // separate signature into head and body expressions
+  exprP head = 0, body = 0 ;
+  {
+    string::size_type pos = ruleInfo.signature.find("<-") ;
+    if(pos == string::npos) {
+      head = expression::create(ruleInfo.signature) ;
+      body = 0 ;
+    } else {
+      head = expression::create(ruleInfo.signature.substr(0, pos)) ;
+      body = expression::create(ruleInfo.signature.substr(pos+2)) ;
+      if(ruleInfo.signature.find("<-", pos+2) != string::npos) {
+        ostringstream ss ;
+        ss << "rule signature must have a single head and a single body separated by '<-', at line "
+           << ruleInfo.lines.signature;
+        throw parseError(ss.str()) ;
+      }
+    }
+  }
+
+  // default and optional rules cannot have inputs
+  if(ruleInfo.rule_type == "optional" || ruleInfo.rule_type == "default") {
+    if(body != 0) {
+      ostringstream ss ;
+      ss << "'optional' or 'default' rules should not have a body "
+         << "(defined by '<-' operator)!, at line " << ruleInfo.lines.signature ;
+      throw parseError(ss.str()) ;
+    }
+  }
+
+  // default and optional rules cannot have constraints
+  // for other rule types, lack of inputs means the constraints are mandatory
+  if(ruleInfo.rule_type == "optional" || ruleInfo.rule_type == "default") {
+    if(!ruleInfo.constraint.empty()) {
+      ostringstream ss ;
+      ss << "'optional' and 'default' rules should not have a constraint, at line "
+         << ruleInfo.lines.constraint ;
+      throw parseError(ss.str()) ;
+    }
+  } else {
+    if(body == 0 && ruleInfo.constraint.empty()) {
+      ostringstream ss ;
+      ss << "rules without bodies should have a defined constraint as input, at line "
+         << ruleInfo.lines.constraint ;
+      throw parseError(ss.str()) ;
+    }
+  }
+
+  // collect target, source, and constraint variable mappings
+  set<vmap_info> sources ;
+  set<vmap_info> targets ;
+  set<vmap_info> constraints ;
+  if(body != 0) {
+    fill_descriptors(sources,collect_associative_op(body,OP_COMMA)) ;
+  }
+  fill_descriptors(targets,collect_associative_op(head,OP_COMMA)) ;
+  if(!ruleInfo.constraint.empty()) {
+    exprP C = expression::create(ruleInfo.constraint) ;
+    fill_descriptors(constraints,collect_associative_op(C, OP_COMMA)) ;
+  }
+
+  // extract input, output, and constraint variables
+  variableSet input_vars ;
+  variableSet output_vars ;
+  variableSet constraint_vars ;
+  for(auto i = sources.begin(); i != sources.end(); ++i) {
+    for(size_t j = 0; j < i->mapping.size(); ++j) {
+      input_vars += i->mapping[j] ;
+    }
+    input_vars += i->var ;
+  }
+  for(auto i = targets.begin(); i != targets.end(); ++i) {
+    for(size_t j = 0; j < i->mapping.size(); ++j) {
+      input_vars += i->mapping[j] ;
+    }
+    output_vars += i->var ;
+  }
+  for(auto i = constraints.begin(); i != constraints.end(); ++i) {
+    for(size_t j = 0; j < i->mapping.size(); ++j) {
+      constraint_vars += i->mapping[j] ;
+    }
+    constraint_vars += i->var ;
+  }
+
+  // TODO: is validate_set used anywhere?
+  set<list<variable>> validate_set ;
+  for(auto i = sources.begin(); i != sources.end(); ++i) {
+    if(i->mapping.size() == 0) {
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        list<variable> vbasic ;
+        vbasic.push_back(*vi) ;
+        validate_set.insert(vbasic) ;
+      }
+    } else {
+      vector<list<variable>> maplist = expand_mapping(i->mapping) ;
+      size_t msz = maplist.size() ;
+      for(size_t j = 0; j < msz; ++j) {
+        list<variable> mapping_list = maplist[j] ;
+        validate_set.insert(mapping_list) ;
+        for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+          list<variable> mapping_list2 = maplist[j] ;
+          mapping_list2.push_back(*vi) ;
+          validate_set.insert(mapping_list2) ;
+        }
+        mapping_list.pop_back() ;
+        while(!mapping_list.empty()) {
+          validate_set.insert(mapping_list) ;
+          mapping_list.pop_back() ;
+        }
+      }
+    }
+  }
+  for(auto i = targets.begin(); i != targets.end(); ++i) {
+    if(i->mapping.size() == 0) {
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        list<variable> vbasic ;
+        variable vt = *vi ;
+        while(vt.get_info().priority.size() != 0) {
+          vt = vt.drop_priority() ;
+        }
+        vbasic.push_back(vt) ;
+        validate_set.insert(vbasic) ;
+      }
+    } else {
+      vector<list<variable>> maplist = expand_mapping(i->mapping) ;
+      size_t msz = maplist.size() ;
+      for(size_t j = 0; j < msz; ++j) {
+        list<variable> mapping_list = maplist[j] ;
+        validate_set.insert(mapping_list) ;
+        for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+          list<variable> mapping_list2 = maplist[j] ;
+          variable vt = *vi ;
+          while(vt.get_info().priority.size() != 0) {
+            vt = vt.drop_priority() ;
+          }
+          mapping_list2.push_back(vt) ;
+          validate_set.insert(mapping_list2) ;
+        }
+        mapping_list.pop_back() ;
+        while(!mapping_list.empty()) {
+          validate_set.insert(mapping_list) ;
+          mapping_list.pop_back() ;
+        }
+      }
+    }
+  }
+
+  // input variables cannot have priority
+  for(auto vi = input_vars.begin(); vi != input_vars.end(); ++vi) {
+    if(vi->get_info().priority.size() != 0) {
+      ostringstream ss ;
+      ss << "improper use of priority annotation on rule input, var=" << *vi ;
+      throw parseError(ss.str()) ;
+    }
+  }
+
+  // only pointwise and default rules can have priority over output variables
+  if(ruleInfo.rule_type != "pointwise" && ruleInfo.rule_type != "default") {
+    for(auto vi = output_vars.begin(); vi != output_vars.end(); ++vi) {
+      if(vi->get_info().priority.size() != 0) {
+        ostringstream ss ;
+        ss << "only pointwise and default rules can use priority annotation, var=" << *vi ;
+        throw parseError(ss.str()) ;
+      }
+    }
+  }
+
+  // catch undelcared input, output, and constraint variables
+  for(auto vi = input_vars.begin(); vi != input_vars.end(); ++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      ostringstream ss ;
+      ss << "unable to determine type of Loci variable '" << *vi << "'" ;
+      throw parseError(ss.str()) ;
+    }
+  }
+  for(auto vi = output_vars.begin(); vi != output_vars.end(); ++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      ostringstream ss ;
+      ss << "unable to determine type of Loci variable '" << *vi << "'" ;
+      throw parseError(ss.str()) ;
+    }
+  }
+  for(auto vi = constraint_vars.begin(); vi != constraint_vars.end(); ++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      ostringstream ss ;
+      ss << "unable to determine type of Loci variable '" << *vi << "'" ;
+      throw parseError(ss.str()) ;
+    }
+  }
+
+  // check if variables paired by inplace specification are specified as either
+  // input or output to the rule
+  variableSet checkset ;
+  for(auto vi = input_vars.begin(); vi != input_vars.end(); ++vi) {
+    variable v = *vi ;
+    while(v.get_info().priority.size() != 0) {
+      v = v.drop_priority() ;
+    }
+    checkset += v ;
+  }
+  for(auto vi = output_vars.begin(); vi != output_vars.end(); ++vi) {
+    variable v = *vi ;
+    while(v.get_info().priority.size() != 0) {
+      v = v.drop_priority() ;
+    }
+    checkset += v ;
+  }
+  for(auto ipi = inplace_pairs.begin(); ipi != inplace_pairs.end(); ++ipi) {
+    variable v = ipi->first ;
+    while(v.get_info().priority.size() != 0) {
+      v = v.drop_priority() ;
+    }
+    if(!checkset.inSet(v)) {
+      ostringstream ss ;
+      ss << "inplace variable '" << ipi->first << "' not input or output variable" ;
+      throw parseError(ss.str()) ;
+    }
+    v = ipi->second ;
+    while(v.get_info().priority.size() != 0) {
+      v = v.drop_priority() ;
+    }
+    if(!checkset.inSet(v)) {
+      ostringstream ss ;
+      ss << "inplace variable '" << ipi->first << "' not input or output variable" ;
+      throw parseError(ss.str()) ;
+    }
+  }
+
+  // pointwise rules cannot compute param
+  if(ruleInfo.rule_type == "pointwise") {
+    for(auto vi = output_vars.begin(); vi != output_vars.end(); ++vi) {
+      auto mi = lookupVarType(*vi) ;
+      if(mi->second.container == "param" && vi->get_info().name != "OUTPUT") {
+        throw parseError("pointwise rule cannot compute param, use singleton") ;
+      }
+    }
+  }
+
+  // singleton rules cannot compute stores
+  if(ruleInfo.rule_type == "singleton") {
+    for(auto vi = output_vars.begin(); vi != output_vars.end(); ++vi) {
+      auto mi = lookupVarType(*vi) ;
+      if(mi->second.container == "store" ||
+         mi->second.container == "storeVec" ||
+         mi->second.container == "multiStore") {
+        throw parseError("singleton rule cannot compute stores, use pointwise") ;
+      }
+    }
+  }
+
+  bool singletonApply = false ;
+  if(ruleInfo.rule_type == "apply") {
+    if(output_vars.size() != 1) {
+      throw parseError("apply rule should have only one output variable") ;
+    }
+    variable av = *(output_vars.begin()) ;
+    typedoc tinfo = lookupVarType(av)->second ;
+    if(tinfo.container == "param") {
+      bool allparam = true ;
+      for(auto vi = input_vars.begin(); vi != input_vars.end(); ++vi) {
+        typedoc tinfo2 = lookupVarType(*vi)->second ;
+        if(tinfo2.container != "param") {
+          allparam = false ;
+        }
+      }
+      if(allparam) {
+        singletonApply = true ;
+        cerr << "NOTE: parameter-only apply rule on '"
+             << av << "' now executes single instance" << endl ;
+      }
+    }
+  }
+
+  variableSet output_stores = output_vars ;
+  for(auto ipi = inplace_pairs.begin(); ipi != inplace_pairs.end(); ++ipi) {
+    output_stores -= ipi->first ;
+    output_stores += ipi->second ;
+  }
+
+  variableSet input_stores = input_vars ;
+  input_stores -= output_stores ;
+
+  variableSet named_stores = input_stores ;
+  named_stores += output_stores ;
+  for(auto ipi = inplace_pairs.begin(); ipi != inplace_pairs.end(); ++ipi) {
+    named_stores -= ipi->first ;
+  }
+
+  bool paramOutput = false ;
+  for(auto vi = output_stores.begin(); vi != output_stores.end(); ++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(vi->get_info().name != "OUTPUT" && mi->second.container == "param") {
+      paramOutput = true ;
+    }
+  }
+
+  // C++ names of variables
+  map<variable, string> vnames ;
+
+  // type returned by store_instance's operator[]
+  map<variable, string> typetable ;
+
+  // container type
+  map<variable, string> ctypetable ;
+
+  // container arguments
+  map<variable, string> cargtable ;
+
+  // reduction operator template argument type
+  map<variable, string> rargtable ;
+
+  for(auto vi = input_stores.begin(); vi != input_stores.end(); ++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      ostringstream ss ;
+      ss << "unknown type for Loci variable '" << *vi << "'" ;
+      throw parseError(ss.str()) ;
+    }
+
+    if(mi->second.container != "param" &&
+       mi->second.container != "Map" &&
+       mi->second.container != "MapVec" &&
+       mi->second.container != "multiMap" &&
+       mi->second.container != "store" &&
+       mi->second.container != "storeVec" &&
+       mi->second.container != "storeMat" &&
+       mi->second.container != "multiStore" &&
+       mi->second.container != "Constraint" &&
+       mi->second.container != "constraint" &&
+       mi->second.container != "blackbox") {
+       ostringstream ss ;
+       ss << "unsupported container '" << mi->second.container
+          << "' for Loci variable '" << *vi << "'" ;
+       throw parseError(ss.str()) ;
+    }
+
+    vnames[*vi] = var2name(*vi) ;
+
+    ctypetable[*vi] = mi->second.container ;
+
+    if(mi->second.container == "Map") {
+      typetable[*vi] = "int const *" ;
+      cargtable[*vi] = "" ;
+    } else if(mi->second.container == "multiMap") {
+      if(ruleInfo.is_gpu) {
+        typetable[*vi] = "Loci::constMultiAccessor<Loci::Entity> " ;
+      } else {
+        typetable[*vi] = "Loci::multiMap::arrayHelper_const " ;
+      }
+      cargtable[*vi] = "" ;
+      rargtable[*vi] = "" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = string("Array<Entity,") + arg + "> const *" ;
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "" ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "multiStore") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        if(ruleInfo.is_gpu) {
+          typetable[*vi] = "Loci::constMultiAccessor<" + arg + "> ";
+        } else {
+          typetable[*vi] = "Loci::const_Vect<" + arg + "> " ;
+        }
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "Loci::Vect<" + arg + "> " ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "storeVec") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        if(ruleInfo.is_gpu) {
+          ostringstream ss ;
+          ss << "storeVec is not supported on gpu rules" ;
+          throw parseError(ss.str()) ;
+        } else {
+          typetable[*vi] = "Loci::const_Vect<" + arg + "> " ;
+        }
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "Loci::Vect<" + arg + "> " ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "storeMat") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        if(ruleInfo.is_gpu) {
+          ostringstream ss ;
+          ss << "storeMat is not supported on gpu rules" ;
+          throw parseError(ss.str()) ;
+        } else {
+          typetable[*vi] = "Loci::const_Mat<" + arg + "> " ;
+        }
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "Loci::Mat<" + arg + "> " ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "blackbox") {
+      if(ruleInfo.is_gpu) {
+        ostringstream ss ;
+        ss << "unsupported container '" << mi->second.container
+           << "' for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = arg + " const *" ;
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = arg ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "Constraint" || mi->second.container == "constraint") {
+      if(ruleInfo.is_gpu) {
+        ostringstream ss ;
+        ss << "unsupported container '" << mi->second.container
+           << "' for Loci variable '" << *vi << "' in gpu rule" ;
+        throw parseError(ss.str()) ;
+      }
+
+      typetable[*vi] = "entitySet const &" ;
+      cargtable[*vi] = "" ;
+      rargtable[*vi] = "" ;
+    } else {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = arg + " const *" ;
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = arg ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    }
+
+    if(vi->get_info().priority.size() != 0) {
+      variable vnp = *vi ;
+      while(vnp.get_info().priority.size() != 0) {
+        vnp = vnp.drop_priority() ;
+      }
+
+      vnames[vnp] = vnames[*vi] ;
+      ctypetable[vnp] = ctypetable[*vi] ;
+      typetable[vnp] = typetable[*vi] ;
+      cargtable[vnp] = cargtable[*vi] ;
+      rargtable[vnp] = rargtable[*vi] ;
+    }
+  }
+
+  for(auto vi = output_stores.begin(); vi != output_stores.end(); ++vi) {
+    auto mi = lookupVarType(*vi) ;
+    if(!checkTypeValid(mi)) {
+      ostringstream ss ;
+      ss << "unknown type for Loci variable '" << *vi << "'" ;
+      throw parseError(ss.str()) ;
+    }
+
+    if(mi->second.container != "param" &&
+       mi->second.container != "Map" &&
+       mi->second.container != "MapVec" &&
+       mi->second.container != "multiMap" &&
+       mi->second.container != "store" &&
+       mi->second.container != "storeVec" &&
+       mi->second.container != "storeMat" &&
+       mi->second.container != "multiStore" &&
+       mi->second.container != "Constraint" &&
+       mi->second.container != "constraint" &&
+       mi->second.container != "blackbox") {
+       ostringstream ss ;
+       ss << "unsupported container '" << mi->second.container
+          << "' for Loci variable '" << *vi << "'" ;
+       throw parseError(ss.str()) ;
+    }
+
+    vnames[*vi] = var2name(*vi) ;
+
+    ctypetable[*vi] = mi->second.container ;
+
+    if(mi->second.container == "Map") {
+      typetable[*vi] = "int * " ;
+      cargtable[*vi] = "" ;
+    } else if(mi->second.container == "multiMap") {
+      if(ruleInfo.is_gpu) {
+        typetable[*vi] = "Loci::MultiAccessor<Loci::Entity> " ;
+      } else {
+        typetable[*vi] = "Loci::multiMap::arrayHelper " ;
+      }
+      cargtable[*vi] = "" ;
+      rargtable[*vi] = "" ;
+    } else if(mi->second.container == "MapVec") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = string("Array<Entity,") + arg + "> * " ;
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "" ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "multiStore") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        if(ruleInfo.is_gpu) {
+          typetable[*vi] = "Loci::MultiAccessor<" + arg + "> ";
+        } else {
+          typetable[*vi] = "Loci::Vect<" + arg + "> " ;
+        }
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "Loci::Vect<" + arg + "> " ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "storeVec") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        if(ruleInfo.is_gpu) {
+          ostringstream ss ;
+          ss << "Loci variable of type storeVec is not supported on gpu rules" ;
+          throw parseError(ss.str()) ;
+        } else {
+          typetable[*vi] = "Loci::Vect<" + arg + "> " ;
+        }
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "Loci::Vect<" + arg + "> " ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "storeMat") {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        if(ruleInfo.is_gpu) {
+          ostringstream ss ;
+          ss << "Loci variable of type storeMat is not supported on gpu rules" ;
+          throw parseError(ss.str()) ;
+        } else {
+          typetable[*vi] = "Loci::Mat<" + arg + "> " ;
+        }
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = "Loci::Mat<" + arg + "> " ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "blackbox") {
+      if(ruleInfo.is_gpu) {
+        ostringstream ss ;
+        ss << "unsupported container '" << mi->second.container
+           << "' for Loci variable '" << *vi << "' in gpu rule" ;
+        throw parseError(ss.str()) ;
+      }
+
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = arg + " *" ;
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = arg ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    } else if(mi->second.container == "Constraint" || mi->second.container == "constraint") {
+      if(ruleInfo.is_gpu) {
+        ostringstream ss ;
+        ss << "unsupported container '" << mi->second.container
+           << "' for Loci variable '" << *vi << "' in gpu rule" ;
+        throw parseError(ss.str()) ;
+      }
+
+      typetable[*vi] = "entitySet &" ;
+      cargtable[*vi] = "" ;
+      rargtable[*vi] = "" ;
+    } else {
+      string scratch = mi->second.container_args ;
+      string::size_type start = scratch.find('<') ;
+      string::size_type end = scratch.rfind('>') ;
+      if(start != string::npos && end != string::npos && start+1 < end) {
+        string arg = scratch.substr(start+1, end-start-1) ;
+        typetable[*vi] = arg + " *";
+        cargtable[*vi] = arg ;
+        rargtable[*vi] = arg ;
+      } else {
+        ostringstream ss ;
+        ss << "unexpected type for Loci variable '" << *vi << "'" ;
+        throw parseError(ss.str()) ;
+      }
+    }
+
+    if(vi->get_info().priority.size() != 0) {
+      variable vnp = *vi ;
+      while(vnp.get_info().priority.size() != 0) {
+        vnp = vnp.drop_priority() ;
+      }
+
+      vnames[vnp] = vnames[*vi] ;
+      ctypetable[vnp] = ctypetable[*vi] ;
+      typetable[vnp] = typetable[*vi] ;
+      cargtable[vnp] = cargtable[*vi] ;
+      rargtable[vnp] = rargtable[*vi] ;
+    }
+  }
+
+  // for inplace variables, the target variable type information is same as
+  // the source variable ;
+  for(auto ipi = inplace_pairs.begin(); ipi != inplace_pairs.end(); ++ipi) {
+    vnames[ipi->first] = vnames[ipi->second] ;
+    typetable[ipi->first] = typetable[ipi->second] ;
+    ctypetable[ipi->first] = ctypetable[ipi->second] ;
+    cargtable[ipi->first] = cargtable[ipi->second] ;
+    rargtable[ipi->first] = rargtable[ipi->second] ;
+  }
+
+  // calculate name of the rule class
+  string class_name = "file_" ;
+  for(auto c : filename) {
+    if(std::isalpha(c) || std::isdigit(c) || c == '_')
+      class_name += c ;
+    if(c == '.') break ;
+  }
+  class_name += '0' + (cnt/100)%10 ;
+  class_name += '0' + (cnt/10)%10 ;
+  class_name += '0' + (cnt)%10 ;
+  timespec tdata ;
+  clock_gettime(CLOCK_MONOTONIC, &tdata) ;
+  ostringstream tss ;
+  tss << '_' << tdata.tv_sec << 'm' << tdata.tv_nsec/1000000 ;
+  class_name += tss.str() ;
+
+  // calculate debug name of the rule
+  string rule_debug_name ;
+  if(parseInfo.debug_info > 0) {
+    ostringstream oss ;
+    for(auto i = targets.begin(); i != targets.end();) {
+      for(size_t j = 0; j < i->mapping.size(); ++j)
+        oss << i->mapping[j] << "->" ;
+      if(i->var.size() > 1)
+        oss << '(' ;
+      for(auto vi=i->var.begin();vi!=i->var.end();++vi) {
+        if(vi != i->var.begin())
+          oss << ',' ;
+        oss << *vi ;
+      }
+      if(i->var.size() > 1)
+        oss << ')' ;
+      ++i;
+      if(i != targets.end())
+        oss << "," ;
+    }
+    oss << "<-" ;
+    for(auto i = sources.begin(); i != sources.end();) {
+      for(size_t j = 0; j < i->mapping.size(); ++j)
+        oss << i->mapping[j] << "->" ;
+      if(i->var.size() > 1)
+        oss << "(" ;
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        if(vi != i->var.begin())
+          oss << "," ;
+        oss << *vi ;
+      }
+      if(i->var.size() > 1)
+        oss << ")" ;
+      ++i ;
+      if(i != sources.end())
+        oss << "," ;
+    }
+    if(!ruleInfo.constraint.empty())
+      oss << ",constraint(" << ruleInfo.constraint << ")" ;
+
+    rule_debug_name = oss.str() ;
+  }
+
+  // add comment if rule does not have comments specified
+  if(ruleInfo.comments.empty()) {
+    if(comment.empty()) {
+      auto mi = lookupVarType(*output_vars.begin()) ;
+      ruleInfo.comments.push_back(cleanupCommentQuoted(mi->second.comment)) ;
+      ruleInfo.lines.comments.push_back(ruleInfo.lines.rule_type) ;
+    } else {
+      ruleInfo.comments.push_back(cleanupCommentQuoted(comment)) ;
+      ruleInfo.lines.comments.push_back(ruleInfo.lines.rule_type) ;
+    }
+  }
+
+  // determine if outputs of the rule are variable-sized stores
+  bool sizedOutputs = false ;
+  variableSet sized_output_stores = output_stores ;
+  sized_output_stores -= input_vars ;
+  for(auto vi = sized_output_stores.begin(); vi != sized_output_stores.end(); ++vi) {
+    auto mi = lookupVarType(*vi) ;
+    string const & ct = mi->second.container ;
+    if(ct == "storeVec" || ct == "storeMat" || ct == "multiStore") {
+      sizedOutputs = true ;
+    }
+  }
+
+  // gpu rules cannot have sized outputs
+  if(ruleInfo.is_gpu && sizedOutputs) {
+    ostringstream ss ;
+    ss << "gpu rules cannot have variable sized outputs" ;
+    throw parseError(ss.str()) ;
+  }
+
+  if(!ruleInfo.use_prelude && sizedOutputs && ruleInfo.rule_type != "apply") {
+    ostringstream ss ;
+    ss << "need prelude to size outputs of rule at line "
+       << ruleInfo.lines.rule_type ;
+    throw parseError(ss.str()) ;
+  }
+
+  if(ruleInfo.rule_type == "singleton" ||
+     ruleInfo.rule_type == "optional" ||
+     ruleInfo.rule_type == "default" ||
+     ruleInfo.rule_type == "constraint" ||
+     (paramOutput && ruleInfo.rule_type != "apply")) {
+    if(ruleInfo.use_prelude) {
+      ostringstream ss ;
+      ss << "inappropriate prelude on " << ruleInfo.rule_type << " rule" ;
+      throw parseError(ss.str()) ;
+    }
+  }
+
+  // process prelude block
+  string prelude_body ;
+  if(ruleInfo.use_prelude) {
+    varmap typemap ;
+    if(!ruleInfo.is_gpu) {
+      typemap["cerr"] = localIdentifier() ;
+      typemap["std::cerr"] = localIdentifier() ;
+      typemap["cout"] = localIdentifier() ;
+      typemap["std::cout"] = localIdentifier() ;
+      typemap["debugout"] = localIdentifier() ;
+      typemap["Loci::debugout"] = localIdentifier() ;
+      typemap["EMPTY"] = localIdentifier() ;
+    }
+
+    istringstream is(ruleInfo.prelude) ;
+    int prelude_line_no = ruleInfo.lines.prelude ;
+
+    AST_type::ASTP prelude_ast = parseBlockRaw(
+      is, prelude_line_no, filename, typemap
+    ) ;
+    //cerr << endl << "prelude AST" << endl ;
+    //AST_printObjectTree treeout(cerr) ;
+    //prelude_ast->accept(treeout) ;
+
+    AST_editPrelude edit_prelude(filename, vnames) ;
+    prelude_ast->accept(edit_prelude) ;
+
+    // Now remove and save the open and close braces in the parseBlockRaw
+    CPTR<AST_BlockRaw> bigblock = CPTR<AST_BlockRaw>(prelude_ast) ;
+    CPTR<AST_type> open = bigblock->elements[0] ;
+    int bsz = bigblock->elements.size() ;
+    CPTR<AST_type> close = bigblock->elements[bsz-1] ;
+    for(int i = 0; i < bsz-1; ++i) {
+      bigblock->elements[i] = bigblock->elements[i+1] ;
+    }
+    bigblock->elements.pop_back() ;
+    bigblock->elements.pop_back() ;
+
+    ostringstream prelude_oss ;
+    AST_simplePrint printer(prelude_oss, -1, prettyOutput) ;
+    prelude_ast->accept(printer) ;
+
+    prelude_body = prelude_oss.str() ;
+  }
+
+  // process compute block
+  string compute_body ;
+  if(ruleInfo.use_compute) {
+    varmap typemap ;
+    if(!ruleInfo.is_gpu) {
+      typemap["cerr"] = localIdentifier() ;
+      typemap["std::cerr"] = localIdentifier() ;
+      typemap["cout"] = localIdentifier() ;
+      typemap["std::cout"] = localIdentifier() ;
+      typemap["debugout"] = localIdentifier() ;
+      typemap["Loci::debugout"] = localIdentifier() ;
+      typemap["EMPTY"] = localIdentifier() ;
+    }
+
+    int compute_line_no = ruleInfo.lines.compute ;
+    istringstream compute_ss(ruleInfo.compute) ;
+
+    CPTR<AST_type> compute_ast = parseBlock(
+      compute_ss, compute_line_no, filename, typemap
+    ) ;
+    //cerr << endl << "AST" << endl ;
+    //AST_printObjectTree treeout(cerr) ;
+    //compute_ast->accept(treeout) ;
+
+    AST_condenseLeftAssociative condenseOps ;
+    compute_ast->accept(condenseOps) ;
+
+    // This is sort of a hack because the precedence of the mapping
+    // operator (->) is context senstive
+    AST_editLociMapArrayAccess mapEditOps ;
+    compute_ast->accept(mapEditOps) ;
+
+    if(parseInfo.diag_level > 0) {
+      AST_printTree diagout(cerr) ;
+      compute_ast->accept(diagout) ;
+    }
+
+    AST_errorCheck syntaxChecker ;
+    compute_ast->accept(syntaxChecker) ;
+    if(syntaxChecker.hasErrors()) {
+#ifdef VERBOSE
+      AST_simplePrint printer(cerr, -1, false) ;
+      compute_ast->accept(printer) ;
+#endif
+      throw parseError("syntax error in compute body") ;
+    }
+
+    if(ruleInfo.is_gpu) {
+      AST_collectAccessInfo varaccess ;
+      compute_ast->accept(varaccess) ;
+      //cerr << "variables = " << varaccess.accessed << endl ;
+      //cerr << "write variables = " << varaccess.writes << endl ;
+      //for(auto i = varaccess.id2var.begin();i!=varaccess.id2var.end();++i) {
+      //  cerr << "id2var[" << i->first << "] = " << i->second << endl ;
+      //}
+      //for(auto i = varaccess.id2vmap.begin();i!=varaccess.id2vmap.end();++i) {
+      //  cerr << "id2vmap[" << i->first << "] = " << i->second << endl ;
+      //}
+
+      variableSet readvars ;
+      variableSet writevars ;
+
+      for(auto i = varaccess.accessed.begin(); i != varaccess.accessed.end(); ++i) {
+        readvars += i->var ;
+        for(size_t j = 0; j < i->mapping.size(); ++j) {
+          readvars += i->mapping[j] ;
+        }
+      }
+      for(auto i = varaccess.writes.begin(); i != varaccess.writes.end(); ++i) {
+        writevars += i->var ;
+        for(size_t j = 0; j < i->mapping.size(); ++j) {
+          readvars += i->mapping[j] ;
+        }
+      }
+
+      readvars -= writevars ;
+
+      // Now remove and save the open and close braces in the parseBlock
+      CPTR<AST_Block> bigblock = CPTR<AST_Block>(compute_ast) ;
+      CPTR<AST_type> open = bigblock->elements[0] ;
+      int bsz = bigblock->elements.size() ;
+      CPTR<AST_type> close = bigblock->elements[bsz-1] ;
+      for(int i = 0; i < bsz-1; ++i) {
+        bigblock->elements[i] = bigblock->elements[i+1] ;
+      }
+      bigblock->elements.pop_back() ;
+      bigblock->elements.pop_back() ;
+
+      if(ruleInfo.rule_type == "apply") {
+        std::stringstream ss ;
+
+        ss << "loci_reduction_t _reduce_op_ ;" ;
+        compute_line_no = ruleInfo.lines.compute ;
+        AST_type::ASTP reduce_op_decl = parseDeclaration(
+          ss, compute_line_no, filename, typemap
+        ) ;
+
+        ss.str("") ;
+        ss.clear() ;
+        ss << "value_t _local_ = _reduce_op_.identity() ;" ;
+        compute_line_no = ruleInfo.lines.compute ;
+        AST_type::ASTP local_value_decl = parseDeclaration(
+          ss, compute_line_no, filename, typemap
+        ) ;
+
+        ss.str("") ;
+        ss.clear() ;
+        ss << "return _local_ ;" ;
+        compute_line_no = ruleInfo.lines.compute ;
+        AST_type::ASTP return_local_value = parseSpecialControlStatement(
+          ss, compute_line_no, filename, typemap
+        ) ;
+
+        bigblock->elements.insert(bigblock->elements.begin(), local_value_decl) ;
+        bigblock->elements.insert(bigblock->elements.begin(), reduce_op_decl) ;
+        bigblock->elements.insert(bigblock->elements.end(), return_local_value) ;
+
+        AST_editJoin edit_join ;
+        compute_ast->accept(edit_join) ;
+      }
+
+      AST_editGPULociVariableAccess AST_vareditor(vnames, ctypetable) ;
+      compute_ast->accept(AST_vareditor) ;
+
+      //AST_printObjectTree treeout(cerr) ;
+      //compute_ast->accept(treeout) ;
+    } else {
+      AST_editLociDirective AST_directive(filename) ;
+      compute_ast->accept(AST_directive) ;
+
+      AST_editLociVariableAccess AST_editor(vnames, ctypetable) ;
+      compute_ast->accept(AST_editor) ;
+
+      CPTR<AST_Block> bigblock = CPTR<AST_Block>(compute_ast) ;
+      CPTR<AST_type> open = bigblock->elements[0] ;
+      int bsz = bigblock->elements.size() ;
+      CPTR<AST_type> close = bigblock->elements[bsz-1] ;
+      for(int i = 0; i < bsz-1; ++i) {
+        bigblock->elements[i] = bigblock->elements[i+1] ;
+      }
+      bigblock->elements.pop_back() ;
+      bigblock->elements.pop_back() ;
+    }
+
+    ostringstream compute_oss ;
+    AST_simplePrint printer(compute_oss, -1, prettyOutput) ;
+    compute_ast->accept(printer) ;
+
+    compute_body = compute_oss.str() ;
+  }
+
+  // set name of the rule template
+  if(ruleInfo.rule_type == "pointwise") {
+    ruleInfo.template_name = "pointwise_rule" ;
+  } else if(ruleInfo.rule_type == "unit") {
+    if(paramOutput) {
+      ruleInfo.template_name = "param_unit_rule" ;
+    } else {
+      ruleInfo.template_name = "unit_rule" ;
+    }
+  } else if(ruleInfo.rule_type == "apply") {
+    if(paramOutput) {
+      if(singletonApply) {
+        ruleInfo.template_name = "singleton_param_apply_rule" ;
+      } else {
+        ruleInfo.template_name = "param_apply_rule" ;
+      }
+    } else {
+      ruleInfo.template_name = "apply_rule" ;
+    }
+  } else if(ruleInfo.rule_type == "singleton") {
+    ruleInfo.template_name = "singleton_rule" ;
+  } else if(ruleInfo.rule_type == "optional") {
+    ruleInfo.template_name = "optional_rule" ;
+  } else if(ruleInfo.rule_type == "default") {
+    ruleInfo.template_name = "default_rule" ;
+  } else if(ruleInfo.rule_type == "constraint") {
+    ruleInfo.template_name = "constraint_rule" ;
+  } else if(ruleInfo.rule_type == "blackbox") {
+    ruleInfo.template_name = "blackbox_rule" ;
+  }
+
+  if(ruleInfo.template_name.empty()) {
+    ostringstream ss ;
+    ss << "no template set for rule: " << rule_debug_name ;
+    throw parseError(ss.str()) ;
+  }
+
+  DictionaryTemplateValue rule_ctx ;
+
+  rule_ctx["type"] = ruleInfo.rule_type ;
+  rule_ctx["parent_class"] = ruleInfo.rule_type + "_rule" ;
+  rule_ctx["class"] = class_name ;
+  rule_ctx["file"] = filename ;
+  rule_ctx["docvar"] = docvarname ;
+  rule_ctx["line_number"] = ruleInfo.lines.rule_type ;
+  rule_ctx["debug_name"] = rule_debug_name ;
+
+  {
+    DictionaryTemplateValue signature_ctx ;
+    signature_ctx["line_number"] = ruleInfo.lines.signature ;
+    rule_ctx["signature"] = signature_ctx ;
+  }
+
+  {
+    ArrayTemplateValue input_stores_ctx ;
+    for(auto vi = input_stores.begin(); vi != input_stores.end(); ++vi) {
+      DictionaryTemplateValue ctx ;
+      ctx["name"] = (*vi).str() ;
+      ctx["vname"] = vnames[*vi] ;
+      ctx["ctype"] = ctypetable[*vi] ;
+      ctx["vtype"] = typetable[*vi] ;
+      ctx["carg"] = cargtable[*vi] ;
+      ctx["rarg"] = rargtable[*vi] ;
+      input_stores_ctx.append(ctx) ;
+    }
+    rule_ctx["input_stores"] = input_stores_ctx ;
+  }
+
+  {
+    ArrayTemplateValue output_stores_ctx ;
+    for(auto vi = output_stores.begin(); vi != output_stores.end(); ++vi) {
+      DictionaryTemplateValue ctx ;
+      ctx["name"] = (*vi).str() ;
+      ctx["vname"] = vnames[*vi] ;
+      ctx["ctype"] = ctypetable[*vi] ;
+      ctx["vtype"] = typetable[*vi] ;
+      ctx["carg"] = cargtable[*vi] ;
+      ctx["rarg"] = rargtable[*vi] ;
+      output_stores_ctx.append(ctx) ;
+    }
+    rule_ctx["output_stores"] = output_stores_ctx ;
+
+  }
+
+  {
+    ArrayTemplateValue name_stores_ctx ;
+    for(auto vi = named_stores.begin(); vi != named_stores.end(); ++vi) {
+      DictionaryTemplateValue ctx ;
+      ctx["name"] = (*vi).str() ;
+      ctx["vname"] = vnames[*vi] ;
+
+      auto mi = access_map.find(lookupVarType(*vi)->second.getFileLoc()) ;
+      if(mi != access_map.end()) {
+        ctx["has_info_id"] = 1 ;
+        ctx["info_id"] = mi->second ;
+      } else {
+        ctx["has_info_id"] = 0 ;
+      }
+
+      name_stores_ctx.append(ctx) ;
+    }
+    rule_ctx["name_stores"] = name_stores_ctx ;
+  }
+
+  {
+    ArrayTemplateValue inputs_ctx ;
+    for(auto i = sources.begin(); i != sources.end(); ++i) {
+      ostringstream ss ;
+      for(size_t j = 0; j < i->mapping.size(); ++j) {
+        ss << i->mapping[j] << "->" ;
+      }
+
+      if(i->var.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        if(vi != i->var.begin()) {
+          ss << ',' ;
+        }
+        ss << *vi ;
+      }
+      if(i->var.size() > 1) {
+        ss << ')' ;
+      }
+      DictionaryTemplateValue ctx ;
+      ctx["str"] = ss.str() ;
+      inputs_ctx.append(ctx) ;
+    }
+    rule_ctx["inputs"] = inputs_ctx ;
+  }
+
+  {
+    ArrayTemplateValue outputs_ctx ;
+    for(auto i = targets.begin(); i != targets.end(); ++i) {
+      ostringstream ss ;
+      for(size_t j = 0; j < i->mapping.size(); ++j) {
+        ss << i->mapping[j] << "->" ;
+      }
+
+      if(i->var.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        if(vi != i->var.begin()) {
+          ss << ',' ;
+        }
+
+        auto ipi = inplace_pairs.begin() ;
+        while(ipi != inplace_pairs.end()) {
+          if(ipi->first == *vi) break ;
+          ++ipi ;
+        }
+        if(ipi != inplace_pairs.end()) {
+          if(i->mapping.size() == 0 || i->var.size() > 1) {
+            ss << ipi->first << '=' << ipi->second ;
+          } else {
+            ss << '(' << ipi->first << '=' << ipi->second << ')' ;
+          }
+        } else {
+          ss << *vi ;
+        }
+      }
+      if(i->var.size() > 1) {
+        ss << ')' ;
+      }
+
+      DictionaryTemplateValue ctx ;
+      ctx["str"] = ss.str() ;
+      outputs_ctx.append(ctx) ;
+    }
+
+    rule_ctx["outputs"] = outputs_ctx ;
+  }
+
+  {
+    ArrayTemplateValue constraint_spec_ctx ;
+    for(auto i = constraints.begin(); i != constraints.end(); ++i) {
+      ostringstream ss ;
+      for(size_t j = 0; j < i->mapping.size(); ++j) {
+        ss << i->mapping[j] << "->" ;
+      }
+
+      if(i->var.size() > 1) {
+        ss << '(' ;
+      }
+      for(auto vi = i->var.begin(); vi != i->var.end(); ++vi) {
+        if(vi != i->var.begin()) {
+          ss << "," ;
+        }
+        ss << *vi ;
+      }
+      if(i->var.size() > 1) {
+        ss << ')' ;
+      }
+
+      DictionaryTemplateValue ctx ;
+      ctx["str"] = ss.str() ;
+      constraint_spec_ctx.append(ctx) ;
+    }
+
+    DictionaryTemplateValue constraints_ctx ;
+    constraints_ctx["spec"] = constraint_spec_ctx ;
+    constraints_ctx["line_number"] = ruleInfo.lines.constraint ;
+    rule_ctx["constraints"] = constraints_ctx ;
+  }
+
+  if(ruleInfo.is_gpu) {
+    rule_ctx["option_disable_threading"] = 1 ;
+  } else {
+    auto opt = find(ruleInfo.options.begin(),
+      ruleInfo.options.end(), "disable_threading") ;
+    if(opt == ruleInfo.options.end()) {
+      rule_ctx["option_disable_threading"] = 0 ;
+    } else {
+      rule_ctx["option_disable_threading"] = 1 ;
+    }
+  }
+
+  {
+    DictionaryTemplateValue parametric_ctx ;
+    if(!ruleInfo.parametric.empty()) {
+      rule_ctx["is_parametric"] = 1 ;
+      parametric_ctx["spec"] = ruleInfo.parametric ;
+      parametric_ctx["line_number"] = ruleInfo.lines.parametric ;
+    } else {
+      rule_ctx["is_parametric"] = 0 ;
+    }
+    rule_ctx["parametric"] = parametric_ctx ;
+  }
+
+  {
+    DictionaryTemplateValue specialized_ctx ;
+    if(ruleInfo.is_specialized) {
+      specialized_ctx["line_number"] = ruleInfo.lines.specialized ;
+    }
+    rule_ctx["is_specialized"] = ruleInfo.is_specialized ;
+    rule_ctx["specialized"] = specialized_ctx ;
+  }
+
+  {
+    DictionaryTemplateValue conditional_ctx ;
+
+    if(!ruleInfo.conditional.empty()) {
+      rule_ctx["is_conditional"] = 1 ;
+      conditional_ctx["spec"] = ruleInfo.conditional ;
+      conditional_ctx["line_number"] = ruleInfo.lines.conditional ;
+    } else {
+      rule_ctx["is_conditional"] = 0 ;
+    }
+
+    rule_ctx["conditional"] = conditional_ctx ;
+  }
+
+  {
+    ArrayTemplateValue comments_ctx ;
+
+    size_t size = ruleInfo.comments.size() ;
+    for(size_t i = 0; i < size; ++i) {
+      DictionaryTemplateValue ctx ;
+      ctx["str"] = ruleInfo.comments[i] ;
+      ctx["line_number"] = ruleInfo.lines.comments[i] ;
+      comments_ctx.append(ctx) ;
+    }
+
+    rule_ctx["comments"] = comments_ctx ;
+  }
+
+  DictionaryTemplateValue prelude_ctx ;
+  prelude_ctx["line_number"] = ruleInfo.lines.prelude ;
+  prelude_ctx["is_specialized"] = ruleInfo.use_prelude ;
+  prelude_ctx["spec"] = prelude_body ;
+  rule_ctx["prelude"] = prelude_ctx ;
+
+  DictionaryTemplateValue compute_ctx ;
+  compute_ctx["line_number"] = ruleInfo.lines.compute ;
+  compute_ctx["is_specialized"] = ruleInfo.use_compute ;
+  compute_ctx["spec"] = compute_body ;
+  rule_ctx["compute"] = compute_ctx ;
+
+  if(ruleInfo.rule_type == "pointwise") {
+    rule_ctx["is_pointwise"] = 1 ;
+    rule_ctx["is_unit"] = 0 ;
+    rule_ctx["is_apply"] = 0 ;
+  } else if(ruleInfo.rule_type == "unit") {
+    variable unit_var = *(output_stores.begin()) ;
+
+    DictionaryTemplateValue unit_ctx ;
+    unit_ctx["target_name"] = unit_var.str() ;
+    unit_ctx["target_vname"] = vnames[unit_var] ;
+    unit_ctx["container"] = ctypetable[unit_var] ;
+    unit_ctx["container_args"] = cargtable[unit_var] ;
+    unit_ctx["reduction_args"] = rargtable[unit_var] ;
+    unit_ctx["is_param"] = paramOutput ;
+
+    rule_ctx["is_pointwise"] = 0 ;
+    rule_ctx["is_unit"] = 1 ;
+    rule_ctx["is_apply"] = 0 ;
+    rule_ctx["unit"] = unit_ctx ;
+  } else if(ruleInfo.rule_type == "apply") {
+    variable apply_var = *(output_stores.begin()) ;
+
+    DictionaryTemplateValue apply_ctx ;
+    apply_ctx["target_name"] = apply_var.str() ;
+    apply_ctx["target_vname"] = vnames[apply_var] ;
+    apply_ctx["container"] = ctypetable[apply_var] ;
+    apply_ctx["container_args"] = cargtable[apply_var] ;
+    apply_ctx["reduction_args"] = rargtable[apply_var] ;
+    apply_ctx["operator"] = ruleInfo.applyop ;
+    apply_ctx["line_number"] = ruleInfo.lines.applyop ;
+    apply_ctx["is_param"] = paramOutput ;
+    apply_ctx["is_singleton"] = singletonApply ;
+
+    rule_ctx["is_pointwise"] = 0 ;
+    rule_ctx["is_unit"] = 0 ;
+    rule_ctx["is_apply"] = 1 ;
+    rule_ctx["apply"] = apply_ctx ;
+  }
+
+  ruleInfo.ctx["pln"] = !prettyOutput ;
+  ruleInfo.ctx["debug_info"] = parseInfo.debug_info ;
+  ruleInfo.ctx["rule"] = rule_ctx ;
+}
+
+void parseFile::parse_rule_info(
+  bool is_gpu, parseSharedInfo const & parseInfo, parseRuleInfo & ruleInfo
+) {
+  ++cnt ;
+
+  ruleInfo.clear() ;
+
+  ruleInfo.is_gpu = is_gpu ;
+
+  killsp() ;
+
+  if(is_name(is)) {
+    ruleInfo.lines.rule_type = line_no ;
+    ruleInfo.rule_type = get_name(is) ;
+  } else {
+    throw parseError("syntax error") ;
+  }
+
+  nestedparenstuff signature ;
+  signature.get(is) ;
+  ruleInfo.signature = signature.str() ;
+  ruleInfo.lines.signature = line_no ;
+  line_no += signature.num_lines() ;
+
+  killsp() ;
+
+  if(ruleInfo.rule_type == "apply") {
+    if(is.peek() != '[') {
+      throw parseError("apply rule missing '[operator]'") ;
+    }
+    nestedbracketstuff applyop ;
+    applyop.get(is) ;
+    ruleInfo.applyop = applyop.str() ;
+    ruleInfo.lines.applyop = line_no ;
+    line_no += applyop.num_lines() ;
+    killsp() ;
+  }
+
+  while(is.peek() == ',') {
+    is.get() ;
+
+    killsp() ;
+
+    if(!is_name(is)) {
+      throw parseError("syntax error") ;
+    }
+
+    string s = get_name(is) ;
+    if(s == "constraint") {
+      nestedparenstuff stuff ;
+      stuff.get(is) ;
+      if(ruleInfo.constraint.empty()) {
+        ruleInfo.constraint = stuff.str() ;
+        ruleInfo.lines.constraint = line_no ;
+      } else {
+        ruleInfo.constraint += "," + stuff.str() ;
+      }
+      line_no += stuff.num_lines() ;
+    } else if(s == "parametric") {
+      nestedparenstuff stuff ;
+      stuff.get(is) ;
+      if(!ruleInfo.parametric.empty()) {
+        throw parseError("syntax error: cannot specify more than one parametric variable") ;
+      }
+      ruleInfo.parametric = stuff.str() ;
+      ruleInfo.lines.parametric = line_no ;
+      line_no += stuff.num_lines() ;
+    } else if(s == "conditional") {
+      nestedparenstuff stuff ;
+      stuff.get(is) ;
+      if(!ruleInfo.conditional.empty()) {
+        throw parseError("syntax error: cannot specify more than one conditional variable") ;
+      }
+      ruleInfo.conditional = stuff.str() ;
+      ruleInfo.lines.conditional = line_no ;
+      line_no += stuff.num_lines() ;
+    } else if(s == "specialized") {
+      ruleInfo.is_specialized = 1 ;
+      ruleInfo.lines.specialized = line_no ;
+    } else if(s == "option") {
+      nestedparenstuff stuff ;
+      stuff.get(is) ;
+      ruleInfo.options.push_back(stuff.str()) ;
+      ruleInfo.lines.options.push_back(line_no) ;
+      line_no += stuff.num_lines() ;
+    } else if(s == "inplace") {
+      nestedparenstuff stuff ;
+      stuff.get(is) ;
+      ruleInfo.inplace.push_back(stuff.str()) ;
+      ruleInfo.lines.inplace.push_back(line_no) ;
+      line_no += stuff.num_lines() ;
+    } else if(s == "comments") {
+      nestedparenstuff stuff ;
+      stuff.get(is) ;
+      ruleInfo.comments.push_back(cleanupCommentQuoted(stuff.str())) ;
+      ruleInfo.lines.comments.push_back(line_no) ;
+      line_no += stuff.num_lines() ;
+    } else if(s == "prelude") {
+      ruleInfo.use_prelude = 1 ;
+    } else {
+      throw parseError("unknown rule modifier") ;
+    }
+
+    killsp() ;
+  }
+
+  if(ruleInfo.use_prelude) {
+    nestedbracestuff stuff ;
+    stuff.get(is) ;
+    ruleInfo.prelude = stuff.str() ;
+    ruleInfo.lines.prelude = line_no ;
+    line_no += stuff.num_lines() ;
+
+    killsp() ;
+    if(is.peek() == ';') {
+      is.get() ;
+      ruleInfo.use_compute = 0 ;
+    }
+    if(is_name(is)) {
+      string s = get_name(is) ;
+      if(s != "compute") {
+        throw parseError("syntax error, expecting 'compute'") ;
+      }
+    }
+    killsp() ;
+  }
+
+  if(ruleInfo.use_compute) {
+    nestedbracestuff stuff ;
+    stuff.get(is) ;
+    ruleInfo.compute = stuff.str() ;
+    ruleInfo.lines.compute = line_no ;
+    line_no += stuff.num_lines() ;
+  }
+}
+
 // rule_type
 void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
                            const parseSharedInfo &parseInfo) {
@@ -4139,7 +6061,7 @@ void parseFile::skip_lpp_conditional(std::ostream &outputFile) {
 
 void parseFile::initialize() {
   // Template for rule constructor.
-  cuda_templates.define("rule_ctor", R"(
+  char const * rule_ctor = R"(
   $[rule.class]$() {
 ${each rule.name_stores}$
     name_store("$[name]$", $[vname]$) ;
@@ -4156,7 +6078,9 @@ ${endeach}$
 ${each rule.constraints.spec}$
     constraint("$[str]$") ;
 ${endeach}$
+${if rule.option_disable_threading}$
     disable_threading() ;
+${endif}$
 ${if rule.is_parametric}$
     set_parametric_variable("$[rule.parametric.spec]$") ;
 ${endif}$
@@ -4169,8 +6093,11 @@ ${endif}$
 ${each rule.comments}$
     comments("$[str]$") ;
 ${endeach}$
+    setvardoc($[rule.docvar]$) ;
     set_file("$[rule.file]$:$[rule.line_number]$") ;
-  })") ;
+  })" ;
+  cuda_templates.define("rule_ctor", rule_ctor) ;
+  cpu_templates.define("rule_ctor", rule_ctor) ;
 
   // Template for rule store_instance declarations.
   cuda_templates.define("rule_store_decl", R"(
@@ -4181,25 +6108,22 @@ ${each rule.output_stores}$
   Loci::gpu$[ctype]$$[if carg]$<$[carg]$>$[endif]$ $[vname]$ ;
 ${endeach}$)") ;
 
+  cpu_templates.define("rule_store_decl", R"(
+${each rule.input_stores}$
+  Loci::const_$[ctype]$$[if carg]$<$[carg]$>$[endif]$ $[vname]$ ;
+${endeach}$
+${each rule.output_stores}$
+  Loci::$[ctype]$$[if carg]$<$[carg]$>$[endif]$ $[vname]$ ;
+${endeach}$)") ;
+
   // Template for pointwise rule.
   cuda_templates.define("pointwise_rule", R"(
-class $[rule.class]$ : public Loci::pointwise_rule {
+class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
   ${> rule_store_decl}$
 
 public:
   ${> rule_ctor}$
 
-  ${> pointwise_rule_decl}$
-
-  void compute(Loci::sequence const & seq) override ;
-} ;
-${> pointwise_rule_impl}$
-
-Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
-)") ;
-
-  // Template for pointwise-specific declarations.
-  cuda_templates.define("pointwise_rule_decl", R"(
   typedef struct {
 ${each rule.input_stores}$
     $[vtype]$ $[vname]$ ;
@@ -4211,10 +6135,10 @@ ${endeach}$
 $[rule.compute.spec]$
     }
   } compute_t ;
-)") ;
 
-  // Template for pointwise rule implementation.
-  cuda_templates.define("pointwise_rule_impl", R"(
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
 __global__ void $[rule.class]$_kernel(
   int start, int stop, $[rule.class]$::compute_t cop
 ) {
@@ -4253,26 +6177,19 @@ ${if debug_info}$
     nvtxRangePop() ;
 ${endif}$
   }
-})") ;
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+)") ;
 
     // Template for parameter unit rule.
     cuda_templates.define("param_unit_rule", R"(
-class $[rule.class]$ : public Loci::unit_rule {
+class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
   ${> rule_store_decl}$
 
 public:
   ${> rule_ctor}$
 
-  ${> param_unit_rule_decl}$
-
-  void compute(Loci::sequence const & seq) override ;
-} ;
-${> param_unit_rule_impl}$
-
-Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
-)") ;
-
-  cuda_templates.define("param_unit_rule_decl", R"(
   typedef $[rule.unit.container_args]$ value_t ;
 
   typedef struct {
@@ -4287,9 +6204,10 @@ ${endeach}$
 $[rule.compute.spec]$
     }
   } compute_t ;
-)") ;
-  
-  cuda_templates.define("param_unit_rule_impl", R"(
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
 __global__ void $[rule.class]$_kernel($[rule.class]$::compute_t cop) {
   if(threadIdx.x == 0)
     cop() ;
@@ -4315,30 +6233,24 @@ ${endif}$
 ${if debug_info}$
   nvtxRangePop() ;
 ${endif}$
-})") ;
-
-  cuda_templates.define("param_apply_rule", R"(
-class $[rule.class]$ : public Loci::apply_rule<
-  Loci::gpu$[rule.apply.container]$<$[rule.apply.container_args]$>,
-  $[rule.apply.operator]$<$[rule.apply.container_args]$>
-> {
-  ${> rule_store_decl}$
-public:
-  ${> rule_ctor}$
-  ${> param_apply_rule_decl}$
-
-  void compute(Loci::sequence const & seq) override ;
-} ;
-${> param_apply_rule_impl}$
+}
 
 Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
 )") ;
 
-  cuda_templates.define("param_apply_rule_decl", R"(
+  cuda_templates.define("param_apply_rule", R"(
+class $[rule.class]$ : public Loci::$[rule.parent_class]$<
+  Loci::gpu$[rule.apply.container]$<$[rule.apply.container_args]$>,
+  $[rule.apply.operator]$<$[rule.apply.reduction_args]$>
+> {
+  ${> rule_store_decl}$
+public:
+  ${> rule_ctor}$
+
   typedef $[rule.apply.container_args]$ value_t ;
-  
+
   typedef $[rule.apply.operator]$<value_t> loci_reduction_t ;
-  
+
   typedef struct {
     GPU_DECL
     value_t operator()(value_t const & lhs, value_t const & rhs) {
@@ -4347,14 +6259,14 @@ Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
       op(tmp, rhs) ;
       return tmp ;
     }
-    
+
     GPU_DECL
     value_t identity() const {
       loci_reduction_t tmp ;
       return tmp.identity() ;
     }
   } reduction_t ;
-  
+
   typedef struct {
 ${each rule.input_stores}$
     $[vtype]$ $[vname]$ ;
@@ -4368,9 +6280,10 @@ ${endeach}$
 $[rule.compute.spec]$
     }
   } compute_t ;
-)") ;
-  
-  cuda_templates.define("param_apply_rule_impl", R"(
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
 __global__ void $[rule.class]$_reducevar_kernel(
   $[rule.class]$::value_t * res,
   $[rule.class]$::value_t const * part
@@ -4440,30 +6353,24 @@ ${endeach}$
 ${if debug_info}$
   nvtxRangePop() ;
 ${endif}$
-})") ;
-  
-  cuda_templates.define("singleton_param_apply_rule", R"(
-class $[rule.class]$ : public Loci::apply_rule<
-  Loci::gpu$[rule.apply.container]$<$[rule.apply.container_args]$>,
-  $[rule.apply.operator]$<$[rule.apply.container_args]$>
-> {
-  ${> rule_store_decl}$
-public:
-  ${> rule_ctor}$
-  ${> singleton_param_apply_decl}$
-
-  void compute(Loci::sequence const & seq) override ;
-} ;
-${> singleton_param_apply_impl}$
+}
 
 Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
 )") ;
 
-  cuda_templates.define("singleton_param_apply_decl", R"(
+  cuda_templates.define("singleton_param_apply_rule", R"(
+class $[rule.class]$ : public Loci::$[rule.parent_class]$<
+  Loci::gpu$[rule.apply.container]$<$[rule.apply.container_args]$>,
+  $[rule.apply.operator]$<$[rule.apply.reduction_args]$>
+> {
+  ${> rule_store_decl}$
+public:
+  ${> rule_ctor}$
+
   typedef $[rule.apply.container_args]$ value_t ;
-  
+
   typedef $[rule.apply.operator]$<value_t> loci_reduction_t ;
-  
+
   typedef struct {
     GPU_DECL
     value_t operator()(value_t const & lhs, value_t const & rhs) {
@@ -4472,14 +6379,14 @@ Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
       op(tmp, rhs) ;
       return tmp ;
     }
-    
+
     GPU_DECL
     value_t identity() const {
       loci_reduction_t tmp ;
       return tmp.identity() ;
     }
   } reduction_t ;
-  
+
   typedef struct {
 ${each rule.input_stores}$
     $[vtype]$ $[vname]$ ;
@@ -4488,9 +6395,10 @@ ${each rule.output_stores}$
     $[vtype]$ $[vname]$ ;
 ${endeach}$
   } compute_t ;
-)") ;
-  
-  cuda_templates.define("singleton_param_apply_impl", R"(
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
 __global__ void $[rule.class]$_computevar_kernel(
   $[rule.class]$::value_t * target,
   $[rule.class]$::compute_t cop
@@ -4512,7 +6420,311 @@ ${endeach}$
       $[rule.apply.target_vname]$.ptr(), cop
     ) ;
   }
-})") ;
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+)") ;
+
+  // Template for CPU pointwise rule.
+  cpu_templates.define("pointwise_rule", R"(
+namespace {
+
+class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+${if rule.prelude.is_specialized}$
+  void prelude(Loci::sequence const & seq) override ;
+${endif}$
+
+${if rule.compute.is_specialized}$
+  void calculate(Loci::Entity _e_) ;
+${endif}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+${if rule.prelude.is_specialized}$
+void $[rule.class]$::prelude(Loci::sequence const & seq) {
+$[rule.prelude.spec]$
+}
+${endif}$
+
+${if rule.compute.is_specialized}$
+void $[rule.class]$::calculate(Loci::Entity _e_) {
+$[rule.compute.spec]$
+}
+${endif}$
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+${if rule.compute.is_specialized}$
+  do_loop(seq, this) ;
+${endif}$
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+
+} // end: anonymous namespace of rule
+)") ;
+
+  cpu_templates.define("unit_rule", R"(
+namespace {
+
+class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+${if rule.prelude.is_specialized}$
+  void prelude(Loci::sequence const & seq) override ;
+${endif}$
+
+${if rule.compute.is_specialized}$
+  void calculate(Loci::Entity _e_) ;
+${endif}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+${if rule.prelude.is_specialized}$
+void $[rule.class]$::prelude(Loci::sequence const & seq) {
+$[rule.prelude.spec]$
+}
+${endif}$
+
+${if rule.compute.is_specialized}$
+void $[rule.class]$::calculate(Loci::Entity _e_) {
+$[rule.compute.spec]$
+}
+${endif}$
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+${if rule.compute.is_specialized}$
+  do_loop(seq, this) ;
+${endif}$
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+
+} // end: anonymous namespace of rule
+)") ;
+
+  cpu_templates.define("apply_rule", R"(
+namespace {
+
+class $[rule.class]$ : public Loci::$[rule.parent_class]$<
+  Loci::$[rule.apply.container]$<$[rule.apply.container_args]$>,
+  $[rule.apply.operator]$<$[rule.apply.reduction_args]$>
+> {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+${if rule.prelude.is_specialized}$
+  void prelude(Loci::sequence const & seq) override ;
+${endif}$
+
+${if rule.compute.is_specialized}$
+  void calculate(Loci::Entity _e_) ;
+${endif}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+${if rule.prelude.is_specialized}$
+void $[rule.class]$::prelude(Loci::sequence const & seq) {
+$[rule.prelude.spec]$
+}
+${endif}$
+
+${if rule.compute.is_specialized}$
+void $[rule.class]$::calculate(Loci::Entity _e_) {
+$[rule.compute.spec]$
+}
+${endif}$
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+${if rule.compute.is_specialized}$
+  do_loop(seq, this) ;
+${endif}$
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+
+} // end: anonymous namespace of rule
+)") ;
+
+  cpu_templates.define("param_unit_rule", R"(
+namespace {
+
+class $[rule.class]$ : public $[rule.parent_class]$ {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+${if rule.prelude.is_specialized}$
+  void prelude(Loci::sequence const & seq) override ;
+${endif}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+${if rule.prelude.is_specialized}$
+void $[rule.class]$::prelude(Loci::sequence const & seq) {
+$[rule.prelude.spec]$
+}
+${endif}$
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+$[rule.compute.spec]$
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+
+} // end: anonymous namespace of rule
+)") ;
+
+  cpu_templates.define("param_apply_rule", R"(
+namespace {
+class $[rule.class]$ : public Loci::$[rule.parent_class]$<
+  Loci::$[rule.apply.container]$<$[rule.apply.container_args]$>,
+  $[rule.apply.operator]$<$[rule.apply.reduction_args]$>
+> {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+${if rule.prelude.is_specialized}$
+  void prelude(Loci::sequence const & seq) override ;
+${endif}$
+
+${if rule.compute.is_specialized}$
+  void calculate(Loci::Entity _e_) ;
+${endif}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+${if rule.prelude.is_specialized}$
+void $[rule.class]$::prelude(Loci::sequence const & seq) {
+$[rule.prelude.spec]$
+}
+${endif}$
+
+${if rule.compute.is_specialized}$
+void $[rule.class]$::calculate(Loci::Entity _e_) {
+$[rule.compute.spec]$
+}
+${endif}$
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+${if rule.compute.is_specialized}$
+  do_loop(seq, this) ;
+${endif}$
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+
+} // end: anonymous namespace of rule
+)") ;
+
+  cpu_templates.define("singleton_param_apply_rule", R"(
+namespace {
+class $[rule.class]$ : public Loci::$[rule.parent_class]$<
+  Loci::$[rule.apply.container]$<$[rule.apply.container_args]$>,
+  $[rule.apply.operator]$<$[rule.apply.reduction_args]$>
+> {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+${if rule.prelude.is_specialized}$
+  void prelude(Loci::sequence const & seq) override ;
+${endif}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+${if rule.prelude.is_specialized}$
+void $[rule.class]$::prelude(Loci::sequence const & seq) {
+$[rule.prelude.spec]$
+}
+${endif}$
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+${if rule.compute..is_specialized}$
+  if(Loci::MPI_rank == 0) {
+$[rule.compute.spec]$
+  }
+${endif}$
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+
+} // end: anonymous namespace of rule
+)") ;
+
+  cpu_templates.define("blackbox_rule", R"(
+namespace {
+class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+${if rule.prelude.is_specialized}$
+  void prelude(Loci::sequence const & seq) override ;
+${endif}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+${if rule.prelude.is_specialized}$
+void $[rule.class]$::prelude(Loci::sequence const & seq) {
+$[rule.prelude.spec]$
+}
+${endif}$
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+} // end: anonymous namespace of rule
+)") ;
+
+
+  char const * sodc_rule = R"(
+namespace {
+
+class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
+  ${> rule_store_decl}$
+
+public:
+  ${> rule_ctor}$
+
+  void compute(Loci::sequence const & seq) override ;
+} ;
+
+void $[rule.class]$::compute(Loci::sequence const & seq) {
+$[rule.compute.spec]$
+}
+
+Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
+
+} // end: anonyous namespace of rule
+)" ;
+
+  cpu_templates.define("singleton_rule", sodc_rule) ;
+  cpu_templates.define("optional_rule", sodc_rule) ;
+  cpu_templates.define("default_rule", sodc_rule) ;
+  cpu_templates.define("constraint_rule", sodc_rule) ;
 
 }
 
@@ -4573,7 +6785,6 @@ void parseFile::processFile(string file, ostream &outputFile,
     
   do {
     string comment = killspout(outputFile) ;
-    //    cout << "comment:"<< comment << endl ;
     try {
       if(is.peek() == '$') { // Loci specific code!
         is.get(c) ; // get the $
@@ -4591,15 +6802,39 @@ void parseFile::processFile(string file, ostream &outputFile,
             if(level != 0) {
               throw parseError("$rule is not allowed in include file!") ;
             }
-            setup_Rule(outputFile,comment,parseInfo) ;
+            if(parseInfo.test_parse) {
+              parseRuleInfo ruleInfo ;
+              parse_rule_info(false, parseInfo, ruleInfo) ;
+              process_and_validate_rule_info(
+                comment, docvarname, parseInfo, ruleInfo
+              ) ;
+              render_rule(outputFile, parseInfo, ruleInfo) ;
+            } else {
+              setup_Rule(outputFile,comment,parseInfo) ;
+            }
 	  } else if(key == "cudarule") {
             if(level != 0) {
               throw parseError("$rule is not allowed in include file!") ;
             }
-	    if(parseInfo.no_cuda)
-	      setup_Rule(outputFile,comment,parseInfo) ;
-	    else
-	      setup_cudaRule(outputFile,comment,parseInfo) ;
+	    if(parseInfo.no_cuda) {
+              if(parseInfo.test_parse) {
+                parseRuleInfo ruleInfo ;
+                parse_rule_info(false, parseInfo, ruleInfo) ;
+                process_and_validate_rule_info(
+                  comment, docvarname, parseInfo, ruleInfo
+                ) ;
+                render_rule(outputFile, parseInfo, ruleInfo) ;
+              } else {
+                setup_Rule(outputFile,comment,parseInfo) ;
+              }
+	    } else {
+              parseRuleInfo ruleInfo ;
+              parse_rule_info(true, parseInfo, ruleInfo) ;
+              process_and_validate_rule_info(
+                comment, docvarname, parseInfo, ruleInfo
+              ) ;
+              render_rule(outputFile, parseInfo, ruleInfo) ;
+            }
           } else if(key == "include") {
             killsp() ;
             if(!is_string(is)) {

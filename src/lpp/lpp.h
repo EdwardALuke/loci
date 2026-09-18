@@ -51,7 +51,44 @@ struct parseSharedInfo {
     debug_info = 0 ;}
   
 } ;
-  
+
+struct parseRuleLineInfo {
+  int rule_type ;
+  int signature ;
+  int applyop ;
+  int constraint ;
+  int parametric ;
+  int conditional ;
+  int specialized ;
+  std::vector<int> options ;
+  std::vector<int> inplace ;
+  std::vector<int> comments ;
+  int prelude ;
+  int compute ;
+  void clear() ;
+} ;
+
+struct parseRuleInfo {
+  int is_gpu ;
+  std::string rule_type ;
+  std::string signature ;
+  std::string applyop ;
+  std::string constraint ;
+  std::string parametric ;
+  std::string conditional ;
+  int is_specialized ;
+  std::vector<std::string> options ;
+  std::vector<std::string> inplace ;
+  std::vector<std::string> comments ;
+  int use_prelude ;
+  std::string prelude ;
+  int use_compute ;
+  std::string compute ;
+  std::string template_name ;
+  parseRuleLineInfo lines ;
+  Loci::DictionaryTemplateValue ctx ;
+  void clear() ;
+} ;
 
 class parseFile {
   int cnt ;
@@ -80,6 +117,7 @@ class parseFile {
   std::map<std::string,int> access_map ;
 
   Loci::TemplateEngine cuda_templates ;
+  Loci::TemplateEngine cpu_templates ;
     
   void addAccess(const typedoc &doc) {
     std::string key = doc.getFileLoc() ;
@@ -164,6 +202,24 @@ class parseFile {
 
   void skip_lpp_conditional(std::ostream &outputFile) ;
   void setup_Test(std::ostream &outputFile) ;
+
+  void parse_rule_info(
+    bool is_gpu,
+    parseSharedInfo const & parseInfo,
+    parseRuleInfo & ruleInfo
+  ) ;
+
+  void process_and_validate_rule_info(
+    std::string const & comment, std::string const & docvarname,
+    parseSharedInfo const & parseInfo,
+    parseRuleInfo & ruleInfo
+  ) ;
+
+  void render_rule(
+    std::ostream & os, parseSharedInfo const & parseInfo,
+    parseRuleInfo const & ruleInfo
+  ) ;
+
 public:
   parseFile() {
     line_no = 0 ;
