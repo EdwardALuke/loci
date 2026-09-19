@@ -2366,6 +2366,10 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
             isDeclaration = false ;
         }
 
+        if(checkUnaryToken(token) || ASTEqual(token,TK_OPENPAREN)) {
+          isDeclaration = false ;
+        }
+           
         pushToken(token2) ;
 	pushToken(token) ;
 

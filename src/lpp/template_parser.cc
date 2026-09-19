@@ -86,6 +86,8 @@ namespace Loci {
       return "InlinePartial" ;
     case Kind::End:
       return "End" ;
+    default:
+      return "Unknown" ;
     }
     return "Unknown" ;
   }
