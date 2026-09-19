@@ -6561,7 +6561,7 @@ Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
   cpu_templates.define("param_unit_rule", R"(
 namespace {
 
-class $[rule.class]$ : public $[rule.parent_class]$ {
+class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
   ${> rule_store_decl}$
 
 public:
@@ -6659,7 +6659,7 @@ $[rule.prelude.spec]$
 ${endif}$
 
 void $[rule.class]$::compute(Loci::sequence const & seq) {
-${if rule.compute..is_specialized}$
+${if rule.compute.is_specialized}$
   if(Loci::MPI_rank == 0) {
 $[rule.compute.spec]$
   }
