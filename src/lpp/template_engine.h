@@ -31,10 +31,12 @@ namespace Loci {
 
   class TemplateEngine {
     std::map<std::string, TemplateNodeList> templates_ ;
+    bool report_missing_vars_ ;
 
   public:
     static constexpr int kMaxPartialDepth = 64 ;
 
+    TemplateEngine() ;
     void define(std::string const & name, std::string const & text) ;
     void define_from_file(std::string const & name, std::string const & path) ;
     TemplateNodeList const * find(std::string const & name) const ;
@@ -46,6 +48,8 @@ namespace Loci {
       TemplateValue const & context,
       TemplateNewlineHandler newline_handler
     ) const ;
+    void report_missing_vars(int level) ;
+    int report_missing_vars() const ;
   } ;
 
 } // end: namespace Loci
