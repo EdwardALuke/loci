@@ -1239,7 +1239,7 @@ namespace Loci {
             default:
               $[Once] {
                 std::cerr << "invalid type for petsc option: " << option_name
-                          << ", type: " << (int)valtype << std::endl;
+                          << ", type: " << static_cast<int>(valtype) << std::endl;
               }
               break;
             }
@@ -1317,7 +1317,7 @@ namespace Loci {
             default:
               $[Once] {
                 std::cerr << "invalid type for petsc option: " << *nliter
-                          << ", type: " << (int)valtype << std::endl;
+                          << ", type: " << static_cast<int>(valtype) << std::endl;
               }
               break;
             }

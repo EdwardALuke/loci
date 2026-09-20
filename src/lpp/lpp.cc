@@ -5161,13 +5161,13 @@ void parseFile::process_and_validate_rule_info(
 
   DictionaryTemplateValue prelude_ctx ;
   prelude_ctx["line_number"] = ruleInfo.lines.prelude ;
-  prelude_ctx["is_specialized"] = ruleInfo.use_prelude ;
+  prelude_ctx["is_specified"] = ruleInfo.use_prelude ;
   prelude_ctx["spec"] = prelude_body ;
   rule_ctx["prelude"] = prelude_ctx ;
 
   DictionaryTemplateValue compute_ctx ;
   compute_ctx["line_number"] = ruleInfo.lines.compute ;
-  compute_ctx["is_specialized"] = ruleInfo.use_compute ;
+  compute_ctx["is_specified"] = ruleInfo.use_compute ;
   compute_ctx["spec"] = compute_body ;
   rule_ctx["compute"] = compute_ctx ;
 
@@ -6435,31 +6435,31 @@ class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
 public:
   ${> rule_ctor}$
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
   void prelude(Loci::sequence const & seq) override ;
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   void calculate(Loci::Entity _e_) ;
 ${endif}$
 
   void compute(Loci::sequence const & seq) override ;
 } ;
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
 void $[rule.class]$::prelude(Loci::sequence const & seq) {
 $[rule.prelude.spec]$
 }
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
 void $[rule.class]$::calculate(Loci::Entity _e_) {
 $[rule.compute.spec]$
 }
 ${endif}$
 
 void $[rule.class]$::compute(Loci::sequence const & seq) {
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   do_loop(seq, this) ;
 ${endif}$
 }
@@ -6478,31 +6478,31 @@ class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
 public:
   ${> rule_ctor}$
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
   void prelude(Loci::sequence const & seq) override ;
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   void calculate(Loci::Entity _e_) ;
 ${endif}$
 
   void compute(Loci::sequence const & seq) override ;
 } ;
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
 void $[rule.class]$::prelude(Loci::sequence const & seq) {
 $[rule.prelude.spec]$
 }
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
 void $[rule.class]$::calculate(Loci::Entity _e_) {
 $[rule.compute.spec]$
 }
 ${endif}$
 
 void $[rule.class]$::compute(Loci::sequence const & seq) {
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   do_loop(seq, this) ;
 ${endif}$
 }
@@ -6524,31 +6524,31 @@ class $[rule.class]$ : public Loci::$[rule.parent_class]$<
 public:
   ${> rule_ctor}$
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
   void prelude(Loci::sequence const & seq) override ;
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   void calculate(Loci::Entity _e_) ;
 ${endif}$
 
   void compute(Loci::sequence const & seq) override ;
 } ;
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
 void $[rule.class]$::prelude(Loci::sequence const & seq) {
 $[rule.prelude.spec]$
 }
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
 void $[rule.class]$::calculate(Loci::Entity _e_) {
 $[rule.compute.spec]$
 }
 ${endif}$
 
 void $[rule.class]$::compute(Loci::sequence const & seq) {
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   do_loop(seq, this) ;
 ${endif}$
 }
@@ -6567,14 +6567,14 @@ class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
 public:
   ${> rule_ctor}$
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
   void prelude(Loci::sequence const & seq) override ;
 ${endif}$
 
   void compute(Loci::sequence const & seq) override ;
 } ;
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
 void $[rule.class]$::prelude(Loci::sequence const & seq) {
 $[rule.prelude.spec]$
 }
@@ -6600,31 +6600,31 @@ class $[rule.class]$ : public Loci::$[rule.parent_class]$<
 public:
   ${> rule_ctor}$
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
   void prelude(Loci::sequence const & seq) override ;
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   void calculate(Loci::Entity _e_) ;
 ${endif}$
 
   void compute(Loci::sequence const & seq) override ;
 } ;
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
 void $[rule.class]$::prelude(Loci::sequence const & seq) {
 $[rule.prelude.spec]$
 }
 ${endif}$
 
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
 void $[rule.class]$::calculate(Loci::Entity _e_) {
 $[rule.compute.spec]$
 }
 ${endif}$
 
 void $[rule.class]$::compute(Loci::sequence const & seq) {
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   do_loop(seq, this) ;
 ${endif}$
 }
@@ -6645,21 +6645,21 @@ class $[rule.class]$ : public Loci::$[rule.parent_class]$<
 public:
   ${> rule_ctor}$
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
   void prelude(Loci::sequence const & seq) override ;
 ${endif}$
 
   void compute(Loci::sequence const & seq) override ;
 } ;
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
 void $[rule.class]$::prelude(Loci::sequence const & seq) {
 $[rule.prelude.spec]$
 }
 ${endif}$
 
 void $[rule.class]$::compute(Loci::sequence const & seq) {
-${if rule.compute.is_specialized}$
+${if rule.compute.is_specified}$
   if(Loci::MPI_rank == 0) {
 $[rule.compute.spec]$
   }
@@ -6679,14 +6679,14 @@ class $[rule.class]$ : public Loci::$[rule.parent_class]$ {
 public:
   ${> rule_ctor}$
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
   void prelude(Loci::sequence const & seq) override ;
 ${endif}$
 
   void compute(Loci::sequence const & seq) override ;
 } ;
 
-${if rule.prelude.is_specialized}$
+${if rule.prelude.is_specified}$
 void $[rule.class]$::prelude(Loci::sequence const & seq) {
 $[rule.prelude.spec]$
 }
@@ -6726,6 +6726,9 @@ Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
   cpu_templates.define("default_rule", sodc_rule) ;
   cpu_templates.define("constraint_rule", sodc_rule) ;
 
+  // enable reporting of missing variables while rendering templates
+  cpu_templates.report_missing_vars(1) ;
+  cuda_templates.report_missing_vars(1) ;
 }
 
 void parseFile::processFile(string file, ostream &outputFile,

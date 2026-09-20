@@ -28,6 +28,9 @@
 
 namespace Loci {
 
+  TemplateEngine::TemplateEngine() : report_missing_vars_(0) {
+  }
+
   void TemplateEngine::define(
     std::string const & name, std::string const & text
   ) {
@@ -93,6 +96,14 @@ namespace Loci {
       ++niter ;
     }
     return ss.str() ;
+  }
+
+  void TemplateEngine::report_missing_vars(int level) {
+    report_missing_vars_ = level == 1 || level == 2 ? level : 0 ;
+  }
+
+  int TemplateEngine::report_missing_vars() const {
+    return report_missing_vars_ ;
   }
 
 } // end: namespace Loci

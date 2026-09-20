@@ -408,7 +408,6 @@ AST_type::ASTP parseTypeIdentifier(std::istream &is, int &linecount,
   CPTR<AST_Token> token ;
   while(type_parsing) {
     token = getToken(is, linecount) ;
-    cerr << "token = " << token->text << endl ;
 
     switch(token->nodeType) {
     case TK_CHAR:

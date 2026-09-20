@@ -316,7 +316,7 @@ namespace flowPsi {
     string time_units  ;
     real factor = time_factor(ptime,time_units) ;
     real time = $stime ;
-    int val = int(realToDouble(floor(time*factor +.5))) ;
+    int val = static_cast<int>(realToDouble(floor(time*factor +.5))) ;
     ostringstream oss ;
     oss << val << time_units ;
     $plot_postfix=oss.str() ;
