@@ -36,7 +36,8 @@ namespace Loci {
       engine(p ? p->engine : nullptr),
       active_partial(nullptr),
       partial_depth(p ? p->partial_depth : 0),
-      newline_handler(p ? p->newline_handler : nullptr) { }
+      newline_handler(p ? p->newline_handler : nullptr),
+      report_missing_vars(p ? p->report_missing_vars : 0) { }
 
   TemplateScope::TemplateScope(
     TemplateValue const & v, TemplateEngine const & eng
@@ -45,7 +46,8 @@ namespace Loci {
       engine(&eng),
       active_partial(nullptr),
       partial_depth(0),
-      newline_handler(nullptr) { }
+      newline_handler(nullptr),
+      report_missing_vars(eng.report_missing_vars()) { }
 
   TemplateScope::TemplateScope(
     TemplateScope const & outer, char const * partial_name
@@ -54,7 +56,8 @@ namespace Loci {
       engine(outer.engine),
       active_partial(partial_name),
       partial_depth(outer.partial_depth + 1),
-      newline_handler(outer.newline_handler) { }
+      newline_handler(outer.newline_handler),
+      report_missing_vars(outer.report_missing_vars) { }
 
   TemplateValue const * TemplateScope::lookup(std::string const & path) const {
     for(TemplateScope const * s = this ; s != nullptr ; s = s->parent) {
@@ -67,6 +70,15 @@ namespace Loci {
       }
     }
     return nullptr ;
+  }
+
+  void report_missing_variable(TemplateScope const & scope, std::string const & path) {
+    if(scope.report_missing_vars == 2) {
+      throw std::runtime_error("undefined variable: '" + path + "'") ;
+    }
+    if(scope.report_missing_vars == 1) {
+      std::cerr << "undefined varible: '" << path << "'" << std::endl ;
+    }
   }
 
   ExpressionTemplateNode::ExpressionTemplateNode() { }
@@ -297,6 +309,8 @@ namespace Loci {
     TemplateValue const * value = scope.lookup(name_) ;
     if(value) {
       s << value->to_string() ;
+    } else {
+      report_missing_variable(scope, name_) ;
     }
     return s ;
   }
@@ -384,7 +398,11 @@ namespace Loci {
       if((*citer)->kind() == Kind::Variable) {
         auto const * var =
           static_cast<VariableTemplateNode const *>(citer->get()) ;
-        matched = is_truthy(scope.lookup(var->get_name())) ;
+        TemplateValue const * cond = scope.lookup(var->get_name()) ;
+        if(!cond) {
+          report_missing_variable(scope, var->get_name()) ;
+        }
+        matched = is_truthy(cond) ;
       } else {
         std::ostringstream ss ;
         (*citer)->evaluate(ss, scope) ;
@@ -452,7 +470,11 @@ namespace Loci {
     }
 
     TemplateValue const * collection = scope.lookup(iterate_) ;
-    if(!collection || !collection->is_array()) {
+    if(!collection) {
+      report_missing_variable(scope, iterate_) ;
+    }
+
+    if(!collection->is_array()) {
       return s ;
     }
 

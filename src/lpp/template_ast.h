@@ -72,6 +72,7 @@ namespace Loci {
     char const * active_partial ;
     int partial_depth ;
     TemplateNewlineHandler const * newline_handler ;
+    int report_missing_vars ;
 
     TemplateScope(
       TemplateValue const & v, TemplateScope const * p = nullptr
@@ -84,6 +85,8 @@ namespace Loci {
 
     TemplateValue const * lookup(std::string const & path) const ;
   } ;
+
+  void report_missing_variable(TemplateScope const & scope, std::string const & path) ;
 
   class TemplateNode {
   public:

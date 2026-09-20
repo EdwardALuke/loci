@@ -408,7 +408,6 @@ AST_type::ASTP parseTypeIdentifier(std::istream &is, int &linecount,
   CPTR<AST_Token> token ;
   while(type_parsing) {
     token = getToken(is, linecount) ;
-    cerr << "token = " << token->text << endl ;
 
     switch(token->nodeType) {
     case TK_CHAR:
@@ -2366,6 +2365,10 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
             isDeclaration = false ;
         }
 
+        if(checkUnaryToken(token) || ASTEqual(token,TK_OPENPAREN)) {
+          isDeclaration = false ;
+        }
+           
         pushToken(token2) ;
 	pushToken(token) ;
 

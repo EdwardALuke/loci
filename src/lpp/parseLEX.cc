@@ -626,7 +626,13 @@ CPTR<AST_Token> getTokenInternal(std::istream &is, int &linecount) {
   case '"':
     {
       while(is.peek() != '"' && !is.eof() && !is.fail()) {
-        AST_data->text += is.get() ;
+        if(is.peek() == '\\') {
+          AST_data->text += is.get() ;
+          if(is.peek() == '"')
+            AST_data->text += is.get() ;
+        } else
+          AST_data->text += is.get() ;
+
       }
       if(is.peek() != '"') {
         break ;
