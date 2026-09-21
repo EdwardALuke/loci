@@ -110,7 +110,7 @@ constraint(quadfaces) {
   QuadFace* aFace = build_quad_face($face2node.begin(), $face2edge.begin(),
     $*edge2node, $*pos, $*edgePlan, bnode_list,edge_list) ;
 
-  aFace->resplit($facePlan, char(0), node_list, edge_list) ;
+  aFace->resplit($facePlan, static_cast<char>(0), node_list, edge_list) ;
 
   $num_inner_nodes = node_list.size() ;
 
