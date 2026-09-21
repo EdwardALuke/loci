@@ -85,7 +85,7 @@ constraint(cl->gnrlcells, cr->hexcells) {
     $*fileNumber(pos)) ;
   std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
   std::vector<char> facePlanR = extract_hex_face($cr->$cellPlan, DIRECTION($fr)) ;
-  $facePlan = merge_quad_face(facePlanL, char(0), facePlanR,
+  $facePlan = merge_quad_face(facePlanL, static_cast<char>(0), facePlanR,
                               $cr->$hexOrientCode[$fr]);
   reduce_vector($facePlan) ;
 }
@@ -103,7 +103,7 @@ constraint(cr->gnrlcells, cl->hexcells) {
     $*fileNumber(pos)) ;
   std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
   std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan, DIRECTION($fl)) ;
-  $facePlan = merge_quad_face(facePlanR, char(0), facePlanL,
+  $facePlan = merge_quad_face(facePlanR, static_cast<char>(0), facePlanL,
                               $cl->$hexOrientCode[$fl]);
   reduce_vector($facePlan) ;
 }
@@ -127,7 +127,7 @@ constraint(cl->gnrlcells, cr->prisms) {
   }else {
     std::vector<char> facePlanR = extract_prism_face($cr->$cellPlan, $fr) ;
     std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
-    $facePlan = merge_quad_face(facePlanL, char(0), facePlanR,
+    $facePlan = merge_quad_face(facePlanL, static_cast<char>(0), facePlanR,
                                 $cr->$prismOrientCode[$fr]);
   }
   reduce_vector($facePlan) ;
@@ -152,7 +152,7 @@ constraint(cr->gnrlcells, cl->prisms) {
   }else {
     std::vector<char> facePlanL = extract_prism_face($cl->$cellPlan, $fl) ;
     std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
-    $facePlan = merge_quad_face(facePlanR, char(0), facePlanL,
+    $facePlan = merge_quad_face(facePlanR, static_cast<char>(0), facePlanL,
                                 $cl->$prismOrientCode[$fl]);
   }
   reduce_vector($facePlan) ;
