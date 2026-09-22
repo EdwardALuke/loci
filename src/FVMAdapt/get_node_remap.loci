@@ -22,6 +22,8 @@
 
 $include "FVM.lh"
 
+$type X Constraint ;
+
 $rule pointwise(fileNumber(X)), constraint(X), option(disable_threading), prelude {
   fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
   if(df == 0) {
@@ -35,4 +37,4 @@ $rule pointwise(fileNumber(X)), constraint(X), option(disable_threading), prelud
       $fileNumber(X)[*si] = l2f[*si] ;
     }
   }
-}compute {}
+} ;

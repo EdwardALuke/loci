@@ -185,7 +185,7 @@ constraint((cl, cr)->hexcells) {
   // split the face
   std::vector<QuadFace*> leaves ;
 
-  aFace->resplit($balancedFacePlan, char(0), node_list, edge_list, leaves) ;
+  aFace->resplit($balancedFacePlan, static_cast<char>(0), node_list, edge_list, leaves) ;
 
   // and index the node_list
   int nindex = 0 ;
@@ -313,7 +313,7 @@ constraint(cl->hexcells, boundary_faces) {
 
   // split the face
   std::vector<QuadFace*> leaves ;
-  aFace->resplit($balancedFacePlan, char(0), node_list, edge_list, leaves) ;
+  aFace->resplit($balancedFacePlan, static_cast<char>(0), node_list, edge_list, leaves) ;
 
   //and index the node_list
   int nindex = 0 ;

@@ -203,7 +203,7 @@ face2node->(pos, fileNumber(pos))), constraint((cl, cr)->prisms) {
     }
 
     //split the face
-    aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list, fine_qfaces) ;
+    aqFace->resplit($balancedFacePlan, static_cast<char>(0), node_list, edge_list, fine_qfaces) ;
     num_leaves = fine_qfaces.size() ;
   }else {
     agFace = build_general_face($face2node.begin(),$face2node.size(),
@@ -388,7 +388,7 @@ constraint(cl->prisms, boundary_faces) {
     }
 
     // split the face
-    aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list, fine_qfaces) ;
+    aqFace->resplit($balancedFacePlan, static_cast<char>(0), node_list, edge_list, fine_qfaces) ;
     num_leaves = fine_qfaces.size() ;
   }else {
     agFace = build_general_face($face2node.begin(),$face2node.size(),
