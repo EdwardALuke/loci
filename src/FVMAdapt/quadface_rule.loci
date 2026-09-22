@@ -56,6 +56,6 @@ $rule pointwise(quadfaces::is_quadface), constraint(faces) {
 
 $rule pointwise(priority::quadfaces::is_quadface), constraint(quadfaces) {
   //std::cout << "quadface in a rule: " << seq.size() << " myID "
-              << Loci::MPI_rank << std::endl;
+  //<< Loci::MPI_rank << std::endl;
   $is_quadface = true ;
 }

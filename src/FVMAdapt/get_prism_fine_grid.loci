@@ -113,7 +113,7 @@ constraint(faces) {
                                        $*edge2node, $*pos, $*balancedEdgePlan,
                                        bnode_list, edge_list) ;
 
-    aqFace->resplit($balancedFacePlan, char(0), node_list, edge_list) ;
+    aqFace->resplit($balancedFacePlan, static_cast<char>(0), node_list, edge_list) ;
 
     // put node_list into inner_nodes[f]
     vector<vect3d>(node_list.size()).swap($inner_nodes_face) ;
