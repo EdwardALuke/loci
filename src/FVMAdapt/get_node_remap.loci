@@ -19,62 +19,20 @@
 //#
 //#############################################################################
 #include <Loci.h>
-#include <map>
-#include "defines.h"
-#include <list>
-using std::list ;
-#include <string>
-using std::string ;
-#include <vector>
-using std::vector ;
-using std::pair ;
-#include <algorithm>
-using std::sort ;
-using std::unique ;
 
+$include "FVM.lh"
 
-using std::cout ;
-
-
-using std::string;
-using std::cout;
-using std::endl;
-using std::cerr;
-using std::ofstream;
-using Loci::MPI_processes;
-
-class fileNumRule: public pointwise_rule {
-  store<int> fileNumX ;
-public:
-  fileNumRule() {
-    name_store("fileNumber(X)",fileNumX) ;
-    output("fileNumber(X)") ;
-    constraint("X") ;
-    disable_threading() ;
+$rule pointwise(fileNumber(X)), constraint(X), option(disable_threading), prelude {
+  fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
+  if(df == 0) {
+    for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si) {
+      $fileNumber(X)[*si] = *si ;
+    }
+  }else {
+    Map l2f ;
+    l2f = df->l2f.Rep() ;
+    for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si){
+      $fileNumber(X)[*si] = l2f[*si] ;
+    }
   }
-  void compute(const sequence &seq) {
-   fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
-   if(df == 0) {
-    
-     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
-       fileNumX[*si] = *si ;
-     }
-   } else {
-     Map l2f ;
-     l2f = df->l2f.Rep() ;
-     
-     for(sequence::const_iterator si=seq.begin();si!= seq.end();++si){
-       fileNumX[*si] = l2f[*si] ; 
-     }
-   }
-  }
-  
-} ;
-
-register_rule<fileNumRule> register_fileNumRule ;
-
-
-
-
-
-
+}compute {}
