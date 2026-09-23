@@ -112,13 +112,13 @@ constraint(gnrlcells) {
     if(numCells != 0) { // aCell is not a leaf
       for(int i=0; i<numCells; i++) {
         if((cells[i]->get_tagged()) == 1) {
-          if((min_edge_length/double(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance) {
+          if((min_edge_length/static_cast<double>(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance) {
             cells[i]->resplit(Globals::levels, node_list, edge_list, face_list) ;
             cell_split = true ;
           }else {
             int split_level = Globals::levels ;
             if(Globals::tolerance > 0.0) {
-              split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel()) ;
+              split_level = static_cast<int>(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel()) ;
             }
             if(split_level >= 1) {
               cells[i]->resplit(split_level, node_list, edge_list, face_list) ;
@@ -131,7 +131,7 @@ constraint(gnrlcells) {
       if(aCell->get_tagged() == 1) {
         int split_level = Globals::levels ;
         if(Globals::tolerance > 0.0) {
-          split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
+          split_level = static_cast<int>(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
         }
         if(split_level >= 1) {
           aCell->split(node_list, edge_list, face_list) ;
@@ -187,7 +187,7 @@ $rule pointwise(newCellPlan <- isIndivisible,
     if(aCell->get_tagged() == 1) {
       int split_level = Globals::levels ;
       if(Globals::tolerance > 0.0) {
-        split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
+        split_level = static_cast<int>(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
       }
 
       if(split_level >= 1) {
@@ -597,13 +597,13 @@ constraint(gnrlcells) {
     if(numCells != 0) { // aCell is not a leaf
       for(int i=0; i<numCells; i++) {
         if($fineCellTag[i] == 1) {
-          if((min_edge_length/double(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance) {
+          if((min_edge_length/static_cast<double>(1<<(cells[i]->getLevel()+Globals::levels))) > Globals::tolerance) {
             cells[i]->resplit(Globals::levels, node_list, edge_list, face_list) ;
             cell_split = true ;
           }else {
             int split_level = Globals::levels ;
             if(Globals::tolerance > 0.0) {
-              split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel()) ;
+              split_level = static_cast<int>(log(min_edge_length/Globals::tolerance)/log(2.0) - cells[i]->getLevel()) ;
             }
             if(split_level >= 1) {
               cells[i]->resplit(split_level, node_list, edge_list, face_list) ;
@@ -616,7 +616,7 @@ constraint(gnrlcells) {
       if($fineCellTag[0] == 1) {
         int split_level = Globals::levels ;
         if(Globals::tolerance > 0.0) {
-          split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
+          split_level = static_cast<int>(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
         }
         if(split_level >= 1) {
           aCell->split(node_list, edge_list, face_list) ;
@@ -672,7 +672,7 @@ $rule pointwise(newCellPlan <- isIndivisible, cellTag,
     if($cellTag == 1) {
       int split_level = Globals::levels ;
       if(Globals::tolerance > 0.0) {
-        split_level = int(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
+        split_level = static_cast<int>(log(min_edge_length/Globals::tolerance)/log(2.0)) ;
       }
 
       if(split_level >= 1) {
