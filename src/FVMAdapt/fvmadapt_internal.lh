@@ -36,6 +36,10 @@ $type edge2node MapVec<2> ;
 // Planned cell refinement before cell-plan balancing.
 $type newCellPlan store<std::vector<char> > ;
 
+// Parsed inputs shared by the cell-plan rules.
+$type cellPlanXMLDoc blackbox<std::shared_ptr<xmlDoc> > ;
+$type cellPlanSources blackbox<std::vector<source_par> > ;
+
 // True when this cell's refinement plan is stable under cell balancing.
 $type cellUnchanged store<bool> ;
 
