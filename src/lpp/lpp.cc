@@ -6693,6 +6693,9 @@ $[rule.prelude.spec]$
 ${endif}$
 
 void $[rule.class]$::compute(Loci::sequence const & seq) {
+${if rule.compute.is_specified}$
+$[rule.compute.spec]$
+${endif}$
 }
 
 Loci::register_rule<$[rule.class]$> register_$[rule.class]$ ;
