@@ -1,0 +1,71 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <Loci.h>
+#include "read_par.h"
+
+#ifdef USE_LIBXML2
+#include <libxml/parser.h>
+#include <libxml/tree.h>
+#else
+typedef struct _xmlDoc xmlDoc;
+#endif
+
+$include "fvmadapt_internal.lh"
+
+using std::cerr ;
+using std::endl ;
+
+$type xmlfile_par param<std::string> ;
+$type parfile_par param<std::string> ;
+
+/// Read the XML region once for the cell-plan rules on this process.
+$rule blackbox(cellPlanXMLDoc <- xmlfile_par), prelude {
+#ifdef USE_LIBXML2
+  xmlDoc* doc = xmlReadFile((*$xmlfile_par).c_str(), NULL, 0);
+  if(doc == NULL) {
+    cerr << "WARNING: fail to parse xml file" << endl ;
+    Loci::Abort() ;
+  }
+  *$cellPlanXMLDoc = std::shared_ptr<xmlDoc>(doc, [](xmlDoc* owned_doc) {
+    xmlFreeDoc(owned_doc) ;
+  });
+  if(xmlDocGetRootElement(doc) == NULL) {
+    cerr << "WARNING: fail to parse xml file" << endl ;
+    Loci::Abort() ;
+  }
+#else
+  cerr << "XML capabilities not compiled into adaption code!"
+       << " Check libxml availability when compiling" << endl ;
+#endif
+} ;
+
+/// Read the parameter sources once for the cell-plan rules on this process.
+$rule blackbox(cellPlanSources <- parfile_par), prelude {
+  readPar(*$parfile_par, *$cellPlanSources) ;
+  if($cellPlanSources->empty()) {
+    cerr << "WARNING: fail to read par file" << endl ;
+    Loci::Abort() ;
+  }
+} ;
