@@ -34,5 +34,3 @@ Results are summarized in `quickTest/FVMAdaptTest/TestResults`; each case's
 log is in `<folder>/work/<case>/run.log`. Any failure makes `make` return
 nonzero. Cleanup preserves test inputs and references.
 
-Some regressions require the fixes on
-[`442_fvmadapt_bug_fixes`](https://github.com/EdwardALuke/loci/tree/442_fvmadapt_bug_fixes).
