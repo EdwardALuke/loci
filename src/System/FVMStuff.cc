@@ -23,6 +23,7 @@
 #include <LociGridReaders.h>
 #include <Tools/tools.h>
 #include <map>
+#include <limits>
 #include "pnn.h"
 #include <sys/stat.h>
 #include <unistd.h>
@@ -3343,12 +3344,19 @@ namespace Loci{
         for(size_t i=0;i<N;++i)
           zero[i] = 0 ;
         std::vector<Array<T,N> > tmp(p-1,zero) ;
-        T emaxl = edge_keys[edge_keys.size()-1][0] ;
-        T eminl = edge_keys[0][0] ;
+        // Empty ranks still participate, without contributing to the range.
+        T emaxl = std::numeric_limits<T>::lowest() ;
+        T eminl = std::numeric_limits<T>::max() ;
+        if(!edge_keys.empty()) {
+          emaxl = edge_keys.back()[0] ;
+          eminl = edge_keys.front()[0] ;
+        }
         T emax = emaxl ;
         MPI_Allreduce(&emaxl,&emax,1,MPI_INT,MPI_MAX,comm) ;
         T emin = eminl ;
         MPI_Allreduce(&eminl,&emin,1,MPI_INT,MPI_MIN,comm) ;
+        if(emin > emax) // No edges on any rank.
+          return ;
         T delta = (emax/p)- (emin/p) + 1;
         edge_splits.swap(tmp) ;
         edge_splits[0][0] = emin+delta ;
