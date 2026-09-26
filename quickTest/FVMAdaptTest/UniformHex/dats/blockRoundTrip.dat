@@ -1,0 +1,5 @@
+cells=64
+faces=240
+nodes=125
+convexity=pass
+volume.Main=64
