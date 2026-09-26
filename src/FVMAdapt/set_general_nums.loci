@@ -180,8 +180,16 @@ constraint(gnrlcells) {
     $*edge2node, node_list, edge_list, face_list, $*fileNumber(pos)) ;
 
   $parent_num_fine_cells = aCell->empty_resplit($parentPlan);
-  $balanced_num_fine_cells =  aCell->empty_resplit($balancedCellPlan) ;
-  aCell->traverse($parentPlan,$indexMap) ;
+  if($balancedCellPlan.empty()) {
+    // Every old fine cell contributes to the restored root cell.
+    $balanced_num_fine_cells = 1 ;
+    $indexMap.clear() ;
+    for(int old_cell = 1; old_cell <= $parent_num_fine_cells; ++old_cell)
+      $indexMap.push_back(make_pair(1, old_cell)) ;
+  } else {
+    $balanced_num_fine_cells = aCell->empty_resplit($balancedCellPlan) ;
+    aCell->traverse($parentPlan,$indexMap) ;
+  }
   reduce_vector($indexMap) ;
 
   // clean up
