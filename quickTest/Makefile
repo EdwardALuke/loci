@@ -3,8 +3,8 @@ TEST_BASE = $(shell pwd)
 .PHONY: FRC FVMModUnitTests FVMAdaptTest Containers Tools SystemTests test default
 
 default: FVM FVMModUnitTests FVMAdaptTest Containers Tools SystemTests
-	cat Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults SystemTests/TestResults > TestResults
-	rm Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults SystemTests/TestResults
+	cat Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults SystemTests/TestResults FVMAdaptTest/TestResults > TestResults
+	rm Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults SystemTests/TestResults FVMAdaptTest/TestResults
 	@grep PASS TestResults
 	@grep FAIL TestResults || true
 	@! grep -q FAIL TestResults
