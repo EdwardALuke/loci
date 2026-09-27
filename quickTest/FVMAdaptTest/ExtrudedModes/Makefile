@@ -1,7 +1,7 @@
 CASES = hexBase hexMode0 hexMode1 hexMode2 prismBase prismMode0 prismMode1 prismMode2
 TOOLS = ugrid2vog marker refmesh vogcheck extract
 NEEDS_H5DUMP = 1
-include $(dir $(lastword $(MAKEFILE_LIST)))../common.mk
+include $(TEST_BASE)/FVMAdaptTest/common.mk
 
 ifdef CASE_WORK
 hexBase hexMode0 hexMode1 hexMode2: FIXTURE = thin_hex

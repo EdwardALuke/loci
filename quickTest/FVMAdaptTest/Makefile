@@ -1,4 +1,4 @@
-TEST_BASE ?= $(abspath ..)
+#TEST_BASE ?= $(abspath ..)
 TESTS = RefMesh PlanInputs UniformHex Prism Mixed ExtrudedModes Core FaceOutput CellParents
 .DEFAULT_GOAL := TestResults
 .PHONY: TestResults $(TESTS) clean distclean

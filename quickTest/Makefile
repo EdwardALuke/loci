@@ -1,4 +1,4 @@
-TEST_BASE = $(shell pwd)
+TEST_BASE ?= $(shell pwd)
 
 .PHONY: FRC FVMModUnitTests FVMAdaptTest Containers Tools SystemTests test default
 

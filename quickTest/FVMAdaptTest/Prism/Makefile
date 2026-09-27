@@ -1,7 +1,7 @@
 CASES = round_trip empty_ranks
 TOOLS = ugrid2vog marker refmesh vogcheck
 NEEDS_H5DUMP = 1
-include $(dir $(lastword $(MAKEFILE_LIST)))../common.mk
+include $(TEST_BASE)/FVMAdaptTest/common.mk
 
 ifdef CASE_WORK
 prism.vog:

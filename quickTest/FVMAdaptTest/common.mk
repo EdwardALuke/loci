@@ -2,7 +2,7 @@
 # `ifdef CASE_WORK` guard. Run each recipe in work/<case>, never beside inputs.
 INPUT := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
 GROUP := $(notdir $(INPUT))
-TEST_BASE ?= $(abspath $(INPUT)/../..)
+#TEST_BASE ?= $(abspath $(INPUT)/../..)
 .DEFAULT_GOAL := TestResults
 .PHONY: TestResults check clean distclean $(CASES)
 
@@ -26,7 +26,7 @@ export H5DUMP
 SERIAL = $(TIMEOUT) --kill-after=10s $(TIME_LIMIT) $(SERIALRUN)
 PARALLEL = $(TIMEOUT) --kill-after=10s $(TIME_LIMIT) $(MPIRUN)
 THREE_RANKS = $(TIMEOUT) --kill-after=10s $(TIME_LIMIT) $(MPI_RUN) -np 3
-MESH_SUMMARY = sh $(INPUT)/../mesh_summary.sh
+MESH_SUMMARY = sh $(TEST_BASE)/FVMAdaptTest/mesh_summary.sh
 
 ifndef CASE_WORK
 check:
