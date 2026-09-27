@@ -364,31 +364,30 @@ static std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orie
   }
   
   //process the edges, if two edges overlap, they are replaced by their union
+  // After a merge, keep the current edge and check its next neighbor.
   if(xEdge.size() != 0){
-    for(list<Edge2d>::iterator p1 = xEdge.begin(); p1 != xEdge.end(); p1++){
-      list<Edge2d>::iterator p2 = p1;
-      p2++;
-      if(p2 == xEdge.end()) break;
-      if(p1->pos == p2->pos){
-        if(p2->head <= p1->tail){
-          p1->tail = max(p1->tail, p2->tail);
-          xEdge.erase(p2);
-          p1--;
-        }
+    for(auto edge = xEdge.begin(); edge != xEdge.end(); ) {
+      auto next = edge;
+      ++next;
+      if(next == xEdge.end()) break;
+      if(edge->pos == next->pos && next->head <= edge->tail) {
+        edge->tail = std::max(edge->tail, next->tail);
+        xEdge.erase(next);
+      } else {
+        ++edge;
       }
     }
   }
   if(yEdge.size() != 0){
-    for(list<Edge2d>::iterator p1 = yEdge.begin(); p1 != yEdge.end(); p1++){
-      list<Edge2d>::iterator p2 = p1;
-      p2++;
-      if(p2 == yEdge.end()) break;
-      if(p1->pos == p2->pos){
-        if(p2->head <= p1->tail){
-          p1->tail = max(p1->tail, p2->tail);
-          yEdge.erase(p2);
-          p1--;
-        }
+    for(auto edge = yEdge.begin(); edge != yEdge.end(); ) {
+      auto next = edge;
+      ++next;
+      if(next == yEdge.end()) break;
+      if(edge->pos == next->pos && next->head <= edge->tail) {
+        edge->tail = std::max(edge->tail, next->tail);
+        yEdge.erase(next);
+      } else {
+        ++edge;
       }
     }
   }
