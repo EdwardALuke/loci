@@ -44,9 +44,6 @@ void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lowe
                    std::vector<Entity>& upper,
                    std::vector<Entity>& boundary_map) ;
 
-$type prism2face store<Array<char,5> > ;
-$type prism2node store<Array<char,6> > ;
-
 /* create_prismmaps
    * Create an ordering for the faces and nodes of a prism cell.
    *

@@ -267,10 +267,6 @@ std::vector<char> merge_faceplan(std::vector<char>& planl,
   return fplan ; 
 }
 
-
-$type cellPlan store<std::vector<char> > ;
-$type facePlan store<std::vector<char> > ;
-
 $rule pointwise(facePlan <- (cl, cr)->cellPlan,
 (cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)), //dummy
 (cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos),

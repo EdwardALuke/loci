@@ -47,18 +47,9 @@ using Loci::MPI_processes ;
 $type node_output param<bool> ;
 $type outfile_par param<std::string> ;
 $type meshfile_par param<string> ;
-$type inner_nodes_cell store<Loci::FineNodes> ;
-$type inner_nodes_face store<Loci::FineNodes> ;
-$type inner_nodes_edge store<Loci::FineNodes> ;
 $type face_output param<bool> ;
-$type fine_faces_cell store<Loci::FineFaces> ;
-$type fine_faces store<Loci::FineFaces> ;
 $type volTag_output param<int> ;
 $type volTag_blackbox blackbox<std::vector<std::pair<std::string, entitySet> > > ;
-$type balanced_cell_offset store<int> ;
-$type balanced_num_fine_cells store<int> ;
-$type num_original_nodes param<int> ;
-$type num_original_faces param<int> ;
 
 namespace Loci{
   void writeVOGTag(hid_t output_fid, vector<pair<string,entitySet> >& volTags) ;

@@ -38,8 +38,6 @@ using std::set ;
 using std::map ;
 using Loci::storeRepP ;
 
-$type balanced_num_inner_nodes store<int> ;
-$type balanced_num_fine_cells store<int> ;
 $type quadfaces Constraint ;
 
 $rule pointwise(balanced_num_inner_nodes <- balancedCellPlan,
