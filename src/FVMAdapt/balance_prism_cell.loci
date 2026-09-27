@@ -36,9 +36,6 @@ using Loci::storeRepP ;
 
 // This file balances prism cellPlan between cells  
 
-$type prism2face store<Array<char,5> > ;
-$type prism2node store<Array<char,6> > ;
-
 /// This rule initializes cellUnchanged, initially newCellPlan is the plan made
 /// from postag and nodeTag, and after each cell is balanced.
 $rule pointwise(cellUnchanged{n=0}, tmpCellPlan{n=0} <- newCellPlan),

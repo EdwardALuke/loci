@@ -38,11 +38,6 @@ using std::set ;
 using std::map ;
 using Loci::storeRepP ;
 
-$type balanced_num_inner_nodes store<int> ;
-$type balanced_num_fine_cells store<int> ;
-$type prism2face store<Array<char,5> > ;
-$type prism2node store<Array<char,6> > ;
-
 $rule pointwise(balanced_num_inner_nodes <- balancedCellPlan,
 (prism2face, prism2node, prismOrientCode),
 (lower, upper, boundary_map)->balancedFacePlan,
