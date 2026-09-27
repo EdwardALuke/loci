@@ -69,6 +69,9 @@ $type split_mode_par param<int> ;
 
 // Refinement inputs and plans
 
+/// Common name for a plan supplied through a file or database.
+$type planname_par param<std::string> ;
+
 /// Refinement plans attached to original mesh cells, faces, and edges.
 $type cellPlan store<std::vector<char> > ;
 $type facePlan store<std::vector<char> > ;
