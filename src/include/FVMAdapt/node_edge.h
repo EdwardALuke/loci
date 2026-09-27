@@ -220,4 +220,9 @@ inline void cleanup_list(std::list<Node*>& node_list) {
   node_list.clear() ;
 }
 
+/// Encode midpoint split coordinates strictly inside (0, 2^MAXLEVEL) as an edge plan.
+/// Every descendant split must include its ancestor midpoints. Replaces edgePlan.
+void encode_edge_plan(const Loci::SetLong& splitCoordinates,
+                      std::vector<char>& edgePlan);
+
 #endif
