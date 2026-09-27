@@ -21,6 +21,11 @@
 #include <Loci.h>
 
 $include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+//-----------------------------------------------------------------------------
+// File numbering
+//-----------------------------------------------------------------------------
 
 $type X Constraint ;
 
@@ -37,4 +42,33 @@ $rule pointwise(fileNumber(X)), constraint(X), option(disable_threading), prelud
       $fileNumber(X)[*si] = l2f[*si] ;
     }
   }
+} ;
+
+
+//-----------------------------------------------------------------------------
+// Original-node count
+//-----------------------------------------------------------------------------
+
+/// Parameter, no loop.
+$rule unit(num_original_nodes), constraint(UNIVERSE) {
+  $num_original_nodes = 0 ;
+}
+
+$rule apply(num_original_nodes <- pos, num_original_nodes)[Loci::Summation] {
+  $num_original_nodes += 1 ;
+}
+
+
+//-----------------------------------------------------------------------------
+// Original-face count
+//-----------------------------------------------------------------------------
+
+/// Parameter, no loop
+$rule unit(num_original_faces), constraint(UNIVERSE) {
+  $num_original_faces = 0 ;
+}
+
+$rule apply(num_original_faces <- num_original_faces)[Loci::Summation],
+constraint(faces), prelude {
+  *$num_original_faces += seq.size() ;
 } ;
