@@ -45,15 +45,8 @@ using Loci::storeRepP ;
 
 $type tagfile_par param<std::string> ;
 $type inputTagsData blackbox<std::vector<char> > ;
-$type posTag store<char> ;
-$type num_original_nodes param<int> ;
-$type nodeTag store<std::vector<char> > ;
-$type num_inner_nodes store<int> ;
 $type inputCellTagsData blackbox<std::vector<char> > ;
-$type fineCellTag store<std::vector<char> > ;
-$type num_fine_cells store<int> ;
 $type cell_tagfile_par param<std::string> ;
-$type cellTag store<char> ;
 
 // functions from distribute_io
 namespace Loci{

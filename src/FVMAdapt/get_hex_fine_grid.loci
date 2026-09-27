@@ -38,8 +38,6 @@ using Loci::storeRepP ;
 // used After node_offset and cell_offset has been set up.
 // FineFaces is defined as c1, c2,followed by face2node.
 
-$type inner_nodes_cell store<Loci::FineNodes> ;
-
 //get inner_nodes  of hex cells
 $rule pointwise(inner_nodes_cell <- balancedCellPlan,
   (hex2face, hex2node, hexOrientCode),

@@ -38,13 +38,6 @@ using Loci::storeRepP;
 // used After node_offset and cell_offset has been set up.
 // FineFaces is defined as c1, c2,followed by face2node.
 
-$type balanced_node_offset store<int> ;
-$type balanced_cell_offset store<int> ;
-$type fine_faces store<Loci::FineFaces> ;
-$type fine_faces_cell store<Loci::FineFaces> ;
-$type prism2face store<Array<char,5> > ;
-$type prism2node store<Array<char,6> > ;
-
 /// Get fine_faces of prism cells
 $rule pointwise(fine_faces_cell <- balancedCellPlan,balanced_node_offset,
 balanced_cell_offset, (prism2face, prism2node, prismOrientCode),

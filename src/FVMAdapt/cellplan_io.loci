@@ -32,21 +32,14 @@ using std::endl ;
 using std::string ;
 using std::ifstream ;
 
-$type num_original_nodes param<int> ;
-$type planfile_par param<std::string> ;
-$type cellPlan store<std::vector<char> > ;
-$type planDB_par param<std::string> ;
 $type balanced_planDB_par param<std::string> ;
 $type balanced_planfile_par param<std::string> ;
 $type parent_planfile_par param<std::string> ;
-$type parentPlan store<std::vector<char> > ;
 $type parent_planDB_par param<std::string> ;
-$type beginWithMarker param<bool> ;
 $type tmpPlan store<std::vector<char> > ;
 $type plan_outfile_par param<std::string> ;
 $type cellplan_output store<bool> ;
 $type plan_outDB_par param<std::string> ;
-$type balanced_num_fine_cells store<int> ;
 $type cellweight_outDB_par param<std::string> ;
 $type cellweight_output store<bool> ;
 

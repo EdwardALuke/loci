@@ -33,12 +33,6 @@ using std::cerr ;
 using std::endl ;
 using std::vector ;
 
-$type balanced_node_offset store<int> ;
-$type balanced_cell_offset store<int> ;
-$type fine_faces store<Loci::FineFaces> ;
-$type prism2face store<Array<char,5> > ;
-$type prism2node store<Array<char,6> > ;
-
 $rule pointwise(fine_faces <- balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
 (cl, cr)->(balancedCellPlan, balanced_cell_offset),
