@@ -205,10 +205,8 @@ namespace Loci {
 
   struct SetLongUnion {
     void operator()(SetLong &f1, const SetLong &f2) {
-      SetLong result ;
-      std::set_union(f1.aset.begin(), f1.aset.end(), f2.aset.begin(), f2.aset.end(),
-                std::inserter(result.aset, result.aset.begin())) ;
-      f1 = result ;
+      if(&f1 == &f2) { return ; }
+      f1.aset.insert(f2.aset.begin(), f2.aset.end()) ;
     }
   };
 
