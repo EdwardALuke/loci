@@ -1366,7 +1366,9 @@ namespace Loci {
     vector<interval> snd_list(send_count/2) ;
     for(int i=0;i<send_count/2;++i)
       snd_list[i] = e[i] ;
-    MPI_Allgatherv(&(snd_list[0]),send_count,MPI_INT,
+    // Avoid referencing &snd_list[0] when empty (Open MPI segfault)
+    interval dummy_ivl ;
+    MPI_Allgatherv(send_count==0?&dummy_ivl:&(snd_list[0]),send_count,MPI_INT,
                    &(ivl_list[0]),&(recv_count[0]), &(recv_disp[0]), MPI_INT,
                    MPI_COMM_WORLD) ;
     sort(ivl_list.begin(),ivl_list.end(),spec_ival_compare) ;
@@ -1678,7 +1680,9 @@ namespace Loci {
       snd_list[i*2] = e[i].first ;
       snd_list[i*2+1] = e[i].second ;
     }
-    MPI_Allgatherv(&(snd_list[0]),send_count,MPI_INT,
+    // Avoid referencing &snd_list[0] when empty (Open MPI segfault)
+    int dummy = 0 ;
+    MPI_Allgatherv(send_count==0?&dummy:&(snd_list[0]),send_count,MPI_INT,
                    &(ivl_list[0]),&(recv_count[0]), &(recv_disp[0]), MPI_INT,
                    comm) ;
 
