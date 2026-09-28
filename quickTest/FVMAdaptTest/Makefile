@@ -4,11 +4,19 @@ TESTS = RefMesh PlanInputs UniformHex Prism Mixed ExtrudedModes Core FaceOutput 
 .PHONY: TestResults $(TESTS) clean distclean
 
 # Collect a summary even when an independent group fails.
-TestResults:
-	@rm -f $@
-	@status=0; for group in $(TESTS); do \
-	  rm -f $$group/TestResults; \
-	  $(MAKE) --no-print-directory -C $$group LOCI_BASE="$(LOCI_BASE)" TEST_BASE="$(TEST_BASE)" || status=1; \
+TestResults: $(TESTS)
+	rm -f TestResults
+	for test in $(TESTS); do \
+	  cat $$test/TestResults >>TestResults; \
+	done
+	@grep PASS TestResults
+	@grep FAIL TestResults || true
+	@! grep -q FAIL TestResults
+
+#	@rm -f $@
+#	@status=0; for group in $(TESTS); do \
+#	  rm -f $$group/TestResults; \
+#	  $(MAKE) --no-print-directory -C $$group LOCI_BASE="$(LOCI_BASE)" TEST_BASE="$(TEST_BASE)" || status=1; \
 	  if test -f $$group/TestResults; then cat $$group/TestResults >> $@; \
 	  else echo "FVMAdaptTest/$$group: FAILED (setup)" >> $@; fi; \
 	done; printf '\nFVMAdapt summary\n'; cat $@; exit $$status

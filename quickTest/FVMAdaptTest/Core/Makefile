@@ -1,6 +1,6 @@
 CASES = plans
 SOURCES = test_adaptation.cc test_refinement.cc
-include $(dir $(lastword $(MAKEFILE_LIST)))../common.mk
+include $(TEST_BASE)/FVMAdaptTest/common.mk
 
 ifdef CASE_WORK
 plans: test_adaptation.exe

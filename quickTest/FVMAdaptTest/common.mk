@@ -1,8 +1,8 @@
 # Group Makefiles name their CASES and provide their recipes inside an
 # `ifdef CASE_WORK` guard. Run each recipe in work/<case>, never beside inputs.
-INPUT := $(abspath $(dir $(firstword $(MAKEFILE_LIST))))
-GROUP := $(notdir $(INPUT))
-#TEST_BASE ?= $(abspath $(INPUT)/../..)
+GROUP := $(notdir $(abspath $(dir $(firstword $(MAKEFILE_LIST)))))
+INPUT := $(TEST_BASE)/FVMAdaptTest/$(GROUP)
+
 .DEFAULT_GOAL := TestResults
 .PHONY: TestResults check clean distclean $(CASES)
 
