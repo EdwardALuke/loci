@@ -247,8 +247,8 @@ namespace Loci {
     int result_size = (rdispls[p-1]+rcounts[p-1]) ;
     std::vector<T> sorted_pnts(result_size) ;
 
-    MPI_Alltoallv(&list[0],&scounts[0],&sdispls[0],bytearray,
-                  &sorted_pnts[0],&rcounts[0],&rdispls[0],bytearray,
+    MPI_Alltoallv(list.data(),scounts.data(),sdispls.data(),bytearray,
+                  sorted_pnts.data(),rcounts.data(),rdispls.data(),bytearray,
                   comm) ;
 
     list.swap(sorted_pnts) ;
