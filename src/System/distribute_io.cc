@@ -1542,18 +1542,22 @@ namespace Loci {
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
-               send_sets[i]) ;
+      if(send_sizes[i] > 0)
+	sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+		 send_sets[i]) ;
     }
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
-                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(),
+		  MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(),
+		  MPI_PACKED,
                   comm) ;
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
-                       recv_seqs[i]) ;
+      if(recv_sizes[i] > 0)
+	qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+			 recv_seqs[i]) ;
     }
     return qcol_rep ;
   }
@@ -1797,18 +1801,22 @@ namespace Loci {
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      input->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
-                  send_sets[i]) ;
+      if(send_sizes[i] > 0)
+	input->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+		    send_sets[i]) ;
     }
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
-                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(),
+		  MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(),
+		  MPI_PACKED,
                   comm) ;
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      result->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
-                     recv_seq[i]) ;
+      if(recv_sizes[i] > 0)
+	result->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+		       recv_seq[i]) ;
     }
   }
 
