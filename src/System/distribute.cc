@@ -425,10 +425,10 @@ namespace Loci {
 
     vector<int> recv_buf(recv_size) ;
     // communicate
-    MPI_Alltoallv(&send_buf[0], &send_counts[0],
-                  &send_displs[0], MPI_INT,
-                  &recv_buf[0], &recv_counts[0],
-                  &recv_displs[0], MPI_INT, comm) ;
+    MPI_Alltoallv(send_buf.data(), send_counts.data(),
+                  send_displs.data(), MPI_INT,
+                  recv_buf.data(), recv_counts.data(),
+                  recv_displs.data(), MPI_INT, comm) ;
     // release buffers that are not needed
     vector<int>().swap(send_counts) ;
     vector<int>().swap(send_displs) ;
