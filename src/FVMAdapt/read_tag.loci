@@ -321,8 +321,8 @@ void communicateFileData(vector<char> &filedata,
   for(int i=0; i<p; ++i) {
     sendoffsets[i+1] = sendoffsets[i]+sendsizes[i] ;
   }
-  MPI_Alltoallv(&reqitem[0],&reqsizes[0],&datamapoffsets[0],MPI_INT,
-                &recvreq[0],&sendsizes[0],&sendoffsets[0],MPI_INT,
+  MPI_Alltoallv(reqitem.data(),reqsizes.data(),datamapoffsets.data(),MPI_INT,
+                recvreq.data(),sendsizes.data(),sendoffsets.data(),MPI_INT,
                 comm) ;
   vector<char> sendinfo(nreq) ;
   for(int i=0;i<nreq;++i) {
@@ -330,8 +330,8 @@ void communicateFileData(vector<char> &filedata,
   }
   vector<char> recvinfo(dmsz) ;
   // then return requested items
-  MPI_Alltoallv(&sendinfo[0],&sendsizes[0],&sendoffsets[0],MPI_CHAR,
-                &recvinfo[0],&reqsizes[0],&datamapoffsets[0],MPI_CHAR,
+  MPI_Alltoallv(sendinfo.data(),sendsizes.data(),sendoffsets.data(),MPI_CHAR,
+		recvinfo.data(),reqsizes.data(),datamapoffsets.data(),MPI_CHAR,
                 comm) ;
 
   // then store requested item in output
