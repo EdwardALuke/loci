@@ -38,18 +38,10 @@ using std::endl ;
 using std::string ;
 using std::ofstream ;
 
-$type num_inner_nodes store<int> ;
-$type num_original_nodes param<int> ;
 $type node_offset store<int> ;
-$type num_fine_cells store<int> ;
 $type cell_offset store<int> ;
-$type parent_num_fine_cells store<int> ;
 $type parent_cell_offset store<int> ;
-$type num_original_faces param<int> ;
-$type balanced_num_fine_cells store<int> ;
-$type balanced_cell_offset store<int> ;
 $type cell2parent store<std::vector<std::pair<int32, int32> > > ;
-$type indexMap store<std::vector<std::pair<int32, int32> > > ;
 $type cell2parent_file_par param<std::string> ;
 $type cell2parent_output store<bool> ;
 $type cell2parent_DB store<bool> ;
@@ -480,7 +472,9 @@ option(disable_threading), prelude {
   }ENDFORALL ;
 
   store<pair<int,int> > c2pset ;
-  entitySet domset = interval(0,cnt-1) ;
+  entitySet domset = EMPTY ;
+  if(cnt > 0)
+    domset = interval(0,cnt-1) ;
   c2pset.allocate(domset) ;
 
   cnt = 0 ;

@@ -37,18 +37,6 @@ using std::cout;
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 
-/// Constraint for cells handled by the prism adaptation path.
-$type prisms Constraint ;
-
-/// Local face index on the left cell of a face.
-$type fl store<char> ;
-
-/// Local face index on the right cell of a face.
-$type fr store<char> ;
-
-/// Prism-cell face orientation code for the prism refinement tree.
-$type prismOrientCode store<Array<char,5> > ;
-
 std::vector<char> extract_general_face(const Entity* lower, int lower_size,
                                        const Entity* upper, int upper_size,
                                        const Entity* boundary_map, int boundary_map_size,

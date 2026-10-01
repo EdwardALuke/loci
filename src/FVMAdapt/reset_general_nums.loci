@@ -41,9 +41,6 @@ using std::map ;
 // This file set up the numbers of inner nodes, the number of fine cells in each
 // original cell
 
-$type balanced_num_inner_nodes store<int> ;
-$type balanced_num_fine_cells store<int> ;
-
 $rule pointwise(balanced_num_inner_nodes <- balancedCellPlan,
 (lower, upper, boundary_map)->(is_quadface,balancedFacePlan),
 (lower, upper, boundary_map)->face2edge->balancedEdgePlan,

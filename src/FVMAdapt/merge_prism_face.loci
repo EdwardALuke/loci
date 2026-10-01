@@ -36,9 +36,6 @@ using std::cerr ;
 using std::endl ;
 using std::cout ;
 
-$type cellPlan store<std::vector<char> > ;
-$type facePlan store<std::vector<char> > ;
-
 std::vector<char> extract_prism_face(const std::vector<char>& cellPlan, int dd) ;
 
 std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan1, int dd1,

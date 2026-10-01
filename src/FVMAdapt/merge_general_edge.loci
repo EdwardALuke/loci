@@ -41,11 +41,7 @@ using std::endl ;
 using namespace Loci;
 
 $type planname_par param<std::string> ;
-$type planfile_par param<std::string> ;
-$type planDB_par param<std::string> ;
 $type pointSet store<SetLong> ;
-$type facePlan store<std::vector<char> > ;
-$type edgePlan store<std::vector<char> > ;
 
 $rule singleton(planname_par <- planfile_par) {
   $planname_par = $planfile_par;

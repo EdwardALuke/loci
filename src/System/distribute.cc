@@ -731,10 +731,10 @@ namespace Loci {
 
     vector<int> recv_buf(recv_size) ;
     // communicate
-    MPI_Alltoallv(&send_buf[0], &send_counts[0],
-                  &send_displs[0], MPI_INT,
-                  &recv_buf[0], &recv_counts[0],
-                  &recv_displs[0], MPI_INT, comm) ;
+    MPI_Alltoallv(send_buf.data(), send_counts.data(),
+                  send_displs.data(), MPI_INT,
+                  recv_buf.data(), recv_counts.data(),
+                  recv_displs.data(), MPI_INT, comm) ;
     // release buffers that are not needed
     vector<int>().swap(send_counts) ;
     vector<int>().swap(send_displs) ;
@@ -919,7 +919,7 @@ namespace Loci {
 
     vector<int> send_set_alloc(send_sizes+recv_sizes,0) ;
     int * send_set_buf = &send_set_alloc[0] ; 
-    int * recv_set_buf = &send_set_alloc[send_sizes] ; 
+    int * recv_set_buf = send_set_buf+send_sizes ; 
     for(int i=0;i<MPI_processes;++i) {
       for(size_t j=0;j<recv_req[i].num_intervals();++j) {
         send_set_buf[send_displacement[i]+j*2  ] = recv_req[i][j].first ;
@@ -974,7 +974,7 @@ namespace Loci {
 
     vector<unsigned char> store_comm_buf(send_sizes+1024+recv_sizes,0) ;
     unsigned char *send_store = &store_comm_buf[0] ; 
-    unsigned char *recv_store = &store_comm_buf[send_sizes+1024] ; 
+    unsigned char *recv_store = send_store+send_sizes+1024 ; 
 
     for(int i=0;i<send_sizes;++i)
       send_store[i] = 0 ;
@@ -1201,7 +1201,7 @@ namespace Loci {
 
     // Wait for communication to complete
     vector<MPI_Status> recv_Status(recv_Requests.size()) ;
-    MPI_Waitall(numRecvs,&recv_Requests[0],&recv_Status[0]) ;
+    MPI_Waitall(numRecvs,recv_Requests.data(),recv_Status.data()) ;
 
     // update set to add results from clone regions of other processors
     for(size_t i=0;i<recv_buffer.size();i=i+2)
@@ -1242,8 +1242,8 @@ namespace Loci {
     vector<interval> snd_list(send_count/2) ;
     for(int i=0;i<send_count/2;++i)
       snd_list[i] = e[i] ;
-    MPI_Allgatherv(&(snd_list[0]),send_count,MPI_INT,
-                   &(ivl_list[0]),&(recv_count[0]), &(recv_disp[0]), MPI_INT,
+    MPI_Allgatherv(snd_list.data(),send_count,MPI_INT,
+		   ivl_list.data(),recv_count.data(), recv_disp.data(), MPI_INT,
                    MPI_COMM_WORLD) ;
     sort(ivl_list.begin(),ivl_list.end(),spec_ival_compare) ;
     entitySet tmp = ivl_list[0] ;
@@ -1554,8 +1554,8 @@ namespace Loci {
       snd_list[i*2] = e[i].first ;
       snd_list[i*2+1] = e[i].second ;
     }
-    MPI_Allgatherv(&(snd_list[0]),send_count,MPI_INT,
-                   &(ivl_list[0]),&(recv_count[0]), &(recv_disp[0]), MPI_INT,
+    MPI_Allgatherv(snd_list.data(),send_count,MPI_INT,
+                   ivl_list.data(),recv_count.data(), recv_disp.data(), MPI_INT,
                    comm) ;
 
     for(int i = 0; i < p ; ++i) {

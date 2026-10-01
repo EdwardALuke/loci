@@ -38,19 +38,6 @@ using std::set ;
 using std::map ;
 using Loci::storeRepP ;
 
-
-$type cellPlan store<std::vector<char> > ;
-$type facePlan store<std::vector<char> > ;
-$type edgePlan store<std::vector<char> > ;
-$type num_inner_nodes store<int> ;
-$type num_fine_cells store<int> ;
-$type balanced_num_fine_cells store<int> ;
-$type parent_num_fine_cells store<int> ;
-$type parentPlan store<std::vector<char> > ;
-$type indexMap store<std::vector<std::pair<int32, int32> > > ;
-$type prism2face store<Array<char,5> > ;
-$type prism2node store<Array<char,6> > ;
-
 $rule pointwise(num_inner_nodes <- cellPlan,
 (prism2face, prism2node, prismOrientCode),
 (lower, upper, boundary_map)->facePlan,

@@ -247,8 +247,8 @@ namespace Loci {
     int result_size = (rdispls[p-1]+rcounts[p-1]) ;
     std::vector<T> sorted_pnts(result_size) ;
 
-    MPI_Alltoallv(&list[0],&scounts[0],&sdispls[0],bytearray,
-                  &sorted_pnts[0],&rcounts[0],&rdispls[0],bytearray,
+    MPI_Alltoallv(list.data(),scounts.data(),sdispls.data(),bytearray,
+                  sorted_pnts.data(),rcounts.data(),rdispls.data(),bytearray,
                   comm) ;
 
     list.swap(sorted_pnts) ;
@@ -308,7 +308,8 @@ namespace Loci {
         for(int i=r+target_p;i<p;i+=target_p) {
 
           MPI_Status stat ;
-          MPI_Recv(&nlist[loc],recv_sizes[cnt],bytearray,i,2,comm,&stat) ;
+	  if(recv_sizes[cnt] > 0)
+	    MPI_Recv(&nlist[loc],recv_sizes[cnt],bytearray,i,2,comm,&stat) ;
           loc += recv_sizes[cnt] ;
           cnt++ ;
         }
@@ -317,7 +318,8 @@ namespace Loci {
         int dest = r % target_p ;
         int sz = list.size() ;
         MPI_Send(&sz,1,MPI_INT,dest,1,comm) ;
-        MPI_Send(&list[0],sz,bytearray,dest,2,comm) ;
+	if(sz >0)
+	  MPI_Send(&list[0],sz,bytearray,dest,2,comm) ;
         std::vector<T> nlist ;
         list.swap(nlist) ;
       }

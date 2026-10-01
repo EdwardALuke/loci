@@ -37,9 +37,6 @@ $include "fvmadapt_internal.lh"
 using std::cerr ;
 using std::endl ;
 
-$type xmlfile_par param<std::string> ;
-$type parfile_par param<std::string> ;
-
 /// Read the XML region once for the cell-plan rules on this process.
 $rule blackbox(cellPlanXMLDoc <- xmlfile_par), prelude {
 #ifdef USE_LIBXML2

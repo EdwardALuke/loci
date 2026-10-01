@@ -28,12 +28,6 @@ $include "fvmadapt_internal.lh"
 
 using Loci::storeRepP;
 
-$type balanced_num_inner_nodes store<int> ;
-$type num_original_nodes param<int> ;
-$type balanced_node_offset store<int> ;
-$type balanced_num_fine_cells store<int> ;
-$type balanced_cell_offset store<int> ;
-
 typedef Loci::vector3d<double> vect3d ;
 namespace Loci {
   std::vector<int> all_collect_sizes(int size) ;

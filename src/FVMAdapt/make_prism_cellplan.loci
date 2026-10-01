@@ -50,24 +50,6 @@ using std::endl ;
 using std::cout ;
 using Loci::storeRepP ;
 
-$type prism2face store<Array<char, 5> > ;
-$type prism2node store<Array<char, 6> > ;
-$type cellPlan store<std::vector<char> > ;
-$type xmlfile_par param<std::string> ;
-$type restart_xml_par param<int> ;
-$type norestart_xml_par param<int> ;
-$type parfile_par param<std::string> ;
-$type restart_par_par param<int> ;
-$type norestart_par_par param<int> ;
-$type facePlan store<std::vector<char> > ;
-$type edgePlan store<std::vector<char> > ;
-$type posTag store<char> ;
-$type nodeTag store<std::vector<char> > ;
-$type restart_tag_par param<int> ;
-$type norestart_tag_par param<int> ;
-$type beginWithMarker param<bool> ;
-$type fineCellTag store<std::vector<char> > ;
-$type cellTag store<char> ;
 // int currentMem(void);
 #ifdef USE_LIBXML2
 bool mark_node(xmlNode* root_element,

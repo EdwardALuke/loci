@@ -45,15 +45,8 @@ using Loci::storeRepP ;
 
 $type tagfile_par param<std::string> ;
 $type inputTagsData blackbox<std::vector<char> > ;
-$type posTag store<char> ;
-$type num_original_nodes param<int> ;
-$type nodeTag store<std::vector<char> > ;
-$type num_inner_nodes store<int> ;
 $type inputCellTagsData blackbox<std::vector<char> > ;
-$type fineCellTag store<std::vector<char> > ;
-$type num_fine_cells store<int> ;
 $type cell_tagfile_par param<std::string> ;
-$type cellTag store<char> ;
 
 // functions from distribute_io
 namespace Loci{
@@ -117,12 +110,12 @@ vector<char> read_tags_txt(string filename,MPI_Comm &comm) {
     }
     for(int k=1; k<p; ++k) {
       vector<char> sendval(proc_alloc[k]) ;
-      for(int i=0; i<size; ++i) {
+      for(int i=0; i<proc_alloc[k]; ++i) {
         int tmp ;
         inFile >> tmp ;
         sendval[i] = ((0==tmp)?0:((tmp>0)?1:2)) ;
       }
-      MPI_Send(&sendval[0],proc_alloc[k],MPI_CHAR,k,111,comm) ;
+      MPI_Send(sendval.data(),proc_alloc[k],MPI_CHAR,k,111,comm) ;
     }
     return retval ;
   }else {
@@ -130,7 +123,7 @@ vector<char> read_tags_txt(string filename,MPI_Comm &comm) {
     MPI_Scatter(0, 0, MPI_INT, &size, 1, MPI_INT, 0, comm) ;
     vector<char> retval(size) ;
     MPI_Status status ;
-    MPI_Recv(&retval[0], size, MPI_CHAR, 0, 111, comm, &status) ;
+    MPI_Recv(retval.data(), size, MPI_CHAR, 0, 111, comm, &status) ;
     return retval ;
   }
 }
@@ -321,8 +314,8 @@ void communicateFileData(vector<char> &filedata,
   for(int i=0; i<p; ++i) {
     sendoffsets[i+1] = sendoffsets[i]+sendsizes[i] ;
   }
-  MPI_Alltoallv(&reqitem[0],&reqsizes[0],&datamapoffsets[0],MPI_INT,
-                &recvreq[0],&sendsizes[0],&sendoffsets[0],MPI_INT,
+  MPI_Alltoallv(reqitem.data(),reqsizes.data(),datamapoffsets.data(),MPI_INT,
+                recvreq.data(),sendsizes.data(),sendoffsets.data(),MPI_INT,
                 comm) ;
   vector<char> sendinfo(nreq) ;
   for(int i=0;i<nreq;++i) {
@@ -330,8 +323,8 @@ void communicateFileData(vector<char> &filedata,
   }
   vector<char> recvinfo(dmsz) ;
   // then return requested items
-  MPI_Alltoallv(&sendinfo[0],&sendsizes[0],&sendoffsets[0],MPI_CHAR,
-                &recvinfo[0],&reqsizes[0],&datamapoffsets[0],MPI_CHAR,
+  MPI_Alltoallv(sendinfo.data(),sendsizes.data(),sendoffsets.data(),MPI_CHAR,
+		recvinfo.data(),reqsizes.data(),datamapoffsets.data(),MPI_CHAR,
                 comm) ;
 
   // then store requested item in output
