@@ -979,7 +979,7 @@ namespace Loci {
         cnt++ ;
       }
     }
-    MPI_Waitall(requestList.size(), &requestList[0], &requestStatus[0]) ;
+    MPI_Waitall(requestList.size(), requestList.data(), requestStatus.data()) ;
       
     for(int i=0;i<totalRecv;++i) {
       int kd = recvBuffer[i*2] ;
@@ -1092,7 +1092,7 @@ namespace Loci {
       }
     }
     WARN(sendcnt != totalSend*2) ;
-    MPI_Waitall(requestList.size(), &requestList[0], &requestStatus[0]) ;
+    MPI_Waitall(requestList.size(), requestList.data(), requestStatus.data()) ;
   
     cnt = 0 ;
     for(size_t i=0;i<recvSizes.size();++i)

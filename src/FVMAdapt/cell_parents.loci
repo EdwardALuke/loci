@@ -375,7 +375,9 @@ option(disable_threading), prelude {
   }ENDFORALL ;
 
   store<pair<int,int> > c2pset ;
-  entitySet domset = interval(0,cnt-1) ;
+  entitySet domset = EMPTY ;
+  if(cnt > 0)
+    domset = interval(0,cnt-1) ;
   c2pset.allocate(domset) ;
 
   cnt = 0 ;

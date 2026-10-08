@@ -213,7 +213,8 @@ namespace Loci {
             H5Sclose(memspace) ;
           }
           // send to remote processor
-          MPI_Send(&tmp[0],sz*sizeof(T),MPI_BYTE,1,0,MPI_COMM_WORLD) ;
+	  if(sz > 0)
+	    MPI_Send(&tmp[0],sz*sizeof(T),MPI_BYTE,1,0,MPI_COMM_WORLD) ;
 
         }
         H5Dclose(dataset) ;
@@ -223,13 +224,16 @@ namespace Loci {
         long size = sizes[MPI_rank] ;
         //      if(size > 0) {
         MPI_Status status ;
-        MPI_Recv(&v[0],size*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+	if(size > 0)
+	  MPI_Recv(&v[0],size*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
         //      }
         for(int i=MPI_rank+1;i<MPI_processes;++i) {
           long lsz = sizes[i] ;
           vector<T> tmp(lsz) ;
-          MPI_Recv(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
-          MPI_Send(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank+1,0,MPI_COMM_WORLD) ;
+	  if(lsz > 0) {
+	    MPI_Recv(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+	    MPI_Send(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank+1,0,MPI_COMM_WORLD) ;
+	  }
         }
       }
     }
