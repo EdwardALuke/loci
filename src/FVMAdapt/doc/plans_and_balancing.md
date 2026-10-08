@@ -74,9 +74,9 @@ facts. Request them when adapting, then install the complete grid handoff:
 ```cpp
 #include <FVMAdapt/gridInterface.h>
 
-const bool includeCellState = true;
-Loci::onlineRefineMesh(grid, rules, mode, cycle, tags, caseName,
-                      includeCellState);
+Loci::RefinementOptions options;
+options.cellState = true;
+Loci::onlineRefineMesh(grid, rules, mode, cycle, tags, caseName, options);
 if(!Loci::setupFVMGridFromContainer(facts, *grid, cellWeights))
   Loci::Abort();
 ```
@@ -99,7 +99,7 @@ split/merge relationship to the preceding mesh, not the requested tag or the
 reason for a change. A rejected coarsening request is unchanged. Unchanged
 cells may still have subdivided faces, and renumbering is not a cell change.
 
-`initializeGridFromPlan` accepts the same trailing Boolean option. It
+`initializeGridFromPlan` accepts the same `RefinementOptions`. It
 reconstructs depth and root identity from the saved plan and base mesh, but
 sets `cellChange` to `CELL_CHANGE_UNKNOWN`: that checkpoint does not describe
 the preceding adaptation. The next adaptation computes changes normally.
@@ -135,8 +135,8 @@ partition; installation remaps them to the solver's cell numbering.
 `grid->hasEdgeLengths` records availability even on empty ranks.
 
 The fields are off by default and independent of `options.cellState`.
-Every MPI rank must use the same options. Existing calls, including the Boolean
-cell-state overloads, retain their behavior.
+Every MPI rank must use the same options. Existing calls without options
+retain their behavior.
 
 `initializeGridFromPlan` accepts the same options and reconstructs lengths from
 the base mesh and saved plan. No new checkpoint data or plan format is needed.

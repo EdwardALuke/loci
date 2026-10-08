@@ -53,25 +53,32 @@ $rule pointwise(priority::restart::fineCellChange <- restart_tag_par, indexMap,
 parent_num_fine_cells, balanced_num_fine_cells), constraint(geom_cells) {
   std::vector<int> childCounts($parent_num_fine_cells, 0) ;
   std::vector<int> parentCounts($balanced_num_fine_cells, 0) ;
-  for(const auto& pair : $indexMap) {
-    if(pair.first == 0 || pair.first > parentCounts.size() ||
-       pair.second == 0 || pair.second > childCounts.size()) {
-      std::cerr << "Invalid cell relationship for cell state" << std::endl ;
+  // indexMap contains one-based (new leaf, old leaf) indices.
+  for(const auto& relation : $indexMap) {
+    const int newIndex = relation.first ;
+    const int oldIndex = relation.second ;
+    if(newIndex <= 0 || newIndex > $balanced_num_fine_cells ||
+       oldIndex <= 0 || oldIndex > $parent_num_fine_cells) {
+      std::cerr << "Invalid cell relationship: new leaf " << newIndex
+                << " of " << $balanced_num_fine_cells << ", old leaf " << oldIndex
+                << " of " << $parent_num_fine_cells << std::endl ;
       Loci::Abort() ;
     }
-    ++parentCounts[pair.first-1] ;
-    ++childCounts[pair.second-1] ;
+    ++parentCounts[newIndex-1] ;
+    ++childCounts[oldIndex-1] ;
   }
 
   $fineCellChange.assign($balanced_num_fine_cells, Loci::CELL_CHANGE_UNKNOWN) ;
-  for(const auto& pair : $indexMap) {
-    const int parents = parentCounts[pair.first-1] ;
-    const int children = childCounts[pair.second-1] ;
+  for(const auto& relation : $indexMap) {
+    const int newIndex = relation.first ;
+    const int oldIndex = relation.second ;
+    const int parents = parentCounts[newIndex-1] ;
+    const int children = childCounts[oldIndex-1] ;
     if(parents > 1 && children > 1) {
       std::cerr << "Cell relationship is not a nested split or merge" << std::endl ;
       Loci::Abort() ;
     }
-    $fineCellChange[pair.first-1] = parents > 1 ? Loci::CELL_COARSENED :
+    $fineCellChange[newIndex-1] = parents > 1 ? Loci::CELL_COARSENED :
       (children > 1 ? Loci::CELL_REFINED : Loci::CELL_UNCHANGED) ;
   }
   for(int parents : parentCounts) {

@@ -874,7 +874,9 @@ namespace Loci {
     dstore<Array<int,3> > records ;
     FORALL(sourceCells, root) {
       if(changes[root].size() != depths[root].size()) {
-        cerr << "Cell changes and depths disagree on the number of leaves" << endl ;
+        cerr << "Cell state mismatch on rank " << MPI_rank << ", root " << root
+             << ": " << changes[root].size() << " changes, "
+             << depths[root].size() << " depths" << endl ;
         Loci::Abort() ;
       }
       for(size_t leaf = 0; leaf < depths[root].size(); ++leaf) {
@@ -926,7 +928,10 @@ namespace Loci {
     FORALL(sourceCells, root) {
       if(int(lengths[root].size()) != counts[root] ||
          lengthsXY[root].size() != lengths[root].size()) {
-        cerr << "Cell edge lengths disagree on the number of leaves" << endl ;
+        cerr << "Cell edge length mismatch on rank " << MPI_rank << ", root " << root
+             << ": expected " << counts[root] << " leaves, got "
+             << lengths[root].size() << " lengths and " << lengthsXY[root].size()
+             << " XY lengths" << endl ;
         Loci::Abort() ;
       }
       for(size_t leaf = 0; leaf < lengths[root].size(); ++leaf) {
@@ -958,16 +963,7 @@ namespace Loci {
                        rule_db &refmesh_rdb, int adaptmode, int level,
                        storeRepP tags, string casename) {
     onlineRefineMesh(gridDataP, refmesh_rdb, adaptmode, level, tags, casename,
-                     false) ;
-  }
-
-  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
-			rule_db &refmesh_rdb, int adaptmode, int level,
-			storeRepP tags, string casename, bool includeCellState) {
-    RefinementOptions options ;
-    options.cellState = includeCellState ;
-    onlineRefineMesh(gridDataP, refmesh_rdb, adaptmode, level, tags, casename,
-                     options) ;
+                     RefinementOptions()) ;
   }
 
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
@@ -1162,17 +1158,7 @@ namespace Loci {
                               string casename, string weightfile,
                               string restartplanfile) {
     initializeGridFromPlan(gridDataP, level, refmesh_rdb, casename, weightfile,
-                           restartplanfile, false) ;
-  }
-
-  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
-			      int &level, rule_db &refmesh_rdb,
-			      string casename, string weightfile,
-			      string restartplanfile, bool includeCellState) {
-    RefinementOptions options ;
-    options.cellState = includeCellState ;
-    initializeGridFromPlan(gridDataP, level, refmesh_rdb, casename, weightfile,
-                           restartplanfile, options) ;
+                           restartplanfile, RefinementOptions()) ;
   }
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,

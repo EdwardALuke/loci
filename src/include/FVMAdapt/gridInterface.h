@@ -103,14 +103,7 @@ namespace Loci {
 			      string casename, string weightfile,
 			      string restartplanfile) ;
 
-  /// Read depth and root identity from a saved plan; cellChange is unknown.
-  /// All ranks must use the same includeCellState option.
-  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
-                              int &level, rule_db &refmesh_rdb,
-                              string casename, string weightfile,
-                              string restartplanfile, bool includeCellState) ;
-
-  /// Reconstruct requested cell fields from the base mesh and saved plan.
+  /// Reconstruct requested cell fields; cellChange is unknown for saved plans.
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
                               int &level, rule_db &refmesh_rdb,
                               string casename, string weightfile,
@@ -122,11 +115,6 @@ namespace Loci {
 			int level,
 			storeRepP tags,
 			string casename  ) ;
-
-  /// Request cell state along with the mesh. All ranks must use the same option.
-  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
-                       rule_db &refmesh_rdb, int adaptmode, int level,
-                       storeRepP tags, string casename, bool includeCellState) ;
 
   /// Return requested fields on the final balanced mesh.
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
