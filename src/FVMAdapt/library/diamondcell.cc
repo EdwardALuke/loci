@@ -1177,6 +1177,32 @@ void Cell::empty_split(){
   }
 
 }
+
+bool Cell::getLeafDepths(std::vector<int>& depths) const {
+  depths.clear() ;
+  if(child == 0) {
+    depths.push_back(0) ;
+    return true ;
+  }
+  std::queue<std::pair<const DiamondCell*, int> > pending ;
+  for(int i = 0; i < numNode; ++i)
+    pending.push(std::make_pair(child[i], 1)) ;
+  while(!pending.empty()) {
+    const DiamondCell* cell = pending.front().first ;
+    const int depth = pending.front().second ;
+    pending.pop() ;
+    if(cell->getChildCell() == 0) {
+      if(cell->getCellIndex() != depths.size()+1)
+        return false ;
+      depths.push_back(depth) ;
+    } else {
+      for(int i = 0; i < 2*cell->getNfold()+2; ++i)
+        pending.push(std::make_pair(cell->getChildCell(i), depth+1)) ;
+    }
+  }
+  return true ;
+}
+
 int32 Cell::empty_resplit(const std::vector<char>& cellPlan){
 
 

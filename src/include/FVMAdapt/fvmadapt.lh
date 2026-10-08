@@ -1,0 +1,33 @@
+//#############################################################################
+//#
+//# Copyright 2008-2026, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+
+// Solver-facing facts supplied when cell state is requested.
+
+/// Number of refinement-tree steps from the original cell; zero for a root.
+$type refinementDepth store<int> ;
+
+/// Base-mesh file number of the original cell, shared by its descendants.
+/// Not an entity ID in the installed mesh.
+$type rootCellFileNumber store<int> ;
+
+/// How this cell was produced by the last adaptation; values are Loci::CellChange.
+/// Unchanged cells may still have subdivided faces.
+$type cellChange store<int> ;

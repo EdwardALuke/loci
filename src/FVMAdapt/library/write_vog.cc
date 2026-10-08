@@ -853,12 +853,71 @@ namespace Loci {
   }
 
 
+  /// Move root-owned leaf records onto the generated-cell partition.
+  static void collectCellState(refinedGridData &grid, fact_db &facts) {
+    const_store<vector<int> > depths = facts.get_variable("fineCellDepth") ;
+    const_store<vector<int> > changes = facts.get_variable("fineCellChange") ;
+    const_store<int> offsets = facts.get_variable("balanced_cell_offset") ;
+    const_store<int> roots = facts.get_variable("planRootFileNumber") ;
+    constraint cellsInBase = facts.get_variable("geom_cells") ;
+    // makeQuery restores its outputs to grid numbering, not scheduler-local IDs.
+    const entitySet sourceCells = depths.domain() & *cellsInBase ;
+
+    entitySet generatedCells ;
+    for(size_t rank = 0; rank < grid.local_cells.size(); ++rank)
+      generatedCells += grid.local_cells[rank] ;
+    if(generatedCells == EMPTY) {
+      cerr << "Cannot collect cell state for an empty mesh" << endl ;
+      Loci::Abort() ;
+    }
+    const Entity cellBase = generatedCells.Min() ;
+    dstore<Array<int,3> > records ;
+    FORALL(sourceCells, root) {
+      if(changes[root].size() != depths[root].size()) {
+        cerr << "Cell changes and depths disagree on the number of leaves" << endl ;
+        Loci::Abort() ;
+      }
+      for(size_t leaf = 0; leaf < depths[root].size(); ++leaf) {
+        const Entity cell = cellBase+offsets[root]+leaf ;
+        records[cell][0] = depths[root][leaf] ;
+        records[cell][1] = roots[root] ;
+        records[cell][2] = changes[root][leaf] ;
+      }
+    } ENDFORALL ;
+    dstore<Array<int,3> > received ;
+    received = records.Rep()->redistribute(grid.local_cells) ;
+    const entitySet cells = grid.local_cells[MPI_rank] ;
+    const int localValid = received.domain() == cells ? 1 : 0 ;
+    int valid = 0 ;
+    MPI_Allreduce(&localValid, &valid, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD) ;
+    if(!valid) {
+      cerr << "Cell state does not cover the generated cells" << endl ;
+      Loci::Abort() ;
+    }
+    grid.refinementDepth.allocate(cells) ;
+    grid.rootCellFileNumber.allocate(cells) ;
+    grid.cellChange.allocate(cells) ;
+    FORALL(cells, cell) {
+      grid.refinementDepth[cell] = received[cell][0] ;
+      grid.rootCellFileNumber[cell] = received[cell][1] ;
+      grid.cellChange[cell] = received[cell][2] ;
+    } ENDFORALL ;
+    grid.hasCellState = true ;
+  }
+
+  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
+                       rule_db &refmesh_rdb, int adaptmode, int level,
+                       storeRepP tags, string casename) {
+    onlineRefineMesh(gridDataP, refmesh_rdb, adaptmode, level, tags, casename,
+                     false) ;
+  }
+
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
 			rule_db &refmesh_rdb,
 			int adaptmode,
 			int level,
 			storeRepP tags,
-			string casename  ) {
+			string casename, bool includeCellState) {
     gridDataP = new(refinedGridData) ;
       
         
@@ -965,8 +1024,10 @@ namespace Loci {
       *cellweight_outDB_par = "cellweights";
       refine_facts.create_fact("cellweight_outDB_par",cellweight_outDB_par);
         
-      if(!Loci::makeQuery(refine_rules,refine_facts,
-			  "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox")) {
+      string query = "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox" ;
+      if(includeCellState)
+        query += ",fineCellDepth,fineCellChange,planRootFileNumber,balanced_cell_offset" ;
+      if(!Loci::makeQuery(refine_rules,refine_facts,query)) {
 	std::cerr << "adapt query failed!" << std::endl;
 	Loci::Abort();
       }
@@ -1016,6 +1077,9 @@ namespace Loci {
 		   gridDataP->local_cells
 		   );
 
+    if(includeCellState)
+      collectCellState(*gridDataP, refine_facts) ;
+
     //update volume tags
     {
       blackbox<std::vector<std::pair<std::string, entitySet> > > volTag_blackbox;
@@ -1030,10 +1094,18 @@ namespace Loci {
   }
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
+                              int &level, rule_db &refmesh_rdb,
+                              string casename, string weightfile,
+                              string restartplanfile) {
+    initializeGridFromPlan(gridDataP, level, refmesh_rdb, casename, weightfile,
+                           restartplanfile, false) ;
+  }
+
+  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
 			      int &level,
 			      rule_db &refmesh_rdb,
 			      string casename, string weightfile,
-			      string restartplanfile) {
+			      string restartplanfile, bool includeCellState) {
     string meshFile = casename+".vog";
     // Setup the rule database.
     // Add all registered rules.  
@@ -1104,8 +1176,10 @@ namespace Loci {
     *balanced_planDB_par = "currentPlan" ;
     refine_facts.create_fact("balanced_planDB_par",balanced_planDB_par) ;
 	      
-    if(!Loci::makeQuery(refine_rules,refine_facts,
-			"inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces,fine_faces_cell,volTag_blackbox")) {
+    string query = "inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces,fine_faces_cell,volTag_blackbox" ;
+    if(includeCellState)
+      query += ",fineCellDepth,fineCellChange,planRootFileNumber,balanced_cell_offset" ;
+    if(!Loci::makeQuery(refine_rules,refine_facts,query)) {
       std::cerr << "adapt query failed!" << std::endl;
       Loci::Abort();
     }
@@ -1151,6 +1225,9 @@ namespace Loci {
 		   gridDataP->local_faces,
 		   gridDataP->local_cells
 		   );
+
+    if(includeCellState)
+      collectCellState(*gridDataP, refine_facts) ;
 
     if(Loci::MPI_rank ==0)cerr<< "num_faces: " << num_faces << " before chem run" <<  endl;
     if(Loci::MPI_rank ==0)cerr<< "num_cells: " << num_cells << " before chem run" <<  endl;
@@ -1715,7 +1792,7 @@ namespace Loci{
                         entitySet bcsurfset,
                         fact_db &facts) ;
 
-  bool inputFVMGrid(fact_db &facts,
+  static bool inputFVMGridWithState(fact_db &facts,
                     vector<entitySet>& local_nodes,
                     vector<entitySet>& local_faces,
                     vector<entitySet>& local_cells,
@@ -1725,7 +1802,7 @@ namespace Loci{
                     multiMap& tmp_face2node,
                     vector<pair<int,string> >& boundary_ids,
                     vector<pair<string,entitySet> >& volTags,
-                    storeRepP cellwts) {
+                    storeRepP cellwts, const refinedGridData *cellState) {
     double t1 = MPI_Wtime() ;
     // Identify boundary tags
     if(Loci::MPI_processes == 1) {
@@ -1779,6 +1856,23 @@ namespace Loci{
       facts.create_fact("face2node",face2node) ;
       facts.create_fact("boundary_names", boundary_names) ;
       facts.create_fact("boundary_tags", boundary_tags) ;
+
+      if(cellState != 0) {
+        store<int> depth, root, change ;
+        depth.allocate(cells) ;
+        root.allocate(cells) ;
+        change.allocate(cells) ;
+        entitySet::const_iterator source = local_cells[0].begin() ;
+        FORALL(cells, cell) {
+          depth[cell] = cellState->refinementDepth[*source] ;
+          root[cell] = cellState->rootCellFileNumber[*source] ;
+          change[cell] = cellState->cellChange[*source] ;
+          ++source ;
+        } ENDFORALL ;
+        facts.create_fact("refinementDepth", depth) ;
+        facts.create_fact("rootCellFileNumber", root) ;
+        facts.create_fact("cellChange", change) ;
+      }
 
       int cells_base = local_cells[0].Min() ;
       for(size_t i=0;i<volTags.size();++i) {
@@ -2055,12 +2149,31 @@ namespace Loci{
     facts.create_fact("boundary_names", boundary_names) ;
     facts.create_fact("boundary_tags", boundary_tags) ;
 
+    if(cellState != 0) {
+      store<int> depth, root, change ;
+      depth.allocate(cells) ;
+      root.allocate(cells) ;
+      change.allocate(cells) ;
+      redistribute_container(cell_ptn, cell_ptn_t, cells,
+                             cellState->refinementDepth.Rep(), depth.Rep()) ;
+      redistribute_container(cell_ptn, cell_ptn_t, cells,
+                             cellState->rootCellFileNumber.Rep(), root.Rep()) ;
+      redistribute_container(cell_ptn, cell_ptn_t, cells,
+                             cellState->cellChange.Rep(), change.Rep()) ;
+      facts.create_fact("refinementDepth", depth) ;
+      facts.create_fact("rootCellFileNumber", root) ;
+      facts.create_fact("cellChange", change) ;
+    }
+
     // update remap from global to file numbering for faces after sorting
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
     dMap g2f ;
     g2f = df->g2fv[0].Rep() ; 
 
-    int cells_base=local_cells[0].Min() ;
+    entitySet input_cells ;
+    for(int rank = 0; rank < MPI_processes; ++rank)
+      input_cells += local_cells[rank] ;
+    const int cells_base = input_cells.Min() ;
     for(size_t i=0;i<volTags.size();++i) {
       param<string> Tag ;
       *Tag = volTags[i].first ;
@@ -2089,6 +2202,47 @@ namespace Loci{
   }
 
   
+  bool inputFVMGrid(fact_db &facts,
+                    vector<entitySet>& local_nodes,
+                    vector<entitySet>& local_faces,
+                    vector<entitySet>& local_cells,
+                    store<vector3d<double> >& t_pos,
+                    Map& tmp_cl, Map& tmp_cr, multiMap& tmp_face2node,
+                    vector<pair<int,string> >& boundary_ids,
+                    vector<pair<string,entitySet> >& volTags,
+                    storeRepP cellwts) {
+    return inputFVMGridWithState(facts, local_nodes, local_faces, local_cells,
+                                t_pos, tmp_cl, tmp_cr, tmp_face2node,
+                                boundary_ids, volTags, cellwts, 0) ;
+  }
+
+  bool setupFVMGridFromContainer(fact_db &facts, refinedGridData &grid,
+                                storeRepP cellwts) {
+    if(grid.hasCellState) {
+      const bool complete = grid.local_cells.size() == size_t(MPI_processes) &&
+        grid.refinementDepth.domain() == grid.local_cells[MPI_rank] &&
+        grid.rootCellFileNumber.domain() == grid.local_cells[MPI_rank] &&
+        grid.cellChange.domain() == grid.local_cells[MPI_rank] ;
+      const int localValid = complete ? 1 : 0 ;
+      int valid = 0 ;
+      MPI_Allreduce(&localValid, &valid, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD) ;
+      if(!valid) {
+        cerr << "Cannot install incomplete FVMAdapt cell state" << endl ;
+        return false ;
+      }
+    }
+    if(!inputFVMGridWithState(facts, grid.local_nodes, grid.local_faces,
+                              grid.local_cells, grid.new_pos, grid.new_cl,
+                              grid.new_cr, grid.new_face2node, grid.boundary_ids,
+                              grid.volTags, cellwts,
+                              grid.hasCellState ? &grid : 0))
+      return false ;
+    create_face_info(facts) ;
+    create_ref(facts) ;
+    create_ghost_cells(facts) ;
+    return true ;
+  }
+
   bool setupFVMGridFromContainer(fact_db &facts,
                                  vector<entitySet>& local_nodes,
                                  vector<entitySet>& local_faces,
@@ -2575,10 +2729,8 @@ namespace Loci {
       int j = MPI_processes - i - 1 ;
       int cell_accum_update = cell_accum + cell_ivl + ((j<cell_ivl_rem)?1:0) ;
     
-      if(i == MPI_processes-1) {
-        local_cells[i] = interval(cell_base + cell_accum,
-                                  cell_base + ncells-1) ;
-      } else {
+      local_cells[i] = EMPTY ;
+      if(cell_accum_update > cell_accum) {
         local_cells[i] = interval(cell_base + cell_accum,
                                   cell_base + cell_accum_update - 1) ;
       }

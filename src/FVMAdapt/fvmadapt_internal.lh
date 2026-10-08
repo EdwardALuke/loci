@@ -21,6 +21,17 @@
 
 // Internal fact types shared by FVMAdapt rules.
 
+$include "FVMAdapt/fvmadapt.lh"
+
+/// Final leaf depths for each original cell, in fine-cell index order.
+$type fineCellDepth store<std::vector<int> > ;
+
+/// Last adaptation's result for each leaf, in fine-cell index order.
+$type fineCellChange store<std::vector<int> > ;
+
+/// Base-mesh file number of each original cell.
+$type planRootFileNumber store<int> ;
+
 // Cell and face classification
 
 /// Cells handled by the general, hexahedral, and prism adaptation paths.

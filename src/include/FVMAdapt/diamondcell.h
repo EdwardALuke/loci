@@ -518,6 +518,10 @@ public:
   /// starting at 1, and return the leaf count. No split geometry is created.
   int32 empty_resplit(const std::vector<char>& cellPlan);
 
+  /// Read leaf depths after empty_resplit(), in fine-cell index order.
+  /// Return false if the leaf indices do not match traversal order.
+  bool getLeafDepths(std::vector<int>& depths) const ;
+
   //  void get_leaves(std::vector<DiamondCell*>& leaf_cell);
 
   /// Replace indexMap with pairs of local fine-cell indices from the current

@@ -56,6 +56,57 @@ The vectors therefore preserve the planned topology between rule operations
 without retaining the more memory-intensive object trees.
 
 
+## Cell State for Solvers
+
+The online grid handoff can optionally provide three facts on every geometric
+cell of the installed mesh:
+
+| Fact | Meaning |
+| --- | --- |
+| `refinementDepth` | Number of refinement-tree steps from the original cell; zero for a root. |
+| `rootCellFileNumber` | File number of the original mesh cell whose plan produced this cell. |
+| `cellChange` | Whether the last adaptation kept, split, or merged the cell. |
+
+Declare these types in solver rules with
+`$include "FVMAdapt/fvmadapt.lh"`. Including the header does not generate the
+facts. Request them when adapting, then install the complete grid handoff:
+
+```cpp
+#include <FVMAdapt/gridInterface.h>
+
+const bool includeCellState = true;
+Loci::onlineRefineMesh(grid, rules, mode, cycle, tags, caseName,
+                      includeCellState);
+if(!Loci::setupFVMGridFromContainer(facts, *grid, cellWeights))
+  Loci::Abort();
+```
+
+All MPI ranks must use the same option. Existing calls omit this state.
+The container-by-container installation overload remains mesh-only.
+`grid->hasCellState` indicates availability, including on ranks with no
+cells; the stores use `grid->local_cells[MPI_rank]` before installation.
+Installation transfers them to the new cell numbering and partition.
+
+Depth describes the final plan after balancing and derefinement, not the
+number of adaptation calls or halvings in every direction. Root file numbers
+are the base mesh's node count plus face count plus zero-based cell ordinal.
+They are independent of MPI ownership, but meaningful only for that base
+mesh. They are not identifiers for individual descendants.
+
+`cellChange` uses the `Loci::CellChange` values in `FVMAdapt/gridInterface.h`:
+`CELL_UNCHANGED`, `CELL_REFINED`, and `CELL_COARSENED`. It describes the final
+split/merge relationship to the preceding mesh, not the requested tag or the
+reason for a change. A rejected coarsening request is unchanged. Unchanged
+cells may still have subdivided faces, and renumbering is not a cell change.
+
+`initializeGridFromPlan` accepts the same trailing Boolean option. It
+reconstructs depth and root identity from the saved plan and base mesh, but
+sets `cellChange` to `CELL_CHANGE_UNKNOWN`: that checkpoint does not describe
+the preceding adaptation. The next adaptation computes changes normally.
+No extra history file is required. An adapted VOG file alone does not retain
+root ancestry.
+
+
 ## How One Plan Reconstructs a Tree
 
 A plan records split codes in breadth-first order. Replay begins with the

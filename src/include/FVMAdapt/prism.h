@@ -206,6 +206,10 @@ public:
   void empty_split() ;
   int empty_resplit(const std::vector<char>& cellPlan) ;
 
+  /// Read leaf depths after empty_resplit(), in fine-cell index order.
+  /// Return false if the leaf indices do not match traversal order.
+  bool getLeafDepths(std::vector<int>& depths) const ;
+
   /// Replace indexMap with pairs of local fine-cell indices from the current
   /// tree and parentPlan. Refinement or derefinement can produce several pairs
   /// for one cell. Return the number of leaves in parentPlan.

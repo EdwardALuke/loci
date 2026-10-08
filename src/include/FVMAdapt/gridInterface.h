@@ -24,6 +24,14 @@
 #include <memory>
 
 namespace Loci {
+  /// Net change from the preceding mesh; unknown when loading only a saved plan.
+  enum CellChange {
+    CELL_UNCHANGED = 0,
+    CELL_REFINED = 1,
+    CELL_COARSENED = 2,
+    CELL_CHANGE_UNKNOWN = 3
+  } ;
+
   void parallelClassifyCell(fact_db &facts) ;
 
   void createVOGNode(store<vector3d<double> > &new_pos,
@@ -64,6 +72,16 @@ namespace Loci {
     vector<entitySet> local_cells;
     vector<pair<int,string> > boundary_ids;
     vector<pair<string,entitySet> > volTags;
+
+    /// True when cell state was requested, including on ranks with no cells.
+    bool hasCellState;
+
+    /// Optional cell-state stores defined on local_cells[MPI_rank].
+    store<int> refinementDepth;
+    store<int> rootCellFileNumber;
+    store<int> cellChange;
+
+    refinedGridData() : hasCellState(false) {}
   } ;
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
@@ -72,6 +90,13 @@ namespace Loci {
 			      string casename, string weightfile,
 			      string restartplanfile) ;
 
+  /// Read depth and root identity from a saved plan; cellChange is unknown.
+  /// All ranks must use the same includeCellState option.
+  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
+                              int &level, rule_db &refmesh_rdb,
+                              string casename, string weightfile,
+                              string restartplanfile, bool includeCellState) ;
+
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
 			rule_db &refmesh_rdb,
 			int adaptmode,
@@ -79,7 +104,16 @@ namespace Loci {
 			storeRepP tags,
 			string casename  ) ;
 
+  /// Request cell state along with the mesh. All ranks must use the same option.
+  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
+                       rule_db &refmesh_rdb, int adaptmode, int level,
+                       storeRepP tags, string casename, bool includeCellState) ;
+
   storeRepP getC2PGlobal(fact_db &facts) ;
+
+  /// Install the mesh and any requested cell state in the new fact database.
+  bool setupFVMGridFromContainer(fact_db &facts, refinedGridData &grid,
+                                storeRepP cellwts = 0) ;
 
   // Holds Data Structures for processning AMR interpolation
   class AMRrefinementMapping {
