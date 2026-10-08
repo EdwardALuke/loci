@@ -32,6 +32,12 @@ namespace Loci {
     CELL_CHANGE_UNKNOWN = 3
   } ;
 
+  /// Optional outputs; every MPI rank must request the same fields.
+  struct RefinementOptions {
+    bool cellState = false;
+    bool edgeLengths = false;
+  } ;
+
   void parallelClassifyCell(fact_db &facts) ;
 
   void createVOGNode(store<vector3d<double> > &new_pos,
@@ -81,7 +87,14 @@ namespace Loci {
     store<int> rootCellFileNumber;
     store<int> cellChange;
 
-    refinedGridData() : hasCellState(false) {}
+    /// True when edge lengths were requested, including on ranks with no cells.
+    bool hasEdgeLengths;
+
+    /// Own-edge lengths in new_pos units, defined on local_cells[MPI_rank].
+    store<double> maxEdgeLength;
+    store<double> maxEdgeLengthXY;
+
+    refinedGridData() : hasCellState(false), hasEdgeLengths(false) {}
   } ;
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
@@ -97,6 +110,12 @@ namespace Loci {
                               string casename, string weightfile,
                               string restartplanfile, bool includeCellState) ;
 
+  /// Reconstruct requested cell fields from the base mesh and saved plan.
+  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
+                              int &level, rule_db &refmesh_rdb,
+                              string casename, string weightfile,
+                              string restartplanfile, const RefinementOptions &options) ;
+
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
 			rule_db &refmesh_rdb,
 			int adaptmode,
@@ -109,9 +128,14 @@ namespace Loci {
                        rule_db &refmesh_rdb, int adaptmode, int level,
                        storeRepP tags, string casename, bool includeCellState) ;
 
+  /// Return requested fields on the final balanced mesh.
+  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
+                       rule_db &refmesh_rdb, int adaptmode, int level,
+                       storeRepP tags, string casename, const RefinementOptions &options) ;
+
   storeRepP getC2PGlobal(fact_db &facts) ;
 
-  /// Install the mesh and any requested cell state in the new fact database.
+  /// Install the mesh and requested cell fields in the new fact database.
   bool setupFVMGridFromContainer(fact_db &facts, refinedGridData &grid,
                                 storeRepP cellwts = 0) ;
 

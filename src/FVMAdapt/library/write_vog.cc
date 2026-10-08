@@ -905,6 +905,55 @@ namespace Loci {
     grid.hasCellState = true ;
   }
 
+  /// Move leaf edge lengths onto the generated-cell partition.
+  static void collectEdgeLengths(refinedGridData &grid, fact_db &facts) {
+    const_store<vector<double> > lengths = facts.get_variable("fineMaxEdgeLength") ;
+    const_store<vector<double> > lengthsXY = facts.get_variable("fineMaxEdgeLengthXY") ;
+    const_store<int> counts = facts.get_variable("balanced_num_fine_cells") ;
+    const_store<int> offsets = facts.get_variable("balanced_cell_offset") ;
+    constraint cellsInBase = facts.get_variable("geom_cells") ;
+    const entitySet sourceCells = lengths.domain() & *cellsInBase ;
+
+    entitySet generatedCells ;
+    for(const entitySet& partition : grid.local_cells)
+      generatedCells += partition ;
+    if(generatedCells == EMPTY) {
+      cerr << "Cannot collect edge lengths for an empty mesh" << endl ;
+      Loci::Abort() ;
+    }
+    const Entity cellBase = generatedCells.Min() ;
+    dstore<Array<double,2> > records ;
+    FORALL(sourceCells, root) {
+      if(int(lengths[root].size()) != counts[root] ||
+         lengthsXY[root].size() != lengths[root].size()) {
+        cerr << "Cell edge lengths disagree on the number of leaves" << endl ;
+        Loci::Abort() ;
+      }
+      for(size_t leaf = 0; leaf < lengths[root].size(); ++leaf) {
+        const Entity cell = cellBase+offsets[root]+leaf ;
+        records[cell][0] = lengths[root][leaf] ;
+        records[cell][1] = lengthsXY[root][leaf] ;
+      }
+    } ENDFORALL ;
+    dstore<Array<double,2> > received ;
+    received = records.Rep()->redistribute(grid.local_cells) ;
+    const entitySet cells = grid.local_cells[MPI_rank] ;
+    const int localValid = received.domain() == cells ? 1 : 0 ;
+    int valid = 0 ;
+    MPI_Allreduce(&localValid, &valid, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD) ;
+    if(!valid) {
+      cerr << "Edge lengths do not cover the generated cells" << endl ;
+      Loci::Abort() ;
+    }
+    grid.maxEdgeLength.allocate(cells) ;
+    grid.maxEdgeLengthXY.allocate(cells) ;
+    FORALL(cells, cell) {
+      grid.maxEdgeLength[cell] = received[cell][0] ;
+      grid.maxEdgeLengthXY[cell] = received[cell][1] ;
+    } ENDFORALL ;
+    grid.hasEdgeLengths = true ;
+  }
+
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
                        rule_db &refmesh_rdb, int adaptmode, int level,
                        storeRepP tags, string casename) {
@@ -913,11 +962,20 @@ namespace Loci {
   }
 
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
+			rule_db &refmesh_rdb, int adaptmode, int level,
+			storeRepP tags, string casename, bool includeCellState) {
+    RefinementOptions options ;
+    options.cellState = includeCellState ;
+    onlineRefineMesh(gridDataP, refmesh_rdb, adaptmode, level, tags, casename,
+                     options) ;
+  }
+
+  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
 			rule_db &refmesh_rdb,
 			int adaptmode,
 			int level,
 			storeRepP tags,
-			string casename, bool includeCellState) {
+			string casename, const RefinementOptions &options) {
     gridDataP = new(refinedGridData) ;
       
         
@@ -1025,8 +1083,12 @@ namespace Loci {
       refine_facts.create_fact("cellweight_outDB_par",cellweight_outDB_par);
         
       string query = "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox" ;
-      if(includeCellState)
-        query += ",fineCellDepth,fineCellChange,planRootFileNumber,balanced_cell_offset" ;
+      if(options.cellState)
+        query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
+      if(options.edgeLengths)
+        query += ",fineMaxEdgeLength,fineMaxEdgeLengthXY,balanced_num_fine_cells" ;
+      if(options.cellState || options.edgeLengths)
+        query += ",balanced_cell_offset" ;
       if(!Loci::makeQuery(refine_rules,refine_facts,query)) {
 	std::cerr << "adapt query failed!" << std::endl;
 	Loci::Abort();
@@ -1077,8 +1139,10 @@ namespace Loci {
 		   gridDataP->local_cells
 		   );
 
-    if(includeCellState)
+    if(options.cellState)
       collectCellState(*gridDataP, refine_facts) ;
+    if(options.edgeLengths)
+      collectEdgeLengths(*gridDataP, refine_facts) ;
 
     //update volume tags
     {
@@ -1102,10 +1166,20 @@ namespace Loci {
   }
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
+			      int &level, rule_db &refmesh_rdb,
+			      string casename, string weightfile,
+			      string restartplanfile, bool includeCellState) {
+    RefinementOptions options ;
+    options.cellState = includeCellState ;
+    initializeGridFromPlan(gridDataP, level, refmesh_rdb, casename, weightfile,
+                           restartplanfile, options) ;
+  }
+
+  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
 			      int &level,
 			      rule_db &refmesh_rdb,
 			      string casename, string weightfile,
-			      string restartplanfile, bool includeCellState) {
+			      string restartplanfile, const RefinementOptions &options) {
     string meshFile = casename+".vog";
     // Setup the rule database.
     // Add all registered rules.  
@@ -1177,8 +1251,12 @@ namespace Loci {
     refine_facts.create_fact("balanced_planDB_par",balanced_planDB_par) ;
 	      
     string query = "inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces,fine_faces_cell,volTag_blackbox" ;
-    if(includeCellState)
-      query += ",fineCellDepth,fineCellChange,planRootFileNumber,balanced_cell_offset" ;
+    if(options.cellState)
+      query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
+    if(options.edgeLengths)
+      query += ",fineMaxEdgeLength,fineMaxEdgeLengthXY,balanced_num_fine_cells" ;
+    if(options.cellState || options.edgeLengths)
+      query += ",balanced_cell_offset" ;
     if(!Loci::makeQuery(refine_rules,refine_facts,query)) {
       std::cerr << "adapt query failed!" << std::endl;
       Loci::Abort();
@@ -1226,8 +1304,10 @@ namespace Loci {
 		   gridDataP->local_cells
 		   );
 
-    if(includeCellState)
+    if(options.cellState)
       collectCellState(*gridDataP, refine_facts) ;
+    if(options.edgeLengths)
+      collectEdgeLengths(*gridDataP, refine_facts) ;
 
     if(Loci::MPI_rank ==0)cerr<< "num_faces: " << num_faces << " before chem run" <<  endl;
     if(Loci::MPI_rank ==0)cerr<< "num_cells: " << num_cells << " before chem run" <<  endl;
@@ -1792,7 +1872,7 @@ namespace Loci{
                         entitySet bcsurfset,
                         fact_db &facts) ;
 
-  static bool inputFVMGridWithState(fact_db &facts,
+  static bool inputFVMGridWithFields(fact_db &facts,
                     vector<entitySet>& local_nodes,
                     vector<entitySet>& local_faces,
                     vector<entitySet>& local_cells,
@@ -1802,7 +1882,7 @@ namespace Loci{
                     multiMap& tmp_face2node,
                     vector<pair<int,string> >& boundary_ids,
                     vector<pair<string,entitySet> >& volTags,
-                    storeRepP cellwts, const refinedGridData *cellState) {
+                    storeRepP cellwts, const refinedGridData *cellFields) {
     double t1 = MPI_Wtime() ;
     // Identify boundary tags
     if(Loci::MPI_processes == 1) {
@@ -1857,21 +1937,35 @@ namespace Loci{
       facts.create_fact("boundary_names", boundary_names) ;
       facts.create_fact("boundary_tags", boundary_tags) ;
 
-      if(cellState != 0) {
+      if(cellFields != 0 && cellFields->hasCellState) {
         store<int> depth, root, change ;
         depth.allocate(cells) ;
         root.allocate(cells) ;
         change.allocate(cells) ;
         entitySet::const_iterator source = local_cells[0].begin() ;
         FORALL(cells, cell) {
-          depth[cell] = cellState->refinementDepth[*source] ;
-          root[cell] = cellState->rootCellFileNumber[*source] ;
-          change[cell] = cellState->cellChange[*source] ;
+          depth[cell] = cellFields->refinementDepth[*source] ;
+          root[cell] = cellFields->rootCellFileNumber[*source] ;
+          change[cell] = cellFields->cellChange[*source] ;
           ++source ;
         } ENDFORALL ;
         facts.create_fact("refinementDepth", depth) ;
         facts.create_fact("rootCellFileNumber", root) ;
         facts.create_fact("cellChange", change) ;
+      }
+
+      if(cellFields != 0 && cellFields->hasEdgeLengths) {
+        store<double> length, lengthXY ;
+        length.allocate(cells) ;
+        lengthXY.allocate(cells) ;
+        entitySet::const_iterator source = local_cells[0].begin() ;
+        FORALL(cells, cell) {
+          length[cell] = cellFields->maxEdgeLength[*source] ;
+          lengthXY[cell] = cellFields->maxEdgeLengthXY[*source] ;
+          ++source ;
+        } ENDFORALL ;
+        facts.create_fact("maxEdgeLength", length) ;
+        facts.create_fact("maxEdgeLengthXY", lengthXY) ;
       }
 
       int cells_base = local_cells[0].Min() ;
@@ -2149,20 +2243,32 @@ namespace Loci{
     facts.create_fact("boundary_names", boundary_names) ;
     facts.create_fact("boundary_tags", boundary_tags) ;
 
-    if(cellState != 0) {
+    if(cellFields != 0 && cellFields->hasCellState) {
       store<int> depth, root, change ;
       depth.allocate(cells) ;
       root.allocate(cells) ;
       change.allocate(cells) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellState->refinementDepth.Rep(), depth.Rep()) ;
+                             cellFields->refinementDepth.Rep(), depth.Rep()) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellState->rootCellFileNumber.Rep(), root.Rep()) ;
+                             cellFields->rootCellFileNumber.Rep(), root.Rep()) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellState->cellChange.Rep(), change.Rep()) ;
+                             cellFields->cellChange.Rep(), change.Rep()) ;
       facts.create_fact("refinementDepth", depth) ;
       facts.create_fact("rootCellFileNumber", root) ;
       facts.create_fact("cellChange", change) ;
+    }
+
+    if(cellFields != 0 && cellFields->hasEdgeLengths) {
+      store<double> length, lengthXY ;
+      length.allocate(cells) ;
+      lengthXY.allocate(cells) ;
+      redistribute_container(cell_ptn, cell_ptn_t, cells,
+                             cellFields->maxEdgeLength.Rep(), length.Rep()) ;
+      redistribute_container(cell_ptn, cell_ptn_t, cells,
+                             cellFields->maxEdgeLengthXY.Rep(), lengthXY.Rep()) ;
+      facts.create_fact("maxEdgeLength", length) ;
+      facts.create_fact("maxEdgeLengthXY", lengthXY) ;
     }
 
     // update remap from global to file numbering for faces after sorting
@@ -2211,31 +2317,35 @@ namespace Loci{
                     vector<pair<int,string> >& boundary_ids,
                     vector<pair<string,entitySet> >& volTags,
                     storeRepP cellwts) {
-    return inputFVMGridWithState(facts, local_nodes, local_faces, local_cells,
+    return inputFVMGridWithFields(facts, local_nodes, local_faces, local_cells,
                                 t_pos, tmp_cl, tmp_cr, tmp_face2node,
                                 boundary_ids, volTags, cellwts, 0) ;
   }
 
   bool setupFVMGridFromContainer(fact_db &facts, refinedGridData &grid,
                                 storeRepP cellwts) {
-    if(grid.hasCellState) {
+    if(grid.hasCellState || grid.hasEdgeLengths) {
       const bool complete = grid.local_cells.size() == size_t(MPI_processes) &&
-        grid.refinementDepth.domain() == grid.local_cells[MPI_rank] &&
-        grid.rootCellFileNumber.domain() == grid.local_cells[MPI_rank] &&
-        grid.cellChange.domain() == grid.local_cells[MPI_rank] ;
+        (!grid.hasCellState ||
+         (grid.refinementDepth.domain() == grid.local_cells[MPI_rank] &&
+          grid.rootCellFileNumber.domain() == grid.local_cells[MPI_rank] &&
+          grid.cellChange.domain() == grid.local_cells[MPI_rank])) &&
+        (!grid.hasEdgeLengths ||
+         (grid.maxEdgeLength.domain() == grid.local_cells[MPI_rank] &&
+          grid.maxEdgeLengthXY.domain() == grid.local_cells[MPI_rank])) ;
       const int localValid = complete ? 1 : 0 ;
       int valid = 0 ;
       MPI_Allreduce(&localValid, &valid, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD) ;
       if(!valid) {
-        cerr << "Cannot install incomplete FVMAdapt cell state" << endl ;
+        cerr << "Cannot install incomplete FVMAdapt cell fields" << endl ;
         return false ;
       }
     }
-    if(!inputFVMGridWithState(facts, grid.local_nodes, grid.local_faces,
+    if(!inputFVMGridWithFields(facts, grid.local_nodes, grid.local_faces,
                               grid.local_cells, grid.new_pos, grid.new_cl,
                               grid.new_cr, grid.new_face2node, grid.boundary_ids,
                               grid.volTags, cellwts,
-                              grid.hasCellState ? &grid : 0))
+                              grid.hasCellState || grid.hasEdgeLengths ? &grid : 0))
       return false ;
     create_face_info(facts) ;
     create_ref(facts) ;

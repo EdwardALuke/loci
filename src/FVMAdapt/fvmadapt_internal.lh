@@ -29,6 +29,10 @@ $type fineCellDepth store<std::vector<int> > ;
 /// Last adaptation's result for each leaf, in fine-cell index order.
 $type fineCellChange store<std::vector<int> > ;
 
+/// Final leaf edge lengths for each original cell, in fine-cell index order.
+$type fineMaxEdgeLength store<std::vector<double> > ;
+$type fineMaxEdgeLengthXY store<std::vector<double> > ;
+
 /// Base-mesh file number of each original cell.
 $type planRootFileNumber store<int> ;
 

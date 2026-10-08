@@ -19,7 +19,7 @@
 //#
 //#############################################################################
 
-// Solver-facing facts supplied when cell state is requested.
+// Optional solver-facing facts installed with the adapted mesh.
 
 /// Number of refinement-tree steps from the original cell; zero for a root.
 $type refinementDepth store<int> ;
@@ -31,3 +31,10 @@ $type rootCellFileNumber store<int> ;
 /// How this cell was produced by the last adaptation; values are Loci::CellChange.
 /// Unchanged cells may still have subdivided faces.
 $type cellChange store<int> ;
+
+/// Longest own edge of the final leaf, ignoring neighboring subdivisions.
+/// Lengths use the returned node coordinates and are not updated by mesh motion.
+$type maxEdgeLength store<double> ;
+
+/// Maximum length among the cell's own edges projected onto the XY plane.
+$type maxEdgeLengthXY store<double> ;

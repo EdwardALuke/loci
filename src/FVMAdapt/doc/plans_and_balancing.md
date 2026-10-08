@@ -106,6 +106,47 @@ the preceding adaptation. The next adaptation computes changes normally.
 No extra history file is required. An adapted VOG file alone does not retain
 root ancestry.
 
+## Cell Edge Lengths for Solvers
+
+`RefinementOptions::edgeLengths` requests two additional facts on every
+geometric cell of the installed mesh:
+
+| Fact | Meaning |
+| --- | --- |
+| `maxEdgeLength` | Longest endpoint-to-endpoint distance along the final leaf's own edges. |
+| `maxEdgeLengthXY` | Longest of those edges projected onto the XY plane. |
+
+An unchanged cell retains its full edge lengths when neighboring cells subdivide
+its boundary. The XY measurement ignores Z extrusion thickness; its definition
+does not depend on the selected split mode. Neither value is a minimum spacing
+or a guarantee that a requested split will be accepted.
+
+```cpp
+Loci::RefinementOptions options;
+options.edgeLengths = true;
+Loci::onlineRefineMesh(grid, rules, mode, cycle, tags, caseName, options);
+if (!Loci::setupFVMGridFromContainer(facts, *grid))
+  Loci::Abort();
+```
+
+Declare the facts with `$include "FVMAdapt/fvmadapt.lh"`. Before installation,
+`grid->maxEdgeLength` and `grid->maxEdgeLengthXY` use the generated-cell
+partition; installation remaps them to the solver's cell numbering.
+`grid->hasEdgeLengths` records availability even on empty ranks.
+
+The fields are off by default and independent of `options.cellState`.
+Every MPI rank must use the same options. Existing calls, including the Boolean
+cell-state overloads, retain their behavior.
+
+`initializeGridFromPlan` accepts the same options and reconstructs lengths from
+the base mesh and saved plan. No new checkpoint data or plan format is needed.
+The optional computation replays each root's final geometry and discards the
+temporary trees after measuring their leaves.
+
+Lengths use the returned node coordinates. They are not updated if the solver
+moves or rescales that mesh. An adapted VOG without its base mesh and plan does
+not preserve the own-edge hierarchy needed for this measurement.
+
 
 ## How One Plan Reconstructs a Tree
 
