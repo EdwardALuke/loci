@@ -20,19 +20,19 @@ endif
 # A make-command-line override is still available for comparison runs.
 export LOCI_MODULE_PATH = $(LOCI_BASE)/lib
 H5DUMP ?= h5dump
-TIMEOUT ?= timeout
-TIME_LIMIT ?= 120s
+TIMEOUT_SECONDS ?= 120
 export H5DUMP
-SERIAL = $(TIMEOUT) --kill-after=10s $(TIME_LIMIT) $(SERIALRUN)
-PARALLEL = $(TIMEOUT) --kill-after=10s $(TIME_LIMIT) $(MPIRUN)
-THREE_RANKS = $(TIMEOUT) --kill-after=10s $(TIME_LIMIT) $(MPI_RUN) -np 3
+LOCI_CMD_FLAGS += --timeout $(TIMEOUT_SECONDS)
+SERIAL = $(SERIALRUN)
+PARALLEL = $(MPIRUN)
+THREE_RANKS = $(MPI_RUN) -np 3
 MESH_SUMMARY = sh $(TEST_BASE)/FVMAdaptTest/mesh_summary.sh
 
 ifndef CASE_WORK
 check:
 	@test -f "$(LOCI_BASE)/Loci.conf" || { echo 'Set LOCI_BASE to a built or installed Loci tree.' >&2; exit 1; }
 	@for tool in $(TOOLS); do test -x "$(LOCI_BASE)/bin/$$tool" || { echo "Missing tool: $(LOCI_BASE)/bin/$$tool" >&2; exit 1; }; done
-	@for cmd in $(firstword $(MPI_RUN)) $(TIMEOUT) $(if $(NEEDS_H5DUMP),$(H5DUMP)) $(if $(SOURCES),$(firstword $(CXX))); do \
+	@for cmd in $(firstword $(MPI_RUN)) $(if $(NEEDS_H5DUMP),$(H5DUMP)) $(if $(SOURCES),$(firstword $(CXX))); do \
 	  command -v "$$cmd" >/dev/null || { echo "Missing command: $$cmd" >&2; exit 1; }; done
 	@printf '%s\n' '$(GROUP): Loci=$(LOCI_BASE), modules=$(LOCI_MODULE_PATH)'
 

@@ -4,7 +4,7 @@ include $(dir $(lastword $(MAKEFILE_LIST)))../common.mk
 
 ifdef CASE_WORK
 empty_ranks: test_face_output.exe
-	$(THREE_RANKS) ./test_face_output.exe --no-colors
+	$(THREE_RANKS) ./test_face_output.exe $(LOCI_CMD_FLAGS) --no-colors
 
 test_face_output.exe: test_face_output.o $(LOCI_BASE)/lib/libfvmadaptfunc.$(LIB_SUFFIX)
 	$(LD) -o $@ test_face_output.o -L$(LOCI_BASE)/lib -lfvmadaptfunc $(LIBS) $(LDFLAGS)
