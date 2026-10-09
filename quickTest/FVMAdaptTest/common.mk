@@ -36,26 +36,29 @@ check:
 	  command -v "$$cmd" >/dev/null || { echo "Missing command: $$cmd" >&2; exit 1; }; done
 	@printf '%s\n' '$(GROUP): Loci=$(LOCI_BASE), modules=$(LOCI_MODULE_PATH)'
 
-TestResults:
-	@rm -f $@
-	@$(MAKE) --no-print-directory check
-	@status=0; for case in $(CASES); do \
-	  $(MAKE) --no-print-directory $$case || status=1; \
-	  cat work/$$case/TestResults >> $@; \
-	done; exit $$status
+CASE_RESULTS := $(foreach c,$(CASES),work/$c/TestResults)
+.PHONY: FORCE
 
-$(CASES): check
-	@rm -rf work/$@
-	@mkdir -p work/$@
-	@status=0; $(MAKE) --no-print-directory -C work/$@ -f "$(INPUT)/Makefile" CASE_WORK=1 $@ \
-	  > work/$@/run.log 2>&1 || status=$$?; \
+TestResults: $(CASE_RESULTS)
+	@rm -f $@
+	@cat $^ > $@
+	@! grep -q FAIL $@
+
+$(CASES): %: work/%/TestResults
+	@:
+
+$(CASE_RESULTS): work/%/TestResults: FORCE | check
+	@rm -rf work/$*
+	@mkdir -p work/$*
+	@status=0; $(MAKE) --no-print-directory -C work/$* -f "$(INPUT)/Makefile" CASE_WORK=1 $* \
+	  > work/$*/run.log 2>&1 || status=$$?; \
 	if test $$status -eq 0; then result=PASSED; else result=FAILED; fi; \
-	echo "FVMAdaptTest/$(GROUP)/$@: $$result" > work/$@/TestResults; \
-	cat work/$@/TestResults; \
+	echo "FVMAdaptTest/$(GROUP)/$*: $$result" > $@; \
+	cat $@; \
 	if test $$status -ne 0; then \
-	  tail -n 35 work/$@/run.log; \
-	  echo "Log: $(INPUT)/work/$@/run.log"; \
-	fi; exit $$status
+	  tail -n 35 work/$*/run.log; \
+	  echo "Log: $(INPUT)/work/$*/run.log"; \
+	fi
 else
 INCLUDES = -I$(TEST_BASE)/contrib/doctest -I$(LOCI_BASE)/include
 %.o: $(INPUT)/%.cc
