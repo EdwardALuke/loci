@@ -1,0 +1,5 @@
+cells=7
+faces=32
+nodes=25
+convexity=pass
+volume.Main=1.5

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<region>
+  <object>
+    <shape>
+      <box>
+        <x1>-0.01</x1>
+        <x2>1.01</x2>
+        <y1>-0.01</y1>
+        <y2>1.01</y2>
+        <z1>-0.01</z1>
+        <z2>1.01</z2>
+      </box>
+    </shape>
+  </object>
+</region>

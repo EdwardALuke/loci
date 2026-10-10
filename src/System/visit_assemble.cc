@@ -464,7 +464,7 @@ namespace Loci {
              }
           */
           if(sp!=0) {
-            if(isPARAMETER(sp)) {
+            if(isPARAMETER(sp) && !isGPU(sp)) {
               reduce_var_vector.push_back(xi->first) ;
               unit_rule_vector.push_back(unit_rule) ;
               join_op_vector.push_back(join_op) ;
