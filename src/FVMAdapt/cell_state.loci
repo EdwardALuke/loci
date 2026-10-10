@@ -1,0 +1,155 @@
+//#############################################################################
+//#
+//# Copyright 2008-2026, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+
+#include <iostream>
+#include <limits>
+#include <list>
+#include <vector>
+
+#include <Loci.h>
+#include "defines.h"
+#include "gridInterface.h"
+#include "diamondcell.h"
+#include "hexcell.h"
+#include "prism.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+$type firstGeomCellFileNumber param<int> ;
+
+/// A saved plan alone does not describe the preceding adaptation.
+$rule pointwise(fineCellChange <- balanced_num_fine_cells), constraint(geom_cells) {
+  $fineCellChange.assign($balanced_num_fine_cells, Loci::CELL_CHANGE_UNKNOWN) ;
+}
+
+/// The first adaptation either keeps an original cell or splits it into leaves.
+$rule pointwise(priority::initial::fineCellChange <- norestart_tag_par,
+balanced_num_fine_cells), constraint(geom_cells) {
+  $fineCellChange.assign($balanced_num_fine_cells,
+    $balanced_num_fine_cells == 1 ? Loci::CELL_UNCHANGED : Loci::CELL_REFINED) ;
+}
+
+/// Classify final leaves by their old/new cell relationships, not their tags.
+$rule pointwise(priority::restart::fineCellChange <- restart_tag_par, indexMap,
+parent_num_fine_cells, balanced_num_fine_cells), constraint(geom_cells) {
+  std::vector<int> childCounts($parent_num_fine_cells, 0) ;
+  std::vector<int> parentCounts($balanced_num_fine_cells, 0) ;
+  // indexMap contains one-based (new leaf, old leaf) indices.
+  for(const auto& relation : $indexMap) {
+    const int newIndex = relation.first ;
+    const int oldIndex = relation.second ;
+    if(newIndex <= 0 || newIndex > $balanced_num_fine_cells ||
+       oldIndex <= 0 || oldIndex > $parent_num_fine_cells) {
+      std::cerr << "Invalid cell relationship: new leaf " << newIndex
+                << " of " << $balanced_num_fine_cells << ", old leaf " << oldIndex
+                << " of " << $parent_num_fine_cells << std::endl ;
+      Loci::Abort() ;
+    }
+    ++parentCounts[newIndex-1] ;
+    ++childCounts[oldIndex-1] ;
+  }
+
+  $fineCellChange.assign($balanced_num_fine_cells, Loci::CELL_CHANGE_UNKNOWN) ;
+  for(const auto& relation : $indexMap) {
+    const int newIndex = relation.first ;
+    const int oldIndex = relation.second ;
+    const int parents = parentCounts[newIndex-1] ;
+    const int children = childCounts[oldIndex-1] ;
+    if(parents > 1 && children > 1) {
+      std::cerr << "Cell relationship is not a nested split or merge" << std::endl ;
+      Loci::Abort() ;
+    }
+    $fineCellChange[newIndex-1] = parents > 1 ? Loci::CELL_COARSENED :
+      (children > 1 ? Loci::CELL_REFINED : Loci::CELL_UNCHANGED) ;
+  }
+  for(int parents : parentCounts) {
+    if(parents == 0) {
+      std::cerr << "Missing old cell for cell state" << std::endl ;
+      Loci::Abort() ;
+    }
+  }
+}
+
+$rule unit(firstGeomCellFileNumber), constraint(UNIVERSE) {
+  $firstGeomCellFileNumber = std::numeric_limits<int>::max() ;
+}
+
+$rule apply(firstGeomCellFileNumber <- fileNumber(geom_cells))[Loci::Minimum],
+constraint(geom_cells) {
+  join($firstGeomCellFileNumber, $fileNumber(geom_cells)) ;
+}
+
+/// Assign each original cell its partition-independent base-mesh file number.
+$rule pointwise(planRootFileNumber <- fileNumber(geom_cells),
+firstGeomCellFileNumber, num_original_nodes, num_original_faces),
+constraint(geom_cells) {
+  // Use node count + face count + zero-based cell ordinal on every rank.
+  $planRootFileNumber = $num_original_nodes+$num_original_faces+
+    $fileNumber(geom_cells)-$firstGeomCellFileNumber ;
+}
+
+/// Record final hex-cell depths in fine-cell index order.
+$rule pointwise(fineCellDepth <- balancedCellPlan), constraint(hexcells) {
+  HexCell cell ;
+  const int count = cell.empty_resplit($balancedCellPlan) ;
+  if(!cell.getLeafDepths($fineCellDepth) || int($fineCellDepth.size()) != count) {
+    std::cerr << "Invalid hex-cell leaf numbering for cell state" << std::endl ;
+    Loci::Abort() ;
+  }
+}
+
+/// Record final prism-cell depths in fine-cell index order.
+$rule pointwise(fineCellDepth <- balancedCellPlan), constraint(prisms) {
+  Prism cell ;
+  const int count = cell.empty_resplit($balancedCellPlan) ;
+  if(!cell.getLeafDepths($fineCellDepth) || int($fineCellDepth.size()) != count) {
+    std::cerr << "Invalid prism leaf numbering for cell state" << std::endl ;
+    Loci::Abort() ;
+  }
+}
+
+/// Record final general-cell depths in fine-cell index order.
+$rule pointwise(fineCellDepth <- balancedCellPlan,
+(lower, upper, boundary_map)->face2node->fileNumber(pos),
+(lower, upper, boundary_map)->face2edge->edge2node->fileNumber(pos)),
+constraint(gnrlcells) {
+  if($balancedCellPlan.empty()) {
+    $fineCellDepth.assign(1, 0) ;
+    return ;
+  }
+  std::list<Node*> nodes ;
+  std::list<Edge*> edges ;
+  std::list<Face*> faces ;
+  Cell* cell = build_general_cell(
+    $lower.begin(), $lower.size(), $upper.begin(), $upper.size(),
+    $boundary_map.begin(), $boundary_map.size(), $*face2node, $*face2edge,
+    $*edge2node, nodes, edges, faces, $*fileNumber(pos)) ;
+  const int count = cell->empty_resplit($balancedCellPlan) ;
+  const bool valid = cell->getLeafDepths($fineCellDepth) &&
+    int($fineCellDepth.size()) == count ;
+  delete cell ;
+  cleanup_list(nodes, edges, faces) ;
+  if(!valid) {
+    std::cerr << "Invalid general-cell leaf numbering for cell state" << std::endl ;
+    Loci::Abort() ;
+  }
+}

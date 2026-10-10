@@ -3542,6 +3542,9 @@ namespace Loci{
       MPI_Allgather(&val,sizeof(T),MPI_BYTE,
                     &valp[0],sizeof(T),MPI_BYTE,
                     comm) ;
+      // Empty ranks share the next nonempty rank's lower bound.
+      for(int i=p-2;i>=0;--i)
+        valp[i] = min(valp[i],valp[i+1]) ;
       for(int i=0;i<p-1;++i)
         edge_splits[i] = valp[i+1] ;
     }

@@ -329,3 +329,32 @@ adapted mesh with transferred field data
 Coordinates and final mesh numbering enter during this construction stage.
 Later rules handle geometric placement, connectivity numbering, field
 transfer, and mesh output.
+
+
+## Cell Information
+
+Solvers can optionally request the following facts for every cell in the
+adapted mesh:
+
+| Fact | Meaning |
+| --- | --- |
+| `refinementDepth` | Number of refinement levels below the original cell; zero for an original cell. |
+| `rootCellFileNumber` | Original mesh cell's file number, shared by its descendants. |
+| `cellChange` | Whether the cell is unchanged, created by refinement, or formed by coarsening. |
+| `maxEdgeLength` | Length of the cell's longest edge. |
+| `maxEdgeLengthXY` | Largest edge length measured in the XY plane. |
+
+Depth follows the current refinement tree, not the number of adaptation calls.
+The root file number identifies the original cell, not a cell in the new mesh.
+
+`cellChange` describes the result after balancing and coarsening, not the
+requested action. When reconstructing a mesh from a saved plan, depth and root
+identity are available, but the last change is unknown.
+
+Edge lengths ignore extra subdivisions introduced by neighboring cells, so an
+unchanged coarse cell retains its full edge lengths. The XY measurement ignores
+Z extrusion thickness. These values are not updated if the solver moves or
+rescales the mesh.
+
+The solver interface is declared in `FVMAdapt/gridInterface.h`; the facts are
+declared in `FVMAdapt/fvmadapt.lh`.

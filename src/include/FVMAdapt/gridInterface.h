@@ -24,6 +24,20 @@
 #include <memory>
 
 namespace Loci {
+  /// Net change from the preceding mesh; unknown when loading only a saved plan.
+  enum CellChange {
+    CELL_UNCHANGED = 0,
+    CELL_REFINED = 1,
+    CELL_COARSENED = 2,
+    CELL_CHANGE_UNKNOWN = 3
+  } ;
+
+  /// Optional outputs; every MPI rank must request the same fields.
+  struct RefinementOptions {
+    bool cellState = false;
+    bool edgeLengths = false;
+  } ;
+
   void parallelClassifyCell(fact_db &facts) ;
 
   void createVOGNode(store<vector3d<double> > &new_pos,
@@ -64,6 +78,23 @@ namespace Loci {
     vector<entitySet> local_cells;
     vector<pair<int,string> > boundary_ids;
     vector<pair<string,entitySet> > volTags;
+
+    /// True when cell state was requested, including on ranks with no cells.
+    bool hasCellState;
+
+    /// Optional cell-state stores defined on local_cells[MPI_rank].
+    store<int> refinementDepth;
+    store<int> rootCellFileNumber;
+    store<int> cellChange;
+
+    /// True when edge lengths were requested, including on ranks with no cells.
+    bool hasEdgeLengths;
+
+    /// Own-edge lengths in new_pos units, defined on local_cells[MPI_rank].
+    store<double> maxEdgeLength;
+    store<double> maxEdgeLengthXY;
+
+    refinedGridData() : hasCellState(false), hasEdgeLengths(false) {}
   } ;
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
@@ -72,6 +103,12 @@ namespace Loci {
 			      string casename, string weightfile,
 			      string restartplanfile) ;
 
+  /// Reconstruct requested cell fields; cellChange is unknown for saved plans.
+  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
+                              int &level, rule_db &refmesh_rdb,
+                              string casename, string weightfile,
+                              string restartplanfile, const RefinementOptions &options) ;
+
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
 			rule_db &refmesh_rdb,
 			int adaptmode,
@@ -79,7 +116,16 @@ namespace Loci {
 			storeRepP tags,
 			string casename  ) ;
 
+  /// Return requested fields on the final balanced mesh.
+  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
+                       rule_db &refmesh_rdb, int adaptmode, int level,
+                       storeRepP tags, string casename, const RefinementOptions &options) ;
+
   storeRepP getC2PGlobal(fact_db &facts) ;
+
+  /// Install the mesh and requested cell fields in the new fact database.
+  bool setupFVMGridFromContainer(fact_db &facts, refinedGridData &grid,
+                                storeRepP cellwts = 0) ;
 
   // Holds Data Structures for processning AMR interpolation
   class AMRrefinementMapping {

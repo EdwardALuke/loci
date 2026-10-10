@@ -133,6 +133,26 @@ void HexCell::resplit(int level,
 
 
 
+bool HexCell::getLeafDepths(std::vector<int>& depths) const {
+  depths.clear() ;
+  std::queue<std::pair<const HexCell*, int> > pending ;
+  pending.push(std::make_pair(this, 0)) ;
+  while(!pending.empty()) {
+    const HexCell* cell = pending.front().first ;
+    const int depth = pending.front().second ;
+    pending.pop() ;
+    if(cell->numChildren() == 0) {
+      if(cell->getCellIndex() != depths.size()+1)
+        return false ;
+      depths.push_back(depth) ;
+    } else {
+      for(int child = 0; child < cell->numChildren(); ++child)
+        pending.push(std::make_pair(cell->getChildCell(child), depth+1)) ;
+    }
+  }
+  return true ;
+}
+
 //this function will return num_fine_cells
 //this function will not set mysplitcode unless the splitCode got from cellPlan
 //is nonzero, and the the current cell from Q is never split
