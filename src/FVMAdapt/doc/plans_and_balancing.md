@@ -56,98 +56,6 @@ The vectors therefore preserve the planned topology between rule operations
 without retaining the more memory-intensive object trees.
 
 
-## Cell State for Solvers
-
-The online grid handoff can optionally provide three facts on every geometric
-cell of the installed mesh:
-
-| Fact | Meaning |
-| --- | --- |
-| `refinementDepth` | Number of refinement-tree steps from the original cell; zero for a root. |
-| `rootCellFileNumber` | File number of the original mesh cell whose plan produced this cell. |
-| `cellChange` | Whether the last adaptation kept, split, or merged the cell. |
-
-Declare these types in solver rules with
-`$include "FVMAdapt/fvmadapt.lh"`. Including the header does not generate the
-facts. Request them when adapting, then install the complete grid handoff:
-
-```cpp
-#include <FVMAdapt/gridInterface.h>
-
-Loci::RefinementOptions options;
-options.cellState = true;
-Loci::onlineRefineMesh(grid, rules, mode, cycle, tags, caseName, options);
-if(!Loci::setupFVMGridFromContainer(facts, *grid, cellWeights))
-  Loci::Abort();
-```
-
-All MPI ranks must use the same option. Existing calls omit this state.
-The container-by-container installation overload remains mesh-only.
-`grid->hasCellState` indicates availability, including on ranks with no
-cells; the stores use `grid->local_cells[MPI_rank]` before installation.
-Installation transfers them to the new cell numbering and partition.
-
-Depth describes the final plan after balancing and derefinement, not the
-number of adaptation calls or halvings in every direction. Root file numbers
-are the base mesh's node count plus face count plus zero-based cell ordinal.
-They are independent of MPI ownership, but meaningful only for that base
-mesh. They are not identifiers for individual descendants.
-
-`cellChange` uses the `Loci::CellChange` values in `FVMAdapt/gridInterface.h`:
-`CELL_UNCHANGED`, `CELL_REFINED`, and `CELL_COARSENED`. It describes the final
-split/merge relationship to the preceding mesh, not the requested tag or the
-reason for a change. A rejected coarsening request is unchanged. Unchanged
-cells may still have subdivided faces, and renumbering is not a cell change.
-
-`initializeGridFromPlan` accepts the same `RefinementOptions`. It
-reconstructs depth and root identity from the saved plan and base mesh, but
-sets `cellChange` to `CELL_CHANGE_UNKNOWN`: that checkpoint does not describe
-the preceding adaptation. The next adaptation computes changes normally.
-No extra history file is required. An adapted VOG file alone does not retain
-root ancestry.
-
-## Cell Edge Lengths for Solvers
-
-`RefinementOptions::edgeLengths` requests two additional facts on every
-geometric cell of the installed mesh:
-
-| Fact | Meaning |
-| --- | --- |
-| `maxEdgeLength` | Longest endpoint-to-endpoint distance along the final leaf's own edges. |
-| `maxEdgeLengthXY` | Longest of those edges projected onto the XY plane. |
-
-An unchanged cell retains its full edge lengths when neighboring cells subdivide
-its boundary. The XY measurement ignores Z extrusion thickness; its definition
-does not depend on the selected split mode. Neither value is a minimum spacing
-or a guarantee that a requested split will be accepted.
-
-```cpp
-Loci::RefinementOptions options;
-options.edgeLengths = true;
-Loci::onlineRefineMesh(grid, rules, mode, cycle, tags, caseName, options);
-if (!Loci::setupFVMGridFromContainer(facts, *grid))
-  Loci::Abort();
-```
-
-Declare the facts with `$include "FVMAdapt/fvmadapt.lh"`. Before installation,
-`grid->maxEdgeLength` and `grid->maxEdgeLengthXY` use the generated-cell
-partition; installation remaps them to the solver's cell numbering.
-`grid->hasEdgeLengths` records availability even on empty ranks.
-
-The fields are off by default and independent of `options.cellState`.
-Every MPI rank must use the same options. Existing calls without options
-retain their behavior.
-
-`initializeGridFromPlan` accepts the same options and reconstructs lengths from
-the base mesh and saved plan. No new checkpoint data or plan format is needed.
-The optional computation replays each root's final geometry and discards the
-temporary trees after measuring their leaves.
-
-Lengths use the returned node coordinates. They are not updated if the solver
-moves or rescales that mesh. An adapted VOG without its base mesh and plan does
-not preserve the own-edge hierarchy needed for this measurement.
-
-
 ## How One Plan Reconstructs a Tree
 
 A plan records split codes in breadth-first order. Replay begins with the
@@ -421,3 +329,32 @@ adapted mesh with transferred field data
 Coordinates and final mesh numbering enter during this construction stage.
 Later rules handle geometric placement, connectivity numbering, field
 transfer, and mesh output.
+
+
+## Cell Information
+
+Solvers can optionally request the following facts for every cell in the
+adapted mesh:
+
+| Fact | Meaning |
+| --- | --- |
+| `refinementDepth` | Number of refinement levels below the original cell; zero for an original cell. |
+| `rootCellFileNumber` | Original mesh cell's file number, shared by its descendants. |
+| `cellChange` | Whether the cell is unchanged, created by refinement, or formed by coarsening. |
+| `maxEdgeLength` | Length of the cell's longest edge. |
+| `maxEdgeLengthXY` | Largest edge length measured in the XY plane. |
+
+Depth follows the current refinement tree, not the number of adaptation calls.
+The root file number identifies the original cell, not a cell in the new mesh.
+
+`cellChange` describes the result after balancing and coarsening, not the
+requested action. When reconstructing a mesh from a saved plan, depth and root
+identity are available, but the last change is unknown.
+
+Edge lengths ignore extra subdivisions introduced by neighboring cells, so an
+unchanged coarse cell retains its full edge lengths. The XY measurement ignores
+Z extrusion thickness. These values are not updated if the solver moves or
+rescales the mesh.
+
+The solver interface is declared in `FVMAdapt/gridInterface.h`; the facts are
+declared in `FVMAdapt/fvmadapt.lh`.
