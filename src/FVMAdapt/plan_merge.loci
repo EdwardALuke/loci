@@ -1,0 +1,801 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <algorithm>
+#include <bitset>
+#include <list>
+#include <queue>
+#include <set>
+#include <utility>
+#include <vector>
+
+#include <Loci.h>
+#include "defines.h"
+#include "diamondcell.h"
+#include "face.h"
+#include "hex_defines.h"
+#include "quadface.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+using namespace Loci ;
+using std::bitset ;
+using std::cerr ;
+using std::cout ;
+using std::endl ;
+using std::list ;
+using std::queue ;
+using std::set ;
+using std::vector ;
+
+//-----------------------------------------------------------------------------
+// General-cell face plans
+//-----------------------------------------------------------------------------
+
+// This file extracts a facePlan from a cellPlan, and then merges two facePlan
+// together. The extracting algrithm uses the numbering system of DiamondCell
+// and is faster than a straight forward approach.
+
+std::vector<char> extract_general_face(const Entity* lower, int lower_size,
+                                       const Entity* upper, int upper_size,
+                                       const Entity* boundary_map, int boundary_map_size,
+                                       const const_multiMap& face2node,
+                                       const const_multiMap& face2edge,
+                                       const const_MapVec<2>& edge2node,
+                                       const std::vector<char>& cellPlan,
+                                       Entity ff,
+                                       const const_store<int>& node_remap
+                                       ){
+ 
+  // if cellPlan empty, facePlan also empty
+  std::vector<char> facePlan ;
+  if(cellPlan.size() == 0) {
+    reduce_vector(facePlan) ;
+    return facePlan ;
+  }
+  
+  // first build a Cell from cellPlan
+  std::list<Node*> node_list ;
+  std::list<Edge*> edge_list ;
+  std::list<Face*> face_list ;
+  Cell* aCell = build_general_cell(lower, lower_size,
+                                   upper, upper_size,
+                                   boundary_map, boundary_map_size,
+                                   face2node,
+                                   face2edge,
+                                   edge2node,
+                                   node_list,
+                                   edge_list,
+                                   face_list,
+                                   node_remap) ;
+
+  // split  a general cell isotropically according to cellPlan,
+  // only child is defined
+  aCell->empty_resplit(cellPlan) ;
+  
+  int findex = find_face_index(lower, lower_size,
+                               upper, upper_size,
+                               boundary_map, boundary_map_size,
+                               face2node,
+                               ff,
+                               node_remap) ;
+
+  char faceOrient = aCell->faceOrient[findex] ;
+ 
+  facePlan.push_back(1) ;
+  std::queue<pair<DiamondCell*, int> > Q ;
+
+  // each node on ff corresponds to a child cell, and each
+  // cell corresponds to a tree in diamonds, find  which tree correspond to
+  // the node , and put it in the Q
+  
+  // At the same time , find out faceID in the childCell
+  Face* theFace = aCell->face[findex] ;
+  
+  for(int i=0; i<theFace->numEdge; i++) {
+    Node* theNode ;
+    if(theFace->needReverse[i]) {
+      theNode = theFace->edge[i]->tail ;
+    }else {
+      theNode = theFace->edge[i]->head ;
+    }
+    
+    int childID = 0 ;
+    
+    for(childID=0; childID<aCell->numNode; childID++) {
+      if(aCell->node[childID] == theNode) break ;
+    }
+    if(childID == aCell->numNode) {
+      cerr << " WARNING: face nodes not in cell" << endl ;
+      Loci::Abort() ;
+    }
+    
+    // to find faceID, first set up n2f and n2e
+    std::vector<Face*> n2f ;
+    std::vector<Edge*> n2e ;
+    std::vector<int> rot ;
+    
+    aCell->set_n2f_n2e(n2f, n2e, rot, childID) ; 
+
+    // find faceID
+    int faceID ;
+    int n2f_size = n2f.size() ;
+    for(faceID=0; faceID<n2f_size; faceID++) {
+      if(n2f[faceID] == aCell->face[findex]) break ;
+    }
+    if(faceID == n2f_size) {
+      cerr << " WARNING: can not find faceID" << endl ;
+      Loci::Abort() ;
+    }
+    
+    // when split a general cell, center of face n2f[i] -> vertex[i+2],
+    // vertex[1] and vertex[i+2] belongs to face nfold+i in the childCell
+    
+    faceID = faceID + aCell->child[childID]->getNfold() ;
+    Q.push(make_pair(aCell->child[childID], faceID)) ;
+  }//the general face is split
+  
+  DiamondCell* current ;
+  int currentFace ;
+  while(!Q.empty()) {
+    current = Q.front().first ;
+    currentFace = Q.front().second ;
+    int currentNfold = current->getNfold() ;
+    if(current->getChildCell() != 0) {
+      facePlan.push_back(1) ;
+      // push the selected four children in the Q
+      if(faceOrient == 0) {
+        Q.push(make_pair(current->getChildCell(1), currentFace)) ;
+        Q.push(make_pair(current->getChildCell(currentFace == currentNfold? (2*currentNfold+1):(currentFace+1)),4)) ;
+        Q.push(make_pair(current->getChildCell(currentFace-currentNfold+2), 4)) ;
+        Q.push(make_pair(current->getChildCell(currentFace +2), 5)) ;
+      }else {
+        Q.push(make_pair(current->getChildCell(1), currentFace)) ;
+        Q.push(make_pair(current->getChildCell(currentFace +2), 5)) ;
+        Q.push(make_pair(current->getChildCell(currentFace-currentNfold+2), 4)) ;
+        Q.push(make_pair(current->getChildCell(currentFace == currentNfold? (2*currentNfold+1):(currentFace+1)),4)) ;
+      }
+    }else {
+      facePlan.push_back(0) ;
+    }
+    Q.pop() ;
+  }
+  while(facePlan.size() != 0 && facePlan.back() == 0 ) facePlan.pop_back() ;
+  reduce_vector(facePlan) ;
+
+  //clean up
+  if(aCell != 0) {
+    delete aCell ;
+    aCell = 0 ;
+  }
+  cleanup_list(node_list, edge_list, face_list) ;
+  return facePlan ;
+}
+
+
+std::vector<char> merge_faceplan(std::vector<char>& planl,
+                                 std::vector<char>& planr, int numNodes) {
+  if(planl.size() == 0) return planr ;
+  if(planr.size() == 0) return planl ;
+  std::vector<char> fplan ;
+  size_t ptl = 0 ;
+  size_t ptr = 0 ;
+
+  std::queue<pair<char, char> > Q ;
+  char codel ;
+  char coder ;
+ 
+  // assume the first code of both planl and planr is 1
+  ptl++ ;
+  ptr++ ;
+  
+  fplan.push_back(1) ;
+  for(int i=0; i<numNodes; i++) {
+    if(ptl < planl.size()) {
+      codel = planl[ptl] ;
+    }else {
+      codel = 0 ;
+    }
+    
+    if(ptr < planr.size()) {
+      coder = planr[ptr] ;
+    }else {
+      coder = 0 ;
+    }
+    Q.push(make_pair(codel, coder)) ;
+    ptl++ ;
+    ptr++ ;
+  }
+    
+  while(!Q.empty()) {
+    if(Q.front().first ==1 && Q.front().second == 1) {
+      fplan.push_back(1) ;
+      
+      for(int i=0; i<4; i++) {
+        if(ptl < planl.size()) {
+          codel = planl[ptl] ;
+        }else {
+          codel = 0 ;
+        }
+
+        if(ptr < planr.size()) {
+          coder = planr[ptr] ;
+        }else {
+          coder = 0 ;
+        }
+        Q.push(make_pair(codel, coder)) ;
+        ptl++ ;
+        ptr++ ;
+      }
+    }else if(Q.front().first == 1 && Q.front().second ==0) {
+      fplan.push_back(1) ;
+      
+      for(int i=0; i<4; i++) {
+        if(ptl < planl.size()) {
+          codel = planl[ptl] ;
+        }else {
+          codel = 0 ;
+        }
+        Q.push(make_pair(codel, 0)) ;
+        ptl++ ;
+      }
+    }else if(Q.front().first == 0 && Q.front().second ==1) {
+      fplan.push_back(1) ;
+
+      for(int i=0; i<4; i++) {
+        if(ptr < planr.size()) {
+          coder = planr[ptr] ;
+        }else {
+          coder = 0 ;
+        }
+        Q.push(make_pair(0, coder)) ;
+        ptr++ ;
+      }
+    }else {
+      fplan.push_back(0) ;
+    }
+    Q.pop() ;
+  }
+
+  while(fplan.size() != 0 && fplan.back() == 0 ) fplan.pop_back() ;
+  reduce_vector(fplan) ; 
+  
+  return fplan ; 
+}
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+(cl, cr)->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)), //dummy
+(cl, cr)->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint((cl, cr)->gnrlcells) {
+  $facePlan.clear() ;
+  std::vector<char> facePlanL = extract_general_face($cl->$lower.begin(),
+                                                     $*lower.num_elems($cl),
+                                                     $cl->$upper.begin(),
+                                                     $*upper.num_elems($cl),
+                                                     $cl->$boundary_map.begin(),
+                                                     $*boundary_map.num_elems($cl),
+                                                     $*face2node, $*face2edge,
+                                                     $*edge2node, $cl->$cellPlan,
+                                                     _e_, $*fileNumber(pos)) ;
+
+  std::vector<char> facePlanR = extract_general_face($cr->$lower.begin(),
+                                                     $*lower.num_elems($cr),
+                                                     $cr->$upper.begin(),
+                                                     $*upper.num_elems($cr),
+                                                     $cr->$boundary_map.begin(),
+                                                     $*boundary_map.num_elems($cr),
+                                                     $*face2node, $*face2edge,
+                                                     $*edge2node, $cr->$cellPlan,
+                                                     _e_, $*fileNumber(pos)) ;
+  
+  $facePlan = merge_faceplan(facePlanL, facePlanR, $*face2node.num_elems(_e_)) ;
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- cl->cellPlan,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)), //dummy
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(boundary_faces, cl->gnrlcells) {
+  $facePlan = extract_general_face($cl->$lower.begin(), $*lower.num_elems($cl),
+                                   $cl->$upper.begin(), $*upper.num_elems($cl),
+                                   $cl->$boundary_map.begin(),
+                                   $*boundary_map.num_elems($cl),
+                                   $*face2node, $*face2edge, $*edge2node,
+                                   $cl->$cellPlan, _e_, $*fileNumber(pos)) ;
+  reduce_vector($facePlan) ;
+}
+
+
+//-----------------------------------------------------------------------------
+// Hex-cell face plans
+//-----------------------------------------------------------------------------
+
+void extract_quad_edge(const std::vector<char>&, std::vector<char>&, unsigned int) ;
+std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL) ;
+std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL,
+                                  std::vector<char>& facePlanR, char orientCodeR) ;
+std::vector<char> extract_hex_face(const std::vector<char>& cellPlan, DIRECTION dd) ;
+
+// This rule first extracts faceplan from cl and cr, then merges them into one
+// final plan in the face's local coordinates system.
+//
+// To merge the plans, use a queue of ranges to simulate the tree splitting
+// process, and put the inner eges in list xEdge and yEdges according to their
+// directions.
+//
+// Then sort and unique xEdge and yEdge. and then merge all the overlapped
+// edges. 
+//
+// The last step is compose a new refinement plan according to xEdges and
+// yEdges. Search the inner edges of a parent cell, the result implies the
+// split code. Repeat the same process for each child.
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+(cl, cr)->hexOrientCode, fl, fr), constraint(interior_faces, (cl, cr)->hexcells) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan, DIRECTION($fl)) ;
+  std::vector<char> facePlanR = extract_hex_face($cr->$cellPlan, DIRECTION($fr)) ;
+  $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl],
+                              facePlanR, $cr->$hexOrientCode[$fr]) ;
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- cl->cellPlan, cl->hexOrientCode, fl),
+constraint(boundary_faces, cl->hexcells) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan, DIRECTION($fl)) ;
+  $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl]) ;
+  reduce_vector($facePlan) ;
+}
+
+
+//-----------------------------------------------------------------------------
+// Prism-cell face plans
+//-----------------------------------------------------------------------------
+
+std::vector<char> extract_prism_face(const std::vector<char>& cellPlan, int dd) ;
+
+std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan1, int dd1,
+                                    char orientCode1) ;
+
+std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlan1,
+                                     int dd1, char orientCode1,
+                                     const std::vector<char>& cellPlan2,
+                                     int dd2, char orientCode2) ;
+
+std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan1,
+                                   int dd1, char orientCode1) ;
+
+std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlan1,
+                                    int dd1, char orientCode1,
+                                    const std::vector<char>& cellPlan2,
+                                    int dd2, char orientCode2) ;
+
+
+// This rule first extracts faceplan from cl and cr, then merges them into one
+// final plan in the face's local coordinates system.
+//
+// To merge the plans, use a queue of ranges to simulate the tree splitting
+// process, and put the inner eges in list xEdge and yEdges according to their
+// directions.
+//
+// Then sort and unique xEdge and yEdge. and then merge all the overlapped
+// edges.   
+//
+// The last step is compose a new refinement plan according to xEdges and
+// yEdges. Search the inner edges of a parent cell, the result implies the
+// split code. Repeat the same process for each child.
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan,
+(cl, cr)->prismOrientCode, fl, fr), constraint(interior_faces, (cl, cr)->prisms) {
+  if($fl < 2) {
+    $facePlan = merge_tri_face_pp($cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl],
+                                  $cr->$cellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+  }else {
+    $facePlan = merge_quad_face_pp($cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl],
+                                   $cr->$cellPlan, $fr, $cr->$prismOrientCode[$fr]) ;
+  }
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- cl->cellPlan, cl->prismOrientCode, fl),
+constraint(boundary_faces, cl->prisms) {
+  if($fl < 2) {
+    $facePlan = merge_tri_face_p($cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+  }else {
+    $facePlan = merge_quad_face_p($cl->$cellPlan, $fl, $cl->$prismOrientCode[$fl]) ;
+  }
+  reduce_vector($facePlan) ;
+}
+
+
+//-----------------------------------------------------------------------------
+// Mixed-cell face plans
+//-----------------------------------------------------------------------------
+
+std::vector<char> extract_general_face(const Entity* lower, int lower_size,
+                                       const Entity* upper, int upper_size,
+                                       const Entity* boundary_map, int boundary_map_size,
+                                       const const_multiMap& face2node,
+                                       const const_multiMap& face2edge,
+                                       const const_MapVec<2>& edge2node,
+                                       const std::vector<char>& cellPlan,
+                                       Entity ff,
+                                       const const_store<int>& node_remap
+                                       );
+
+std::vector<char> extract_prism_face(const std::vector<char>& cellPlan, int dd) ;
+
+std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan1, int dd1,
+                                   char orientCode1) ;
+
+std::vector<char> extract_hex_face(const std::vector<char>& cellPlan,
+                                   DIRECTION dd) ;
+
+std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL) ;
+
+std::vector<char> merge_quad_face(std::vector<char>& facePlanL, char orientCodeL,
+                                  std::vector<char>& facePlanR, char orientCodeR) ;
+
+std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlan1,
+                                    int dd1, char orientCode1,
+                                    const std::vector<char>& cellPlan2,
+                                    int dd2, char orientCode2) ;
+
+std::vector<char> merge_faceplan(std::vector<char>& planl,
+                                 std::vector<char>& planr, int numNodes) ;
+
+std::vector<char> transfer_plan_g2q(std::vector<char>& facePlan) ;
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan, cr->hexOrientCode, fr,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)), 
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cl->gnrlcells, cr->hexcells) {
+  $facePlan.clear() ;
+  std::vector<char> localPlanL = extract_general_face(
+    $cl->$lower.begin(), $*lower.num_elems($cl),
+    $cl->$upper.begin(), $*upper.num_elems($cl),
+    $cl->$boundary_map.begin(), $*boundary_map.num_elems($cl),
+    $*face2node, $*face2edge, $*edge2node, $cl->$cellPlan, _e_,
+    $*fileNumber(pos)) ;
+  std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
+  std::vector<char> facePlanR = extract_hex_face($cr->$cellPlan, DIRECTION($fr)) ;
+  $facePlan = merge_quad_face(facePlanL, static_cast<char>(0), facePlanR,
+                              $cr->$hexOrientCode[$fr]);
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan, cl->hexOrientCode, fl,
+cr->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)), 
+cr->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cr->gnrlcells, cl->hexcells) {
+  $facePlan.clear() ;
+  std::vector<char> localPlanR = extract_general_face(
+    $cr->$lower.begin(), $*lower.num_elems($cr),
+    $cr->$upper.begin(), $*upper.num_elems($cr),
+    $cr->$boundary_map.begin(), $*boundary_map.num_elems($cr),
+    $*face2node, $*face2edge, $*edge2node, $cr->$cellPlan, _e_,
+    $*fileNumber(pos)) ;
+  std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan, DIRECTION($fl)) ;
+  $facePlan = merge_quad_face(facePlanR, static_cast<char>(0), facePlanL,
+                              $cl->$hexOrientCode[$fl]);
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan, cr->prismOrientCode, fr,
+cl->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)), 
+cl->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cl->gnrlcells, cr->prisms) {
+  $facePlan.clear() ;
+  std::vector<char> localPlanL = extract_general_face(
+    $cl->$lower.begin(), $*lower.num_elems($cl),
+    $cl->$upper.begin(), $*upper.num_elems($cl),
+    $cl->$boundary_map.begin(), $*boundary_map.num_elems($cl),
+    $*face2node, $*face2edge, $*edge2node, $cl->$cellPlan, _e_,
+    $*fileNumber(pos)) ;
+
+  if($fr < 2) {
+    std::vector<char> facePlanR = merge_tri_face_p($cr->$cellPlan, $fr,
+                                                   $cr->$prismOrientCode[$fr]) ;
+    $facePlan = merge_faceplan(localPlanL, facePlanR, $*face2node.num_elems(_e_)) ;
+  }else {
+    std::vector<char> facePlanR = extract_prism_face($cr->$cellPlan, $fr) ;
+    std::vector<char> facePlanL = transfer_plan_g2q(localPlanL) ;
+    $facePlan = merge_quad_face(facePlanL, static_cast<char>(0), facePlanR,
+                                $cr->$prismOrientCode[$fr]);
+  }
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan, cl->prismOrientCode, fl,
+cr->(lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)), 
+cr->(lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(cr->gnrlcells, cl->prisms) {
+  $facePlan.clear();
+  std::vector<char> localPlanR = extract_general_face(
+    $cr->$lower.begin(), $*lower.num_elems($cr),
+    $cr->$upper.begin(), $*upper.num_elems($cr),
+    $cr->$boundary_map.begin(), $*boundary_map.num_elems($cr),
+    $*face2node, $*face2edge, $*edge2node, $cr->$cellPlan, _e_,
+    $*fileNumber(pos)) ;
+
+  if($fl < 2) {
+    std::vector<char> facePlanL = merge_tri_face_p($cl->$cellPlan, $fl,
+                                                   $cl->$prismOrientCode[$fl]);
+    $facePlan = merge_faceplan(facePlanL, localPlanR, $*face2node.num_elems(_e_)) ;
+  }else {
+    std::vector<char> facePlanL = extract_prism_face($cl->$cellPlan, $fl) ;
+    std::vector<char> facePlanR = transfer_plan_g2q(localPlanR) ;
+    $facePlan = merge_quad_face(facePlanR, static_cast<char>(0), facePlanL,
+                                $cl->$prismOrientCode[$fl]);
+  }
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan, cr->prismOrientCode,
+cl->hexOrientCode, fl, fr), constraint(cl->hexcells, cr->prisms) {
+  std::vector<char> facePlanL = extract_hex_face($cl->$cellPlan, DIRECTION($fl)) ;
+  std::vector<char> facePlanR = extract_prism_face($cr->$cellPlan, $fr) ;
+  $facePlan = merge_quad_face(facePlanL, $cl->$hexOrientCode[$fl], facePlanR,
+                              $cr->$prismOrientCode[$fr]);
+  reduce_vector($facePlan) ;
+}
+
+$rule pointwise(facePlan <- (cl, cr)->cellPlan, cl->prismOrientCode,
+cr->hexOrientCode, fl, fr), constraint(cr->hexcells, cl->prisms) {
+  std::vector<char> facePlanR = extract_hex_face($cr->$cellPlan, DIRECTION($fr)) ;
+  std::vector<char> facePlanL = extract_prism_face($cl->$cellPlan, $fl) ;
+  $facePlan = merge_quad_face(facePlanL, $cl->$prismOrientCode[$fl], facePlanR,
+                              $cr->$hexOrientCode[$fr]);
+  reduce_vector($facePlan) ;
+}
+
+
+//-----------------------------------------------------------------------------
+// Edge plans
+//-----------------------------------------------------------------------------
+
+$type pointSet store<SetLong> ;
+
+
+$rule unit(pointSet <- planname_par), constraint(edge2node->pos) {
+}
+
+$rule apply(face2edge->pointSet <- planname_par, facePlan, is_quadface,
+face2node->pos, face2edge->edge2node->pos, face2edge->pointSet)[SetLongUnionOp],
+constraint(faces) {
+  if($is_quadface) {
+    if($facePlan.size() == 0) return ;
+
+    if($*face2node.num_elems(_e_)!=4) {
+      cerr << "WARNING: Not a hexcell" << endl ;
+      Loci::Abort() ;
+    }
+
+    for(int i=0; i<$*face2edge.num_elems(_e_); i++) {
+      int64 maxValue = int64(1) << MAXLEVEL ;
+      std::vector<char> plan ; 
+      extract_quad_edge($facePlan, plan, i) ;
+      if(plan.size() == 0) continue ;
+
+      bool needReverse = false ;
+
+      if(i == 0 && $face2edge[0]->$edge2node[0] == $face2node[1]) needReverse = true ;
+      else if(i == 1 && $face2edge[1]->$edge2node[0] == $face2node[2]) needReverse = true ;
+      else if(i == 2 && $face2edge[2]->$edge2node[0] == $face2node[2]) needReverse = true ;
+      else if(i == 3 && $face2edge[3]->$edge2node[0] == $face2node[3]) needReverse = true ;
+
+      queue<pair<int64, int64> > Q ;
+      char code = plan.front() ;
+      unsigned int index = 0 ;
+      pair<int64, int64> pRange = make_pair(int64(0), maxValue) ;
+      Q.push(pRange) ;
+
+      int64 midP ;
+
+      while(!Q.empty()) {
+        // read in a code
+        if(index >= plan.size()) code = 0 ;
+        else code = plan[index++] ;
+
+        // read in the range from the queue
+        pRange = Q.front() ;
+
+        // process the cell, push children ranges into Q
+        // and put the middle point into points
+        switch(code){
+          case 1:
+            midP = (pRange.first + pRange.second)/2 ;
+            Q.push(make_pair(pRange.first, midP)) ;
+            Q.push(make_pair(midP, pRange.second)) ;
+
+            if(needReverse) ($face2edge[i]->$pointSet.aset).insert(maxValue - midP) ;
+            else ($face2edge[i]->$pointSet.aset).insert(midP) ;
+            break ;
+
+          case 0:
+            break ;
+
+          case 8:
+            Q.push(pRange) ;
+            break ;
+          default:
+            cerr << "WARNING: illegal splitCode in rule edge_points_apply" << endl ;
+            break ;
+        }
+        Q.pop() ;
+      }
+      plan.clear() ;
+    }
+  }else { //is(is_quadface[f])
+    if($facePlan.size() == 0) return ;
+
+    int64 maxValue = int64(1) << MAXLEVEL ;
+
+    // assume facePlan[f][0] ==1
+    int nfnode = $*face2node.num_elems(_e_) ;
+    std::vector<bool> needReverse(nfnode) ;
+
+    for(int i=0; i<nfnode; i++) {
+      if($face2edge[i]->$edge2node[0] == $face2node[i] &&
+         $face2edge[i]->$edge2node[1] == $face2node[i==(nfnode-1)?0:i+1]) {
+        needReverse[i] = false ;
+      }else {
+        needReverse[i] = true ;
+      }
+    }
+
+    // first time split face, put all the edgecenter into pointSet
+    std::queue<pair<int, TwoEdge> > Q ;
+    std::vector<TwoEdge> child(nfnode) ;
+    for(int i =0; i<nfnode; i++) {
+      if(needReverse[i]) {
+        child[i].e0 = make_pair(maxValue, maxValue/2) ;
+      }else {
+        child[i].e0 = make_pair(int64(0),maxValue/2) ;
+      }
+      if(needReverse[i==0?nfnode-1:i-1]) {
+        child[i].e3 = make_pair(maxValue/2, int64(0)) ;
+      }else {
+        child[i].e3 = make_pair(maxValue/2, maxValue) ;
+      }
+      Q.push(make_pair(i, child[i])) ;
+      ($face2edge[i]->$pointSet.aset).insert(maxValue/2) ;
+    }
+
+    TwoEdge current ;
+    unsigned  int index = 1 ;
+    char mySplitCode ;
+    int edgeID ;
+
+    while(!Q.empty()) {
+      current = Q.front().second ;
+      edgeID = Q.front().first ;
+      if(index >= $facePlan.size()) {
+        mySplitCode = 0 ;
+      }else {
+        // take a code from splitcode
+        mySplitCode = $facePlan[index] ;
+        index++ ;
+      }
+
+      if(mySplitCode == 1) {
+        // define new edgeID and push the children into Q
+        // put edgecenter into pointSet if necessary
+        int newID[4] = {-1,-1,-1,-1} ;
+        
+        // define the 4 children
+        TwoEdge child[4] ;
+
+        // if edgeID== -1, each newID is -1, no edgecenter need to be put
+        // into pointSet
+        if(edgeID == -1) {
+          for(int i=0; i<3; i++) {
+            newID[i] = -1 ;
+          }
+        }else if(edgeID >= 0 && edgeID < nfnode) {
+          // if edgeID is in [0, nfnode), edge 0 is on edgeID, edge3 is on edgeID-1
+          newID[2] = -1 ;
+          newID[0] = edgeID ; // e0 on edgeID, e3 on edgeID-1
+          child[0].e0 = make_pair(current.e0.first, (current.e0.first + current.e0.second)/2) ;
+          child[0].e3 = make_pair((current.e3.first + current.e3.second)/2, current.e3.second) ;
+
+          newID[1] = 2*nfnode+edgeID ; // e3 on edgId
+          child[1].e3 = make_pair((current.e0.first + current.e0.second)/2, current.e0.second) ;
+
+          newID[3] = nfnode +(edgeID==0?nfnode-1:edgeID-1) ; // e0 on edgeId
+          child[3].e0 = make_pair(current.e3.first, (current.e3.first + current.e3.second)/2) ;
+
+          $face2edge[edgeID]->$pointSet.aset.insert((current.e0.first + current.e0.second)/2) ;
+
+          $face2edge[edgeID==0?nfnode-1:edgeID-1]->$pointSet.aset.insert((current.e3.first + current.e3.second)/2) ;
+
+        }else if(edgeID >=nfnode && edgeID <2*nfnode) {
+          // edge 0 on edgeID-nfnode
+          newID[2] = newID[3] = -1 ;
+          newID[0] = edgeID ; // e0 on edgeId
+          child[0].e0 = make_pair(current.e0.first, (current.e0.first + current.e0.second)/2) ;
+
+          newID[1] = nfnode + edgeID ; // e3 on edgeId
+          child[1].e3 = make_pair((current.e0.first + current.e0.second)/2, current.e0.second) ;
+
+          $face2edge[edgeID-nfnode]->$pointSet.aset.insert((current.e0.first + current.e0.second)/2) ;
+        }else if(edgeID >= 2*nfnode && edgeID < 3*nfnode) {
+          // edge 3 on edgeID-2*nfnode
+          newID[1] = newID[2] = -1 ;
+          newID[0] = edgeID ; // e3 on edgeId
+          child[0].e3 = make_pair((current.e3.first + current.e3.second)/2, current.e3.second) ;
+
+          newID[3] = edgeID - nfnode ; // e0 on edgeId
+          child[3].e0 = make_pair(current.e3.first, (current.e3.first + current.e3.second)/2) ;
+
+          $face2edge[edgeID-2*nfnode]->$pointSet.aset.insert((current.e3.first + current.e3.second)/2) ;
+        }else {
+          cerr << " WARNING: illegal edgeID" << endl ;
+          Loci::Abort() ;
+        }
+
+        for(int i=0; i<4; i++) {
+          Q.push(make_pair(newID[i],child[i])) ;
+        }
+      }
+      Q.pop() ;
+    }
+  }
+}
+
+$rule pointwise(edgePlan <- pointSet), constraint(edge2node->pos) {
+  if($pointSet.aset.empty()) return ;
+  
+  // define range of the integer coordinates of the edge
+  int64 maxValue = int64(1) << MAXLEVEL ;
+
+  // prepare to make up the refinement plan according to list points
+  $edgePlan.clear() ;
+  queue<pair<int64, int64> > Q ;
+  pair<int64,int64> pRange = make_pair(int64(0), maxValue) ;
+  Q.push(pRange) ;
+  int64 midP ;
+
+  while(!Q.empty()) {
+    // read in the range
+    pRange = Q.front() ;
+
+    // define the positions
+    midP = (pRange.first + pRange.second) / 2 ;
+
+    //if midP is in pointSet,set the code to 1, else the code is 0
+    if($pointSet.aset.empty()) {
+      break ;
+    }else {
+      std::set<int64>::iterator p = $pointSet.aset.find(midP) ;
+      if(p != $pointSet.aset.end()) {
+        Q.push(make_pair(pRange.first, midP)) ;
+        Q.push(make_pair(midP, pRange.second)) ;
+        $edgePlan.push_back(1) ;
+      }else {
+        $edgePlan.push_back(0) ;
+      }
+    }
+    Q.pop() ;
+  }
+  while($edgePlan.size() != 0 && $edgePlan.back() == 0 ) $edgePlan.pop_back() ;
+  reduce_vector($edgePlan) ;
+}
