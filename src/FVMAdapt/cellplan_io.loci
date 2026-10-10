@@ -52,14 +52,24 @@ namespace Loci {
                        MPI_Comm comm) ;
 }
 
-/// Parameter, no loop.
-$rule unit(num_original_nodes), constraint(UNIVERSE) {
-  $num_original_nodes = 0 ;
+
+//-----------------------------------------------------------------------------
+// Plan input source
+//-----------------------------------------------------------------------------
+
+$rule singleton(planname_par <- planfile_par) {
+  $planname_par = $planfile_par;
 }
 
-$rule apply(num_original_nodes <- pos, num_original_nodes)[Loci::Summation] {
-  $num_original_nodes += 1 ;
+$rule singleton(planname_par <- planDB_par) {
+  $planname_par = $planDB_par;
 }
+
+
+//-----------------------------------------------------------------------------
+// Input cell plans
+//-----------------------------------------------------------------------------
+
 
 $rule pointwise(cellPlan <- planfile_par), constraint(geom_cells),
 option(disable_threading), prelude {
@@ -102,6 +112,12 @@ option(disable_threading), prelude {
     }
   } ENDFORALL ;
 } ;
+
+
+//-----------------------------------------------------------------------------
+// Input balanced cell plans
+//-----------------------------------------------------------------------------
+
 
 $rule pointwise(priority::refmesh::balancedCellPlan <- balanced_planDB_par),
 constraint(geom_cells), option(disable_threading), prelude {
@@ -147,6 +163,12 @@ constraint(geom_cells), option(disable_threading), prelude {
     $balancedCellPlan.resize(0) ;
   }
 }
+
+
+//-----------------------------------------------------------------------------
+// Input parent plans
+//-----------------------------------------------------------------------------
+
 
 /// Read in plan from former cycle.
 $rule pointwise(parentPlan <- parent_planfile_par), constraint(geom_cells),
@@ -195,11 +217,11 @@ option(disable_threading), prelude {
   } ENDFORALL ;
 } ;
 
-/// Dummy parameter to trick Loci scheduler
-$rule pointwise(balancedCellPlan <- balancedCellPlan1, beginWithMarker),
-option(disable_threading) {
-  $balancedCellPlan = $balancedCellPlan1 ;
-}
+
+//-----------------------------------------------------------------------------
+// Cell-plan output
+//-----------------------------------------------------------------------------
+
 
 $rule pointwise(tmpPlan <- balancedCellPlan), option(disable_threading) {
   if($balancedCellPlan.size() == 0) {
@@ -245,6 +267,12 @@ constraint(geom_cells), option(disable_threading), prelude {
     Loci::DataXFER_DB.insertItem((*$plan_outDB_par).c_str(),vardist) ;
   }
 } ;
+
+
+//-----------------------------------------------------------------------------
+// Cell-weight output
+//-----------------------------------------------------------------------------
+
 
 // class cellweight_output_file : public pointwise_rule {
 //   //this rule is not used by chem, cellweight_writeDB is actually used

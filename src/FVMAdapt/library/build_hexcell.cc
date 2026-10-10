@@ -46,6 +46,16 @@ using std::vector;
  */
 
 
+/// HexCell-local edge indices for each face, in face-local edge order.
+static const int hex_face_edges[6][4] = {
+  {6, 11, 7, 10},
+  {4, 9, 5, 8},
+  {2, 11, 3, 9},
+  {0, 10, 1, 8},
+  {1, 7, 3, 5},
+  {0, 6, 2, 4}
+};
+
 void reorder_faces(const const_store<int>& node_remap, std::vector<Entity>& lower,
                    std::vector<Entity>& upper,
                    std::vector<Entity>& boundary_map);
@@ -215,9 +225,6 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     anEdge->resplit(edgePlan[edge_entity[i]],edge_reverse[i], bnode_list);
   }
 
-  int f2e[6][4]= {{6, 11, 7, 10}, {4, 9, 5, 8}, {2, 11, 3, 9}, {0, 10, 1, 8},
-                  {1, 7, 3, 5}, {0, 6, 2, 4}};
-
   //defines each face and put it into face_list
   QuadFace** face = new QuadFace*[6];
   for(int i  = 0; i < 6; i++){
@@ -225,7 +232,7 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     face_list.push_back(face[i]);
     //define each edge
     for(int j = 0; j < 4; j++){
-      face[i]->edge[j] = e2e[edge_entity[f2e[i][j]]];
+      face[i]->edge[j] = e2e[edge_entity[hex_face_edges[i][j]]];
     }
     //resplit each face
     face[i]->resplit(facePlan[face_entity[i]],orientCode[i], bnode_list, edge_list);
@@ -305,9 +312,6 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     bnode_begin = --(bnode_list.end());
   }
 
-  int f2e[6][4]= {{6, 11, 7, 10}, {4, 9, 5, 8}, {2, 11, 3, 9}, {0, 10, 1, 8},
-                  {1, 7, 3, 5}, {0, 6, 2, 4}};
-
   //defines each face and put it into face_list
   QuadFace** face = new QuadFace*[6];
   for(int i  = 0; i < 6; i++){
@@ -315,7 +319,7 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     face_list.push_back(face[i]);
     //define each edge
     for(int j = 0; j < 4; j++){
-      face[i]->edge[j] = e2e[edge_entity[f2e[i][j]]];
+      face[i]->edge[j] = e2e[edge_entity[hex_face_edges[i][j]]];
     }
     //resplit each face
     face[i]->resplit(facePlan[face_entity[i]],orientCode[i], bnode_list, edge_list);
@@ -413,9 +417,6 @@ HexCell* build_resplit_hex_cell(const Entity* lower, int lower_size,
   }
   bnode_begin = --(bnode_list.end()); //set the start point for tag
 
-  int f2e[6][4]= {{6, 11, 7, 10}, {4, 9, 5, 8}, {2, 11, 3, 9}, {0, 10, 1, 8},
-                  {1, 7, 3, 5}, {0, 6, 2, 4}};
-
   //defines each face and put it into face_list
   QuadFace** face = new QuadFace*[6];
   for(int i  = 0; i < 6; i++){
@@ -423,7 +424,7 @@ HexCell* build_resplit_hex_cell(const Entity* lower, int lower_size,
     face_list.push_back(face[i]);
     //define each edge
     for(int j = 0; j < 4; j++){
-      face[i]->edge[j] = e2e[edge_entity[f2e[i][j]]];
+      face[i]->edge[j] = e2e[edge_entity[hex_face_edges[i][j]]];
     }
     //resplit each face
     face[i]->resplit(facePlan1[face_entity[i]],orientCode[i], bnode_list, edge_list);
@@ -530,9 +531,6 @@ HexCell* build_resplit_hex_cell_ctag(const Entity* lower, int lower_size,
   }
 
 
-  int f2e[6][4]= {{6, 11, 7, 10}, {4, 9, 5, 8}, {2, 11, 3, 9}, {0, 10, 1, 8},
-                  {1, 7, 3, 5}, {0, 6, 2, 4}};
-
   //defines each face and put it into face_list
   QuadFace** face = new QuadFace*[6];
   for(int i  = 0; i < 6; i++){
@@ -540,7 +538,7 @@ HexCell* build_resplit_hex_cell_ctag(const Entity* lower, int lower_size,
     face_list.push_back(face[i]);
     //define each edge
     for(int j = 0; j < 4; j++){
-      face[i]->edge[j] = e2e[edge_entity[f2e[i][j]]];
+      face[i]->edge[j] = e2e[edge_entity[hex_face_edges[i][j]]];
     }
     //resplit each face
     face[i]->resplit(facePlan1[face_entity[i]],orientCode[i], bnode_list, edge_list);
@@ -635,9 +633,6 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     bnode_begin = --(bnode_list.end());
   }
 
-  int f2e[6][4]= {{6, 11, 7, 10}, {4, 9, 5, 8}, {2, 11, 3, 9}, {0, 10, 1, 8},
-                  {1, 7, 3, 5}, {0, 6, 2, 4}};
-
   //defines each face and put it into face_list
   QuadFace** face = new QuadFace*[6];
   for(int i  = 0; i < 6; i++){
@@ -645,7 +640,7 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     face_list.push_back(face[i]);
     //define each edge
     for(int j = 0; j < 4; j++){
-      face[i]->edge[j] = e2e[edge_entity[f2e[i][j]]];
+      face[i]->edge[j] = e2e[edge_entity[hex_face_edges[i][j]]];
     }
     //resplit each face
     face[i]->resplit(facePlan[face_entity[i]],orientCode[i], bnode_list, edge_list);
@@ -717,9 +712,6 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
 
   }
 
-  int f2e[6][4]= {{6, 11, 7, 10}, {4, 9, 5, 8}, {2, 11, 3, 9}, {0, 10, 1, 8},
-                  {1, 7, 3, 5}, {0, 6, 2, 4}};
-
   //defines each face and put it into face_list
   QuadFace** face = new QuadFace*[6];
   for(int i  = 0; i < 6; i++){
@@ -727,7 +719,7 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     face_list.push_back(face[i]);
     //define each edge
     for(int j = 0; j < 4; j++){
-      face[i]->edge[j] = e2e[edge_entity[f2e[i][j]]];
+      face[i]->edge[j] = e2e[edge_entity[hex_face_edges[i][j]]];
     }
   }
 
@@ -788,9 +780,6 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
 
   }
 
-  int f2e[6][4]= {{6, 11, 7, 10}, {4, 9, 5, 8}, {2, 11, 3, 9}, {0, 10, 1, 8},
-                  {1, 7, 3, 5}, {0, 6, 2, 4}};
-
   //defines each face and put it into face_list
   QuadFace** face = new QuadFace*[6];
   for(int i  = 0; i < 6; i++){
@@ -798,7 +787,7 @@ HexCell* build_hex_cell(const Entity* lower, int lower_size,
     face_list.push_back(face[i]);
     //define each edge
     for(int j = 0; j < 4; j++){
-      face[i]->edge[j] = e2e[edge_entity[f2e[i][j]]];
+      face[i]->edge[j] = e2e[edge_entity[hex_face_edges[i][j]]];
     }
   }
 

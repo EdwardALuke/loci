@@ -574,4 +574,24 @@ Prism* build_prism_cell(const Entity* lower, int lower_size,
 int general_childID_orient_c2f(int childID_c, char orientCode, int numEdge) ;
 int general_childID_orient_f2c(int childID_f, char orientCode, int numEdge) ;
 
+/// Extract one prism face plan in the cell's local orientation.
+std::vector<char> extract_prism_face(const std::vector<char>& cellPlan, int faceID);
+
+/// Extract and orient a prism quadrilateral face, or merge both neighbors' plans.
+/// The historical p/pp suffixes denote one or two contributing prisms.
+std::vector<char> merge_quad_face_p(const std::vector<char>& cellPlan,
+                                   int faceID, char orientCode);
+std::vector<char> merge_quad_face_pp(const std::vector<char>& cellPlanL,
+                                    int faceIDL, char orientCodeL,
+                                    const std::vector<char>& cellPlanR,
+                                    int faceIDR, char orientCodeR);
+
+/// Extract and orient a prism triangular face, or merge both neighbors' plans.
+std::vector<char> merge_tri_face_p(const std::vector<char>& cellPlan,
+                                  int faceID, char orientCode);
+std::vector<char> merge_tri_face_pp(const std::vector<char>& cellPlanL,
+                                   int faceIDL, char orientCodeL,
+                                   const std::vector<char>& cellPlanR,
+                                   int faceIDR, char orientCodeR);
+
 #endif

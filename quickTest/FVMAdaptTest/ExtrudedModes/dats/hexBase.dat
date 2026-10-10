@@ -1,0 +1,15 @@
+fixture=thin_hex
+mode=base
+cells=9
+faces=42
+nodes=32
+convexity=pass
+volume.Main=2.88
+cell_type.hex=9
+cell_type.prism=0
+cell_type.tetrahedron=0
+cell_type.pyramid=0
+cell_type.general=0
+coordinate_planes.x=4
+coordinate_planes.y=4
+coordinate_planes.z=2

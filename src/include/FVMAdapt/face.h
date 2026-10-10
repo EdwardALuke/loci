@@ -495,4 +495,11 @@ inline void cleanup_list( std::list<Face*>& face_list) {
   face_list.clear() ;
 }
 
+/// Project a face plan onto its boundary edges in edge2node orientation.
+/// Supply one reversal flag per edge (four for a QuadFace). Coordinates use
+/// [0, 2^MAXLEVEL], with one set returned per face-local edge.
+std::vector<Loci::SetLong> face_edge_splits(
+  const std::vector<char>& facePlan, bool isQuadFace,
+  const std::vector<bool>& edgeIsReversed);
+
 #endif

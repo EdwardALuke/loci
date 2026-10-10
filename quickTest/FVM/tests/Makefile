@@ -13,7 +13,9 @@ TestResults: $(TEST_FILES) FRC
 FRC:
 
 %.test : %.vars
-	FLOWTEST="$(FLOWTEST)" EXTRACT="$(EXTRACT)" NDIFF=../ndiff LOCI_BASE=$(LOCI_BASE) ./tests.sh $*.vars
+	@FLOWTEST="$(FLOWTEST)" EXTRACT="$(EXTRACT)" NDIFF=../ndiff LOCI_BASE=$(LOCI_BASE) ./tests.sh $*.vars || true
+	@if ! test -f $*.test; then echo "Test FVM/$*: FAILED!" > $*.test; fi
+	@cat $*.test
 
 clean:
 	rm -fr TEST_* TestResults $(TEST_FILES)

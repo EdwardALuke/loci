@@ -328,6 +328,20 @@ extern "C" {
     }
     MPI_Abort(MPI_COMM_WORLD,-1) ;
   }
+
+  void TimeoutSignal(int sig) {
+    int rank ;
+    MPI_Comm_rank(MPI_COMM_WORLD,&rank) ;
+    if(rank == 0) {
+      cerr << "Loci process timed out (SIGALRM)" << endl ;
+    }
+    if(Loci::current_rule_id != 0) {
+      Loci::rule r(Loci::current_rule_id) ;
+      Loci::current_rule_id = 0 ;
+      Loci::debugout << "Timeout occured in rule " << r << endl ;
+    }
+    MPI_Abort(MPI_COMM_WORLD,-1) ;
+  }
 }
 
 namespace Loci {
@@ -920,6 +934,11 @@ namespace Loci {
         } else if(!strcmp((*argv)[i],"--no_threading_recursion")) {
           threading_recursion = false;
           i++;
+        } else if(!strcmp((*argv)[i],"--timeout")) {
+          unsigned int seconds = (unsigned int)atoi((*argv)[i+1]) ;
+          signal(SIGALRM,TimeoutSignal) ;
+          alarm(seconds) ;
+          i+=2 ;
         } else {
           // copy items to their new locations after removed items
           // we only need to copy once arguments are processed.

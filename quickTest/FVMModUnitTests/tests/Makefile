@@ -15,9 +15,10 @@ TestResults: $(TEST_FILES) FRC
 
 %.test : %.vars
 	@echo Test $*
-	@ MPIRUN="$(MPIRUN)" LOCI_FLAGS="$(LOCI_CMD_FLAGS)" ./test.sh $*.vars $*.log
-	tail -n 1 $*.log > $*.test
-	@grep TEST $*.test
+	@MPIRUN="$(MPIRUN)" LOCI_FLAGS="$(LOCI_CMD_FLAGS)" ./test.sh $*.vars $*.log || true
+	@tail -n 1 $*.log > $*.test 2>/dev/null || echo "TEST FVMModUnitTests/$*: FAILED!" > $*.test
+	@if ! grep -q TEST $*.test; then echo "TEST FVMModUnitTests/$*: FAILED!" > $*.test; fi
+	@cat $*.test
 
 
 clean:

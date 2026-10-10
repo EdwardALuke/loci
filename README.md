@@ -37,8 +37,10 @@ cd loci
 git submodule init
 ```
 
-Do not use the source tarballs from [tags](https://github.com/EdwardALuke/loci/tags)
-since they will not compile because they are lacking git version information.
+**Do not use the source tarballs from [tags](https://github.com/EdwardALuke/loci/tags)
+since they will not compile because they are lacking git version information.**
+
+* Note that the default **dev** branch of Loci is the unstable development version of Loci.  For production use, use the **stable41** branch which contains the current stable release of Loci.
 
 ## Dependencies
 **Required:**

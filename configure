@@ -131,6 +131,9 @@ USE_METIS=0
 NO_SUB_DIR=0
 BOUNDS_CHECK=0
 
+if [ "$(uname -s)" = "Darwin" ]; then
+    COMPILER=llvm
+fi
 while [ $# -ne 0 ]; do
     case "$1" in
 	--prefix)
@@ -766,10 +769,16 @@ if [ -d $XMLPATH/include/libxml2 ]; then
     echo LIBXML2_INCLUDE = -I$XMLPATH/include/libxml2 >> sys.conf
     echo Using libxml2 found in \"$XMLPATH/include/libxml2\".
 else
-    echo libxml2 not found, disabling XML features!
-    echo LIBXML2_DEFINE = >> sys.conf
-    echo LIBXML2_LIBS = >> sys.conf
-    echo LIBXML2_INCLUDE = >> sys.conf
+    if [ "$(uname -s)" = "Darwin" ]; then
+        echo LIBXML2_DEFINE = -DUSE_LIBXML2 >> sys.conf
+        echo LIBXML2_LIBS = -lxml2 >> sys.conf
+        echo LIBXML2_INCLUDE = -I/usr/include/libxml2 >> sys.conf
+    else
+        echo libxml2 not found, disabling XML features!
+        echo LIBXML2_DEFINE = >> sys.conf
+        echo LIBXML2_LIBS = >> sys.conf
+        echo LIBXML2_INCLUDE = >> sys.conf
+    fi
 fi
 echo >> sys.conf
 

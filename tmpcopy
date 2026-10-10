@@ -54,14 +54,14 @@ copy_with_symlinks() {
         fi
     done < <(find "$src" -type f \( -name '*.cc' -o -name '*.cpp' \
                   -o -name '*.c' -o -name '*.loci' -o -name '*.sh' \
-                  -o -name '*.bash' \
+                  -o -name '*.bash' -o -name '*.mk' -o -name '*.par' \
                   -o -name '*.h' -o -name '*.hh' -o -name '*.lh' \
                   -o -name '*.hpp' -o -name '*.md' \
                   -o -name '*.tex' -o -name '*.pdf' \
                   -o -name '*.png' -o -name '*.svg' -o -name '*.gif' \
                   -o -name '*.html' \
                   -o -name '*.css' -o -name '*.js' -o -name '*.xml' \
-                  -o -name '*.obj' \
+                  -o -name '*.obj' -o -name '*.ugrid' -o -name '*.tag' \
                   -o -name '*.sty' -o -name '*.txt' -o -name '*.dat' \
                   -o -name '*.vog' -o -name '*.vars' -o -name Makefile \
                   -o -name Loci -o -name overset \) -print0)

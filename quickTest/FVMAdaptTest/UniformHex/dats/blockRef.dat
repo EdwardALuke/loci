@@ -1,0 +1,5 @@
+cells=512
+faces=1728
+nodes=729
+convexity=pass
+volume.Main=64
