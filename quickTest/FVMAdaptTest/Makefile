@@ -9,15 +9,13 @@ CLEAN_TESTS := $(addprefix clean-,$(TESTS))
 TestResults: $(GROUP_RESULTS)
 	@rm -f $@
 	@cat $^ > $@
-	@grep PASS $@
-	@grep FAIL $@ || true
-	@! grep -q FAIL $@
 
 $(TESTS): %: %/TestResults
 	@:
 
 $(GROUP_RESULTS): %/TestResults: FORCE
-	@$(MAKE) --no-print-directory -C $* LOCI_BASE="$(LOCI_BASE)" TEST_BASE="$(TEST_BASE)"
+	@$(MAKE) --no-print-directory -C $* LOCI_BASE="$(LOCI_BASE)" TEST_BASE="$(TEST_BASE)" \
+	  || echo "FVMAdaptTest/$*: FAILED (make error)" > $@
 
 FORCE:
 

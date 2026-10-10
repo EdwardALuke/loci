@@ -1,48 +1,48 @@
 TEST_BASE ?= $(shell pwd)
 
-.PHONY: FRC FVMModUnitTests FVMAdaptTest Containers Tools SystemTests test default
+SUITES = Containers Tools FVMModUnitTests FVM SystemTests FVMAdaptTest
+SUITE_RESULTS := $(addsuffix /TestResults,$(SUITES))
+CLEAN_SUITES := $(addprefix clean-,$(SUITES))
 
-default: FVM FVMModUnitTests FVMAdaptTest Containers Tools SystemTests
-	cat Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults SystemTests/TestResults FVMAdaptTest/TestResults > TestResults
-	rm Containers/TestResults Tools/TestResults FVMModUnitTests/TestResults FVM/TestResults SystemTests/TestResults FVMAdaptTest/TestResults
+.DEFAULT_GOAL := default
+DISTCLEAN_SUITES := $(addprefix distclean-,$(SUITES))
+.PHONY: default test $(SUITES) $(CLEAN_SUITES) $(DISTCLEAN_SUITES) clean distclean FORCE
+
+default: TestResults
+	@echo ''; echo '========== quickTest summary =========='
 	@grep PASS TestResults
 	@grep FAIL TestResults || true
+	@echo '======================================='
 	@! grep -q FAIL TestResults
 
 test: default
 
-FVMModUnitTests: FRC
-	$(MAKE) -C FVMModUnitTests tests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+TestResults: $(SUITE_RESULTS)
+	@cat $^ > $@
 
-FVM: FRC
-	$(MAKE) -C FVM LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+# Each suite sub-make is allowed to fail; TestResults is still produced.
+$(SUITE_RESULTS): %/TestResults: FORCE
+	@$(MAKE) --no-print-directory -C $* $(if $(filter FVMModUnitTests,$*),tests) \
+	  LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) \
+	  || echo "$*: FAILED (make error)" > $@
 
-FVMAdaptTest: FRC
-	$(MAKE) -C FVMAdaptTest LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+FORCE:
 
-Containers: FRC
-	$(MAKE) -C Containers LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+# FVMModUnitTests uses 'tests' as its entry target (builds the binary first).
+FVMModUnitTests: FVMModUnitTests/TestResults
+	@:
 
-Tools: FRC
-	$(MAKE) -C Tools LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
+$(filter-out FVMModUnitTests,$(SUITES)): %: %/TestResults
+	@:
 
-SystemTests: FRC
-	$(MAKE) -C SystemTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)
-
-clean: FRC
+clean: $(CLEAN_SUITES)
 	rm -f TestResults
-	$(MAKE) -C FVM LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
-	$(MAKE) -C FVMModUnitTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
-	$(MAKE) -C Containers LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
-	$(MAKE) -C Tools LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
-	$(MAKE) -C FVMAdaptTest LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
-	$(MAKE) -C SystemTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
 
-distclean:
+$(CLEAN_SUITES): clean-%:
+	@$(MAKE) --no-print-directory -C $* LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) clean
+
+distclean: $(DISTCLEAN_SUITES)
 	rm -f TestResults
-	$(MAKE) -C FVM LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
-	$(MAKE) -C FVMModUnitTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE)  distclean
-	$(MAKE) -C Containers LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
-	$(MAKE) -C Tools LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
-	$(MAKE) -C FVMAdaptTest LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
-	$(MAKE) -C SystemTests LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
+
+$(DISTCLEAN_SUITES): distclean-%:
+	@$(MAKE) --no-print-directory -C $* LOCI_BASE=$(LOCI_BASE) TEST_BASE=$(TEST_BASE) distclean
