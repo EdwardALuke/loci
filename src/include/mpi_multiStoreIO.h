@@ -726,7 +726,8 @@ namespace Loci {
           req++ ;
         }
       std::vector<MPI_Status> statuslist(nreq) ;
-      MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
+      if(nreq > 0)
+        MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
 
       // Now copy data into multistore
       indx = 0 ;

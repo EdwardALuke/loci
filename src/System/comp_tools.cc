@@ -1596,9 +1596,9 @@ namespace Loci {
     }
     // wait for all messages to complete
     if(!send_info.empty())
-      MPI_Waitall(send_info.size(), send_req.data(), MPI_STATUSES_IGNORE) ;
+      MPI_Waitall(send_info.size(), &send_req[0], MPI_STATUSES_IGNORE) ;
     if(!recv_info.empty())
-      MPI_Waitall(recv_info.size(), recv_req.data(), recv_status.data()) ;
+      MPI_Waitall(recv_info.size(), &recv_req[0], recv_status.data()) ;
 
     // extract the received message
     if(!recv_info.empty()) {
@@ -1663,9 +1663,9 @@ namespace Loci {
 
     // wait for all send/recv to complete
     if(!resend.empty())
-      MPI_Waitall(resend.size(), send_req.data(), MPI_STATUSES_IGNORE) ;
+      MPI_Waitall(resend.size(), &send_req[0], MPI_STATUSES_IGNORE) ;
     if(!rerecv.empty())
-      MPI_Waitall(rerecv.size(), recv_req.data(), recv_status.data()) ;
+      MPI_Waitall(rerecv.size(), &recv_req[0], recv_status.data()) ;
     // delete all resend buffer
     for(size_t i=0;i<resend.size();++i)
       delete[] send_info[resend[i].idx].buf ;

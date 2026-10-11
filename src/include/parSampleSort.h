@@ -148,7 +148,7 @@ namespace Loci {
 
     if(req > 0) {
       std::vector<MPI_Status> status(p) ;
-      MPI_Waitall(req,requests.data(),status.data()) ;
+      MPI_Waitall(req,&requests[0],&status[0]) ;
     }
     list.swap(recv) ;
     MPI_Type_free(&bytearray) ;

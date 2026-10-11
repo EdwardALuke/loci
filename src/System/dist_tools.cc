@@ -882,7 +882,8 @@ namespace Loci {
     for(size_t i=0;i<d->xmit.size();++i)
       MPI_Isend(xmitSizes.data()+i*nsets,nsets,MPI_INT,d->xmit[i].proc,1,
                 MPI_COMM_WORLD, requestList.data()+i+d->copy.size()) ;
-    MPI_Waitall(requestList.size(), requestList.data(), requestStatus.data()) ;
+    if(requestList.size() > 0)
+      MPI_Waitall(requestList.size(), &requestList[0], &requestStatus[0]) ;
     return copySizes ;
   }
 
@@ -979,7 +980,8 @@ namespace Loci {
         cnt++ ;
       }
     }
-    MPI_Waitall(requestList.size(), requestList.data(), requestStatus.data()) ;
+    if(requestList.size() > 0)
+      MPI_Waitall(requestList.size(), &requestList[0], &requestStatus[0]) ;
       
     for(int i=0;i<totalRecv;++i) {
       int kd = recvBuffer[i*2] ;
@@ -1092,7 +1094,8 @@ namespace Loci {
       }
     }
     WARN(sendcnt != totalSend*2) ;
-    MPI_Waitall(requestList.size(), requestList.data(), requestStatus.data()) ;
+    if(requestList.size() > 0)
+      MPI_Waitall(requestList.size(), &requestList[0], &requestStatus[0]) ;
   
     cnt = 0 ;
     for(size_t i=0;i<recvSizes.size();++i)
