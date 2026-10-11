@@ -436,7 +436,7 @@ namespace Loci
       vsize  = attrib_data[*ci].size();
 
       cpypack(outbuf,position,outcount,&vsize,1) ;
-      cpypack(outbuf,position,outcount,&attrib_data[*ci][0],vsize) ;
+      cpypack(outbuf,position,outcount,attrib_data[*ci].data(),vsize) ;
     }
 
   }
@@ -456,7 +456,7 @@ namespace Loci
       std::vector<int,malloc_alloc<int> >(vsize).swap(attrib_data[*ci]) ;
 
       if(vsize != 0) {
-        cpyunpack(inbuf,position,insize,&attrib_data[*ci][0],vsize) ;
+        cpyunpack(inbuf,position,insize,attrib_data[*ci].data(),vsize) ;
       }
     }
   } 

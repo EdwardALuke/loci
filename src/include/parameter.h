@@ -649,10 +649,10 @@ namespace Loci {
     typename data_schema_traits<T>::Converter_Type cvtr( attrib_data );
 
     std::vector<dtype> inbuf(cvtr.getSize());
-    cvtr.getState( &inbuf[0], stateSize);
+    cvtr.getState( inbuf.data(), stateSize);
 
     cpypack(outbuf,position,outcount,&stateSize,1) ;
-    cpypack(outbuf,position,outcount,&inbuf[0],stateSize) ;
+    cpypack(outbuf,position,outcount,inbuf.data(),stateSize) ;
   }
   //**************************************************************************/
 
@@ -687,10 +687,10 @@ namespace Loci {
 
     cpyunpack(inbuf,position,insize,&stateSize,1) ;
     std::vector<dtype> outbuf(stateSize);
-    cpyunpack(inbuf,position,insize,&outbuf[0],stateSize) ;
+    cpyunpack(inbuf,position,insize,outbuf.data(),stateSize) ;
     
     typename schema_traits::Converter_Type  cvtr( attrib_data );
-    cvtr.setState( &outbuf[0], stateSize);
+    cvtr.setState( outbuf.data(), stateSize);
   }
 
   //***********************************************************************/

@@ -76,7 +76,7 @@ cgsize_t *Hexas;
 
 static char options[] = "48fuslb";
 
-static char *usgmsg[] = {
+static const char *usgmsg[] = {
     "usage  : aflr3_to_cgns [options] AFLR3file [CGNSfile]",
     "options:",
     "   -4       = coordinates are real*4 (float)",
@@ -642,7 +642,7 @@ static void write_cgns(char *filename, const vector<BC_descriptor>& bcs)
     int n, i, ns, ne, nemax;
     cgsize_t sizes[3], *nodes, start, end, range[2];
     CGNS_ENUMT(DataType_t) dtype;
-    CGNS_ENUMT(BCType_t) bctype;
+    CGNS_ENUMT(BCType_t) bctype = CGNS_ENUMV(BCTypeUserDefined) ;
 
     sizes[0] = nCoords;
     sizes[1] = nTets + nPyras + nPrisms + nHexas;

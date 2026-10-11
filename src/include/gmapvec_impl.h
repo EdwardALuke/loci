@@ -152,8 +152,8 @@ namespace Loci {
     }
     // communicate to get the receive counts
     std::vector<int> recv_counts(np,0) ;
-    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
-                 &recv_counts[0], 1, MPI_INT, comm) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
 
     
     
@@ -184,9 +184,9 @@ namespace Loci {
   
     // we now proceed to communicate the store contents
     unsigned char* recv_buffer = new unsigned char[tot_recv_size] ;
-    MPI_Alltoallv(&send_buffer[0], &send_counts[0],
+    MPI_Alltoallv(&send_buffer[0], send_counts.data(),
                   &send_displs[0], MPI_PACKED,
-                  &recv_buffer[0], &recv_counts[0],
+                  &recv_buffer[0], recv_counts.data(),
                   &recv_displs[0], MPI_PACKED, comm) ;
 
   

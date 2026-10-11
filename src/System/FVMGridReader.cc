@@ -152,7 +152,7 @@ namespace Loci {
       Loci::DatatypeP dp = traits_type::get_type() ;
       hid_t datatype = dp->get_hdf5_type() ;
       hid_t err = H5Dread(dataset,datatype,memspace,dspace,H5P_DEFAULT,
-                          &v[0]) ;
+                          v.data()) ;
       if(err < 0) {
         cerr << "H5Dread() failed" << endl ;
         FATAL(err < 0) ;
@@ -182,7 +182,7 @@ namespace Loci {
         Loci::DatatypeP dp = traits_type::get_type() ;
         hid_t datatype = dp->get_hdf5_type() ;
         hid_t err = H5Dread(dataset,datatype,memspace,dspace,H5P_DEFAULT,
-                            &v[0]) ;
+                            v.data()) ;
         if(err < 0) {
           cerr << "H5Dread() failed" << endl ;
           FATAL(err < 0) ;
@@ -204,7 +204,7 @@ namespace Loci {
 
             memspace = H5Screate_simple(rank,&dimension,NULL) ;
             hid_t err = H5Dread(dataset,datatype,memspace,dspace,H5P_DEFAULT,
-                                &tmp[0]) ;
+                                tmp.data()) ;
             if(err < 0) {
               cerr << "H5Dread() failed" << endl ;
               FATAL(err < 0) ;
@@ -214,7 +214,7 @@ namespace Loci {
           }
           // send to remote processor
 	  if(sz > 0)
-	    MPI_Send(&tmp[0],sz*sizeof(T),MPI_BYTE,1,0,MPI_COMM_WORLD) ;
+	    MPI_Send(tmp.data(),sz*sizeof(T),MPI_BYTE,1,0,MPI_COMM_WORLD) ;
 
         }
         H5Dclose(dataset) ;
@@ -225,14 +225,14 @@ namespace Loci {
         //      if(size > 0) {
         MPI_Status status ;
 	if(size > 0)
-	  MPI_Recv(&v[0],size*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+	  MPI_Recv(v.data(),size*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
         //      }
         for(int i=MPI_rank+1;i<MPI_processes;++i) {
           long lsz = sizes[i] ;
           vector<T> tmp(lsz) ;
 	  if(lsz > 0) {
-	    MPI_Recv(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
-	    MPI_Send(&tmp[0],lsz*sizeof(T),MPI_BYTE,MPI_rank+1,0,MPI_COMM_WORLD) ;
+	    MPI_Recv(tmp.data(),lsz*sizeof(T),MPI_BYTE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+	    MPI_Send(tmp.data(),lsz*sizeof(T),MPI_BYTE,MPI_rank+1,0,MPI_COMM_WORLD) ;
 	  }
         }
       }
@@ -851,7 +851,7 @@ namespace Loci {
 
           memspace = H5Screate_simple(rank,&dimension,NULL) ;
           hid_t err = H5Dread(dataset,datatype,memspace,dspace,H5P_DEFAULT,
-                              &tpos[0]) ;
+                              tpos.data()) ;
           if(err < 0) {
             cerr << "H5Dread() failed" << endl ;
             FATAL(err < 0) ;
@@ -860,7 +860,7 @@ namespace Loci {
           H5Sclose(memspace) ;
 
           // send to remote processor
-          MPI_Send(&tpos[0],sz*3,MPI_DOUBLE,1,0,MPI_COMM_WORLD) ;
+          MPI_Send(tpos.data(),sz*3,MPI_DOUBLE,1,0,MPI_COMM_WORLD) ;
         }
 
         H5Sclose(dspace) ;
@@ -883,14 +883,14 @@ namespace Loci {
         // Shift remaining ones into place
         for(int i=MPI_rank+1;i<MPI_processes;++i) {
           int lsz = local_nodes[i].size() ;
-          MPI_Recv(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
+          MPI_Recv(tpos.data(),lsz*3,MPI_DOUBLE,MPI_rank-1,0,MPI_COMM_WORLD,&status) ;
           int count = 0 ;
           MPI_Get_count(&status,MPI_DOUBLE,&count) ;
           if(count != lsz*3) {
             cerr << "processor" << MPI_rank << " recieved " << count <<
               " words but was expecting " << lsz*3 << endl ;
           }
-          MPI_Send(&tpos[0],lsz*3,MPI_DOUBLE,MPI_rank+1,0,MPI_COMM_WORLD) ;
+          MPI_Send(tpos.data(),lsz*3,MPI_DOUBLE,MPI_rank+1,0,MPI_COMM_WORLD) ;
         }
       }
     }
@@ -941,7 +941,7 @@ namespace Loci {
 
 
     MPI_Allgather(&cluster_info_size,sizeof(long),MPI_BYTE,
-                  &cluster_dist[0],sizeof(long),MPI_BYTE,
+                  cluster_dist.data(),sizeof(long),MPI_BYTE,
                   MPI_COMM_WORLD) ;
 
     REPORTMEM() ;
@@ -1012,13 +1012,13 @@ namespace Loci {
 
     int tot_faces = 0 ;
     for(size_t i=0;i<cluster_sizes.size();++i) {
-      int nfaces = getClusterNumFaces(&cluster_info[cluster_offset[i]]) ;
+      int nfaces = getClusterNumFaces(cluster_info.data()+cluster_offset[i]) ;
       tot_faces += nfaces ;
     }
 
     // Now get a face allocation for each processor
     vector<int> faces_pp(MPI_processes,0) ;
-    MPI_Allgather(&tot_faces,1,MPI_INT,&faces_pp[0],1,MPI_INT,
+    MPI_Allgather(&tot_faces,1,MPI_INT,faces_pp.data(),1,MPI_INT,
                   MPI_COMM_WORLD) ;
 
     int face_accum = 0 ;
@@ -1044,7 +1044,7 @@ namespace Loci {
     counts.allocate(local_faces[MPI_rank]) ;
     tot_faces = local_faces[MPI_rank].Min() ;
     for(size_t i=0;i<cluster_sizes.size();++i) {
-      int nfaces = fillClusterFaceSizes(&cluster_info[cluster_offset[i]],
+      int nfaces = fillClusterFaceSizes(cluster_info.data()+cluster_offset[i],
                                         &counts[tot_faces]) ;
       tot_faces += nfaces ;
     }
@@ -1053,7 +1053,7 @@ namespace Loci {
     cr.allocate(local_faces[MPI_rank]) ;
     int face_base = local_faces[MPI_rank].Min() ;
     for(size_t i=0;i<cluster_sizes.size();++i) {
-      int nfaces = fillFaceInfo(&cluster_info[cluster_offset[i]],
+      int nfaces = fillFaceInfo(cluster_info.data()+cluster_offset[i],
                                 face2node,cl,cr,face_base) ;
       face_base += nfaces ;
     }
@@ -1356,9 +1356,9 @@ namespace Loci {
         }
 
         // now call the ParMETIS routine (V3)
-        ParMETIS_V3_PartKway(&vdist[0],&xadj[0],&adjncy[0],&vwgt[0],NULL,
+        ParMETIS_V3_PartKway(vdist.data(),xadj.data(),adjncy.data(),vwgt.data(),NULL,
                              &wgtflag,&numflag,&ncon,&nparts,
-                             &tpwgts[0],&ubvec[0],&options,&edgecut,&part[0],
+                             tpwgts.data(),ubvec.data(),&options,&edgecut,part.data(),
                              &mc) ;
 
       }else{//same as not load_cell_weight
@@ -1386,10 +1386,10 @@ namespace Loci {
           vwgt[cnt+1] =  size_adj[i] ;
           cnt += ncon ;
         }
-        ParMETIS_V3_PartKway(&vdist[0],&xadj[0],&adjncy[0],&vwgt[0],NULL,
+        ParMETIS_V3_PartKway(vdist.data(),xadj.data(),adjncy.data(),vwgt.data(),NULL,
                              &wgtflag,&numflag,&ncon,&nparts,
-                             &tpwgts[0],&ubvec[0],&options,&edgecut,
-                             &part[0],&mc) ;
+                             tpwgts.data(),ubvec.data(),&options,&edgecut,
+                             part.data(),&mc) ;
       }
 
     } else {
@@ -1417,10 +1417,10 @@ namespace Loci {
         vwgt[cnt+1] =  size_adj[i] ;
         cnt += ncon ;
       }
-      ParMETIS_V3_PartKway(&vdist[0],&xadj[0],&adjncy[0],&vwgt[0],NULL,
+      ParMETIS_V3_PartKway(vdist.data(),xadj.data(),adjncy.data(),vwgt.data(),NULL,
                            &wgtflag,&numflag,&ncon,&nparts,
-                           &tpwgts[0],&ubvec[0],&options,&edgecut,
-                           &part[0],&mc) ;
+                           tpwgts.data(),ubvec.data(),&options,&edgecut,
+                           part.data(),&mc) ;
     }
 
     if(Loci::MPI_rank == 0) {
@@ -1464,8 +1464,8 @@ namespace Loci {
     WARN(ei != new_alloc.end()) ;
 
     vector<int> recv_sizes(MPI_processes) ;
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT,
-                 &recv_sizes[0],1,MPI_INT,
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     int size_send = 0 ;
     int size_recv = 0 ;
@@ -1475,8 +1475,8 @@ namespace Loci {
     }
     //    outRep->allocate(new_alloc) ;
     vector<unsigned char> memspace(size_send+size_recv,0) ;
-    unsigned char *send_store = &memspace[0] ;
-    unsigned char *recv_store = &memspace[size_send] ;
+    unsigned char *send_store = memspace.data() ;
+    unsigned char *recv_store = memspace.data()+size_send ;
     vector<int> send_displacement(MPI_processes,0) ;
     vector<int> recv_displacement(MPI_processes,0) ;
 
@@ -1493,9 +1493,9 @@ namespace Loci {
 
     WARN(loc_pack != size_send) ;
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_displacement[0],
+    MPI_Alltoallv(&send_store[0], send_sizes.data(), send_displacement.data(),
                   MPI_PACKED,
-		              &recv_store[0], &recv_sizes[0], &recv_displacement[0],
+		              &recv_store[0], recv_sizes.data(), recv_displacement.data(),
                   MPI_PACKED,
 		              MPI_COMM_WORLD) ;
     loc_pack = 0 ;
@@ -1628,8 +1628,8 @@ namespace Loci {
       saddr[i] = node_ptn[i].size() ;
     }
     vector<int> raddr(MPI_processes) ;
-    MPI_Alltoall(&saddr[0],1,MPI_INT,
-                 &raddr[0],1,MPI_INT,
+    MPI_Alltoall(saddr.data(),1,MPI_INT,
+                 raddr.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     int b = *nodes.begin() ;
     int sum = 0 ;
@@ -1638,8 +1638,8 @@ namespace Loci {
       raddr[i] = b+sum ;
       sum += tmp ;
     }
-    MPI_Alltoall(&raddr[0],1,MPI_INT,
-                 &saddr[0],1,MPI_INT,
+    MPI_Alltoall(raddr.data(),1,MPI_INT,
+                 saddr.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
 
     // Renumber maps (targets nodes and cells)
@@ -1657,8 +1657,8 @@ namespace Loci {
       saddr[i] = cell_ptn[i].size() ;
       orig_cells += cell_ptn[i] ;
     }
-    MPI_Alltoall(&saddr[0],1,MPI_INT,
-                 &raddr[0],1,MPI_INT,
+    MPI_Alltoall(saddr.data(),1,MPI_INT,
+                 raddr.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     b = *cells.begin() ;
     sum = 0 ;
@@ -1667,8 +1667,8 @@ namespace Loci {
       raddr[i] = b+sum ;
       sum += tmp ;
     }
-    MPI_Alltoall(&raddr[0],1,MPI_INT,
-                 &saddr[0],1,MPI_INT,
+    MPI_Alltoall(raddr.data(),1,MPI_INT,
+                 saddr.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
 
     for(int i=0;i<MPI_processes;++i) {
@@ -1954,7 +1954,7 @@ namespace Loci {
         curr_sizes[i] = face_ptn[i].size() ;
       }
 
-      MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],MPI_processes,MPI_INT,MPI_SUM,
+      MPI_Allreduce(curr_sizes.data(),tot_sizes.data(),MPI_processes,MPI_INT,MPI_SUM,
                     MPI_COMM_WORLD) ;
 
       if(MPI_rank%STEPS == s) { // My processors turn to assign faces
@@ -1976,7 +1976,7 @@ namespace Loci {
       curr_sizes[i] = face_ptn[i].size() ;
     }
 
-    MPI_Allreduce(&curr_sizes[0],&tot_sizes[0],MPI_processes,MPI_INT,MPI_SUM,
+    MPI_Allreduce(curr_sizes.data(),tot_sizes.data(),MPI_processes,MPI_INT,MPI_SUM,
                   MPI_COMM_WORLD) ;
 
     if(MPI_rank ==0) {
@@ -2030,8 +2030,8 @@ namespace Loci {
       send_sz[i] = ptn[i].num_intervals()*2 ;
     }
     vector<int> recv_sz(MPI_processes) ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT,
-                 &recv_sz[0],1,MPI_INT,
+    MPI_Alltoall(send_sz.data(),1,MPI_INT,
+                 recv_sz.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     int size_send = 0 ;
     int size_recv = 0 ;
@@ -2059,8 +2059,8 @@ namespace Loci {
     }
 
 
-    MPI_Alltoallv(send_store,&send_sz[0], send_displacement , MPI_INT,
-		  recv_store, &recv_sz[0], recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_store,send_sz.data(), send_displacement , MPI_INT,
+		  recv_store, recv_sz.data(), recv_displacement, MPI_INT,
 		  MPI_COMM_WORLD) ;
 
     vector<entitySet> ptn_t(MPI_processes) ;
@@ -2501,16 +2501,16 @@ namespace Loci {
 
     // Partition low processors
     vector<double> w_lowv(MPI_processes) ;
-    MPI_Allgather(&w_low,1,MPI_DOUBLE,&w_lowv[0],1,MPI_DOUBLE,
+    MPI_Allgather(&w_low,1,MPI_DOUBLE,w_lowv.data(),1,MPI_DOUBLE,
 		  MPI_COMM_WORLD) ;
     vector<double> w_highv(MPI_processes) ;
-    MPI_Allgather(&w_high,1,MPI_DOUBLE,&w_highv[0],1,MPI_DOUBLE,
+    MPI_Allgather(&w_high,1,MPI_DOUBLE,w_highv.data(),1,MPI_DOUBLE,
 		  MPI_COMM_WORLD) ;
     vector<double> c_lowv(MPI_processes) ;
-    MPI_Allgather(&c_low,1,MPI_DOUBLE,&c_lowv[0],1,MPI_DOUBLE,
+    MPI_Allgather(&c_low,1,MPI_DOUBLE,c_lowv.data(),1,MPI_DOUBLE,
 		  MPI_COMM_WORLD) ;
     vector<double> c_highv(MPI_processes) ;
-    MPI_Allgather(&c_high,1,MPI_DOUBLE,&c_highv[0],1,MPI_DOUBLE,
+    MPI_Allgather(&c_high,1,MPI_DOUBLE,c_highv.data(),1,MPI_DOUBLE,
 		  MPI_COMM_WORLD) ;
     double proc_sumw_low = 0 ;
     double tot_sumw_low = 0 ;
@@ -2551,11 +2551,11 @@ namespace Loci {
       csump[procs[ii]]+= 1 ;
     }
     vector<double> wsumr(MPI_processes,0) ;
-    MPI_Allreduce(&wsump[0],&wsumr[0],MPI_processes,MPI_DOUBLE,
+    MPI_Allreduce(wsump.data(),wsumr.data(),MPI_processes,MPI_DOUBLE,
 		  MPI_SUM,MPI_COMM_WORLD) ;
 
     vector<double> csumr(MPI_processes,0) ;
-    MPI_Allreduce(&csump[0],&csumr[0],MPI_processes,MPI_DOUBLE,
+    MPI_Allreduce(csump.data(),csumr.data(),MPI_processes,MPI_DOUBLE,
 		  MPI_SUM,MPI_COMM_WORLD) ;
 
     debugout << "processor weights =" ;
@@ -2583,7 +2583,7 @@ namespace Loci {
     int fsizes = fdom.size() ;
 
     vector<int> fsplits(MPI_processes) ;
-    MPI_Allgather(&fsizes,1,MPI_INT,&fsplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&fsizes,1,MPI_INT,fsplits.data(),1,MPI_INT,MPI_COMM_WORLD) ;
 
     for(int i=0;i<MPI_processes;++i) {
       int save = fsplits[i] ;
@@ -2649,7 +2649,7 @@ namespace Loci {
     // the corresponding face
     int cmin = local_set.Min() ;
     vector<int> csplits(MPI_processes) ;
-    MPI_Allgather(&cmin,1,MPI_INT,&csplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&cmin,1,MPI_INT,csplits.data(),1,MPI_INT,MPI_COMM_WORLD) ;
     vector<pair<int,int> > splitters(MPI_processes-1) ;
     for(int i=0;i<MPI_processes-1;++i) {
       splitters[i].first  = csplits[i+1] ;

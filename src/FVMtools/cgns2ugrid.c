@@ -53,7 +53,7 @@
 
 static char options[] = "48fslbxyzB:Z:";
 
-static char *usgmsg[] = {
+static const char *usgmsg[] = {
     "usage: cgns_to_aflr3 [options] CGNSfile [AFLR3file] [MAPBCfile]",
     "  options are:",
     "   -4       = write coordinates as real*4 (default Real*8)",

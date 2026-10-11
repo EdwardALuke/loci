@@ -185,8 +185,8 @@ namespace Loci {
     for(size_t i = 0; i < join_ops.size(); i++) {
       storeRepP tp = join_ops[i]->getTargetRep() ;
       storeRepP sp = join_ops[i]->getTargetRep() ;
-      tp->unpack(&target[0], loc_target, target_size, e);
-      sp->unpack(&source[0], loc_source, source_size, e);
+      tp->unpack(target, loc_target, target_size, e);
+      sp->unpack(source, loc_source, source_size, e);
       join_ops[i]->SetArgs(tp, sp);
       join_ops[i]->Join(seq) ;
       results[i] = tp ;
@@ -244,7 +244,7 @@ namespace Loci {
     // pack initial message buffer
     int position = 0 ;
     for(size_t i = 0; i < sp.size(); i++) 
-      sp[i]->pack(&sendbuf[0], position, msgsize, e) ;
+      sp[i]->pack(sendbuf.data(), position, msgsize, e) ;
     WARN(position != msgsize) ;
 
     MPI_Status status ;
@@ -261,7 +261,7 @@ namespace Loci {
       // to their partner
       int partner = r ^(1<<dim) ;
       MPI_Send(&sendsize,1,MPI_INT,partner,tag,comm) ;
-      MPI_Send(&sendbuf[0],msgsize,MPI_BYTE,partner,tag,comm) ;
+      MPI_Send(sendbuf.data(),msgsize,MPI_BYTE,partner,tag,comm) ;
     } else  if((r|(1<<dim)) < p) {
       // partners to the non-participating processors join their contributions
       // before the reduction proceeds
@@ -269,9 +269,9 @@ namespace Loci {
       MPI_Recv(&recvsize,1,MPI_INT,partner,tag,comm,&status)  ;
       if(recvsize >  int(recvbuf.size()))
         recvbuf.resize(recvsize) ;
-      MPI_Recv(&recvbuf[0],recvsize,MPI_BYTE,partner,tag,comm,&status) ;
+      MPI_Recv(recvbuf.data(),recvsize,MPI_BYTE,partner,tag,comm,&status) ;
       vector<storeRepP> results(join_ops.size()) ;
-      joinHelper(results,&recvbuf[0],recvsize,&sendbuf[0],sendsize,join_ops) ;
+      joinHelper(results,recvbuf.data(),recvsize,sendbuf.data(),sendsize,join_ops) ;
       int msgsize = 0 ;
       for(size_t i = 0; i < sp.size(); i++) 
         msgsize += results[i]->pack_size(e);
@@ -282,7 +282,7 @@ namespace Loci {
       sendsize = msgsize ;
       position = 0 ;
       for(size_t i = 0; i < sp.size(); i++) 
-        results[i]->pack(&sendbuf[0], position, sendsize, e) ;
+        results[i]->pack(sendbuf.data(), position, sendsize, e) ;
       WARN(position != sendsize) ;
     }
 
@@ -303,16 +303,16 @@ namespace Loci {
       if(recvsize >  int(recvbuf.size()))
         recvbuf.resize(recvsize) ;
         
-      MPI_Sendrecv(&sendbuf[0],sendsize,MPI_BYTE,partner,tag,
-                   &recvbuf[0],recvsize,MPI_BYTE,partner,tag,
+      MPI_Sendrecv(sendbuf.data(),sendsize,MPI_BYTE,partner,tag,
+                   recvbuf.data(),recvsize,MPI_BYTE,partner,tag,
                    comm,&status) ;
 
 
       vector<storeRepP> results(join_ops.size()) ;
       if(partner < r) 
-        joinHelper(results,&sendbuf[0],sendsize,&recvbuf[0],recvsize,join_ops) ;
+        joinHelper(results,sendbuf.data(),sendsize,recvbuf.data(),recvsize,join_ops) ;
       else 
-        joinHelper(results,&recvbuf[0],recvsize,&sendbuf[0],sendsize,join_ops) ;
+        joinHelper(results,recvbuf.data(),recvsize,sendbuf.data(),sendsize,join_ops) ;
       
       int msgsize = 0 ;
       for(size_t i = 0; i < sp.size(); i++) 
@@ -324,7 +324,7 @@ namespace Loci {
       sendsize = msgsize ;
       position = 0 ;
       for(size_t i = 0; i < sp.size(); i++) 
-        results[i]->pack(&sendbuf[0], position, sendsize, e) ;
+        results[i]->pack(sendbuf.data(), position, sendsize, e) ;
       WARN(position != sendsize) ;
 
     }
@@ -334,16 +334,16 @@ namespace Loci {
       MPI_Recv(&sendsize,1,MPI_INT,partner,tag,comm,&status)  ;
       if(sendsize >  int(sendbuf.size()))
         sendbuf.resize(sendsize) ;
-      MPI_Recv(&sendbuf[0],sendsize,MPI_BYTE,partner,tag,comm,&status) ;
+      MPI_Recv(sendbuf.data(),sendsize,MPI_BYTE,partner,tag,comm,&status) ;
     } else  if((r|(1<<dim)) < p) {
       // send the result of the reduction to the non_participating processors
       int partner = r ^(1<<dim) ;
       MPI_Send(&sendsize,1,MPI_INT,partner,tag,comm) ;
-      MPI_Send(&sendbuf[0],sendsize,MPI_BYTE,partner,tag,comm) ;
+      MPI_Send(sendbuf.data(),sendsize,MPI_BYTE,partner,tag,comm) ;
     }      
     position = 0 ;
     for(size_t i = 0; i < sp.size(); i++) 
-      sp[i]->unpack(&sendbuf[0], position, sendsize, e) ;
+      sp[i]->unpack(sendbuf.data(), position, sendsize, e) ;
     WARN(position != sendsize) ;
   }
 #define GROUP_ALLREDUCE
@@ -374,14 +374,14 @@ namespace Loci {
     vector<unsigned char> result_ptr(size),send_ptr(size) ;
     int position = 0;
     for(size_t i = 0; i < sp.size(); i++) {
-      sp[i]->pack(&send_ptr[0], position, size, e) ;
+      sp[i]->pack(send_ptr.data(), position, size, e) ;
     }
 
     global_join_ops = join_ops;
-    MPI_Allreduce(&send_ptr[0], &result_ptr[0], size, MPI_PACKED, create_join_op, MPI_COMM_WORLD) ;
+    MPI_Allreduce(send_ptr.data(), result_ptr.data(), size, MPI_PACKED, create_join_op, MPI_COMM_WORLD) ;
     position = 0;
     for(size_t i = 0; i < sp.size(); i++) {
-      sp[i]->unpack(&result_ptr[0], position, size, seq) ;
+      sp[i]->unpack(result_ptr.data(), position, size, seq) ;
     }
 #endif
     timer.addTime(s.stop(),1) ;

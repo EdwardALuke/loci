@@ -435,7 +435,6 @@ void readCGNS( string pathname,
   int index_file = 0, index_base=0, index_zone=0;
   cgsize_t num_nodes=0;
   
-  cgsize_t errs = 0;
   char bname[33], zname[33];
   CGNS_ENUMT(ZoneType_t) ztype;
     
@@ -488,16 +487,16 @@ void readCGNS( string pathname,
     start_index = 1;
     end_index = num_nodes;
         
-    errs = cg_coord_read (index_file, index_base, index_zone,
-                          "CoordinateX", RealDouble,
-                          &start_index, &end_index, &pos[0]);
-    errs = cg_coord_read (index_file, index_base, index_zone,
-                          "CoordinateY", RealDouble,
-                          &start_index, &end_index, &pos[mxsize]);
+    cg_coord_read (index_file, index_base, index_zone,
+                   "CoordinateX", RealDouble,
+                   &start_index, &end_index, &pos[0]);
+    cg_coord_read (index_file, index_base, index_zone,
+                   "CoordinateY", RealDouble,
+                   &start_index, &end_index, &pos[mxsize]);
     
-    errs = cg_coord_read (index_file, index_base, index_zone,
-                          "CoordinateZ", RealDouble,
-                          &start_index, &end_index, &pos[2*mxsize]); 
+    cg_coord_read (index_file, index_base, index_zone,
+                   "CoordinateZ", RealDouble,
+                   &start_index, &end_index, &pos[2*mxsize]); 
     
   }
   

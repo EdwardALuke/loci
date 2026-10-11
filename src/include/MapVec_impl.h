@@ -698,7 +698,7 @@ namespace Loci {
     hid_t vDatatype  = H5T_NATIVE_INT;
     hid_t vDataset   = H5Dcreate(group_id, "MapVec", vDatatype, vDataspace, 
                                  H5P_DEFAULT);
-    H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data[0]);
+    H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
 
     H5Dclose( vDataset  );
     H5Sclose( vDataspace);

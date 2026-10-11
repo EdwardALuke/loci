@@ -251,22 +251,22 @@ namespace Loci {
         if(i!=r && recv_sizes[i] > 0) {
           MPI_Irecv(&result[recv_offsets[i]],
                     recv_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
       // Perform non-blocking sends
       for(int i=0;i<p;++i)
         if(i!=r && send_sizes[i] > 0) {
           // If I am not sending to myself and I have something to send
-          MPI_Isend(&send_data[send_offsets[i]],
+          MPI_Isend(send_data.data()+send_offsets[i],
                     send_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
 
       // wait for communication to finish
       std::vector<MPI_Status> status_list(cnt) ;
-      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      MPI_Waitall(cnt,requests.data(),status_list.data()) ;
 
       MPI_Type_free(&bytearray) ;
     }
@@ -338,9 +338,9 @@ namespace Loci {
       for(int i=0;i<p;++i)
         if(i!=r && send_sizes[i] > 0) {
           // If I am not sending to myself and I have something to send
-          MPI_Irecv(&recv_data[send_offsets[i]],
+          MPI_Irecv(recv_data.data()+send_offsets[i],
                     send_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
       // Perform non-blocking sends
@@ -349,13 +349,13 @@ namespace Loci {
         if(i!=r && recv_sizes[i] > 0) {
           MPI_Isend(&buffer[recv_offsets[i]],
                     recv_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
 
       // otherwise wait for communication to finish
       std::vector<MPI_Status> status_list(cnt) ;
-      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      MPI_Waitall(cnt,requests.data(),status_list.data()) ;
       MPI_Type_free(&bytearray) ;
 
       // copy data from from recv buffer
@@ -440,21 +440,21 @@ namespace Loci {
         if(i!=r && recv_sizes[i] > 0) { // if recving from another processor
           MPI_Irecv(&result[recv_offsets[i]][0],
                     recv_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
       // Perform non-blocking sends
       for(int i=0;i<p;++i)
         if(i!=r && send_sizes[i] > 0) { // if sending to another processor
-          MPI_Isend(&send_data[send_offsets[i]*vs],
+          MPI_Isend(send_data.data()+send_offsets[i]*vs,
                     send_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
 
       // wait for communication to finish
       std::vector<MPI_Status> status_list(cnt) ;
-      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      MPI_Waitall(cnt,requests.data(),status_list.data()) ;
 
       MPI_Type_free(&bytearray) ;
     }
@@ -530,9 +530,9 @@ namespace Loci {
       for(int i=0;i<p;++i)
         if(i!=r && send_sizes[i] > 0) {
           // If I am not sending to myself and I have something to send
-          MPI_Irecv(&recv_data[send_offsets[i]*vs],
+          MPI_Irecv(recv_data.data()+send_offsets[i]*vs,
                     send_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
       // Perform non-blocking sends
@@ -541,13 +541,13 @@ namespace Loci {
         if(i!=r && recv_sizes[i] > 0) {
           MPI_Isend(&buffer[recv_offsets[i]][0],
                     recv_sizes[i],
-                    bytearray,i,99,comm,&requests[cnt]) ;
+                    bytearray,i,99,comm,requests.data()+cnt) ;
           cnt++ ;
         }
 
       // otherwise wait for communication to finish
       std::vector<MPI_Status> status_list(cnt) ;
-      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      MPI_Waitall(cnt,requests.data(),status_list.data()) ;
       MPI_Type_free(&bytearray) ;
 
       // copy data from from recv buffer

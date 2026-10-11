@@ -145,10 +145,10 @@ namespace Loci {
 
   $type stencilSize2 param<double> ;
   $type crossComponentDist_node store<float> ;
-  $type crossComponentDistGrad_node store<vector3d<float> > ;
+  //  $type crossComponentDistGrad_node store<vector3d<float> > ;
   $type crossComponentID_node store<int> ;
 
-  $type distanceFieldGradient store<vector3d<float> > ;
+  //  $type distanceFieldGradient store<vector3d<float> > ;
 
   $type surfaceNodeNormal store<vector3d<float> > ;
 

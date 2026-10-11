@@ -138,8 +138,8 @@ namespace Loci {
 
     stencilData.allocate(entitySet(interval(0,loc_size-1))) ;
 
-    MPI_Alltoallv(&databuf[0],&snd_sizes[0],&rdispls[0],MPI_BYTE,
-                  &stencilData[0],&req_sizes[0],&sdispls[0],MPI_BYTE,
+    MPI_Alltoallv(databuf.data(),snd_sizes.data(),rdispls.data(),MPI_BYTE,
+                  &stencilData[0],req_sizes.data(),sdispls.data(),MPI_BYTE,
                   MPI_COMM_WORLD) ;
   }
   
@@ -197,8 +197,8 @@ namespace Loci {
 
     MEMORY_PROFILE(sendStencilDataStartall2all) ;
     
-    MPI_Alltoallv(&databuf[0],&snd_sizes[0],&rdispls[0],MPI_BYTE,
-                  &stencilData[0][0],&req_sizes[0],&sdispls[0],MPI_BYTE,
+    MPI_Alltoallv(databuf.data(),snd_sizes.data(),rdispls.data(),MPI_BYTE,
+                  &stencilData[0][0],req_sizes.data(),sdispls.data(),MPI_BYTE,
                   MPI_COMM_WORLD) ;
     MEMORY_PROFILE(sendStencilDataStartEnd3dv) ;
   }
@@ -219,7 +219,7 @@ namespace Loci {
     for(size_t i=0;i<procid.size();++i)
       send_count[procid[i]]++ ;
 
-    MPI_Alltoall(&send_count[0],1,MPI_INT,&recv_count[0],1,MPI_INT,comm) ;
+    MPI_Alltoall(send_count.data(),1,MPI_INT,recv_count.data(),1,MPI_INT,comm) ;
 
     int final_size = 0 ;
     for(int i=0;i<p;++i)
@@ -251,8 +251,8 @@ namespace Loci {
       rdispls[i] = rdispls[i-1]+recv_count[i-1] ;
     }
 
-    MPI_Alltoallv(&sendbuf[0],&send_count[0],&sdispls[0],MPI_BYTE,
-                  &recvbuf[0],&recv_count[0],&rdispls[0],MPI_BYTE,
+    MPI_Alltoallv(sendbuf.data(),send_count.data(),sdispls.data(),MPI_BYTE,
+                  recvbuf.data(),recv_count.data(),rdispls.data(),MPI_BYTE,
                   comm) ;
 
     v.swap(recvbuf) ;
@@ -274,7 +274,7 @@ namespace Loci {
     for(size_t i=0;i<procid.size();++i)
       recv_count[procid[i]]++ ;
 
-    MPI_Alltoall(&recv_count[0],1,MPI_INT,&send_count[0],1,MPI_INT,comm) ;
+    MPI_Alltoall(recv_count.data(),1,MPI_INT,send_count.data(),1,MPI_INT,comm) ;
 
     std::vector<T> recvbuf(procid.size()) ;
 
@@ -298,8 +298,8 @@ namespace Loci {
       rdispls[i] = rdispls[i-1]+recv_count[i-1] ;
     }
 
-    MPI_Alltoallv(&v[0],&send_count[0],&sdispls[0],MPI_BYTE,
-                  &recvbuf[0],&recv_count[0],&rdispls[0],MPI_BYTE,
+    MPI_Alltoallv(v.data(),send_count.data(),sdispls.data(),MPI_BYTE,
+                  recvbuf.data(),recv_count.data(),rdispls.data(),MPI_BYTE,
                   comm) ;
 
     // unscramble recvbuf
@@ -320,7 +320,7 @@ namespace Loci {
     int p ;
     MPI_Comm_size(comm,&p) ;
     std::vector<int> psz(p) ;
-    MPI_Allgather(&sz,1,MPI_INT,&psz[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&sz,1,MPI_INT,psz.data(),1,MPI_INT,comm) ;
     int tot = psz[0] ;
     std::vector<int> displ(p) ;
     displ[0] = 0 ;
@@ -331,8 +331,8 @@ namespace Loci {
       psz[i] *= sizeof(T) ;
     }
     std::vector<T> buf(tot) ;
-    MPI_Allgatherv(&in[0],sz*sizeof(T),MPI_BYTE,
-                   &buf[0],&psz[0],&displ[0],MPI_BYTE,comm) ;
+    MPI_Allgatherv(in.data(),sz*sizeof(T),MPI_BYTE,
+                   buf.data(),psz.data(),displ.data(),MPI_BYTE,comm) ;
     MEMORY_PROFILE(allGatherVecEnd) ;
     r.swap(buf) ;
   }
@@ -378,14 +378,14 @@ namespace Loci {
 #endif
       std::vector<T> tmp(b_sizes[bk]) ;
       loc_pbox[i].swap(tmp) ;
-      MPI_Irecv(&loc_pbox[i][0],b_sizes[bk]*coord_size,MPI_BYTE,box_sp[bk],bk,comm,&req_queue[i]) ;
+      MPI_Irecv(loc_pbox[i].data(),b_sizes[bk]*coord_size,MPI_BYTE,box_sp[bk],bk,comm,req_queue.data()+i) ;
     }
 
     // send data
     for(size_t i=0;i<send_block_id.size();++i) {
       int bk = send_block_id[i] ;
       int to = box_tp[bk] ;
-      MPI_Send(&pbox[boxes[i].start],b_sizes[bk]*coord_size,MPI_BYTE,
+      MPI_Send(pbox.data()+boxes[i].start,b_sizes[bk]*coord_size,MPI_BYTE,
                to,bk,comm) ;
     }
 
@@ -395,7 +395,7 @@ namespace Loci {
     // wait for comm to complete
     if(recv_block_id.size() != 0) {
       std::vector<MPI_Status> stat_queue(recv_block_id.size()) ;
-      MPI_Waitall(recv_block_id.size(),&req_queue[0],&stat_queue[0]) ;
+      MPI_Waitall(recv_block_id.size(),req_queue.data(),stat_queue.data()) ;
     }
 
     MEMORY_PROFILE(communicateBoxPointsEnd) ;
@@ -433,19 +433,19 @@ namespace Loci {
     for(size_t i=0;i<send_block_id.size();++i) {
       int bk = send_block_id[i] ;
       int to = box_tp[bk] ;
-      MPI_Irecv(&recv_data[boxes[i].start*group_size],b_sizes[bk]*sizeof(T)*group_size,
-                MPI_BYTE,to,bk,comm,&req_queue[i]) ;
+      MPI_Irecv(recv_data.data()+boxes[i].start*group_size,b_sizes[bk]*sizeof(T)*group_size,
+                MPI_BYTE,to,bk,comm,req_queue.data()+i) ;
     }
     for(size_t i=0;i<recv_block_id.size();++i) {
       int bk = recv_block_id[i] ;
       int to = box_sp[bk] ;
-      MPI_Send(&data_to_send[i][0],data_to_send[i].size()*sizeof(T),
+      MPI_Send(data_to_send[i].data(),data_to_send[i].size()*sizeof(T),
                MPI_BYTE,to,bk,comm) ;
     }
 
     if(send_block_id.size() != 0) {
       std::vector<MPI_Status> stat_queue(send_block_id.size()) ;
-      MPI_Waitall(send_block_id.size(),&req_queue[0],&stat_queue[0]) ;
+      MPI_Waitall(send_block_id.size(),req_queue.data(),stat_queue.data()) ;
     }
     //    MEMORY_PROFILE(returnBlockDataEnd) ;
   }

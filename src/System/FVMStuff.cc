@@ -188,7 +188,7 @@ namespace Loci{
 #endif
     // transpose sendsz to find out how much each processor partition recvs
     vector<int> recvsz(p,0) ;
-    MPI_Alltoall(&sendsz[0],1,MPI_INT,&recvsz[0],1,MPI_INT,groupcomm) ;
+    MPI_Alltoall(sendsz.data(),1,MPI_INT,recvsz.data(),1,MPI_INT,groupcomm) ;
     // setup recv buffers to communicate data
     int recvbufsz = 0;
     for(int i=0;i<p;++i) {
@@ -202,8 +202,8 @@ namespace Loci{
       sdispls[i] = sdispls[i-1]+sendsz[i-1] ;
     }
     vector<int> recvdata(recvbufsz) ;
-    MPI_Alltoallv(&gnodelistg[0],&sendsz[0],&sdispls[0],MPI_INT,
-		              &recvdata[0],&recvsz[0],&rdispls[0],MPI_INT,
+    MPI_Alltoallv(gnodelistg.data(),sendsz.data(),sdispls.data(),MPI_INT,
+		              recvdata.data(),recvsz.data(),rdispls.data(),MPI_INT,
 		              groupcomm) ;
 #ifdef VERBOSE
     debugout << "distributed data local size = " << recvdata.size() << endl;
@@ -240,8 +240,8 @@ namespace Loci{
     }
     vector<int> gnodefnum(gnodelistg.size(),-1) ;
     // note now recvsz is sending and sendsz is recving
-    MPI_Alltoallv(&filenosend[0],&recvsz[0],&rdispls[0],MPI_INT,
-		              &gnodefnum[0],&sendsz[0],&sdispls[0],MPI_INT,
+    MPI_Alltoallv(filenosend.data(),recvsz.data(),rdispls.data(),MPI_INT,
+		              gnodefnum.data(),sendsz.data(),sdispls.data(),MPI_INT,
 		              groupcomm) ;
 #ifdef VERBOSE
     debugout << "time to return index = " << s.stop() << endl ;
@@ -3540,7 +3540,7 @@ namespace Loci{
       T val = ndom.Min() ;
       std::vector<T> valp(p) ;
       MPI_Allgather(&val,sizeof(T),MPI_BYTE,
-                    &valp[0],sizeof(T),MPI_BYTE,
+                    valp.data(),sizeof(T),MPI_BYTE,
                     comm) ;
       for(int i=0;i<p-1;++i)
         edge_splits[i] = valp[i+1] ;
@@ -3560,7 +3560,6 @@ namespace Loci{
           if((edge_keys[i][0] != edge_keys[j][0]) ||
              (edge_keys[i][1] != edge_keys[j][1]))
             break ;
-        int nedges = j-i ;
         FATAL(int(j-i) != edge_keys[i][3]);
         i = j ;
       }

@@ -231,8 +231,8 @@ namespace Loci {
 
     // communicate to get the receive counts
     std::vector<int> recv_counts(np,0) ;
-    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
-                 &recv_counts[0], 1, MPI_INT, comm) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
 
     std::vector<int> recv_displs(np,0) ;
     for(int i=1;i<np;++i)
@@ -274,10 +274,10 @@ namespace Loci {
       tot_recv_size += recv_counts[i] ;
 
     unsigned char* recv_buffer = new unsigned char[tot_recv_size] ;
-    MPI_Alltoallv(&send_buffer[0], &send_counts[0],
-                  &send_displs[0], MPI_PACKED,
-                  &recv_buffer[0], &recv_counts[0],
-                  &recv_displs[0], MPI_PACKED, comm) ;
+    MPI_Alltoallv(&send_buffer[0], send_counts.data(),
+                  send_displs.data(), MPI_PACKED,
+                  &recv_buffer[0], recv_counts.data(),
+                  recv_displs.data(), MPI_PACKED, comm) ;
 
     delete[] send_buffer ;
 
@@ -521,9 +521,9 @@ namespace Loci {
       int stateSize    = cvtr.getSize();
       if( stateSize > static_cast<int>(inbuf.size()) ) inbuf.resize(stateSize);
 
-      cvtr.getState( &inbuf[0], stateSize);
+      cvtr.getState( inbuf.data(), stateSize);
       cpypack(outbuf,position,outcount,&stateSize,1) ;
-      cpypack(outbuf,position,outcount,&inbuf[0],stateSize) ;
+      cpypack(outbuf,position,outcount,inbuf.data(),stateSize) ;
     }
   }
 
@@ -567,10 +567,10 @@ namespace Loci {
 
       if( stateSize > static_cast<int>(outbuf.size()) ) outbuf.resize(stateSize);
  
-      cpyunpack(inbuf,position,insize,&outbuf[0],stateSize) ;
+      cpyunpack(inbuf,position,insize,outbuf.data(),stateSize) ;
 
       typename schema_traits::Converter_Type cvtr( attrib_data[*ci] );
-      cvtr.setState( &outbuf[0], stateSize);
+      cvtr.setState( outbuf.data(), stateSize);
     }
 
   }
@@ -694,7 +694,7 @@ namespace Loci {
       H5Sselect_hyperslab(mDataspace, H5S_SELECT_SET, start,  stride, count, block);
       H5Sselect_hyperslab(vDataspace, H5S_SELECT_SET, foffset,stride, count, block);
       H5Dread( vDataset, vDatatype, mDataspace, vDataspace, 
-      H5P_DEFAULT, &data[0]);
+      H5P_DEFAULT, data.data());
 
       indx = 0;
       for( int i = it[k].first; i <= it[k].second; i++) 
@@ -736,7 +736,7 @@ namespace Loci {
       H5Sget_simple_extent_dims(vDataspace, &dimension, NULL);
 
       std::vector<int> ibuf(dimension);
-      H5Dread(vDataset, vDatatype, H5S_ALL,H5S_ALL,H5P_DEFAULT, &ibuf[0]);
+      H5Dread(vDataset, vDatatype, H5S_ALL,H5S_ALL,H5P_DEFAULT, ibuf.data());
       H5Dclose(vDataset  );
       H5Sclose(vDataspace);
 
@@ -805,12 +805,12 @@ namespace Loci {
       count, block);
       H5Sselect_hyperslab(vDataspace, H5S_SELECT_SET, foffset,   stride,
       count, block);
-      H5Dread(vDataset, vDatatype, mDataspace, vDataspace,H5P_DEFAULT, &data[0]);
+      H5Dread(vDataset, vDatatype, mDataspace, vDataspace,H5P_DEFAULT, data.data());
 
       indx = 0;
       for( int i = it[k].first; i <= it[k].second; i++) {
       typename data_schema_traits<T>::Converter_Type cvtr( attrib_data[i]);
-      cvtr.setState( &data[0]+indx, container[i] );
+      cvtr.setState( data.data()+indx, container[i] );
       indx += container[i];
       }
       }
@@ -890,7 +890,7 @@ namespace Loci {
       dimension        = arraySize;
       hid_t vDataspace = H5Screate_simple(rank, &dimension, NULL);
       hid_t vDataset   = H5Dcreate(group_id, "VariableData", vDatatype, vDataspace, H5P_DEFAULT);
-      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data[0]);
+      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
 
       H5Dclose( vDataset  );
       H5Sclose( vDataspace);
@@ -987,7 +987,7 @@ namespace Loci {
       vDataspace = H5Screate_simple(rank, &dimension, NULL);
       vDataset   = H5Dcreate(group_id, "ContainerSize",
       vDatatype, vDataspace, H5P_DEFAULT);
-      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &vbucket[0]);
+      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, vbucket.data());
 
       H5Dclose( vDataset  );
       H5Sclose( vDataspace);

@@ -274,8 +274,8 @@ namespace Loci {
     // continue to pack and send the Map
     for(int i=0;i<np;++i)
       send_counts[i] = pack_size(dom_split[i]) ;
-    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
-                 &recv_counts[0], 1, MPI_INT, comm) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
 
     for(int i=1;i<np;++i) {
       send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
@@ -297,10 +297,10 @@ namespace Loci {
     delete[] send_ptr ;
 
     unsigned char* recv_buffer = new unsigned char[tot_recv_size] ;
-    MPI_Alltoallv(&send_buffer[0], &send_counts[0],
-                  &send_displs[0], MPI_PACKED,
-                  &recv_buffer[0], &recv_counts[0],
-                  &recv_displs[0], MPI_PACKED, comm) ;
+    MPI_Alltoallv(&send_buffer[0], send_counts.data(),
+                  send_displs.data(), MPI_PACKED,
+                  &recv_buffer[0], recv_counts.data(),
+                  recv_displs.data(), MPI_PACKED, comm) ;
     delete[] send_buffer ;
 
     dMap nm ;

@@ -264,8 +264,8 @@ namespace Loci {
       send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
     // then communicate this get the recv info.
     vector<int> recv_counts(np,0) ;
-    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
-                 &recv_counts[0], 1, MPI_INT, comm) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
     vector<int> recv_displs(np,0) ;
     recv_displs[0] = 0 ;
     for(int i=1;i<np;++i)
@@ -304,10 +304,10 @@ namespace Loci {
 
     vector<int> recv_buf(recv_size) ;
     // communicate
-    MPI_Alltoallv(&send_buf[0], &send_counts[0],
-                  &send_displs[0], MPI_INT,
-                  &recv_buf[0], &recv_counts[0],
-                  &recv_displs[0], MPI_INT, comm) ;
+    MPI_Alltoallv(send_buf.data(), send_counts.data(),
+                  send_displs.data(), MPI_INT,
+                  recv_buf.data(), recv_counts.data(),
+                  recv_displs.data(), MPI_INT, comm) ;
     // release buffers that are not needed
     vector<int>().swap(send_counts) ;
     vector<int>().swap(send_displs) ;
@@ -385,8 +385,8 @@ namespace Loci {
       send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
     // then communicate this get the recv info.
     vector<int> recv_counts(np,0) ;
-    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
-                 &recv_counts[0], 1, MPI_INT, comm) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
     vector<int> recv_displs(np,0) ;
     recv_displs[0] = 0 ;
     for(int i=1;i<np;++i)
@@ -502,8 +502,8 @@ namespace Loci {
       send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
     // then communicate this get the recv info.
     vector<int> recv_counts(np,0) ;
-    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
-                 &recv_counts[0], 1, MPI_INT, comm) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
     vector<int> recv_displs(np,0) ;
     recv_displs[0] = 0 ;
     for(int i=1;i<np;++i)
@@ -541,10 +541,10 @@ namespace Loci {
 
     vector<int> recv_buf(recv_size) ;
     // communicate
-    MPI_Alltoallv(&send_buf[0], &send_counts[0],
-                  &send_displs[0], MPI_INT,
-                  &recv_buf[0], &recv_counts[0],
-                  &recv_displs[0], MPI_INT, comm) ;
+    MPI_Alltoallv(send_buf.data(), send_counts.data(),
+                  send_displs.data(), MPI_INT,
+                  recv_buf.data(), recv_counts.data(),
+                  recv_displs.data(), MPI_INT, comm) ;
     // release buffers that are not needed
     vector<int>().swap(send_counts) ;
     vector<int>().swap(send_displs) ;
@@ -597,7 +597,7 @@ namespace Loci {
     vector<int> recv_displacement(MPI_processes,0) ;
     for(int i=0;i<MPI_processes;++i)
       send_count[i] = recv_req[i].num_intervals() * 2 ;
-    MPI_Alltoall(&send_count[0],1,MPI_INT, &recv_count[0], 1, MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(send_count.data(),1,MPI_INT, recv_count.data(), 1, MPI_INT,MPI_COMM_WORLD) ;
 
     
     send_displacement[0] = 0 ;
@@ -612,7 +612,7 @@ namespace Loci {
 
 
     vector<int> send_set_alloc(send_sizes+recv_sizes,0) ;
-    int * send_set_buf = &send_set_alloc[0] ; 
+    int * send_set_buf = send_set_alloc.data() ; 
     int * recv_set_buf = send_set_buf+send_sizes ; 
     for(int i=0;i<MPI_processes;++i) {
       for(size_t j=0;j<recv_req[i].num_intervals();++j) {
@@ -621,8 +621,8 @@ namespace Loci {
       }
     }
 
-    MPI_Alltoallv(send_set_buf, &send_count[0], &send_displacement[0] , MPI_INT,
-		  recv_set_buf, &recv_count[0], &recv_displacement[0], MPI_INT,
+    MPI_Alltoallv(send_set_buf, send_count.data(), send_displacement.data() , MPI_INT,
+		  recv_set_buf, recv_count.data(), recv_displacement.data(), MPI_INT,
 		  MPI_COMM_WORLD) ;
 
     vector<entitySet> send_set(MPI_processes) ;
@@ -654,7 +654,7 @@ namespace Loci {
       send_count[i] =  sp->pack_size(send_set[i]) ;
 
     // Get sizes needed for receiving buffers
-    MPI_Alltoall(&send_count[0],1,MPI_INT, &recv_count[0], 1, MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(send_count.data(),1,MPI_INT, recv_count.data(), 1, MPI_INT,MPI_COMM_WORLD) ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
@@ -667,7 +667,7 @@ namespace Loci {
     recv_sizes = recv_displacement[mp]+recv_count[mp] ;
 
     vector<unsigned char> store_comm_buf(send_sizes+1024+recv_sizes,0) ;
-    unsigned char *send_store = &store_comm_buf[0] ; 
+    unsigned char *send_store = store_comm_buf.data() ; 
     unsigned char *recv_store = send_store+send_sizes+1024 ; 
 
     for(int i=0;i<send_sizes;++i)
@@ -680,9 +680,9 @@ namespace Loci {
                send_set[i]) ;
     }
     
-    MPI_Alltoallv(send_store, &send_count[0], &send_displacement[0],
+    MPI_Alltoallv(send_store, send_count.data(), send_displacement.data(),
                   MPI_PACKED,
-		  recv_store, &recv_count[0], &recv_displacement[0],
+		  recv_store, recv_count.data(), recv_displacement.data(),
                   MPI_PACKED,
 		  MPI_COMM_WORLD) ;
 
@@ -1152,7 +1152,7 @@ namespace Loci {
       if((iset.second-iset.first) < (retval[i].second-retval[i].first))
         iset = retval[i] ;
     vector<interval> rset(p) ;
-    MPI_Allgather(&iset.first,1,MPI_2INT,&rset[0].first,1,MPI_2INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&iset.first,1,MPI_2INT,rset.data(),1,MPI_2INT,MPI_COMM_WORLD) ;
     
     
     // Remove redundant info
@@ -1174,7 +1174,7 @@ namespace Loci {
          (iset2.second-iset2.first) < (retval[i].second-retval[i].first))
         iset2 = retval[i] ;
     
-    MPI_Allgather(&iset2.first,1,MPI_2INT,&rset[0].first,1,MPI_2INT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&iset2.first,1,MPI_2INT,rset.data(),1,MPI_2INT,MPI_COMM_WORLD) ;
     
     
     // Remove redundant info
@@ -1199,8 +1199,8 @@ namespace Loci {
       send_sz[i] = distSet[i].num_intervals() ;
     
     vector<int> recv_sz(p) ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT,
-                 &recv_sz[0],1,MPI_INT,
+    MPI_Alltoall(send_sz.data(),1,MPI_INT,
+                 recv_sz.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
 
     int size_send = 0 ;
@@ -1226,8 +1226,8 @@ namespace Loci {
         send_store[send_displacement[i]+j] = distSet[i][j] ;
       }
     
-    MPI_Alltoallv(&send_store[0],&send_sz[0], &send_displacement[0], MPI_2INT,
-    		  &recv_store[0],&recv_sz[0], &recv_displacement[0], MPI_2INT,
+    MPI_Alltoallv(send_store.data(),send_sz.data(), send_displacement.data(), MPI_2INT,
+    		  recv_store.data(),recv_sz.data(), recv_displacement.data(), MPI_2INT,
     		  MPI_COMM_WORLD) ;
 
     // Sort received intervals to increase performance of union code
@@ -1273,7 +1273,7 @@ namespace Loci {
 
     // Send clone requests to partners
     vector<int> recv_req(ptn.size()*2) ;
-    MPI_Alltoall(&send_req[0],2,MPI_INT, &recv_req[0],2,MPI_INT,
+    MPI_Alltoall(send_req.data(),2,MPI_INT, recv_req.data(),2,MPI_INT,
                  MPI_COMM_WORLD) ;
 
     // From the clone requests, find a set that we need to send to the
@@ -1288,7 +1288,7 @@ namespace Loci {
 
     // Share the size information with partners
     vector<int> recv_sizes(ptn.size()) ;
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT, &recv_sizes[0],1,MPI_INT,
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT, recv_sizes.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
 
     // Compress all of the recieves to a single buffer, compute offsets
@@ -1311,8 +1311,8 @@ namespace Loci {
         int recv_size = recv_sizes[i]*2 ;
         int recv_offset = recv_offsets[i]*2 ;
         
-        MPI_Irecv(&(recv_buffer[recv_offset]),recv_size,MPI_INT,i,3,
-                  MPI_COMM_WORLD,&recv_Requests[cnt++]) ;
+        MPI_Irecv(recv_buffer.data()+recv_offset,recv_size,MPI_INT,i,3,
+                  MPI_COMM_WORLD,recv_Requests.data()+(cnt++)) ;
       }
     }
 
@@ -1353,7 +1353,7 @@ namespace Loci {
     
     int send_count = 2*e.num_intervals() ;
     vector<int> recv_count(p) ;
-    MPI_Allgather(&send_count,1,MPI_INT,&recv_count[0],1,MPI_INT,
+    MPI_Allgather(&send_count,1,MPI_INT,recv_count.data(),1,MPI_INT,
                   MPI_COMM_WORLD) ;
     vector<int> recv_disp(p) ;
     recv_disp[0] = 0 ;
@@ -1444,7 +1444,7 @@ namespace Loci {
           vector<interval> ivl_list(set_ivls) ;
           for(int i=0;i<set_ivls;++i)
             ivl_list[i] = give[i] ;
-          MPI_Send(&ivl_list[0],2*set_ivls,MPI_INT,r-1,12,MPI_COMM_WORLD) ;
+          MPI_Send(ivl_list.data(),2*set_ivls,MPI_INT,r-1,12,MPI_COMM_WORLD) ;
         }
       }
       if(r+1==oddproc) {
@@ -1454,7 +1454,7 @@ namespace Loci {
 
         if(set_ivls > 0) {
           vector<interval> ivl_list(set_ivls) ;
-          MPI_Recv(&ivl_list[0],2*set_ivls,MPI_INT,r+1,12,MPI_COMM_WORLD,
+          MPI_Recv(ivl_list.data(),2*set_ivls,MPI_INT,r+1,12,MPI_COMM_WORLD,
                    &status) ;
 
           for(int i=0;i<set_ivls;++i)
@@ -1475,7 +1475,7 @@ namespace Loci {
             vector<interval> ivl_list(set_ivls) ;
             for(int i=0;i<set_ivls;++i)
               ivl_list[i] = give[i] ;
-            MPI_Send(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,
+            MPI_Send(ivl_list.data(),2*set_ivls,MPI_INT,partner,12,
                      MPI_COMM_WORLD) ;
           }
           MPI_Status status ;
@@ -1483,7 +1483,7 @@ namespace Loci {
 
           if(set_ivls > 0) {
             vector<interval> ivl_list(set_ivls) ;
-            MPI_Recv(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,
+            MPI_Recv(ivl_list.data(),2*set_ivls,MPI_INT,partner,12,
                      MPI_COMM_WORLD, &status) ;
             for(int i=0;i<set_ivls;++i)
               keep += ivl_list[i] ;
@@ -1496,7 +1496,7 @@ namespace Loci {
 
           if(set_ivls > 0) {
             vector<interval> ivl_list(set_ivls) ;
-            MPI_Recv(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,MPI_COMM_WORLD,
+            MPI_Recv(ivl_list.data(),2*set_ivls,MPI_INT,partner,12,MPI_COMM_WORLD,
                      &status) ;
             for(int i=0;i<set_ivls;++i)
               keep += ivl_list[i] ;
@@ -1509,7 +1509,7 @@ namespace Loci {
             for(int i=0;i<set_ivls;++i)
               ivl_list[i] = give[i] ;
 
-            MPI_Send(&ivl_list[0],2*set_ivls,MPI_INT,partner,12,
+            MPI_Send(ivl_list.data(),2*set_ivls,MPI_INT,partner,12,
                      MPI_COMM_WORLD) ;
           }
         }
@@ -1537,7 +1537,7 @@ namespace Loci {
 
     vector<interval> ivl_large_p(p) ;
 
-    MPI_Allgather(&ivl_large,2,MPI_INT,&(ivl_large_p[0]),2,MPI_INT,
+    MPI_Allgather(&ivl_large,2,MPI_INT,ivl_large_p.data(),2,MPI_INT,
                   MPI_COMM_WORLD) ;
 
     entitySet lset ;
@@ -1661,7 +1661,7 @@ namespace Loci {
     
     int send_count = 2*e.num_intervals() ;
     vector<int> recv_count(p) ;
-    MPI_Allgather(&send_count,1,MPI_INT,&recv_count[0],1,MPI_INT,
+    MPI_Allgather(&send_count,1,MPI_INT,recv_count.data(),1,MPI_INT,
                   comm) ;
     
     vector<int> recv_disp(p) ;
