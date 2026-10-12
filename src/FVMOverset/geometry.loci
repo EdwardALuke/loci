@@ -70,11 +70,7 @@ namespace Loci {
       geomNames.push_back(tag) ;
       Loci::options_list::arg_list value_list;
       ol.getOption(tag,value_list);
-      // std::cout << "tagsgggs " << tag << endl;
-      // std::cout << "value list size " << value_list.size() << endl;
       for (size_t i = 0, sz = value_list.size(); i < sz; ++i) {
-        // std::cout << "value list info " << value_list[i] << endl;
-        // std::cout << "value list type " << value_list[i].type_of() << endl;
         if (value_list[i].type_of() != FUNCTION) {
           cerr << "geometry for component '" << tag
                << "' must be a function" << endl ;
@@ -82,13 +78,11 @@ namespace Loci {
         }
         value_list[i].get_value(gname) ;
         geomTypes.push_back(gname);
-        // std::cout << "fname " << fname << endl;
 
         options_list::arg_list shape;
         value_list[i].get_value(shape);
         options_list fol;
         fol.Input(shape);
-        std::cout << fol << endl;
         if(gname == "hex") {
           vector3d<real_t> p0(0,0,0) ;
           if(fol.optionExists("p0"))
@@ -152,7 +146,7 @@ namespace Loci {
               fol.getOption("thickness");
             geomList.push_back(new hollowGeneralCylinderFunc(center,radius,radius,thickness)) ;
           } else {
-          if(fol.optionExists("p1")) {
+            if(fol.optionExists("p1")) {
               if(!fol.optionExists("p2") || fol.optionExists("center")) {
                 cerr << "geometry definition cylinder should either include 'center' or 'p1' and 'p2' to define cylinder location and end caps." << endl ;
                 Loci::Abort() ;
@@ -166,7 +160,9 @@ namespace Loci {
               real_t thickness = 0.0;
               if (fol.optionExists("thickness")) // for hollow cylinders
                 fol.getOption("thickness");
-              geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius,radius,radius,radius,thickness)) ;
+              Loci::CPTR<geometry_type> gp = new hollowGeneralCylinderFunc(p1,p2,radius,radius,radius,radius,thickness);
+              gp->getInfo();
+              geomList.push_back(gp) ;
             }
           }
         } else if(gname == "cone") {        
@@ -225,58 +221,59 @@ namespace Loci {
               fol.getOption("thickness",thickness);
             geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius_base, radius_top, radius_base, radius_top, thickness)) ;
           }
-        } else if(gname == "sector") {        
+        } else if(gname == "sector") {     
+            using namespace Loci ;   
             vector3d<real_t> p1(0,0,0) ;
             fol.getOptionUnits("p1","m",p1) ;
-            vector3d<real_t> p2(0,0,0) ;
+            vector3d<real_t> p2(0.0,0.0,0.0) ;
             fol.getOptionUnits("p2","m",p2) ;
-            real_t angle = 360; // assume full revolution
+            real_t angle = 360.0; // assume full revolution
             fol.getOption("angle",angle);
-            angle *=M_PI/180; // converting to radians 
+            angle *=M_PI/180.0; // converting to radians 
             real_t position;
             fol.getOption("position",position);
             vector3d<real_t> orientation(0,0,0) ;
             fol.getOptionUnits("orientation","",orientation) ;
             vector<vector3d<real_t>> vertices;
-            if(ol.optionExists("points")) {
-            Loci::option_value_type ovt= ol.getOptionValueType("points") ;
-            if(ovt != Loci::LIST) {
-              cerr << "list for geometry of component '" << tag
-                  << "' must be a list" << endl ;
-              Loci::Abort() ;
-            }
+            if(fol.optionExists("points")) {
+              Loci::option_value_type ovt= fol.getOptionValueType("points") ;
+              if(ovt != Loci::LIST) {
+                cerr << "list for geometry of component '" << tag
+                    << "' must be a list" << endl ;
+                Loci::Abort() ;
+              }
 
-            Loci::options_list::arg_list value_list ;
-            ol.getOption("points",value_list) ;
-            int sz = value_list.size() ;
-            for(int i=0;i<sz;++i) {
-              if(value_list[i].type_of() != FUNCTION) {
-                cerr << "points should be a list of vertices in component '"
-                    << tag << "'" << endl ;
+              Loci::options_list::arg_list value_list ;
+              fol.getOption("points",value_list) ;
+              int sz = value_list.size() ;
+              for(int i=0;i<sz;++i) {
+                if(value_list[i].type_of() != FUNCTION) {
+                  cerr << "points should be a list of vertices in component '"
+                      << tag << "'" << endl ;
+                }
+                string name ;
+                value_list[i].get_value(name) ;
+                if(name != "vertex") {
+                  cerr << "points for sector expecting a 'vertex'', not '"
+                      << name << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                options_list::arg_list fvalues ;
+                value_list[i].get_value(fvalues) ;
+                options_list vfol ;
+                vfol.Input(fvalues) ;
+                vector3d<real_t> pl;
+                if(vfol.optionExists("v")) {
+                  vfol.getOptionUnits("v","meter",pl) ;
+                } else {
+                  cerr << "vertex does not define point 'v=' in component '"
+                      << tag << "'" << endl ;
+                  Loci::Abort() ;
+                }
+                vertices.push_back(pl) ;
               }
-              string name ;
-              value_list[i].get_value(name) ;
-              if(name != "vertex") {
-                cerr << "points for sector expecting a 'vertex'', not '"
-                    << name << "'" << endl ;
-                Loci::Abort() ;
-              }
-              options_list::arg_list fvalues ;
-              value_list[i].get_value(fvalues) ;
-              options_list fol ;
-              fol.Input(fvalues) ;
-              vector3d<real_t> pl;
-            if(fol.optionExists("v")) {
-                fol.getOptionUnits("v","meter",pl) ;
-              } else {
-                cerr << "vertex does not define point 'v=' in component '"
-                    << tag << "'" << endl ;
-                Loci::Abort() ;
-              }
-              vertices.push_back(pl) ;
             }
-          }
-          geomList.push_back(new sectorFunc(p1,p2,vertices,angle,position,orientation)) ;
+            geomList.push_back(new sectorFunc(p1,p2,vertices,angle,position,orientation)) ;
         } else if(gname == "revolution") { // maintain backwards compatibility    
             // note: TBD to integrate/modify sector to support old style-offset    
             vector3d<real_t> p1(0,0,0) ;
@@ -291,8 +288,8 @@ namespace Loci {
             vector3d<real_t> orientation(0,0,0) ;
             fol.getOptionUnits("orientation","",orientation) ;
             vector<vector3d<real_t>> vertices;
-            if(ol.optionExists("points")) {
-            Loci::option_value_type ovt= ol.getOptionValueType("points") ;
+            if(fol.optionExists("points")) {
+            Loci::option_value_type ovt= fol.getOptionValueType("points") ;
             if(ovt != Loci::LIST) {
               cerr << "list for geometry of component '" << tag
                   << "' must be a list" << endl ;
@@ -300,7 +297,7 @@ namespace Loci {
             }
 
             Loci::options_list::arg_list value_list ;
-            ol.getOption("points",value_list) ;
+            fol.getOption("points",value_list) ;
             int sz = value_list.size() ;
             for(int i=0;i<sz;++i) {
               if(value_list[i].type_of() != FUNCTION) {
@@ -316,11 +313,11 @@ namespace Loci {
               }
               options_list::arg_list fvalues ;
               value_list[i].get_value(fvalues) ;
-              options_list fol ;
-              fol.Input(fvalues) ;
+              options_list vfol ;
+              vfol.Input(fvalues) ;
               vector3d<real_t> pl;
-              if(fol.optionExists("v")) {
-                fol.getOptionUnits("v","meter",pl) ;
+              if(vfol.optionExists("v")) {
+                vfol.getOptionUnits("v","meter",pl) ;
               } else {
                 cerr << "vertex does not define point 'v=' in component '"
                     << tag << "'" << endl ;
@@ -338,8 +335,8 @@ namespace Loci {
             real_t percentage;
             fol.getOption("percentage",percentage);
             vector<vector3d<real_t>> vertices;
-            if(ol.optionExists("points")) {
-            Loci::option_value_type ovt= ol.getOptionValueType("points") ;
+            if(fol.optionExists("points")) {
+            Loci::option_value_type ovt= fol.getOptionValueType("points") ;
             if(ovt != Loci::LIST) {
               cerr << "points for geometry of component '" << tag
                   << "' must be a list" << endl ;
@@ -363,11 +360,11 @@ namespace Loci {
               }
               options_list::arg_list fvalues ;
               value_list[i].get_value(fvalues) ;
-              options_list fol ;
-              fol.Input(fvalues) ;
+              options_list vfol ;
+              vfol.Input(fvalues) ;
               vector3d<real_t> pl;
-            if(fol.optionExists("v")) {
-                fol.getOptionUnits("v","meter",pl) ;
+              if(vfol.optionExists("v")) {
+                  vfol.getOptionUnits("v","meter",pl) ;
               } else {
                 cerr << "vertex does not define point 'v=' in component '"
                     << tag << "'" << endl ;
@@ -393,8 +390,8 @@ namespace Loci {
           vector<vector3d<real_t> > points ;
           vector<vector3d<real_t> > normals ;
 
-          if(ol.optionExists("list")) {
-          Loci::option_value_type ovt= ol.getOptionValueType("list") ;
+          if(fol.optionExists("list")) {
+          Loci::option_value_type ovt= fol.getOptionValueType("list") ;
           if(ovt != Loci::LIST) {
             cerr << "list for geometry of component '" << tag
                 << "' must be a list" << endl ;
@@ -402,7 +399,7 @@ namespace Loci {
           }
 
           Loci::options_list::arg_list value_list ;
-          ol.getOption("list",value_list) ;
+          fol.getOption("list",value_list) ;
           int sz = value_list.size() ;
           for(int i=0;i<sz;++i) {
             if(value_list[i].type_of() != FUNCTION) {
@@ -418,18 +415,18 @@ namespace Loci {
             }
             options_list::arg_list fvalues ;
             value_list[i].get_value(fvalues) ;
-            options_list fol ;
-            fol.Input(fvalues) ;
+            options_list vfol ;
+            vfol.Input(fvalues) ;
             vector3d<real_t> pl,nl ;
-            if(fol.optionExists("p")) {
-              fol.getOptionUnits("p","meter",pl) ;
+            if(vfol.optionExists("p")) {
+              vfol.getOptionUnits("p","meter",pl) ;
             } else {
               cerr << "plane does not define point 'p=' in component '"
                   << tag << "'" << endl ;
               Loci::Abort() ;
             }
-            if(fol.optionExists("n")) {
-              fol.getOptionUnits("n","meter",nl) ;
+            if(vfol.optionExists("n")) {
+              vfol.getOptionUnits("n","meter",nl) ;
             } else {
               cerr << "plane does not define normal 'n=' in component '"
                   << tag << "'" << endl ;
@@ -452,6 +449,7 @@ namespace Loci {
         Loci::Abort() ;
       } else if(geomList.size() == 1) {
         Loci::CPTR<geometry_type> comp = geomList[0];
+        comp->getInfo();
         (*$componentGeometryData)[tag] = comp ;
 #ifdef OVERSET_DEBUG   
         const auto& mmp = *$componentGeometryData;
@@ -463,6 +461,7 @@ namespace Loci {
       } else {
         Loci::CPTR<geometry_type> comp = new compositeFunc(geomList) ;
         (*$componentGeometryData)[tag] = comp; 
+        comp->getInfo();
       }
     }
   } ;

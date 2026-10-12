@@ -532,9 +532,9 @@ namespace Loci {
 
         // Mark an entity with an xblank of 2 if it is inside the geometry
         FORALL(e,nd) {
-          bool inGeol;
-          gp->inGeometry(&$pos[nd],&inGeol,1);
-          if(inGeol)
+          bool inGeom = false;
+          gp->inGeometry(&$pos[nd],&inGeom,1);
+          if(inGeom)
             $xblank[nd] = 2 ;
         } ENDFORALL ;
       } else {
@@ -566,15 +566,14 @@ namespace Loci {
         if(mi != $componentTransformMap->end()) {
           int sz = mi->second.size() ;
           for(int i=0;i<sz;++i) {
-//            Loci::CPTR<geometry_type> ngp = gp->transform(mi->second[i]) ;
             Loci::CPTR<geometry_type> ngp = gp->applyXform(mi->second[i]) ;
             gp = ngp ;
           }
         }
         FORALL(e,nd) {
-          bool inGeol;
-          gp->inGeometry(&$pos[nd],&inGeol,1);
-          if(inGeol)
+          bool inGeom = false;
+          gp->inGeometry(&$pos[nd],&inGeom,1);
+          if(inGeom)
             $xblank[nd] = 2 ;
         } ENDFORALL ;
       } else {

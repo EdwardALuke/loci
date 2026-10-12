@@ -46,8 +46,9 @@ using Loci::componentXform;
 namespace Loci
 {
 
- /// Implicit Function Base Class that defines geometry API that computes
-  /// distance function from a composition of fundamental geometric elements
+  /// Geomety primitives definition
+  /// with interfaces for distance/inout checks and transforms
+  /// backwards compatablility for transform and applyXform
   class geometry_type : public Loci::CPTR_type {
   public:
     /// Pure virtual function for obtaining distance and gradient of distance
@@ -59,6 +60,9 @@ namespace Loci
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const = 0 ;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const = 0; 
     virtual void inGeometry(const vector3d<real_t> loc[], bool inGeom[],int sz) const = 0;
+    virtual void getInfo() const = 0;
+    geometry_type() = default;
+    virtual ~geometry_type() = default;
   } ;
 
 
@@ -83,6 +87,8 @@ namespace Loci
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const  ;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
+    virtual void getInfo() const;
+    virtual ~compositeFunc() = default;
   } ;
 
 
@@ -121,6 +127,13 @@ namespace Loci
     }
   }
 
+  inline void compositeFunc::getInfo() const {
+    cout << "Composite Shape Geometric Definitions " << endl;
+    for(size_t i=0;i<geomList.size();++i) {
+      geomList[i]->getInfo();
+    }
+  }
+
   /// Apply geometric transform to each element
   inline Loci::CPTR<geometry_type> compositeFunc::transform(rigid_transform Tv) const {
     std::vector<Loci::CPTR<geometry_type> > newGeomList(geomList.size()) ;
@@ -154,12 +167,14 @@ class generalCylinderFunc : public geometry_type {
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
-};
+    virtual void getInfo() const;
+    virtual ~generalCylinderFunc() = default;
+  };
 
 inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], 
     const vector3d<real_t> loc[], int sz) const
 {
-    // 1. Calculate the axis geometry
+  // 1. Calculate the axis geometry
   vector3d<real_t> v = p2-p1;
   real_t H = norm(v);
   real_t oH = 1.0/max<real_t>(1e-30,H);
@@ -181,7 +196,7 @@ inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
     
     // 3. Evaluate the 2D profile (Inigo Quilez logic)
     real_t dx = r1 - r2;
-    real_t mx = r1 + r2;
+    real_t mx = 0.5*(r1 + r2); //average to ensure we aren't picking outside of the body
     
     real_t k = h * h + dx * dx;
     real_t s = h * r + dx * z - h * mx;
@@ -227,6 +242,13 @@ inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
   }
 }
 
+  inline void generalCylinderFunc::getInfo() const
+  {
+    cout << "General Cylinder Info " << endl;
+    cout << "P1/P2: " << p1 << " " << p2 << endl;
+    cout << "R1/R2: " << r1 << " " << r2 << endl;
+  }
+
   inline Loci::CPTR<geometry_type> generalCylinderFunc::transform(rigid_transform Tv) const {
     vector3d<real_t> np1 = Tv.transform(p1) ;
     vector3d<real_t> np2 = Tv.transform(p2) ;
@@ -238,37 +260,6 @@ inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
     vector3d<real_t> np2 = xform.applyXform(p2) ;
     return new generalCylinderFunc(np1,np2,r1,r2) ;
   }
-
-//   class coneFunc : public generalCylinderFunc {
-//     real_t r1, r2;
-//     vector3d<real_t> p1, p2;
-//   public: 
-//     coneFunc(vector3d<real_t> p1i, vector3d<real_t> p2i, real_t ri): 
-//       r1(ri),r2(0.0),p1(p1i),p2(p2i) {}
-    
-//     coneFunc(vector3d<real_t> c, real_t rb) {
-//       r1 = rb ;
-//       r2 = 0.0;
-//       p1 = vector3d<real_t>(c.x,c.y,-1e30) ;
-//       p2 = vector3d<real_t>(c.x,c.y,1e30) ;
-//     }
-//     virtual void getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const;
-//     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
-// };
-
-// void coneFunc::getDist(real_t dist[], vector3d<real_t> n[], 
-//     const vector3d<real_t> loc[], int sz) const
-// {
-//   // use generalCylinderFunc to compute distance
-//   generalCylinderFunc::getDist(dist, n, loc, sz);
-// }
-
-//   Loci::CPTR<geometry_type> coneFunc::transform(rigid_transform Tv)  const {
-//     vector3d<real_t> np1 = Tv.transform(p1) ;
-//     vector3d<real_t> np2 = Tv.transform(p2) ;
-    
-//     return new coneFunc(np1,np2,r) ;
-//   }
 
   inline void generalCylinderFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
   {
@@ -282,7 +273,7 @@ inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
     }
   }
 
-class hollowGeneralCylinderFunc : public generalCylinderFunc {
+class hollowGeneralCylinderFunc : public generalCylinderFunc{
     real_t r1in, r2in;
     real_t thickness;
   public:
@@ -297,15 +288,24 @@ class hollowGeneralCylinderFunc : public generalCylinderFunc {
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
-};
+    virtual void getInfo() const;
+    virtual ~hollowGeneralCylinderFunc() = default;
+  };
 
 // For the hollow cylinder, call twice to generalCylinder 
-inline void hollowGeneralCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
+inline void hollowGeneralCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const 
 {
-  // Interior core
   real_t disti[sz]; 
   vector3d<real_t> ni[sz];
-  generalCylinderFunc::getDist(disti, ni, loc, sz);
+  if (thickness > 0) {
+  // Interior core
+    generalCylinderFunc::getDist(disti, ni, loc, sz);
+  } else {
+    for (int i=0;i<sz;i++) {
+      disti[i] = 1e30;
+      ni[i] = vector3d<real_t>(1,0,0);
+    }
+  }
 
   // Exterior shell
   real_t disto[sz];
@@ -327,7 +327,7 @@ inline void hollowGeneralCylinderFunc::getDist(real_t dist[], vector3d<real_t> n
   }
 }
 
-  inline void hollowGeneralCylinderFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  inline void hollowGeneralCylinderFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const 
   {
     real_t dist[sz];
     vector3d<real_t> n[sz];
@@ -339,25 +339,35 @@ inline void hollowGeneralCylinderFunc::getDist(real_t dist[], vector3d<real_t> n
     }
   }
 
-  inline Loci::CPTR<geometry_type> hollowGeneralCylinderFunc::transform(rigid_transform Tv)  const {
+  inline Loci::CPTR<geometry_type> hollowGeneralCylinderFunc::transform(rigid_transform Tv)  const  {
     vector3d<real_t> np1 = Tv.transform(p1) ;
     vector3d<real_t> np2 = Tv.transform(p2) ;
     return new hollowGeneralCylinderFunc(np1,np2,r1,r2,r1in,r2in,thickness) ;
   }
 
-  inline Loci::CPTR<geometry_type> hollowGeneralCylinderFunc::applyXform(componentXform xform)  const {
+  inline Loci::CPTR<geometry_type> hollowGeneralCylinderFunc::applyXform(componentXform xform)  const  {
     vector3d<real_t> np1 = xform.applyXform(p1) ;
     vector3d<real_t> np2 = xform.applyXform(p2) ;
     return new hollowGeneralCylinderFunc(np1,np2,r1,r2,r1in,r2in,thickness) ;
   }
 
+  inline void hollowGeneralCylinderFunc::getInfo() const 
+  {
+    cout << "Hollow Cylinder Info " << endl;
+    cout << "P1/P2: " << p1 << " " << p2 << endl;
+    cout << "R1/R2: " << r1 << " " << r2 << endl;
+    cout << "R1i/R2i: " << r1in << " " << r2in << endl;
+    cout << "Thickness: " << thickness << endl;
+  }
+
+
   // Internal 2D Polygon SDF with analytical normal calculation
-inline real_t sdPolygon2D(vector3d<real_t> q, const std::vector<vector3d<real_t>>& v, vector3d<real_t>& n2d) 
+inline real_t sdPolygon2D(vector3d<real_t> q, const vector<vector3d<real_t>>& v, vector3d<real_t>& n2d) 
 {
     int num = v.size();
     real_t s = 1.0;
     vector3d<real_t> closest = vector3d<real_t>(1.0,0.0,0.0);
-    real_t minDistSq = 1e20;
+    real_t minDistSq = 1e30;
 
     for (int i = 0, j = num - 1; i < num; j = i++) 
     {
@@ -414,6 +424,7 @@ inline real_t sdPolygon2D(vector3d<real_t> q, const std::vector<vector3d<real_t>
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
+    virtual void getInfo() const;
   };
 
 inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
@@ -425,50 +436,65 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
     //if (H < 1e-9 || polyVerts.empty()) return 1e10;
     
     V *= oH;
+
+    // Partial angular wedge processing
+    real_t halfAngle = angle * 0.5;
+    real_t sinA = sin(halfAngle);
+    real_t cosA = cos(halfAngle);
+
+    // Offset angle relative to orientation and percentage 
+    // default position is at 0
+    //real_t offset = -sector*angle;
+    real_t startAngle = -sectorPosition*angle;
+    real_t endAngle = (1.0-sectorPosition)*angle;
+
+    // Sector offset based on supplied orientation
+    vector3d<real_t> r = sectorOrientation - dot(sectorOrientation,V)*V;
+    real_t rdist = norm(r);
+    if (rdist < 1e-9) {
+      // Fallback if sectorNormal happens to be perfectly parallel to the axis spine
+      vector3d<real_t> mX = (abs(V.y) < 0.9) ? vector3d<real_t>{0.,1.,0.} : vector3d<real_t>{1.,0.,0.};
+      r = mX - dot(mX,V)*V;
+      rdist = norm(r);
+    }
+    real_t olx = 1.0/rdist;
+    r *=olx;
+
+    vector3d<real_t> z = cross(V,r);
+
+    // Transform the 3D Polygon Vertices into the exact same 2D profile space
+    std::vector<vector3d<real_t>> poly2d;
+    poly2d.reserve(polyVerts.size());
+    
+    for (const auto& v3d : polyVerts) {
+        vector3d<real_t> vW =  v3d - p1;
+        real_t vY = dot(vW, V); // Vertex height along axis
+        vector3d<real_t> vRadial = vW - vY * V;
+        real_t vX = norm(vRadial); // Vertex radius away from axis
+        
+        poly2d.push_back({vX,vY,0.0});
+    }
+
     for (int i = 0; i< sz; i++)
     {
       vector3d<real_t> w = loc[i]-p1;
       
       // Project test point p into 2D cylindrical space
-      // CHECK IMPLEMENTATION OF TEST POINT
       vector3d<real_t> q;
       q.y = dot(w, V); // Height along axis
       vector3d<real_t> radialVec = w - q.y*V;
       q.x = norm(radialVec); // Radius away from axis
       q.z = 0.0;
-      
-      // 2. Transform the 3D Polygon Vertices into the exact same 2D profile space
-      std::vector<vector3d<real_t>> poly2d;
-      poly2d.reserve(polyVerts.size());
-      
-      for (const auto& v3d : polyVerts) {
-          vector3d<real_t> vW =  v3d - p1;
-          real_t vY = dot(vW, V); // Vertex height along axis
-          vector3d<real_t> vRadial = vW - vY * V;
-          real_t vX = norm(vRadial); // Vertex radius away from axis
-          
-          poly2d.push_back({vX,vY,0.0});
-      }
-      
-      // 3. Establish local angular coordinate frame orthogonal to axis vector 'u'
-     // vector3d<real_t> referenceDir = (abs(V.y) < 0.9) ? vector3d<real_t>{0.0, 1.0, 0.0} : vector3d<real_t>{1.0, 0.0, 0.0};
-      real_t proj = dot(sectorOrientation,V);
-      vector3d<real_t> r = sectorOrientation - proj*V;
 
-      // cylindrical coordinate transform
-      real_t rdist = norm(r);
-      real_t ord = 1.0/max<real_t>(1e-30,rdist);
-      r *= ord;
-      vector3d<real_t> z = cross(V,r);
-
+      // cylindrical transform of loc[i]
       vector3d<real_t> proj2d = vector3d<real_t>(dot(radialVec,r),dot(radialVec,z),0.0);
-      
+
       // 4. Evaluate the transformed 2D Polygon Profile
       vector3d<real_t> n2d;
       real_t dProfile = sdPolygon2D(q, poly2d, n2d);
       dist[i] = 0.0;
         
-      // 5. Handle Angular Sector Bounds
+      // For full 360 sweeps, check is easier.
       if (angle >= 2.0 * M_PI - 1e-5) 
       {
           // Full 360-degree revolution
@@ -479,67 +505,46 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
           n[i] *= oNN;
 
           dist[i] =  dProfile;
-          return;
+          continue;
       }
-      
-      // Partial angular wedge processing
-      real_t halfAngle = angle * 0.5;
-      real_t sinA = sin(halfAngle);
-      real_t cosA = cos(halfAngle);
+    
+      // check that node lies within the angular sweep of the sector
+      real_t pointAngle = atan2(proj2d.y,proj2d.x);
+      real_t relAngle = pointAngle - startAngle;
+      while (relAngle < -M_PI) relAngle+= 2.0*M_PI;
+      while (relAngle > M_PI) relAngle -=2.0*M_PI;
 
-      // Offset angle relative to orientation and percentage
-      real_t offset = (0.5 - sectorPosition) * angle;
+      bool isInsideAngle = (relAngle >=0.0) && (relAngle <=angle);
+      real_t rp = norm(proj2d);
+      real_t dSector;
+      // Compute sector position relative to inside/outside angular swath
+      if (isInsideAngle) {
+        real_t sinrA = sin(relAngle);
+        real_t sinarA = sin(angle - relAngle);
+        real_t distStart = sinrA * rp;
+        real_t distEnd = sinarA * rp;
+        dSector = -min<real_t>(distStart,distEnd);
+      } else {
+        real_t atb = (relAngle < 0.0) ? -relAngle : (relAngle - angle);
+        dSector = sin(atb)*rp;
+      }
 
-      // Angular offset for plane
-      real_t cosO = cos(offset);
-      real_t sinO = sin(offset);
-      vector3d<real_t> r2d; 
-      r2d.x = proj2d.x * cosO - proj2d.y * sinO;
-      r2d.z = proj2d.x * sinO + proj2d.y * cosO;
-      r2d.y = 0.0;
-      real_t absZ = abs(r2d.z);
-      
-      real_t dSector = (r2d.x * sinA - absZ * cosA);
-      bool isInsideSector = (r2d.x * cosA + absZ * sinA > 0.0) && (dSector < 0.0);
-      
-      if (isInsideSector) {
+      dist[i] = max<real_t>(dProfile,dSector);
+          
+      if (dProfile > dSector) {
           vector3d<real_t> radialDir = radialVec/max<real_t>(1e-30,q.x);
           n[i] = n2d.x * radialDir + n2d.y * V;
-          real_t nn = norm(n[i]);
-          real_t oNN = 1.0/max<real_t>(1e-30,nn);
-          n[i] *= oNN;
-          dist[i] = dProfile;
-          return;
-      } 
-      else 
-      {
-          // Point is outside the slice; compute distance to the slicing edge planes
-          dist[i] = max<real_t>(dProfile, dSector);
-          
-          if (dProfile > dSector) {
-              vector3d<real_t> radialDir = radialVec/max<real_t>(1e-30,q.x);
-              n[i] = n2d.x * radialDir + n2d.y * V;
-              real_t nn = norm(n[i]);
-              real_t oNN = 1.0/max<real_t>(1e-30,nn);
-              n[i] *= oNN;
-          } else {
-              // Normal matches the flat sliced plane faces of the sector wedge
-              real_t zSign = (r2d.z >= 0.0) ? 1.0 : -1.0;
-              vector3d<real_t> nrot;
-              nrot.x = sinA;
-              nrot.y = -cosA * zSign;
-              nrot.z = 0.0;
-              
-              // back into the original plane
-              n2d.x = nrot.x*cosO + nrot.y*sinO;
-              n2d.y = -nrot.x*sinO + nrot.y*cosO;
-              
-              n[i] = n2d.x * r + n2d.y * z;
-              real_t nn = norm(n[i]);
-              real_t oNN = 1.0/max<real_t>(1e-30,nn);
-              n[i] *= oNN;
-          }
+      } else {
+        if (relAngle < 0.0) {
+          n[i] = -sin(startAngle) * r + cos(startAngle)*z;
+        } else {
+          n[i] = -sin(endAngle) * r - cos(endAngle)*z;
+        }
       }
+      // Normalize vector
+      real_t nn = norm(n[i]);
+      real_t oNN = 1.0/max<real_t>(1e-30,nn);
+      n[i] *= oNN;
     }
   }
 
@@ -552,7 +557,17 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
     {
         if (dist[i] < 0) inGeom[i] = true;
         if (dist[i] > 0) inGeom[i] = false;
+  }
+
+  inline void sectorFunc::getInfo() const {
+    cout << "Sector Geometric Definition " << endl;
+    cout << "Verticies: " << endl;
+    for (const auto& v3d : polyVerts) {
+        cout << v3d << endl;
     }
+    cout << "Sector Angle (deg): " << 180.*angle/M_PI << endl;
+    cout << "Sector Orientation: " << sectorOrientation << endl;
+    cout << "Sector Axis (P1/P2): " << p1 << " " << p2 << endl;
   }
 
   inline Loci::CPTR<geometry_type> sectorFunc::transform(rigid_transform Tv)  const {
@@ -606,6 +621,7 @@ class extrusionFunc : public geometry_type {
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;    
+    virtual void getInfo() const;
   };
 
 inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
@@ -623,7 +639,7 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
       vector3d<real_t> wC = loc[i] - p1;
       real_t wClen = dot(wC,V);
       
-      // 2. Establish the rest of the 3D coordinate frame
+      // Establish the rest of the 3D coordinate frame
       // We determine the plane normal from the first few vertices of the 3D polygon
       vector3d<real_t> x = polyVerts[1] - polyVerts[0];
       real_t elen = norm(x);
@@ -640,13 +656,13 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
       real_t opnlen = 1.0/max<real_t>(1e-30,pnlen);
       polyNorm *= opnlen;
       
-      // // Cross product of edges gives the raw normal of the polygon's plane (Local Z - Extrusion direction)
+      // Cross product of edges gives the raw normal of the polygon's plane (Local Z - Extrusion direction)
       vector3d<real_t> y = cross(polyNorm,x);
       real_t leny = norm(y);
       real_t oleny = 1.0/max<real_t>(1e-30,leny);
       y *= oleny;
 
-      // 3. Transform the 3D Polygon Vertices into this flat 2D frame (X=Lateral, Y=Axial)
+      // Transform the 3D Polygon Vertices into this flat 2D frame (X=Lateral, Y=Axial)
       std::vector<vector3d<real_t>> poly2d;
       poly2d.reserve(polyVerts.size());
       for (const auto& v3d : polyVerts) {
@@ -712,6 +728,16 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
         if (dist[i] < 0) inGeom[i] = true;
         if (dist[i] > 0) inGeom[i] = false;
     }
+  }
+
+  inline void extrusionFunc::getInfo() const {
+    cout << "Extrusion Geometric Definition " << endl;
+    cout << "Verticies: " << endl;
+    for (const auto& v3d : polyVerts) {
+        cout << v3d << endl;
+    }
+    cout << "Extrusion Percentage: " << extrusionPercentage << endl;
+    cout << "Extrusion Axis (P1/P2): " << p1 << " " << p2 << endl;
   }
 
   inline Loci::CPTR<geometry_type> extrusionFunc::transform(rigid_transform Tv)  const {
@@ -792,6 +818,7 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
+    virtual void getInfo() const;
   } ;
 
   /// Get distance field by projecting onto points, then edges, then triangular
@@ -852,6 +879,12 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
     }
   }
 
+  inline void hexFunc::getInfo() const {
+    cout << "Hex Geometric Definition " << endl;
+    cout << "Corners: " << endl;
+    for (int i = 0; i<8;i++) cout << corners[i] << endl;
+  }
+
   inline Loci::CPTR<geometry_type> hexFunc::transform(rigid_transform Tv) const {
     vector3d<real_t> ncorners[8] ;
     for(int i=0;i<8;++i)
@@ -877,6 +910,7 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
+    virtual void getInfo() const;
   } ;
 
   inline void sphereFunc::getDist(real_t dist[], vector3d<real_t> n[],
@@ -900,6 +934,12 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
         if (dist[i] < 0) inGeom[i] = true;
         if (dist[i] > 0) inGeom[i] = false;
     }
+  }
+
+  inline void sphereFunc::getInfo() const {
+    cout << "Sphere Geometric Definition " << endl;
+    cout << "Radius: " << radius << endl;
+    cout << "Center: " << center << endl;
   }
 
   inline Loci::CPTR<geometry_type> sphereFunc::transform(rigid_transform Tv)  const {
@@ -932,6 +972,7 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;
+    virtual void getInfo() const;
   } ;
 
   inline void boxFunc::getDist(real_t dist[], vector3d<real_t> n[],
@@ -989,6 +1030,12 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
     }
   }
 
+  inline void boxFunc::getInfo() const {
+    cout << "Box Geometric Definition " << endl;
+    cout << "P1: " << pmin << endl;
+    cout << "P2: " << pmax << endl;
+  }
+
   inline Loci::CPTR<geometry_type> boxFunc::transform(rigid_transform Tv) const {
     vector3d<real_t> ncorners[8] ;
     ncorners[0] = Tv.transform(vector3d<real_t>(pmin.x,pmin.y,pmax.z)) ;
@@ -1019,16 +1066,17 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
 
    /// Planar list geometry type specification
   class planelistFunc : public geometry_type {
-    std::vector<vector3d<real_t> > pts ;
-    std::vector<vector3d<real_t> > normals ;
+    vector<vector3d<real_t> > pts ;
+    vector<vector3d<real_t> > normals ;
   public:
-    planelistFunc(std::vector<vector3d<real_t> > &ps,
-                   std::vector<vector3d<real_t> > &ns) : pts(ps),normals(ns) {}
+    planelistFunc(vector<vector3d<real_t> > &ps,
+                   vector<vector3d<real_t> > &ns) : pts(ps),normals(ns) {}
     virtual void getDist(real_t dist[], vector3d<real_t> n[],
                          const vector3d<real_t> loc[], int sz) const ;
     virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const ;
     virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
     virtual void inGeometry(const vector3d<real_t> loc[], bool inGeom[],int sz) const;
+    virtual void getInfo() const;
   } ;
 
    inline void planelistFunc::getDist(real_t dist[], vector3d<real_t> n[],
@@ -1053,6 +1101,15 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
     {
         if (dist[i] < 0) inGeom[i] = true;
         if (dist[i] > 0) inGeom[i] = false;
+    }
+  }
+
+  inline void planelistFunc::getInfo() const {
+    cout << "Plane List Geometric Definition " << endl;
+    int sz = normals.size();
+    for (int i = 0; i<sz; i++) {
+        cout << "Vertex: " << pts[i] << endl;
+        cout << "Plane Normal: " << normals[i] << endl;
     }
   }
 
