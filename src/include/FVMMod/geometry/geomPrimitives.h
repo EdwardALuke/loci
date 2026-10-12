@@ -437,11 +437,6 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
     
     V *= oH;
 
-    // Partial angular wedge processing
-    real_t halfAngle = angle * 0.5;
-    real_t sinA = sin(halfAngle);
-    real_t cosA = cos(halfAngle);
-
     // Offset angle relative to orientation and percentage 
     // default position is at 0
     //real_t offset = -sector*angle;
@@ -557,6 +552,7 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
     {
         if (dist[i] < 0) inGeom[i] = true;
         if (dist[i] > 0) inGeom[i] = false;
+   }
   }
 
   inline void sectorFunc::getInfo() const {
