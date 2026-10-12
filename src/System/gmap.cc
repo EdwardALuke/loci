@@ -210,8 +210,8 @@ namespace Loci {
     
   
     
-    int *send_displs = new int[MPI_processes] ;
-    int *recv_displs = new int[MPI_processes] ;
+    std::vector<int> send_displs(MPI_processes) ;
+    std::vector<int> recv_displs(MPI_processes) ;
     send_displs[0] = 0 ;
     recv_displs[0] = 0 ;
     for(int i=1;i<np;++i){
@@ -220,17 +220,17 @@ namespace Loci {
     }
 
   
-    unsigned char* send_buffer = new unsigned char[tot_send_size] ;
+    std::vector<unsigned char> send_buffer(tot_send_size) ;
     int loc_pack = 0 ;
     for(int i = 0; i <  np; ++i)
-      pack(send_buffer, loc_pack, tot_send_size, dom_split[i]) ;
+      pack(send_buffer.data(), loc_pack, tot_send_size, dom_split[i]) ;
   
     // we now proceed to communicate the store contents
-    unsigned char* recv_buffer = new unsigned char[tot_recv_size] ;
-    MPI_Alltoallv(&send_buffer[0], send_counts.data(),
-                  &send_displs[0], MPI_PACKED,
-                  &recv_buffer[0], recv_counts.data(),
-                  &recv_displs[0], MPI_PACKED, comm) ;
+    std::vector<unsigned char> recv_buffer(tot_recv_size) ;
+    MPI_Alltoallv(send_buffer.data(), send_counts.data(),
+                  send_displs.data(), MPI_PACKED,
+                  recv_buffer.data(), recv_counts.data(),
+                  recv_displs.data(), MPI_PACKED, comm) ;
 
   
 
@@ -239,15 +239,11 @@ namespace Loci {
     // unpack
     loc_pack = 0 ;
     for(int i=0;i<np;++i) {
-      srp->unpack(recv_buffer, loc_pack, tot_recv_size) ;
+      srp->unpack(recv_buffer.data(), loc_pack, tot_recv_size) ;
     }
     srp->local_sort();
     ns.set_domain_space(domain_space);
     ns.set_image_space(image_space);
-    delete[] recv_displs ;
-    delete[] send_displs ;
-    delete[] send_buffer ;
-    delete[] recv_buffer ;
     return srp ;
   }
   //split domain first, then redistribute

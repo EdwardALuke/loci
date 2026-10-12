@@ -74,10 +74,10 @@ namespace Loci {
       size_recv += recv_sz[i] ;
     }
  
-    T *send_store = new T[size_send] ;
+    std::vector<T> send_store(size_send) ;
     recv_store.resize(size_recv) ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    std::vector<int> send_displacement(MPI_processes) ;
+    std::vector<int> recv_displacement(MPI_processes) ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
@@ -104,13 +104,9 @@ namespace Loci {
     }
  
     MPI_Datatype MPI_T_type = MPI_traits<T>::get_MPI_type() ;
-    MPI_Alltoallv(&send_store[0], send_sz.data(), send_displacement, MPI_T_type,
-		  recv_store.data(), recv_sz.data(), recv_displacement, MPI_T_type,
+    MPI_Alltoallv(send_store.data(), send_sz.data(), send_displacement.data(), MPI_T_type,
+		  recv_store.data(), recv_sz.data(), recv_displacement.data(), MPI_T_type,
 		  MPI_COMM_WORLD) ;
- 
-    delete[] recv_displacement ;
-    delete[] send_displacement ;
-    delete[] send_store ;
   }
 
 }

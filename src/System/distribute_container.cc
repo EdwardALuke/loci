@@ -182,10 +182,10 @@ namespace Loci {
       size_recv += recv_sz[i] ;
     }
 
-    int *send_store = new int[size_send] ;
-    int *recv_store = new int[size_recv] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    vector<int> send_store(size_send) ;
+    vector<int> recv_store(size_recv) ;
+    vector<int> send_displacement(MPI_processes) ;
+    vector<int> recv_displacement(MPI_processes) ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
@@ -210,8 +210,8 @@ namespace Loci {
       send_store[send_displacement[current_p]+offsets[current_p]++] = to ;
       send_store[send_displacement[current_p]+offsets[current_p]++] = from ;
     }
-    MPI_Alltoallv(send_store,send_sz.data(), send_displacement , MPI_INT,
-		  recv_store, recv_sz.data(), recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_store.data(),send_sz.data(), send_displacement.data() , MPI_INT,
+		  recv_store.data(), recv_sz.data(), recv_displacement.data(), MPI_INT,
 		  MPI_COMM_WORLD) ;  
 
     entitySet local_input_image = input_image ;
@@ -248,11 +248,6 @@ namespace Loci {
       WARN(sizes[i] != 0) ;
     } ENDFORALL ;
 #endif
-    
-    delete[] recv_displacement ;
-    delete[] send_displacement ;
-    delete[] recv_store ;
-    delete[] send_store ;
   }
 
   void distributed_inverseMap(dmultiMap &result,
@@ -292,10 +287,10 @@ namespace Loci {
       size_recv += recv_sz[i] ;
     }
 
-    int *send_store = new int[size_send] ;
-    int *recv_store = new int[size_recv] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    vector<int> send_store(size_send) ;
+    vector<int> recv_store(size_recv) ;
+    vector<int> send_displacement(MPI_processes) ;
+    vector<int> recv_displacement(MPI_processes) ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
@@ -320,8 +315,8 @@ namespace Loci {
       send_store[send_displacement[current_p]+offsets[current_p]++] = to ;
       send_store[send_displacement[current_p]+offsets[current_p]++] = from ;
     }
-    MPI_Alltoallv(send_store,send_sz.data(), send_displacement , MPI_INT,
-		  recv_store, recv_sz.data(), recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_store.data(),send_sz.data(), send_displacement.data() , MPI_INT,
+		  recv_store.data(), recv_sz.data(), recv_displacement.data(), MPI_INT,
 		  MPI_COMM_WORLD) ;  
 
     entitySet local_input_image = input_image ;
@@ -353,11 +348,6 @@ namespace Loci {
       WARN(sizes[i] != 0) ;
     } ENDFORALL ;
 #endif
-    
-    delete[] recv_displacement ;
-    delete[] send_displacement ;
-    delete[] recv_store ;
-    delete[] send_store ;
   }
  
   void distributed_inverseMap(dmultiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) {
