@@ -635,7 +635,7 @@ namespace Loci {
       // Read the data now ....
       //------------------------------------------------------------------------
       int num_intervals = user_eset.num_intervals();
-      interval *it = new interval[num_intervals];
+      std::vector<interval> it(num_intervals);
 
       for(int i=0;i< num_intervals;i++) it[i] = user_eset[i];
 
@@ -744,7 +744,7 @@ namespace Loci {
       //---------------------------------------------------------------------
       int num_intervals = user_eset.num_intervals();
 
-      interval *it = new interval[num_intervals];
+      std::vector<interval> it(num_intervals);
 
       for(int i=0;i< num_intervals;i++) it[i] = user_eset[i];
 
@@ -774,12 +774,12 @@ namespace Loci {
       for( int j = 0; j < vsize; j++)
       count[0] +=  subContainer[i][j];
       }
-      data = new typename data_schema_traits<T>::Converter_Base_Type[count[0]];
+      std::vector<typename data_schema_traits<T>::Converter_Base_Type> data(count[0]);
 
       foffset[0] = offset[it[k].first];
       H5Sselect_hyperslab(mDataspace, H5S_SELECT_SET, start_mem, stride, count, block);
       H5Sselect_hyperslab(vDataspace, H5S_SELECT_SET, foffset,   stride, count, block);
-      H5Dread(vDataset, vDatatype, mDataspace, vDataspace,H5P_DEFAULT, data);
+      H5Dread(vDataset, vDatatype, mDataspace, vDataspace,H5P_DEFAULT, data.data());
 
       indx = 0;
       int bucsize;
@@ -788,12 +788,10 @@ namespace Loci {
       for( int j = 0; j < size; j++) {
       typename data_schema_traits<T>::Converter_Type cvtr( attrib_data[i][j] );
       bucsize = subContainer[i][j];
-      cvtr.setState( data+indx, bucsize );
+      cvtr.setState( data.data()+indx, bucsize );
       indx += bucsize ;
       }
       }
-
-      delete[] data;
       }
     */
   }
@@ -896,7 +894,7 @@ namespace Loci {
       entitySet :: const_iterator ci;
       int   bucketID;
 
-      int *vbucket = new int[size*eset.size()];
+      std::vector<int> vbucket(size*eset.size());
 
       size_t  arraySize= 0;
       int     stateSize, maxStateSize = 0;
@@ -925,9 +923,7 @@ namespace Loci {
       // Collect state data from each object and put into 1D array
       //-----------------------------------------------------------------------
       typedef typename schema_traits::Converter_Base_Type dtype;
-      dtype *data ;
-
-      data =  new dtype[arraySize];
+      std::vector<dtype> data(arraySize);
 
       size_t indx = 0;
       for( ci = eset.begin(); ci != eset.end(); ++ci) {
@@ -936,7 +932,7 @@ namespace Loci {
       newVec = iter->second;
       for( int ivec = 0; ivec < size; ivec++){
       typename schema_traits::Converter_Type cvtr( newVec[ivec] );
-      cvtr.getState( data+indx, stateSize);
+      cvtr.getState( data.data()+indx, stateSize);
       indx +=stateSize ;
 
       }
@@ -954,7 +950,7 @@ namespace Loci {
       vDataspace = H5Screate_simple(rank, &dimension, NULL);
       vDataset   = H5Dcreate(group_id, "VariableData", vDatatype, vDataspace,
       H5P_DEFAULT);
-      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
 
       //-----------------------------------------------------------------------
       // Clean up
@@ -963,19 +959,16 @@ namespace Loci {
       H5Sclose( vDataspace);
       H5Tclose( vDatatype );
 
-      delete [] data;
-
       dimension =  size*eset.size();
 
       vDataspace = H5Screate_simple(rank, &dimension, NULL);
       vDatatype  = H5Tcopy( H5T_NATIVE_INT);
       vDataset   = H5Dcreate(group_id, "SubContainerSize", vDatatype, vDataspace, H5P_DEFAULT);
-      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, vbucket);
+      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, vbucket.data());
 
       H5Dclose( vDataset  );
       H5Sclose( vDataspace);
       H5Tclose( vDatatype );
-      delete [] vbucket;
     */
   }
   template <class T>  

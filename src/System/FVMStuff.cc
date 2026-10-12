@@ -490,30 +490,25 @@ namespace Loci{
     int sz = input.size()+1 ;
     int p = 1 ;
     MPI_Comm_size(comm,&p) ;
-    int *sizes = new int[p] ;
-    MPI_Allgather(&sz,1,MPI_INT,sizes,1,MPI_INT,comm) ;
+    std::vector<int> sizes(p) ;
+    MPI_Allgather(&sz,1,MPI_INT,sizes.data(),1,MPI_INT,comm) ;
     int tot = 0 ;
     for(int i=0;i<p;++i) {
       tot += sizes[i] ;
     }
-    char *buf = new char[tot] ;
-    int *displ = new int[p] ;
+    std::vector<char> buf(tot) ;
+    std::vector<int> displ(p) ;
     displ[0] = 0 ;
     for(int i=1;i<p;++i) {
       displ[i] = displ[i-1]+sizes[i-1] ;
     }
-    char *ibuf = new char[sz] ;
-    strcpy(ibuf,input.c_str()) ;
-    MPI_Allgatherv(ibuf, sz, MPI_CHAR, buf, sizes, displ, MPI_CHAR, comm) ;
+    std::vector<char> ibuf(sz) ;
+    strcpy(ibuf.data(),input.c_str()) ;
+    MPI_Allgatherv(ibuf.data(), sz, MPI_CHAR, buf.data(), sizes.data(), displ.data(), MPI_CHAR, comm) ;
     string retval ;
     for(int i=0;i<p;++i) {
       retval += string(&(buf[displ[i]])) ;
     }
-
-    delete[] sizes ;
-    delete[] buf ;
-    delete[] ibuf ;
-    delete[] displ ;
 
     return retval ;
   }

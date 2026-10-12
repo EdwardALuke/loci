@@ -360,10 +360,10 @@ namespace Loci {
   MapVecRepI<M>::expand(entitySet &out_of_dom,
                         std::vector<entitySet> &ptn) {
     cerr<<"start mapVec expand" << endl;
-    int *recv_count = new int[MPI_processes] ;
-    int *send_count = new int[MPI_processes] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    std::vector<int> recv_count(MPI_processes) ;
+    std::vector<int> send_count(MPI_processes) ;
+    std::vector<int> send_displacement(MPI_processes) ;
+    std::vector<int> recv_displacement(MPI_processes) ;
     entitySet::const_iterator ei ;
     std::vector<int>::const_iterator vi ;
     int size_send = 0 ;
@@ -376,14 +376,14 @@ namespace Loci {
       send_count[i] = copy[i].size() ;
       size_send += send_count[i] ; 
     }
-    int *send_buf = new int[size_send] ;
-    MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
+    std::vector<int> send_buf(size_send) ;
+    MPI_Alltoall(send_count.data(), 1, MPI_INT, recv_count.data(), 1, MPI_INT,
 		 MPI_COMM_WORLD) ; 
     size_send = 0 ;
     for(int i = 0; i < MPI_processes; ++i)
       size_send += recv_count[i] ;
     
-    int *recv_buf = new int[size_send] ;
+    std::vector<int> recv_buf(size_send) ;
     size_send = 0 ;
     for(int i = 0; i < MPI_processes; ++i)
       for(vi = copy[i].begin(); vi != copy[i].end(); ++vi) {
@@ -396,8 +396,8 @@ namespace Loci {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
-    MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
-		  recv_buf, recv_count, recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_buf.data(),send_count.data(), send_displacement.data() , MPI_INT,
+		  recv_buf.data(), recv_count.data(), recv_displacement.data(), MPI_INT,
 		  MPI_COMM_WORLD) ;  
     for(int i = 0; i < MPI_processes; ++i) {
       for(int j = recv_displacement[i]; j <
@@ -421,13 +421,13 @@ namespace Loci {
     size_send = 0 ;
     for(int i = 0; i < MPI_processes; ++i)
       size_send += send_count[i] ;
-    int *send_map = new int[size_send] ;
-    MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
+    std::vector<int> send_map(size_send) ;
+    MPI_Alltoall(send_count.data(), 1, MPI_INT, recv_count.data(), 1, MPI_INT,
 		 MPI_COMM_WORLD) ; 
     size_send = 0 ;
     for(int i = 0; i < MPI_processes; ++i)
       size_send += recv_count[i] ;
-    int *recv_map = new int[size_send] ;
+    std::vector<int> recv_map(size_send) ;
     size_send = 0 ;
     for(int i = 0; i < MPI_processes; ++i) 
       for(entitySet::const_iterator miv = map_entities[i].begin(); miv != map_entities[i].end(); ++miv) {
@@ -444,8 +444,8 @@ namespace Loci {
       send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
       recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
     }
-    MPI_Alltoallv(send_map,send_count, send_displacement , MPI_INT,
-		  recv_map, recv_count, recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_map.data(),send_count.data(), send_displacement.data() , MPI_INT,
+		  recv_map.data(), recv_count.data(), recv_displacement.data(), MPI_INT,
 		  MPI_COMM_WORLD) ;  
     HASH_MAP(int, std::vector<int> ) hm ;
    
@@ -479,14 +479,6 @@ namespace Loci {
     }
 
     storeRepP sp = new_map.Rep() ;
-    delete [] send_buf ;
-    delete [] recv_buf ;
-    delete [] send_map ;
-    delete [] recv_map ;
-    delete [] recv_count ;
-    delete [] send_count ;
-    delete [] send_displacement ;
-    delete [] recv_displacement ;
      cerr<<"end mapVec expand" << endl;
     return sp ;
   }//end of expand
@@ -622,11 +614,10 @@ namespace Loci {
     // Read the data now ....
     //---------------------------------------------------------------------------
     int num_intervals = eset.num_intervals();
-    interval *it = new interval[num_intervals];
+    std::vector<interval> it(num_intervals);
 
     for(int i=0;i< num_intervals;i++) it[i] = eset[i];
 
-    int   *data;
     dimension[0] = size*eset.size();
 
     hid_t vDatatype  = H5T_NATIVE_INT;
@@ -645,20 +636,19 @@ namespace Loci {
       for( int i = it[k].first; i <= it[k].second; i++)
         count[0] +=  size;
 
-      data = new int[count[0]];
+      std::vector<int> data(count[0]);
 
       foffset[0] = offset[it[k].first];
 
       H5Sselect_hyperslab(mDataspace, H5S_SELECT_SET, start,  stride, count, block);
       H5Sselect_hyperslab(vDataspace, H5S_SELECT_SET, foffset,stride, count, block);
-      H5Dread( vDataset, vDatatype, mDataspace, vDataspace, H5P_DEFAULT, data);
+      H5Dread( vDataset, vDatatype, mDataspace, vDataspace, H5P_DEFAULT, data.data());
  
       indx = 0;
       for( int i = it[k].first; i <= it[k].second; i++) {
         for( int ivec = 0; ivec < size; ivec++)
           base_ptr[i][ivec] = data[indx++];
       }
-      delete[] data;
     }
 
     H5Dclose( vDataset  );

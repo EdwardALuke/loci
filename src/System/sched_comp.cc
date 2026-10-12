@@ -646,8 +646,8 @@ namespace Loci {
     
       map<variable, double> var_info;
       int num_vars = all_vars.size();
-      double* local_sizes = new double[num_vars];
-      double* global_sizes = new double[num_vars];
+      vector<double> local_sizes(num_vars);
+      vector<double> global_sizes(num_vars);
       
       //collect the info
       int id = 0;
@@ -659,8 +659,8 @@ namespace Loci {
       }
       
       for(id = 0; id < num_vars; id++)global_sizes[id] = 0;
-       MPI_Allreduce(local_sizes,
-                     global_sizes,
+       MPI_Allreduce(local_sizes.data(),
+                     global_sizes.data(),
                      num_vars, MPI_DOUBLE,
                      MPI_MAX,MPI_COMM_WORLD) ;
        id = 0;
@@ -668,8 +668,6 @@ namespace Loci {
              mi=all_vars.begin();mi!=all_vars.end();++mi) {
          var_info[*mi]= global_sizes[id++];
        }
-       delete [] local_sizes;
-       delete [] global_sizes;
        
        SchedClearVisitor scv;
        top_down_visit(scv) ;

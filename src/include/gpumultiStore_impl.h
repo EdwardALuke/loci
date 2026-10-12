@@ -692,10 +692,10 @@ namespace Loci {
       DatatypeP dp = qrep->getType() ;
       hid_t datatype = dp->get_hdf5_type() ;
       hid_t memspace = H5Screate_simple(rank, &dimension, NULL) ;
-      T* tmp_array = new T[dimension] ;
+      std::vector<T> tmp_array(dimension) ;
       size_t tmp = 0 ;
       hid_t err = H5Dread(dataset, datatype, memspace, dataspace,
-                          H5P_DEFAULT, tmp_array) ;
+                          H5P_DEFAULT, tmp_array.data()) ;
       if(err < 0) {
         cerr << "H5Dread() failed" << endl ;
       }
@@ -707,7 +707,6 @@ namespace Loci {
         }
       H5Sclose(memspace) ;
       H5Tclose(datatype) ;
-      delete [] tmp_array ;
     }
   }
 
@@ -729,9 +728,9 @@ namespace Loci {
       hid_t memspace = H5Screate_simple(rank, &dimension, NULL) ;
       std::vector<int> vint = fi.second_level ;
       typedef typename schema_traits::Converter_Base_Type dtype ;
-      dtype* tmp_array = new dtype[dimension] ;
+      std::vector<dtype> tmp_array(dimension) ;
       hid_t err = H5Dread(dataset, datatype, memspace, dataspace,
-                          H5P_DEFAULT, tmp_array) ;
+                          H5P_DEFAULT, tmp_array.data()) ;
       if(err < 0) {
         cerr << "H5Dread() failed" << endl ;
       }
@@ -743,7 +742,7 @@ namespace Loci {
         for(int ivec = 0; ivec < (fi.first_level)[loc]; ivec++) {
           typename data_schema_traits<T>::Converter_Type cvtr(base_ptr[*si][ivec]) ;
           bucsize = vint[indx++] ;
-          cvtr.setState(tmp_array+tmp, bucsize) ;
+          cvtr.setState(tmp_array.data()+tmp, bucsize) ;
           tmp += bucsize ;
         }
         loc++ ;
@@ -751,7 +750,6 @@ namespace Loci {
 
       H5Sclose(memspace) ;
       H5Tclose(datatype) ;
-      delete [] tmp_array ;
     }
   }
 
@@ -784,7 +782,7 @@ namespace Loci {
       DatatypeP dp = qrep->getType() ;
       hid_t datatype = dp->get_hdf5_type() ;
       hid_t memspace = H5Screate_simple(rank, &dimension, NULL) ;
-      T* tmp_array = new T[dimension] ;
+      std::vector<T> tmp_array(dimension) ;
       size_t tmp = 0 ;
       int newsize = 0 ;
       for(entitySet::const_iterator si = eset.begin(); si != eset.end(); ++si) {
@@ -793,10 +791,9 @@ namespace Loci {
           tmp_array[tmp++] = base_ptr[*si][ivec] ;
         }
       }
-      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, tmp_array) ;
+      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, tmp_array.data()) ;
       H5Sclose(memspace) ;
       H5Tclose(datatype) ;
-      delete [] tmp_array ;
     }
   }
 
@@ -817,7 +814,7 @@ namespace Loci {
       hid_t datatype = dp->get_hdf5_type() ;
       hid_t memspace = H5Screate_simple(rank, &dimension, NULL) ;
       typedef typename schema_traits::Converter_Base_Type dtype ;
-      dtype* tmp_array = new dtype[dimension] ;
+      std::vector<dtype> tmp_array(dimension) ;
       size_t tmp = 0 ;
       int stateSize = 0 ;
       int newsize = 0 ;
@@ -825,14 +822,13 @@ namespace Loci {
         newsize = end(*si) - begin(*si) ;
         for(int ivec = 0; ivec < newsize; ivec++) {
           typename schema_traits::Converter_Type cvtr(base_ptr[*si][ivec]) ;
-          cvtr.getState(tmp_array+tmp, stateSize) ;
+          cvtr.getState(tmp_array.data()+tmp, stateSize) ;
           tmp += stateSize ;
         }
       }
-      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, tmp_array) ;
+      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, tmp_array.data()) ;
       H5Sclose(memspace) ;
       H5Tclose(datatype) ;
-      delete [] tmp_array ;
     }
   }
 

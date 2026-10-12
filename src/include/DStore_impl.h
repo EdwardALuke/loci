@@ -243,9 +243,9 @@ namespace Loci {
     for(int i=0;i<np;++i)
       tot_send_size += send_counts[i] ;
 
-    unsigned char* send_buffer = new unsigned char[tot_send_size] ;
-    unsigned char** send_ptr = new unsigned char*[np] ;
-    send_ptr[0] = send_buffer ;
+    std::vector<unsigned char> send_buffer(tot_send_size) ;
+    std::vector<unsigned char*> send_ptr(np) ;
+    send_ptr[0] = send_buffer.data() ;
     for(int i=1;i<np;++i)
       send_ptr[i] = send_ptr[i-1] + send_counts[i-1] ;
 
@@ -253,7 +253,6 @@ namespace Loci {
       int position = 0 ;
       pack(send_ptr[i], position, send_counts[i], dom_split[i]) ;
     }
-    delete[] send_ptr ;
 
     ///////////////////////////////////////////////////////////////
     // compute the receive sequence for proper unpacking
@@ -273,13 +272,11 @@ namespace Loci {
     for(int i=0;i<np;++i)
       tot_recv_size += recv_counts[i] ;
 
-    unsigned char* recv_buffer = new unsigned char[tot_recv_size] ;
-    MPI_Alltoallv(&send_buffer[0], send_counts.data(),
+    std::vector<unsigned char> recv_buffer(tot_recv_size) ;
+    MPI_Alltoallv(send_buffer.data(), send_counts.data(),
                   send_displs.data(), MPI_PACKED,
-                  &recv_buffer[0], recv_counts.data(),
+                  recv_buffer.data(), recv_counts.data(),
                   recv_displs.data(), MPI_PACKED, comm) ;
-
-    delete[] send_buffer ;
 
     dstore<T> ns ;
     entitySet new_domain ;
@@ -291,8 +288,8 @@ namespace Loci {
     ns.allocate(new_domain+old_dom) ;
     storeRepP srp = ns.Rep() ;
 
-    unsigned char** recv_ptr = new unsigned char*[np] ;
-    recv_ptr[0] = recv_buffer ;
+    std::vector<unsigned char*> recv_ptr(np) ;
+    recv_ptr[0] = recv_buffer.data() ;
     for(int i=1;i<np;++i)
       recv_ptr[i] = recv_ptr[i-1] + recv_counts[i-1] ;
 
@@ -301,8 +298,6 @@ namespace Loci {
       int position = 0 ;
       srp->unpack(recv_ptr[i], position, recv_counts[i], unpack_seq[i]) ;
     }
-    delete[] recv_ptr ;
-    delete[] recv_buffer ;
 
     // copy old_dom if any
     for(entitySet::const_iterator ei=old_dom.begin();
@@ -652,7 +647,7 @@ namespace Loci {
       typedef data_schema_traits<T> traits_type;
 
       int num_intervals = user_eset.num_intervals();
-      interval *it = new interval[num_intervals];
+      std::vector<interval> it(num_intervals);
 
       for(int i=0;i< num_intervals;i++) it[i] = user_eset[i];
 
@@ -771,7 +766,7 @@ namespace Loci {
       return;
       }
 
-      interval *it = new interval[num_intervals];
+      std::vector<interval> it(num_intervals);
 
       for(int i=0;i< num_intervals;i++) it[i] = usr_eset[i];
 
@@ -941,13 +936,13 @@ namespace Loci {
       //-----------------------------------------------------------------------------
       typedef typename schema_traits::Converter_Base_Type dtype;
 
-      dtype *data = new dtype[arraySize];
+      std::vector<dtype> data(arraySize);
 
       size_t indx = 0;
       for( ci = eset.begin(); ci != eset.end(); ++ci) {
       Obj = attrib_data.elem(*ci) ;
       typename schema_traits::Converter_Type cvtr( Obj );
-      cvtr.getState( data+indx, stateSize);
+      cvtr.getState( data.data()+indx, stateSize);
       indx +=stateSize ;
       }
 
@@ -962,13 +957,11 @@ namespace Loci {
       vDataspace = H5Screate_simple(rank, &dimension, NULL);
       vDataset   = H5Dcreate(group_id, "VariableData", vDatatype,
       vDataspace, H5P_DEFAULT);
-      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+      H5Dwrite(vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
 
       H5Dclose( vDataset  );
       H5Sclose( vDataspace);
       H5Tclose( vDatatype );
-
-      delete [] data;
 
       //--------------------------------------------------------------------
       // Write Container 

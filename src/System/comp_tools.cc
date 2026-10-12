@@ -924,14 +924,15 @@ namespace Loci {
     if(facts.isDistributed()) {
       fact_db::distribute_infoP d = facts.get_distribute_info() ;
       const int sesz = send_entities.size() ;
-      int **send_buffer = 0 ;
-      int **recv_buffer = 0 ;
-      int *recv_size = 0 ;
+      vector<int*> recv_buffer ;
+      vector<int> recv_size ;
+      vector<int> recv_data ;
       if(d->xmit.size() > 0) {
-        recv_buffer = new int*[d->xmit.size()] ;
-        recv_size = new int[d->xmit.size()] ;
+        recv_buffer.resize(d->xmit.size()) ;
+        recv_size.resize(d->xmit.size()) ;
 
-        recv_buffer[0] = new int[2*d->xmit_total_size*sesz+sesz*d->xmit.size()] ;
+        recv_data.resize(2*d->xmit_total_size*sesz+sesz*d->xmit.size()) ;
+        recv_buffer[0] = recv_data.data() ;
         recv_size[0] = 2*d->xmit[0].size*sesz + sesz ;
 
         for(size_t i=1;i<d->xmit.size();++i) {
@@ -940,9 +941,12 @@ namespace Loci {
         }
       }
 
+      vector<int*> send_buffer ;
+      vector<int> send_data ;
       if(d->copy.size() > 0 ) {
-        send_buffer = new int*[d->copy.size()] ;
-        send_buffer[0] = new int[2*d->copy_total_size*sesz+sesz*d->copy.size()] ;
+        send_buffer.resize(d->copy.size()) ;
+        send_data.resize(2*d->copy_total_size*sesz+sesz*d->copy.size()) ;
+        send_buffer[0] = send_data.data() ;
         for(size_t i=1;i<d->copy.size();++i)
           send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size*sesz+sesz ;
       }
@@ -952,8 +956,8 @@ namespace Loci {
       store<unsigned char> key_domain ;
       key_domain = d->key_domain.Rep() ;
 
-      MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
-      MPI_Status *status = new MPI_Status[d->xmit.size()] ;
+      vector<MPI_Request> recv_request(d->xmit.size()) ;
+      vector<MPI_Status> status(d->xmit.size()) ;
 
       for(size_t i=0;i<d->xmit.size();++i) {
 	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 2,
@@ -987,7 +991,7 @@ namespace Loci {
 #ifdef DEBUG
 	int err =
 #endif
-          MPI_Waitall(d->xmit.size(), recv_request, status) ;
+          MPI_Waitall(d->xmit.size(), recv_request.data(), status.data()) ;
         FATAL(err != MPI_SUCCESS) ;
       }
 
@@ -1016,17 +1020,6 @@ namespace Loci {
       }
 
 
-      if(d->xmit.size() > 0) {
-        delete [] recv_size ;
-        delete [] recv_buffer[0] ;
-        delete [] recv_buffer ;
-      }
-      if(d->copy.size() > 0) {
-        delete [] send_buffer[0] ;
-        delete [] send_buffer ;
-      }
-      delete [] recv_request ;
-      delete [] status ;
 
     }
     return plist ;
@@ -1258,15 +1251,16 @@ namespace Loci {
     if(facts.isDistributed()) {
       fact_db::distribute_infoP d = facts.get_distribute_info() ;
 
-      int **send_buffer = 0 ;
-      int **recv_buffer = 0;
-      int *recv_size = 0 ;
+      vector<int*> recv_buffer ;
+      vector<int> recv_size ;
+      vector<int> recv_data ;
 
       if(d->xmit.size() > 0) {
-        recv_buffer = new int*[d->xmit.size()] ;
-        recv_size = new int[d->xmit.size()] ;
+        recv_buffer.resize(d->xmit.size()) ;
+        recv_size.resize(d->xmit.size()) ;
 
-        recv_buffer[0] = new int[2*d->xmit_total_size] ;
+        recv_data.resize(2*d->xmit_total_size) ;
+        recv_buffer[0] = recv_data.data() ;
         recv_size[0] = 2*d->xmit[0].size ;
 
         for(size_t i=1;i<d->xmit.size();++i) {
@@ -1275,9 +1269,12 @@ namespace Loci {
         }
       }
 
+      vector<int*> send_buffer ;
+      vector<int> send_data ;
       if(d->copy.size() > 0 ) {
-        send_buffer = new int*[d->copy.size()] ;
-        send_buffer[0] = new int[2*d->copy_total_size] ;
+        send_buffer.resize(d->copy.size()) ;
+        send_data.resize(2*d->copy_total_size) ;
+        send_buffer[0] = send_data.data() ;
         for(size_t i=1;i<d->copy.size();++i)
           send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size ;
       }
@@ -1286,8 +1283,8 @@ namespace Loci {
       store<unsigned char> key_domain ;
       key_domain = d->key_domain.Rep() ;
 
-      MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
-      MPI_Status *status = new MPI_Status[d->xmit.size()] ;
+      vector<MPI_Request> recv_request(d->xmit.size()) ;
+      vector<MPI_Status> status(d->xmit.size()) ;
 
       for(size_t i=0;i<d->xmit.size();++i) {
 	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 3,
@@ -1317,7 +1314,7 @@ namespace Loci {
 #ifdef DEBUG
 	int err =
 #endif
-          MPI_Waitall(d->xmit.size(), recv_request, status) ;
+          MPI_Waitall(d->xmit.size(), recv_request.data(), status.data()) ;
         FATAL(err != MPI_SUCCESS) ;
       }
 
@@ -1336,18 +1333,6 @@ namespace Loci {
         ci.send_set = temp ;
         clist.push_back(ci) ;
       }
-
-      if(d->xmit.size() > 0) {
-        delete [] recv_size ;
-        delete [] recv_buffer[0] ;
-        delete [] recv_buffer ;
-      }
-      if(d->copy.size() > 0) {
-        delete [] send_buffer[0] ;
-        delete [] send_buffer ;
-      }
-      delete [] recv_request ;
-      delete [] status ;
 
     }
     return re ;
@@ -1836,8 +1821,8 @@ namespace Loci {
     std::vector<int> send_index ;
     std::vector<int> recv_index ;
     int total_size = 0 ;
-    MPI_Request *re_request = 0 ;
-    MPI_Status *re_status = 0 ;
+    vector<MPI_Request> re_request ;
+    vector<MPI_Status> re_status ;
     for(int i=0;i<nrecv;++i) {
       r_size[i] = maxr_size[i] ;
       total_size += maxr_size[i] ;
@@ -1965,18 +1950,22 @@ namespace Loci {
     rerecv_size = rerecv_procs.size() ;
     resend_size = resend_procs.size() ;
     if(rerecv_size > 0) {
-      re_request =  new MPI_Request[rerecv_size] ;
-      re_status =  new MPI_Status[rerecv_size] ;
+      re_request.resize(rerecv_size) ;
+      re_status.resize(rerecv_size) ;
     }
+    vector<vector<unsigned char>> rerecv_bufs(rerecv_size) ;
     for(int i = 0; i < rerecv_size; i++) {
       int proc = recv_info[recv_index[i]].first ;
-      recv_ptr[recv_index[i]] = new unsigned char[maxr_size[recv_index[i]]] ;
+      rerecv_bufs[i].resize(maxr_size[recv_index[i]]) ;
+      recv_ptr[recv_index[i]] = rerecv_bufs[i].data() ;
       MPI_Irecv(recv_ptr[recv_index[i]], maxr_size[recv_index[i]], MPI_PACKED, proc, 2, MPI_COMM_WORLD, &re_request[i]) ;
     }
 
+    vector<vector<unsigned char>> resend_bufs(resend_size) ;
     for(int i=0;i<resend_size;++i) {
       int loc_pack = 0 ;
-      send_ptr[send_index[i]] = new unsigned char[maxs_size[send_index[i]]] ;
+      resend_bufs[i].resize(maxs_size[send_index[i]]) ;
+      send_ptr[send_index[i]] = resend_bufs[i].data() ;
       for(size_t j=0;j<send_info[send_index[i]].second.size();++j) {
 	storeRepP sp = send_vars[send_index[i]][j] ; //facts.get_variable(send_info[send_index[i]].second[j].v) ;
 	sp->pack(send_ptr[send_index[i]], loc_pack,maxs_size[send_index[i]],send_info[send_index[i]].second[j].set);
@@ -1986,13 +1975,12 @@ namespace Loci {
     for(int i=0;i<resend_size;++i) {
       int proc = send_info[send_index[i]].first ;
       MPI_Send(send_ptr[send_index[i]],maxs_size[send_index[i]],MPI_PACKED,proc,2,MPI_COMM_WORLD) ;
-      delete [] send_ptr[send_index[i]] ;
     }
     if(rerecv_size > 0) {
 #ifdef DEBUG
       int err =
 #endif
-        MPI_Waitall(rerecv_size, re_request, re_status) ;
+        MPI_Waitall(rerecv_size, re_request.data(), re_status.data()) ;
       FATAL(err != MPI_SUCCESS) ;
     }
     for(int i=0;i<rerecv_size;++i) {
@@ -2003,11 +1991,6 @@ namespace Loci {
 	sp->unpack(recv_ptr[recv_index[i]], loc_unpack, maxr_size[recv_index[i]],
 		   recv_info[recv_index[i]].second[j].seq) ;
       }
-      delete [] recv_ptr[recv_index[i]] ;
-    }
-    if(rerecv_size > 0) {
-      delete [] re_status ;
-      delete [] re_request ;
     }
 
     double tt = s.stop() ;
@@ -2118,7 +2101,7 @@ namespace Loci {
     key_domain = d->key_domain.Rep() ;
 
     const int nrecv = recv_info.size() ;
-    int *r_size = new int[nrecv] ;
+    vector<int> r_size(nrecv) ;
     int total_size = 0 ;
     for(int i=0;i<nrecv;++i) {
       r_size[i] = 0 ;
@@ -2127,13 +2110,14 @@ namespace Loci {
       }
       total_size += r_size[i] ;
     }
-    int  **recv_ptr = new int*[max(nrecv,1)] ;
-    recv_ptr[0] = new int[total_size] ;
+    vector<int*> recv_ptr(max(nrecv,1)) ;
+    vector<int> recv_ptr_data(total_size) ;
+    recv_ptr[0] = recv_ptr_data.data() ;
     for(int i=1;i<nrecv;++i)
       recv_ptr[i] = recv_ptr[i-1]+r_size[i-1] ;
 
     const int nsend = send_info.size() ;
-    int *s_size = new int[nsend] ;
+    vector<int> s_size(nsend) ;
     total_size = 0 ;
     for(int i=0;i<nsend;++i) {
       s_size[i] = 0 ;
@@ -2142,13 +2126,14 @@ namespace Loci {
       }
       total_size += s_size[i] ;
     }
-    int **send_ptr = new int*[max(nsend,1)] ;
-    send_ptr[0] = new int[total_size] ;
+    vector<int*> send_ptr(max(nsend,1)) ;
+    vector<int> send_ptr_data(total_size) ;
+    send_ptr[0] = send_ptr_data.data() ;
     for(int i=1;i<nsend;++i)
       send_ptr[i] = send_ptr[i-1]+s_size[i-1] ;
 
-    MPI_Request *request =  new MPI_Request[nrecv] ;
-    MPI_Status *status =  new MPI_Status[nrecv] ;
+    vector<MPI_Request> request(nrecv) ;
+    vector<MPI_Status> status(nrecv) ;
 
     for(int i=0;i<nrecv;++i) {
       int proc = recv_info[i].first ;
@@ -2186,7 +2171,7 @@ namespace Loci {
 #ifdef DEBUG
       int err =
 #endif
-        MPI_Waitall(nrecv, request, status) ;
+        MPI_Waitall(nrecv, request.data(), status.data()) ;
       FATAL(err != MPI_SUCCESS) ;
     }
 
@@ -2207,15 +2192,6 @@ namespace Loci {
       }
       WARN(loc_unpack != r_size[i]) ;
     }
-
-    delete [] status ;
-    delete [] request ;
-    delete [] send_ptr[0] ;
-    delete [] send_ptr ;
-    delete [] s_size ;
-    delete [] recv_ptr[0] ;
-    delete [] recv_ptr ;
-    delete [] r_size ;
 
     return clist ;
   }

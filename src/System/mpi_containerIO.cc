@@ -70,13 +70,12 @@ namespace Loci {
 
     //read in domain
     
-    int *data = new int[dimension];
-    MPI_CHECK(MPI_File_read(fh, data, dimension, MPI_INT, MPI_STATUS_IGNORE));
+    vector<int> data(dimension);
+    MPI_CHECK(MPI_File_read(fh, data.data(), dimension, MPI_INT, MPI_STATUS_IGNORE));
     eset = EMPTY;
     for(size_t i=0;i< dimension;i+=2){
       eset |= interval(data[i],data[i+1]);
     }
-    delete [] data;
   }
 
 
@@ -99,9 +98,9 @@ namespace Loci {
     if( num_intervals < 1) return;
     int  dimension = num_intervals*2; //size of 1D Array
       
-    interval *it = new interval[num_intervals];
+    vector<interval> it(num_intervals);
       
-    int *data = new int[num_intervals*2];      
+    vector<int> data(num_intervals*2);      
       
     for(int i=0;i<num_intervals;i++){
       it[i]       = eset[i];
@@ -109,10 +108,8 @@ namespace Loci {
       data[i*2+1] = it[i].second;
     }
     MPI_CHECK(MPI_File_write(fh,
-                             data, dimension, MPI_INT,
+                             data.data(), dimension, MPI_INT,
                              MPI_STATUS_IGNORE) );
-    delete [] data;
-    delete [] it;
   }
 
 }

@@ -547,10 +547,10 @@ namespace Loci {
       std::vector<entitySet> &ptn = facts.get_init_ptn(kd) ; 
       tmp_copy =  image[kd] - ptn[MPI_rank] ;
       
-      int *recv_count = new int[MPI_processes] ;
-      int *send_count = new int[MPI_processes] ;
-      int *send_displacement = new int[MPI_processes];
-      int *recv_displacement = new int[MPI_processes];
+      vector<int> recv_count(MPI_processes) ;
+      vector<int> send_count(MPI_processes) ;
+      vector<int> send_displacement(MPI_processes) ;
+      vector<int> recv_displacement(MPI_processes) ;
       int size_send = 0 ;
       for(int i = 0; i < MPI_processes; ++i) {
 	copy[i] = tmp_copy & ptn[i] ;
@@ -558,14 +558,14 @@ namespace Loci {
 	size_send += send_count[i] ;
       }
       
-      int *send_buf = new int[size_send] ;
-      MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
+      vector<int> send_buf(size_send) ;
+      MPI_Alltoall(send_count.data(), 1, MPI_INT, recv_count.data(), 1, MPI_INT,
 		   MPI_COMM_WORLD) ;
       size_send = 0 ;
       for(int i = 0; i < MPI_processes; ++i) {
 	size_send += recv_count[i] ;
       }
-      int *recv_buf = new int[size_send] ;
+      vector<int> recv_buf(size_send) ;
       size_send = 0 ;
       entitySet::const_iterator ei ;
       for(int i = 0; i < MPI_processes; ++i)
@@ -579,8 +579,8 @@ namespace Loci {
 	send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
 	recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
       }
-      MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
-		    recv_buf, recv_count, recv_displacement, MPI_INT,
+      MPI_Alltoallv(send_buf.data(),send_count.data(), send_displacement.data() , MPI_INT,
+		    recv_buf.data(), recv_count.data(), recv_displacement.data(), MPI_INT,
 		    MPI_COMM_WORLD) ;
       std::vector<entitySet> add(MPI_processes) ;
       for(int i = 0; i < MPI_processes; ++i) {
@@ -588,12 +588,6 @@ namespace Loci {
 	      recv_displacement[i]+recv_count[i]; ++j)
 	  send_clone[i] += recv_buf[j] ;
       }
-      delete [] recv_count ;
-      delete [] send_count ;
-      delete [] send_displacement ;
-      delete [] recv_displacement ;
-      delete [] send_buf ;
-      delete [] recv_buf ;
       copyv[kd] = copy ;
       send_clonev[kd] = send_clone ;
     }
@@ -1136,15 +1130,18 @@ namespace Loci {
     if(facts.isDistributed()) {
       fact_db::distribute_infoP d = facts.get_distribute_info() ;
 
-      int **send_buffer = 0 ;
-      int **recv_buffer = 0 ;
-      int *recv_size = 0 ;
+      vector<int*> send_buffer ;
+      vector<int*> recv_buffer ;
+      vector<int> recv_size ;
+      vector<int> recv_data ;
+      vector<int> send_data ;
 
       if(d->xmit.size() > 0) {
-        recv_buffer = new int*[d->xmit.size()] ;
-        recv_size = new int[d->xmit.size()] ;
+        recv_buffer.resize(d->xmit.size()) ;
+        recv_size.resize(d->xmit.size()) ;
 
-        recv_buffer[0] = new int[2*d->xmit_total_size] ;
+        recv_data.resize(2*d->xmit_total_size) ;
+        recv_buffer[0] = recv_data.data() ;
         recv_size[0] = 2*d->xmit[0].size ;
 
         for(size_t i=1;i<d->xmit.size();++i) {
@@ -1154,8 +1151,9 @@ namespace Loci {
       }
 
       if(d->copy.size() > 0 ) {
-        send_buffer = new int*[d->copy.size()] ;
-        send_buffer[0] = new int[2*d->copy_total_size] ;
+        send_buffer.resize(d->copy.size()) ;
+        send_data.resize(2*d->copy_total_size) ;
+        send_buffer[0] = send_data.data() ;
         for(size_t i=1;i<d->copy.size();++i)
           send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size ;
       }
@@ -1164,8 +1162,8 @@ namespace Loci {
       store<unsigned char> key_domain ;
       key_domain = d->key_domain.Rep() ;
 
-      MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
-      MPI_Status *status = new MPI_Status[d->xmit.size()] ;
+      vector<MPI_Request> recv_request(d->xmit.size()) ;
+      vector<MPI_Status> status(d->xmit.size()) ;
 
       for(size_t i=0;i<d->xmit.size();++i)
 	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
@@ -1191,7 +1189,7 @@ namespace Loci {
 #ifdef DEBUG
 	int err =
 #endif
-          MPI_Waitall(d->xmit.size(), recv_request, status) ;
+          MPI_Waitall(d->xmit.size(), recv_request.data(), status.data()) ;
 	FATAL(err != MPI_SUCCESS) ;
       }
 
@@ -1203,18 +1201,6 @@ namespace Loci {
           re[d->xmit[i].proc] += d->g2lv[kd][recv_buffer[i][j]] ;
 	}
       }
-
-      if(d->xmit.size() > 0) {
-        delete [] recv_size ;
-        delete [] recv_buffer[0] ;
-        delete [] recv_buffer ;
-      }
-      if(d->copy.size() > 0) {
-        delete [] send_buffer[0] ;
-        delete [] send_buffer ;
-      }
-      delete [] recv_request ;
-      delete [] status ;
 
     }
     return re ;
@@ -1228,15 +1214,18 @@ namespace Loci {
       fact_db::distribute_infoP d = facts.get_distribute_info() ;
 
       const int evsz = ev.size() ;
-      int **send_buffer = 0 ;
-      int **recv_buffer = 0 ;
-      int *recv_size = 0 ;
+      vector<int*> send_buffer ;
+      vector<int*> recv_buffer ;
+      vector<int> recv_size ;
+      vector<int> recv_data ;
+      vector<int> send_data ;
 
       if(d->xmit.size() > 0) {
-        recv_buffer = new int*[d->xmit.size()] ;
-        recv_size = new int[d->xmit.size()] ;
+        recv_buffer.resize(d->xmit.size()) ;
+        recv_size.resize(d->xmit.size()) ;
 
-        recv_buffer[0] = new int[2*d->xmit_total_size*evsz+evsz*d->xmit.size()] ;
+        recv_data.resize(2*d->xmit_total_size*evsz+evsz*d->xmit.size()) ;
+        recv_buffer[0] = recv_data.data() ;
         recv_size[0] = 2*d->xmit[0].size*evsz + evsz ;
 
         for(size_t i=1;i<d->xmit.size();++i) {
@@ -1246,8 +1235,9 @@ namespace Loci {
       }
 
       if(d->copy.size() > 0 ) {
-        send_buffer = new int*[d->copy.size()] ;
-        send_buffer[0] = new int[2*d->copy_total_size*evsz+evsz*d->copy.size()] ;
+        send_buffer.resize(d->copy.size()) ;
+        send_data.resize(2*d->copy_total_size*evsz+evsz*d->copy.size()) ;
+        send_buffer[0] = send_data.data() ;
         for(size_t i=1;i<d->copy.size();++i)
           send_buffer[i] = send_buffer[i-1]+2*d->copy[i-1].size*evsz+evsz ;
       }
@@ -1256,8 +1246,8 @@ namespace Loci {
       store<unsigned char> key_domain ;
       key_domain = d->key_domain.Rep() ;
 
-      MPI_Request *recv_request = new MPI_Request[d->xmit.size()] ;
-      MPI_Status *status = new MPI_Status[d->xmit.size()] ;
+      vector<MPI_Request> recv_request(d->xmit.size()) ;
+      vector<MPI_Status> status(d->xmit.size()) ;
 
       for(size_t i=0;i<d->xmit.size();++i)
 	MPI_Irecv(recv_buffer[i], recv_size[i], MPI_INT, d->xmit[i].proc, 1,
@@ -1283,7 +1273,7 @@ namespace Loci {
 #ifdef DEBUG
 	int err =
 #endif
-          MPI_Waitall(d->xmit.size(), recv_request, status) ;
+          MPI_Waitall(d->xmit.size(), recv_request.data(), status.data()) ;
       	FATAL(err != MPI_SUCCESS) ;
       }
       for(size_t i=0;i<d->xmit.size();++i) {
@@ -1299,18 +1289,6 @@ namespace Loci {
 	  }
         WARN(j!=recieved) ;
       }
-
-      if(d->xmit.size() > 0) {
-        delete [] recv_size ;
-        delete [] recv_buffer[0] ;
-        delete [] recv_buffer ;
-      }
-      if(d->copy.size() > 0) {
-        delete [] send_buffer[0] ;
-        delete [] send_buffer ;
-      }
-      delete [] recv_request ;
-      delete [] status ;
 
     }
     return re ;

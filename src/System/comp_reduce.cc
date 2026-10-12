@@ -704,8 +704,8 @@ namespace Loci {
     std::vector<int> send_index ;
     std::vector<int> recv_index ;
     int total_size = 0 ;
-    MPI_Request *re_request = 0;
-    MPI_Status *re_status = 0 ;
+    std::vector<MPI_Request> re_request ;
+    std::vector<MPI_Status> re_status ;
     for(int i=0;i<nrecv;++i) {
       r_size[i] = maxr_size[i] ;
       total_size += maxr_size[i] ;
@@ -813,8 +813,8 @@ namespace Loci {
     resend_size = resend_procs.size() ;
 
     if(rerecv_size > 0) {
-      re_request =  new MPI_Request[rerecv_size] ;
-      re_status =  new MPI_Status[rerecv_size] ;
+      re_request.resize(rerecv_size) ;
+      re_status.resize(rerecv_size) ;
     }
     for(int i = 0; i < rerecv_size; i++) {
       int proc = recv_info[recv_index[i]].first ;
@@ -841,7 +841,7 @@ namespace Loci {
 #ifdef DEBUG
       int err =
 #endif
-        MPI_Waitall(rerecv_size, re_request, re_status) ;
+        MPI_Waitall(rerecv_size, re_request.data(), re_status.data()) ;
       FATAL(err != MPI_SUCCESS) ;
     }
     for(int i=0;i<rerecv_size;++i) {
@@ -858,10 +858,6 @@ namespace Loci {
 	op->Join(recv_info[recv_index[i]].second[j].seq) ;
       }
       delete [] recv_ptr[recv_index[i]] ;
-    }
-    if(rerecv_size > 0) {
-      delete [] re_status ;
-      delete [] re_request ;
     }
     timer.addTime(s.stop(),1) ;
   }

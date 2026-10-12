@@ -195,9 +195,9 @@ namespace Loci {
     dataspace = H5Screate_simple(rank, &dimension, NULL);
     dataset   = H5Dcreate(group_id, "Interval Set", datatype, dataspace, H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT);
     if(prank == 0){ //only process 0 perform writing
-      interval *it = new interval[num_intervals];
+      vector<interval> it(num_intervals);
   
-      int *data = new int[num_intervals*2];      
+      vector<int> data(num_intervals*2);      
 
       for(int i=0;i<num_intervals;i++){
 	it[i]       = en[i];
@@ -206,11 +206,9 @@ namespace Loci {
       }
   
       //no xfer_plist here, must be independently, which is default
-      H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+      H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
    
 
-      delete [] data;
-      delete [] it;
     }
 
     H5Sclose(dataspace);
@@ -235,12 +233,12 @@ namespace Loci {
       dataspace  = H5Dget_space(dataset);
       H5Sget_simple_extent_dims (dataspace, &dimension, NULL);
 
-      int *data = new int[dimension];
+      vector<int> data(dimension);
         
       hid_t xfer_plist = H5P_DEFAULT;
      
       H5Dread( dataset, H5T_NATIVE_INT, H5S_ALL, dataspace,
-	       xfer_plist, data);
+	       xfer_plist, data.data());
 
    
       l_g.allocate(eset);
@@ -248,7 +246,7 @@ namespace Loci {
       for( ci = eset.begin(); ci != eset.end(); ++ci) 
 	l_g[*ci] = data[indx++];
 
-      delete [] data;
+
       if(xfer_plist != H5P_DEFAULT) H5Pclose(xfer_plist);
       H5Sclose(dataspace);
       H5Dclose(dataset);
@@ -273,17 +271,16 @@ namespace Loci {
       dataspace  = H5Dget_space(dataset);
       H5Sget_simple_extent_dims (dataspace, &dimension, NULL);
 
-      int *data = new int[dimension];
+      vector<int> data(dimension);
       hid_t xfer_plist = H5P_DEFAULT ;
       
       H5Dread( dataset, H5T_NATIVE_INT, H5S_ALL, dataspace,
-	       xfer_plist, data);
+	       xfer_plist, data.data());
 
       eset = EMPTY;
       for(size_t i=0;i< dimension;i+=2){
 	eset |= interval(data[i],data[i+1]);
       }
-      delete [] data;
       if(xfer_plist != H5P_DEFAULT)
 	H5Pclose(xfer_plist);
       H5Sclose(dataspace);
