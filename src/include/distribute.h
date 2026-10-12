@@ -454,7 +454,8 @@ namespace Loci {
 
       // wait for communication to finish
       std::vector<MPI_Status> status_list(cnt) ;
-      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      if(cnt > 0)
+        MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
 
       MPI_Type_free(&bytearray) ;
     }
@@ -547,7 +548,8 @@ namespace Loci {
 
       // otherwise wait for communication to finish
       std::vector<MPI_Status> status_list(cnt) ;
-      MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+      if(cnt > 0)
+        MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
       MPI_Type_free(&bytearray) ;
 
       // copy data from from recv buffer

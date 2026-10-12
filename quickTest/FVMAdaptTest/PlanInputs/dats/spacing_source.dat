@@ -1,0 +1,5 @@
+cells=253
+faces=888
+nodes=404
+convexity=pass
+volume.Main=64

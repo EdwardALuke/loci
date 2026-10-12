@@ -1071,5 +1071,59 @@ namespace Loci  {
                           vect3d(phi_c.z.x/bw.x,phi_c.z.y/bw.y,phi_c.z.z/bw.z));
   }
 
+  // MPGCOMMENT 07-16-2026 ---> periodic BCs
+  $type X store<real_t>;
+  $rule pointwise(cr->gradsIC(X)<-pmap->cl->gradsIC(X),
+                  pmap->ref->periodicTransform),
+    constraint(periodicFaces,cl->X) {
+    const rigid_transform &frame = $pmap->$ref->$periodicTransform;
+    $cr->$gradsIC(X) = frame.rotate_vec($pmap->$cl->$gradsIC(X));
+  }
+
+  $rule pointwise(cr->itgrads(X)<-pmap->cl->itgrads(X),
+                  pmap->ref->periodicTransform),
+    constraint(periodicFaces,cl->X) {
+    const rigid_transform &frame = $pmap->$ref->$periodicTransform;
+    $cr->$itgrads(X) = frame.rotate_vec($pmap->$cl->$itgrads(X));
+  }
+
+
+  $untype X;
+  $type X store<vector3d<real_t> >;
+  $rule pointwise(cr->gradv3dIC(X)<-pmap->cl->gradv3dIC(X),
+                  pmap->ref->periodicTransform),
+    constraint(periodicFaces,cl->X) {
+    const rigid_transform &frame = $pmap->$ref->$periodicTransform;
+    $cr->$gradv3dIC(X) = frame.rotate_tensor($pmap->$cl->$gradv3dIC(X));
+  }
+
+  $rule pointwise(cr->itgradv3d(X)<-pmap->cl->itgradv3d(X),
+                  pmap->ref->periodicTransform),
+    constraint(periodicFaces,cl->X) {
+    const rigid_transform &frame = $pmap->$ref->$periodicTransform;
+    $cr->$itgradv3d(X) = frame.rotate_tensor($pmap->$cl->$itgradv3d(X));
+  }
+
+  $untype X;
+  $type X storeVec<real_t>;
+  $rule pointwise(cr->gradvIC(X)<-pmap->cl->gradvIC(X),
+                  pmap->ref->periodicTransform),
+    constraint(periodicFaces,cl->X) {
+    const rigid_transform &frame = $pmap->$ref->$periodicTransform;
+    const int nv = $*gradvIC(X).vecSize();
+    for(int i=0;i<nv;++i) {
+      $cr->$gradvIC(X)[i] = frame.rotate_vec($pmap->$cl->$gradvIC(X)[i]);
+    }
+  }
+
+  $rule pointwise(cr->itgradv(X)<-pmap->cl->itgradv(X),
+                  pmap->ref->periodicTransform),
+    constraint(periodicFaces,cl->X) {
+    const rigid_transform &frame = $pmap->$ref->$periodicTransform;
+    const int nv = $*itgradv(X).vecSize();
+    for(int i=0;i<nv;++i) {
+      $cr->$itgradv(X)[i] = frame.rotate_vec($pmap->$cl->$itgradv(X)[i]);
+    }
+  }
 
 }

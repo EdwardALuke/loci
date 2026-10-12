@@ -1,0 +1,147 @@
+\definecolor{fvmadaptedge}{HTML}{8A7E7E}
+\definecolor{externalface}{HTML}{8FB9E8}
+\definecolor{faceblue}{HTML}{2F6F9F}
+\definecolor{quadlabel}{HTML}{1F5F96}
+\definecolor{nodefill}{HTML}{FFFFFF}
+\definecolor{accent}{HTML}{6A9C78}
+\usetikzlibrary{arrows.meta,calc,positioning}
+
+\tikzset{QuadFaceOrientation/.style={%
+  line join=round,
+  line cap=round,
+  outer/.style={draw=fvmadaptedge,line width=0.58mm},
+  hidden/.style={draw=fvmadaptedge!62,line width=0.42mm,loosely dotted},
+  facefill/.style={fill=externalface,fill opacity=0.23,draw=none},
+  selectedface/.style={fill=accent,fill opacity=0.26,draw=none},
+  faceoutline/.style={draw=accent!85!black,line width=0.70mm},
+  axis/.style={draw=fvmadaptedge!70,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}},
+  normalvector/.style={draw=faceblue!90!black,line width=0.48mm,-{Latex[length=2.4mm,width=1.7mm]}},
+  qarrow/.style={draw=faceblue!90!black,line width=0.45mm,-{Latex[length=2.1mm,width=1.5mm]}},
+  nodelabel/.style={circle,draw=fvmadaptedge,line width=0.28mm,fill=nodefill,inner sep=1.2pt,font=\scriptsize,text=fvmadaptedge},
+  quadnodelabel/.style={circle,draw=faceblue!85!black,line width=0.28mm,fill=nodefill,inner sep=1.6pt,font=\scriptsize\bfseries,text=quadlabel},
+  hexedgelabel/.style={font=\scriptsize\bfseries,text=fvmadaptedge,fill=white,fill opacity=0.90,text opacity=1,inner sep=1.0pt,rounded corners=0.8pt},
+  quadedgelabel/.style={font=\scriptsize\bfseries,text=quadlabel,fill=white,fill opacity=0.90,text opacity=1,inner sep=1.0pt,rounded corners=0.8pt},
+  axislabel/.style={font=\normalsize,text=fvmadaptedge},
+  normallabel/.style={align=center,font=\scriptsize\bfseries,text=accent!70!black,fill=white,fill opacity=0.82,text opacity=1,inner sep=1.2pt,rounded corners=0.8pt}
+}}
+
+\newcommand{\DrawReferenceHex}{%
+  % HexCell local node coordinates. The cell is nudged slightly in +xi so
+  % the eta axis label and node 1 label have visual breathing room.
+  \coordinate (H0) at (0.18,0,0);
+  \coordinate (H1) at (0.18,0,1);
+  \coordinate (H2) at (0.18,1,0);
+  \coordinate (H3) at (0.18,1,1);
+  \coordinate (H4) at (1.18,0,0);
+  \coordinate (H5) at (1.18,0,1);
+  \coordinate (H6) at (1.18,1,0);
+  \coordinate (H7) at (1.18,1,1);
+
+  \coordinate (Oaxis) at (-0.95,-0.42,-0.20);
+  \draw[axis] (Oaxis) -- (1.35,-0.42,-0.20)
+    node[axislabel,below right] {$\xi$};
+  \draw[axis] (Oaxis) -- (-0.95,1.08,-0.20)
+    node[axislabel,above left] {$\eta$};
+  \draw[axis] (Oaxis) -- (-0.95,-0.42,1.08)
+    node[axislabel,above] {$\zeta$};
+
+  \path[facefill] (H0) -- (H4) -- (H6) -- (H2) -- cycle;
+  \path[facefill] (H1) -- (H5) -- (H7) -- (H3) -- cycle;
+  \path[facefill] (H0) -- (H4) -- (H5) -- (H1) -- cycle;
+  \path[selectedface] (H4) -- (H6) -- (H7) -- (H5) -- cycle;
+  \path[facefill] (H6) -- (H2) -- (H3) -- (H7) -- cycle;
+  \path[facefill] (H2) -- (H0) -- (H1) -- (H3) -- cycle;
+
+  \draw[hidden] (H0) -- (H2) -- (H6);
+  \draw[hidden] (H2) -- (H3);
+  \draw[outer] (H0) -- (H4) -- (H6);
+  \draw[outer] (H1) -- (H5) -- (H7) -- (H3) -- cycle;
+  \draw[outer] (H0) -- (H1);
+  \draw[outer] (H4) -- (H5);
+  \draw[outer] (H6) -- (H7);
+  \draw[faceoutline] (H4) -- (H6) -- (H7) -- (H5) -- cycle;
+
+  \node[nodelabel,below left=1pt] at (H0) {0};
+  \node[nodelabel,left=1pt] at (H1) {1};
+  \node[nodelabel,below left=1pt] at ($(H2)+(0.06,0.04,0)$) {2};
+  \node[nodelabel,above left=1pt] at (H3) {3};
+  \node[nodelabel,below right=1pt] at (H4) {4};
+  \node[nodelabel,right=1pt] at (H5) {5};
+  \node[nodelabel,right=1pt] at (H6) {6};
+  \node[nodelabel,above right=1pt] at (H7) {7};
+
+  \node[normallabel] at (1.18,0.50,0.50) {face 0};
+
+  \node[hexedgelabel,below=1pt] at ($(H4)!0.50!(H6)$) {e6};
+  \node[hexedgelabel,right=1pt] at ($(H6)!0.50!(H7)$) {e11};
+  \node[hexedgelabel,above=1pt] at ($(H5)!0.50!(H7)$) {e7};
+  \node[hexedgelabel,left=1pt] at ($(H4)!0.50!(H5)$) {e10};
+}
+
+\newcommand{\DrawProjectedFaceBase}{%
+  \coordinate (A) at (0,0,0);
+  \coordinate (B) at (0,1,0);
+  \coordinate (C) at (0,1,1);
+  \coordinate (D) at (0,0,1);
+
+  \path[selectedface] (A) -- (B) -- (C) -- (D) -- cycle;
+  \draw[faceoutline] (A) -- (B) -- (C) -- (D) -- cycle;
+}
+
+\newcommand{\DrawQuadNodeLabels}[4]{%
+  \node[quadnodelabel,xshift=-12pt,yshift=-10pt] at (A) {#1};
+  \node[quadnodelabel,xshift=14pt,yshift=-10pt] at (B) {#2};
+  \node[quadnodelabel,xshift=14pt,yshift=11pt] at (C) {#3};
+  \node[quadnodelabel,xshift=-13pt,yshift=10pt] at (D) {#4};
+}
+
+\newcommand{\QuadEdgeAB}[1]{%
+  \draw[qarrow] ($(A)!0.20!(B)+(0,0,0.08)$) --
+    ($(A)!0.80!(B)+(0,0,0.08)$);
+  \node[quadedgelabel,below=1pt] at ($(A)!0.50!(B)$) {#1};
+}
+\newcommand{\QuadEdgeBA}[1]{%
+  \draw[qarrow] ($(B)!0.20!(A)+(0,0,0.08)$) --
+    ($(B)!0.80!(A)+(0,0,0.08)$);
+  \node[quadedgelabel,below=1pt] at ($(A)!0.50!(B)$) {#1};
+}
+\newcommand{\QuadEdgeBC}[1]{%
+  \draw[qarrow] ($(B)!0.20!(C)+(0,-0.07,0)$) --
+    ($(B)!0.80!(C)+(0,-0.07,0)$);
+  \node[quadedgelabel,right=1pt] at ($(B)!0.50!(C)$) {#1};
+}
+\newcommand{\QuadEdgeCB}[1]{%
+  \draw[qarrow] ($(C)!0.20!(B)+(0,-0.07,0)$) --
+    ($(C)!0.80!(B)+(0,-0.07,0)$);
+  \node[quadedgelabel,right=1pt] at ($(B)!0.50!(C)$) {#1};
+}
+\newcommand{\QuadEdgeCD}[1]{%
+  \draw[qarrow] ($(C)!0.20!(D)+(0,0,-0.08)$) --
+    ($(C)!0.80!(D)+(0,0,-0.08)$);
+  \node[quadedgelabel,above=1pt] at ($(D)!0.50!(C)$) {#1};
+}
+\newcommand{\QuadEdgeDC}[1]{%
+  \draw[qarrow] ($(D)!0.20!(C)+(0,0,-0.08)$) --
+    ($(D)!0.80!(C)+(0,0,-0.08)$);
+  \node[quadedgelabel,above=1pt] at ($(D)!0.50!(C)$) {#1};
+}
+\newcommand{\QuadEdgeDA}[1]{%
+  \draw[qarrow] ($(D)!0.20!(A)+(0,0.07,0)$) --
+    ($(D)!0.80!(A)+(0,0.07,0)$);
+  \node[quadedgelabel,left=1pt] at ($(A)!0.50!(D)$) {#1};
+}
+\newcommand{\QuadEdgeAD}[1]{%
+  \draw[qarrow] ($(A)!0.20!(D)+(0,0.07,0)$) --
+    ($(A)!0.80!(D)+(0,0.07,0)$);
+  \node[quadedgelabel,left=1pt] at ($(A)!0.50!(D)$) {#1};
+}
+
+\newcommand{\DrawNormalPlus}{%
+  \draw[normalvector] (0,0.50,0.50) -- (0.46,0.50,0.50)
+    node[normallabel,above right=1pt] {$\hat n_f$};
+}
+
+\newcommand{\DrawNormalMinus}{%
+  \draw[normalvector] (0,0.50,0.50) -- (-0.46,0.50,0.50)
+    node[normallabel,below left=1pt] {$\hat n_f$};
+}

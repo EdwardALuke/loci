@@ -71,6 +71,10 @@ bool checkVOGFileSize(string filename) {
 
       cout << "File: " << filename << " reading " << totalSize << " entities."
            << endl ;
+      cout << "Mesh size:" << endl
+           << "  Cells: " << numCells << endl
+           << "  Faces: " << numFaces << endl
+           << "  Nodes: " << numNodes << endl ;
       if(totalSize+2048 > std::numeric_limits<int>::max()) {
         bigfile = true ;
         cout << "WARNING:: Grid file will need --big flag to process." << endl ;

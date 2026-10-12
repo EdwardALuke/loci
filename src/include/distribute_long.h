@@ -102,7 +102,7 @@ namespace Loci {
     
     int send_count = 2*e.num_intervals() ; //must be int*
     std::vector<int> recv_count(p) ;//must be int*
-    MPI_Allgather(&send_count,1,MPI_INT,&recv_count[0],1,MPI_INT, comm) ;
+    MPI_Allgather(&send_count,1,MPI_INT,recv_count.data(),1,MPI_INT, comm) ;
 
     std::vector<int> recv_disp(p) ;//must be int*
     recv_disp[0] = 0 ;
@@ -225,7 +225,7 @@ namespace Loci {
     
     int send_count = 2*e.num_intervals() ;
     std::vector<int> recv_count(p) ;
-    MPI_Allgather(&send_count,1,MPI_INT,&recv_count[0],1,MPI_INT,
+    MPI_Allgather(&send_count,1,MPI_INT,recv_count.data(),1,MPI_INT,
                   comm) ;
     
     std::vector<int> recv_disp(p) ;

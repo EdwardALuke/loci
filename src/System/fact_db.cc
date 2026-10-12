@@ -369,17 +369,17 @@ namespace Loci {
       }
 
 
-      int* send_buf = new int[MPI_processes] ;
-      int* size_send = new int[MPI_processes] ;
-      int* size_recv = new int[MPI_processes] ;
-      int* recv_buf = new int[MPI_processes] ;
+      vector<int> send_buf(MPI_processes) ;
+      vector<int> size_send(MPI_processes) ;
+      vector<int> size_recv(MPI_processes) ;
+      vector<int> recv_buf(MPI_processes) ;
       for(int i = 0; i < MPI_processes; ++i) {
 	send_buf[i] = gmax_alloc[kd] ;
 	size_send[i] = size ;
       } 
-      MPI_Alltoall(send_buf, 1, MPI_INT, recv_buf, 1, MPI_INT, MPI_COMM_WORLD) ;
-      MPI_Alltoall(size_send, 1, MPI_INT, size_recv, 1, MPI_INT, MPI_COMM_WORLD) ;
-      std::sort(recv_buf, recv_buf+MPI_processes) ;
+      MPI_Alltoall(send_buf.data(), 1, MPI_INT, recv_buf.data(), 1, MPI_INT, MPI_COMM_WORLD) ;
+      MPI_Alltoall(size_send.data(), 1, MPI_INT, size_recv.data(), 1, MPI_INT, MPI_COMM_WORLD) ;
+      std::sort(recv_buf.begin(), recv_buf.end()) ;
       gmax_alloc[kd] = recv_buf[MPI_processes-1] ;
       int local_max = gmax_alloc[kd] ;
       int global_max = 0 ;
@@ -406,10 +406,6 @@ namespace Loci {
 
       global_comp_entities += local_ivl;
       
-      delete [] send_buf ;
-      delete [] recv_buf ;
-      delete [] size_send ;
-      delete [] size_recv ;
       gmax_alloc[kd] = max(gmax_alloc[kd],global_ivl.Max()+1) ;
       return(make_pair(local_ivl, global_ivl)) ;
     }

@@ -11,6 +11,11 @@ HTML is written into the configured `OBJ` build tree.
 - Doxygen 1.9.8 or later
 - Graphviz (`dot` command), optional. Enable `HAVE_DOT` in `Doxyfile` if you
   want Doxygen's Graphviz-backed include, inheritance, or collaboration graphs.
+- `pdflatex` with TikZ/PGF and `dvisvgm` for generated FVMAdapt SVG figures.
+- `mutool` and ImageMagick (`magick` or `convert`) for generated FVMAdapt
+  motion GIFs referenced by the Doxygen pages. The Doxygen asset staging step
+  checks these utilities before rendering figures and reports the missing
+  packages if they are unavailable.
 
 ### Steps
 
@@ -22,13 +27,16 @@ make docs
 
 The generated API reference lands in `OBJ/docs/doxygen/html/`. Open
 `OBJ/docs/doxygen/html/index.html` in a browser to browse the output.
+Generated FVMAdapt SVG and motion GIF intermediates are written under
+`OBJ/FVMAdapt/doc/figures/` and then staged into
+`OBJ/docs/doxygen/html/figures/`.
 
-For a quick source-tree preview without using `OBJ`, run Doxygen from this
-directory:
+For a quick source-tree preview without using `OBJ`, run this directory's
+Makefile:
 
 ```bash
 cd docs/doxygen
-doxygen Doxyfile
+make
 ```
 
 That writes ignored preview output to `docs/doxygen/html/`.

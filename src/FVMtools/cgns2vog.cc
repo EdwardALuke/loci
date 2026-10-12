@@ -1480,7 +1480,7 @@ void readCGNS_serial(string zonepath,  store<vector3d<double> > &pos,
   int index_file = 0, index_base=0, index_zone=0, index_sect = 0;
   cgsize_t num_nodes=0, num_sf_trias=0, num_sf_quads=0 ;
   cgsize_t num_vol_tets=0, num_vol_pents5=0, num_vol_pents6=0, num_vol_hexs=0 ;
-  cgsize_t errs = 0;
+
   char bname[33], zname[33], cname[33];
  
   
@@ -1702,16 +1702,15 @@ void readCGNS_serial(string zonepath,  store<vector3d<double> > &pos,
     start_index = local_nodes.Min()+1;
     end_index = local_nodes.Max()+1;
         
-    errs = cg_coord_read (index_file, index_base, index_zone,
-                          "CoordinateX", RealDouble,
-                          &start_index, &end_index, &buf[0]);
-    errs = cg_coord_read (index_file, index_base, index_zone,
-                          "CoordinateY", RealDouble,
-                          &start_index, &end_index, &buf[mxsize]);
-    
-    errs = cg_coord_read (index_file, index_base, index_zone,
-                          "CoordinateZ", RealDouble,
-                          &start_index, &end_index, &buf[2*mxsize]); 
+    cg_coord_read (index_file, index_base, index_zone,
+                   "CoordinateX", RealDouble,
+                   &start_index, &end_index, &buf[0]);
+    cg_coord_read (index_file, index_base, index_zone,
+                   "CoordinateY", RealDouble,
+                   &start_index, &end_index, &buf[mxsize]);
+    cg_coord_read (index_file, index_base, index_zone,
+                   "CoordinateZ", RealDouble,
+                   &start_index, &end_index, &buf[2*mxsize]); 
     cgsize_t index = 0;
     FORALL(local_nodes,nd) {
       pos[nd].x = buf[index++];

@@ -111,11 +111,11 @@ FVMOverset: lpp FORCE
 JUNK =
 
 test: default
-	$(MAKE) -C quickTest LOCI_BASE="$(LOCI_BASE)"
+	$(MAKE) -C quickTest LOCI_BASE="$(LOCI_BASE)" TEST_BASE="$(LOCI_BASE)/quickTest"
 
 
 testclean:
-	$(MAKE) -C quickTest distclean LOCI_BASE="$(LOCI_BASE)"
+	$(MAKE) -C quickTest distclean LOCI_BASE="$(LOCI_BASE)" TEST_BASE="$(LOCI_BASE)/quickTest"
 
 clean:
 	rm -f $(JUNK)

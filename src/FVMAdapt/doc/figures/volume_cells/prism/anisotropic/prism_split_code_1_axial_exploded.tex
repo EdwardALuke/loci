@@ -1,0 +1,95 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+
+\definecolor{fvmadaptedge}{HTML}{8A7E7E}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{splitred}{HTML}{AF2525}
+
+% Wireframe exploded view of prism split code 1. The top and bottom child
+% prisms duplicate the new triangular split face when separated.
+\providecommand{\fvmadaptYawAngle}{8}
+\providecommand{\fvmadaptExplodeAmount}{1}
+\providecommand{\fvmadaptExplodeScale}{1.25}
+\pgfmathsetmacro{\yawcos}{cos(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\yawsin}{sin(\fvmadaptYawAngle)}
+\pgfmathsetmacro{\xbasisx}{20.3*\yawcos + 15.3*\yawsin}
+\pgfmathsetmacro{\xbasisy}{-8.5*\yawcos + 11.3*\yawsin}
+\pgfmathsetmacro{\ybasisx}{-20.3*\yawsin + 15.3*\yawcos}
+\pgfmathsetmacro{\ybasisy}{8.5*\yawsin + 11.3*\yawcos}
+\pgfmathsetmacro{\fvmadaptEtaProjectionScale}{0.75}
+\pgfmathsetmacro{\ybasisxscaled}{\fvmadaptEtaProjectionScale*\ybasisx}
+\pgfmathsetmacro{\ybasisyscaled}{\fvmadaptEtaProjectionScale*\ybasisy}
+\pgfmathsetmacro{\explodeZeta}{0.74*\fvmadaptExplodeScale*\fvmadaptExplodeAmount}
+
+\begin{document}
+\begin{tikzpicture}[
+  x={(\xbasisx mm,\xbasisy mm)},
+  y={(\ybasisxscaled mm,\ybasisyscaled mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=fvmadaptedge,line width=0.54mm},
+  split/.style={draw=splitred,line width=0.44mm},
+  axis/.style={draw=fvmadaptedge!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Fixed canvas for static and animated renders.
+  \path[use as bounding box]
+    (canvas cs:x=-50mm,y=-57mm) rectangle (canvas cs:x=58mm,y=68mm);
+
+  \newcommand{\drawloweraxialchild}{%
+    \draw[outer] (A) -- (B) -- (C) -- cycle;
+    \draw[outer] (A) -- (D);
+    \draw[outer] (B) -- (E);
+    \draw[outer] (C) -- (F);
+    \draw[split] (D) -- (E) -- (F) -- cycle;
+    \foreach \p in {A,B,C} {
+      \fill[fvmadaptedge] (\p) circle[radius=0.58mm];
+    }
+    \foreach \p in {D,E,F} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+  }
+
+  \newcommand{\drawupperaxialchild}{%
+    \draw[split] (A) -- (B) -- (C) -- cycle;
+    \draw[outer] (A) -- (D);
+    \draw[outer] (B) -- (E);
+    \draw[outer] (C) -- (F);
+    \draw[outer] (D) -- (E) -- (F) -- cycle;
+    \foreach \p in {A,B,C} {
+      \fill[splitred] (\p) circle[radius=0.52mm];
+    }
+    \foreach \p in {D,E,F} {
+      \fill[fvmadaptedge] (\p) circle[radius=0.58mm];
+    }
+  }
+
+  % Compact orientation axes near the fixed lower child.
+  \coordinate (Oaxis) at (-1.28,-0.55,-0.68);
+  \draw[axis] (Oaxis) -- (-0.32,-0.55,-0.68) node[below right,font=\normalsize,text=fvmadaptedge] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.28,0.39,-0.68) node[above left,font=\normalsize,text=fvmadaptedge] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.28,-0.55,0.28) node[above,font=\normalsize,text=fvmadaptedge] {$\zeta$};
+
+  % Lower child stays fixed.
+  \begin{scope}[shift={(0,0,0)}]
+    \coordinate (A) at (0,0,0);
+    \coordinate (B) at (1.45,0,0);
+    \coordinate (C) at (0,1,0);
+    \coordinate (D) at (0,0,0.5);
+    \coordinate (E) at (1.45,0,0.5);
+    \coordinate (F) at (0,1,0.5);
+    \drawloweraxialchild
+  \end{scope}
+
+  % Upper child lifts away along zeta.
+  \begin{scope}[shift={(0,0,\explodeZeta)}]
+    \coordinate (A) at (0,0,0.5);
+    \coordinate (B) at (1.45,0,0.5);
+    \coordinate (C) at (0,1,0.5);
+    \coordinate (D) at (0,0,1);
+    \coordinate (E) at (1.45,0,1);
+    \coordinate (F) at (0,1,1);
+    \drawupperaxialchild
+  \end{scope}
+\end{tikzpicture}
+\end{document}

@@ -1101,7 +1101,7 @@ bool operator <(const timingData &d) const {
 	for(si=unprocessed.begin();si!=unprocessed.end();++si)
 	  sizes[i++] = si->size() ;
       }
-      MPI_Bcast(&sizes[0],lsz,MPI_INT,psource,comm) ;
+      MPI_Bcast(sizes.data(),lsz,MPI_INT,psource,comm) ;
       int tot = 0 ;
       for(int i=0;i<lsz;++i)
 	tot += sizes[i] ;
@@ -1116,7 +1116,7 @@ bool operator <(const timingData &d) const {
 	  i++ ;
 	}
       }
-      MPI_Bcast(&data[0],tot,MPI_BYTE,psource,comm) ;
+      MPI_Bcast(data.data(),tot,MPI_BYTE,psource,comm) ;
       int ii = 0 ;
       for(int i=0;i<lsz;++i) {
 	string event ;
@@ -1154,10 +1154,10 @@ bool operator <(const timingData &d) const {
     vector<double> maxTimes(datasize) ;
     vector<double> totalEvents(datasize) ;
     vector<double> maxEvents(datasize) ;
-    MPI_Allreduce(&localTimes[0],&totalTimes[0],datasize,MPI_DOUBLE,MPI_SUM,comm) ;
-    MPI_Allreduce(&localTimes[0],&maxTimes[0],datasize,MPI_DOUBLE,MPI_MAX,comm) ;
-    MPI_Allreduce(&localEvents[0],&totalEvents[0],datasize,MPI_DOUBLE,MPI_SUM,comm) ;
-    MPI_Allreduce(&localEvents[0],&maxEvents[0],datasize,MPI_DOUBLE,MPI_MAX,comm) ;
+    MPI_Allreduce(localTimes.data(),totalTimes.data(),datasize,MPI_DOUBLE,MPI_SUM,comm) ;
+    MPI_Allreduce(localTimes.data(),maxTimes.data(),datasize,MPI_DOUBLE,MPI_MAX,comm) ;
+    MPI_Allreduce(localEvents.data(),totalEvents.data(),datasize,MPI_DOUBLE,MPI_SUM,comm) ;
+    MPI_Allreduce(localEvents.data(),maxEvents.data(),datasize,MPI_DOUBLE,MPI_MAX,comm) ;
 
     // Replace timing_data with new combined data list
     i = 0 ;

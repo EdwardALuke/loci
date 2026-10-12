@@ -1,0 +1,123 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+
+\definecolor{fvmadaptedge}{HTML}{8A7E7E}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{externalface}{HTML}{8FB9E8}
+\definecolor{splitred}{HTML}{AF2525}
+\definecolor{centroidgreen}{HTML}{0E8814}
+
+% Face-based isotropic refinement of a hexahedron.
+% Face centroids connect to edge midpoints in red, and face centroids connect
+% to the volume centroid in green.
+\begin{document}
+\begin{tikzpicture}[
+  x={(20.3mm,-8.5mm)},
+  y={(15.3mm,11.3mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=fvmadaptedge,line width=0.62mm},
+  hidden/.style={draw=fvmadaptedge!65,line width=0.48mm,loosely dotted},
+  face/.style={fill=externalface,fill opacity=0.14,draw=none},
+  split/.style={draw=splitred,line width=0.50mm},
+  centroidedge/.style={draw=centroidgreen,line width=0.56mm},
+  axis/.style={draw=fvmadaptedge!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Hexahedron vertices. The xi direction is stretched to match the prism figures.
+  \coordinate (A) at (0,0,0);
+  \coordinate (B) at (1.45,0,0);
+  \coordinate (C) at (1.45,1,0);
+  \coordinate (D) at (0,1,0);
+  \coordinate (E) at (0,0,1);
+  \coordinate (F) at (1.45,0,1);
+  \coordinate (G) at (1.45,1,1);
+  \coordinate (H) at (0,1,1);
+
+  % Edge midpoints.
+  \coordinate (mAB) at (0.725,0,0);
+  \coordinate (mBC) at (1.45,0.5,0);
+  \coordinate (mCD) at (0.725,1,0);
+  \coordinate (mDA) at (0,0.5,0);
+  \coordinate (mEF) at (0.725,0,1);
+  \coordinate (mFG) at (1.45,0.5,1);
+  \coordinate (mGH) at (0.725,1,1);
+  \coordinate (mHE) at (0,0.5,1);
+  \coordinate (mAE) at (0,0,0.5);
+  \coordinate (mBF) at (1.45,0,0.5);
+  \coordinate (mCG) at (1.45,1,0.5);
+  \coordinate (mDH) at (0,1,0.5);
+
+  % Face centroids and volume centroid.
+  \coordinate (fABCD) at (0.725,0.5,0);
+  \coordinate (fEFGH) at (0.725,0.5,1);
+  \coordinate (fABFE) at (0.725,0,0.5);
+  \coordinate (fBCGF) at (1.45,0.5,0.5);
+  \coordinate (fCDHG) at (0.725,1,0.5);
+  \coordinate (fDAEH) at (0,0.5,0.5);
+  \coordinate (center) at (0.725,0.5,0.5);
+
+  % Offset computational-coordinate axes.
+  \coordinate (Oaxis) at (-1.20,-0.42,-0.18);
+  \draw[axis] (Oaxis) -- (1.60,-0.42,-0.18) node[below right,font=\normalsize,text=fvmadaptedge] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.20,1.12,-0.18) node[above left,font=\normalsize,text=fvmadaptedge] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.20,-0.42,1.12) node[above,font=\normalsize,text=fvmadaptedge] {$\zeta$};
+
+  % Exterior faces remain faint so the refinement scaffold is legible.
+  \path[face] (A) -- (B) -- (C) -- (D) -- cycle;
+  \path[face] (E) -- (F) -- (G) -- (H) -- cycle;
+  \path[face] (A) -- (B) -- (F) -- (E) -- cycle;
+  \path[face] (B) -- (C) -- (G) -- (F) -- cycle;
+  \path[face] (C) -- (D) -- (H) -- (G) -- cycle;
+  \path[face] (D) -- (A) -- (E) -- (H) -- cycle;
+
+  % Hidden geometry is drawn before the refinement construction.
+  \draw[hidden] (A) -- (D) -- (C);
+  \draw[hidden] (D) -- (H);
+  \fill[fvmadaptedge!65] (D) circle[radius=0.75mm];
+
+  % Green face-centroid to volume-centroid connections.
+  \foreach \p in {fABCD,fEFGH,fABFE,fBCGF,fCDHG,fDAEH} {
+    \draw[centroidedge] (center) -- (\p);
+  }
+  \fill[centroidgreen] (center) circle[radius=0.86mm];
+
+  % Visible exterior wireframe occludes internal centroid connections.
+  \draw[outer] (A) -- (B) -- (C);
+  \draw[outer] (E) -- (F) -- (G) -- (H) -- cycle;
+  \draw[outer] (A) -- (E);
+  \draw[outer] (B) -- (F);
+  \draw[outer] (C) -- (G);
+
+  % Red face-centroid splits on all six original faces.
+  \foreach \p in {mAB,mBC,mCD,mDA} {
+    \draw[split] (fABCD) -- (\p);
+  }
+  \foreach \p in {mEF,mFG,mGH,mHE} {
+    \draw[split] (fEFGH) -- (\p);
+  }
+  \foreach \p in {mAB,mBF,mEF,mAE} {
+    \draw[split] (fABFE) -- (\p);
+  }
+  \foreach \p in {mBC,mCG,mFG,mBF} {
+    \draw[split] (fBCGF) -- (\p);
+  }
+  \foreach \p in {mCD,mDH,mGH,mCG} {
+    \draw[split] (fCDHG) -- (\p);
+  }
+  \foreach \p in {mDA,mAE,mHE,mDH} {
+    \draw[split] (fDAEH) -- (\p);
+  }
+
+  % Visible original vertices are #8a7e7e.
+  \foreach \p in {A,B,C,E,F,G,H} {
+    \fill[fvmadaptedge] (\p) circle[radius=0.75mm];
+  }
+
+  % Face and edge refinement nodes are red.
+  \foreach \p in {mAB,mBC,mCD,mDA,mEF,mFG,mGH,mHE,mAE,mBF,mCG,mDH,
+                  fABCD,fEFGH,fABFE,fBCGF,fCDHG,fDAEH} {
+    \fill[splitred] (\p) circle[radius=0.58mm];
+  }
+\end{tikzpicture}
+\end{document}

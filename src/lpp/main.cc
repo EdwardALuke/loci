@@ -190,6 +190,13 @@ int main(int argc, char *argv[]) {
   
   parseFile parser ;
   try {
+    parser.initialize() ;
+  } catch(std::runtime_error & err) {
+    cerr << "Error initializing loci file parser: " << err.what() << endl ;
+    exit(-1) ;
+  }
+
+  try {
     if(out_given) {
       ofstream file(outfile.c_str(),ios::out) ;
       if(file.fail()) {

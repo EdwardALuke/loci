@@ -112,6 +112,26 @@ else
     pdflatex_version="not found"
 fi
 
+if command -v dvisvgm >/dev/null 2>&1; then
+    dvisvgm_version=$(dvisvgm --version | sed -n '1p')
+else
+    dvisvgm_version="not found"
+fi
+
+if command -v mutool >/dev/null 2>&1; then
+    mutool_version=$(mutool -v 2>&1 | sed -n '1p')
+else
+    mutool_version="not found"
+fi
+
+if command -v magick >/dev/null 2>&1; then
+    imagemagick_version=$(magick --version | sed -n '1p')
+elif command -v convert >/dev/null 2>&1; then
+    imagemagick_version=$(convert --version | sed -n '1p')
+else
+    imagemagick_version="not found"
+fi
+
 {
     echo "Generated documentation manifest"
     echo
@@ -122,6 +142,9 @@ fi
     echo "Generated at UTC: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "Doxygen: $doxygen_version"
     echo "pdflatex: $pdflatex_version"
+    echo "dvisvgm: $dvisvgm_version"
+    echo "mutool: $mutool_version"
+    echo "ImageMagick: $imagemagick_version"
     echo
     echo "Included generated artifacts:"
     echo "- docs/tutorial/docs/tutorial.pdf"

@@ -1,0 +1,74 @@
+//#############################################################################
+//#
+//# Copyright 2008-2025, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+#include <Loci.h>
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+//-----------------------------------------------------------------------------
+// File numbering
+//-----------------------------------------------------------------------------
+
+$type X Constraint ;
+
+$rule pointwise(fileNumber(X)), constraint(X), option(disable_threading), prelude {
+  fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
+  if(df == 0) {
+    for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si) {
+      $fileNumber(X)[*si] = *si ;
+    }
+  }else {
+    Map l2f ;
+    l2f = df->l2f.Rep() ;
+    for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si){
+      $fileNumber(X)[*si] = l2f[*si] ;
+    }
+  }
+} ;
+
+
+//-----------------------------------------------------------------------------
+// Original-node count
+//-----------------------------------------------------------------------------
+
+/// Parameter, no loop.
+$rule unit(num_original_nodes), constraint(UNIVERSE) {
+  $num_original_nodes = 0 ;
+}
+
+$rule apply(num_original_nodes <- pos, num_original_nodes)[Loci::Summation] {
+  $num_original_nodes += 1 ;
+}
+
+
+//-----------------------------------------------------------------------------
+// Original-face count
+//-----------------------------------------------------------------------------
+
+/// Parameter, no loop
+$rule unit(num_original_faces), constraint(UNIVERSE) {
+  $num_original_faces = 0 ;
+}
+
+$rule apply(num_original_faces <- num_original_faces)[Loci::Summation],
+constraint(faces), prelude {
+  *$num_original_faces += seq.size() ;
+} ;

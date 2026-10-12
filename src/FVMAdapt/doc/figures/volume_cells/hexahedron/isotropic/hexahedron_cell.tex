@@ -1,0 +1,64 @@
+\documentclass[tikz,border=1.35mm]{standalone}
+
+\definecolor{fvmadaptedge}{HTML}{8A7E7E}
+\usetikzlibrary{arrows.meta}
+
+\definecolor{externalface}{HTML}{8FB9E8}
+
+% Colored hexahedral cell figure.
+% The z=0 and z=1 faces are quadrilaterals; the drawing uses the same
+% computational-coordinate convention as the prism cell figures.
+\begin{document}
+\begin{tikzpicture}[
+  x={(20.3mm,-8.5mm)},
+  y={(15.3mm,11.3mm)},
+  z={(0mm,20mm)},
+  line join=round,
+  line cap=round,
+  outer/.style={draw=fvmadaptedge,line width=0.62mm},
+  hidden/.style={draw=fvmadaptedge!65,line width=0.48mm,loosely dotted},
+  face/.style={fill=externalface,fill opacity=0.32,draw=none},
+  axis/.style={draw=fvmadaptedge!60,line width=0.32mm,-{Latex[length=2.5mm,width=1.8mm]}}
+]
+  % Hexahedron vertices. The xi direction is stretched to match the prism figures.
+  \coordinate (A) at (0,0,0);
+  \coordinate (B) at (1.45,0,0);
+  \coordinate (C) at (1.45,1,0);
+  \coordinate (D) at (0,1,0);
+  \coordinate (E) at (0,0,1);
+  \coordinate (F) at (1.45,0,1);
+  \coordinate (G) at (1.45,1,1);
+  \coordinate (H) at (0,1,1);
+
+  % Offset computational-coordinate axes.
+  \coordinate (Oaxis) at (-1.20,-0.42,-0.18);
+  \draw[axis] (Oaxis) -- (1.60,-0.42,-0.18) node[below right,font=\normalsize,text=fvmadaptedge] {$\xi$};
+  \draw[axis] (Oaxis) -- (-1.20,1.12,-0.18) node[above left,font=\normalsize,text=fvmadaptedge] {$\eta$};
+  \draw[axis] (Oaxis) -- (-1.20,-0.42,1.12) node[above,font=\normalsize,text=fvmadaptedge] {$\zeta$};
+
+  % Exterior faces share the same translucent shade.
+  \path[face] (A) -- (B) -- (C) -- (D) -- cycle;
+  \path[face] (E) -- (F) -- (G) -- (H) -- cycle;
+  \path[face] (A) -- (B) -- (F) -- (E) -- cycle;
+  \path[face] (B) -- (C) -- (G) -- (F) -- cycle;
+  \path[face] (C) -- (D) -- (H) -- (G) -- cycle;
+  \path[face] (D) -- (A) -- (E) -- (H) -- cycle;
+
+  % Hidden-line convention: edges incident to the lower back-left vertex are dotted.
+  \draw[hidden] (A) -- (D) -- (C);
+  \draw[hidden] (D) -- (H);
+
+  % Visible exterior wireframe.
+  \draw[outer] (A) -- (B) -- (C);
+  \draw[outer] (E) -- (F) -- (G) -- (H) -- cycle;
+  \draw[outer] (A) -- (E);
+  \draw[outer] (B) -- (F);
+  \draw[outer] (C) -- (G);
+
+  % Original vertices are #8a7e7e, except the hidden lower back-left vertex D.
+  \foreach \p in {A,B,C,E,F,G,H} {
+    \fill[fvmadaptedge] (\p) circle[radius=0.75mm];
+  }
+  \fill[fvmadaptedge!65] (D) circle[radius=0.75mm];
+\end{tikzpicture}
+\end{document}

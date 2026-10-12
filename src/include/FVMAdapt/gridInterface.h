@@ -54,7 +54,7 @@ namespace Loci {
 
   class refinedGridData : public Loci::CPTR_type {
   public:
-    //global variables that pass data from refinemesh to chem
+    // global variables that pass data from refinemesh to a solver
     Map new_cl;
     Map new_cr;
     multiMap new_face2node;
@@ -79,16 +79,15 @@ namespace Loci {
 			storeRepP tags,
 			string casename  ) ;
 
-
   storeRepP getC2PGlobal(fact_db &facts) ;
-  
+
   // Holds Data Structures for processning AMR interpolation
   class AMRrefinementMapping {
   public:
     entitySet geom_cells_local ;
     entitySet geom_cells_global ;
     Map l2g ;
-    // parent cell numbers 
+    // parent cell numbers
     store<int> parent ;
     // local numbering of parent to child mapping in local numbering
     // for scattering communication
@@ -147,7 +146,7 @@ namespace Loci {
       // gather parent data needed to compute parent gradients
       storeVec<T> grad_data ;
       gradientComm.gatherData(grad_data,parent_data) ;
-      
+
       storeVec<T> refineCell_data ;
       refineCell_data.setVecSize(vs) ;
       int refcells = refinedCells.size() ;
@@ -209,7 +208,7 @@ namespace Loci {
       storeVec<T> child_tmp ;
       child_tmp.setVecSize(child_data.vecSize()) ;
       child_tmp.allocate(geom_cells_global) ;
-      
+
       refineCellComm.scatterData(refineCell_data,child_tmp) ;
 
 
@@ -234,7 +233,7 @@ namespace Loci {
         child_data[ii] = child_tmp[l2g[ii]] ;
       } ENDFORALL ;
     }
-  
+
     template<class T>
     void interpolateData(store<T> &parent_data,
                          store<T> &child_data,
@@ -257,7 +256,7 @@ namespace Loci {
       // gather parent data needed to compute parent gradients
       store<T> grad_data ;
       gradientComm.gatherData(grad_data,parent_data) ;
-    
+
       store<T> refineCell_data ;
       int refcells = refinedCells.size() ;
 #ifdef DEBUG
@@ -282,7 +281,7 @@ namespace Loci {
           min_val = min(min_val,val) ;
           gradk += stencilWeights[ii][j]*(val-Xcc) ;
         }
-              
+
         T limi = limstop ;
         // Apply limiter to source points
         for(int j=0;j<ssz;++j) {
@@ -336,6 +335,7 @@ namespace Loci {
         child_data[ii] = child_tmp[l2g[ii]] ;
       } ENDFORALL ;
     }
+
     template<class T>
     void interpolateData(store<vector3d<T> > &parent_data,
                          store<vector3d<T> > &child_data,
@@ -358,7 +358,7 @@ namespace Loci {
       // gather parent data needed to compute parent gradients
       store<vector3d<T> > grad_data ;
       gradientComm.gatherData(grad_data,parent_data) ;
-    
+
       store<vector3d<T> > refineCell_data ;
       int refcells = refinedCells.size() ;
 #ifdef DEBUG
@@ -391,7 +391,7 @@ namespace Loci {
           gradky += stencilWeights[ii][j]*(val.y-Xcc.y) ;
           gradkz += stencilWeights[ii][j]*(val.z-Xcc.z) ;
         }
-              
+
         T limi = limstop ;
         // Apply limiter to source points
         for(int j=0;j<ssz;++j) {
@@ -510,7 +510,6 @@ namespace Loci {
       interpolator->interpolateData(parent_data,child_data,limstop) ;
     }
   } ;
-                                         
 
 }
 #endif

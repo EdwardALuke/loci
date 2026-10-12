@@ -40,7 +40,21 @@ namespace Loci {
       targetv += gin[*vi] ;
     }
 
-    sourcev -= grvtx ;
+    // Find variables that are external inputs to this rule, make sure these
+    // variables are included in the sourcev
+    digraph::vertexSet external_inputs ;
+    for(auto ni = grvtx.begin();ni!=grvtx.end();++ni) {
+      auto access_set = gint[*ni] ; //+gin[*ni] ;
+      if((gint[*ni] & grvtx) != gint[*ni])
+        external_inputs += *ni ;
+    }
+    // Remove rules from this set, we only need to concern ourselves with
+    // variable dependencies
+    external_inputs &= interval(0,UNIVERSE_MAX) ;
+
+    // Modify source vertex to account for variable dependencies
+    sourcev -= (grvtx - external_inputs) ;
+    // Targets do not need to consider the external dependencies
     targetv -= grvtx ;
 
     graph_v = grvtx ;
@@ -93,7 +107,9 @@ namespace Loci {
     
     FATAL(targets == EMPTY) ;
     ostringstream oss ;
-    oss << "source("<<sources << "),target(" << targets << ")," ;
+    if(sources != EMPTY)
+      oss << "source("<<sources <<")," ;
+    oss << "target(" << targets << ")," ;
     if(cond != variable()) 
       oss<< "conditional(" << cond << ")," ;
     oss << "qualifier(SN" << super_node_number++ << ")" ;
@@ -107,13 +123,23 @@ namespace Loci {
     fatal(g == 0) ;
 
     subGraph sg(g->gr,grvtx) ;
+    if(verbose) {
+      debugout << "gvrtx: " << endl ;
+      debugout << "  rules = " << extract_rules(grvtx) << endl ;
+      debugout << "  vars = " << extract_vars(grvtx) << endl ;
+    }
     variableSet sv = extract_vars(sg.incoming_v) ;
     variableSet tv = extract_vars(sg.outgoing_v) ;
+      
     rule r = make_super_rule(sv,tv,cond_var) ;
     
     if(verbose) {
+
       debugout << "----------------------------------------------------------------------------" << endl ;
       debugout << "mksnode: creating super node: " << r << endl ;
+      if(sv == EMPTY) {
+        debugout << "WARNING empty sources!" << endl ;
+      }
       ruleSet rset = extract_rules(sg.graph_v) ;
       debugout << rset << endl ;
       debugout << "----------------------------------------------------------------------------" << endl ;

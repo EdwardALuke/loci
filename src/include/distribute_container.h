@@ -325,17 +325,17 @@ namespace Loci {
     for(int i=0;i<p;++i)
       // If I am not recving from myself and I have something to recv
       if(i!=r && recv_sets[i] != EMPTY) {
-        MPI_Irecv(&result[recv_offsets[i]],
+        MPI_Irecv(result.data()+recv_offsets[i],
                   recv_sets[i].size()*sizeof(T),
-                  MPI_BYTE,i,99,MPI_COMM_WORLD,&requests[cnt]) ;
+                  MPI_BYTE,i,99,MPI_COMM_WORLD,requests.data()+cnt) ;
         cnt++ ;
       }
     for(int i=0;i<p;++i)
       if(i!=r && send_sets[i] != EMPTY) {
         // If I am not sending to myself and I have something to send
-        MPI_Isend(&send_data[send_offsets[i]],
+        MPI_Isend(send_data.data()+send_offsets[i],
                   send_sets[i].size()*sizeof(T),
-                  MPI_BYTE,i,99,MPI_COMM_WORLD,&requests[cnt]) ;
+                  MPI_BYTE,i,99,MPI_COMM_WORLD,requests.data()+cnt) ;
         cnt++ ;
       }
 
@@ -345,7 +345,7 @@ namespace Loci {
 
     // otherwise wait for communication to finish
     vector<MPI_Status> status_list(cnt) ;
-    MPI_Waitall(cnt,&requests[0],&status_list[0]) ;
+    MPI_Waitall(cnt,requests.data(),status_list.data()) ;
   }
 
 }

@@ -529,7 +529,7 @@ namespace Loci {
     using namespace kdTree ;    
     int p = MPI_processes ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
-    MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&bnd,6,MPI_FLOAT,bnd_req.data(),6,MPI_FLOAT,MPI_COMM_WORLD) ;
 
 
     // Now communicate points that processors need to build stencil
@@ -540,7 +540,7 @@ namespace Loci {
       scounts[i] = kd.count_box(bnd_req[i]) ;
     }
     vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,MPI_COMM_WORLD) ;
     int cnt = rcounts[0] ;
     for(int i=1;i<p;++i)
       cnt += rcounts[i] ;
@@ -702,7 +702,7 @@ namespace Loci {
     using namespace kdTree ;
     int p = MPI_processes ;
     vector<KDTree<float>::bounds> bnd_req(p) ;
-    MPI_Allgather(&bnd,6,MPI_FLOAT,&bnd_req[0],6,MPI_FLOAT,MPI_COMM_WORLD) ;
+    MPI_Allgather(&bnd,6,MPI_FLOAT,bnd_req.data(),6,MPI_FLOAT,MPI_COMM_WORLD) ;
 
 
     // Now communicate points that processors need to build stencil
@@ -724,7 +724,7 @@ namespace Loci {
       sdispls[i] = sdispls[i-1]+scounts[i-1] ;
 
     vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,MPI_COMM_WORLD) ;
+    MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,MPI_COMM_WORLD) ;
 
     vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
@@ -738,8 +738,8 @@ namespace Loci {
 #endif
     vector<KDTree<float>::coord_info> pcollect(result_size) ;
 
-    MPI_Alltoallv(&pntlist[0],&scounts[0],&sdispls[0],MPI_BYTE,
-                  &pcollect[0],&rcounts[0],&rdispls[0],MPI_BYTE,
+    MPI_Alltoallv(pntlist.data(),scounts.data(),sdispls.data(),MPI_BYTE,
+                  pcollect.data(),rcounts.data(),rdispls.data(),MPI_BYTE,
                   MPI_COMM_WORLD) ;
     MEMORY_PROFILE(collectPointsEnd) ;
     pout.swap(pcollect) ;
@@ -785,7 +785,7 @@ namespace Loci {
     }
 
     vector<int> snd_sizes(p,0) ;
-    MPI_Alltoall(&req_sizes[0],1,MPI_INT,&snd_sizes[0],1,MPI_INT,
+    MPI_Alltoall(req_sizes.data(),1,MPI_INT,snd_sizes.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
 
     int snd_tot_size = 0 ;
@@ -803,8 +803,8 @@ namespace Loci {
     for(int i=1;i<p;++i) {
       rdispls[i] = rdispls[i-1]+snd_sizes[i-1] ;
     }
-    MPI_Alltoallv(&access[0],&req_sizes[0],&sdispls[0],MPI_INT,
-                  &send_info[0],&snd_sizes[0],&rdispls[0],MPI_INT,
+    MPI_Alltoallv(access.data(),req_sizes.data(),sdispls.data(),MPI_INT,
+                  send_info.data(),snd_sizes.data(),rdispls.data(),MPI_INT,
                   MPI_COMM_WORLD) ;
 
     MEMORY_PROFILE(recv_access) ;
@@ -1056,11 +1056,11 @@ namespace Loci {
     float dy = max_y-min_y ;
     float dz = max_z-min_z ;
     if(dx > dy && dx > dz) {
-      std::sort(&inputs[start],&inputs[end],vpairxcmp) ;
+      std::sort(inputs.data()+start,inputs.data()+end,vpairxcmp) ;
     } else if(dy > dz) {
-      std::sort(&inputs[start],&inputs[end],vpairycmp) ;
+      std::sort(inputs.data()+start,inputs.data()+end,vpairycmp) ;
     } else {
-      std::sort(&inputs[start],&inputs[end],vpairzcmp) ;
+      std::sort(inputs.data()+start,inputs.data()+end,vpairzcmp) ;
     }
 
     // Split space into 4 equal sized parts
@@ -1457,7 +1457,7 @@ namespace Loci {
 
     // find out how many blocks we are recieving and from which processor
     vector<int> block_recvs(p,0) ;
-    MPI_Alltoall(&block_sends[0],1,MPI_INT,&block_recvs[0],1,MPI_INT, comm) ;
+    MPI_Alltoall(block_sends.data(),1,MPI_INT,block_recvs.data(),1,MPI_INT, comm) ;
 
     // Now recieve the block sizes
     int num_recv = 0 ;
@@ -1470,7 +1470,7 @@ namespace Loci {
     int cnt = 0 ;
     for(int i=0;i<p;++i) 
       for(int j=0;j<block_recvs[i];++j) {
-        MPI_Irecv(&(recv_info[cnt]),2,MPI_INT,i,j,comm,&req_queue[cnt]) ;
+        MPI_Irecv(recv_info.data()+cnt,2,MPI_INT,i,j,comm,req_queue.data()+cnt) ;
         cnt++ ;
       }
 
@@ -1494,7 +1494,7 @@ namespace Loci {
 #endif
     if(num_recv != 0) {
       vector<MPI_Status> stat_queue(num_recv) ;
-      MPI_Waitall(num_recv,&req_queue[0],&stat_queue[0]) ;
+      MPI_Waitall(num_recv,req_queue.data(),stat_queue.data()) ;
     }
 
     // Add up recieve sizes
@@ -1544,8 +1544,8 @@ namespace Loci {
 	int offset = recv_offset[bk] ;
 	int recv_size = recv_info[cnt].second ;
 	recv_offset[bk] += recv_size ;
-	MPI_Irecv(&recv_targets[bk][offset],recv_size*coord_size,MPI_BYTE,i,j,
-                  comm,&req_queue[cnt]) ;
+	MPI_Irecv(recv_targets[bk].data()+offset,recv_size*coord_size,MPI_BYTE,i,j,
+                  comm,req_queue.data()+cnt) ;
         cnt++ ;
       }
     
@@ -1554,7 +1554,7 @@ namespace Loci {
       for(size_t j=0;j<proc_send_list[cp].size();++j) {
         int bk = proc_send_list[cp][j] ;
         int bsz = scounts[bk] ;
-        MPI_Send(&pntlist[soffsets[bk]],bsz*coord_size,MPI_BYTE,cp,j,comm) ;
+        MPI_Send(pntlist.data()+soffsets[bk],bsz*coord_size,MPI_BYTE,cp,j,comm) ;
       }
     }
 
@@ -1564,7 +1564,7 @@ namespace Loci {
 #endif
     if(num_recv != 0) {
       vector<MPI_Status> stat_queue(num_recv) ;
-      MPI_Waitall(num_recv,&req_queue[0],&stat_queue[0]) ;
+      MPI_Waitall(num_recv,req_queue.data(),stat_queue.data()) ;
     }
     MEMORY_PROFILE(RecieveTargetPointsEnd) ;
   }

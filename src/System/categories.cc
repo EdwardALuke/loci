@@ -102,7 +102,7 @@ namespace Loci {
           if(mp->getRangeKeySpace() == kd) {
             entitySet dom = my_entities & p->domain() ;
             entitySet image_dom = mp->image(dom) ;
-            image_dom += distribute_entitySet(image_dom, ptn) ;
+            image_dom = distribute_entitySet(image_dom, ptn) ;
             entitySet testSet = image_dom - total_entities ;
             int size = testSet.size() ;
             int tsize = 0 ;
@@ -262,7 +262,7 @@ namespace Loci {
         MPI_Bcast(&buf_size,1,MPI_INT,comm_root,MPI_COMM_WORLD) ;
         if(comm_root != MPI_rank)
           buffer = vector<int>(buf_size) ;
-        MPI_Bcast(&buffer[0],buf_size,MPI_INT,comm_root,MPI_COMM_WORLD) ;
+        MPI_Bcast(buffer.data(),buf_size,MPI_INT,comm_root,MPI_COMM_WORLD) ;
 
         for(size_t ex=0;ex<buffer.size();) {
           int num_ents = buffer[ex] ;

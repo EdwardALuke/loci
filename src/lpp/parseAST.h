@@ -190,10 +190,14 @@ public:
     OP_AMPERSAND, OP_DOLLAR, OP_STAR,
     OP_CAST,OP_TEMPLATE_CAST,
     OP_GROUP,OP_GROUP_ERROR,
+    OP_BRACKETGROUP,
     OP_OPENPAREN,OP_CLOSEPAREN,OP_OPENBRACKET,OP_CLOSEBRACKET,
     OP_OPENBRACE,OP_CLOSEBRACE,
     OP_LOCI_DIRECTIVE,OP_LOCI_VARIABLE,OP_LOCI_CONTAINER,
     OP_TERM, OP_SPECIAL,
+    OP_NEW,
+    OP_DELETE,
+    OP_SIZEOF,
     TK_BRACEBLOCK,
     TK_SCOPE,
     TK_AT, // For using @ to separate namespaces
@@ -252,7 +256,7 @@ public:
     TK_IF,TK_ELSE,TK_GOTO,TK_NEW,TK_DELETE,
     ND_SYNTAXERR,
     ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_WHILE, ND_CTRL_DO,
-    ND_CTRL_SWITCH, ND_SIMPLE_STATEMENT,ND_BLOCK,
+    ND_CTRL_SWITCH, ND_SIMPLE_STATEMENT,ND_BLOCK,ND_BLOCK_RAW,
     ND_DECL,ND_TYPE_SPEC,ND_TERMINAL,
     TK_SENTINEL
 
@@ -396,6 +400,8 @@ namespace nodeTypes {
     AST_type::elementType::OP_GROUP;
   constexpr AST_type::elementType OP_GROUP_ERROR =
     AST_type::elementType::OP_GROUP_ERROR;
+  constexpr AST_type::elementType OP_BRACKETGROUP =
+    AST_type::elementType::OP_BRACKETGROUP;
   constexpr AST_type::elementType OP_OPENPAREN =
     AST_type::elementType::OP_OPENPAREN;
   constexpr AST_type::elementType OP_CLOSEPAREN =
@@ -418,6 +424,12 @@ namespace nodeTypes {
     AST_type::elementType::OP_TERM;
   constexpr AST_type::elementType OP_SPECIAL =
     AST_type::elementType::OP_SPECIAL;
+  constexpr AST_type::elementType OP_NEW =
+    AST_type::elementType::OP_NEW;
+  constexpr AST_type::elementType OP_DELETE =
+    AST_type::elementType::OP_DELETE;
+  constexpr AST_type::elementType OP_SIZEOF =
+    AST_type::elementType::OP_SIZEOF;
   constexpr AST_type::elementType TK_BRACEBLOCK =
     AST_type::elementType::TK_BRACEBLOCK;
   constexpr AST_type::elementType TK_SCOPE =
@@ -695,6 +707,8 @@ namespace nodeTypes {
     AST_type::elementType::ND_SIMPLE_STATEMENT;
   constexpr AST_type::elementType ND_BLOCK =
     AST_type::elementType::ND_BLOCK;
+  constexpr AST_type::elementType ND_BLOCK_RAW =
+    AST_type::elementType::ND_BLOCK_RAW;
   constexpr AST_type::elementType ND_DECL =
     AST_type::elementType::ND_DECL;
   constexpr AST_type::elementType ND_TYPE_SPEC =
@@ -758,6 +772,15 @@ public:
   AST_Block() {nodeType = AST_type::elementType::ND_BLOCK; }
 } ;
 
+class AST_BlockRaw : public AST_type {
+public:
+  ASTList elements ;
+  varmap identifiers ;
+  void accept(AST_visitor &v) ;
+  ASTP clone() const ;
+  AST_BlockRaw() {nodeType = AST_type::elementType::ND_BLOCK_RAW; }
+} ;
+
 /// Type specifier
 class AST_typeSpec : public AST_type {
 public:
@@ -808,6 +831,15 @@ public:
   }
 } ;
 
+/// Loci directive
+class AST_LociDirective : public AST_type {
+public:
+  CPTR<AST_Token> type ;
+  ASTP body ;
+  void accept(AST_visitor & v) ;
+  ASTP clone() const ;
+  AST_LociDirective() { nodeType = AST_type::elementType::OP_ERROR ; }
+} ;
 
 /// Visitor abstract base class
 class AST_visitor {
@@ -815,10 +847,12 @@ public :
   virtual ~AST_visitor() {} ;
   virtual void visit(AST_SimpleStatement &)  ;
   virtual void visit(AST_Block &)  ;
+  virtual void visit(AST_BlockRaw &)  ;
   virtual void visit(AST_typeSpec &) ;
   virtual void visit(AST_declaration &)  ;
   virtual void visit(AST_exprOper &)  ;
   virtual void visit(AST_controlStatement &) ;
+  virtual void visit(AST_LociDirective &) ;
   virtual void visit(AST_Token &) {}
   virtual void visit(AST_syntaxError &) {}
 } ;
@@ -871,6 +905,37 @@ public:
   virtual void visit(AST_Token &) ;
 } ;
 
+/// Visitor that prints an AST using a simple substitution map
+class AST_printObjectTree : public AST_visitor {
+public:
+  ostream & out ;
+  int indent_level ;
+
+  void indent() {
+    for(int i = 0; i < indent_level; ++i)
+      out << "  " ;
+  }
+
+  void pushindent() {
+    indent_level++ ;
+  }
+
+  void popindent() {
+    indent_level-- ;
+  }
+
+  AST_printObjectTree(ostream & s): out(s), indent_level(0) {}
+
+  virtual void visit(AST_exprOper &)  ;
+  virtual void visit(AST_Token &) ;
+  virtual void visit(AST_Block &) ;
+  virtual void visit(AST_BlockRaw &) ;
+  virtual void visit(AST_typeSpec &) ;
+  virtual void visit(AST_declaration &) ;
+  virtual void visit(AST_SimpleStatement &) ;
+  virtual void visit(AST_controlStatement &) ;
+  virtual void visit(AST_LociDirective &) ;
+} ;
 
 /// parse an identifier
 extern AST_type::ASTP parseIdentifier(std::istream &is, int &linecount,
@@ -962,12 +1027,21 @@ extern AST_type::ASTP parseSpecialControlStatement(std::istream &is,
 extern AST_type::ASTP parseBlock(std::istream &is, int &linecount,
 				 const string &fileName,
 				 varmap &typemap) ;
+/// Parse a brace enclosed block as raw tokens
+extern AST_type::ASTP parseBlockRaw(std::istream &is, int &linecount,
+				 const string &fileName,
+				 varmap &typemap) ;
 /// Parse a terminal symbol (name, number, or string
 extern AST_type::ASTP parseTerm(std::istream &is, int &linecount) ;
 
 /// Get a token from the lexical analyzer from input stream and update
 /// line count while parsing input stream.
 extern CPTR<AST_Token> getToken(std::istream &is, int &linecount) ;
+
+extern AST_type::ASTP parseDeleteStatement(std::istream &is, int &linecount,
+                                           const string &fileName, varmap &typemap) ;
+extern AST_type::ASTP parseNewExpression(std::istream &is, int &linecount,
+                                         const string &fileName, varmap &typemap) ;
 
 /// Push a token (effectively undo reading a token from the input stream
 extern void pushToken(CPTR<AST_Token> &pt) ;

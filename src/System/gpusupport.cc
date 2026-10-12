@@ -232,11 +232,10 @@ namespace Loci {
     for( size_t i = 0; i < eset.num_intervals(); i++) {
       const Loci::int_type begin = eset[i].first ;
       int t = eset[i].second - eset[i].first + 1 ;
-      int* img = new int[t] ;
+      std::vector<int> img(t) ;
       for(int k=0;k<t;++k)
         img[k] = remap[base_ptr[begin+k]] ;
-      MPI_Pack(img, t, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
-      delete[] img ;
+      MPI_Pack(img.data(), t, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
     }
   }
   
@@ -697,11 +696,10 @@ namespace Loci {
     for( ci = eset.begin(); ci != eset.end(); ++ci) {
       vsize    = end(*ci) - begin(*ci);
       MPI_Pack(&vsize, 1, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
-      int* img = new int[vsize] ;
+      std::vector<int> img(vsize) ;
       for(int k=0;k<vsize;++k)
         img[k] = remap[base_ptr[*ci][k]] ;
-      MPI_Pack(img, vsize, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
-      delete[] img ;
+      MPI_Pack(img.data(), vsize, MPI_INT, outbuf, outcount, &position, MPI_COMM_WORLD) ;
     }
   }
   
