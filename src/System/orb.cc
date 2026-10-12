@@ -126,7 +126,7 @@ namespace Loci {
 
     vector<int> sizes(p) ;
 
-    MPI_Allgather(&sz,1,MPI_INT,&sizes[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&sz,1,MPI_INT,sizes.data(),1,MPI_INT,comm) ;
 
     vector<int> offsets(p+1) ;
     offsets[0] = 0 ;

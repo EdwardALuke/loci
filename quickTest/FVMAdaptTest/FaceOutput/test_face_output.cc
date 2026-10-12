@@ -57,22 +57,40 @@ TEST_CASE("face output preserves the mesh counts when two ranks own no faces") {
 
   fact_db facts;
   store<FineFaces> fine_faces, fine_faces_cell;
-  fine_faces.allocate(MPI_rank == 0 ? entitySet(interval(0, 11)) : EMPTY);
+  int nfaces = MPI_rank == 0 ? 12:0 ;
+  entitySet faces = facts.get_distributed_alloc(nfaces,0).first ;
+  
+  fine_faces.allocate(faces);
   fine_faces_cell.allocate(EMPTY);
 
   // Three disconnected tetrahedra, all their boundary faces on rank zero.
   // Three cells keep cell coloring nonempty on each rank, isolating empty
   // face ownership from the separate fewer-cells-than-ranks problem.
-  if(MPI_rank == 0) {
-    for(int cell = 0; cell < 3; ++cell) {
-      const int n = 4 * cell;
-      // Each record contains: left cell, boundary ID, then node IDs.
-      fine_faces[n]     = {{cell, -1, n, n+2, n+1}};
-      fine_faces[n + 1] = {{cell, -1, n, n+1, n+3}};
-      fine_faces[n + 2] = {{cell, -1, n+1, n+2, n+3}};
-      fine_faces[n + 3] = {{cell, -1, n+2, n, n+3}};
+  int cnt = 0 ;
+  FORALL(faces,fc) {
+    int cell = cnt>>2 ;
+    int n = cell*4 ;
+    int coord = cnt&3 ;
+    cnt++ ;
+    switch(coord) {
+    case 0:
+      fine_faces[fc] = {{cell, -1, n, n+2, n+1}};
+      break ;
+    case 1:
+      fine_faces[fc] = {{cell, -1, n, n+1, n+3}};
+      break ;
+    case 2:
+      fine_faces[fc] = {{cell, -1, n+1, n+2, n+3}};
+      break ;
+    case 3:
+      fine_faces[fc] = {{cell, -1, n+2, n, n+3}};
+      break ;
+    default:
+      cerr << "unexpected switch statement" << endl ;
+      Loci::Abort() ;
     }
-  }
+  } ENDFORALL ;
+
   facts.create_fact("fine_faces", fine_faces);
   facts.create_fact("fine_faces_cell", fine_faces_cell);
   param<std::string> outfile;

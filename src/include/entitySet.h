@@ -233,7 +233,7 @@ namespace Loci {
 #endif
 
   template<class Op> inline void do_loop(const entitySet &iset, Op f) {
-    for(int i=0;i<iset.num_intervals();++i) {
+    for(size_t i=0;i<iset.num_intervals();++i) {
       const Loci::int_type stop = iset[i].second ;
       for(Loci::int_type indx=iset[i].first;indx<=stop;++indx)
         f(indx) ;

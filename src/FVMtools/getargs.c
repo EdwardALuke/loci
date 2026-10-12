@@ -8,7 +8,7 @@
  * display usage message and exit
  *-------------------------------------------------------------------*/
 
-void print_usage (char **usgmsg, char *errmsg)
+void print_usage (const char **usgmsg, const char *errmsg)
 {
     int n;
 

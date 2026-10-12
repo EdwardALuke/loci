@@ -62,7 +62,7 @@ namespace Loci {
       data[i*2+1] = it[i].second;
     }
 
-    H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data[0]);
+    H5Dwrite(dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
 
     H5Sclose(dataspace);
     H5Dclose(dataset);
@@ -89,7 +89,7 @@ namespace Loci {
      if(datatype == H5T_NATIVE_INT){
        std::vector<int_type> tmp_data(dimension);
        H5Dread( dataset, datatype, H5S_ALL, dataspace,
-                H5P_DEFAULT, &tmp_data[0]);
+                H5P_DEFAULT, tmp_data.data());
         
        eset =genIntervalSet<T>::EMPTY;
        for(size_t i=0;i< dimension;i+=2){
@@ -98,7 +98,7 @@ namespace Loci {
      }else{//assume type match
        std::vector<T> data(dimension);
        H5Dread( dataset, datatype, H5S_ALL, dataspace,
-                H5P_DEFAULT, &data[0]);
+                H5P_DEFAULT, data.data());
        eset =genIntervalSet<T>::EMPTY;
        for(size_t i=0;i< dimension;i+=2){
          eset |= std::pair<T, T>(data[i],data[i+1]);

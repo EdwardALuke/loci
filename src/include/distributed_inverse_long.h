@@ -64,8 +64,8 @@ namespace Loci {
  
     // transfer recv sizes
     vector<int> recv_sz(MPI_processes) ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT,
-                 &recv_sz[0],1,MPI_INT,
+    MPI_Alltoall(send_sz.data(),1,MPI_INT,
+                 recv_sz.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     int size_send = 0 ;
     int size_recv = 0 ;
@@ -104,8 +104,8 @@ namespace Loci {
     }
  
     MPI_Datatype MPI_T_type = MPI_traits<T>::get_MPI_type() ;
-    MPI_Alltoallv(&send_store[0], &send_sz[0], send_displacement, MPI_T_type,
-		  &recv_store[0], &recv_sz[0], recv_displacement, MPI_T_type,
+    MPI_Alltoallv(&send_store[0], send_sz.data(), send_displacement, MPI_T_type,
+		  recv_store.data(), recv_sz.data(), recv_displacement, MPI_T_type,
 		  MPI_COMM_WORLD) ;
  
     delete[] recv_displacement ;

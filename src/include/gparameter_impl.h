@@ -178,12 +178,12 @@ namespace Loci {
     typename data_schema_traits<T>::Converter_Type cvtr(const_cast<T&>(attrib_data));
 
     std::vector<dtype> inbuf(cvtr.getSize());
-    cvtr.getState( &inbuf[0], stateSize);
+    cvtr.getState( inbuf.data(), stateSize);
 
     MPI_Pack(&stateSize, 1, MPI_INT, outbuf, outcount,&position,
              MPI_COMM_WORLD);
     int incount =  stateSize*typesize;
-    MPI_Pack(&inbuf[0], incount, MPI_BYTE, outbuf, outcount, &position,
+    MPI_Pack(inbuf.data(), incount, MPI_BYTE, outbuf, outcount, &position,
              MPI_COMM_WORLD) ;
 
   }
@@ -251,10 +251,10 @@ namespace Loci {
     std::vector<dtype> outbuf(stateSize);
 
     outcount = stateSize*sizeof(dtype);
-    MPI_Unpack( const_cast<void*>(inbuf), insize, &position, &outbuf[0], outcount,
+    MPI_Unpack( const_cast<void*>(inbuf), insize, &position, outbuf.data(), outcount,
                 MPI_BYTE, MPI_COMM_WORLD) ;
     typename schema_traits::Converter_Type  cvtr( attrib_data );
-    cvtr.setState( &outbuf[0], stateSize);
+    cvtr.setState( outbuf.data(), stateSize);
 
   }
 

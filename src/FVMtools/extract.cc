@@ -84,10 +84,12 @@ void readData(hid_t file_id, std::string vname, Loci::storeRepP var, entitySet r
     }
 #endif
     H5Gclose(grp) ;
-    Loci::readContainer(file_id,name,var,readSet,facts) ;
+    //    Loci::readContainer(file_id,name,var,readSet,facts) ;
+    Loci::readContainerRAW(file_id,name,var,MPI_COMM_WORLD) ;
   } else {
     H5Gclose(grp) ;
-    Loci::readContainer(file_id,vname,var,readSet,facts) ;
+    //    Loci::readContainer(file_id,vname,var,readSet,facts) ;
+    Loci::readContainerRAW(file_id,vname,var,MPI_COMM_WORLD) ;
   }
 }
     

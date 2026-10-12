@@ -39,7 +39,7 @@ namespace Loci {
       ci =  attrib_data.find(ii);
       if( ci != attrib_data.end() ) {
         const std::vector<T> &newVec = ci->second;
-        Loci::streamoutput(&newVec[0],newVec.size(),s) ;
+        Loci::streamoutput(newVec.data(),newVec.size(),s) ;
       }
     }ENDFORALL ;
 
@@ -73,7 +73,7 @@ namespace Loci {
     FORALL(e,ii) {
       for( size_t i = 0; i < size_t(size); i++) {
         newVec[i] = T() ;
-        Loci::streaminput(&newVec[i],1,s) ;
+        Loci::streaminput(newVec.data()+i,1,s) ;
       }
       attrib_data[ii] = newVec;
     } ENDFORALL ;
@@ -455,7 +455,7 @@ namespace Loci {
       iter = attrib_data.find(*ci);
       if( iter == attrib_data.end() )  continue;
       inbuf = iter->second;
-      cpypack(outbuf,position,outcount,&inbuf[0],size) ;
+      cpypack(outbuf,position,outcount,inbuf.data(),size) ;
     }
   }
 
@@ -484,10 +484,10 @@ namespace Loci {
         int stateSize  = cvtr.getSize();
         if( size_t(stateSize) > inbuf.size() ) inbuf.resize(stateSize);
 
-        cvtr.getState( &inbuf[0], stateSize);
+        cvtr.getState( inbuf.data(), stateSize);
 
         cpypack(outbuf,position,outcount,&stateSize,1) ;
-        cpypack(outbuf,position,outcount,&inbuf[0],stateSize) ;
+        cpypack(outbuf,position,outcount,inbuf.data(),stateSize) ;
       }
     }
 
@@ -521,7 +521,7 @@ namespace Loci {
 
     for( ci = seq.begin(); ci != seq.end(); ++ci) {
       attrib_data[*ci].resize(size);
-      cpyunpack(inbuf,position,insize,&outbuf[0],size) ;
+      cpyunpack(inbuf,position,insize,outbuf.data(),size) ;
       for( int i = 0; i < size; i++) 
         attrib_data[*ci][i] = outbuf[i];
     }
@@ -552,10 +552,10 @@ namespace Loci {
         int stateSize=0 ;
         cpyunpack(inbuf,position,insize,&stateSize,1) ;
         if( size_t(stateSize) > outbuf.size() ) outbuf.resize(stateSize);
-        cpyunpack(inbuf,position,insize,&outbuf[0],stateSize) ;
+        cpyunpack(inbuf,position,insize,outbuf.data(),stateSize) ;
 
         typename schema_traits::Converter_Type  cvtr(attrib_data[*ci][ivec]);
-        cvtr.setState( &outbuf[0], stateSize);
+        cvtr.setState( outbuf.data(), stateSize);
       }
     }
 
@@ -667,7 +667,7 @@ namespace Loci {
 
       H5Sselect_hyperslab(mDataspace, H5S_SELECT_SET, start,  stride, count, block);
       H5Sselect_hyperslab(vDataspace, H5S_SELECT_SET, foffset,stride, count, block);
-      H5Dread( vDataset, vDatatype, mDataspace, vDataspace, H5P_DEFAULT, &data[0]);
+      H5Dread( vDataset, vDatatype, mDataspace, vDataspace, H5P_DEFAULT, data.data());
 
       indx = 0;
       for( int i = it[k].first; i <= it[k].second; i++) {
@@ -705,7 +705,7 @@ namespace Loci {
 
       std::vector<int> ibuf(dimension);
 
-      H5Dread(vDataset, vDatatype, H5S_ALL,H5S_ALL,H5P_DEFAULT, &ibuf[0]);
+      H5Dread(vDataset, vDatatype, H5S_ALL,H5S_ALL,H5P_DEFAULT, ibuf.data());
       H5Dclose( vDataset  );
       H5Sclose( vDataspace);
 
@@ -864,7 +864,7 @@ namespace Loci {
       hid_t vDataspace = H5Screate_simple(rank, &dimension, NULL);
       hid_t vDataset   = H5Dcreate( group_id, "VariableData", vDatatype, vDataspace, 
       H5P_DEFAULT);
-      H5Dwrite( vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &data[0]);
+      H5Dwrite( vDataset, vDatatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
 
       H5Dclose( vDataset  );
       H5Sclose( vDataspace);

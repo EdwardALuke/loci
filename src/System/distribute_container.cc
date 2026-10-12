@@ -172,8 +172,8 @@ namespace Loci {
 
     // transfer recv sizes
     vector<int> recv_sz(MPI_processes) ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT,
-                 &recv_sz[0],1,MPI_INT,
+    MPI_Alltoall(send_sz.data(),1,MPI_INT,
+                 recv_sz.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     int size_send = 0 ;
     int size_recv = 0 ;
@@ -210,8 +210,8 @@ namespace Loci {
       send_store[send_displacement[current_p]+offsets[current_p]++] = to ;
       send_store[send_displacement[current_p]+offsets[current_p]++] = from ;
     }
-    MPI_Alltoallv(send_store,&send_sz[0], send_displacement , MPI_INT,
-		  recv_store, &recv_sz[0], recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_store,send_sz.data(), send_displacement , MPI_INT,
+		  recv_store, recv_sz.data(), recv_displacement, MPI_INT,
 		  MPI_COMM_WORLD) ;  
 
     entitySet local_input_image = input_image ;
@@ -282,8 +282,8 @@ namespace Loci {
 
     // transfer recv sizes
     vector<int> recv_sz(MPI_processes) ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT,
-                 &recv_sz[0],1,MPI_INT,
+    MPI_Alltoall(send_sz.data(),1,MPI_INT,
+                 recv_sz.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     int size_send = 0 ;
     int size_recv = 0 ;
@@ -320,8 +320,8 @@ namespace Loci {
       send_store[send_displacement[current_p]+offsets[current_p]++] = to ;
       send_store[send_displacement[current_p]+offsets[current_p]++] = from ;
     }
-    MPI_Alltoallv(send_store,&send_sz[0], send_displacement , MPI_INT,
-		  recv_store, &recv_sz[0], recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_store,send_sz.data(), send_displacement , MPI_INT,
+		  recv_store, recv_sz.data(), recv_displacement, MPI_INT,
 		  MPI_COMM_WORLD) ;  
 
     entitySet local_input_image = input_image ;

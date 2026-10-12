@@ -531,10 +531,10 @@ namespace Loci {
       vecsize = end(*ci) - begin(*ci) ;
       for(int ivec = 0; ivec < vecsize; ivec++) {
         typename data_schema_traits<T>::Converter_Type cvtr(base_ptr[*ci][ivec]) ;
-        cvtr.getState(&inbuf[0], stateSize) ;
+        cvtr.getState(inbuf.data(), stateSize) ;
 
         cpypack(outbuf, position, outcount, &stateSize, 1) ;
-        cpypack(outbuf, position, outcount, &inbuf[0], stateSize) ;
+        cpypack(outbuf, position, outcount, inbuf.data(), stateSize) ;
       }
     }
   }
@@ -601,10 +601,10 @@ namespace Loci {
         int stateSize = 0 ;
         cpyunpack(inbuf, position, insize, &stateSize, 1) ;
         if(stateSize > outbuf.size()) outbuf.resize(stateSize) ;
-        cpyunpack(inbuf, position, insize, &outbuf[0], stateSize) ;
+        cpyunpack(inbuf, position, insize, outbuf.data(), stateSize) ;
 
         typename schema_traits::Converter_Type cvtr(base_ptr[*ci][ivec]) ;
-        cvtr.setState(&outbuf[0], stateSize) ;
+        cvtr.setState(outbuf.data(), stateSize) ;
       }
     }
   }

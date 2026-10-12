@@ -91,8 +91,8 @@ namespace Loci {
     for(int i=1;i<p;++i) 
       splitters[i-1] = vals[(i*nlocal)/p] ;
 
-    MPI_Allgather(&splitters[0],p-1,MPI_DOUBLE,
-                  &allsplits[0],p-1,MPI_DOUBLE,comm) ;
+    MPI_Allgather(splitters.data(),p-1,MPI_DOUBLE,
+                  allsplits.data(),p-1,MPI_DOUBLE,comm) ;
 
     sort(allsplits.begin(),allsplits.end()) ;
     for(int i=1;i<p;++i)
@@ -143,7 +143,7 @@ namespace Loci {
       sdispls[i] = sdispls[i-1]+scounts[i-1] ;
 
     vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+    MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
 
     vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
@@ -155,8 +155,8 @@ namespace Loci {
 
     vector<kd_tree::coord_info> sorted_pnts(result_size) ;
 
-    MPI_Alltoallv(&pnts[0],&scounts[0],&sdispls[0],MPI_BYTE,
-                  &sorted_pnts[0],&rcounts[0],&rdispls[0],MPI_BYTE,
+    MPI_Alltoallv(pnts.data(),scounts.data(),sdispls.data(),MPI_BYTE,
+                  sorted_pnts.data(),rcounts.data(),rdispls.data(),MPI_BYTE,
                   comm) ;
 
     pnts.swap(sorted_pnts) ;
@@ -272,7 +272,7 @@ namespace Loci {
     vector<int> search_sizes(p) ;
     int lM = search_pnts.size() ;
 
-    MPI_Allgather(&lM,1,MPI_INT,&search_sizes[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&lM,1,MPI_INT,search_sizes.data(),1,MPI_INT,comm) ;
     vector<int> search_ids(p+1) ;
     search_ids[0] = 0 ;
     for(int i=1;i<p;++i)
@@ -310,12 +310,12 @@ namespace Loci {
       }
 
     vector<kd_tree::bounds> pbnds(p) ;
-    MPI_Allgather(&bndi,6,MPI_DOUBLE,&pbnds[0],6,MPI_DOUBLE,comm) ;
+    MPI_Allgather(&bndi,6,MPI_DOUBLE,pbnds.data(),6,MPI_DOUBLE,comm) ;
   
     int check = lN ;
 
     vector<int> lNp(p) ;
-    MPI_Allgather(&lN,1,MPI_INT,&lNp[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&lN,1,MPI_INT,lNp.data(),1,MPI_INT,comm) ;
     for(int i=0;i<p;++i)
       check = min(check,lNp[i]) ;
     bool no_tpnts = (lN == 0) ;
@@ -341,20 +341,20 @@ namespace Loci {
           }
       }
       vector<int> preq(p) ;
-      MPI_Allgather(&fromp,1,MPI_INT,&preq[0],1,MPI_INT,comm) ;
+      MPI_Allgather(&fromp,1,MPI_INT,preq.data(),1,MPI_INT,comm) ;
       if(lN == 0) {
         int sz = lNp[fromp] ;
         vector<kd_tree::coord_info> tmp(sz) ;
         sz *= sizeof(kd_tree::coord_info) ;
         MPI_Status status ;
-        MPI_Recv(&tmp[0],sz,MPI_BYTE,fromp,0,comm,&status) ;
+        MPI_Recv(tmp.data(),sz,MPI_BYTE,fromp,0,comm,&status) ;
         tcopy.swap(tmp) ;
         lN = tcopy.size() ;
       } else {
         for(int i=0;i<p;++i)
           if(preq[i] == myid) {
             int sz = lN*sizeof(kd_tree::coord_info) ;
-            MPI_Send(&tcopy[0],sz,MPI_BYTE,i,0,comm) ;
+            MPI_Send(tcopy.data(),sz,MPI_BYTE,i,0,comm) ;
           }
       }
     }  
@@ -404,7 +404,7 @@ namespace Loci {
 
       // Communicate bounds request to other processors
       vector<kd_tree::bounds> bnd_req(p) ;
-      MPI_Allgather(&bndi,6,MPI_DOUBLE,&bnd_req[0],6,MPI_DOUBLE,comm) ;
+      MPI_Allgather(&bndi,6,MPI_DOUBLE,bnd_req.data(),6,MPI_DOUBLE,comm) ;
 
 
       vector<int> scounts(p,0) ;
@@ -425,7 +425,7 @@ namespace Loci {
         sdispls[i] = sdispls[i-1]+scounts[i-1] ;
     
       vector<int> rcounts(p) ;
-      MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+      MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
     
       vector<int> rdispls(p) ;
       rdispls[0] = 0 ;
@@ -437,8 +437,8 @@ namespace Loci {
     
       vector<kd_tree::coord_info> pcollect(result_size) ;
     
-      MPI_Alltoallv(&pntlist[0],&scounts[0],&sdispls[0],MPI_BYTE,
-                    &pcollect[0],&rcounts[0],&rdispls[0],MPI_BYTE,
+      MPI_Alltoallv(pntlist.data(),scounts.data(),sdispls.data(),MPI_BYTE,
+                    pcollect.data(),rcounts.data(),rdispls.data(),MPI_BYTE,
                     comm) ;
     
       kd_tree kd_xfer(pcollect) ;
@@ -471,7 +471,7 @@ namespace Loci {
       sdispls[i] = sdispls[i-1]+scounts[i-1] ;
 
     vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+    MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
 
     vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
@@ -488,8 +488,8 @@ namespace Loci {
     }
 
     vector<pair<int,int> > rclose(rsize) ;
-    MPI_Alltoallv(&close_pair[0],&scounts[0],&sdispls[0],MPI_2INT,
-                  &rclose[0],&rcounts[0],&rdispls[0],MPI_2INT,
+    MPI_Alltoallv(close_pair.data(),scounts.data(),sdispls.data(),MPI_2INT,
+                  rclose.data(),rcounts.data(),rdispls.data(),MPI_2INT,
                   comm) ;
   
     // Redistribute close_pt
@@ -512,7 +512,7 @@ namespace Loci {
 
     int tsz = target_pnts.size() ;
     vector<int> rcounts(p) ;
-    MPI_Allgather(&tsz,1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&tsz,1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
     vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
     for(int i=1;i<p;++i) {
@@ -522,8 +522,8 @@ namespace Loci {
 
     vector<coord3d> tpnts(rsize);
     vector<int> tids(rsize) ;
-    MPI_Allgatherv((void *)&target_ids[0],tsz,MPI_INT,
-                   &tids[0],&rcounts[0],&rdispls[0],
+    MPI_Allgatherv((void *)target_ids.data(),tsz,MPI_INT,
+                   tids.data(),rcounts.data(),rdispls.data(),
                    MPI_INT,comm) ;
     for(int i=0;i<p;++i)
       rcounts[i] *= 3 ;
@@ -534,8 +534,8 @@ namespace Loci {
     rsize = rdispls[p-1]+rcounts[p-1] ;
 
 
-    MPI_Allgatherv((void *)&target_pnts[0],tsz*3,MPI_DOUBLE,
-                   &tpnts[0],&rcounts[0],&rdispls[0],
+    MPI_Allgatherv((void *)target_pnts.data(),tsz*3,MPI_DOUBLE,
+                   tpnts.data(),rcounts.data(),rdispls.data(),
                    MPI_DOUBLE,comm) ;
     kd_tree kd(tpnts,tids) ;
 
@@ -583,7 +583,7 @@ namespace Loci {
 
       int tsz = nsamples ;
       vector<int> rcounts(p) ;
-      MPI_Allgather(&tsz,1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+      MPI_Allgather(&tsz,1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
       vector<int> rdispls(p) ;
       rdispls[0] = 0 ;
       for(int i=1;i<p;++i) {
@@ -593,8 +593,8 @@ namespace Loci {
       
       vector<coord3d> tpnts(rsize);
       vector<int> tids(rsize) ;
-      MPI_Allgatherv((void *)&sample_ids[0],tsz,MPI_INT,
-                     &tids[0],&rcounts[0],&rdispls[0],
+      MPI_Allgatherv((void *)sample_ids.data(),tsz,MPI_INT,
+                     tids.data(),rcounts.data(),rdispls.data(),
                      MPI_INT,comm) ;
       for(int i=0;i<p;++i)
         rcounts[i] *= 3 ;
@@ -605,8 +605,8 @@ namespace Loci {
       rsize = rdispls[p-1]+rcounts[p-1] ;
       
       
-      MPI_Allgatherv((void *)&sample_pts[0],tsz*3,MPI_DOUBLE,
-                     &tpnts[0],&rcounts[0],&rdispls[0],
+      MPI_Allgatherv((void *)sample_pts.data(),tsz*3,MPI_DOUBLE,
+                     tpnts.data(),rcounts.data(),rdispls.data(),
                      MPI_DOUBLE,comm) ;
       
       kd_tree kd(tpnts,tids) ;
@@ -649,7 +649,7 @@ namespace Loci {
 
     // Communicate bounds request to other processors
     vector<kd_tree::bounds> bnd_req(p) ;
-    MPI_Allgather(&bndi,6,MPI_DOUBLE,&bnd_req[0],6,MPI_DOUBLE,comm) ;
+    MPI_Allgather(&bndi,6,MPI_DOUBLE,bnd_req.data(),6,MPI_DOUBLE,comm) ;
     
 
     // Now communicate points that processors need to complete NN search
@@ -672,7 +672,7 @@ namespace Loci {
       sdispls[i] = sdispls[i-1]+scounts[i-1] ;
     
     vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+    MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
     
     vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
@@ -684,8 +684,8 @@ namespace Loci {
 
     vector<kd_tree::coord_info> pcollect(result_size) ;
     
-    MPI_Alltoallv(&pntlist[0],&scounts[0],&sdispls[0],MPI_BYTE,
-                  &pcollect[0],&rcounts[0],&rdispls[0],MPI_BYTE,
+    MPI_Alltoallv(pntlist.data(),scounts.data(),sdispls.data(),MPI_BYTE,
+                  pcollect.data(),rcounts.data(),rdispls.data(),MPI_BYTE,
                   comm) ;
 
     // Now we have collected all remaining points we need to complete the

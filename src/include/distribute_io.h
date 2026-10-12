@@ -216,7 +216,7 @@ namespace Loci {
         v.swap(tmp) ;
       }
       
-      H5Dread(dataset, datatype, H5S_ALL, dataspace, H5P_DEFAULT, &v[0]);
+      H5Dread(dataset, datatype, H5S_ALL, dataspace, H5P_DEFAULT, v.data());
       
       H5Sclose(dataspace);
       H5Dclose(dataset);
@@ -266,7 +266,7 @@ namespace Loci {
         hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
 
         H5Dwrite(dataset,datatype,memspace,dataspace,
-                 H5P_DEFAULT, &v[0]) ;
+                 H5P_DEFAULT, v.data()) ;
 
         H5Sclose(memspace) ;
 
@@ -318,7 +318,7 @@ namespace Loci {
                                 &start, &stride, &count, NULL) ;
             hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
             H5Dwrite(dataset,datatype,memspace,dataspace,
-                     H5P_DEFAULT, &v[0]) ;
+                     H5P_DEFAULT, v.data()) ;
             H5Sclose(memspace) ;
           }
         }
@@ -370,7 +370,7 @@ namespace Loci {
           hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
      
           H5Dwrite(dataset,datatype,memspace,dataspace,
-                   H5P_DEFAULT, &v[0]) ;
+                   H5P_DEFAULT, v.data()) ;
      
           H5Sclose(memspace) ;
      
@@ -386,7 +386,7 @@ namespace Loci {
       size_t local_size = v.size() ;
       std::vector<size_t> recv_sizes(procs) ;
       MPI_Gather(&local_size,sizeof(size_t),MPI_BYTE,
-                 &recv_sizes[0],sizeof(size_t),MPI_BYTE,0,comm) ;
+                 recv_sizes.data(),sizeof(size_t),MPI_BYTE,0,comm) ;
 
       if(my_rank == 0) {
         hsize_t array_size = 0 ;
@@ -415,7 +415,7 @@ namespace Loci {
                               &start, &stride, &count, NULL) ;
           hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
           H5Dwrite(dataset,datatype,memspace,dataspace,
-                   H5P_DEFAULT, &v[0]) ;
+                   H5P_DEFAULT, v.data()) ;
           H5Sclose(memspace) ;
         }
         for(int i=1;i<procs;++i) {
@@ -426,13 +426,13 @@ namespace Loci {
           MPI_Send(&flag,1,MPI_INT,i,0,comm) ;
           std::vector<T> rv(recv_sizes[i]) ;
           MPI_Status mstat ;
-          MPI_Recv(&rv[0],sizeof(T)*recv_sizes[i],MPI_BYTE,i,0,comm,
+          MPI_Recv(rv.data(),sizeof(T)*recv_sizes[i],MPI_BYTE,i,0,comm,
                    &mstat) ;
           count = recv_sizes[i] ;
           H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, &start, &stride, &count, NULL) ;
           hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
           H5Dwrite(dataset,datatype,memspace,dataspace,
-                   H5P_DEFAULT, &rv[0]) ;
+                   H5P_DEFAULT, rv.data()) ;
           H5Sclose(memspace) ;
         }
 
@@ -446,7 +446,7 @@ namespace Loci {
         int flag = 0;
         MPI_Status mstat ;
         MPI_Recv(&flag,1,MPI_INT,0,0,comm,&mstat) ;
-        MPI_Send(&v[0],sizeof(T)*local_size,MPI_BYTE,0,0,comm) ;
+        MPI_Send(v.data(),sizeof(T)*local_size,MPI_BYTE,0,0,comm) ;
       }
     }
  
@@ -498,7 +498,7 @@ namespace Loci {
                               &start, &stride, &count, NULL) ;
           hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
 
-          H5Dwrite(dataset,datatype,memspace,dataspace,H5P_DEFAULT, &v[0]) ;
+          H5Dwrite(dataset,datatype,memspace,dataspace,H5P_DEFAULT, v.data()) ;
           H5Sclose(memspace) ;
         }
         H5Dclose(dataset) ;
@@ -515,7 +515,7 @@ namespace Loci {
       hsize_t rsize = local_size; //individual size for each process 
       std::vector<hsize_t> prime_count(mpi_size);
       MPI_Allgather(&rsize,sizeof(hsize_t),MPI_BYTE,
-                    &prime_count[0],sizeof(hsize_t),MPI_BYTE,prime_comm) ;
+                    prime_count.data(),sizeof(hsize_t),MPI_BYTE,prime_comm) ;
 
       std::vector<hsize_t> pdispls(mpi_size) ; //the start point of each process 
       pdispls[0] = 0 ;
@@ -554,7 +554,7 @@ namespace Loci {
 
       //write data
       hid_t xfer_plist = create_xfer_plist(hdf5_const::dxfer_coll_type);
-      H5Dwrite(dataset,datatype,memspace,dataspace, xfer_plist,  &v[0]) ;
+      H5Dwrite(dataset,datatype,memspace,dataspace, xfer_plist,  v.data()) ;
 
       //close everything
       H5Pclose(xfer_plist) ;
@@ -633,7 +633,7 @@ namespace Loci {
                               &start,&stride,&count, NULL) ;
           hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
 
-          H5Dread(dataset, datatype, memspace, dataspace, H5P_DEFAULT, &v[0]);
+          H5Dread(dataset, datatype, memspace, dataspace, H5P_DEFAULT, v.data());
           H5Sclose(memspace) ;
           start += count ;
           for(int i=1;i<procs;++i) {
@@ -642,15 +642,15 @@ namespace Loci {
             H5Sselect_hyperslab(dataspace, H5S_SELECT_SET,
                                 &start,&stride,&count, NULL) ;
             memspace = H5Screate_simple(rank, &count, NULL) ;
-            H5Dread(dataset,datatype,memspace,dataspace,H5P_DEFAULT,&tmp[0]) ;
-            MPI_Send(&tmp[0],count*sizeof(T),MPI_BYTE,i,0,comm) ;
+            H5Dread(dataset,datatype,memspace,dataspace,H5P_DEFAULT,tmp.data()) ;
+            MPI_Send(tmp.data(),count*sizeof(T),MPI_BYTE,i,0,comm) ;
             H5Sclose(memspace) ;
             start += count ;
           }
           H5Tclose(datatype) ;
         } else {
           MPI_Status mstat ;
-          MPI_Recv(&v[0],loc_array_size*sizeof(T),MPI_BYTE,0,0,comm,&mstat) ;
+          MPI_Recv(v.data(),loc_array_size*sizeof(T),MPI_BYTE,0,0,comm,&mstat) ;
         }
       } else {
         std::vector<T> tmp ;
@@ -721,7 +721,7 @@ namespace Loci {
         hid_t memspace = H5Screate_simple(rank, &count, NULL);
         WARN(memspace<0) ;
 
-        H5Dread(dataset, datatype, memspace, dataspace, H5P_DEFAULT, &v[0]);
+        H5Dread(dataset, datatype, memspace, dataspace, H5P_DEFAULT, v.data());
 
         H5Sclose(memspace) ;
         H5Sclose(dataspace) ;

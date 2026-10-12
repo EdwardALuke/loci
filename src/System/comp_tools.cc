@@ -1521,7 +1521,7 @@ namespace Loci {
       // post the actual recv requests
       for(size_t i=0;i<recv_info.size();++i)
         MPI_Irecv(recv_info[i].buf, recv_info[i].recv_size, MPI_PACKED,
-                  recv_info[i].proc, tag1, MPI_COMM_WORLD, &recv_req[i]) ;
+                  recv_info[i].proc, tag1, MPI_COMM_WORLD, recv_req.data()+i) ;
     }
 
     // now we need to setup the send size
@@ -1589,19 +1589,19 @@ namespace Loci {
       }
       for(size_t i=0;i<send_info.size();++i)
         MPI_Isend(send_info[i].buf,send_info[i].send_size,MPI_PACKED,
-                  send_info[i].proc,tag1,MPI_COMM_WORLD,&send_req[i]) ;
+                  send_info[i].proc,tag1,MPI_COMM_WORLD,send_req.data()+i) ;
     }
     // wait for all messages to complete
     if(!send_info.empty())
       MPI_Waitall(send_info.size(), &send_req[0], MPI_STATUSES_IGNORE) ;
     if(!recv_info.empty())
-      MPI_Waitall(recv_info.size(), &recv_req[0], &recv_status[0]) ;
+      MPI_Waitall(recv_info.size(), &recv_req[0], recv_status.data()) ;
 
     // extract the received message
     if(!recv_info.empty()) {
       for(size_t i=0;i<recv_info.size();++i) {
         int rs ;
-        MPI_Get_count(&recv_status[i], MPI_BYTE, &rs) ;
+        MPI_Get_count(recv_status.data()+i, MPI_BYTE, &rs) ;
         if(rs == sizeof(int)) {
           rerecv_flag[i] = true ;
           rerecv.push_back(recomm(recv_info[i].proc,i)) ;
@@ -1636,7 +1636,7 @@ namespace Loci {
       int idx = rerecv[i].idx ;
       recv_info[idx].buf = new unsigned char[recv_info[idx].recv_size] ;
       MPI_Irecv(recv_info[idx].buf,recv_info[idx].recv_size,
-                MPI_PACKED,proc,tag2,MPI_COMM_WORLD,&recv_req[i]) ;
+                MPI_PACKED,proc,tag2,MPI_COMM_WORLD,recv_req.data()+i) ;
     }
 
     // do the repack/resend
@@ -1655,14 +1655,14 @@ namespace Loci {
       int proc = resend[i].proc ;
       int idx = resend[i].idx ;
       MPI_Isend(send_info[idx].buf,send_info[idx].send_size,
-                MPI_PACKED,proc,tag2,MPI_COMM_WORLD,&send_req[i]) ;
+                MPI_PACKED,proc,tag2,MPI_COMM_WORLD,send_req.data()+i) ;
     }
 
     // wait for all send/recv to complete
     if(!resend.empty())
       MPI_Waitall(resend.size(), &send_req[0], MPI_STATUSES_IGNORE) ;
     if(!rerecv.empty())
-      MPI_Waitall(rerecv.size(), &recv_req[0], &recv_status[0]) ;
+      MPI_Waitall(rerecv.size(), &recv_req[0], recv_status.data()) ;
     // delete all resend buffer
     for(size_t i=0;i<resend.size();++i)
       delete[] send_info[resend[i].idx].buf ;

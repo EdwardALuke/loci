@@ -1003,7 +1003,7 @@ namespace Loci {
       {
 	long hid = gethostid() ;
 	vector<long> host_list(MPI_processes) ;
-	MPI_Allgather(&hid,1,MPI_LONG,&host_list[0],1,MPI_LONG,MPI_COMM_WORLD) ;
+	MPI_Allgather(&hid,1,MPI_LONG,host_list.data(),1,MPI_LONG,MPI_COMM_WORLD) ;
 	int cnt = 0 ;
 	for(int i=0;i<MPI_processes;++i)
 	  if(hid == host_list[i])

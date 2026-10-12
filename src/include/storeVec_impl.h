@@ -527,10 +527,10 @@ namespace Loci {
       for( int ivec = 0; ivec < size; ivec++){
         typename data_schema_traits<T>::Converter_Type
           cvtr( alloc_ptr[((*ci)-base_offset)*size+ivec] );
-        cvtr.getState( &inbuf[0], stateSize);
+        cvtr.getState( inbuf.data(), stateSize);
 
         cpypack(outbuf,position,outcount,&stateSize,1) ;
-        cpypack(outbuf,position,outcount,&inbuf[0],stateSize) ;
+        cpypack(outbuf,position,outcount,inbuf.data(),stateSize) ;
       }
     }
   }
@@ -608,10 +608,10 @@ namespace Loci {
 
         if( size_t(stateSize) > outbuf.size() ) outbuf.resize(stateSize);
 
-        cpyunpack(inbuf,position,insize,&outbuf[0],stateSize) ;
+        cpyunpack(inbuf,position,insize,outbuf.data(),stateSize) ;
 
         typename schema_traits::Converter_Type  cvtr( alloc_ptr[((*ci)-base_offset)*size+ivec] );
-        cvtr.setState( &outbuf[0], stateSize);
+        cvtr.setState( outbuf.data(), stateSize);
       }
     }
   }

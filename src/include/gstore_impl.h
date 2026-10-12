@@ -249,8 +249,8 @@ namespace Loci {
     }
     // communicate to get the receive counts
     std::vector<int> recv_counts(np,0) ;
-    MPI_Alltoall(&send_counts[0], 1, MPI_INT,
-                 &recv_counts[0], 1, MPI_INT, comm) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
     
     // then pack the buffer
     int tot_send_size = 0 ;
@@ -277,9 +277,9 @@ namespace Loci {
     
     // we now proceed to communicate the store contents
     unsigned char* recv_buffer = new unsigned char[tot_recv_size] ;
-    MPI_Alltoallv(&send_buffer[0], &send_counts[0],
+    MPI_Alltoallv(&send_buffer[0], send_counts.data(),
                   &send_displs[0], MPI_PACKED,
-                  &recv_buffer[0], &recv_counts[0],
+                  &recv_buffer[0], recv_counts.data(),
                   &recv_displs[0], MPI_PACKED, comm) ;
 
     
@@ -463,7 +463,7 @@ namespace Loci {
         typename schema_traits::Converter_Type cvtr( const_cast<T&>(itr1->second));
         stateSize    = cvtr.getSize();
         if( stateSize > static_cast<int>(inbuf.size()) ) inbuf.resize(stateSize);
-        cvtr.getState( &inbuf[0], stateSize);
+        cvtr.getState( inbuf.data(), stateSize);
         
         MPI_Pack( const_cast<gEntity*>(&(itr1->first)), sizeof(gEntity), MPI_BYTE, outbuf,outcount, 
                   &position, MPI_COMM_WORLD) ;
@@ -471,7 +471,7 @@ namespace Loci {
                  MPI_COMM_WORLD);
         
         incount =  stateSize*typesize;
-        MPI_Pack(&inbuf[0], incount, MPI_BYTE, outbuf, outcount, &position, 
+        MPI_Pack(inbuf.data(), incount, MPI_BYTE, outbuf, outcount, &position, 
                  MPI_COMM_WORLD) ;
         itr1++;
       }
@@ -528,11 +528,11 @@ namespace Loci {
                  MPI_INT, MPI_COMM_WORLD) ;
       if( stateSize > static_cast<int>(outbuf.size()) ) outbuf.resize(stateSize);
       outcount = stateSize*typesize;
-      MPI_Unpack(const_cast<void*>(inbuf),insize, &position, &outbuf[0], outcount, 
+      MPI_Unpack(const_cast<void*>(inbuf),insize, &position, outbuf.data(), outcount, 
                  MPI_BYTE, MPI_COMM_WORLD) ;
       T temp;
       typename schema_traits::Converter_Type cvtr( temp );
-      cvtr.setState( &outbuf[0], stateSize);
+      cvtr.setState( outbuf.data(), stateSize);
       insert(ei, temp);
     }
 
