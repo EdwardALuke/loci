@@ -1884,9 +1884,13 @@ namespace Loci {
   void redistribute_write_container(hid_t file_id, std::string vname,
                                     storeRepP var, fact_db &facts) {
 #ifdef DEBUG
-    if(MPI_processes > 1 && var->getPartitionInfo() == 0)
+    if(MPI_processes > 1 && var->getPartitionInfo() == 0) {
       cerr << "Warning: writing variable " << vname << " does not have partition info" << endl ;
+#ifdef BOUNDS_CHECK
+      FATAL(var->getPartitionInfo() == 0) ;
 #endif
+#endif
+    }
     fact_db::distribute_infoP dist = facts.get_distribute_info() ;
 
     hid_t group_id = 0 ;
@@ -1971,9 +1975,13 @@ namespace Loci {
                                    fact_db &facts) {
 
 #ifdef DEBUG
-    if(MPI_processes > 1 && var->getPartitionInfo() == 0)
+    if(MPI_processes > 1 && var->getPartitionInfo() == 0) {
       cerr << "Warning: reading variable " << vname << " does not have partition info" << endl ;
+#ifdef BOUNDS_CHECK
+      FATAL(var->getPartitionInfo() == 0) ;
 #endif
+#endif
+    }
     
     hid_t group_id = 0;
     if(use_parallel_io || MPI_rank == 0)
