@@ -57,7 +57,11 @@ namespace Loci {
     UNIT_type units_value ;
     friend class options_list ;
   public:
-    option_values() { value_type = NOT_ASSIGNED ; real_value = 0 ; real_grad = 0; boolean_value = false ; }
+    option_values(): value_type(NOT_ASSIGNED),value_list(value_list_type()),
+		     name(std::string()),
+		     real_value(0.0),real_grad(0.0),real_grad2(0.0),
+		     gradN(std::vector<double>()),boolean_value(false),
+		     units_value(UNIT_type()) {}
 
     option_value_type type_of() const { return value_type ; }
 
