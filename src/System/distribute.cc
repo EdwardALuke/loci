@@ -228,7 +228,7 @@ namespace Loci {
       int fn = file_requests[i].first ;
       while(proc < p && (fn < allmn[proc] || fn > allmx[proc]))
         proc++ ;
-      if(fn < allmn[proc] || fn > allmx[proc]) {
+      if(proc == p || fn < allmn[proc] || fn > allmx[proc]) {
         cerr << "Unable to find processor that contains entity!" << endl ;
         Abort() ;
       }
