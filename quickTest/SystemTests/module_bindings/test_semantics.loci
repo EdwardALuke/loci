@@ -1,0 +1,190 @@
+#include <Loci.h>
+#include <module_interface.h>
+#include <param_rule.h>
+#include <sstream>
+
+#define DOCTEST_CONFIG_IMPLEMENT
+#include <doctest.h>
+
+using namespace Loci ;
+
+$type source@seed param<int> ;
+$type source@value param<int> ;
+$type reference@bias_input param<int> ;
+$type reference@Response(reference@input) param<int> ;
+$type reference@result param<int> ;
+$type actual@result param<int> ;
+$type initial param<int> ;
+$type steps param<int> ;
+$type finished param<bool> ;
+$type finalResult param<int> ;
+$type referenceFinal param<int> ;
+
+/// Supply computed data, so resolving an import must retain its dependency.
+$rule singleton(source@value <- source@seed) {
+  $source@value = 2 * $source@seed ;
+}
+
+/// Explicit reference: the provider and private bias are written directly.
+$rule singleton(reference@Response(reference@input) <- source@value,
+reference@bias_input),specialized {
+  $reference@Response(reference@input) = $source@value + $reference@bias_input ;
+}
+
+/// Explicit counterpart of response.loci's public result.
+$rule singleton(reference@result <- reference@Response(reference@input)) {
+  $reference@result = $reference@Response(reference@input) ;
+}
+
+/// The host defines time; the response module contains no iteration labels.
+$rule singleton(source@seed{k=0} <- initial) {
+  $source@seed{k=0} = $initial ;
+}
+
+/// Advance using the bound module; the reference observes the same state.
+$rule singleton(source@seed{k+1} <- actual@result{k}) {
+  $source@seed{k+1} = $actual@result{k} ;
+}
+
+/// At k=3 the fourth response is observed, following three advances.
+$rule singleton(finished <- $k,steps) { $finished = ($$k >= $steps) ; }
+
+/// Compare both computations at the same final iteration level.
+$rule singleton(finalResult,referenceFinal <- actual@result{k},
+reference@result{k}),conditional(finished{k}) {
+  $finalResult = $actual@result{k} ;
+  $referenceFinal = $reference@result{k} ;
+}
+
+namespace {
+  void put(fact_db &facts, const std::string &name, int value) {
+    param<int> data ;
+    *data = value ;
+    facts.create_fact(variable(name), data.Rep()) ;
+  }
+
+  int get(fact_db &facts, const std::string &name) {
+    const_param<int> data(facts.get_variable(variable(name))) ;
+    return *data ;
+  }
+
+  // Compare dependencies after an explicit, finite correspondence of names.
+  // This does not use the implementation's qualification or binding helpers.
+  std::string signature(rule r,
+      const std::map<variable, variable> &names = {}) {
+    std::ostringstream result ;
+    for(const auto &variables : {r.targets(), r.sources()}) {
+      variableSet translated ;
+      for(variable v : variables) {
+        const auto found = names.find(v) ;
+        translated += found == names.end() ? v : found->second ;
+      }
+      result << translated << ';' ;
+    }
+    return result.str() ;
+  }
+}
+
+TEST_CASE("bindings match explicit rules under renaming and extension") {
+  std::vector<std::string> scope = {"actual"} ;
+  bool extra = false ;
+  SUBCASE("original instance") {}
+  SUBCASE("renamed instance") { scope = {"renamed"} ; }
+  SUBCASE("nested instance") { scope = {"outer", "renamed"} ; }
+  SUBCASE("disjoint instance with the same local names") { extra = true ; }
+  std::string prefix ;
+  for(const auto &part : scope)
+    prefix += part + '@' ;
+  fact_db facts ;
+  put(facts, "source@seed", 2) ;
+  put(facts, "reference@bias_input", 3) ;
+  // Available lookalikes must not capture the input or its private bias.
+  put(facts, "input", 1000) ;
+  put(facts, "bias_input", 2000) ;
+  put(facts, "source@bias_input", 3000) ;
+  rule_db host ;
+  host.add_rules(global_rule_list) ;
+  // Static queries have no loop inputs; load only the stationary host rules.
+  const ruleSet registered = host.all_rules() ;
+  for(rule r : registered)
+    if(r.type() != rule::GENERIC)
+      host.remove_rule(r) ;
+  module_composition app ;
+  app.add("binding_response", scope,
+          {{variable("input"), variable("source@value")}}) ;
+  if(extra) {
+    put(facts, "unrelated@value", 99) ;
+    app.add("binding_response", {"unused"},
+            {{variable("input"), variable("unrelated@value")}}) ;
+  }
+  app.prepare(host) ;
+  app.initialize(facts) ;
+
+  const variable local_result(prefix + "result") ;
+  const variable local_family(prefix + "Response(" + prefix + "input)") ;
+  variableSet query ;
+  query += local_result ;
+  query += variable("reference@result") ;
+  const rule_db expanded = parametric_rdb(app.rules(), query) ;
+  const rule_db bound = resolve_module_bindings(
+    expanded, app.rules().get_module_bindings()) ;
+  const std::map<variable, variable> correspondence = {
+    {local_result, variable("reference@result")},
+    {local_family, variable("reference@Response(reference@input)")},
+    {variable(prefix + "bias_input"), variable("reference@bias_input")}
+  } ;
+  std::set<std::string> actual, reference ;
+  for(rule r : bound.all_rules()) {
+    if(r.targets().inSet(local_result) || r.targets().inSet(local_family))
+      actual.insert(signature(r, correspondence)) ;
+    if(r.targets().inSet(variable("reference@result"))
+       || r.targets().inSet(variable("reference@Response(reference@input)")))
+      reference.insert(signature(r)) ;
+  }
+  REQUIRE(reference.size() == 2) ;
+  CHECK(actual == reference) ;
+
+  const std::string requested = prefix + "result,reference@result" ;
+  REQUIRE(makeQuery(app.rules(), facts, requested)) ;
+  CHECK(get(facts, prefix + "result") == 7) ;
+  CHECK(get(facts, prefix + "result") == get(facts, "reference@result")) ;
+  CHECK_FALSE(facts.get_extensional_facts().inSet(variable(prefix + "input"))) ;
+
+  put(facts, "source@seed", 5) ;
+  REQUIRE(makeQuery(app.rules(), facts, requested)) ;
+  CHECK(get(facts, prefix + "result") == 13) ;
+  CHECK(get(facts, prefix + "result") == get(facts, "reference@result")) ;
+}
+
+TEST_CASE("bound and explicit rules follow the same changing iteration") {
+  fact_db facts ;
+  put(facts, "initial", 2) ;
+  put(facts, "steps", 3) ;
+  put(facts, "reference@bias_input", 3) ;
+  rule_db host ;
+  host.add_rules(global_rule_list) ;
+  module_composition app ;
+  app.add("binding_response", {"actual"},
+          {{variable("input"), variable("source@value")}}) ;
+  app.prepare(host) ;
+  app.initialize(facts) ;
+  REQUIRE(makeQuery(app.rules(), facts, "finalResult,referenceFinal")) ;
+  // From seed 2: responses 7,17,37,77; a frozen input would give 7.
+  CHECK(get(facts, "finalResult") == 77) ;
+  CHECK(get(facts, "referenceFinal") == 77) ;
+
+  put(facts, "initial", 5) ;
+  REQUIRE(makeQuery(app.rules(), facts, "finalResult,referenceFinal")) ;
+  // Repeating with seed 5 gives 13,29,61,125 rather than stale state.
+  CHECK(get(facts, "finalResult") == 125) ;
+  CHECK(get(facts, "referenceFinal") == 125) ;
+}
+
+int main(int argc, char **argv) {
+  Loci::Init(&argc, &argv) ;
+  doctest::Context context ;
+  context.applyCommandLine(argc, argv) ;
+  const int result = context.run() ;
+  Loci::Finalize() ;
+  return result ;
+}

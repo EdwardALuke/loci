@@ -18,7 +18,7 @@ The serial check is part of `quickTest/SystemTests`. Failures return nonzero;
 crashes never satisfy negative tests. Default memory management and chomping
 remain enabled. Each library and driver must use the matching rebuilt SDK.
 
-## Two programs
+## Three programs
 
 `test_bindings.cc` retains the five original low-level binding checks. Its
 `consumer`, `provider` and `writer` libraries exercise direct inputs, local
@@ -32,6 +32,10 @@ callback discovery, invalid declarations, forbidden writes, failed setup,
 known type mismatches, canonical writes exposed by substitution, and mapped
 fields on different ranks. Failure injection lives in the dummy solid only.
 
+`test_semantics.loci` checks against separately authored explicit rules:
+equivalent dependencies/results under renaming and disjoint extension, and
+equivalent responses to a changing input inside a host iteration.
+
 The application files are deliberately small:
 
 | File | Responsibility |
@@ -40,6 +44,30 @@ The application files are deliberately small:
 | `dummy_solid.loci` | Temperature response and private compliance setup. |
 | `dummy_field.loci` | Gather through a bound map and constraint. |
 | `canonical_writer.loci` | Forbidden provider write after substitution. |
+| `response.loci` | Imported input plus a bias chosen by a local label. |
+
+## Binding semantics example
+
+The response module computes `Response(X) = X + bias_X`, with private
+`bias_input=3`. Its `input` is bound to `source@value`, twice a seed.
+The explicit reference writes `source@value` directly and uses its own bias.
+The comparison checks both expanded dependency signatures and numerical values.
+
+Seed 2 must give 7 and seed 5 must give 13. Root facts named `input` and
+`bias_input`, and a partner fact `source@bias_input`, contain different values
+to expose accidental capture. The same checks run after renaming/nesting the
+instance and after adding an unconnected instance with the same local names.
+This static test loads only stationary host rules. The next test supplies the
+initial state and termination control required by the host loop.
+
+The iteration check advances the seed from the module's preceding response.
+Starting at 2 gives responses `7,17,37,77`; restarting the query from 5 gives
+`13,29,61,125`. The explicit reference must agree at the final iteration. Native
+schedules in `work/semantics-serial` and `work/semantics-mpi2` show the promoted
+source and both response rules. The targets check the loop, changing input and
+inherited bias in the native schedule. This is ordinary host iteration, not
+independent solver-loop composition. The [draft specification][spec] states
+the assumptions and separates these checks from open language-design decisions.
 
 ## Exchange example
 
@@ -84,3 +112,4 @@ See the [interface contract][design] for initialization order, error handling,
 current limits and the next work to keep within dummy applications.
 
 [design]: ../../../docs/developer/module-bindings.md
+[spec]: ../../../docs/developer/module-binding-semantics.md

@@ -4,6 +4,9 @@ This branch provides an opt-in composition API, tested with dummy applications.
 It combines rules, decks and setup in one named interface. Stream and FEM are
 not migrated. The existing loader and its namespace conventions remain intact.
 
+The [draft specification](module-binding-semantics.md) defines the proposed
+meaning and review criteria. This page records the implementation and usage.
+
 ## A module and its instances
 
 A library exports a versioned description of its local input and output names:
@@ -105,7 +108,9 @@ Bound:             fluid@Copy(fluid@wallTemperature) <- exchange@wallTemperature
 The argument remains a substitution label; the standalone input identifies
 numerical data. Binding preserves time, offset, assignment and priority.
 It does not rewrite argument labels, namespace symbols or derived names such as
-`wallTemperature_ic`. Existing substitution and promotion decisions are intact.
+`wallTemperature_ic`. Substitution and promotion algorithms are unchanged.
+The loader's recursive qualification of argument representations is retained
+for these examples; the draft flags that representation for language review.
 
 The resolution pass uses structured variables and existing rule cloning. It
 runs after `parametric_rdb` and before map processing, relation generation and
@@ -140,18 +145,19 @@ Separate mapped-field checks bind a store, map and constraint across two owning
 ranks, including empty local domains and static/dynamic maps. Native schedules
 retain the loop and the send/receive of the bound field.
 
-On 2026-10-14 the core library, the original five binding cases and nine new
-composition cases passed in serial and on two ranks with normal memory
-management and chomping. Fresh processes verified callback discovery after each
-legacy loading overload. The existing namespace catalogue retained 28 passes
-and its two documented failures, `nested_scope_restoration` and
+On 2026-10-14 the core library built successfully and all 16 cases passed in
+serial and on two ranks: five binding, nine composition and two semantics
+cases. The semantics cases check 42 assertions per process. Normal memory
+management and chomping remain enabled. Fresh processes verified callback
+discovery after each legacy loading overload. The namespace catalogue retained
+28 passes and its two documented failures, `nested_scope_restoration` and
 `hierarchical_deck`; the parametric-rule and time-level groups also passed.
 
 This is a framework interface demonstration, not a physical CHT/FSI simulation.
-The next useful work remains in these dummy applications: time-history and
-restart contracts, interface convergence controls, representative transfers,
-and setup failures that occur on only one MPI rank.
-Do not migrate solvers until that contract is reviewed.
+The next milestone is review of the draft's naming, substitution and ownership
+contract, supported by explicit-reference tests. Time-history/restart,
+convergence controls and asymmetric MPI setup failures remain later dummy
+scenarios. Do not migrate solvers until the contract is reviewed.
 
 Current limits are explicit:
 
