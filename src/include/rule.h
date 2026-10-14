@@ -42,6 +42,7 @@
 #include <Tools/cptr.h>
 #include <Tools/expr.h>
 #include <Tools/variable.h>
+#include <module_bindings.h>
 #include <Map.h>
 #include <parameter.h>
 #include <blackbox.h>
@@ -1350,7 +1351,15 @@ namespace Loci {
     // partition rules according their keyspace
     std::map<std::string,ruleSet> keyspace2rule ;
 
+    module_bindings input_bindings ;
+
   public:
+    /// Install concrete input bindings once; ordinary databases stay unbound.
+    void set_module_bindings(const module_bindings &bindings) ;
+    const module_bindings &get_module_bindings() const {
+      return input_bindings ;
+    }
+
     void add_rule(const rule_implP &fp) ;
     void add_rule(rule f) ;
     void add_rules(rule_impl_list &gfl) ;

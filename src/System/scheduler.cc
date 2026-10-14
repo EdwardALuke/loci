@@ -696,6 +696,10 @@ namespace Loci {
     parVars += facts.get_extensional_facts() ;
     rule_db par_rdb ;
     par_rdb = parametric_rdb(rdb,parVars) ;
+    // Argument labels retain their meaning during substitution. Bind the
+    // resulting concrete fact occurrences before graph construction.
+    if(!rdb.get_module_bindings().empty())
+      par_rdb = resolve_module_bindings(par_rdb, rdb.get_module_bindings()) ;
     // Not sure exactly why we need this, perhaps this is used by the
     // dynamic execution feature?  CHEM passes quicktest without
     // it.
@@ -1684,6 +1688,7 @@ bool operator <(const timingData &d) const {
 	  int retval;
 	  #endif
 	*/
+    validate_module_bindings(rdb, rdb.get_module_bindings()) ;
     facts.setupDefaults(rdb) ;
     stopWatch sw ;
     sw.start() ;
@@ -1697,6 +1702,8 @@ bool operator <(const timingData &d) const {
       // if so, we don't need to actually perform query on
       // these extensional facts
       variableSet target(expression::create(query)) ;
+      if(!rdb.get_module_bindings().empty())
+        target = rdb.get_module_bindings().resolve(target) ;
       variableSet efacts = facts.get_extensional_facts() ;
       variableSet remove_query ;
       for(variableSet::const_iterator vi=target.begin();
@@ -2279,6 +2286,8 @@ bool operator <(const timingData &d) const {
                << ceil(1000.0*eff)/10.0 << "%." << endl ;
         }
       }
+    } catch(const module_binding_error &) {
+      throw ;
     } catch(const BasicException &err) {
       cerr << "Loci found an error during MakeQuery" << endl ;
       err.Print(cerr) ;

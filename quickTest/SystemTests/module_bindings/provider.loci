@@ -1,0 +1,9 @@
+#include <Loci.h>
+
+$type pressure param<int> ;
+$type seed param<int> ;
+
+/// Supply a computed fact, so binding must establish a producer dependency.
+$rule singleton(pressure <- seed) {
+  $pressure = $seed ;
+}

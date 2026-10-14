@@ -1,0 +1,23 @@
+#include <Loci.h>
+
+$type pressure param<int> ;
+$type normal param<int> ;
+$type traction param<int> ;
+$type copied param<int> ;
+$type X param<int> ;
+$type Copy(X) param<int> ;
+
+/// Direct input use: pressure is imported; normal remains instance private.
+$rule singleton(traction <- pressure, normal) {
+  $traction = $pressure * $normal ;
+}
+
+/// The family argument stays local; its instantiated input is bound later.
+$rule singleton(Copy(X) <- X) {
+  $Copy(X) = $X ;
+}
+
+/// Request the local family with the imported input's local spelling.
+$rule singleton(copied <- Copy(pressure)) {
+  $copied = $Copy(pressure) ;
+}
