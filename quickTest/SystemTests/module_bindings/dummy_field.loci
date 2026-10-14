@@ -1,0 +1,20 @@
+#include <Loci.h>
+#include <module_interface.h>
+
+/// The field, correspondence and destination domain are separate imports.
+$type sample store<double> ;
+$type lookup Map ;
+$type active Constraint ;
+$type value store<double> ;
+
+/// Loci owns the gather and communication through the bound map.
+$rule pointwise(value <- lookup->sample), constraint(active) {
+  $value = $lookup->$sample ;
+}
+
+extern "C" const Loci::module_interface_v1 *loci_module_interface_v1() {
+  static const Loci::module_interface_v1 interface = {
+    {"sample", "lookup", "active"}, {"value"}
+  } ;
+  return &interface ;
+}

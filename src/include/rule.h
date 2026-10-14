@@ -1352,6 +1352,7 @@ namespace Loci {
     std::map<std::string,ruleSet> keyspace2rule ;
 
     module_bindings input_bindings ;
+    std::map<rule, std::set<std::string> > module_origins ;
 
   public:
     /// Install concrete input bindings once; ordinary databases stay unbound.
@@ -1359,6 +1360,13 @@ namespace Loci {
     const module_bindings &get_module_bindings() const {
       return input_bindings ;
     }
+
+    /// Keep every module origin when rule interning merges identical rules.
+    void add_module_origin(rule r, const std::string &origin) {
+      module_origins[r].insert(origin) ;
+    }
+    const std::set<std::string> &get_module_origins(rule r) const ;
+    void copy_module_origins(rule to, const rule_db &from, rule source) ;
 
     void add_rule(const rule_implP &fp) ;
     void add_rule(rule f) ;

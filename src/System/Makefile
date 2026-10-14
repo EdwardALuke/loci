@@ -39,7 +39,7 @@ OBJS = Initialize.o Loci_Datatypes.o \
        comp_loop.o comp_chomp.o comp_tools.o distribute.o categories.o \
        comp_constraint.o \
        comp_map.o param_rule.o sched_db.o  hdf5_readwrite.o mod_db.o \
-       module_bindings.o \
+       module_bindings.o module_interface.o \
        visit_assemble.o visit_deco.o visit_tools.o visit_viz.o\
        visit_chomp.o dynamic_exec.o multiStoreIO.o mpi_containerIO.o\
        dist_tools.o distribute_io.o distribute_container.o dist_internal.o \

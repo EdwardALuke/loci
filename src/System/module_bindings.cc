@@ -40,7 +40,7 @@ namespace Loci {
       return result ;
     }
 
-    void check_write(variable value, rule provider,
+    void check_write(variable value, rule provider, const rule_db &rules,
                      const module_bindings &bindings) {
       if(bindings.is_input(value)) {
         std::ostringstream out ;
@@ -49,10 +49,20 @@ namespace Loci {
             << ": " << provider ;
         throw module_binding_error(out.str()) ;
       }
+      for(const auto &origin : rules.get_module_origins(provider))
+        if(bindings.is_import(value, origin)) {
+          std::ostringstream out ;
+          out << "module bindings: " << origin
+              << " writes imported destination " << value
+              << ": " << provider ;
+          throw module_binding_error(out.str()) ;
+        }
     }
   }
 
-  module_bindings::module_bindings(const binding_map &values) : inputs(values) {
+  module_bindings::module_bindings(const binding_map &values,
+                                   const import_map &owners)
+    : inputs(values), imports(owners) {
     for(const auto &entry : inputs) {
       if(!concrete_name(entry.first)
          || entry.first.get_info().namespac.empty())
@@ -62,6 +72,14 @@ namespace Loci {
       if(inputs.find(entry.second) != inputs.end())
         invalid_binding("destination is another input", entry.second) ;
     }
+  }
+
+  bool module_bindings::is_import(variable value,
+                                 const std::string &origin) const {
+    if(value.is_time_variable() || !value.get_arg_list().empty())
+      return false ;
+    const auto owner = imports.find(origin) ;
+    return owner != imports.end() && owner->second.inSet(base_name(value)) ;
   }
 
   bool module_bindings::is_input(variable value) const {
@@ -91,9 +109,20 @@ namespace Loci {
 
   void rule_db::set_module_bindings(const module_bindings &bindings) {
     if(!input_bindings.empty()
-       && input_bindings.entries() != bindings.entries())
+       && !(input_bindings == bindings))
       throw module_binding_error("module bindings: cannot rebind rule_db") ;
     input_bindings = bindings ;
+  }
+
+  const std::set<std::string> &rule_db::get_module_origins(rule r) const {
+    static const std::set<std::string> empty ;
+    const auto found = module_origins.find(r) ;
+    return found == module_origins.end() ? empty : found->second ;
+  }
+
+  void rule_db::copy_module_origins(rule to, const rule_db &from, rule source) {
+    for(const auto &origin : from.get_module_origins(source))
+      add_module_origin(to, origin) ;
   }
 
   void validate_module_bindings(const rule_db &rules,
@@ -112,11 +141,11 @@ namespace Loci {
       if(impl->get_rule_class() == rule_impl::OPTIONAL)
         continue ;
       for(variable output : info.output_vars())
-        check_write(output, provider, bindings) ;
+        check_write(output, provider, rules, bindings) ;
       for(const auto &target : info.targets)
         for(const auto &alias : target.assign) {
-          check_write(alias.first, provider, bindings) ;
-          check_write(alias.second, provider, bindings) ;
+          check_write(alias.first, provider, rules, bindings) ;
+          check_write(alias.second, provider, rules, bindings) ;
         }
     }
   }
@@ -139,7 +168,10 @@ namespace Loci {
         if(resolved != value)
           names[value] = resolved ;
       }
-      result.add_rule(names.empty() ? provider : provider.rename_vars(names)) ;
+      const rule resolved = names.empty() ? provider
+        : provider.rename_vars(names) ;
+      result.add_rule(resolved) ;
+      result.copy_module_origins(resolved, rules, provider) ;
     }
     return result ;
   }

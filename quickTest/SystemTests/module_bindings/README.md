@@ -1,12 +1,10 @@
-# Module input binding proof
+# Module interface examples
 
-One driver loads three small shared libraries through Loci's application loader.
-`consumer.loci` contains direct pressure use and a local `Copy(X)` family;
-`provider.loci` computes pressure from a seed. Two consumer instances must read
-their selected providers while retaining private normals and family names.
-`writer.loci` supplies forbidden writes for rejection tests.
+These are dummy applications loaded into one Loci rule/fact database. Their
+small formulas let the tests check interface behavior without a fluid or solid
+solver. The host supplies exchange rules; each module supplies its own response.
 
-From a configured Loci source tree:
+From a configured source tree:
 
 ```sh
 make -C OBJ -j18 library lpp SPRNG
@@ -16,36 +14,73 @@ make -C OBJ/quickTest/SystemTests/module_bindings \
   LOCI_BASE="$PWD/OBJ" check-mpi
 ```
 
-The serial check is also part of `quickTest/SystemTests`. Logs and native
-schedules remain in this test's build directory under `work/serial` and
-`work/mpi2`. An assertion failure or nonzero process exit fails the target.
-The normal Loci memory-management and chomping settings remain enabled.
+The serial check is part of `quickTest/SystemTests`. Failures return nonzero;
+crashes never satisfy negative tests. Default memory management and chomping
+remain enabled. Each library and driver must use the matching rebuilt SDK.
 
-The five test cases check:
+## Two programs
 
-1. Concrete identity resolution, preserved annotations, untouched argument
-   labels and underscore-derived names, and absolute root destinations.
-2. Rejected invalid tables/chains/rebinding, and table retention in copies.
-3. Actual parametric expansion and query results for distinct/shared providers,
-   reversed loading, changed seeds and copied databases. A no-binding control
-   uses ordinary private inputs. Queries of imported spellings publish only the
-   canonical provider fact. Original expanded rules retain their local inputs.
-4. A parametric writer that is legal as a template but targets an imported
-   input after substitution. It must throw the binding error without executing.
-5. Rejected defaults, unit/apply contributions and both in-place write names.
+`test_bindings.cc` retains the five original low-level binding checks. Its
+`consumer`, `provider` and `writer` libraries exercise direct inputs, local
+`Copy(X)` expansion, changing seeds, shared/distinct partners, database copies,
+and rejected table/default/reduction/in-place writes.
 
-For seeds 2 and 5 and private normals 3 and 7, the distinct-provider case gives
-tractions 6 and 35, and copies 2 and 5. Changing the first seed to 4 produces
-tractions 12 and 35. Its final native schedule must retain these relationships:
+`test_composition.loci` uses the new declaration/setup API. Its nine test cases
+cover independent pairs, nested instance names, reversed declarations, repeated
+initialization, private decks/defaults, shared imports, qualified references,
+callback discovery, invalid declarations, forbidden writes, failed setup,
+known type mismatches, canonical writes exposed by substitution, and mapped
+fields on different ranks. Failure injection lives in the dummy solid only.
+
+The application files are deliberately small:
+
+| File | Responsibility |
+| --- | --- |
+| `dummy_fluid.loci` | Local `Copy(X)` family and heat-flux response. |
+| `dummy_solid.loci` | Temperature response and private compliance setup. |
+| `dummy_field.loci` | Gather through a bound map and constraint. |
+| `canonical_writer.loci` | Forbidden provider write after substitution. |
+
+## Exchange example
+
+The decks select fluid temperature 400, conductance 2 and solid capacity 10.
+Both modules import ambient temperature 300. Fluid setup reads that import;
+solid setup reads its private deck control. Both run exactly once per instance.
+
+For host wall temperature `Tw`, the fluid computes `q = 2*(400-Tw)` and the
+solid returns `Ts = 300 + q/10`. The host's `{k}` loop feeds `Ts` into the next
+`Tw`. Starting at 300 gives `300 -> 320 -> 316 -> 316.8`. Repeating the query
+with initial value 310 must give 316.72. This is a fixed-point dataflow example,
+not a transient heat-conduction discretization.
+
+Native schedules under `work/loop-serial/debug` and `work/loop-mpi2/debug` show:
 
 ```text
-left@traction<-a@pressure,left@normal
-left@Copy(left@pressure)<-a@pressure
-right@Copy(right@pressure)<-b@pressure
+fluid@Copy(fluid@wallTemperature){k} <- exchange@wallTemperature{k}
+fluid@heatFlux{k} <- fluid@Copy(fluid@wallTemperature){k}, ...
+solid@temperature{k} <- fluid@heatFlux{k}, ...
+exchange@wallTemperature{k+1} <- solid@temperature{k}
 ```
 
-The MPI test repeats the param contract on two ranks; it is not a distributed
-mesh-transfer test. Deck/setup bindings and the new module declaration API are
-future work; see the [implementation note][design].
+The serial target checks the loop and bound-family schedule entries. The
+fresh-process `work/load-rule-only` and `work/load-full` runs check that loading
+through an older overload first does not hide the versioned setup callback.
+
+## Mapped field example
+
+Rank zero owns samples `[2,5]`; the last rank owns two destination entities.
+The supplied map reverses their order, so the result must be `[5,2]`. The field,
+map and active destination set are three distinct imported facts. At two ranks,
+each rank has an empty local domain on one side of the transfer.
+
+The check repeats with static and dynamic maps. C++ exchanges only fixture
+entity identities; the Loci rule moves numerical data. `work/map-mpi2/debug`
+retains both schedules. The target requires a send from rank zero and a receive
+on rank one for `host@sample`. This does not establish physical conservation or
+nonmatching-mesh interpolation.
+
+Full-suite artifacts are under `work/serial` and `work/mpi2` in the build tree.
+See the [interface contract][design] for initialization order, error handling,
+current limits and the next work to keep within dummy applications.
 
 [design]: ../../../docs/developer/module-bindings.md

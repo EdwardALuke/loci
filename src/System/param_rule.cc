@@ -260,7 +260,8 @@ namespace Loci {
     return(rule(rp)) ;
   }
 
-  ruleSet instantiateParametrics(param_rule_db &prule_db, variableSet pvars) {
+  ruleSet instantiateParametrics(param_rule_db &prule_db, variableSet pvars,
+                                const rule_db &original, rule_db &expanded) {
     variableSet::const_iterator vi ;
     ruleSet newrules ;
     for(vi=pvars.begin();vi!=pvars.end();++vi) {
@@ -278,7 +279,9 @@ namespace Loci {
       }
       ruleSet::const_iterator ri ;
       for(ri=pri->second.begin();ri!=pri->second.end();++ri) {
-        newrules += instantiateRule(*ri,*vi) ;
+        const rule instantiated = instantiateRule(*ri,*vi) ;
+        newrules += instantiated ;
+        expanded.copy_module_origins(instantiated, original, *ri) ;
       }
     }
     return newrules ;
@@ -325,8 +328,10 @@ namespace Loci {
           }
         }
       }
-      if(!param)
+      if(!param) {
         par_rdb.add_rule(*rsi) ;
+        par_rdb.copy_module_origins(*rsi, rdb, *rsi) ;
+      }
     }
 
     variableSet parvars = scanRulesForParametrics(par_rdb.all_rules()) ;
@@ -344,7 +349,7 @@ namespace Loci {
     int cnt = 0 ;
     while(parvars != EMPTY) {
       processed += parvars ;
-      ruleSet newrules = instantiateParametrics(prule_db,parvars) ;
+      ruleSet newrules = instantiateParametrics(prule_db, parvars, rdb, par_rdb) ;
 
 #ifdef VERBOSE
       debugout << "generating rules = " << endl << newrules << endl ;

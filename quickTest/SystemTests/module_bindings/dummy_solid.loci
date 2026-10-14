@@ -1,0 +1,47 @@
+#include <Loci.h>
+#include <module_interface.h>
+
+$type heatFlux param<double> ;
+$type ambient param<double> ;
+$type capacity param<double> ;
+$type compliance param<double> ;
+$type temperature param<double> ;
+$type setupCount param<int> ;
+/// Test-only setup failure selection; zero is the ordinary application.
+$type fault param<int> ;
+
+/// Private material control, deliberately changed by the test deck.
+$rule default(capacity) { $capacity = 20.0 ; }
+
+/// A successful initialization runs with no injected failure.
+$rule default(fault) { $fault = 0 ; }
+
+/// This stationary response can be promoted into the host's exchange loop.
+$rule singleton(temperature <- heatFlux,ambient,compliance) {
+  $temperature = $ambient + $compliance * $heatFlux ;
+}
+
+extern "C" const Loci::module_interface_v1 *loci_module_interface_v1() {
+  static const Loci::module_interface_v1 interface = {
+    {"heatFlux", "ambient"}, {"temperature"}
+  } ;
+  return &interface ;
+}
+
+extern "C" void loci_init_module_v1(Loci::module_context &context) {
+  Loci::const_param<int> fault(context.read("fault")) ;
+  Loci::param<double> value ;
+  *value = -99.0 ;
+  if(*fault == 1) context.create("heatFlux", value.Rep()) ;
+  if(*fault == 2) context.update("fluid@heatFlux", value.Rep()) ;
+  if(*fault == 3) context.erase("heatFlux") ;
+  if(*fault == 4) context.read("heatFlux") ;
+  if(*fault == 5) context.create("outside@value", value.Rep()) ;
+  if(*fault == 6) throw std::runtime_error("dummy setup failure") ;
+  Loci::const_param<double> capacity(context.read("capacity")) ;
+  *value = 1.0 / *capacity ;
+  context.create("compliance", value.Rep()) ;
+  Loci::param<int> count ;
+  *count = 1 ;
+  context.create("setupCount", count.Rep()) ;
+}

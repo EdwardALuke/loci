@@ -36,6 +36,7 @@
 #include <istream>
 #include <ostream>
 #include <fstream>
+#include <functional>
 #include <store_rep.h>
 #include <store.h>
 #include <Tools/variable.h>
@@ -233,6 +234,9 @@ namespace Loci {
     void unset_namespace() {
       nspace_vec.clear() ;
     }
+    const std::vector<std::string> &get_namespace() const {
+      return nspace_vec ;
+    }
     //    entitySet get_allocation(int size) {
     //      entitySet alloc = interval(maximum_allocated,maximum_allocated+size-1) ;
     //      maximum_allocated += size ;
@@ -269,6 +273,10 @@ namespace Loci {
     std::istream &read(std::istream &s) ;
     void setupDefaults(const rule_db &rdb) ;
     std::istream& read_vars(std::istream& s, const rule_db& rdb) ;
+    /// Resolve/check each deck write before accessing its storage.
+    /// This explicit-context overload requires an unscoped fact database.
+    std::istream &read_vars(std::istream &s, const rule_db &rdb,
+        const std::function<variable(variable)> &resolve_write) ;
 
     void read_vars(std::string filename, const rule_db &rdb) {
       std::ifstream ifile(filename.c_str(),std::ios::in) ;

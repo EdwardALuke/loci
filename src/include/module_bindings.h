@@ -27,15 +27,21 @@ namespace Loci {
   class module_bindings {
   public:
     typedef std::map<variable, variable> binding_map ;
+    typedef std::map<std::string, variableSet> import_map ;
 
     module_bindings() {} ;
 
     /// Keys must be qualified concrete names; destinations may be at root.
     /// Both must be stationary, unprioritized names. Chains are rejected.
-    explicit module_bindings(const binding_map &inputs) ;
+    /// Imports records canonical read-only destinations for each rule origin.
+    explicit module_bindings(const binding_map &inputs,
+                             const import_map &imports = import_map()) ;
 
     bool empty() const { return inputs.empty() ; }
     const binding_map &entries() const { return inputs ; }
+    bool operator==(const module_bindings &other) const {
+      return inputs == other.inputs && imports == other.imports ;
+    }
 
     /// Resolve a whole fact occurrence, retaining its time and priority.
     /// Parameter argument labels are unchanged, including qualified labels.
@@ -45,8 +51,12 @@ namespace Loci {
     /// True for an imported local identity, including its time variants.
     bool is_input(variable value) const ;
 
+    /// Check a canonical destination against its originating module's imports.
+    bool is_import(variable value, const std::string &origin) const ;
+
   private:
     binding_map inputs ;
+    import_map imports ;
   } ;
 
   /// Reject writes to imported local identities before setup or execution.

@@ -1735,6 +1735,7 @@ namespace Loci {
   }
 
   void rule_db::remove_rule(rule f) {
+    module_origins.erase(f) ;
     // remove rules in the appropriate categories
     if(f.get_info().rule_impl->get_rule_class() == rule_impl::DEFAULT) {
       default_rules -= f ;

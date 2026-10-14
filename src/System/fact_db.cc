@@ -693,6 +693,13 @@ namespace Loci {
   // this read in routine reads the .vars file and set
   // the facts according to the default and optional rules
   std::istream& fact_db::read_vars(std::istream& s, const rule_db& rdb) {
+    return read_vars(s, rdb, std::function<variable(variable)>()) ;
+  }
+
+  std::istream &fact_db::read_vars(std::istream &s, const rule_db &rdb,
+      const std::function<variable(variable)> &resolve_write) {
+    if(resolve_write && !nspace_vec.empty())
+      throw module_binding_error("module deck requires an unscoped fact_db") ;
     bool syntax_error = false ;
     try {
       // first of all, we need to process the default and optional rules
@@ -748,6 +755,9 @@ namespace Loci {
           s.get() ;
 	  parse::kill_white_space(s) ;
 	  if(s.peek() == '@') { // ok now we are reading in vars for a namespace
+            if(resolve_write)
+              throw module_binding_error(
+                  "module deck cannot switch instance namespace") ;
 	    s.get() ;
 	    parse::kill_white_space(s) ;
 	    vector<std::string> nspace ;
@@ -783,18 +793,23 @@ namespace Loci {
           throw StringError("syntax error in fact_db::read") ;
         }
         parse::kill_white_space(s) ;
-	if(s.peek() == '@') {
-	  vname += '@' ;
-	  s.get() ;
-	  parse::kill_white_space(s) ;
-	  if(parse::is_name(s)) 
-	    vname += parse::get_name(s) ;
-	  else {
-	    ostringstream oss ;
-	    oss << "syntax error in fact_db::read, no variable name after namspace '@' separator for namespace '" << vname << "'" ;
-	    throw StringError(oss.str()) ;
-	  }
-	}
+        if(s.peek() == '@') {
+          do {
+            vname += '@' ;
+            s.get() ;
+            parse::kill_white_space(s) ;
+            if(parse::is_name(s))
+              vname += parse::get_name(s) ;
+            else {
+              ostringstream oss ;
+              oss << "syntax error in fact_db::read, no variable name after "
+                  << "namspace '@' separator for namespace '" << vname << "'" ;
+              throw StringError(oss.str()) ;
+            }
+            if(resolve_write)
+              parse::kill_white_space(s) ;
+          } while(resolve_write && s.peek() == '@') ;
+        }
         variable var(vname) ;
         try {
           parse::kill_white_space(s) ;
@@ -807,6 +822,8 @@ namespace Loci {
             cerr << "WARNING: Redefining variable '" << var << "' while reading in fact_db!!!!!" << endl ;
           }
           read_var_set += var ;
+          if(resolve_write)
+            var = resolve_write(var) ;
           storeRepP vp = get_variable(var) ;
           if(vp == 0) {
             vp = get_variable_type(var) ;

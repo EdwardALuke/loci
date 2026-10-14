@@ -1,0 +1,334 @@
+#include <Loci.h>
+#include <module_interface.h>
+#include <fstream>
+#include <sstream>
+
+#define DOCTEST_CONFIG_IMPLEMENT
+#include <doctest.h>
+
+using namespace Loci ;
+
+$type exchange@wallTemperature param<double> ;
+$type solid@temperature param<double> ;
+$type initialTemperature param<double> ;
+$type finalTemperature param<double> ;
+$type steps param<int> ;
+$type finished param<bool> ;
+
+/// The host owns the exchange loop; neither module owns this index.
+$rule singleton(exchange@wallTemperature{k=0} <- initialTemperature) {
+  $exchange@wallTemperature{k=0} = $initialTemperature ;
+}
+
+/// The next fluid evaluation consumes the preceding solid response.
+$rule singleton(exchange@wallTemperature{k+1} <- solid@temperature{k}) {
+  $exchange@wallTemperature{k+1} = $solid@temperature{k} ;
+}
+
+/// Three exchanges are enough to distinguish a real loop from one evaluation.
+$rule singleton(finished <- $k,steps) { $finished = ($$k >= $steps) ; }
+
+/// Publish the final host state using ordinary Loci collapse semantics.
+$rule singleton(finalTemperature <- exchange@wallTemperature{k}),
+conditional(finished{k}) {
+  $finalTemperature = $exchange@wallTemperature{k} ;
+}
+
+namespace {
+  void put(fact_db &facts, const char *name, double value) {
+    param<double> data ;
+    *data = value ;
+    facts.create_fact(variable(name), data.Rep()) ;
+  }
+
+  double get(fact_db &facts, const char *name) {
+    const_param<double> data(facts.get_variable(variable(name))) ;
+    return *data ;
+  }
+
+  std::string deck(const std::string &name, const std::string &contents) {
+    // Rank-local files avoid concurrent writes; every rank gets the same deck.
+    const std::string path = name + "-" + std::to_string(MPI_rank) + ".vars" ;
+    std::ofstream file(path.c_str()) ;
+    file << contents ;
+    if(!file)
+      throw std::runtime_error("cannot write fixture deck " + path) ;
+    return path ;
+  }
+
+  module_bindings::binding_map fluid_inputs() {
+    return {{variable("wallTemperature"), variable("exchange@wallTemperature")},
+            {variable("ambient"), variable("environment@temperature")}} ;
+  }
+
+  module_bindings::binding_map solid_inputs() {
+    return {{variable("heatFlux"), variable("fluid@heatFlux")},
+            {variable("ambient"), variable("environment@temperature")}} ;
+  }
+
+  void declare_pair(module_composition &app, bool reverse = false,
+            const std::vector<std::string> &solid_scope = {"solid"},
+            const std::string &solid_deck = "{capacity:10}") {
+    const std::string fluid_file = deck("fluid", "{temperature:400}") ;
+    const std::string solid_file = deck("solid", solid_deck) ;
+    if(reverse)
+      app.add("binding_dummy_solid", solid_scope, solid_inputs(), solid_file) ;
+    app.add("binding_dummy_fluid", {"fluid"}, fluid_inputs(), fluid_file) ;
+    if(!reverse)
+      app.add("binding_dummy_solid", solid_scope, solid_inputs(), solid_file) ;
+    // Duplicate declarations must not duplicate defaults or callbacks.
+    app.add("binding_dummy_fluid", {"fluid"}, fluid_inputs(), fluid_file) ;
+  }
+
+  void seed(fact_db &facts) {
+    put(facts, "environment@temperature", 300.0) ;
+    put(facts, "exchange@wallTemperature", 300.0) ;
+  }
+}
+
+TEST_CASE("dummy applications share bindings across rules decks and setup") {
+  bool reverse = false ;
+  bool nested = false ;
+  bool twin = false ;
+  SUBCASE("declaration order") {}
+  SUBCASE("reverse order") { reverse = true ; }
+  SUBCASE("structured nested namespace") { nested = true ; }
+  SUBCASE("two independent pairs") { twin = true ; }
+  fact_db facts ;
+  seed(facts) ;
+  module_composition app ;
+  declare_pair(app, reverse, nested ? std::vector<std::string>{"outer", "solid"}
+                                   : std::vector<std::string>{"solid"},
+               nested ? "{outer@solid@capacity:10}" : "{capacity:10}") ;
+  if(twin) {
+    auto fluid = fluid_inputs() ;
+    fluid[variable("wallTemperature")] = variable("exchange@otherWall") ;
+    auto solid = solid_inputs() ;
+    solid[variable("heatFlux")] = variable("otherFluid@heatFlux") ;
+    app.add("binding_dummy_fluid", {"otherFluid"}, fluid) ;
+    app.add("binding_dummy_solid", {"otherSolid"}, solid) ;
+    put(facts, "exchange@otherWall", 310.0) ;
+  }
+  app.prepare() ;
+  app.initialize(facts) ;
+  CHECK_NOTHROW(app.initialize(facts)) ;
+  const char *output = nested ? "outer@solid@temperature"
+    : "solid@temperature" ;
+  REQUIRE(makeQuery(app.rules(), facts,
+    std::string(output) + ",fluid@explicitAmbient"
+    + (twin ? ",otherSolid@temperature" : ""))) ;
+  CHECK(get(facts, output) == doctest::Approx(320.0)) ;
+  CHECK(get(facts, "fluid@explicitAmbient") == 300.0) ;
+  if(twin)
+    CHECK(get(facts, "otherSolid@temperature") == doctest::Approx(309.0)) ;
+  CHECK(get(facts, "fluid@offset") == 0.0) ;
+  const_param<int> count(facts.get_variable("fluid@setupCount")) ;
+  CHECK(*count == 1) ;
+  CHECK_FALSE(facts.get_extensional_facts().inSet(variable("fluid@ambient"))) ;
+  CHECK_FALSE(facts.get_extensional_facts().inSet(variable("solid@heatFlux"))) ;
+  CHECK_THROWS_AS(app.add("binding_dummy_fluid", {"extra"}, fluid_inputs()),
+                  module_binding_error) ;
+}
+
+TEST_CASE("host exchange loop promotes the two stationary applications") {
+  fact_db facts ;
+  put(facts, "environment@temperature", 300.0) ;
+  put(facts, "initialTemperature", 300.0) ;
+  param<int> steps ;
+  *steps = 3 ;
+  facts.create_fact("steps", steps.Rep()) ;
+  rule_db host ;
+  host.add_rules(global_rule_list) ;
+  module_composition app ;
+  declare_pair(app) ;
+  app.prepare(host) ;
+  app.initialize(facts) ;
+  REQUIRE(makeQuery(app.rules(), facts, "finalTemperature")) ;
+  // Tw=300 -> q=200, Tw=320 -> q=160, Tw=316 -> q=168, Tw=316.8.
+  CHECK(get(facts, "finalTemperature") == doctest::Approx(316.8)) ;
+  param<double> changed ;
+  *changed = 310.0 ;
+  facts.update_fact("initialTemperature", changed.Rep()) ;
+  REQUIRE(makeQuery(app.rules(), facts, "finalTemperature")) ;
+  CHECK(get(facts, "finalTemperature") == doctest::Approx(316.72)) ;
+}
+
+TEST_CASE("composition rejects invalid declarations before setup") {
+  module_composition app ;
+  auto inputs = fluid_inputs() ;
+  SUBCASE("missing binding") { inputs.erase(variable("ambient")) ; }
+  SUBCASE("unknown input") {
+    inputs[variable("typo")] = variable("host@value") ;
+  }
+  SUBCASE("binding chain") {
+    inputs[variable("ambient")] = variable("fluid@wallTemperature") ;
+  }
+  app.add("binding_dummy_fluid", {"fluid"}, inputs) ;
+  CHECK_THROWS_AS(app.prepare(), module_binding_error) ;
+  CHECK_THROWS_AS(app.rules(), module_binding_error) ;
+}
+
+TEST_CASE("imported deck writes fail before changing partner data") {
+  std::string contents = "{heatFlux:-99}" ;
+  SUBCASE("local spelling") {}
+  SUBCASE("canonical spelling") { contents = "{fluid@heatFlux:-99}" ; }
+  SUBCASE("namespace switch") { contents = "{} @fluid {heatFlux:-99}" ; }
+  fact_db facts ;
+  seed(facts) ;
+  put(facts, "fluid@heatFlux", 17.0) ;
+  module_composition app ;
+  declare_pair(app, false, {"solid"}, contents) ;
+  app.prepare() ;
+  CHECK_THROWS_AS(app.initialize(facts), module_binding_error) ;
+  CHECK(get(facts, "fluid@heatFlux") == 17.0) ;
+  CHECK_FALSE(facts.get_extensional_facts()
+              .inSet(variable("fluid@setupCount"))) ;
+  CHECK_THROWS_AS(app.initialize(facts), module_binding_error) ;
+  CHECK_THROWS_AS(app.rules(), module_binding_error) ;
+}
+
+TEST_CASE("setup writes and unavailable reads report composition errors") {
+  int fault = 1 ;
+  SUBCASE("create local import") {}
+  SUBCASE("update canonical import") { fault = 2 ; }
+  SUBCASE("erase import") { fault = 3 ; }
+  SUBCASE("read computed input before query") { fault = 4 ; }
+  SUBCASE("write another instance") { fault = 5 ; }
+  SUBCASE("callback exception") { fault = 6 ; }
+  fact_db facts ;
+  seed(facts) ;
+  if(fault != 4)
+    put(facts, "fluid@heatFlux", 17.0) ;
+  module_composition app ;
+  declare_pair(app, false, {"solid"}, "{fault:" + std::to_string(fault) + "}") ;
+  app.prepare() ;
+  if(fault == 6)
+    CHECK_THROWS_WITH_AS(app.initialize(facts), "dummy setup failure",
+                         std::runtime_error) ;
+  else
+    CHECK_THROWS_AS(app.initialize(facts), module_binding_error) ;
+  if(fault != 4)
+    CHECK(get(facts, "fluid@heatFlux") == 17.0) ;
+  CHECK_THROWS_AS(app.rules(), module_binding_error) ;
+  CHECK_THROWS_AS(app.initialize(facts), module_binding_error) ;
+}
+
+TEST_CASE("known imported types must agree before callbacks") {
+  fact_db facts ;
+  param<int> wrong ;
+  *wrong = 300 ;
+  facts.create_fact("environment@temperature", wrong.Rep()) ;
+  module_composition app ;
+  declare_pair(app) ;
+  app.prepare() ;
+  CHECK_THROWS_WITH_AS(app.initialize(facts),
+    doctest::Contains("incompatible type"), module_binding_error) ;
+  CHECK_FALSE(facts.get_extensional_facts()
+              .inSet(variable("fluid@setupCount"))) ;
+}
+
+TEST_CASE("bound maps and constraints gather fields between owning ranks") {
+  bool dynamic = false ;
+  SUBCASE("static map") {}
+  SUBCASE("dynamic map") { dynamic = true ; }
+  REQUIRE((MPI_processes == 1 || MPI_processes == 2)) ;
+  fact_db facts ;
+  const int source_key = facts.getKeyDomain("Source") ;
+  const int target_key = facts.getKeyDomain("Target") ;
+  std::vector<int> source_ids, target_ids ;
+  if(MPI_rank == 0) source_ids = {0, 1} ;
+  if(MPI_rank == MPI_processes - 1) target_ids = {0, 1} ;
+  const auto sources =
+    facts.get_distributed_alloc(source_ids, source_key).first ;
+  const auto targets =
+    facts.get_distributed_alloc(target_ids, target_key).first ;
+  int local_ids[2] = {-1, -1}, global_ids[2], i = 0 ;
+  for(int e : sources) local_ids[i++] = e ;
+  // Exchange fixture identities only. The rule performs the numerical transfer.
+  MPI_Allreduce(local_ids, global_ids, 2, MPI_INT, MPI_MAX, MPI_COMM_WORLD) ;
+  store<double> sample ;
+  sample.Rep()->setDomainKeySpace(source_key) ;
+  sample.allocate(sources) ;
+  i = 0 ;
+  for(int e : sources) sample[e] = (++i == 1 ? 2.0 : 5.0) ;
+  Map lookup ;
+  lookup.Rep()->setDomainKeySpace(target_key) ;
+  MapRepP(lookup.Rep())->setRangeKeySpace(source_key) ;
+  lookup.allocate(targets) ;
+  store<int> ids ;
+  ids.Rep()->setDomainKeySpace(target_key) ;
+  ids.allocate(targets) ;
+  i = 0 ;
+  for(int e : targets) {
+    ids[e] = i ;
+    lookup[e] = global_ids[1 - i++] ;
+  }
+  constraint active ;
+  *active = targets ;
+  active.Rep()->setDomainKeySpace(target_key) ;
+  facts.create_fact("host@sample", sample) ;
+  storeRepP map_data = dynamic ? lookup.Rep()->thaw() : lookup.Rep() ;
+  facts.create_fact("host@lookup", map_data) ;
+  facts.create_fact("host@active", active) ;
+  facts.create_fact("host@id", ids) ;
+  module_composition app ;
+  app.add("binding_dummy_field", {"receiver"}, {
+    {variable("sample"), variable("host@sample")},
+    {variable("lookup"), variable("host@lookup")},
+    {variable("active"), variable("host@active")}
+  }) ;
+  app.prepare() ;
+  app.initialize(facts) ;
+  REQUIRE(makeQuery(app.rules(), facts, "receiver@value")) ;
+  const_store<double> result(facts.get_variable("receiver@value")) ;
+  constraint owned(facts.get_variable("host@active")) ;
+  ids.setRep(facts.get_variable("host@id")) ;
+  REQUIRE(((*owned) - result.domain()) == EMPTY) ;
+  for(int e : *owned)
+    CHECK(result[e] == (ids[e] == 0 ? 5.0 : 2.0)) ;
+}
+
+TEST_CASE("origin survives substitution and rejects canonical import writes") {
+  fact_db facts ;
+  put(facts, "host@pressure", 17.0) ;
+  put(facts, "bad@seed", 9.0) ;
+  module_composition app ;
+  app.add("binding_canonical_writer", {"bad"}, {
+    {variable("pressure"), variable("host@pressure")}
+  }) ;
+  app.prepare() ;
+  app.initialize(facts) ;
+  CHECK_THROWS_WITH_AS(makeQuery(app.rules(), facts, "bad@result"),
+    doctest::Contains("writes imported destination host@pressure"),
+    module_binding_error) ;
+  CHECK(get(facts, "host@pressure") == 17.0) ;
+}
+
+TEST_CASE("loading after legacy loaders still discovers the new callback") {
+  bool full = false ;
+  SUBCASE("rule-only first") {}
+  SUBCASE("full loader first") { full = true ; }
+  fact_db facts ;
+  seed(facts) ;
+  rule_db unused ;
+  std::set<std::string> loaded ;
+  if(full)
+    load_module("binding_dummy_fluid", "old", "unused", facts, unused, loaded) ;
+  else
+    load_module("binding_dummy_fluid", "old", unused, loaded) ;
+  module_composition app ;
+  declare_pair(app) ;
+  app.prepare() ;
+  app.initialize(facts) ;
+  REQUIRE(makeQuery(app.rules(), facts, "solid@temperature")) ;
+  CHECK(get(facts, "solid@temperature") == doctest::Approx(320.0)) ;
+}
+
+int main(int argc, char **argv) {
+  Loci::Init(&argc, &argv) ;
+  doctest::Context context ;
+  context.applyCommandLine(argc, argv) ;
+  const int result = context.run() ;
+  Loci::Finalize() ;
+  return result ;
+}

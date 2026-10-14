@@ -10,8 +10,8 @@ or an install prefix, not committed here.
 - `doxygen/`: Doxygen configuration and theme files for the API reference.
 - `developer/`: Developer-facing notes that are not part of the tutorial.
 
-The [module input binding note](developer/module-bindings.md) describes the
-initial implementation, its proof cases and the remaining interface work.
+The [module interface note](developer/module-bindings.md) describes explicit
+bindings, checked setup, dummy applications and the remaining work.
 
 After running `./configure`, use the normal build entry point:
 
