@@ -1822,8 +1822,9 @@ namespace Loci{
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
-               send_sets[i]) ;
+      if(send_sizes[i] > 0)
+        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                 send_sets[i]) ;
     }
 
     MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
@@ -1832,8 +1833,9 @@ namespace Loci{
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
-                       recv_seqs[i]) ;
+      if(recv_sizes[i] > 0)
+        qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seqs[i]) ;
     }
     return qcol_rep ;
   } 
@@ -2699,8 +2701,9 @@ namespace Loci {
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
-               send_sets[i]) ;
+      if(send_sizes[i] > 0)
+        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                 send_sets[i]) ;
     }
 
     MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
@@ -2709,8 +2712,9 @@ namespace Loci {
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
-                       recv_seqs[i]) ;
+      if(recv_sizes[i] > 0)
+        qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seqs[i]) ;
     }
     pos_t.allocate(EMPTY) ;
   }
