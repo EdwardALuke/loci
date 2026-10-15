@@ -6,6 +6,7 @@
 #include "prism.h"
 
 #include <algorithm>
+#include <initializer_list>
 #include <limits>
 #include <stdexcept>
 
@@ -19,6 +20,16 @@ namespace Loci {
     const long long extent = 1LL << MAXLEVEL ;
     typedef std::array<long long,2> Point ;
     typedef std::array<Point,4> Corners ;
+
+    std::vector<long long> split_surface(const std::vector<long long>& path,
+                                         std::initializer_list<long long> indices) {
+      std::vector<long long> surface ;
+      surface.reserve(path.size()+1+indices.size()) ;
+      surface.insert(surface.end(),path.begin(),path.end()) ;
+      surface.push_back(PATH_END) ;
+      surface.insert(surface.end(),indices.begin(),indices.end()) ;
+      return surface ;
+    }
 
     FacePatch whole(const std::vector<long long>& surface) {
       FacePatch result ;
@@ -127,9 +138,7 @@ namespace Loci {
       for(int f=0; f<2*children[i]->getNfold(); ++f) {
         const Face* face = children[i]->getFace(f) ;
         if(faces.count(face)) continue ;
-        auto surface = parent ;
-        surface.insert(surface.end(),{PATH_END,static_cast<long long>(i),f}) ;
-        add(face,surface) ;
+        add(face,split_surface(parent,{static_cast<long long>(i),f})) ;
       }
     }
     for(size_t i=0; i<children.size(); ++i) {
@@ -222,10 +231,8 @@ namespace Loci {
         const long long lastMiddle = last.lower+(last.upper-last.lower)/2 ;
         if(first.reversed) first.lower = firstMiddle ; else first.upper = firstMiddle ;
         if(last.reversed) last.upper = lastMiddle ; else last.lower = lastMiddle ;
-        auto firstSurface = region.path, lastSurface = region.path ;
-        firstSurface.insert(firstSurface.end(),{PATH_END,sector}) ;
-        lastSurface.insert(lastSurface.end(),{PATH_END,previous}) ;
-        child.sides = {first,{firstSurface,0,extent,true},{lastSurface,0,extent,false},last} ;
+        child.sides = {first,{split_surface(region.path,{sector}),0,extent,true},
+          {split_surface(region.path,{previous}),0,extent,false},last} ;
       }
       if(code & 1) {
         if(middle == region.lower)
