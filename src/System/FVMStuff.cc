@@ -188,7 +188,7 @@ namespace Loci{
 #endif
     // transpose sendsz to find out how much each processor partition recvs
     vector<int> recvsz(p,0) ;
-    MPI_Alltoall(&sendsz[0],1,MPI_INT,&recvsz[0],1,MPI_INT,groupcomm) ;
+    MPI_Alltoall(sendsz.data(),1,MPI_INT,recvsz.data(),1,MPI_INT,groupcomm) ;
     // setup recv buffers to communicate data
     int recvbufsz = 0;
     for(int i=0;i<p;++i) {
@@ -202,8 +202,8 @@ namespace Loci{
       sdispls[i] = sdispls[i-1]+sendsz[i-1] ;
     }
     vector<int> recvdata(recvbufsz) ;
-    MPI_Alltoallv(&gnodelistg[0],&sendsz[0],&sdispls[0],MPI_INT,
-		              &recvdata[0],&recvsz[0],&rdispls[0],MPI_INT,
+    MPI_Alltoallv(gnodelistg.data(),sendsz.data(),sdispls.data(),MPI_INT,
+		              recvdata.data(),recvsz.data(),rdispls.data(),MPI_INT,
 		              groupcomm) ;
 #ifdef VERBOSE
     debugout << "distributed data local size = " << recvdata.size() << endl;
@@ -240,8 +240,8 @@ namespace Loci{
     }
     vector<int> gnodefnum(gnodelistg.size(),-1) ;
     // note now recvsz is sending and sendsz is recving
-    MPI_Alltoallv(&filenosend[0],&recvsz[0],&rdispls[0],MPI_INT,
-		              &gnodefnum[0],&sendsz[0],&sdispls[0],MPI_INT,
+    MPI_Alltoallv(filenosend.data(),recvsz.data(),rdispls.data(),MPI_INT,
+		              gnodefnum.data(),sendsz.data(),sdispls.data(),MPI_INT,
 		              groupcomm) ;
 #ifdef VERBOSE
     debugout << "time to return index = " << s.stop() << endl ;
@@ -490,30 +490,25 @@ namespace Loci{
     int sz = input.size()+1 ;
     int p = 1 ;
     MPI_Comm_size(comm,&p) ;
-    int *sizes = new int[p] ;
-    MPI_Allgather(&sz,1,MPI_INT,sizes,1,MPI_INT,comm) ;
+    std::vector<int> sizes(p) ;
+    MPI_Allgather(&sz,1,MPI_INT,sizes.data(),1,MPI_INT,comm) ;
     int tot = 0 ;
     for(int i=0;i<p;++i) {
       tot += sizes[i] ;
     }
-    char *buf = new char[tot] ;
-    int *displ = new int[p] ;
+    std::vector<char> buf(tot) ;
+    std::vector<int> displ(p) ;
     displ[0] = 0 ;
     for(int i=1;i<p;++i) {
       displ[i] = displ[i-1]+sizes[i-1] ;
     }
-    char *ibuf = new char[sz] ;
-    strcpy(ibuf,input.c_str()) ;
-    MPI_Allgatherv(ibuf, sz, MPI_CHAR, buf, sizes, displ, MPI_CHAR, comm) ;
+    std::vector<char> ibuf(sz) ;
+    strcpy(ibuf.data(),input.c_str()) ;
+    MPI_Allgatherv(ibuf.data(), sz, MPI_CHAR, buf.data(), sizes.data(), displ.data(), MPI_CHAR, comm) ;
     string retval ;
     for(int i=0;i<p;++i) {
       retval += string(&(buf[displ[i]])) ;
     }
-
-    delete[] sizes ;
-    delete[] buf ;
-    delete[] ibuf ;
-    delete[] displ ;
 
     return retval ;
   }
@@ -3540,7 +3535,7 @@ namespace Loci{
       T val = ndom.Min() ;
       std::vector<T> valp(p) ;
       MPI_Allgather(&val,sizeof(T),MPI_BYTE,
-                    &valp[0],sizeof(T),MPI_BYTE,
+                    valp.data(),sizeof(T),MPI_BYTE,
                     comm) ;
       // Empty ranks share the next nonempty rank's lower bound.
       for(int i=p-2;i>=0;--i)
@@ -3563,7 +3558,6 @@ namespace Loci{
           if((edge_keys[i][0] != edge_keys[j][0]) ||
              (edge_keys[i][1] != edge_keys[j][1]))
             break ;
-        int nedges = j-i ;
         FATAL(int(j-i) != edge_keys[i][3]);
         i = j ;
       }

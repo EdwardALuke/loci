@@ -50,7 +50,7 @@ namespace Loci {
 
     int sz = list.size() ;
     std::vector<int> sizes(p) ;
-    MPI_Allgather(&sz,1,MPI_INT,&sizes[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&sz,1,MPI_INT,sizes.data(),1,MPI_INT,comm) ;
     long long tot_size = 0  ;
     for(int i=0;i<p;++i) {
       tot_size += sizes[i] ;
@@ -114,9 +114,11 @@ namespace Loci {
             recv[s2+j] = list[s1+j] ;
         } else {
           WARN(s2+len>bsizes[r]) ;
-          if(len > 0)
-            MPI_Irecv(&recv[s2],len,bytearray,i,55,comm,
-                      &requests[req++]) ;
+          if(len > 0) {
+            MPI_Irecv(recv.data()+s2,len,bytearray,i,55,comm,
+                      requests.data()+req) ;
+	    req++ ;
+          }
 #ifdef DEBUG
           debugout << "balanceDistribution: recving " << len << " items from " << i << endl ;
 #endif
@@ -137,7 +139,7 @@ namespace Loci {
         FATAL(len < 0) ;
         FATAL(size_t(s1+len) > list.size()) ;
         if(len > 0) 
-          MPI_Send(&list[s1],len,bytearray,i,55,comm) ;
+          MPI_Send(list.data()+s1,len,bytearray,i,55,comm) ;
 #ifdef DEBUG
         debugout << "balanceDistribution: sending " << len << " items to " << i << endl ;
 #endif
@@ -190,8 +192,8 @@ namespace Loci {
         splitters[i-1] = input[i*(nlocal/p)] ;
     }
 
-    MPI_Allgather(&splitters[0],(p-1),bytearray,
-                  &allsplits[0],(p-1),bytearray,comm) ;
+    MPI_Allgather(splitters.data(),(p-1),bytearray,
+                  allsplits.data(),(p-1),bytearray,comm) ;
     
     std::sort(allsplits.begin(),allsplits.end(),cmp) ;
     for(int i=1;i<p;++i)
@@ -236,7 +238,7 @@ namespace Loci {
       sdispls[i] = sdispls[i-1]+scounts[i-1] ;
 
     std::vector<int> rcounts(p) ;
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+    MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
 
     std::vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
@@ -309,7 +311,7 @@ namespace Loci {
 
           MPI_Status stat ;
 	  if(recv_sizes[cnt] > 0)
-	    MPI_Recv(&nlist[loc],recv_sizes[cnt],bytearray,i,2,comm,&stat) ;
+	    MPI_Recv(nlist.data()+loc,recv_sizes[cnt],bytearray,i,2,comm,&stat) ;
           loc += recv_sizes[cnt] ;
           cnt++ ;
         }
@@ -319,7 +321,7 @@ namespace Loci {
         int sz = list.size() ;
         MPI_Send(&sz,1,MPI_INT,dest,1,comm) ;
 	if(sz >0)
-	  MPI_Send(&list[0],sz,bytearray,dest,2,comm) ;
+	  MPI_Send(list.data(),sz,bytearray,dest,2,comm) ;
         std::vector<T> nlist ;
         list.swap(nlist) ;
       }
@@ -387,8 +389,8 @@ namespace Loci {
     MPI_Type_vector(sizeof(T),1,1,MPI_BYTE,&bytearray) ;
     MPI_Type_commit(&bytearray) ;
 
-    MPI_Allgather(&splitters[0],(p-1),bytearray,
-                  &allsplits[0],(p-1),bytearray,comm) ;
+    MPI_Allgather(splitters.data(),(p-1),bytearray,
+                  allsplits.data(),(p-1),bytearray,comm) ;
 
     MPI_Type_free(&bytearray) ;
 
@@ -428,7 +430,7 @@ namespace Loci {
     std::vector<int> rcounts(p) ;
 
 
-    MPI_Alltoall(&scounts[0],1,MPI_INT,&rcounts[0],1,MPI_INT,comm) ;
+    MPI_Alltoall(scounts.data(),1,MPI_INT,rcounts.data(),1,MPI_INT,comm) ;
 
     std::vector<int> rdispls(p) ;
     rdispls[0] = 0 ;
@@ -444,8 +446,8 @@ namespace Loci {
     MPI_Type_vector(sizeof(T),1,1,MPI_BYTE,&bytearray) ;
     MPI_Type_commit(&bytearray) ;
 
-    MPI_Alltoallv(&list[0],&scounts[0],&sdispls[0],bytearray,
-                  &sorted_pnts[0],&rcounts[0],&rdispls[0],bytearray,
+    MPI_Alltoallv(list.data(),scounts.data(),sdispls.data(),bytearray,
+                  sorted_pnts.data(),rcounts.data(),rdispls.data(),bytearray,
                   comm) ;
     
     MPI_Type_free(&bytearray) ;

@@ -147,18 +147,19 @@ namespace Loci {
     int req = 0 ;
     for(int i=0;i<p;++i)
       if(recv_sz[i] > 0) {
-	MPI_Irecv(&rbuf[roffsets[i]],recv_sz[i]*sizeof(T),MPI_BYTE,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Irecv(rbuf.data()+roffsets[i],recv_sz[i]*sizeof(T),MPI_BYTE,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     for(int i=0;i<p;++i)
       if(send_sz[i] > 0) {
-	MPI_Isend(&sbuf[soffsets[i]],send_sz[i]*sizeof(T),MPI_BYTE,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Isend(sbuf.data()+soffsets[i],send_sz[i]*sizeof(T),MPI_BYTE,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     std::vector<MPI_Status> statuslist(nreq) ;
-    MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+    if(nreq > 0)
+      MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
     recv_count.swap(rbuf) ;
     
   }
@@ -201,18 +202,19 @@ namespace Loci {
     int req = 0 ;
     for(int i=0;i<p;++i)
       if(recv_sz[i] > 0) {
-	MPI_Irecv(&rbuf[roffsets[i]],recv_sz[i]*sizeof(T)*vec_size,MPI_BYTE,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Irecv(rbuf.data()+roffsets[i],recv_sz[i]*sizeof(T)*vec_size,MPI_BYTE,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     for(int i=0;i<p;++i)
       if(send_sz[i] > 0) {
-	MPI_Isend(&sbuf[soffsets[i]],send_sz[i]*sizeof(T)*vec_size,MPI_BYTE,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Isend(sbuf.data()+soffsets[i],send_sz[i]*sizeof(T)*vec_size,MPI_BYTE,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     std::vector<MPI_Status> statuslist(nreq) ;
-    MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+    if(nreq > 0)
+      MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
     recv_count.swap(rbuf) ;
     
   }
@@ -308,7 +310,7 @@ namespace Loci {
       std::vector<int> sizes ;
       int cmin = -1 ;
       do {
-        MPI_Allreduce(&sizes_local[iloc],&cmin,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+        MPI_Allreduce(sizes_local.data()+iloc,&cmin,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
         if(cmin != std::numeric_limits<int>::max())
           sizes.push_back(cmin) ;
         if(sizes_local[iloc] == cmin)
@@ -346,7 +348,7 @@ namespace Loci {
       } ENDFORALL ;
 
       std::vector<int> block_data_elems(block_sizes.size(),0) ;
-      MPI_Allreduce(&num_local_xfers[0],&block_data_elems[0],block_sizes.size(),
+      MPI_Allreduce(num_local_xfers.data(),block_data_elems.data(),block_sizes.size(),
                     MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
 
       int p = MPI_processes ;
@@ -376,8 +378,8 @@ namespace Loci {
 
       std::vector<int> all_local_sizes(block_sizes.size()*p) ;
 
-      MPI_Gather(&num_local_xfers[0],block_sizes.size(),MPI_INT,
-                 &all_local_sizes[0],block_sizes.size(),MPI_INT,
+      MPI_Gather(num_local_xfers.data(),block_sizes.size(),MPI_INT,
+                 all_local_sizes.data(),block_sizes.size(),MPI_INT,
                  0, MPI_COMM_WORLD) ;
 
       const int nadvance = 3 ;
@@ -422,8 +424,8 @@ namespace Loci {
               int id = k ;
               static int flag = 0 ;
 
-              MPI_Irecv(&buffer[id][0],sizeof(T)*count,MPI_BYTE,k,0,MPI_COMM_WORLD,
-                        &recv_Requests[id]) ;
+              MPI_Irecv(buffer[id].data(),sizeof(T)*count,MPI_BYTE,k,0,MPI_COMM_WORLD,
+                        recv_Requests.data()+id) ;
               //      MPI_Isend(&flag,1,MPI_INT,k,0,MPI_COMM_WORLD,&send_Requests[id]) ;
               MPI_Send(&flag,1,MPI_INT,k,0,MPI_COMM_WORLD) ;
 
@@ -446,7 +448,7 @@ namespace Loci {
             H5Sselect_hyperslab(dataspace, H5S_SELECT_SET,
                                 &start,&stride,&count, NULL) ;
             hid_t memspace = H5Screate_simple(rank, &count, NULL) ;
-            H5Dwrite(dataset,datatype,memspace,dataspace,H5P_DEFAULT,&buffer[0][0]) ;
+            H5Dwrite(dataset,datatype,memspace,dataspace,H5P_DEFAULT,buffer[0].data()) ;
             H5Sclose(memspace) ;
 	    //            time_write += s.stop() ;
             start += count ;
@@ -458,8 +460,8 @@ namespace Loci {
               int id = 0 ;
               static int flag = 0 ;
 
-              MPI_Irecv(&buffer[id][0],sizeof(T)*count,MPI_BYTE,nadvance,0,MPI_COMM_WORLD,
-                        &recv_Requests[id]) ;
+              MPI_Irecv(buffer[id].data(),sizeof(T)*count,MPI_BYTE,nadvance,0,MPI_COMM_WORLD,
+                        recv_Requests.data()+id) ;
               //      MPI_Isend(&flag,1,MPI_INT,nadvance,0,MPI_COMM_WORLD,&send_Requests[id]) ;
               MPI_Send(&flag,1,MPI_INT,nadvance,0,MPI_COMM_WORLD) ;
             }
@@ -473,7 +475,7 @@ namespace Loci {
               //      int flag = 0 ;
               sw.start() ;
 
-              MPI_Wait(&recv_Requests[id],&mstat) ;
+              MPI_Wait(recv_Requests.data()+id,&mstat) ;
 
 	      //              time_wait += sw.stop() ;
 
@@ -484,10 +486,10 @@ namespace Loci {
               hid_t memspace = H5Screate_simple(rank,&count,NULL) ;
               //      MPI_Status mstat ;
 
-              //      MPI_Recv(&buffer[id][0],sizeof(T)*count,MPI_BYTE,k,0,MPI_COMM_WORLD,
+              //      MPI_Recv(buffer[id].data(),sizeof(T)*count,MPI_BYTE,k,0,MPI_COMM_WORLD,
               //               &mstat) ;
 
-              H5Dwrite(dataset,datatype,memspace,dataspace,H5P_DEFAULT,&buffer[id][0]) ;
+              H5Dwrite(dataset,datatype,memspace,dataspace,H5P_DEFAULT,buffer[id].data()) ;
               H5Sclose(memspace) ;
 	      //              time_write += s.stop() ;
               start += count ;
@@ -500,8 +502,8 @@ namespace Loci {
                 static int flag = 0 ;
 
 	      
-                MPI_Irecv(&buffer[id][0],sizeof(T)*lcount,MPI_BYTE,k_new,0,
-                          MPI_COMM_WORLD, &recv_Requests[id]) ;
+                MPI_Irecv(buffer[id].data(),sizeof(T)*lcount,MPI_BYTE,k_new,0,
+                          MPI_COMM_WORLD, recv_Requests.data()+id) ;
 
                 MPI_Send(&flag,1,MPI_INT,k_new,0,MPI_COMM_WORLD) ;
               }
@@ -524,7 +526,7 @@ namespace Loci {
             int flag = 0 ;
             MPI_Status mstat ;
             MPI_Recv(&flag,1,MPI_INT,0,0,MPI_COMM_WORLD,&mstat) ;
-            MPI_Send(&buffer[0][0],sizeof(T)*sz,MPI_BYTE,0,0,MPI_COMM_WORLD) ;
+            MPI_Send(buffer[0].data(),sizeof(T)*sz,MPI_BYTE,0,0,MPI_COMM_WORLD) ;
           }
         }
         loc += bs ;
@@ -635,7 +637,7 @@ namespace Loci {
     std::vector<int> sizes ; //unique sizes for all processors
     int cmin = -1 ;
     do {
-      MPI_Allreduce(&sizes_local[iloc],&cmin,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+      MPI_Allreduce(sizes_local.data()+iloc,&cmin,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
       if(cmin != std::numeric_limits<int>::max())
         sizes.push_back(cmin) ;
       if(sizes_local[iloc] == cmin)
@@ -673,7 +675,7 @@ namespace Loci {
     } ENDFORALL ;
 
     std::vector<int> block_data_elems(block_sizes.size(),0) ;//global::for each block, how many elements need xfer
-    MPI_Allreduce(&num_local_xfers[0],&block_data_elems[0],block_sizes.size(),
+    MPI_Allreduce(num_local_xfers.data(),block_data_elems.data(),block_sizes.size(),
                   MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
 
     // write out write schedule information
@@ -712,8 +714,8 @@ namespace Loci {
     MPI_Comm_size(MPI_COMM_WORLD, &p);
     //allgather local sizes over
     std::vector<int> all_local_sizes(block_sizes.size()*p) ;
-    MPI_Allgather(&num_local_xfers[0],block_sizes.size(),MPI_INT,
-                  &all_local_sizes[0],block_sizes.size(),MPI_INT,
+    MPI_Allgather(num_local_xfers.data(),block_sizes.size(),MPI_INT,
+                  all_local_sizes.data(),block_sizes.size(),MPI_INT,
                   MPI_COMM_WORLD) ;
 
     hid_t dataspace =-1;
@@ -813,7 +815,7 @@ namespace Loci {
             ret =
 #endif
               H5Dwrite(dataset, datatype, memspace, dataspace,
-                       H5P_DEFAULT, &send_buffer[0]);
+                       H5P_DEFAULT, send_buffer.data());
             WARN(ret<0) ;
           }
           H5Sclose(memspace) ;
@@ -897,8 +899,8 @@ namespace Loci {
         std::vector<int> bsets(bsize) ;
         block_sets.swap(bsets) ;
       }
-      MPI_Bcast(&block_schedule[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
-      MPI_Bcast(&block_sets[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(block_schedule.data(),bsize,MPI_INT,0,MPI_COMM_WORLD) ;
+      MPI_Bcast(block_sets.data(),bsize,MPI_INT,0,MPI_COMM_WORLD) ;
 
       // Open data array
       hid_t      dataset = 0, dataspace = 0;
@@ -931,7 +933,7 @@ namespace Loci {
             send_sz_blk[procID[j]]++ ;
           }
 
-        MPI_Gather(&lbsz,1,MPI_INT,&file_read_sizes[0],1,MPI_INT,0,MPI_COMM_WORLD) ;
+        MPI_Gather(&lbsz,1,MPI_INT,file_read_sizes.data(),1,MPI_INT,0,MPI_COMM_WORLD) ;
         int tot = 0 ;
         for(int j=0;j<p;++j)
           tot+= file_read_sizes[j] ;
@@ -949,7 +951,7 @@ namespace Loci {
                               &start, &stride, &read_size, NULL) ;
           hid_t memspace = H5Screate_simple(rank,&read_size,NULL) ;
           H5Dread(dataset, datatype, memspace, dataspace, H5P_DEFAULT,
-                  &read_buffer[0]) ;
+                  read_buffer.data()) ;
           H5Sclose(memspace) ;
           start += read_size ;
           int max_send_size = 0 ;
@@ -963,11 +965,11 @@ namespace Loci {
                                   &start, &stride, &read_size, NULL) ;
               hid_t memspace = H5Screate_simple(rank,&read_size,NULL) ;
               H5Dread(dataset, datatype, memspace, dataspace, H5P_DEFAULT,
-                      &send_buffer[0]) ;
+                      send_buffer.data()) ;
               H5Sclose(memspace) ;
               start += read_size ;
 
-              MPI_Send(&send_buffer[0],read_size*sizeof(T),MPI_BYTE,j,0,
+              MPI_Send(send_buffer.data(),read_size*sizeof(T),MPI_BYTE,j,0,
                        MPI_COMM_WORLD) ;
             }
           }
@@ -975,7 +977,7 @@ namespace Loci {
         } else {
           MPI_Status mstat ;
           if(msgsz > 0) {
-            MPI_Recv(&read_buffer[0], msgsz*sizeof(T),MPI_BYTE,0,0,
+            MPI_Recv(read_buffer.data(), msgsz*sizeof(T),MPI_BYTE,0,0,
                      MPI_COMM_WORLD,&mstat) ;
           }
         }
@@ -1026,22 +1028,22 @@ namespace Loci {
         int req = 0 ;
         for(int j=0;j<p;++j)
           if(recv_sz_blk[j] > 0) {
-            MPI_Irecv(&rdata[roffset[j]*block_schedule[i]],
+            MPI_Irecv(rdata.data()+roffset[j]*block_schedule[i],
                       recv_sz_blk[j]*block_schedule[i]*sizeof(T),
                       MPI_BYTE,j,3,
-                      MPI_COMM_WORLD,&recv_Requests[req]) ;
+                      MPI_COMM_WORLD,recv_Requests.data()+req) ;
             req++ ;
           }
         for(int j=0;j<p;++j)
           if(send_sz_blk[j] > 0) {
-            MPI_Isend(&xmit_buffer[xoffset[j]*block_schedule[i]],
+            MPI_Isend(xmit_buffer.data()+xoffset[j]*block_schedule[i],
                       send_sz_blk[j]*block_schedule[i]*sizeof(T),
                       MPI_BYTE,j,3,
-                      MPI_COMM_WORLD,&recv_Requests[req]) ;
+                      MPI_COMM_WORLD,recv_Requests.data()+req) ;
             req++ ;
           }
         std::vector<MPI_Status> statuslist(nreq) ;
-        MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+        MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
 
         // Now copy data into multistore
         indx = 0 ;
@@ -1135,8 +1137,8 @@ namespace Loci {
       std::vector<int> bsets(bsize) ;
       block_sets.swap(bsets) ;
     }
-    MPI_Bcast(&block_schedule[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
-    MPI_Bcast(&block_sets[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(block_schedule.data(),bsize,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(block_sets.data(),bsize,MPI_INT,0,MPI_COMM_WORLD) ;
 
     //prime processes Open data array
     hid_t      dataset = 0, dataspace = 0;
@@ -1171,7 +1173,7 @@ namespace Loci {
           send_sz_blk[procID[j]]++ ;
         }
 
-      MPI_Allgather(&lbsz,1,MPI_INT,&file_read_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      MPI_Allgather(&lbsz,1,MPI_INT,file_read_sizes.data(),1,MPI_INT,MPI_COMM_WORLD) ;
 
       int tot = 0 ;
       for(int j=0;j<p;++j)
@@ -1211,7 +1213,7 @@ namespace Loci {
         ret =
 #endif
           H5Dread(dataset, datatype, memspace, dataspace,
-                      H5P_DEFAULT, &read_buffer[0]);
+                      H5P_DEFAULT, read_buffer.data());
         WARN(ret<0) ;
         H5Sclose(memspace) ;
 
@@ -1266,22 +1268,22 @@ namespace Loci {
       int req = 0 ;
       for(int j=0;j<p;++j)
         if(recv_sz_blk[j] > 0) {
-          MPI_Irecv(&rdata[roffset[j]*block_schedule[i]],
+          MPI_Irecv(rdata.data()+roffset[j]*block_schedule[i],
                     recv_sz_blk[j]*block_schedule[i]*sizeof(T),
                     MPI_BYTE,j,3,
-                    MPI_COMM_WORLD,&recv_Requests[req]) ;
+                    MPI_COMM_WORLD,recv_Requests.data()+req) ;
           req++ ;
         }
       for(int j=0;j<p;++j)
         if(send_sz_blk[j] > 0) {
-          MPI_Isend(&xmit_buffer[xoffset[j]*block_schedule[i]],
+          MPI_Isend(xmit_buffer.data()+xoffset[j]*block_schedule[i],
                     send_sz_blk[j]*block_schedule[i]*sizeof(T),
                     MPI_BYTE,j,3,
-                    MPI_COMM_WORLD,&recv_Requests[req]) ;
+                    MPI_COMM_WORLD,recv_Requests.data()+req) ;
           req++ ;
         }
       std::vector<MPI_Status> statuslist(nreq) ;
-      MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+      MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
 
       // Now copy data into multistore
       indx = 0 ;

@@ -80,7 +80,7 @@ namespace Loci {
     unsigned long rsize = local_size;
     std::vector<unsigned long> prime_count(mpi_size);  
     MPI_Allgather(&rsize,sizeof(unsigned long),MPI_BYTE,
-                  &prime_count[0],sizeof(unsigned long),MPI_BYTE,prime_comm) ;
+                  prime_count.data(),sizeof(unsigned long),MPI_BYTE,prime_comm) ;
 
     unsigned long array_size_combined = 0;
     for(int i = 0; i < mpi_size; i++) array_size_combined += prime_count[i];
@@ -105,9 +105,9 @@ namespace Loci {
     tmp_moffset += (MPI_Offset)start*sizeof(T);
     
     if(xfer_type == DXFER_COLLECTIVE_IO)
-      MPI_File_write_at_all(fh, tmp_moffset, &v[0], rsize*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+      MPI_File_write_at_all(fh, tmp_moffset, v.data(), rsize*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
     else
-      MPI_File_write_at(fh, tmp_moffset, &v[0], rsize*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+      MPI_File_write_at(fh, tmp_moffset, v.data(), rsize*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
   
     //update moffset to the end of whole dataset
     moffset += array_size_combined*sizeof(T);
@@ -134,7 +134,7 @@ namespace Loci {
       if(prime_rank==0){
         MPI_File_write_at(fh,  moffset, &array_size_combined, sizeof(unsigned long), MPI_BYTE, MPI_STATUS_IGNORE);
         moffset += (MPI_Offset) sizeof(unsigned long);
-        MPI_File_write_at(fh, moffset,  &v[0], array_size_combined*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+        MPI_File_write_at(fh, moffset,  v.data(), array_size_combined*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
         moffset += (MPI_Offset) array_size_combined*sizeof(T); 
       }else{
         moffset +=  (MPI_Offset) (sizeof(unsigned long) + array_size_combined*sizeof(T)); 
@@ -167,7 +167,7 @@ namespace Loci {
         moffset += (MPI_Offset)sizeof(unsigned long);
         if(array_size_combined > 0){
           v.resize(array_size_combined);
-          MPI_File_read_at(fh, moffset, &v[0], array_size_combined*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+          MPI_File_read_at(fh, moffset, v.data(), array_size_combined*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
         }else {
           std::vector<T> tmp ;
           v.swap(tmp) ;
@@ -220,9 +220,9 @@ namespace Loci {
       unsigned long count = loc_array_size  ;
       
       if(xfer_type == DXFER_COLLECTIVE_IO)
-        MPI_File_read_at_all(fh, tmp_moffset, &v[0], count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+        MPI_File_read_at_all(fh, tmp_moffset, v.data(), count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
       else
-        MPI_File_read_at(fh, tmp_moffset, &v[0], count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+        MPI_File_read_at(fh, tmp_moffset, v.data(), count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
 
       //update moffset
       moffset += array_size_combined*sizeof(T);
@@ -259,7 +259,7 @@ namespace Loci {
       unsigned long loc_array_size = v.size(); 
       std::vector<unsigned long> all_local_sizes(mpi_size) ;
       MPI_Allgather(&loc_array_size,1,MPI_UNSIGNED_LONG,
-                    &all_local_sizes[0],1,MPI_UNSIGNED_LONG,
+                    all_local_sizes.data(),1,MPI_UNSIGNED_LONG,
                     prime_comm) ;
 
       //process 0 perform sanity check
@@ -282,9 +282,9 @@ namespace Loci {
       unsigned long count = loc_array_size  ;
       
       if(xfer_type == DXFER_COLLECTIVE_IO)
-        MPI_File_read_at_all(fh, tmp_moffset, &v[0], count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+        MPI_File_read_at_all(fh, tmp_moffset, v.data(), count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
       else
-        MPI_File_read_at(fh, tmp_moffset, &v[0], count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+        MPI_File_read_at(fh, tmp_moffset, v.data(), count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
 
       //update moffset
       moffset += array_size_combined*sizeof(T);
@@ -374,7 +374,7 @@ namespace Loci {
     std::vector<int> sizes ; //unique sizes for all processors
     int cmin = -1 ;
     do {
-      MPI_Allreduce(&sizes_local[iloc],&cmin,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+      MPI_Allreduce(sizes_local.data()+iloc,&cmin,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
       if(cmin != std::numeric_limits<int>::max())
         sizes.push_back(cmin) ;
       if(sizes_local[iloc] == cmin)
@@ -412,7 +412,7 @@ namespace Loci {
     } ENDFORALL ;
 
     std::vector<int> block_data_elems(block_sizes.size(),0) ;//global::for each block, how many elements need xfer
-    MPI_Allreduce(&num_local_xfers[0],&block_data_elems[0],block_sizes.size(),
+    MPI_Allreduce(num_local_xfers.data(),block_data_elems.data(),block_sizes.size(),
                   MPI_INT,MPI_SUM,MPI_COMM_WORLD) ;
 
     // write out write schedule information
@@ -447,8 +447,8 @@ namespace Loci {
    
     //allgather local sizes over
     std::vector<int> all_local_sizes(block_sizes.size()*p) ;
-    MPI_Allgather(&num_local_xfers[0],block_sizes.size(),MPI_INT,
-                  &all_local_sizes[0],block_sizes.size(),MPI_INT,
+    MPI_Allgather(num_local_xfers.data(),block_sizes.size(),MPI_INT,
+                  all_local_sizes.data(),block_sizes.size(),MPI_INT,
                   MPI_COMM_WORLD) ;
 
  
@@ -506,9 +506,9 @@ namespace Loci {
           if(gsz != 0) {
 
             if(xfer_type == DXFER_COLLECTIVE_IO)
-              MPI_File_write_at_all(fh, tmp_moffset, &send_buffer[0], count, MPI_BYTE, MPI_STATUS_IGNORE);
+              MPI_File_write_at_all(fh, tmp_moffset, send_buffer.data(), count, MPI_BYTE, MPI_STATUS_IGNORE);
             else
-              MPI_File_write_at(fh, tmp_moffset, &send_buffer[0], count, MPI_BYTE, MPI_STATUS_IGNORE);
+              MPI_File_write_at(fh, tmp_moffset, send_buffer.data(), count, MPI_BYTE, MPI_STATUS_IGNORE);
 
             //moffset += (MPI_Offset)count;
             //MPI_Bcast(&moffset, 1, MPI_OFFSET, p-1, MPI_COMM_WORLD); //process mpi_size-1 is at the end of file now
@@ -590,8 +590,8 @@ namespace Loci {
       std::vector<int> bsets(bsize) ;
       block_sets.swap(bsets) ;
     }
-    MPI_Bcast(&block_schedule[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
-    MPI_Bcast(&block_sets[0],bsize,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(block_schedule.data(),bsize,MPI_INT,0,MPI_COMM_WORLD) ;
+    MPI_Bcast(block_sets.data(),bsize,MPI_INT,0,MPI_COMM_WORLD) ;
 
     //prime processes Open data array
   
@@ -621,7 +621,7 @@ namespace Loci {
           send_sz_blk[procID[j]]++ ;
         }
 
-      MPI_Allgather(&lbsz,1,MPI_INT,&file_read_sizes[0],1,MPI_INT,MPI_COMM_WORLD) ;
+      MPI_Allgather(&lbsz,1,MPI_INT,file_read_sizes.data(),1,MPI_INT,MPI_COMM_WORLD) ;
 
       int tot = 0 ;
       for(int j=0;j<p;++j)
@@ -656,9 +656,9 @@ namespace Loci {
 
         MPI_Offset tmp_moffset = moffset + (MPI_Offset) prime_start*sizeof(T);
         if(xfer_type == DXFER_COLLECTIVE_IO)
-          MPI_File_read_at_all(fh, tmp_moffset, &read_buffer[0], count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+          MPI_File_read_at_all(fh, tmp_moffset, read_buffer.data(), count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
         else
-          MPI_File_read_at(fh, tmp_moffset, &read_buffer[0], count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
+          MPI_File_read_at(fh, tmp_moffset, read_buffer.data(), count*sizeof(T), MPI_BYTE, MPI_STATUS_IGNORE);
         moffset += (MPI_Offset)total_block_size *sizeof(T);
         start += block_sets[i]*block_schedule[i];////how many total elements read for this block
       }
@@ -711,22 +711,23 @@ namespace Loci {
       int req = 0 ;
       for(int j=0;j<p;++j)
         if(recv_sz_blk[j] > 0) {
-          MPI_Irecv(&rdata[roffset[j]*block_schedule[i]],
+          MPI_Irecv(rdata.data()+roffset[j]*block_schedule[i],
                     recv_sz_blk[j]*block_schedule[i]*sizeof(T),
                     MPI_BYTE,j,3,
-                    MPI_COMM_WORLD,&recv_Requests[req]) ;
+                    MPI_COMM_WORLD,recv_Requests.data()+req) ;
           req++ ;
         }
       for(int j=0;j<p;++j)
         if(send_sz_blk[j] > 0) {
-          MPI_Isend(&xmit_buffer[xoffset[j]*block_schedule[i]],
+          MPI_Isend(xmit_buffer.data()+xoffset[j]*block_schedule[i],
                     send_sz_blk[j]*block_schedule[i]*sizeof(T),
                     MPI_BYTE,j,3,
-                    MPI_COMM_WORLD,&recv_Requests[req]) ;
+                    MPI_COMM_WORLD,recv_Requests.data()+req) ;
           req++ ;
         }
       std::vector<MPI_Status> statuslist(nreq) ;
-      MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+      if(nreq > 0)
+        MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
 
       // Now copy data into multistore
       indx = 0 ;

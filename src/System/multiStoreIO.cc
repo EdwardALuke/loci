@@ -81,7 +81,7 @@ namespace Loci {
       sendto[ps]++ ;
     } ENDFORALL ;
     std::vector<int> recvfrom(p,0) ;
-    MPI_Alltoall(&sendto[0],1,MPI_INT,&recvfrom[0],1,MPI_INT,
+    MPI_Alltoall(sendto.data(),1,MPI_INT,recvfrom.data(),1,MPI_INT,
 		 MPI_COMM_WORLD) ;
     const int r = MPI_rank ;
 
@@ -117,18 +117,18 @@ namespace Loci {
     int req = 0 ;
     for(int i=0;i<p;++i)
       if(recvfrom[i] > 0) {
-	MPI_Irecv(&recvbuf[recv_offsets[i]*3],recvfrom[i]*3,MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Irecv(recvbuf.data()+recv_offsets[i]*3,recvfrom[i]*3,MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     for(int i=0;i<p;++i)
       if(sendto[i] > 0) {
-	MPI_Isend(&sendbuf[send_offsets[i]*3],sendto[i]*3,MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Isend(sendbuf.data()+send_offsets[i]*3,sendto[i]*3,MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     std::vector<MPI_Status> statuslist(nreq) ;
-    MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+    MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
 
     for(int i=0;i<rsz;++i) {
       int lf =recvbuf[i*3+0] - fstart ; // Find file number to local filenumber
@@ -192,7 +192,7 @@ namespace Loci {
       send_req[rp]++ ;
     }
     std::vector<int> recv_req(p,0) ;
-    MPI_Alltoall(&send_req[0],1,MPI_INT,&recv_req[0],1,MPI_INT,
+    MPI_Alltoall(send_req.data(),1,MPI_INT,recv_req.data(),1,MPI_INT,
 		 MPI_COMM_WORLD) ;
     std::vector<int> sendbuffer(fileID.size()) ;
     std::vector<int> soffsets(p+1,0) ;
@@ -223,18 +223,18 @@ namespace Loci {
     int req = 0 ;
     for(int i=0;i<p;++i)
       if(recv_req[i] > 0) {
-	MPI_Irecv(&recvbuffer[roffsets[i]],recv_req[i],MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Irecv(recvbuffer.data()+roffsets[i],recv_req[i],MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     for(int i=0;i<p;++i)
       if(send_req[i] > 0) {
-	MPI_Isend(&sendbuffer[soffsets[i]],send_req[i],MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Isend(sendbuffer.data()+soffsets[i],send_req[i],MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     std::vector<MPI_Status> statuslist(nreq) ;
-    MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+    MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
     // Now we go the requests, get information to return
     std::vector<int> datasend(rsz*2) ;
     int map_error = false ;
@@ -258,17 +258,17 @@ namespace Loci {
     req = 0 ;
     for(int i=0;i<p;++i)
       if(send_req[i] > 0) {
-	MPI_Irecv(&datarecv[soffsets[i]*2],send_req[i]*2,MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Irecv(datarecv.data()+soffsets[i]*2,send_req[i]*2,MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     for(int i=0;i<p;++i)
       if(recv_req[i] > 0) {
-	MPI_Isend(&datasend[roffsets[i]*2],recv_req[i]*2,MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Isend(datasend.data()+roffsets[i]*2,recv_req[i]*2,MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
-    MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+    MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
     bool error = false ;
 
     std::vector<int> sc(p,0) ;
@@ -297,7 +297,7 @@ namespace Loci {
       send_sz[i] = 0 ;
     for(size_t i=0;i<procID.size();++i)
       send_sz[procID[i]]++ ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT, &recv_sz[0],1,MPI_INT,
+    MPI_Alltoall(send_sz.data(),1,MPI_INT, recv_sz.data(),1,MPI_INT,
 		 MPI_COMM_WORLD) ;
     std::vector<int> send_data(procID.size()) ;
     std::vector<int> soffsets(p+1,0) ;
@@ -324,18 +324,18 @@ namespace Loci {
     int req = 0 ;
     for(int i=0;i<p;++i)
       if(recv_sz[i] > 0) {
-	MPI_Irecv(&recv_data[roffsets[i]],recv_sz[i],MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Irecv(recv_data.data()+roffsets[i],recv_sz[i],MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     for(int i=0;i<p;++i)
       if(send_sz[i] > 0) {
-	MPI_Isend(&send_data[soffsets[i]],send_sz[i],MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Isend(send_data.data()+soffsets[i],send_sz[i],MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     std::vector<MPI_Status> statuslist(nreq) ;
-    MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+    MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
     recv_local_num.swap(recv_data) ;
   }    
 
@@ -372,18 +372,18 @@ namespace Loci {
     int req = 0 ;
     for(int i=0;i<p;++i)
       if(recv_sz[i] > 0) {
-	MPI_Irecv(&rbuf[roffsets[i]],recv_sz[i],MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Irecv(rbuf.data()+roffsets[i],recv_sz[i],MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     for(int i=0;i<p;++i)
       if(send_sz[i] > 0) {
-	MPI_Isend(&sbuf[soffsets[i]],send_sz[i],MPI_INT,i,3,
-		  MPI_COMM_WORLD,&recv_Requests[req]) ;
+	MPI_Isend(sbuf.data()+soffsets[i],send_sz[i],MPI_INT,i,3,
+		  MPI_COMM_WORLD,recv_Requests.data()+req) ;
 	req++ ;
       }
     std::vector<MPI_Status> statuslist(nreq) ;
-    MPI_Waitall(nreq,&recv_Requests[0],&statuslist[0]) ;
+    MPI_Waitall(nreq,recv_Requests.data(),statuslist.data()) ;
     recv_count.swap(rbuf) ;
     
   }

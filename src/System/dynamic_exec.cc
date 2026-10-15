@@ -473,7 +473,7 @@ namespace Loci
       yMapSave.swap(tmp) ;
     }
     
-    MPI_Allgather (i2, 2, MPI_INT, &yMapSave[0], 2, MPI_INT, MPI_COMM_WORLD);
+    MPI_Allgather (i2, 2, MPI_INT, yMapSave.data(), 2, MPI_INT, MPI_COMM_WORLD);
     allItems = 0;
     for (int proc = 0; proc < nProcs; proc++)
       allItems = allItems + yMapSave[2 * proc + 1];
@@ -531,7 +531,7 @@ namespace Loci
           for (variableSet::const_iterator vi = inputs.begin ();
                vi != inputs.end (); ++vi) {
               storeRepP s_ptr = facts1->get_variable (*vi);
-              s_ptr->pack (&buf[0], position, buf_size,
+              s_ptr->pack (buf.data(), position, buf_size,
                            sendSet);
           }
         }
@@ -539,7 +539,7 @@ namespace Loci
 #ifdef VERBOSE
         debugout << "Sending data to " << dest << endl ;
 #endif
-        MPI_Send (&buf[0], buf_size, MPI_PACKED, dest, TAG_INPUT,
+        MPI_Send (buf.data(), buf_size, MPI_PACKED, dest, TAG_INPUT,
                   MPI_COMM_WORLD);
       }
     } else if(recvChunks.size() != 0) {
@@ -558,8 +558,8 @@ namespace Loci
 #ifdef VERBOSE
         debugout << "recieving data from " << src << endl ;
 #endif
-        MPI_Irecv (&buf[offset], buf_size, MPI_PACKED, src, TAG_INPUT,
-                    MPI_COMM_WORLD, &req_list[i]);
+        MPI_Irecv (buf.data()+offset, buf_size, MPI_PACKED, src, TAG_INPUT,
+                    MPI_COMM_WORLD, req_list.data()+i);
 	offset += buf_size ;
       }
 
@@ -583,7 +583,7 @@ namespace Loci
       // now wait for receives to complete
       int nreqs = req_list.size() ;
       vector<MPI_Status> status_list(nreqs) ;
-      MPI_Waitall(nreqs,&req_list[0],&status_list[0]) ;
+      MPI_Waitall(nreqs,req_list.data(),status_list.data()) ;
       // Now unpack the data
       int cnt = 0 ;
       offset = 0 ;
@@ -595,7 +595,7 @@ namespace Loci
           for (variableSet::const_iterator vi = inputs.begin ();
                vi != inputs.end (); ++vi) {
             storeRepP s_ptr = local_facts1->get_variable (*vi);
-            s_ptr->unpack (&buf[offset], position, buf_size,sequence(recvSet)) ;
+            s_ptr->unpack (buf.data()+offset, position, buf_size,sequence(recvSet)) ;
           }
           cnt+= iwsSize ;
         }
@@ -669,19 +669,19 @@ namespace Loci
 #ifdef VERBOSE
         debugout << "recieving computed data from " << dest << endl ;
 #endif
-        MPI_Irecv (&buf[offset1], buf_size, MPI_PACKED, dest, TAG_OUTPUT,
-                    MPI_COMM_WORLD, &req_list[i*2]);
+        MPI_Irecv (buf.data()+offset1, buf_size, MPI_PACKED, dest, TAG_OUTPUT,
+                    MPI_COMM_WORLD, req_list.data()+i*2);
 	offset1 += buf_size ;
         int nchunks = sendChunks[i].chunkList.size() ;
-        MPI_Irecv(&times[offset2],nchunks,MPI_FLOAT,dest,TAG_TIMES,
-		  MPI_COMM_WORLD, &req_list[i*2+1]);
+        MPI_Irecv(times.data()+offset2,nchunks,MPI_FLOAT,dest,TAG_TIMES,
+		  MPI_COMM_WORLD, req_list.data()+i*2+1);
 	offset2 += nchunks ;
       }
 
       // wait on recvs to complete
       int nreqs = req_list.size() ;
       vector<MPI_Status> status_list(nreqs) ;
-      MPI_Waitall(nreqs,&req_list[0],&status_list[0]) ;
+      MPI_Waitall(nreqs,req_list.data(),status_list.data()) ;
       
       offset1 = 0 ;
       offset2 = 0 ;
@@ -694,7 +694,7 @@ namespace Loci
           for (variableSet::const_iterator vi = outputs.begin ();
                vi != outputs.end (); ++vi) {
               storeRepP s_ptr = facts1->get_variable (*vi);
-              s_ptr->unpack (&buf[offset1], position, buf_size,
+              s_ptr->unpack (buf.data()+offset1, position, buf_size,
                              sendSet);
           }
         }
@@ -722,18 +722,18 @@ namespace Loci
           for (variableSet::const_iterator vi = outputs.begin ();
                vi != outputs.end (); ++vi) {
             storeRepP s_ptr = local_facts1->get_variable (*vi);
-            s_ptr->pack (&buf[0], position, buf_size,sendSet) ;
+            s_ptr->pack (buf.data(), position, buf_size,sendSet) ;
           }
           cnt += iwsSize ;
         }
 #ifdef VERBOSE
         debugout << "sending computed data to " << dest << endl ;
 #endif
-        MPI_Send (&buf[0], buf_size, MPI_PACKED, dest, TAG_OUTPUT,
+        MPI_Send (buf.data(), buf_size, MPI_PACKED, dest, TAG_OUTPUT,
                   MPI_COMM_WORLD);
         
         int nchunks = recvChunks[i].chunkList.size() ;
-        MPI_Send(&remote_times[cnt2],nchunks,MPI_FLOAT,dest,TAG_TIMES,
+        MPI_Send(remote_times.data()+cnt2,nchunks,MPI_FLOAT,dest,TAG_TIMES,
                  MPI_COMM_WORLD) ;
         cnt2 += nchunks ;
       }
@@ -845,7 +845,7 @@ namespace Loci
 			chunkData[send_list[i]].chunkTime[1]) ;
       }
       vector<float> time_xfers(MPI_processes) ;
-      MPI_Allgather(&diff_time, 1, MPI_FLOAT, &time_xfers[0],1,MPI_FLOAT,
+      MPI_Allgather(&diff_time, 1, MPI_FLOAT, time_xfers.data(),1,MPI_FLOAT,
 		    MPI_COMM_WORLD) ;
 #ifdef VERBOSE
       if(MPI_rank == 0) {
@@ -920,7 +920,7 @@ namespace Loci
       if(rebalance && sources) { // we have residual work to distribute
 	int nchunks = send_list.size() ;
 	vector<int> chunk_groups(MPI_processes) ;
-	MPI_Allgather(&nchunks, 1, MPI_INT, &chunk_groups[0],1,MPI_INT,
+	MPI_Allgather(&nchunks, 1, MPI_INT, chunk_groups.data(),1,MPI_INT,
 		      MPI_COMM_WORLD) ;
 	vector<float> chunk_times(nchunks) ;
 	for(int i=0;i<nchunks;++i) {
@@ -938,10 +938,10 @@ namespace Loci
 
 	vector<float> chunk_time_gather(ntchunks) ;
 	
-	MPI_Allgatherv(&chunk_times[0],nchunks,MPI_FLOAT,
-		       &chunk_time_gather[0],
-		       &chunk_groups[0],
-		       &chunk_displ[0],
+	MPI_Allgatherv(chunk_times.data(),nchunks,MPI_FLOAT,
+		       chunk_time_gather.data(),
+		       chunk_groups.data(),
+		       chunk_displ.data(),
 		       MPI_FLOAT,
 		       MPI_COMM_WORLD) ;
 	vector<pair<float,pair<int,int> > > chunkQueue(ntchunks) ;
@@ -958,7 +958,7 @@ namespace Loci
         cnk = 0 ;
 	for(int i=0;i<MPI_processes;++i) {
           if(chunk_groups[i] > 1) {
-            std::sort(&chunkQueue[cnk],&chunkQueue[cnk+chunk_groups[i]]) ;
+            std::sort(chunkQueue.data()+cnk,chunkQueue.data()+cnk+chunk_groups[i]) ;
           }
           cnk += chunk_groups[i] ;
         }
@@ -1096,8 +1096,8 @@ namespace Loci
 	sendSizes[sendChunks[i].proc] = sendChunks[i].chunkList.size() ;
       
       vector<int> recvSizes(MPI_processes,0) ;
-      MPI_Alltoall(&sendSizes[0],1,MPI_INT,
-		   &recvSizes[0],1,MPI_INT,
+      MPI_Alltoall(sendSizes.data(),1,MPI_INT,
+		   recvSizes.data(),1,MPI_INT,
 		   MPI_COMM_WORLD) ;
       numRemoteChunks = 0 ;
 
@@ -1538,14 +1538,14 @@ namespace Loci
           inputSent[tSource] = 0;
           tStart = yMap[2 * tSource];
           GetChunkSize (i, minChunkSize, tSource,
-                        &yMap[0], &tSize, &batchSize, &batchRem);
+                        yMap.data(), &tSize, &batchSize, &batchRem);
           SendInfo (tSource, WORK_LOCAL, tStart, tSize, -1, 0.0);
         }
       //foreman collects work for itself
       inputSent[myRank] = 0;
       chunkStart = yMap[2 * myRank];
       GetChunkSize (i, minChunkSize, myRank,
-                    &yMap[0], &chunkSize, &batchSize, &batchRem);
+                    yMap.data(), &chunkSize, &batchSize, &batchRem);
       action = WORK_LOCAL;
     } else {
       //workers block for first message
@@ -1865,7 +1865,7 @@ namespace Loci
           else if (tSource == msgSrc) {		// msgSrc has some
             chunkStart = yMap[2 * msgSrc];
             GetChunkSize (LBMethod, minChunkSize, msgSrc,
-                          &yMap[0], &chunkSize, &batchSize, &batchRem);
+                          yMap.data(), &chunkSize, &batchSize, &batchRem);
             action = WORK_LOCAL;	// update local work info
 #if DEBUGOUT
             Loci::debugout << "Info0:" << myRank << "->" << tSource
@@ -1876,7 +1876,7 @@ namespace Loci
           else {		// tSource sends input data to msgSrc
             tStart = yMap[2 * tSource];
             GetChunkSize (LBMethod, minChunkSize, tSource,
-                          &yMap[0], &tSize, &batchSize, &batchRem);
+                          yMap.data(), &tSize, &batchSize, &batchRem);
             SendInfo (tSource, SEND_INPUT, tStart, tSize, msgSrc,
                       0.0);
             inputSent[tSource]++;	// mark tSource as data giver
@@ -1894,14 +1894,14 @@ namespace Loci
           else if (tSource == msgSrc) {		// msgSrc has some
             tStart = yMap[2 * msgSrc];
             GetChunkSize (LBMethod, minChunkSize, msgSrc,
-                          &yMap[0], &tSize, &batchSize, &batchRem);
+                          yMap.data(), &tSize, &batchSize, &batchRem);
             SendInfo (msgSrc, WORK_LOCAL, tStart, tSize, -1, 0.0);
             action = TEST4_MSG;	// test for a message
           }		//end if (tSource == msgSrc)
           else {		// tSource sends input data to msgSrc
             tStart = yMap[2 * tSource];
             GetChunkSize (LBMethod, minChunkSize, tSource,
-                          &yMap[0], &tSize, &batchSize, &batchRem);
+                          yMap.data(), &tSize, &batchSize, &batchRem);
             inputSent[tSource]++;	// mark tSource as data giver
             if (tSource != foreMan) {
               SendInfo (tSource, SEND_INPUT, tStart, tSize, msgSrc,
@@ -1948,7 +1948,7 @@ namespace Loci
       ewt[i] = 0.0;
 
   
-    MPI_Allreduce (&workTime[0], &ewt[0], nProcs, MPI_DOUBLE, MPI_SUM,
+    MPI_Allreduce (workTime.data(), ewt.data(), nProcs, MPI_DOUBLE, MPI_SUM,
 		   MPI_COMM_WORLD);
   
 
@@ -2013,13 +2013,13 @@ namespace Loci
       for (variableSet::const_iterator vi = inputs.begin ();
            vi != inputs.end (); ++vi) {
         storeRepP s_ptr = facts.get_variable(*vi) ;
-        s_ptr->pack(&data[0],position,bufsize,given_exec_set) ;
+        s_ptr->pack(data.data(),position,bufsize,given_exec_set) ;
       }
       position = 0 ;
       for (variableSet::const_iterator vi = inputs.begin ();
            vi != inputs.end (); ++vi) {
         storeRepP s_ptr = backup_facts.get_variable(*vi) ;
-        s_ptr->unpack(&data[0],position,bufsize,exec_set) ;
+        s_ptr->unpack(data.data(),position,bufsize,exec_set) ;
       }
     }
     wall1 = MPI_Wtime ();
@@ -2084,13 +2084,13 @@ namespace Loci
       for (variableSet::const_iterator vi = outputs.begin ();
            vi != outputs.end (); ++vi) {
         storeRepP s_ptr = backup_facts.get_variable(*vi) ;
-        s_ptr->pack(&data[0],position,bufsize,exec_set) ;
+        s_ptr->pack(data.data(),position,bufsize,exec_set) ;
       }
       position = 0 ;
       for (variableSet::const_iterator vi = outputs.begin ();
            vi != outputs.end (); ++vi) {
         storeRepP s_ptr = facts.get_variable(*vi) ;
-        s_ptr->unpack(&data[0],position,bufsize,given_exec_set) ;
+        s_ptr->unpack(data.data(),position,bufsize,given_exec_set) ;
       }
       
       // release memory

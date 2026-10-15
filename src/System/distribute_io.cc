@@ -63,7 +63,7 @@ namespace Loci {
       for(int i=0;i<sz;++i)
         vlist[i] = set[i] ;
     }
-    MPI_Bcast(&vlist[0],sz*2,MPI_INT,root,comm) ;
+    MPI_Bcast(vlist.data(),sz*2,MPI_INT,root,comm) ;
     set = EMPTY ;
     for(int i = 0;i<sz;++i)
       set += vlist[i] ;
@@ -707,14 +707,14 @@ namespace Loci {
         send_size_buf = qrep->pack_size(dom) ;
         int tot_size = send_size_buf ;
         int loc_pack = 0 ;
-        qrep->pack(&tmp_send_buf[0], loc_pack, total_size, dom) ;
+        qrep->pack(tmp_send_buf.data(), loc_pack, total_size, dom) ;
         // Wait for signal to send message to root processor
         int flag = 0 ;
         MPI_Recv(&flag,1, MPI_INT, 0, 10, comm, &status) ;
         // received token to send, so send message
         if(flag) {
           MPI_Send(&tot_size, 1, MPI_INT, 0, 11, comm) ;
-          MPI_Send(&tmp_send_buf[0], tot_size, MPI_PACKED, 0, 12, comm) ;
+          MPI_Send(tmp_send_buf.data(), tot_size, MPI_PACKED, 0, 12, comm) ;
         }
       } else {
         // Begin writing array
@@ -748,7 +748,7 @@ namespace Loci {
             MPI_Send(&flag, 1, MPI_INT, i, 10, comm) ;
             MPI_Recv(&recv_total_size, 1, MPI_INT, i, 11, comm,
                      &status) ;
-            MPI_Recv(&tmp_send_buf[0], recv_total_size, MPI_PACKED, i, 12,
+            MPI_Recv(tmp_send_buf.data(), recv_total_size, MPI_PACKED, i, 12,
                      comm, &status) ;
 
             if(dom_vector[i] == EMPTY)
@@ -762,7 +762,7 @@ namespace Loci {
 
             int loc_unpack = 0 ;
             sequence tmp_seq = sequence(tmpset) ;
-            t_qrep->unpack(&tmp_send_buf[0], loc_unpack, total_size, tmp_seq) ;
+            t_qrep->unpack(tmp_send_buf.data(), loc_unpack, total_size, tmp_seq) ;
             dimension = arr_sizes[i] ;
             count = dimension ;
 
@@ -787,7 +787,7 @@ namespace Loci {
             int flag = 1 ;
             MPI_Send(&flag, 1, MPI_INT, i, 10, comm) ;
             MPI_Recv(&recv_total_size, 1, MPI_INT, i, 11, comm, &status) ;
-            MPI_Recv(&tmp_send_buf[0], recv_total_size, MPI_PACKED, i, 12, comm, &status) ;
+            MPI_Recv(tmp_send_buf.data(), recv_total_size, MPI_PACKED, i, 12, comm, &status) ;
           }
         }
       }
@@ -939,7 +939,7 @@ namespace Loci {
       // Now lets share the domain with all other processors ;
       q_dom = BcastEntitySet(q_dom,0,comm) ;
 
-      unsigned char* tmp_buf = 0;
+      std::vector<unsigned char> tmp_buf ;
       std::vector<int> interval_sizes ;
       entitySet dom ;
       if(q_dom != EMPTY) {
@@ -992,8 +992,7 @@ namespace Loci {
       std::vector<int> tmp_sizes = all_collect_sizes(vec_size,comm) ;
       int max_tmp_size = *std::max_element(tmp_sizes.begin(), tmp_sizes.end()) ;
       int max_eset_size = *std::max_element(interval_sizes.begin(), interval_sizes.end()) ;
-      int* tmp_int  ;
-      tmp_int = new int[max_tmp_size] ;
+      std::vector<int> tmp_int(max_tmp_size) ;
       std::vector<int> arr_sizes = all_collect_sizes(array_size,comm) ;
       //      size_t tot_arr_size = 0 ;
       //      for(int i = 0; i < np; ++i)
@@ -1019,15 +1018,15 @@ namespace Loci {
               tmp_int[t++] = *fvi ;
         }
         if(tmp_sizes[prank])
-          MPI_Send(tmp_int, tmp_sizes[prank], MPI_INT, 0, 10, comm) ;
+          MPI_Send(tmp_int.data(), tmp_sizes[prank], MPI_INT, 0, 10, comm) ;
         int total_size = 0 ;
         MPI_Recv(&total_size, 1, MPI_INT, 0, 11,comm, &status) ;
-        tmp_buf = new unsigned char[total_size] ;
-        MPI_Recv(tmp_buf, total_size, MPI_PACKED, 0, 12, comm, &status) ;
+        tmp_buf.resize(total_size) ;
+        MPI_Recv(tmp_buf.data(), total_size, MPI_PACKED, 0, 12, comm, &status) ;
         if(dom != EMPTY && total_size != 0) {
           sequence tmp_seq = sequence(dom) ;
           int loc_unpack = 0 ;
-          qrep->unpack(tmp_buf, loc_unpack, total_size, tmp_seq) ;
+          qrep->unpack(tmp_buf.data(), loc_unpack, total_size, tmp_seq) ;
         }
       } else {
         // processor zero
@@ -1068,7 +1067,7 @@ namespace Loci {
             if(local_set.size())
               tmp_set = interval(0, local_set.size()-1) ;
             if(p && tmp_sizes[p]) {
-              MPI_Recv(tmp_int, tmp_sizes[p], MPI_INT, p, 10, comm, &status) ;
+              MPI_Recv(tmp_int.data(), tmp_sizes[p], MPI_INT, p, 10, comm, &status) ;
               std::vector<int> vint, fvint ;
               int t = 0 ;
               if(fi.size) {
@@ -1091,7 +1090,7 @@ namespace Loci {
               if(p) {
                 int empty_size = 0 ;
                 MPI_Send(&empty_size, 1, MPI_INT, p, 11, comm) ;
-                MPI_Send(tmp_int, 0, MPI_PACKED, p, 12, comm) ;
+                MPI_Send(tmp_int.data(), 0, MPI_PACKED, p, 12, comm) ;
               }
               continue ;
             }
@@ -1107,23 +1106,21 @@ namespace Loci {
               tmp_sp->readhdf5(group_id, dataspace, dataset, dimension, "data", fi, tmp_set) ;
               tmp_total_size = tmp_sp->pack_size(tmp_set) ;
             } else {
-              t_sp = qrep->new_store(tmp_set, tmp_int) ;
+              t_sp = qrep->new_store(tmp_set, tmp_int.data()) ;
               t_sp->readhdf5(group_id, dataspace, dataset, dimension, "data", fi, tmp_set) ;
               tmp_total_size = t_sp->pack_size(tmp_set) ;
             }
 
             if(tmp_total_size > total_size) {
               total_size = tmp_total_size ;
-              if(p)
-                delete [] tmp_buf ;
-              tmp_buf = new unsigned char[total_size] ;
+              tmp_buf.resize(total_size) ;
             }
             start += count ;
             int loc = 0 ;
             if(fi.size)
-              tmp_sp->pack(tmp_buf, loc, total_size, tmp_set) ;
+              tmp_sp->pack(tmp_buf.data(), loc, total_size, tmp_set) ;
             else
-              t_sp->pack(tmp_buf, loc, total_size, tmp_set) ;
+              t_sp->pack(tmp_buf.data(), loc, total_size, tmp_set) ;
             if(p == 0) {
               int loc_unpack = 0 ;
 
@@ -1133,18 +1130,16 @@ namespace Loci {
 
               sequence tmp_seq = sequence(dom) ;
               qrep->allocate(dom) ;
-              qrep->unpack(tmp_buf, loc_unpack, total_size, tmp_seq) ;
+              qrep->unpack(tmp_buf.data(), loc_unpack, total_size, tmp_seq) ;
             } else {
               MPI_Send(&total_size, 1, MPI_INT, p, 11, comm) ;
-              MPI_Send(tmp_buf, total_size, MPI_PACKED, p, 12, comm) ;
+              MPI_Send(tmp_buf.data(), total_size, MPI_PACKED, p, 12, comm) ;
             }
           }
         }
         H5Dclose(dataset) ;
         H5Sclose(dataspace) ;
       }
-      delete [] tmp_buf ;
-      delete [] tmp_int ;
 #ifdef io_performance
       MPI_Barrier(MPI_COMM_WORLD);
       double wall_time = s.stop();
@@ -1317,21 +1312,20 @@ namespace Loci {
     // Now broadcast the result to other processors
     if(np > 1) {
       MPI_Bcast(&pack_size,1,MPI_INT,0,comm) ;
-      unsigned char *pack_buf = new unsigned char[pack_size] ;
+      std::vector<unsigned char> pack_buf(pack_size) ;
       if(prank == 0) {
         int loc_pack = 0 ;
         int sz = pack_size ;
         entitySet dom = ~EMPTY ;
-        qrep->pack(pack_buf,loc_pack,sz,dom) ;
+        qrep->pack(pack_buf.data(),loc_pack,sz,dom) ;
       }
-      MPI_Bcast(pack_buf,pack_size,MPI_PACKED,0,comm) ;
+      MPI_Bcast(pack_buf.data(),pack_size,MPI_PACKED,0,comm) ;
       if(prank != 0) {
         int loc_pack = 0 ;
         int sz = pack_size ;
         entitySet dom = ~EMPTY ;
-        qrep->unpack(pack_buf,loc_pack,sz,dom) ;
+        qrep->unpack(pack_buf.data(),loc_pack,sz,dom) ;
       }
-      delete[] pack_buf ;
     }
   }
 
@@ -1353,8 +1347,8 @@ namespace Loci {
     for(int i=0;i<MPI_processes;++i)
       send_sz[i] = sv[i].num_intervals()*2 ;
     vector<int> recv_sz(MPI_processes) ;
-    MPI_Alltoall(&send_sz[0],1,MPI_INT,
-                 &recv_sz[0],1,MPI_INT,
+    MPI_Alltoall(send_sz.data(),1,MPI_INT,
+                 recv_sz.data(),1,MPI_INT,
                  MPI_COMM_WORLD) ;
     int size_send = 0 ;
     int size_recv = 0 ;
@@ -1363,10 +1357,10 @@ namespace Loci {
       size_recv += recv_sz[i] ;
     }
     //    outRep->allocate(new_alloc) ;
-    int *send_store = new int[size_send] ;
-    int *recv_store = new int[size_recv] ;
-    int *send_displacement = new int[MPI_processes] ;
-    int *recv_displacement = new int[MPI_processes] ;
+    std::vector<int> send_store(size_send) ;
+    std::vector<int> recv_store(size_recv) ;
+    std::vector<int> send_displacement(MPI_processes) ;
+    std::vector<int> recv_displacement(MPI_processes) ;
 
     send_displacement[0] = 0 ;
     recv_displacement[0] = 0 ;
@@ -1381,8 +1375,8 @@ namespace Loci {
       }
 
 
-    MPI_Alltoallv(send_store,&send_sz[0], send_displacement , MPI_INT,
-                  recv_store, &recv_sz[0], recv_displacement, MPI_INT,
+    MPI_Alltoallv(send_store.data(),send_sz.data(), send_displacement.data() , MPI_INT,
+                  recv_store.data(), recv_sz.data(), recv_displacement.data(), MPI_INT,
                   MPI_COMM_WORLD) ;
 
     vector<sequence> sv_t(MPI_processes) ;
@@ -1392,10 +1386,6 @@ namespace Loci {
         int i2 = recv_store[recv_displacement[i]+j*2+1] ;
         sv_t[i] += interval(i1,i2) ;
       }
-    delete[] recv_displacement ;
-    delete[] send_displacement ;
-    delete[] recv_store ;
-    delete[] send_store ;
 
     return sv_t ;
   }
@@ -1547,8 +1537,8 @@ namespace Loci {
     for(int i=0;i<p;++i)
       send_sizes[i] = sp->pack_size(send_sets[i]) ;
 
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT,
-                 &recv_sizes[0],1,MPI_INT,
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
                  comm) ;
 
     vector<int> send_dspl(p),recv_dspl(p) ;
@@ -1568,19 +1558,19 @@ namespace Loci {
     for(int i=0;i<p;++i) {
       if(send_sizes[i] != 0) {
         int loc_pack = 0 ;
-        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+        sp->pack(send_store.data()+send_dspl[i],loc_pack, send_sizes[i],
                  send_sets[i]) ;
       }
     }
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
-                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
                   comm) ;
 
     for(int i=0;i<p;++i) {
       if(recv_sizes[i] != 0) {
         int loc_pack = 0 ;
-        qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+        qcol_rep->unpack(recv_store.data()+recv_dspl[i],loc_pack,recv_sizes[i],
                          recv_seqs[i]) ;
       }
     }
@@ -1678,8 +1668,8 @@ namespace Loci {
       if(send_sets[i] != EMPTY) send_sizes[i] = sp->pack_size(send_sets[i]) ;
       else send_sizes[i] = 0;
     }
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT,
-                 &recv_sizes[0],1,MPI_INT,
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
                  comm) ;
 
 
@@ -1699,12 +1689,12 @@ namespace Loci {
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+      sp->pack(send_store.data()+send_dspl[i],loc_pack, send_sizes[i],
                send_sets[i]) ;
     }
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
-                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
                   comm) ;
 
 
@@ -1716,7 +1706,7 @@ namespace Loci {
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
-      result_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+      result_rep->unpack(recv_store.data()+recv_dspl[i],loc_pack,recv_sizes[i],
                          recv_seqs[i]) ;
     }
 
@@ -1758,8 +1748,8 @@ namespace Loci {
     }
     vector<int> allmx(p) ;
     vector<int> allmn(p) ;
-    MPI_Allgather(&mx,1,MPI_INT,&allmx[0],1,MPI_INT,comm) ;
-    MPI_Allgather(&mn,1,MPI_INT,&allmn[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&mx,1,MPI_INT,allmx.data(),1,MPI_INT,comm) ;
+    MPI_Allgather(&mn,1,MPI_INT,allmn.data(),1,MPI_INT,comm) ;
 
     vector<pair<int,int> > file_requests ;
     FORALL(resultSet,i) {
@@ -1810,7 +1800,7 @@ namespace Loci {
     for(int i=0;i<p;++i)
       send_sizes[i] = input->pack_size(send_sets[i]) ;
 
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT,&recv_sizes[0],1,MPI_INT, comm) ;
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,recv_sizes.data(),1,MPI_INT, comm) ;
 
     vector<int> send_dspl(p), recv_dspl(p) ;
     send_dspl[0] = 0 ;
@@ -1828,19 +1818,19 @@ namespace Loci {
     for(int i=0;i<p;++i) {
       if(send_sizes[i] != 0) {
         int loc_pack = 0 ;
-        input->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+        input->pack(send_store.data()+send_dspl[i],loc_pack, send_sizes[i],
                     send_sets[i]) ;
       }
     }
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
-                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
                   comm) ;
 
     for(int i=0;i<p;++i) {
       if(recv_sizes[i] != 0) {
         int loc_pack = 0 ;
-        result->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+        result->unpack(recv_store.data()+recv_dspl[i],loc_pack,recv_sizes[i],
                        recv_seq[i]) ;
       }
     }
@@ -2106,7 +2096,7 @@ namespace Loci {
         send_sizes[i] = 0 ;
     }
 
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT, &recv_sizes[0],1,MPI_INT, comm) ;
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT, recv_sizes.data(),1,MPI_INT, comm) ;
     int maxbuf_send = send_sizes[0] ;
     int maxbuf_recv = recv_sizes[0] ;
     for(int i=1;i<p;++i) {
@@ -2119,26 +2109,26 @@ namespace Loci {
     // First, selfcopy
     if(send_sizes[prank] > 0) {
       int loc_pack = 0 ;
-      sp->pack(&send_buf[0],loc_pack, send_sizes[prank], sendSets[prank]) ;
+      sp->pack(send_buf.data(),loc_pack, send_sizes[prank], sendSets[prank]) ;
       loc_pack = 0 ;
-      op->unpack(&send_buf[0],loc_pack,recv_sizes[prank],  recvSeqs[prank]) ;
+      op->unpack(send_buf.data(),loc_pack,recv_sizes[prank],  recvSeqs[prank]) ;
     }
     for(int i=1;i<p;++i) { // no loop to communicate
       int ps = (prank+i)%p ; // sending partner
       int pr = (prank-i+p)%p ; // receiving partner
       MPI_Request request ;
       if(recv_sizes[pr] > 0) {
-        MPI_Irecv(&recv_buf[0],recv_sizes[pr],MPI_PACKED,pr,901,comm,&request) ;
+        MPI_Irecv(recv_buf.data(),recv_sizes[pr],MPI_PACKED,pr,901,comm,&request) ;
       }
       if(send_sizes[ps] > 0) {
         int loc_pack = 0 ;
-        sp->pack(&send_buf[0],loc_pack, send_sizes[ps], sendSets[ps]) ;
-        MPI_Send(&send_buf[0],send_sizes[ps],MPI_PACKED,ps,901,comm) ;
+        sp->pack(send_buf.data(),loc_pack, send_sizes[ps], sendSets[ps]) ;
+        MPI_Send(send_buf.data(),send_sizes[ps],MPI_PACKED,ps,901,comm) ;
       }
       if(recv_sizes[pr]> 0) {MPI_Status status ;
         MPI_Wait(&request,&status) ;
         int loc_pack = 0 ;
-        op->unpack(&recv_buf[0],loc_pack,recv_sizes[pr],  recvSeqs[pr]) ;
+        op->unpack(recv_buf.data(),loc_pack,recv_sizes[pr],  recvSeqs[pr]) ;
       }
     }
 
@@ -2169,7 +2159,7 @@ namespace Loci {
     vector<int> sourceRank(commMap.size()) ;
     for(size_t i=0;i<commMap.size();++i)
       sourceEntity[i] = commMap[i].second ;
-    partition->mapKeyToRank(&sourceRank[0],&sourceEntity[0],commMap.size()) ;
+    partition->mapKeyToRank(sourceRank.data(),sourceEntity.data(),commMap.size()) ;
     vector<pair<int,pair<Entity,Entity> > > procsort(commMap.size()) ;
     for(size_t i=0;i<commMap.size();++i) {
       procsort[i].first = sourceRank[i] ;
@@ -2270,7 +2260,7 @@ namespace Loci {
           FORALL(dom,ii) {
             countsA[cnt++] = counts_target[ii] ;
           } ENDFORALL ;
-          op = sp->new_store(dom,&countsA[0]) ;
+          op = sp->new_store(dom,countsA.data()) ;
         } else {
           op = sp->new_store(dom,&counts_target[dom.Min()]) ;
         }
@@ -2326,8 +2316,8 @@ namespace Loci {
     int mx = fdom.Max() ;
     vector<int> allmx(p) ;
     vector<int> allmn(p) ;
-    MPI_Allgather(&mx,1,MPI_INT,&allmx[0],1,MPI_INT,comm) ;
-    MPI_Allgather(&mn,1,MPI_INT,&allmn[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&mx,1,MPI_INT,allmx.data(),1,MPI_INT,comm) ;
+    MPI_Allgather(&mn,1,MPI_INT,allmn.data(),1,MPI_INT,comm) ;
     int mnv = allmn[0] ;
     int mxv = allmx[0] ;
     vector<int> splits(p) ;
@@ -2365,7 +2355,7 @@ namespace Loci {
       sendszs[cnt]++ ;
     }
     vector<int> recvszs(p,0) ;
-    MPI_Alltoall(&sendszs[0],1,MPI_INT, &recvszs[0],1,MPI_INT, comm) ;
+    MPI_Alltoall(sendszs.data(),1,MPI_INT, recvszs.data(),1,MPI_INT, comm) ;
 
     vector<int> send_dspl(p),recv_dspl(p) ;
     send_dspl[0] = 0 ;
@@ -2388,8 +2378,8 @@ namespace Loci {
       send_dspl[i] *= scale ;
       recv_dspl[i] *= scale ;
     }
-    MPI_Alltoallv(&datalist[0], &sendszs[0], &send_dspl[0], MPI_BYTE,
-                  &datarecv[0], &recvszs[0], &recv_dspl[0], MPI_BYTE,
+    MPI_Alltoallv(datalist.data(), sendszs.data(), send_dspl.data(), MPI_BYTE,
+                  datarecv.data(), recvszs.data(), recv_dspl.data(), MPI_BYTE,
                   comm) ;
     entitySet rdom ;
     for(int i=0;i<recv_sz;++i)
@@ -2410,8 +2400,8 @@ namespace Loci {
     int mx = fdom.Max() ;
     vector<int> allmx(p) ;
     vector<int> allmn(p) ;
-    MPI_Allgather(&mx,1,MPI_INT,&allmx[0],1,MPI_INT,comm) ;
-    MPI_Allgather(&mn,1,MPI_INT,&allmn[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&mx,1,MPI_INT,allmx.data(),1,MPI_INT,comm) ;
+    MPI_Allgather(&mn,1,MPI_INT,allmn.data(),1,MPI_INT,comm) ;
     int mnv = allmn[0] ;
     int mxv = allmx[0] ;
     vector<int> splits(p) ;
@@ -2449,7 +2439,7 @@ namespace Loci {
       sendszs[cnt]++ ;
     }
     vector<int> recvszs(p,0) ;
-    MPI_Alltoall(&sendszs[0],1,MPI_INT, &recvszs[0],1,MPI_INT, comm) ;
+    MPI_Alltoall(sendszs.data(),1,MPI_INT, recvszs.data(),1,MPI_INT, comm) ;
 
     vector<int> send_dspl(p),recv_dspl(p) ;
     send_dspl[0] = 0 ;
@@ -2472,8 +2462,8 @@ namespace Loci {
       send_dspl[i] *= scale ;
       recv_dspl[i] *= scale ;
     }
-    MPI_Alltoallv(&datalist[0], &sendszs[0], &send_dspl[0], MPI_BYTE,
-                  &datarecv[0], &recvszs[0], &recv_dspl[0], MPI_BYTE,
+    MPI_Alltoallv(datalist.data(), sendszs.data(), send_dspl.data(), MPI_BYTE,
+                  datarecv.data(), recvszs.data(), recv_dspl.data(), MPI_BYTE,
                   comm) ;
     entitySet rdom ;
     for(int i=0;i<recv_sz;++i)
@@ -2516,7 +2506,7 @@ namespace Loci {
     MPI_Comm_size(comm,&p) ;
     vector<int> splits(p) ;
     int gmx = gdom.Max() ;
-    MPI_Allgather(&gmx, 1,MPI_INT,&splits[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&gmx, 1,MPI_INT,splits.data(),1,MPI_INT,comm) ;
     for(int i=1;i<p;++i)
       if(splits[i-1]>splits[i])
         splits[i] = splits[i-1] ;
@@ -2661,7 +2651,7 @@ namespace Loci {
       sumc_local += countf[ii] ;
     } ENDFORALL ;
     vector<int> sumc_all(p) ;
-    MPI_Allgather(&sumc_local,1,MPI_INT,&sumc_all[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&sumc_local,1,MPI_INT,sumc_all.data(),1,MPI_INT,comm) ;
 
     vector<int> count_offsets(p,0);
     for(int i=1;i<p;++i)
@@ -2681,7 +2671,7 @@ namespace Loci {
     } ENDFORALL ;
     int lsz = lsplits.size() ;
     vector<int> splitsz(p) ;
-    MPI_Allgather(&lsz,1,MPI_INT,&splitsz[0],1,MPI_INT,comm) ;
+    MPI_Allgather(&lsz,1,MPI_INT,splitsz.data(),1,MPI_INT,comm) ;
     vector<int> displs(p,0) ;
     for(int i=1;i<p;++i)
       displs[i] = displs[i-1]+splitsz[i-1] ;
@@ -2689,8 +2679,8 @@ namespace Loci {
       splits_out = splits ;
     } else {
       vector<int> splits_balanced(p-1) ;
-      MPI_Allgatherv(&lsplits[0],lsplits.size(),MPI_INT,
-                     &splits_balanced[0],&splitsz[0],&displs[0],
+      MPI_Allgatherv(lsplits.data(),lsplits.size(),MPI_INT,
+                     splits_balanced.data(),splitsz.data(),displs.data(),
                      MPI_INT,comm) ;
       splits_out = splits_balanced ;
     }
@@ -2745,8 +2735,8 @@ namespace Loci {
       else
         send_sizes[i] = 0 ;
 
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT,
-                 &recv_sizes[0],1,MPI_INT,
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
                  comm) ;
 
     vector<int> send_dspl(p),recv_dspl(p) ;
@@ -2766,18 +2756,18 @@ namespace Loci {
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
       if(send_seqs[i].num_intervals() > 0)
-        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+        sp->pack(send_store.data()+send_dspl[i],loc_pack, send_sizes[i],
                  entitySet(send_seqs[i])) ;
     }
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
-                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
                   comm) ;
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
       if(recv_sets[i] != EMPTY)
-        op->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+        op->unpack(recv_store.data()+recv_dspl[i],loc_pack,recv_sizes[i],
                    sequence(recv_sets[i])) ;
     }
 
@@ -2850,8 +2840,8 @@ namespace Loci {
       else
         send_sizes[i] = 0 ;
 
-    MPI_Alltoall(&send_sizes[0],1,MPI_INT,
-                 &recv_sizes[0],1,MPI_INT,
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
                  comm) ;
 
     vector<int> send_dspl(p),recv_dspl(p) ;
@@ -2871,18 +2861,18 @@ namespace Loci {
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
       if(send_seqs[i].num_intervals()>0)
-        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+        sp->pack(send_store.data()+send_dspl[i],loc_pack, send_sizes[i],
                  entitySet(send_seqs[i])) ;
     }
 
-    MPI_Alltoallv(&send_store[0], &send_sizes[0], &send_dspl[0], MPI_PACKED,
-                  &recv_store[0], &recv_sizes[0], &recv_dspl[0], MPI_PACKED,
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
                   comm) ;
 
     for(int i=0;i<p;++i) {
       int loc_pack = 0 ;
       if(recv_sets[i] != EMPTY)
-        op->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+        op->unpack(recv_store.data()+recv_dspl[i],loc_pack,recv_sizes[i],
                    sequence(recv_sets[i])) ;
     }
 

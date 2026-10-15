@@ -649,10 +649,10 @@ namespace Loci {
     typename data_schema_traits<T>::Converter_Type cvtr( attrib_data );
 
     std::vector<dtype> inbuf(cvtr.getSize());
-    cvtr.getState( &inbuf[0], stateSize);
+    cvtr.getState( inbuf.data(), stateSize);
 
     cpypack(outbuf,position,outcount,&stateSize,1) ;
-    cpypack(outbuf,position,outcount,&inbuf[0],stateSize) ;
+    cpypack(outbuf,position,outcount,inbuf.data(),stateSize) ;
   }
   //**************************************************************************/
 
@@ -687,10 +687,10 @@ namespace Loci {
 
     cpyunpack(inbuf,position,insize,&stateSize,1) ;
     std::vector<dtype> outbuf(stateSize);
-    cpyunpack(inbuf,position,insize,&outbuf[0],stateSize) ;
+    cpyunpack(inbuf,position,insize,outbuf.data(),stateSize) ;
     
     typename schema_traits::Converter_Type  cvtr( attrib_data );
-    cvtr.setState( &outbuf[0], stateSize);
+    cvtr.setState( outbuf.data(), stateSize);
   }
 
   //***********************************************************************/
@@ -747,15 +747,14 @@ namespace Loci {
       hid_t datatype = dp->get_hdf5_type() ;
       hid_t memspace = H5Screate_simple(rank, &dimension, NULL) ;
       typedef typename schema_traits::Converter_Base_Type dtype;
-      dtype* tmp_array = new dtype[dimension] ;
+      std::vector<dtype> tmp_array(dimension) ;
       int stateSize = 0 ;
       T tmp = attrib_data;
       typename schema_traits::Converter_Type cvtr(tmp);
-      cvtr.getState(tmp_array, stateSize) ;
-      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, tmp_array) ;
+      cvtr.getState(tmp_array.data(), stateSize) ;
+      H5Dwrite(dataset, datatype, memspace, dataspace, H5P_DEFAULT, tmp_array.data()) ;
       H5Sclose(memspace) ;
       H5Tclose(datatype) ;
-      delete [] tmp_array ;
     }
   }
   template <class T>
@@ -782,9 +781,9 @@ namespace Loci {
       DatatypeP dp = qrep->getType() ;
       hid_t datatype = dp->get_hdf5_type() ;
       hid_t memspace = H5Screate_simple(rank, &dimension, NULL) ;
-      T* tmp_array = new T[dimension] ;
+      std::unique_ptr<T[]> tmp_array(new T[dimension]) ;
       hid_t err = H5Dread(dataset,  datatype, memspace, dataspace,
-                          H5P_DEFAULT, tmp_array) ;
+                          H5P_DEFAULT, tmp_array.get()) ;
       if(err < 0) {
         cerr << "H5Dread() failed" << endl ;
       }
@@ -792,7 +791,6 @@ namespace Loci {
 
       H5Sclose(memspace) ;
       H5Tclose(datatype) ;
-      delete [] tmp_array ;
     }
   }
   template <class T>
@@ -821,18 +819,17 @@ namespace Loci {
       hid_t memspace = H5Screate_simple(rank, &dimension, NULL) ;
       std::vector<int> vint = fi.second_level ;
       typedef typename schema_traits::Converter_Base_Type dtype;
-      dtype* tmp_array = new dtype[dimension] ;
+      std::vector<dtype> tmp_array(dimension) ;
       hid_t err = H5Dread(dataset,  datatype, memspace, dataspace,
-                          H5P_DEFAULT, tmp_array) ;
+                          H5P_DEFAULT, tmp_array.data()) ;
       if(err < 0) {
         cerr << "H5Dread() failed" << endl ;
       }
       typename data_schema_traits<T>::Converter_Type cvtr(attrib_data);
       int bucsize = vint[0] ;
-      cvtr.setState(tmp_array, bucsize) ;
+      cvtr.setState(tmp_array.data(), bucsize) ;
       H5Sclose(memspace) ;
       H5Tclose(datatype) ;
-      delete [] tmp_array ;
     }
   }
   template <class T>

@@ -14,8 +14,8 @@ extern int argerr;      /* flag for printing errors */
 extern char *argarg;    /* pointer to argument string */
 
 void print_usage (
-    char **usgmsg,      /* usage message */
-    char *errmsg        /* error message */
+    const char **usgmsg,      /* usage message */
+    const char *errmsg        /* error message */
 );
 
 int getargs (

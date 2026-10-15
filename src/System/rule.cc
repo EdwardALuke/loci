@@ -225,18 +225,24 @@ namespace Loci {
   }
 
   namespace {
-    inline void fill_descriptors(set<vmap_info> &v, const exprList &in) {
+    inline int fill_descriptors(set<vmap_info> &v, const exprList &in) {
 
       for(exprList::const_iterator i = in.begin();i!=in.end();++i) {
+        if((*i)->op == OP_NIL) {
+          FATAL((*i)->op == OP_NIL) ;
+          return -1 ;
+        }
         vmap_info di(*i) ;
         if(v.find(di) != v.end()) {
           cerr << "Warning, duplicate variable in var set." << endl ;
 	  cerr << "i=" << *i << endl ;
           cerr << "expr = " << di << endl ;
-	  throw int(-1) ;
+          FATAL(v.find(di) != v.end()) ;
+          return -1 ;
         } else
           v.insert(di) ;
       }
+      return 0 ;
     }
 
     class NULL_RULE_IMPL: public rule_impl {
@@ -250,30 +256,24 @@ namespace Loci {
 
   void rule_impl::source(const string &invar) {
     exprP p = expression::create(invar) ;
-    try {
-      fill_descriptors(rule_info.sources,
-		       collect_associative_op(p,OP_COMMA)) ;
-    } catch(int i) {
+    if(fill_descriptors(rule_info.sources,
+                        collect_associative_op(p,OP_COMMA))!= 0) {
       cerr << "parsing source string " << invar ;
     }
   }
 
   void rule_impl::target(const string &outvar) {
     exprP p = expression::create(outvar) ;
-    try {
-      fill_descriptors(rule_info.targets,
-		       collect_associative_op(p,OP_COMMA)) ;
-    } catch(int i) {
+    if(fill_descriptors(rule_info.targets,
+                        collect_associative_op(p,OP_COMMA))!=0) {
       cerr << "parsing target string " << outvar << endl ;
     }
   }
 
   void rule_impl::constraint(const string &constrain) {
     exprP p = expression::create(constrain) ;
-    try {
-      fill_descriptors(rule_info.constraints,
-		       collect_associative_op(p,OP_COMMA)) ;
-    } catch(int i) {
+    if(fill_descriptors(rule_info.constraints,
+                        collect_associative_op(p,OP_COMMA)) != 0) {
       cerr << "parsing constraint string = " << constrain << endl ;
     }
   }

@@ -262,7 +262,7 @@ namespace Loci {
         MPI_Bcast(&buf_size,1,MPI_INT,comm_root,MPI_COMM_WORLD) ;
         if(comm_root != MPI_rank)
           buffer = vector<int>(buf_size) ;
-        MPI_Bcast(&buffer[0],buf_size,MPI_INT,comm_root,MPI_COMM_WORLD) ;
+        MPI_Bcast(buffer.data(),buf_size,MPI_INT,comm_root,MPI_COMM_WORLD) ;
 
         for(size_t ex=0;ex<buffer.size();) {
           int num_ents = buffer[ex] ;
