@@ -31,10 +31,16 @@ namespace Loci {
       return surface ;
     }
 
-    FacePatch whole(const std::vector<long long>& surface) {
+    FacePatch whole_patch(const std::vector<long long>& surface) {
       FacePatch result ;
       result.surface = surface ;
       result.bounds = {{0,0,extent,extent}} ;
+      return result ;
+    }
+
+    FacePatch polygon_patch(const std::vector<long long>& surface, int sides) {
+      FacePatch result = whole_patch(surface) ;
+      if(sides != 4) result.sector = -sides ;
       return result ;
     }
 
@@ -45,6 +51,11 @@ namespace Loci {
 
     Point midpoint(Point a, Point b) {
       return {{a[0]+(b[0]-a[0])/2,a[1]+(b[1]-a[1])/2}} ;
+    }
+
+    void half_interval(long long& lower, long long& upper, bool upperHalf) {
+      const long long middle = lower+(upper-lower)/2 ;
+      if(upperHalf) lower = middle ; else upper = middle ;
     }
 
     void require_split(const FacePatch& patch) {
@@ -85,8 +96,7 @@ namespace Loci {
   }
 
   void FacePatchMap::add(const Face* face, const std::vector<long long>& surface) {
-    FacePatch patch = whole(surface) ;
-    if(face->numEdge != 4) patch.sector = -face->numEdge ;
+    FacePatch patch = polygon_patch(surface,face->numEdge) ;
     polygon(face,patch,corners(patch)) ;
   }
 
@@ -103,7 +113,7 @@ namespace Loci {
   }
 
   void FacePatchMap::add(const QuadFace* face, int faceNumber) {
-    quad(face,whole({BASE_FACE,faceNumber})) ;
+    quad(face,whole_patch({BASE_FACE,faceNumber})) ;
   }
 
   void FacePatchMap::quad(const QuadFace* face, const FacePatch& patch) {
@@ -113,10 +123,9 @@ namespace Loci {
       if(children == 0) continue ;
       if(patch.bounds[axis+2]-patch.bounds[axis] < 2)
         throw std::runtime_error("Face history exceeds refinement-coordinate depth") ;
-      const long long middle = patch.bounds[axis]+(patch.bounds[axis+2]-patch.bounds[axis])/2 ;
       for(int side=0; side<2; ++side) {
         FacePatch part = patch ;
-        part.bounds[axis+(side == 0 ? 2 : 0)] = middle ;
+        half_interval(part.bounds[axis],part.bounds[axis+2],side == 1) ;
         quad(children[side],part) ;
       }
     }
@@ -160,7 +169,7 @@ namespace Loci {
       const int axis = f/2 ;
       const long long plane = box[axis+(f%2 == 0 ? 3 : 0)] ;
       const int u = axis == 0 ? 1 : 0, v = axis == 2 ? 1 : 2 ;
-      FacePatch patch = whole({CELL_FACE,root,HEX_CELL,axis,plane}) ;
+      FacePatch patch = whole_patch({CELL_FACE,root,HEX_CELL,axis,plane}) ;
       patch.bounds = {{box[u],box[v],box[u+3],box[v+3]}} ;
       quad(cell->getFace(f),patch) ;
     }
@@ -170,9 +179,10 @@ namespace Loci {
       int bit = 0 ;
       for(int axis=2; axis>=0; --axis) {
         if(!(code & (4 >> axis))) continue ;
-        const long long middle = box[axis]+(box[axis+3]-box[axis])/2 ;
-        if(middle == box[axis]) throw std::runtime_error("Cell history exceeds refinement-coordinate depth") ;
-        childBox[axis+((i & (1 << bit++)) ? 0 : 3)] = middle ;
+        if(box[axis+3]-box[axis] < 2)
+          throw std::runtime_error("Cell history exceeds refinement-coordinate depth") ;
+        const bool upperHalf = (i & (1 << bit++)) != 0 ;
+        half_interval(childBox[axis],childBox[axis+3],upperHalf) ;
       }
       hex(cell->getChildCell(i),root,childBox) ;
     }
@@ -193,8 +203,7 @@ namespace Loci {
 
   void FacePatchMap::add(const Prism* cell, int root) {
     PrismRegion region ;
-    region.end = whole({}) ;
-    if(cell->getNfold() != 4) region.end.sector = -cell->getNfold() ;
+    region.end = polygon_patch({},cell->getNfold()) ;
     region.points = corners(region.end) ;
     region.path = {CELL_FACE,root,PRISM_CELL,PRISM_SIDE} ;
     for(int i=0; i<cell->getNfold(); ++i)
@@ -211,12 +220,11 @@ namespace Loci {
     }
     for(size_t f=0; f<region.sides.size(); ++f) {
       const auto& edge = region.sides[f] ;
-      FacePatch side = whole(edge.surface) ;
+      FacePatch side = whole_patch(edge.surface) ;
       side.bounds = {{edge.lower,region.lower,edge.upper,region.upper}} ;
       quad(cell->getSideFace(f),side) ;
     }
     const int code = cell->getMySplitCode(), count = cell->getNfold() ;
-    const long long middle = region.lower+(region.upper-region.lower)/2 ;
     for(int i=0; i<cell->numChildren(); ++i) {
       PrismRegion child = region ;
       if(code & 2) {
@@ -227,18 +235,16 @@ namespace Loci {
         auto first = region.sides[sector], last = region.sides[previous] ;
         if(first.upper-first.lower < 2 || last.upper-last.lower < 2)
           throw std::runtime_error("Prism history exceeds refinement-coordinate depth") ;
-        const long long firstMiddle = first.lower+(first.upper-first.lower)/2 ;
-        const long long lastMiddle = last.lower+(last.upper-last.lower)/2 ;
-        if(first.reversed) first.lower = firstMiddle ; else first.upper = firstMiddle ;
-        if(last.reversed) last.upper = lastMiddle ; else last.lower = lastMiddle ;
+        half_interval(first.lower,first.upper,first.reversed) ;
+        half_interval(last.lower,last.upper,!last.reversed) ;
         child.sides = {first,{split_surface(region.path,{sector}),0,extent,true},
           {split_surface(region.path,{previous}),0,extent,false},last} ;
       }
       if(code & 1) {
-        if(middle == region.lower)
+        if(region.upper-region.lower < 2)
           throw std::runtime_error("Prism history exceeds refinement-coordinate depth") ;
         const bool top = code == 1 ? i == 1 : i >= count ;
-        if(top) child.lower = middle ; else child.upper = middle ;
+        half_interval(child.lower,child.upper,top) ;
       }
       prism(cell->getChildCell(i),root,child) ;
     }
