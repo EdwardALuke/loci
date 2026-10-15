@@ -115,6 +115,7 @@ public:
   int32 getCellIndex() const { return cellIndex ; }
   char getMySplitCode() const { return mySplitCode ; }
   HexCell* getChildCell(int i) const { return childCell[i] ; }
+  const QuadFace* getFace(int i) const { return face[i] ; }
   HexCell* getParentCell() { return parentCell ; }
 
   /// Return 2 if all cell nodes request derefinement, 1 if any requests

@@ -35,6 +35,7 @@ $type fineMaxEdgeLengthXY store<std::vector<double> > ;
 
 /// Base-mesh file number of each original cell.
 $type planRootFileNumber store<int> ;
+$type firstGeomCellFileNumber param<int> ;
 
 // Cell and face classification
 
@@ -192,3 +193,16 @@ $type inner_nodes_edge store<Loci::FineNodes> ;
 /// Fine faces created inside refined cells and from original mesh faces.
 $type fine_faces_cell store<Loci::FineFaces> ;
 $type fine_faces store<Loci::FineFaces> ;
+
+/// Enable recording while the refined face trees are available.
+$type recordFaceHistory param<bool> ;
+$type faceHistoryEnabled Constraint ;
+$type faceHistoryDisabled Constraint ;
+#include <FVMAdapt/face_history_internal.h>
+/// Optional face patches in the same order as the generated faces.
+$type fineFacePatches store<Loci::FacePatches> ;
+$type fineCellFacePatches store<Loci::FacePatches> ;
+/// Base-mesh file number of each original face.
+$type planFaceFileNumber store<int> ;
+/// Offset from cell file numbering to base-mesh numbering.
+$type planCellFileOffset param<std::int64_t> ;

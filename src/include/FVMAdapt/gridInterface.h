@@ -21,9 +21,11 @@
 #ifndef GRID_INTERFACE_H
 #define GRID_INTERFACE_H
 #include <store_rep.h>
+#include <FVMAdapt/face_history.h>
 #include <memory>
 
 namespace Loci {
+  class FaceRecording ;
   /// Net change from the preceding mesh; unknown when loading only a saved plan.
   enum CellChange {
     CELL_UNCHANGED = 0,
@@ -36,6 +38,10 @@ namespace Loci {
   struct RefinementOptions {
     bool cellState = false;
     bool edgeLengths = false;
+    /// Record face state; supply previousFaceState to also compute face history.
+    bool faceHistory = false;
+    /// Face state of the mesh being adapted, for comparison with the new mesh.
+    std::shared_ptr<const FaceState> previousFaceState;
   } ;
 
   void parallelClassifyCell(fact_db &facts) ;
@@ -94,7 +100,14 @@ namespace Loci {
     store<double> maxEdgeLength;
     store<double> maxEdgeLengthXY;
 
-    refinedGridData() : hasCellState(false), hasEdgeLengths(false) {}
+    /// True when face state was requested, including on empty ranks.
+    bool hasFaceHistory;
+    std::shared_ptr<const FaceState> faceState;
+
+    refinedGridData() : hasCellState(false), hasEdgeLengths(false), hasFaceHistory(false) {}
+  private:
+    std::shared_ptr<FaceRecording> faceRecording;
+    friend struct FaceHistoryAccess;
   } ;
 
   void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
@@ -123,7 +136,7 @@ namespace Loci {
 
   storeRepP getC2PGlobal(fact_db &facts) ;
 
-  /// Install the mesh and requested cell fields in the new fact database.
+  /// Install the mesh and requested cell and face information in the new fact database.
   bool setupFVMGridFromContainer(fact_db &facts, refinedGridData &grid,
                                 storeRepP cellwts = 0) ;
 

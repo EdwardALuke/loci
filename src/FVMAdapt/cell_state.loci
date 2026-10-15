@@ -34,8 +34,6 @@
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 
-$type firstGeomCellFileNumber param<int> ;
-
 /// A saved plan alone does not describe the preceding adaptation.
 $rule pointwise(fineCellChange <- balanced_num_fine_cells), constraint(geom_cells) {
   $fineCellChange.assign($balanced_num_fine_cells, Loci::CELL_CHANGE_UNKNOWN) ;

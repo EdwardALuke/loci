@@ -43,6 +43,7 @@
 #include "FVMAdapt/defines.h"
 #include "FVMAdapt/dataxferDB.h"
 #include "FVMAdapt/gridInterface.h"
+#include "../face_history_internal.h"
 
 using std::cerr;
 using std::cout;
@@ -959,6 +960,12 @@ namespace Loci {
     grid.hasEdgeLengths = true ;
   }
 
+  static void createVOGFaceWithPatches(int numNodes,
+    const store<FineFaces>& fine_faces_cell, const store<FineFaces>& fine_faces,
+    fact_db& facts, int& numFaces, int& ncells, Map& cl, Map& cr,
+    multiMap& face2node, vector<entitySet>& local_faces,
+    vector<entitySet>& local_cells, store<FacePatch>* patches) ;
+
   void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
                        rule_db &refmesh_rdb, int adaptmode, int level,
                        storeRepP tags, string casename) {
@@ -972,6 +979,7 @@ namespace Loci {
 			int level,
 			storeRepP tags,
 			string casename, const RefinementOptions &options) {
+    if(options.faceHistory) checkFaceState(options,casename,level) ;
     gridDataP = new(refinedGridData) ;
       
         
@@ -1079,6 +1087,11 @@ namespace Loci {
       refine_facts.create_fact("cellweight_outDB_par",cellweight_outDB_par);
         
       string query = "cellplan_output,cellweight_output,cell2parent_DB,inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox" ;
+      param<bool> recordFaces ;
+      *recordFaces = options.faceHistory ;
+      refine_facts.create_fact("recordFaceHistory",recordFaces) ;
+      if(options.faceHistory)
+        query += ",fineFacePatches,fineCellFacePatches" ;
       if(options.cellState)
         query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
       if(options.edgeLengths)
@@ -1122,7 +1135,7 @@ namespace Loci {
     int num_faces = 0;
     int num_cells = 0;
       
-    createVOGFace( num_nodes,
+    createVOGFaceWithPatches( num_nodes,
 		   fine_faces_cell,
 		   fine_faces,
 		   refine_facts,
@@ -1132,8 +1145,12 @@ namespace Loci {
 		   gridDataP->new_cr,
 		   gridDataP->new_face2node,
 		   gridDataP->local_faces,
-		   gridDataP->local_cells
-		   );
+		   gridDataP->local_cells,
+               options.faceHistory ? &recordedFacePatches(*gridDataP) : 0) ;
+    gridDataP->hasFaceHistory = options.faceHistory ;
+
+    if(options.faceHistory)
+      prepareFaceState(*gridDataP,casename,level+1,options,true) ;
 
     if(options.cellState)
       collectCellState(*gridDataP, refine_facts) ;
@@ -1237,6 +1254,11 @@ namespace Loci {
     refine_facts.create_fact("balanced_planDB_par",balanced_planDB_par) ;
 	      
     string query = "inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces,fine_faces_cell,volTag_blackbox" ;
+    param<bool> recordFaces ;
+    *recordFaces = options.faceHistory ;
+    refine_facts.create_fact("recordFaceHistory",recordFaces) ;
+    if(options.faceHistory)
+      query += ",fineFacePatches,fineCellFacePatches" ;
     if(options.cellState)
       query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
     if(options.edgeLengths)
@@ -1277,7 +1299,7 @@ namespace Loci {
     int num_faces = 0;
     int num_cells = 0;
 	      
-    createVOGFace( num_nodes,
+    createVOGFaceWithPatches( num_nodes,
 		   fine_faces_cell,
 		   fine_faces,
 		   refine_facts,
@@ -1287,8 +1309,12 @@ namespace Loci {
 		   gridDataP->new_cr,
 		   gridDataP->new_face2node,
 		   gridDataP->local_faces,
-		   gridDataP->local_cells
-		   );
+		   gridDataP->local_cells,
+               options.faceHistory ? &recordedFacePatches(*gridDataP) : 0) ;
+    gridDataP->hasFaceHistory = options.faceHistory ;
+
+    if(options.faceHistory)
+      prepareFaceState(*gridDataP,casename,level,options,false) ;
 
     if(options.cellState)
       collectCellState(*gridDataP, refine_facts) ;
@@ -1870,7 +1896,7 @@ namespace Loci{
                     multiMap& tmp_face2node,
                     vector<pair<int,string> >& boundary_ids,
                     vector<pair<string,entitySet> >& volTags,
-                    storeRepP cellwts, const refinedGridData *cellFields) {
+                    storeRepP cellwts, const refinedGridData *gridFields) {
     double t1 = MPI_Wtime() ;
     // Identify boundary tags
     if(Loci::MPI_processes == 1) {
@@ -1925,16 +1951,29 @@ namespace Loci{
       facts.create_fact("boundary_names", boundary_names) ;
       facts.create_fact("boundary_tags", boundary_tags) ;
 
-      if(cellFields != 0 && cellFields->hasCellState) {
+      if(gridFields != 0 && gridFields->hasFaceHistory) {
+        Map faceNumbers ; faceNumbers.allocate(faces) ;
+        faceNumbers.Rep()->setDomainKeySpace(face2node.Rep()->getDomainKeySpace()) ;
+        auto source = local_faces[0].begin() ;
+        for(Entity face : faces) {
+          faceNumbers[face] = *source++ ;
+        }
+        std::string error ;
+        if(!installFaceHistory(facts,*gridFields,faceNumbers,error)) {
+          cerr << error << endl ; return false ;
+        }
+      }
+
+      if(gridFields != 0 && gridFields->hasCellState) {
         store<int> depth, root, change ;
         depth.allocate(cells) ;
         root.allocate(cells) ;
         change.allocate(cells) ;
         entitySet::const_iterator source = local_cells[0].begin() ;
         FORALL(cells, cell) {
-          depth[cell] = cellFields->refinementDepth[*source] ;
-          root[cell] = cellFields->rootCellFileNumber[*source] ;
-          change[cell] = cellFields->cellChange[*source] ;
+          depth[cell] = gridFields->refinementDepth[*source] ;
+          root[cell] = gridFields->rootCellFileNumber[*source] ;
+          change[cell] = gridFields->cellChange[*source] ;
           ++source ;
         } ENDFORALL ;
         facts.create_fact("refinementDepth", depth) ;
@@ -1942,14 +1981,14 @@ namespace Loci{
         facts.create_fact("cellChange", change) ;
       }
 
-      if(cellFields != 0 && cellFields->hasEdgeLengths) {
+      if(gridFields != 0 && gridFields->hasEdgeLengths) {
         store<double> length, lengthXY ;
         length.allocate(cells) ;
         lengthXY.allocate(cells) ;
         entitySet::const_iterator source = local_cells[0].begin() ;
         FORALL(cells, cell) {
-          length[cell] = cellFields->maxEdgeLength[*source] ;
-          lengthXY[cell] = cellFields->maxEdgeLengthXY[*source] ;
+          length[cell] = gridFields->maxEdgeLength[*source] ;
+          lengthXY[cell] = gridFields->maxEdgeLengthXY[*source] ;
           ++source ;
         } ENDFORALL ;
         facts.create_fact("maxEdgeLength", length) ;
@@ -2231,36 +2270,47 @@ namespace Loci{
     facts.create_fact("boundary_names", boundary_names) ;
     facts.create_fact("boundary_tags", boundary_tags) ;
 
-    if(cellFields != 0 && cellFields->hasCellState) {
+    if(gridFields != 0 && gridFields->hasCellState) {
       store<int> depth, root, change ;
       depth.allocate(cells) ;
       root.allocate(cells) ;
       change.allocate(cells) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellFields->refinementDepth.Rep(), depth.Rep()) ;
+                             gridFields->refinementDepth.Rep(), depth.Rep()) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellFields->rootCellFileNumber.Rep(), root.Rep()) ;
+                             gridFields->rootCellFileNumber.Rep(), root.Rep()) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellFields->cellChange.Rep(), change.Rep()) ;
+                             gridFields->cellChange.Rep(), change.Rep()) ;
       facts.create_fact("refinementDepth", depth) ;
       facts.create_fact("rootCellFileNumber", root) ;
       facts.create_fact("cellChange", change) ;
     }
 
-    if(cellFields != 0 && cellFields->hasEdgeLengths) {
+    if(gridFields != 0 && gridFields->hasEdgeLengths) {
       store<double> length, lengthXY ;
       length.allocate(cells) ;
       lengthXY.allocate(cells) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellFields->maxEdgeLength.Rep(), length.Rep()) ;
+                             gridFields->maxEdgeLength.Rep(), length.Rep()) ;
       redistribute_container(cell_ptn, cell_ptn_t, cells,
-                             cellFields->maxEdgeLengthXY.Rep(), lengthXY.Rep()) ;
+                             gridFields->maxEdgeLengthXY.Rep(), lengthXY.Rep()) ;
       facts.create_fact("maxEdgeLength", length) ;
       facts.create_fact("maxEdgeLengthXY", lengthXY) ;
     }
 
     // update remap from global to file numbering for faces after sorting
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
+    if(gridFields != 0 && gridFields->hasFaceHistory) {
+      dMap faceNumbers ;
+      faceNumbers = df->g2fv[face2node.Rep()->getDomainKeySpace()].Rep() ;
+      Map installedNumbers ; installedNumbers.allocate(faces) ;
+      installedNumbers.Rep()->setDomainKeySpace(face2node.Rep()->getDomainKeySpace()) ;
+      for(Entity face : faces) installedNumbers[face] = faceNumbers[face] ;
+      std::string error ;
+      if(!installFaceHistory(facts,*gridFields,installedNumbers,error)) {
+        cerr << error << endl ; return false ;
+      }
+    }
     dMap g2f ;
     g2f = df->g2fv[0].Rep() ; 
 
@@ -2312,6 +2362,16 @@ namespace Loci{
 
   bool setupFVMGridFromContainer(fact_db &facts, refinedGridData &grid,
                                 storeRepP cellwts) {
+    if(grid.hasFaceHistory) {
+      const int localValid = grid.local_faces.size() == size_t(MPI_processes) &&
+        recordedFacePatches(grid).domain() == grid.local_faces[MPI_rank] ;
+      int valid = 0 ;
+      MPI_Allreduce(&localValid,&valid,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+      if(!valid) {
+        cerr << "Cannot install incomplete FVMAdapt face patches" << endl ;
+        return false ;
+      }
+    }
     if(grid.hasCellState || grid.hasEdgeLengths) {
       const bool complete = grid.local_cells.size() == size_t(MPI_processes) &&
         (!grid.hasCellState ||
@@ -2333,7 +2393,7 @@ namespace Loci{
                               grid.local_cells, grid.new_pos, grid.new_cl,
                               grid.new_cr, grid.new_face2node, grid.boundary_ids,
                               grid.volTags, cellwts,
-                              grid.hasCellState || grid.hasEdgeLengths ? &grid : 0))
+                              grid.hasCellState || grid.hasEdgeLengths || grid.hasFaceHistory ? &grid : 0))
       return false ;
     create_face_info(facts) ;
     create_ref(facts) ;
@@ -2723,18 +2783,11 @@ namespace Loci {
   //create cl, cr and face2node maps from fine_faces
   //re_number the nodes in pos and inner_nodes,
   //and then redistribute them across the processes
-  void createVOGFace(int numNodes,
-                     const store<Loci::FineFaces> &fine_faces_cell,
-                     const store<Loci::FineFaces> &fine_faces,
-                     fact_db & facts,
-                     int& numFaces,
-                     int& ncells,
-                     Map& cl,
-                     Map& cr,
-                     multiMap& face2node,
-                     vector<entitySet>& local_faces,
-                     vector<entitySet>& local_cells
-                     ){
+  static void createVOGFaceWithPatches(int numNodes,
+    const store<FineFaces>& fine_faces_cell, const store<FineFaces>& fine_faces,
+    fact_db& facts, int& numFaces, int& ncells, Map& cl, Map& cr,
+    multiMap& face2node, vector<entitySet>& local_faces,
+    vector<entitySet>& local_cells, store<FacePatch>* patches) {
 
     //compute numFaces
     constraint my_faces, my_geom_cells;
@@ -2766,6 +2819,12 @@ namespace Loci {
     if(face_sizes[MPI_rank] > 0)
       faces = interval(face_min, face_max);
 
+    store<FacePatches> cellPatches, originalFacePatches ;
+    if(patches != 0) {
+      patches->allocate(faces) ;
+      cellPatches = facts.get_variable("fineCellFacePatches") ;
+      originalFacePatches = facts.get_variable("fineFacePatches") ;
+    }
     cl.allocate(faces);
     cr.allocate(faces);
     count.allocate(faces);
@@ -2783,6 +2842,11 @@ namespace Loci {
     entitySet::const_iterator fid = faces.begin();
     for(entitySet::const_iterator ei = domc.begin(); ei != domc.end(); ei++){
       for(unsigned int i = 0; i < fine_faces_cell[*ei].size(); i++){
+        if(patches != 0) {
+          if(cellPatches[*ei].size() != fine_faces_cell[*ei].size())
+            throw std::runtime_error("Incomplete internal face patches") ;
+          (*patches)[*fid] = cellPatches[*ei][i] ;
+        }
         cl[*fid] = fine_faces_cell[*ei][i][0] + cell_base -1;// -1 finefaces cell index start at 1
         if(fine_faces_cell[*ei][i][1]>=0) cr[*fid] = fine_faces_cell[*ei][i][1] + cell_base -1;
         else  cr[*fid] = fine_faces_cell[*ei][i][1];
@@ -2796,6 +2860,11 @@ namespace Loci {
     }
     for(entitySet::const_iterator ei = dom.begin(); ei != dom.end(); ei++){
       for(unsigned int i = 0; i < fine_faces[*ei].size(); i++){
+        if(patches != 0) {
+          if(originalFacePatches[*ei].size() != fine_faces[*ei].size())
+            throw std::runtime_error("Incomplete original-face patches") ;
+          (*patches)[*fid] = originalFacePatches[*ei][i] ;
+        }
         cl[*fid] = fine_faces[*ei][i][0] + cell_base -1;// -1 finefaces cell index start at 1
         if(fine_faces[*ei][i][1]>=0) cr[*fid] = fine_faces[*ei][i][1] + cell_base -1;
         else  cr[*fid] = fine_faces[*ei][i][1];
@@ -2862,9 +2931,26 @@ namespace Loci {
         fid++;
       }
     }
+    store<int> originalLeft ;
+    if(patches != 0) {
+      originalLeft.allocate(faces) ;
+      for(Entity face : faces) originalLeft[face] = cl[face] ;
+    }
     colorMatrix(cl, cr, face2node);
+    if(patches != 0)
+      for(Entity face : faces)
+        if(originalLeft[face] != cl[face]) (*patches)[face].orientation *= -1 ;
   }
-  
+
+  void createVOGFace(int numNodes,
+    const store<FineFaces>& fine_faces_cell, const store<FineFaces>& fine_faces,
+    fact_db& facts, int& numFaces, int& ncells, Map& cl, Map& cr,
+    multiMap& face2node, vector<entitySet>& local_faces,
+    vector<entitySet>& local_cells) {
+    createVOGFaceWithPatches(numNodes,fine_faces_cell,fine_faces,facts,
+      numFaces,ncells,cl,cr,face2node,local_faces,local_cells,0) ;
+  }
+
 }
 
 namespace Loci{

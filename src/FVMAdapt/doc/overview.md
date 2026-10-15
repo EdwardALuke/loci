@@ -150,8 +150,8 @@ This overview is the entry point for the FVMAdapt documentation:
 1. @subpage fvmadapt_geometric_splitting
    shows the children created by the face and cell split operations.
 2. @subpage fvmadapt_plans_and_balancing
-   develops the plan representation, orientation mappings, balancing loop, and
-   reconstruction process in more detail.
+   covers plans, orientation mappings, balancing, mesh reconstruction, and
+   optional cell and face information.
 3. @subpage fvmadapt_derefinement
    explains how coarsening requests are evaluated, how eligible sibling
    families are collapsed, and how data is transferred to coarsened cells.

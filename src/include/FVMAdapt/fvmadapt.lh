@@ -21,6 +21,8 @@
 
 // Optional solver-facing facts installed with the adapted mesh.
 
+#include <FVMAdapt/face_history.h>
+
 /// Number of refinement-tree steps from the original cell; zero for a root.
 $type refinementDepth store<int> ;
 
@@ -38,3 +40,14 @@ $type maxEdgeLength store<double> ;
 
 /// Maximum length among the cell's own edges projected onto the XY plane.
 $type maxEdgeLengthXY store<double> ;
+
+/// Old-face contributors on installed faces; fractions use refinement coordinates.
+$type faceSources multiStore<Loci::FaceSource> ;
+/// Change from the preceding mesh, as a FaceChange value.
+$type faceChange store<int> ;
+/// Previous cell file number for FACE_CREATED; -1 otherwise. IDs may be negative.
+$type faceOriginCell store<Loci::CellId> ;
+/// Retained topology for the next adaptation; no solver fields are stored.
+$type faceState blackbox<Loci::FaceStateP> ;
+/// Correspondence and reusable old-field retrieval for this mesh transition.
+$type faceHistory blackbox<Loci::FaceHistoryP> ;
