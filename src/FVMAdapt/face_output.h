@@ -25,9 +25,30 @@ namespace Loci {
     void record(const Cell* cell) ;
     void record(const HexCell* cell) ;
     void record(const Prism* cell) ;
+    void record(const Face* face) ;
+    void record(const QuadFace* face) ;
+    /// Split a face and number its new nodes in coordinate-output order.
+    std::vector<Face*> split(Face* face, const std::vector<char>& plan,
+      int nodeOffset, std::list<Node*>& nodes, std::list<Edge*>& edges) ;
+    std::vector<QuadFace*> split(QuadFace* face, const std::vector<char>& plan,
+      int nodeOffset, std::list<Node*>& nodes, std::list<Edge*>& edges) ;
     void reserve(size_t count) ;
     void append(Face* face, int left, int right) ;
     void append(QuadFace* face, int left, int right) ;
+    /// Convert adjacent fine-cell indices to file numbers; empty plans select the root.
+    void append(const std::vector<Face*>& leaves,
+      const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+      const std::vector<int32>& right, const std::vector<char>& rightPlan, int rightOffset) ;
+    void append(const std::vector<QuadFace*>& leaves,
+      const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+      const std::vector<int32>& right, const std::vector<char>& rightPlan, int rightOffset) ;
+    /// Boundary IDs are already negative in the connectivity output.
+    void append(const std::vector<Face*>& leaves,
+      const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+      int boundary) ;
+    void append(const std::vector<QuadFace*>& leaves,
+      const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+      int boundary) ;
   private:
     void append(const std::list<int32>& vertices, int left, int right,
                 const FacePatch* patch) ;

@@ -29,6 +29,34 @@ namespace Loci {
     if(patches != 0) patchMap->add(cell,root) ;
   }
 
+  void FaceOutput::record(const Face* face) {
+    if(patches != 0) patchMap->add(face,root) ;
+  }
+
+  void FaceOutput::record(const QuadFace* face) {
+    if(patches != 0) patchMap->add(face,root) ;
+  }
+
+  std::vector<Face*> FaceOutput::split(Face* face, const std::vector<char>& plan,
+    int nodeOffset, std::list<Node*>& nodes, std::list<Edge*>& edges) {
+    std::vector<Face*> leaves ;
+    face->resplit(plan,nodes,edges,leaves) ;
+    record(face) ;
+    int index = 0 ;
+    for(Node* node : nodes) node->index = nodeOffset+index++ ;
+    return leaves ;
+  }
+
+  std::vector<QuadFace*> FaceOutput::split(QuadFace* face, const std::vector<char>& plan,
+    int nodeOffset, std::list<Node*>& nodes, std::list<Edge*>& edges) {
+    std::vector<QuadFace*> leaves ;
+    face->resplit(plan,static_cast<char>(0),nodes,edges,leaves) ;
+    record(face) ;
+    int index = 0 ;
+    for(Node* node : nodes) node->index = nodeOffset+index++ ;
+    return leaves ;
+  }
+
   void FaceOutput::reserve(size_t count) {
     faces.reserve(count) ;
     if(patches != 0) patches->reserve(count) ;
@@ -53,6 +81,65 @@ namespace Loci {
     row[0] = left ; row[1] = right ;
     std::copy(vertices.begin(),vertices.end(),row.begin()+2) ;
     if(patch != 0) patches->push_back(*patch) ;
+  }
+
+  namespace {
+    void check_face_cells(size_t count, const std::vector<int32>& cells, const char* side) {
+      if(cells.size() != count) {
+        std::cerr << "WARNING: " << side << " has the incorrect size" << std::endl ;
+        Loci::Abort() ;
+      }
+    }
+
+    template<class FaceType>
+    void append_faces(FaceOutput& output, const std::vector<FaceType*>& leaves,
+      const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+      const std::vector<int32>& right, const std::vector<char>& rightPlan, int rightOffset) {
+      check_face_cells(leaves.size(),left,"CL") ;
+      check_face_cells(leaves.size(),right,"CR") ;
+      output.reserve(leaves.size()) ;
+      for(size_t i=0; i<leaves.size(); ++i) {
+        int c1 = leftOffset+(leftPlan.empty() ? 1 : left[i]) ;
+        int c2 = rightOffset+(rightPlan.empty() ? 1 : right[i]) ;
+        output.append(leaves[i],c1,c2) ;
+      }
+    }
+
+    template<class FaceType>
+    void append_faces(FaceOutput& output, const std::vector<FaceType*>& leaves,
+      const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+      int boundary) {
+      check_face_cells(leaves.size(),left,"CL") ;
+      output.reserve(leaves.size()) ;
+      for(size_t i=0; i<leaves.size(); ++i) {
+        int c1 = leftOffset+(leftPlan.empty() ? 1 : left[i]) ;
+        output.append(leaves[i],c1,boundary) ;
+      }
+    }
+  }
+
+  void FaceOutput::append(const std::vector<Face*>& leaves,
+    const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+    const std::vector<int32>& right, const std::vector<char>& rightPlan, int rightOffset) {
+    append_faces(*this,leaves,left,leftPlan,leftOffset,right,rightPlan,rightOffset) ;
+  }
+
+  void FaceOutput::append(const std::vector<QuadFace*>& leaves,
+    const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+    const std::vector<int32>& right, const std::vector<char>& rightPlan, int rightOffset) {
+    append_faces(*this,leaves,left,leftPlan,leftOffset,right,rightPlan,rightOffset) ;
+  }
+
+  void FaceOutput::append(const std::vector<Face*>& leaves,
+    const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+    int boundary) {
+    append_faces(*this,leaves,left,leftPlan,leftOffset,boundary) ;
+  }
+
+  void FaceOutput::append(const std::vector<QuadFace*>& leaves,
+    const std::vector<int32>& left, const std::vector<char>& leftPlan, int leftOffset,
+    int boundary) {
+    append_faces(*this,leaves,left,leftPlan,leftOffset,boundary) ;
   }
 
   void make_hex_cell_faces(HexCell* cell, const std::vector<char>& plan,
