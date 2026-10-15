@@ -8,7 +8,8 @@
 #include <mpi.h>
 
 namespace Loci {
-  /// A face region in refinement coordinates, not physical coordinates.
+  /// Identifies a face region so subdivisions can be matched between meshes.
+  /// Coordinates describe logical refinement, not physical positions.
   struct FacePatch {
     std::vector<long long> surface ; // Opaque surface identity within one base mesh.
     std::array<long long,4> bounds{} ; // xmin, ymin, xmax, ymax
@@ -76,8 +77,9 @@ namespace Loci {
   std::ostream& operator<<(std::ostream&, const HistoryFace&) ;
   std::istream& operator>>(std::istream&, HistoryFace&) ;
 
+  /// Sources, change, and origin follow the local new-face order.
   struct FaceMatches {
-    /// Rows follow the new-face order; entries are sorted by old-face ID.
+    /// Contributors in each row are sorted by old-face ID.
     std::vector<std::vector<FaceSource> > sources ;
     std::vector<FaceChange> change ;
     /// Previous cell for FACE_CREATED; -1 for all other faces.

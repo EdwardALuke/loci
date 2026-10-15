@@ -35,18 +35,18 @@ namespace Loci {
   typedef long long CellId ;
 
   enum FaceChange {
-    FACE_RETAINED,
-    FACE_SPLIT,
-    FACE_MERGED,
-    FACE_CREATED,
+    FACE_RETAINED, // Covers the same patch as one old face.
+    FACE_SPLIT, // Covers part of one old face.
+    FACE_MERGED, // Combines whole old faces.
+    FACE_CREATED, // New face inside one old cell; no old-face source.
     FACE_RESHAPED // Old and new subdivisions overlap many-to-many.
   } ;
 
-  /// An old-face contribution measured in refinement coordinates.
+  /// One old face contributing to a new face.
   struct FaceSource {
-    FaceId source ;
+    FaceId source ; // Old mesh face file number.
     int orientation ; // +1 for matching vertex-loop normals, -1 for opposing.
-    double referenceFraction ; // Fraction of the old reference patch, not physical area.
+    double referenceFraction ; // Overlap / old reference-patch measure; not physical area.
   } ;
 
   std::ostream& operator<<(std::ostream&, const FaceSource&) ;
@@ -70,7 +70,8 @@ namespace Loci {
   } ;
 
   /// Relates new faces to the preceding mesh after refinement or coarsening.
-  /// IDs are signed file numbers in their respective meshes, not installed entity numbers.
+  /// Stores use installed new-face entities.
+  /// Face and cell IDs are signed file numbers in their respective meshes.
   /// Replacing existing split directions, periodic transforms, and mesh-motion weights are unsupported.
   class FaceHistory {
     struct Impl ;

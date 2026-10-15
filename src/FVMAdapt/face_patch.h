@@ -16,6 +16,7 @@ class Prism ;
 namespace Loci {
 
   /// Temporary lookup from tree faces to their refinement patches.
+  /// Does not own the tree faces.
   class FacePatchMap {
     std::map<const Face*,FacePatch> faces ;
     std::map<const QuadFace*,FacePatch> quads ;
