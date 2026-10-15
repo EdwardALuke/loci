@@ -42,6 +42,20 @@ namespace Loci {
         throw std::runtime_error("Face history exceeds refinement-coordinate depth") ;
     }
 
+    // Subdivide a polygon patch, retaining the child's ordered corners.
+    void child_region(FacePatch& patch, Corners& points, int child) {
+      if(patch.sector < 0) {
+        patch.sector = child ;
+        points = corners(patch) ;
+      } else {
+        const Corners next = {{points[child],midpoint(points[child],points[(child+1)%4]),
+          midpoint(points[0],points[2]),midpoint(points[(child+3)%4],points[child])}} ;
+        patch.bounds = {{std::min(next[0][0],next[2][0]),std::min(next[0][1],next[2][1]),
+                         std::max(next[0][0],next[2][0]),std::max(next[0][1],next[2][1])}} ;
+        points = next ;
+      }
+    }
+
     template<class FaceType>
     bool insert_patch(std::map<const FaceType*,FacePatch>& patches,
                       const FaceType* face, const FacePatch& patch) {
@@ -71,16 +85,8 @@ namespace Loci {
     require_split(patch) ;
     for(int i=0; i<face->numEdge; ++i) {
       FacePatch part = patch ;
-      Corners next ;
-      if(patch.sector < 0) {
-        part.sector = i ;
-        next = corners(part) ;
-      } else {
-        next = {{points[i],midpoint(points[i],points[(i+1)%4]),
-                 midpoint(points[0],points[2]),midpoint(points[(i+3)%4],points[i])}} ;
-        part.bounds = {{std::min(next[0][0],next[2][0]),std::min(next[0][1],next[2][1]),
-                        std::max(next[0][0],next[2][0]),std::max(next[0][1],next[2][1])}} ;
-      }
+      Corners next = points ;
+      child_region(part,next,i) ;
       polygon(face->child[i],part,next) ;
     }
   }
@@ -208,17 +214,7 @@ namespace Loci {
         require_split(region.end) ;
         const int sector = i%count, previous = (sector+count-1)%count ;
         child.path.push_back(sector) ;
-        if(region.end.sector < 0) {
-          child.end.sector = sector ; child.points = corners(child.end) ;
-        } else {
-          const auto& points = region.points ;
-          child.points = {{points[sector],midpoint(points[sector],points[(sector+1)%4]),
-            midpoint(points[0],points[2]),midpoint(points[previous],points[sector])}} ;
-          child.end.bounds = {{std::min(child.points[0][0],child.points[2][0]),
-            std::min(child.points[0][1],child.points[2][1]),
-            std::max(child.points[0][0],child.points[2][0]),
-            std::max(child.points[0][1],child.points[2][1])}} ;
-        }
+        child_region(child.end,child.points,sector) ;
         auto first = region.sides[sector], last = region.sides[previous] ;
         if(first.upper-first.lower < 2 || last.upper-last.lower < 2)
           throw std::runtime_error("Prism history exceeds refinement-coordinate depth") ;
