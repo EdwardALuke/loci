@@ -210,9 +210,8 @@ constraint(hexcells) {
 
 $rule pointwise(balanced_num_fine_cells <- balancedCellPlan),
 constraint(hexcells) {
-  HexCell* aCell = new HexCell ;
-  $balanced_num_fine_cells = aCell->num_fine_cells($balancedCellPlan) ;
-  delete aCell ;
+  HexCell cell ;
+  $balanced_num_fine_cells = cell.num_fine_cells($balancedCellPlan) ;
 }
 
 $rule pointwise(priority::quadface::balanced_num_inner_nodes <- balancedFacePlan,
@@ -295,18 +294,8 @@ constraint(prisms) {
 
 $rule pointwise(balanced_num_fine_cells <- balancedCellPlan),
 constraint(prisms) {
-  if($balancedCellPlan.size() == 0) {
-    $balanced_num_fine_cells = 1 ;
-    return ;
-  }
-  Prism* aCell = new Prism ;
-  $balanced_num_fine_cells = aCell->empty_resplit($balancedCellPlan) ;
-
-  // clean up
-  if(aCell != 0) {
-    delete aCell ;
-    aCell = 0 ;
-  }
+  Prism cell ;
+  $balanced_num_fine_cells = cell.num_fine_cells($balancedCellPlan) ;
 }
 
 
