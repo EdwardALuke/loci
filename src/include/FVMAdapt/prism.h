@@ -130,6 +130,9 @@ public:
     return nfold ;
   }
 
+  const Face* getEndFace(int i) const { return gnrlface[i] ; }
+  const QuadFace* getSideFace(int i) const { return quadface[i] ; }
+
   char getMySplitCode() const {
     return mySplitCode ;
   }

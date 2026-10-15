@@ -122,6 +122,8 @@ public:
 
   char getNfold() const{ return nfold ; }
 
+  const Face* getFace(int i) const { return face[i] ; }
+
   int getLevel() const{ return face[0]->edge[0]->level ; }
 
   /**

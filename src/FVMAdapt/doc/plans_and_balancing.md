@@ -358,3 +358,48 @@ rescales the mesh.
 
 The solver interface is declared in `FVMAdapt/gridInterface.h`; the facts are
 declared in `FVMAdapt/fvmadapt.lh`.
+
+
+## Face Information
+
+Optional face history describes how faces changed during the latest adaptation.
+For each new face, it identifies the contributing old faces, or the old cell in
+which the face was created. Solvers can use this information when transferring
+face values between meshes.
+
+Here, the old mesh is the mesh just before adaptation, not necessarily the
+original mesh. Face history describes this one transition, not every earlier
+adaptation.
+
+```text
+Old mesh                      New mesh
+one face       ------------>  same face          retained
+one face       ------------>  several faces      split
+several faces  ------------>  one face           merged
+cell interior  ------------>  new internal face  created
+```
+
+| Fact | Meaning |
+| --- | --- |
+| `faceSources` | Contributing old faces, with relative orientation and the fraction of each old face that contributes. |
+| `faceChange` | Whether a face was retained, split, merged, created, or has a different subdivision. |
+| `faceOriginCell` | Old cell's file number for a face created inside that cell. |
+
+IDs refer to file numbers in the old mesh. Fractions follow the refinement
+pattern, not measured physical area. The solver chooses how to transfer its
+fields. Removed old faces are available through `FaceHistory::removed()`.
+
+The caller retains a `FaceState`: information about one mesh's faces needed for
+the next comparison. Before the first adaptation, `recordBaseFaces()` creates
+this record for the original, unrefined mesh. After each adapted mesh is
+installed, `getFaceState()` returns its new record. Pass that record as
+`previousFaceState` with `faceHistory` enabled for the next adaptation.
+These records contain no solver fields, remain distributed in memory, and are
+not saved in plan files.
+
+Calling details are in `FVMAdapt/face_history.h` and `FVMAdapt/gridInterface.h`;
+facts are declared in `FVMAdapt/fvmadapt.lh`.
+
+This follows refinement and coarsening of the existing cell trees, not arbitrary
+replacement of their split directions. Periodic transforms and moving-mesh
+weights are not provided.
