@@ -71,7 +71,7 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryDisabled, cl->gnrlcell
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -80,7 +80,7 @@ cr->(hex2node, hex2face, hexOrientCode), fr,
 (cl, cr)->(upper, lower, boundary_map)->face2node->(pos, fileNumber(pos)),
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cl->gnrlcells, cr->hexcells) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aFace = build_quad_face($face2node.begin(), $face2edge.begin(),
@@ -143,7 +143,7 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryDisabled, cr->gnrlcell
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -152,7 +152,7 @@ cl->(hex2node, hex2face, hexOrientCode), fl,
 (cl, cr)->(upper, lower, boundary_map)->face2node->(pos, fileNumber(pos)),
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cr->gnrlcells, cl->hexcells) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aFace = build_quad_face($face2node.begin(), $face2edge.begin(),
@@ -236,7 +236,7 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryDisabled, cl->gnrlcell
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -245,7 +245,7 @@ cr->(prism2node, prism2face, prismOrientCode), fr,
 (cl, cr)->(upper, lower, boundary_map)->face2node->(pos, fileNumber(pos)),
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cl->gnrlcells, cr->prisms) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aqFace = 0 ;
@@ -350,7 +350,7 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryDisabled, cr->gnrlcell
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -359,7 +359,7 @@ cl->(prism2node, prism2face, prismOrientCode), fl,
 (cl, cr)->(upper, lower, boundary_map)->face2node->(pos, fileNumber(pos)),
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cr->gnrlcells, cl->prisms) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aqFace = 0 ;
@@ -442,7 +442,7 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryDisabled, cl->hexcells
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -452,7 +452,7 @@ cr->(prism2node, prism2face, prismOrientCode), (fl, fr),
 (cl, cr)->(upper, lower, boundary_map)->face2node->pos,
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cl->hexcells, cr->prisms) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aFace = build_quad_face($face2node.begin(),
@@ -512,7 +512,7 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryDisabled, cr->hexcells
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -522,7 +522,7 @@ cl->(prism2node, prism2face, prismOrientCode), (fl, fr),
 (cl, cr)->(upper, lower, boundary_map)->face2node->pos,
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cr->hexcells, cl->prisms) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aFace = build_quad_face($face2node.begin(),

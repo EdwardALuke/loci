@@ -83,7 +83,7 @@ constraint(hexcells, faceHistoryDisabled) {
 }
 
 // With face history.
-$rule pointwise(fine_faces_cell, fineCellFacePatches <-
+$rule pointwise(fine_faces_cell, fine_face_patches_cell <-
 recordFaceHistory, fileNumber(geom_cells), planCellFileOffset,
 balancedCellPlan, balanced_node_offset,
 balanced_cell_offset, (hex2face, hex2node, hexOrientCode),
@@ -92,7 +92,7 @@ balanced_cell_offset, (hex2face, hex2node, hexOrientCode),
 (lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
 (lower, upper, boundary_map)->face2edge->edge2node->(pos, fileNumber(pos))),
 constraint(hexcells, faceHistoryEnabled) {
-  Loci::FaceOutput output($fine_faces_cell, $fineCellFacePatches,
+  Loci::FaceOutput output($fine_faces_cell, $fine_face_patches_cell,
     $fileNumber(geom_cells)+$planCellFileOffset) ;
   if($balancedCellPlan.size() == 0) {
     return ;
@@ -159,7 +159,7 @@ constraint((cl, cr)->hexcells, faceHistoryDisabled) {
 }
 
 // With face history.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -169,7 +169,7 @@ face2edge->(balancedEdgePlan, balanced_node_offset),
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))),
 constraint((cl, cr)->hexcells, faceHistoryEnabled) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aFace = build_quad_face($face2node.begin(), $face2edge.begin(),
@@ -222,7 +222,7 @@ constraint(cl->hexcells, boundary_faces, faceHistoryDisabled) {
 }
 
 // With face history.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -231,7 +231,7 @@ fl, cl->(upper, lower, boundary_map)->face2node->pos,
 cl->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos)), ref->boundary_tags),
 constraint(cl->hexcells, boundary_faces, faceHistoryEnabled) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aFace = build_quad_face($face2node.begin(), $face2edge.begin(),

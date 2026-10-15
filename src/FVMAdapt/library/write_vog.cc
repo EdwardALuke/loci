@@ -1091,7 +1091,7 @@ namespace Loci {
       *recordFaces = options.faceHistory ;
       refine_facts.create_fact("recordFaceHistory",recordFaces) ;
       if(options.faceHistory)
-        query += ",fineFacePatches,fineCellFacePatches" ;
+        query += ",fine_face_patches,fine_face_patches_cell" ;
       if(options.cellState)
         query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
       if(options.edgeLengths)
@@ -1258,7 +1258,7 @@ namespace Loci {
     *recordFaces = options.faceHistory ;
     refine_facts.create_fact("recordFaceHistory",recordFaces) ;
     if(options.faceHistory)
-      query += ",fineFacePatches,fineCellFacePatches" ;
+      query += ",fine_face_patches,fine_face_patches_cell" ;
     if(options.cellState)
       query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
     if(options.edgeLengths)
@@ -2822,8 +2822,8 @@ namespace Loci {
     store<FacePatches> cellPatches, originalFacePatches ;
     if(patches != 0) {
       patches->allocate(faces) ;
-      cellPatches = facts.get_variable("fineCellFacePatches") ;
-      originalFacePatches = facts.get_variable("fineFacePatches") ;
+      cellPatches = facts.get_variable("fine_face_patches_cell") ;
+      originalFacePatches = facts.get_variable("fine_face_patches") ;
     }
     cl.allocate(faces);
     cr.allocate(faces);

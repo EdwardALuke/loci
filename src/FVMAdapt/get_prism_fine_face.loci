@@ -85,7 +85,7 @@ constraint(faceHistoryDisabled, prisms) {
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces_cell, fineCellFacePatches <-
+$rule pointwise(fine_faces_cell, fine_face_patches_cell <-
 recordFaceHistory, fileNumber(geom_cells), planCellFileOffset,
 balancedCellPlan, balanced_node_offset,
 balanced_cell_offset, (prism2face, prism2node, prismOrientCode),
@@ -95,7 +95,7 @@ balanced_cell_offset, (prism2face, prism2node, prismOrientCode),
 (lower, upper, boundary_map)->face2edge->edge2node->(pos, fileNumber(pos)),
 (lower, upper, boundary_map)->fileNumber(face2node)),
 constraint(faceHistoryEnabled, prisms) {
-  Loci::FaceOutput output($fine_faces_cell, $fineCellFacePatches,
+  Loci::FaceOutput output($fine_faces_cell, $fine_face_patches_cell,
     $fileNumber(geom_cells)+$planCellFileOffset) ;
   if($balancedCellPlan.size() == 0) {
     return ;
@@ -185,7 +185,7 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryDisabled, (cl, cr)->pr
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -193,7 +193,7 @@ face2edge->(balancedEdgePlan, balanced_node_offset),
 (fl, fr), (cl, cr)->(upper, lower, boundary_map)->face2node->pos,
 (cl, cr)->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, (cl, cr)->prisms) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aqFace = 0 ;
@@ -289,7 +289,7 @@ constraint(faceHistoryDisabled, cl->prisms, boundary_faces) {
 }
 
 /// Record refinement patches with the generated faces.
-$rule pointwise(fine_faces, fineFacePatches <-
+$rule pointwise(fine_faces, fine_face_patches <-
 recordFaceHistory, planFaceFileNumber,
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -298,7 +298,7 @@ fl, cl->(upper, lower, boundary_map)->face2node->pos,
 cl->(upper, lower, boundary_map)-> face2edge->edge2node->pos,
 face2node->(pos, fileNumber(pos)), ref->boundary_tags),
 constraint(faceHistoryEnabled, cl->prisms, boundary_faces) {
-  Loci::FaceOutput output($fine_faces, $fineFacePatches, $planFaceFileNumber) ;
+  Loci::FaceOutput output($fine_faces, $fine_face_patches, $planFaceFileNumber) ;
   std::list<Node*> bnode_list, node_list ;
   std::list<Edge*> edge_list ;
   QuadFace* aqFace = 0 ;
