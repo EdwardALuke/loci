@@ -34,10 +34,13 @@ INCLUDES = -I../contrib/doctest -I$(LOCI_BASE)/include
 AUTOMATIC_FILES = $(call loci_compile_files,)
 AUTOMATIC_OBJS = $(call loci_file2objs,$(AUTOMATIC_FILES))
 AUTOMATIC_TESTS= $(subst .o,.test, $(AUTOMATIC_OBJS))
-TESTS = $(AUTOMATIC_TESTS)
+TESTS = $(AUTOMATIC_TESTS) test_inplace_template.test
 
 TestResults: $(TESTS)
 	cat $(TESTS) > TestResults; rm $(TESTS)
+
+test_inplace_template.$(LPP_I_SUFFIX): test_inplace.loci
+	$(LPP) $(LPP_FLAGS) -x -t $(LOCI_INCLUDES) $(INCLUDES) $< -o $@
 
 test_distributed_io.test: %.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
@@ -58,7 +61,7 @@ test_distributed_io.test: %.test: %.o
 	@cat $@
 
 clean:
-	rm -fr *.o *.exe *.d *.log *.log1
+	rm -fr *.o *.exe *.d *.log *.log1 test_inplace_template.$(LPP_I_SUFFIX)
 
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) $(wildcard *.h5)
