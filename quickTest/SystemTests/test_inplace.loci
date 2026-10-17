@@ -1,5 +1,8 @@
 #include <Loci.h>
 
+#define DOCTEST_CONFIG_IMPLEMENT
+#include <doctest.h>
+
 $type seed store<int>;
 $type inplaceOld store<int>;
 $type inplaceSweep store<int>;
@@ -30,56 +33,58 @@ $rule pointwise(copySweep <- seed,previous->copySweep),option(set_relaxed_recurs
   $copySweep=$seed+$previous->$copySweep;
 }
 
-int main(int argc,char **argv) {
-  Loci::Init(&argc,&argv);
-  int status=0;
-  {
-    for(auto i=Loci::global_rule_list.begin();i!=Loci::global_rule_list.end();++i) {
-      if(!(*i)->check_perm_bits()) status=1;
-    }
-    Loci::rule_db rules;
-    rules.add_rules(Loci::global_rule_list);
-    Loci::fact_db facts;
-    const Loci::entitySet domain=Loci::interval(0,3);
-    Loci::store<int> seed,inplaceOld,ordinaryOld;
-    seed.allocate(domain);
-    inplaceOld.allocate(domain);
-    ordinaryOld.allocate(domain);
-    for(int i=0;i<4;++i) seed[i]=inplaceOld[i]=ordinaryOld[i]=i+1;
-    facts.create_fact("seed",seed);
-    facts.create_fact("inplaceOld",inplaceOld);
-    facts.create_fact("ordinaryOld",ordinaryOld);
-    Loci::Map previous;
-    previous.allocate(Loci::interval(1,3));
-    for(int i=1;i<4;++i) previous[i]=i-1;
-    facts.create_fact("previous",previous);
-    Loci::constraint first;
-    *first=Loci::interval(0,0);
-    facts.create_fact("first",first);
-
-    if(status!=0 || !Loci::makeQuery(rules,facts,"inplaceSweep,copySweep,ordinaryNew")) status=1;
-    else {
-      Loci::store<int> inplaceResult=facts.get_fact("inplaceSweep");
-      Loci::store<int> copyResult=facts.get_fact("copySweep");
-      Loci::store<int> ordinaryResult=facts.get_fact("ordinaryNew");
-      if(&*inplaceResult.Rep()!=&*inplaceOld.Rep() || &*ordinaryResult.Rep()!=&*ordinaryOld.Rep()) {
-        std::cerr << "Inplace outputs do not share their backing stores" << std::endl;
-        status=4;
-      }
-      if(inplaceResult.domain()!=domain || copyResult.domain()!=domain || ordinaryResult.domain()!=domain) status=2;
-      else {
-        const int expected[]={1,3,6,10};
-        for(int i=0;i<4;++i) {
-          if(inplaceResult[i]!=expected[i] || copyResult[i]!=expected[i] || ordinaryResult[i]!=i+2) {
-            std::cerr << "entity " << i << ": inplace=" << inplaceResult[i] << ", copy=" << copyResult[i]
-                      << ", ordinary=" << ordinaryResult[i] << std::endl;
-            status=3;
-          }
-        }
-      }
-    }
+TEST_CASE("recursive inplace rules retain their source handles and reuse storage") {
+  for(auto i = Loci::global_rule_list.begin(); i != Loci::global_rule_list.end(); ++i) {
+    REQUIRE((*i)->check_perm_bits());
   }
+  Loci::rule_db rules;
+  rules.add_rules(Loci::global_rule_list);
+  Loci::fact_db facts;
+  const Loci::entitySet domain = Loci::interval(0, 3);
+  Loci::store<int> seed, inplaceOld, ordinaryOld;
+  seed.allocate(domain);
+  inplaceOld.allocate(domain);
+  ordinaryOld.allocate(domain);
+  for(int i = 0; i < 4; ++i)
+    seed[i] = inplaceOld[i] = ordinaryOld[i] = i+1;
+  facts.create_fact("seed", seed);
+  facts.create_fact("inplaceOld", inplaceOld);
+  facts.create_fact("ordinaryOld", ordinaryOld);
+
+  Loci::Map previous;
+  previous.allocate(Loci::interval(1, 3));
+  for(int i = 1; i < 4; ++i)
+    previous[i] = i-1;
+  facts.create_fact("previous", previous);
+  Loci::constraint first;
+  *first = Loci::interval(0, 0);
+  facts.create_fact("first", first);
+
+  REQUIRE(Loci::makeQuery(rules, facts, "inplaceSweep,copySweep,ordinaryNew"));
+  Loci::store<int> inplaceResult = facts.get_fact("inplaceSweep");
+  Loci::store<int> copyResult = facts.get_fact("copySweep");
+  Loci::store<int> ordinaryResult = facts.get_fact("ordinaryNew");
+  CHECK(&*inplaceResult.Rep() == &*inplaceOld.Rep());
+  CHECK(&*ordinaryResult.Rep() == &*ordinaryOld.Rep());
+  REQUIRE(inplaceResult.domain() == domain);
+  REQUIRE(copyResult.domain() == domain);
+  REQUIRE(ordinaryResult.domain() == domain);
+  const int expected[] = {1, 3, 6, 10};
+  for(int i = 0; i < 4; ++i) {
+    CAPTURE(i);
+    CHECK(inplaceResult[i] == expected[i]);
+    CHECK(copyResult[i] == expected[i]);
+    CHECK(ordinaryResult[i] == i+2);
+  }
+}
+
+int main(int argc, char **argv) {
+  Loci::Init(&argc, &argv);
+
+  doctest::Context context;
+  context.applyCommandLine(argc, argv);
+  const int result = context.run();
+
   Loci::Finalize();
-  if(status==0) std::cout << "SUCCESS!" << std::endl;
-  return status;
+  return result;
 }
