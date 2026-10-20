@@ -40,6 +40,23 @@ using std::cout;
  * Split polygonal faces and apply Face refinement plans.
  */
 
+namespace {
+
+Node* split_center(Face& face) {
+  if(face.numEdge != 4) return face.centroid();
+
+  // Shared quadrilaterals must split at the same point as QuadFace.
+  // Follow each edge's face orientation to count every corner once.
+  vect3d center(0.0, 0.0, 0.0);
+  for(int i = 0; i < 4; ++i) {
+    Node* corner = face.needReverse[i] ? face.edge[i]->tail : face.edge[i]->head;
+    center += corner->p;
+  }
+  return new Node(center / 4.0);
+}
+
+}
+
 int general_edgeID_orient_f2c(int i, char orientCode, int numEdge){
   if(numEdge == 4){
     if(orientCode >=4) return 3-i;
@@ -103,9 +120,7 @@ void Face::split(std::list<Node*>& node_list, std::list<Edge*>& edge_list){
     if(edge[i]->child == 0) edge[i]->split(node_list);
   }
 
-  //define facecenter is the center of edgecenters
-  //calculate center and put it in node_list
-  Node* facecenter = centroid();
+  Node* facecenter = split_center(*this);
   node_list.push_back(facecenter);
 
   //get edgecenter
@@ -161,9 +176,7 @@ void Face::split(char orientCode, std::list<Node*>& node_list, std::list<Edge*>&
     if(edge[edgeID]->child == 0) edge[edgeID]->split(node_list);
   }
 
-  //define facecenter is the center of edgecenters
-  //calculate center and put it in node_list
-  Node* facecenter = centroid();
+  Node* facecenter = split_center(*this);
   node_list.push_back(facecenter);
 
 

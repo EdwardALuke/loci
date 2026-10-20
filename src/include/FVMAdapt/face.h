@@ -129,11 +129,11 @@ public:
 
 
   /**
-   * Computes the face-center node used by split().
+   * Computes the face center selected by the global CENTROID setting.
    *
-   * The selected formula is controlled by the global CENTROID setting. With the
-   * current wireframe setting, all boundary edges must already have midpoint
-   * children because wireframe() reads those edge-center nodes.
+   * With the current wireframe setting, all boundary edges must already have
+   * midpoint children because wireframe() reads those edge-center nodes.
+   * Quadrilateral splits use the four-corner mean instead of this estimate.
    *
    * @return Newly allocated center Node; the caller owns the returned Node.
    */
