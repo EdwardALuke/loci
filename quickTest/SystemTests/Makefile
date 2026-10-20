@@ -29,6 +29,9 @@
 include $(LOCI_BASE)/Loci.conf
 include $(LOCI_BASE)/version.conf
 
+TEST_BASE ?= $(abspath ..)
+include $(TEST_BASE)/test.conf
+
 INCLUDES = -I../contrib/doctest -I$(LOCI_BASE)/include
 
 AUTOMATIC_FILES = $(call loci_compile_files,)
@@ -36,12 +39,15 @@ AUTOMATIC_OBJS = $(call loci_file2objs,$(AUTOMATIC_FILES))
 AUTOMATIC_TESTS= $(subst .o,.test, $(AUTOMATIC_OBJS))
 TESTS = $(AUTOMATIC_TESTS)
 
+# Tests that require MPI (run with MPIRUN from test.conf)
+MPI_TESTS = test_distributed_io test_entity_partition_info test_distributed_inverse_map
+
 TestResults: $(TESTS)
 	cat $(TESTS) > TestResults; rm $(TESTS)
 
-test_distributed_io.test: %.test: %.o
+$(addsuffix .test,$(MPI_TESTS)): %.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
-	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) $(MPI_RUN) -np 3 ./$*.exe > $*.log 2>&1 || true)
+	@(LD_LIBRARY_PATH=$(LD_LIBRARY_PATH) DYLD_LIBRARY_PATH=$(DYLD_LIBRARY_PATH) $(MPIRUN) ./$*.exe > $*.log 2>&1 || true)
 	@tail -n 1 $*.log > $*.log1
 	@echo -n SystemTests/$*":" > $@
 	@if grep -q "SUCCESS!" $*.log1 ; then echo " PASSED!"; else echo " FAILED!"; fi >>$@
