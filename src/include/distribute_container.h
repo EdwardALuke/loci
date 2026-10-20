@@ -37,6 +37,7 @@
 #include <multiMap.h>
 #include <store.h>
 #include <distribute_io.h>
+#include <partition.h>
 
 namespace Loci {
   
@@ -45,6 +46,12 @@ namespace Loci {
                               entitySet input_image,
                               entitySet input_preimage,
                               const std::vector<entitySet> &init_ptn) ;
+
+  void distributed_inverseMap(multiMap &result,
+                              std::vector<std::pair<Entity,Entity> > &input,
+                              entitySet input_image,
+                              entitySet input_preimage,
+                              const dataPartitionP &ptn) ;
 
   dMap distribute_dMap(dMap m, const std::vector<entitySet> &init_ptn) ;
 
@@ -94,6 +101,29 @@ namespace Loci {
                               const entitySet &input_preimage,
                               std::vector<entitySet> &init_ptn); 
 
+  // --- dataPartitionP overloads for dmultiMap result ---
+  void distributed_inverseMap(dmultiMap &result, const dMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
+
+  void distributed_inverseMap(dmultiMap &result, const Map &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
+
+  void distributed_inverseMap(dmultiMap &result,
+                              const dmultiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
+
+  void distributed_inverseMap(dmultiMap &result,
+                              const multiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
+
   inline void distributed_inverseMap(dmultiMap &result, const dMap &input_map, const entitySet &input_image, const entitySet &input_preimage, fact_db &facts, size_t kd) {
     std::vector<entitySet> init_ptn = facts.get_init_ptn(kd) ;
     Loci::distributed_inverseMap(result, input_map, input_image, input_preimage, init_ptn) ;
@@ -126,6 +156,27 @@ namespace Loci {
   void distributed_inverseMap(multiMap &result, const dmultiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn) ;
   
   void distributed_inverseMap(multiMap &result, const multiMap &input_map, const entitySet &input_image, const entitySet &input_preimage, std::vector<entitySet> &init_ptn);
+
+  // --- dataPartitionP overloads for multiMap result ---
+  void distributed_inverseMap(multiMap &result, const dMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
+
+  void distributed_inverseMap(multiMap &result, const Map &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
+
+  void distributed_inverseMap(multiMap &result, const dmultiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
+
+  void distributed_inverseMap(multiMap &result, const multiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) ;
   
 
   inline void distributed_inverseMap(multiMap &result, const Map &input_map, const entitySet &input_image, const entitySet &input_preimage, fact_db &facts, size_t kd) {

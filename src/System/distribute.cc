@@ -433,13 +433,19 @@ namespace Loci {
     //    set -= interval(start,start+delta*p-1) ;
     fatal((set - interval(start,start+delta*p-1)) != EMPTY) ;
     std::vector<std::pair<int,entitySet> > splitlist ;
-    while(set != EMPTY) {
-      int i = (set.Min()-start)/delta ;
-      int s1 = start+i*delta ;
+    // Throw away parts of set that are not in partition
+    entitySet work = set&interval(start,start+delta*p-1) ;
+    while(work != EMPTY) {
+      // Find interval in work
+      int p = (work.Min()-start)/delta ;
+      // Compute start of interval p
+      int s1 = start+p*delta ;
+      // Compute interval assigned to processor p
       interval ival(s1,s1+delta-1) ;
-      entitySet part = set&ival ;
-      //      set -= ival ;
-      splitlist.push_back(std::make_pair(i,part)) ;
+      // Add part of set that intersects this interval
+      splitlist.push_back(std::make_pair(p,set&ival)) ;
+      // dispactch work for this interval
+      work -= ival ;
     }
 #ifdef DEBUG
     entitySet sum ;

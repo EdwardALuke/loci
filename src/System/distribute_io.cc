@@ -1889,8 +1889,8 @@ namespace Loci {
 #ifdef BOUNDS_CHECK
       FATAL(var->getPartitionInfo() == 0) ;
 #endif
-#endif
     }
+#endif
     fact_db::distribute_infoP dist = facts.get_distribute_info() ;
 
     hid_t group_id = 0 ;
@@ -1980,8 +1980,8 @@ namespace Loci {
 #ifdef BOUNDS_CHECK
       FATAL(var->getPartitionInfo() == 0) ;
 #endif
-#endif
     }
+#endif
     
     hid_t group_id = 0;
     if(use_parallel_io || MPI_rank == 0)

@@ -32,6 +32,7 @@ using std::set;
 #include <fact_db.h>
 #include <constraint.h>
 #include <multiMap.h>
+#include <partition.h>
 #include <algorithm>
 using std::sort ;
 
@@ -468,7 +469,333 @@ namespace Loci {
 
     distributed_inverseMap(result,inlist,input_image,input_preimage,init_ptn) ;
   }
-  
+
+  // =========================================================================
+  // dataPartitionP overloads
+  // =========================================================================
+
+  // Core implementation for multiMap result using dataPartitionP.
+  // Uses processorLookup() to batch-resolve processor ownership instead
+  // of the O(P) vector<entitySet> scan.
+  void distributed_inverseMap(multiMap &result,
+                              vector<pair<Entity,Entity> > &input,
+                              entitySet input_image,
+                              entitySet input_preimage,
+                              const dataPartitionP &ptn) {
+    int r = 0 ;
+    MPI_Comm_rank(ptn->comm, &r) ;
+    int p = 1 ;
+    MPI_Comm_size(ptn->comm, &p) ;
+
+    sort(input.begin(), input.end(), fieldSort2) ;
+
+    // Batch-resolve processor ownership for all target entities
+    vector<int> targets(input.size()) ;
+    for(size_t i = 0; i < input.size(); ++i)
+      targets[i] = input[i].second ;
+
+    vector<int> owners ;
+    ptn->processorLookup(owners, targets) ;
+
+    // Count what we will be sending to each processor
+    vector<int> send_sz(p, 0) ;
+    for(size_t i = 0; i < input.size(); ++i)
+      send_sz[owners[i]] += 2 ;
+
+    // Transfer recv sizes
+    vector<int> recv_sz(p) ;
+    MPI_Alltoall(send_sz.data(), 1, MPI_INT,
+                 recv_sz.data(), 1, MPI_INT, ptn->comm) ;
+
+    int size_send = 0, size_recv = 0 ;
+    for(int i = 0; i < p; ++i) {
+      size_send += send_sz[i] ;
+      size_recv += recv_sz[i] ;
+    }
+
+    vector<int> send_store(size_send) ;
+    vector<int> recv_store(size_recv) ;
+    vector<int> send_displacement(p) ;
+    vector<int> recv_displacement(p) ;
+
+    send_displacement[0] = 0 ;
+    recv_displacement[0] = 0 ;
+    for(int i = 1; i < p; ++i) {
+      send_displacement[i] = send_displacement[i-1] + send_sz[i-1] ;
+      recv_displacement[i] = recv_displacement[i-1] + recv_sz[i-1] ;
+    }
+
+    vector<int> offsets(p, 0) ;
+    for(size_t i = 0; i < input.size(); ++i) {
+      int dest = owners[i] ;
+      send_store[send_displacement[dest] + offsets[dest]++] = input[i].second ;
+      send_store[send_displacement[dest] + offsets[dest]++] = input[i].first ;
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sz.data(),
+                  send_displacement.data(), MPI_INT,
+                  recv_store.data(), recv_sz.data(),
+                  recv_displacement.data(), MPI_INT, ptn->comm) ;
+
+    entitySet local_input_image = input_image & ptn->getAllocation(r) ;
+    store<int> sizes ;
+    sizes.allocate(local_input_image) ;
+    FORALL(local_input_image, i) {
+      sizes[i] = 0 ;
+    } ENDFORALL ;
+
+    for(int i = 0; i < size_recv; ++i) {
+      int indx = recv_store[i++] ;
+      sizes[indx]++ ;
+    }
+
+    result.allocate(sizes) ;
+    for(int i = 0; i < size_recv; ++i) {
+      int indx = recv_store[i++] ;
+      int refer = recv_store[i] ;
+#ifdef DEBUG
+      if(input_image.inSet(indx)) {
+#endif
+        sizes[indx]-- ;
+        result[indx][sizes[indx]] = refer ;
+#ifdef DEBUG
+      } else {
+        debugout << "indx=" << indx << " not in input_image=" << input_image
+                 << endl ;
+        Loci::Abort() ;
+      }
+#endif
+    }
+#ifdef DEBUG
+    FORALL(local_input_image, i) {
+      WARN(sizes[i] != 0) ;
+    } ENDFORALL ;
+#endif
+  }
+
+
+  // Core implementation for dmultiMap result using dataPartitionP.
+  static void distributed_inverseMap_dp(dmultiMap &result,
+                                        vector<pair<Entity,Entity> > &input,
+                                        entitySet input_image,
+                                        entitySet input_preimage,
+                                        const dataPartitionP &ptn) {
+    int r = 0 ;
+    MPI_Comm_rank(ptn->comm, &r) ;
+    int p = 1 ;
+    MPI_Comm_size(ptn->comm, &p) ;
+
+    sort(input.begin(), input.end(), fieldSort2) ;
+
+    // Batch-resolve processor ownership
+    vector<int> targets(input.size()) ;
+    for(size_t i = 0; i < input.size(); ++i)
+      targets[i] = input[i].second ;
+
+    vector<int> owners ;
+    ptn->processorLookup(owners, targets) ;
+
+    vector<int> send_sz(p, 0) ;
+    for(size_t i = 0; i < input.size(); ++i)
+      send_sz[owners[i]] += 2 ;
+
+    vector<int> recv_sz(p) ;
+    MPI_Alltoall(send_sz.data(), 1, MPI_INT,
+                 recv_sz.data(), 1, MPI_INT, ptn->comm) ;
+
+    int size_send = 0, size_recv = 0 ;
+    for(int i = 0; i < p; ++i) {
+      size_send += send_sz[i] ;
+      size_recv += recv_sz[i] ;
+    }
+
+    vector<int> send_store(size_send) ;
+    vector<int> recv_store(size_recv) ;
+    vector<int> send_displacement(p) ;
+    vector<int> recv_displacement(p) ;
+
+    send_displacement[0] = 0 ;
+    recv_displacement[0] = 0 ;
+    for(int i = 1; i < p; ++i) {
+      send_displacement[i] = send_displacement[i-1] + send_sz[i-1] ;
+      recv_displacement[i] = recv_displacement[i-1] + recv_sz[i-1] ;
+    }
+
+    vector<int> offsets(p, 0) ;
+    for(size_t i = 0; i < input.size(); ++i) {
+      int dest = owners[i] ;
+      send_store[send_displacement[dest] + offsets[dest]++] = input[i].second ;
+      send_store[send_displacement[dest] + offsets[dest]++] = input[i].first ;
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sz.data(),
+                  send_displacement.data(), MPI_INT,
+                  recv_store.data(), recv_sz.data(),
+                  recv_displacement.data(), MPI_INT, ptn->comm) ;
+
+    entitySet local_input_image = input_image & ptn->getAllocation(r) ;
+    store<int> sizes ;
+    sizes.allocate(local_input_image) ;
+    FORALL(local_input_image, i) {
+      sizes[i] = 0 ;
+    } ENDFORALL ;
+
+    for(int i = 0; i < size_recv; ++i) {
+      int indx = recv_store[i++] ;
+      sizes[indx]++ ;
+    }
+
+    FORALL(local_input_image, i) {
+      vector<int,malloc_alloc<int> > tmp(sizes[i]) ;
+      tmp.swap(result[i]) ;
+    } ENDFORALL ;
+
+    for(int i = 0; i < size_recv; ++i) {
+      int indx = recv_store[i++] ;
+      int refer = recv_store[i] ;
+      sizes[indx]-- ;
+      result[indx][sizes[indx]] = refer ;
+    }
+#ifdef DEBUG
+    FORALL(local_input_image, i) {
+      WARN(sizes[i] != 0) ;
+    } ENDFORALL ;
+#endif
+  }
+
+  // --- dmultiMap typed wrappers using dataPartitionP ---
+
+  void distributed_inverseMap(dmultiMap &result, const dMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      int elem = input_map[i] ;
+      if(input_image.inSet(elem))
+        inlist.push_back(pair<int,int>(i, elem)) ;
+    } ENDFORALL ;
+    distributed_inverseMap_dp(result, inlist, input_image, input_preimage, ptn) ;
+  }
+
+  void distributed_inverseMap(dmultiMap &result, const Map &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      int elem = input_map[i] ;
+      if(input_image.inSet(elem))
+        inlist.push_back(pair<int,int>(i, elem)) ;
+    } ENDFORALL ;
+    distributed_inverseMap_dp(result, inlist, input_image, input_preimage, ptn) ;
+  }
+
+  void distributed_inverseMap(dmultiMap &result, const dmultiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      for(size_t k = 0; k < input_map[i].size(); ++k) {
+        int elem = input_map[i][k] ;
+        if(input_image.inSet(elem))
+          inlist.push_back(pair<int,int>(i, elem)) ;
+      }
+    } ENDFORALL ;
+    distributed_inverseMap_dp(result, inlist, input_image, input_preimage, ptn) ;
+  }
+
+  void distributed_inverseMap(dmultiMap &result, const multiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      int sz = input_map.end(i) - input_map.begin(i) ;
+      for(int k = 0; k < sz; ++k) {
+        int elem = input_map[i][k] ;
+        if(input_image.inSet(elem))
+          inlist.push_back(pair<int,int>(i, elem)) ;
+      }
+    } ENDFORALL ;
+    distributed_inverseMap_dp(result, inlist, input_image, input_preimage, ptn) ;
+  }
+
+  // --- multiMap typed wrappers using dataPartitionP ---
+
+  void distributed_inverseMap(multiMap &result, const dMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      int elem = input_map[i] ;
+      if(input_image.inSet(elem))
+        inlist.push_back(pair<int,int>(i, elem)) ;
+    } ENDFORALL ;
+    distributed_inverseMap(result, inlist, input_image, input_preimage, ptn) ;
+  }
+
+  void distributed_inverseMap(multiMap &result, const Map &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      int elem = input_map[i] ;
+      if(input_image.inSet(elem))
+        inlist.push_back(pair<int,int>(i, elem)) ;
+    } ENDFORALL ;
+    distributed_inverseMap(result, inlist, input_image, input_preimage, ptn) ;
+  }
+
+  void distributed_inverseMap(multiMap &result, const dmultiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      for(size_t k = 0; k < input_map[i].size(); ++k) {
+        int elem = input_map[i][k] ;
+        if(input_image.inSet(elem))
+          inlist.push_back(pair<int,int>(i, elem)) ;
+      }
+    } ENDFORALL ;
+    distributed_inverseMap(result, inlist, input_image, input_preimage, ptn) ;
+  }
+
+  void distributed_inverseMap(multiMap &result, const multiMap &input_map,
+                              const entitySet &input_image,
+                              const entitySet &input_preimage,
+                              const dataPartitionP &ptn) {
+    vector<pair<int,int> > inlist ;
+    entitySet preloop = input_preimage & input_map.domain() ;
+    inlist.reserve(preloop.size()) ;
+    FORALL(preloop, i) {
+      int sz = input_map.end(i) - input_map.begin(i) ;
+      for(int k = 0; k < sz; ++k) {
+        int elem = input_map[i][k] ;
+        if(input_image.inSet(elem))
+          inlist.push_back(pair<int,int>(i, elem)) ;
+      }
+    } ENDFORALL ;
+    distributed_inverseMap(result, inlist, input_image, input_preimage, ptn) ;
+  }
 
 
 }
