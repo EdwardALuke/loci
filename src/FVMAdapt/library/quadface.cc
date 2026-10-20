@@ -398,8 +398,9 @@ void QuadFace::split(char splitCode, char orientCode,
         if(edge[edgeID]->child == 0) edge[edgeID]->split(node_list) ;
       }
 
-      // define new Node
-      facecenter = centroid() ;
+      // Match successive directional splits, which bisect an intermediate
+      // edge. A different center would move existing boundaries on plan replay.
+      facecenter = simple_center() ;
       node_list.push_back(facecenter) ;
 
       // get edgecenter
