@@ -18,8 +18,9 @@ namespace Loci {
     enum PrismSurface { PRISM_END = 0, PRISM_SIDE = 1 } ;
     const long long PATH_END = -1 ; // Separates a child path from a local surface index.
     const long long extent = 1LL << MAXLEVEL ;
-    typedef std::array<long long,2> Point ;
-    typedef std::array<Point,4> Corners ;
+    // Coordinates within a face patch, not physical coordinates.
+    typedef std::array<long long,2> PatchPoint ;
+    typedef std::array<PatchPoint,4> Corners ;
 
     std::vector<long long> split_surface(const std::vector<long long>& path,
                                          std::initializer_list<long long> indices) {
@@ -49,7 +50,7 @@ namespace Loci {
       return {{{{b[0],b[1]}},{{b[2],b[1]}},{{b[2],b[3]}},{{b[0],b[3]}}}} ;
     }
 
-    Point midpoint(Point a, Point b) {
+    PatchPoint midpoint(PatchPoint a, PatchPoint b) {
       return {{a[0]+(b[0]-a[0])/2,a[1]+(b[1]-a[1])/2}} ;
     }
 

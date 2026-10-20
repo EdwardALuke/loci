@@ -86,7 +86,8 @@ namespace Loci {
   namespace {
     void check_face_cells(size_t count, const std::vector<int32>& cells, const char* side) {
       if(cells.size() != count) {
-        std::cerr << "WARNING: " << side << " has the incorrect size" << std::endl ;
+        std::cerr << "WARNING: face output " << side << " has " << cells.size()
+                  << " cell indices for " << count << " faces" << std::endl ;
         Loci::Abort() ;
       }
     }

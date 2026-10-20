@@ -29,10 +29,6 @@
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 
-using std::cerr;
-using std::endl;
-using std::vector;
-
 // This file generates fine_faces according refinement plans. The
 // original grid is general element. Isotropic refinement is used. the rules
 // should be used after node_offset and cell_offset has been set up.
@@ -74,7 +70,7 @@ constraint(gnrlcells, faceHistoryDisabled) {
     aCell = 0 ;
   }
 
-  // aCell will clean up these
+  // Delete the separately owned nodes, edges, and faces.
   cleanup_list(bnode_list, edge_list, face_list) ;
   cleanup_list(node_list) ;
 }
@@ -116,7 +112,7 @@ constraint(gnrlcells, faceHistoryEnabled) {
     aCell = 0 ;
   }
 
-  // aCell will clean up these
+  // Delete the separately owned nodes, edges, and faces.
   cleanup_list(bnode_list, edge_list, face_list) ;
   cleanup_list(node_list) ;
 }
@@ -205,7 +201,7 @@ constraint((cl, cr)->gnrlcells, faceHistoryEnabled) {
   cleanup_list(bnode_list, edge_list) ;
 }
 
-/// Get inner_nodes and fine_faces of boundary faces
+/// Build boundary-face connectivity.
 // Without face history.
 $rule pointwise(fine_faces <-
 balancedFacePlan, balanced_node_offset,

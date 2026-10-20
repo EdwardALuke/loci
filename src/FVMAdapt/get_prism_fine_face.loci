@@ -29,11 +29,6 @@
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 
-using std::cerr;
-using std::endl;
-using std::vector;
-using Loci::storeRepP;
-
 // by: Qiuhan Xue
 // This file generate  fine_faces according refinement plans. The
 // original grid is prism element. Anisotropic refinement is used. the rules should be
@@ -78,7 +73,7 @@ constraint(faceHistoryDisabled, prisms) {
     aCell = 0 ;
   }
 
-  // aCell will clean up these
+  // Delete the separately owned nodes, edges, and faces.
   cleanup_list(bnode_list, edge_list, qface_list) ;
   cleanup_list(gface_list) ;
   cleanup_list(node_list) ;
@@ -124,7 +119,7 @@ constraint(faceHistoryEnabled, prisms) {
     aCell = 0 ;
   }
 
-  // aCell will clean up these
+  // Delete the separately owned nodes, edges, and faces.
   cleanup_list(bnode_list, edge_list, qface_list) ;
   cleanup_list(gface_list) ;
   cleanup_list(node_list) ;

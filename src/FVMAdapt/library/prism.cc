@@ -62,6 +62,7 @@ namespace {
       int childFold = cell.nfold ;
       switch(code) {
       case 1: children = 2 ; break ;
+      // Transverse splits produce children with four-sided end faces.
       case 2: children = cell.nfold ; childFold = 4 ; break ;
       case 3: children = 2*cell.nfold ; childFold = 4 ; break ;
       default: valid = false ; break ;

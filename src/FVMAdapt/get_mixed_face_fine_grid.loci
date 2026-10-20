@@ -31,9 +31,8 @@
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 
-using std::cerr ;
-using std::endl ;
-using std::vector ;
+//-----------------------------------------------------------------------------
+// General cell on the left, hex cell on the right
 
 $rule pointwise(fine_faces <-
 balancedFacePlan, balanced_node_offset,
@@ -107,6 +106,9 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cl->gnrlcells
   cleanup_list(bnode_list, edge_list) ;
 }
 
+//-----------------------------------------------------------------------------
+// Hex cell on the left, general cell on the right
+
 $rule pointwise(fine_faces <-
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -178,6 +180,9 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cr->gnrlcells
   cleanup_list(node_list) ;
   cleanup_list(bnode_list, edge_list) ;
 }
+
+//-----------------------------------------------------------------------------
+// General cell on the left, prism cell on the right
 
 $rule pointwise(fine_faces <-
 balancedFacePlan, balanced_node_offset,
@@ -293,6 +298,9 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cl->gnrlcells
   cleanup_list(bnode_list, edge_list) ;
 }
 
+//-----------------------------------------------------------------------------
+// Prism cell on the left, general cell on the right
+
 $rule pointwise(fine_faces <-
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -407,6 +415,9 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cr->gnrlcells
   cleanup_list(bnode_list, edge_list) ;
 }
 
+//-----------------------------------------------------------------------------
+// Hex cell on the left, prism cell on the right
+
 $rule pointwise(fine_faces <-
 balancedFacePlan, balanced_node_offset,
 face2edge->(balancedEdgePlan, balanced_node_offset),
@@ -476,6 +487,9 @@ face2node->(pos, fileNumber(pos))), constraint(faceHistoryEnabled, cl->hexcells,
   cleanup_list(node_list) ;
   cleanup_list(bnode_list, edge_list) ;
 }
+
+//-----------------------------------------------------------------------------
+// Prism cell on the left, hex cell on the right
 
 $rule pointwise(fine_faces <-
 balancedFacePlan, balanced_node_offset,

@@ -12,11 +12,12 @@ class Edge ;
 
 namespace Loci {
   /// Append connectivity and optional patches in the same face order.
+  /// Construction clears the supplied output containers.
   class FaceOutput {
     FineFaces& faces ;
     FacePatches* patches ;
     std::optional<FacePatchMap> patchMap ;
-    int root ;
+    int root ; // Base cell or face file number.
   public:
     explicit FaceOutput(FineFaces& faces) ;
     FaceOutput(FineFaces& faces, FacePatches& patches, int root) ;
