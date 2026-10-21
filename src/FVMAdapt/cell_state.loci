@@ -109,7 +109,8 @@ constraint(geom_cells) {
 $rule pointwise(fineCellDepth <- balancedCellPlan), constraint(hexcells) {
   HexCell cell ;
   const int count = cell.empty_resplit($balancedCellPlan) ;
-  if(!cell.getLeafDepths($fineCellDepth) || int($fineCellDepth.size()) != count) {
+  if(!cell.getLeafDepths($fineCellDepth) ||
+     static_cast<int>($fineCellDepth.size()) != count) {
     std::cerr << "Invalid hex-cell leaf numbering for cell state" << std::endl ;
     Loci::Abort() ;
   }
@@ -119,7 +120,8 @@ $rule pointwise(fineCellDepth <- balancedCellPlan), constraint(hexcells) {
 $rule pointwise(fineCellDepth <- balancedCellPlan), constraint(prisms) {
   Prism cell ;
   const int count = cell.empty_resplit($balancedCellPlan) ;
-  if(!cell.getLeafDepths($fineCellDepth) || int($fineCellDepth.size()) != count) {
+  if(!cell.getLeafDepths($fineCellDepth) ||
+     static_cast<int>($fineCellDepth.size()) != count) {
     std::cerr << "Invalid prism leaf numbering for cell state" << std::endl ;
     Loci::Abort() ;
   }
@@ -143,7 +145,7 @@ constraint(gnrlcells) {
     $*edge2node, nodes, edges, faces, $*fileNumber(pos)) ;
   const int count = cell->empty_resplit($balancedCellPlan) ;
   const bool valid = cell->getLeafDepths($fineCellDepth) &&
-    int($fineCellDepth.size()) == count ;
+    static_cast<int>($fineCellDepth.size()) == count ;
   delete cell ;
   cleanup_list(nodes, edges, faces) ;
   if(!valid) {
