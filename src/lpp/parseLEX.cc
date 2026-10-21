@@ -1150,6 +1150,8 @@ string OPtoName(AST_type::elementType val) {
     return string("ND_CTRL_IF") ;
   case ND_CTRL_FOR:
     return string("ND_CTRL_FOR") ;
+  case ND_CTRL_FOR_RANGE:
+    return string("ND_CTRL_FOR_RANGE") ;
   case ND_CTRL_WHILE:
     return string("ND_CTRL_WHILE") ;
   case ND_CTRL_DO:

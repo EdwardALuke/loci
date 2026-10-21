@@ -1967,7 +1967,42 @@ public:
     entityIndex = AST_type::ASTP(e) ;
   }
   virtual void visit(AST_exprOper &) ;
+  virtual void visit(AST_controlStatement &) ;
 } ;
+
+void AST_editLociVariableAccess::visit(AST_controlStatement &s) {
+  using namespace nodeTypes ;
+  for(size_t i=0;i<s.parts.size();++i) {
+    if(ASTEqual(s.parts[i],TK_LOCI_VARIABLE)) {
+      bool is_param_like = false ;
+      CPTR<AST_Token> tok(s.parts[i]) ;
+      variable v(tok->text) ;
+      auto t = vtypes.find(v) ;
+      if(t != vtypes.end()) {
+        if(t->second == "param" ||
+           t->second == "blackbox" ||
+           t->second == "Constraint" ||
+           t->second == "constraint") {
+          is_param_like = true ;
+        }
+      }
+      if(is_param_like) {
+        CPTR<AST_exprOper> param_access = new AST_exprOper ;
+        param_access->nodeType = OP_STAR ;
+        param_access->terms.push_back(convertLociVar(s.parts[i])) ;
+        CPTR<AST_exprOper> param_group = new AST_exprOper ;
+        param_group->nodeType = OP_GROUP ;
+        param_group->terms.push_back(AST_type::ASTP(param_access)) ;
+        s.parts[i] = AST_type::ASTP(param_group) ;
+      } else {
+        s.parts[i] = addEntityIndex(convertLociVar(s.parts[i])) ;
+      }
+    } else if(ASTEqual(s.parts[i],TK_LOCI_CONTAINER)) {
+      s.parts[i] = convertLociVar(s.parts[i]) ;
+    }
+  }
+  AST_visitor::visit(s) ;
+}
 
 void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;
@@ -2126,9 +2161,39 @@ public:
   }
 
   virtual void visit(AST_exprOper &) ;
+  virtual void visit(AST_controlStatement &) ;
 } ;
 
-
+void AST_editGPULociVariableAccess::visit(AST_controlStatement &s) {
+  using namespace nodeTypes ;
+  for(size_t i=0;i<s.parts.size();++i) {
+    if(ASTEqual(s.parts[i],TK_LOCI_VARIABLE)) {
+      bool is_param = false ;
+      CPTR<AST_Token> tok(s.parts[i]) ;
+      variable v(tok->text) ;
+      auto t = vtypes.find(v) ;
+      if(t != vtypes.end()) {
+        if(t->second == "param") {
+          is_param = true ;
+        }
+      }
+      if(is_param) {
+        CPTR<AST_exprOper> param_access = new AST_exprOper ;
+        param_access->nodeType = OP_STAR ;
+        param_access->terms.push_back(convertLociVar(s.parts[i])) ;
+        CPTR<AST_exprOper> param_group = new AST_exprOper ;
+        param_group->nodeType = OP_GROUP ;
+        param_group->terms.push_back(AST_type::ASTP(param_access)) ;
+        s.parts[i] = AST_type::ASTP(param_group) ;
+      } else {
+        s.parts[i] = addEntityIndex(convertLociVar(s.parts[i])) ;
+      }
+    } else if(ASTEqual(s.parts[i],TK_LOCI_CONTAINER)) {
+      s.parts[i] = convertLociVar(s.parts[i]) ;
+    }
+  }
+  AST_visitor::visit(s) ;
+}
 
 void AST_editGPULociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;

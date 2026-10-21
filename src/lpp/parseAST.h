@@ -255,7 +255,7 @@ public:
     TK_VIRTUAL,TK_VOID,TK_TRY,TK_CATCH,TK_THROW,
     TK_IF,TK_ELSE,TK_GOTO,TK_NEW,TK_DELETE,
     ND_SYNTAXERR,
-    ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_WHILE, ND_CTRL_DO,
+    ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_FOR_RANGE,ND_CTRL_WHILE, ND_CTRL_DO,
     ND_CTRL_SWITCH, ND_SIMPLE_STATEMENT,ND_BLOCK,ND_BLOCK_RAW,
     ND_DECL,ND_TYPE_SPEC,ND_TERMINAL,
     TK_SENTINEL
@@ -697,6 +697,8 @@ namespace nodeTypes {
     AST_type::elementType::ND_CTRL_IF;
   constexpr AST_type::elementType ND_CTRL_FOR =
     AST_type::elementType::ND_CTRL_FOR;
+  constexpr AST_type::elementType ND_CTRL_FOR_RANGE =
+    AST_type::elementType::ND_CTRL_FOR_RANGE;
   constexpr AST_type::elementType ND_CTRL_WHILE =
     AST_type::elementType::ND_CTRL_WHILE;
   constexpr AST_type::elementType ND_CTRL_DO =
