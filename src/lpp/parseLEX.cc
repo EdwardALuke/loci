@@ -1142,6 +1142,8 @@ string OPtoName(AST_type::elementType val) {
     return string("OP_TERM") ;
   case OP_SPECIAL:
     return string("OP_SPECIAL") ;
+  case OP_CONTAINS:
+    return string("OP_CONTAINS") ;
   case ND_BLOCK:
     return string("ND_BLOCK") ;
   case ND_SYNTAXERR:

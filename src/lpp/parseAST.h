@@ -194,7 +194,7 @@ public:
     OP_OPENPAREN,OP_CLOSEPAREN,OP_OPENBRACKET,OP_CLOSEBRACKET,
     OP_OPENBRACE,OP_CLOSEBRACE,
     OP_LOCI_DIRECTIVE,OP_LOCI_VARIABLE,OP_LOCI_CONTAINER,
-    OP_TERM, OP_SPECIAL,
+    OP_TERM, OP_SPECIAL, OP_CONTAINS,
     OP_NEW,
     OP_DELETE,
     OP_SIZEOF,
@@ -424,6 +424,8 @@ namespace nodeTypes {
     AST_type::elementType::OP_TERM;
   constexpr AST_type::elementType OP_SPECIAL =
     AST_type::elementType::OP_SPECIAL;
+  constexpr AST_type::elementType OP_CONTAINS =
+    AST_type::elementType::OP_CONTAINS;
   constexpr AST_type::elementType OP_NEW =
     AST_type::elementType::OP_NEW;
   constexpr AST_type::elementType OP_DELETE =

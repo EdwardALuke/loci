@@ -248,6 +248,7 @@ std::string NTtoString(AST_type::elementType val) {
   case OP_LOCI_CONTAINER: return "OP_LOCI_CONTAINER" ;
   case OP_TERM: return "OP_TERM" ;
   case OP_SPECIAL: return "OP_SPECIAL" ;
+  case OP_CONTAINS: return "OP_CONTAINS" ;
   case OP_NEW: return "OP_NEW" ;
   case OP_DELETE: return "OP_DELETE" ;
   case OP_SIZEOF: return "OP_SIZEOF" ;
@@ -1974,7 +1975,21 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,
   if(expr == 0) // If no valid expression then return null
     return expr ;
 
-  return parseExpressionOperator(expr,is,linecount,fileName,typemap,prec) ;
+  expr = parseExpressionOperator(expr,is,linecount,fileName,typemap,prec) ;
+
+  // If the result is an isolated term (not an expression operator),
+  // wrap it in OP_CONTAINS so that every expression is an AST_exprOper
+  // and the variable-renaming visitors can handle it uniformly.
+  if(expr != 0 && !ASTEqual(expr, AST_type::elementType::ND_SYNTAXERR)) {
+    CPTR<AST_exprOper> test = CPTR<AST_exprOper>(expr) ;
+    if(test == 0) {
+      CPTR<AST_exprOper> wrapper = new AST_exprOper ;
+      wrapper->nodeType = nodeTypes::OP_CONTAINS ;
+      wrapper->terms.push_back(expr) ;
+      expr = AST_type::ASTP(wrapper) ;
+    }
+  }
+  return expr ;
 
 }
 
@@ -3516,6 +3531,11 @@ void AST_simplePrint::visit(AST_exprOper &s) {
       s.terms[1]->accept(*this) ;
     break ;
   case OP_TEMPLATE_CAST:
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+    break ;
+  case OP_CONTAINS:
     for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
       if(*ii != 0)
 	(*ii)->accept(*this) ;
