@@ -141,7 +141,7 @@ constraint(gnrlcells) {
     $*edge2node, nodes, edges, faces, $*fileNumber(pos)) ;
   const int count = cell->empty_resplit($balancedCellPlan) ;
   const bool valid = cell->getLeafDepths($fineCellDepth) &&
-    int($fineCellDepth.size()) == count ;
+    static_cast<int>($fineCellDepth.size()) == count ;
   delete cell ;
   cleanup_list(nodes, edges, faces) ;
   if(!valid) {

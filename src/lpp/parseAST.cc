@@ -248,6 +248,7 @@ std::string NTtoString(AST_type::elementType val) {
   case OP_LOCI_CONTAINER: return "OP_LOCI_CONTAINER" ;
   case OP_TERM: return "OP_TERM" ;
   case OP_SPECIAL: return "OP_SPECIAL" ;
+  case OP_CONTAINS: return "OP_CONTAINS" ;
   case OP_NEW: return "OP_NEW" ;
   case OP_DELETE: return "OP_DELETE" ;
   case OP_SIZEOF: return "OP_SIZEOF" ;
@@ -384,6 +385,7 @@ std::string NTtoString(AST_type::elementType val) {
   case ND_SYNTAXERR: return "ND_SYNTAXERR" ;
   case ND_CTRL_IF: return "ND_CTRL_IF" ;
   case ND_CTRL_FOR: return "ND_CTRL_FOR" ;
+  case ND_CTRL_FOR_RANGE: return "ND_CTRL_FOR_RANGE" ;
   case ND_CTRL_WHILE: return "ND_CTRL_WHILE" ;
   case ND_CTRL_DO: return "ND_CTRL_DO" ;
   case ND_CTRL_SWITCH: return "ND_CTRL_SWITCH" ;
@@ -1973,7 +1975,21 @@ AST_type::ASTP parseExpression(std::istream &is, int &linecount,
   if(expr == 0) // If no valid expression then return null
     return expr ;
 
-  return parseExpressionOperator(expr,is,linecount,fileName,typemap,prec) ;
+  expr = parseExpressionOperator(expr,is,linecount,fileName,typemap,prec) ;
+
+  // If the result is an isolated term (not an expression operator),
+  // wrap it in OP_CONTAINS so that every expression is an AST_exprOper
+  // and the variable-renaming visitors can handle it uniformly.
+  if(expr != 0 && !ASTEqual(expr, AST_type::elementType::ND_SYNTAXERR)) {
+    CPTR<AST_exprOper> test = CPTR<AST_exprOper>(expr) ;
+    if(test == 0) {
+      CPTR<AST_exprOper> wrapper = new AST_exprOper ;
+      wrapper->nodeType = nodeTypes::OP_CONTAINS ;
+      wrapper->terms.push_back(expr) ;
+      expr = AST_type::ASTP(wrapper) ;
+    }
+  }
+  return expr ;
 
 }
 
@@ -2327,23 +2343,33 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
       //--------------------------------------------------------------------
       // parsing for loop
       //
-      // Note for the for loop the parts will be
-      // TK_OPENPAREN
-      // initializer (semicolon included)
-      // conditional
-      // TK_SEMICOLON
-      // advance
-      // TK_CLOSEPAREN
-      // for body
-
-      ctrl->nodeType = ND_CTRL_FOR ;
+      // Two forms:
+      //   Traditional:  for ( init ; cond ; advance ) body
+      //   Range-based:  for ( decl : range-expr ) body
+      //
+      // For the traditional for loop the parts will be:
+      //   TK_OPENPAREN
+      //   initializer (semicolon included)
+      //   conditional
+      //   TK_SEMICOLON
+      //   advance
+      //   TK_CLOSEPAREN
+      //   for body
+      //
+      // For the range-based for loop the parts will be:
+      //   TK_OPENPAREN
+      //   declaration (without terminator)
+      //   TK_COLON
+      //   range expression
+      //   TK_CLOSEPAREN
+      //   for body
 
       token = getToken(is,linecount) ;
       if(!ASTEqual(token,TK_OPENPAREN)) {
 	pushToken(token) ;
 	return AST_type::ASTP(new AST_syntaxError("for expecting '('",token->lineno,fileName)) ;
       }
-      ctrl->parts.push_back(AST_type::ASTP(token)) ;
+      CPTR<AST_Token> openParen = token ;
       token = getToken(is,linecount) ;
 #ifdef VERBOSE
       cerr << "for loop parsed TK_OPEN_PAREN, next token = " << OPtoName(token->nodeType)
@@ -2353,6 +2379,9 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
 
       AST_type::ASTP initializer = 0 ;
       if(ASTEqual(token,TK_SEMICOLON)) {
+        // Empty initializer in traditional for loop
+        ctrl->nodeType = ND_CTRL_FOR ;
+        ctrl->parts.push_back(AST_type::ASTP(openParen)) ;
         initializer = AST_type::ASTP(token) ;
       } else {
         CPTR<AST_Token> token2 = getToken(is,linecount) ;
@@ -2369,15 +2398,184 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
           isDeclaration = false ;
         }
            
-        pushToken(token2) ;
-	pushToken(token) ;
+        // For a declaration context, scan ahead to distinguish
+        // range-based for (colon before semicolon) from traditional for.
+        bool isRangeFor = false ;
+        if(isDeclaration) {
+          // Look ahead for ':' before ';' at parenthesis depth 0
+          std::vector<CPTR<AST_Token>> lookahead ;
+          lookahead.push_back(token) ;
+          lookahead.push_back(token2) ;
+          int depth = 0 ;
+          bool found = false ;
+          while(!found) {
+            CPTR<AST_Token> la = getToken(is,linecount) ;
+            lookahead.push_back(la) ;
+            if(ASTEqual(la,TK_OPENPAREN) || ASTEqual(la,TK_OPENBRACE) ||
+               ASTEqual(la,TK_OPENBRACKET))
+              depth++ ;
+            else if(ASTEqual(la,TK_CLOSEPAREN) || ASTEqual(la,TK_CLOSEBRACE) ||
+                    ASTEqual(la,TK_CLOSEBRACKET)) {
+              if(depth > 0) depth-- ;
+              else {
+                // Hit the closing paren of the for statement
+                found = true ;
+              }
+            }
+            else if(depth == 0 && ASTEqual(la,TK_COLON)) {
+              isRangeFor = true ;
+              found = true ;
+            }
+            else if(depth == 0 && ASTEqual(la,TK_SEMICOLON)) {
+              found = true ;
+            }
+          }
+          // Push all lookahead tokens back in reverse order
+          for(int i = lookahead.size()-1; i >= 0; --i)
+            pushToken(lookahead[i]) ;
+        } else {
+          pushToken(token2) ;
+          pushToken(token) ;
+        }
 
-        if(isDeclaration)
-          initializer =
-            parseDeclaration(is,linecount,fileName,ctrl->identifiers) ;
-        else
-          initializer =
-            parseSimpleStatement(is,linecount,fileName,ctrl->identifiers) ;
+        if(isRangeFor) {
+          //--------------------------------------------------------------
+          // Range-based for loop: for ( decl : range-expr ) body
+          //--------------------------------------------------------------
+          ctrl->nodeType = ND_CTRL_FOR_RANGE ;
+          ctrl->parts.push_back(AST_type::ASTP(openParen)) ;
+
+          // Parse the declaration (type + declarator) without the
+          // terminator.  parseDeclaration expects ';' at the end, so
+          // we parse the type specifier and declarator here directly.
+          CPTR<AST_declaration> rangeDecl = new AST_declaration ;
+          token = getToken(is,linecount) ;
+          bool istype = true ;
+          bool builtin_type = false ;
+          bool defined_type = false ;
+          do {
+            switch(token->nodeType) {
+            case TK_CONST:
+            case TK_VOLATILE:
+              rangeDecl->type_decl.push_back(AST_type::ASTP(token)) ;
+              break ;
+            case TK_CHAR: case TK_FLOAT: case TK_DOUBLE: case TK_INT:
+            case TK_VOID: case TK_BOOL: case TK_SHORT: case TK_LONG:
+            case TK_SIGNED: case TK_UNSIGNED: case TK_AUTO:
+            case TK_STRUCT: case TK_CLASS:
+              builtin_type = true ;
+              rangeDecl->type_decl.push_back(AST_type::ASTP(token)) ;
+              break ;
+            case TK_SCOPE:
+            case TK_NAME:
+              if(builtin_type || defined_type) {
+                istype = false ;
+              } else {
+                pushToken(token) ;
+                AST_type::ASTP typedec =
+                  parseIdentifier(is,linecount,fileName,ctrl->identifiers) ;
+                defined_type = true ;
+                rangeDecl->type_decl.push_back(typedec) ;
+              }
+              break ;
+            default:
+              istype = false ;
+              break ;
+            }
+            if(istype)
+              token = getToken(is,linecount) ;
+          } while(istype) ;
+
+          // Parse pointer/reference qualifiers and the variable name
+          while(ASTEqual(token,TK_TIMES) || ASTEqual(token,TK_AND)) {
+            rangeDecl->decls.push_back(AST_type::ASTP(token)) ;
+            token = getToken(is,linecount) ;
+            if(ASTEqual(token,TK_CONST)) {
+              rangeDecl->decls.push_back(AST_type::ASTP(token)) ;
+              token = getToken(is,linecount) ;
+            }
+          }
+          if(ASTEqual(token,TK_NAME)) {
+            ctrl->identifiers[token->text] = localIdentifier() ;
+            rangeDecl->decl_varnames.push_back(token->text) ;
+            rangeDecl->decls.push_back(AST_type::ASTP(token)) ;
+          } else {
+            return AST_type::ASTP(new AST_syntaxError(
+              "Expected variable name in range-based for",
+              token->lineno,fileName)) ;
+          }
+          ctrl->parts.push_back(AST_type::ASTP(rangeDecl)) ;
+
+          // Expect ':'
+          token = getToken(is,linecount) ;
+          if(!ASTEqual(token,TK_COLON)) {
+            pushToken(token) ;
+            return AST_type::ASTP(new AST_syntaxError(
+              "Expected ':' in range-based for",token->lineno,fileName)) ;
+          }
+          ctrl->parts.push_back(AST_type::ASTP(token)) ;
+
+          // Parse range expression
+          AST_type::ASTP rangeExpr = parseExpression(is,linecount,fileName,
+                                                     ctrl->identifiers) ;
+          ctrl->parts.push_back(rangeExpr) ;
+
+          // Expect ')'
+          token = getToken(is,linecount) ;
+          if(!ASTEqual(token,TK_CLOSEPAREN)) {
+            pushToken(token) ;
+            return AST_type::ASTP(new AST_syntaxError(
+              "Expected ')' in range-based for",token->lineno,fileName)) ;
+          }
+          ctrl->parts.push_back(AST_type::ASTP(token)) ;
+
+          // Parse loop body
+          AST_type::ASTP body = parseStatement(is,linecount,fileName,
+                                               ctrl->identifiers) ;
+          ctrl->parts.push_back(body) ;
+          return AST_type::ASTP(ctrl) ;
+        }
+
+        if(!isDeclaration) {
+          // Tokens were already pushed back above for the non-declaration case
+        } else {
+          // isDeclaration && !isRangeFor: tokens already pushed back
+        }
+      }
+
+      //--------------------------------------------------------------
+      // Traditional for loop: for ( init ; cond ; advance ) body
+      //--------------------------------------------------------------
+      ctrl->nodeType = ND_CTRL_FOR ;
+      ctrl->parts.push_back(AST_type::ASTP(openParen)) ;
+
+      if(initializer == 0) {
+        // Need to determine isDeclaration again since we consumed
+        // those tokens in the look-ahead path.  But they were pushed
+        // back, so re-read them.
+        token = getToken(is,linecount) ;
+        if(ASTEqual(token,TK_SEMICOLON)) {
+          initializer = AST_type::ASTP(token) ;
+        } else {
+          CPTR<AST_Token> token2 = getToken(is,linecount) ;
+          bool isDecl = true ;
+          if(ASTEqual(token,TK_NAME) &&
+             !ASTEqual(token2,TK_SCOPE)) {
+            auto ii = ctrl->identifiers.find(token->text) ;
+            if(ii != ctrl->identifiers.end() && ii->second.isLocalIdentifier())
+              isDecl = false ;
+          }
+          if(checkUnaryToken(token) || ASTEqual(token,TK_OPENPAREN))
+            isDecl = false ;
+          pushToken(token2) ;
+          pushToken(token) ;
+          if(isDecl)
+            initializer =
+              parseDeclaration(is,linecount,fileName,ctrl->identifiers) ;
+          else
+            initializer =
+              parseSimpleStatement(is,linecount,fileName,ctrl->identifiers) ;
+        }
       }
 #ifdef VERBOSE
       cerr << "initializer = " << OPtoName(initializer->nodeType)
@@ -3333,6 +3531,11 @@ void AST_simplePrint::visit(AST_exprOper &s) {
       s.terms[1]->accept(*this) ;
     break ;
   case OP_TEMPLATE_CAST:
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+    break ;
+  case OP_CONTAINS:
     for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
       if(*ii != 0)
 	(*ii)->accept(*this) ;

@@ -1,4 +1,3 @@
-
 //#############################################################################
 //#
 //# Copyright 2008-2025, Mississippi State University
@@ -1645,7 +1644,7 @@ void AST_printTree::visit(AST_exprOper &s) {
 
     pushindent(s) ;
     out << '(' ;
-    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     }
@@ -1657,7 +1656,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     {
       pushindent(s) ;
       out << '(' ;
-      AST_type::ASTList::iterator ii = s.terms.begin() ;
+      auto ii = s.terms.begin() ;
       if(ii != s.terms.end() && *ii != 0)
         (*ii)->accept(*this) ;
       out << ')' ;
@@ -1669,7 +1668,15 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_TEMPLATE_CAST:
     pushindent(s) ;
-    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+    }
+    popindent() ;
+    break ;
+  case OP_CONTAINS:
+    pushindent(s) ;
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     }
@@ -1679,8 +1686,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     {
       pushindent(s) ;
       out << '{' ;
-      for(AST_type::ASTList::iterator ii = s.terms.begin();
-          ii != s.terms.end(); ++ii)
+      for(auto ii = s.terms.begin(); ii != s.terms.end(); ++ii)
         if(*ii != 0)
           (*ii)->accept(*this) ;
       out << '}' ;
@@ -1689,7 +1695,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_FUNC:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       FATAL(ii == s.terms.end()) ;
       out << "[[" ;
@@ -1714,7 +1720,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_TEMPLATE:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       FATAL(ii == s.terms.end()) ;
       out << "[[" ;
@@ -1738,7 +1744,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_ARRAY:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       if(*ii != 0)
 	(*ii)->accept(*this) ;
@@ -1758,7 +1764,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_TERNARY:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       if(*ii != 0)
 	(*ii)->accept(*this) ;
@@ -1779,7 +1785,7 @@ void AST_printTree::visit(AST_exprOper &s) {
   case OP_DECREMENT:
     {
       pushindent(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
       popindent() ;
@@ -1789,7 +1795,7 @@ void AST_printTree::visit(AST_exprOper &s) {
   case OP_POSTDECREMENT:
     {
       pushindent(s) ; 
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
       popindent() ;
@@ -1798,10 +1804,9 @@ void AST_printTree::visit(AST_exprOper &s) {
   default:
     {
       pushindent(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();) {
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
-	++ii ;
       }
       popindent() ;
     }
@@ -1969,6 +1974,7 @@ public:
   virtual void visit(AST_exprOper &) ;
 } ;
 
+
 void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;
   
@@ -2127,8 +2133,6 @@ public:
 
   virtual void visit(AST_exprOper &) ;
 } ;
-
-
 
 void AST_editGPULociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;
