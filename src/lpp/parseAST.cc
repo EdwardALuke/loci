@@ -2381,7 +2381,6 @@ AST_type::ASTP parseLoopStatement(std::istream &is, int &linecount,
       if(ASTEqual(token,TK_SEMICOLON)) {
         // Empty initializer in traditional for loop
         ctrl->nodeType = ND_CTRL_FOR ;
-        ctrl->parts.push_back(AST_type::ASTP(openParen)) ;
         initializer = AST_type::ASTP(token) ;
       } else {
         CPTR<AST_Token> token2 = getToken(is,linecount) ;

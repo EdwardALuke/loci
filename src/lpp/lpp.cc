@@ -771,6 +771,7 @@ bool get_block(
           err << "unexpected end of block" ;
           return false ;
         }
+        ch = is.get() ;
         contents += ch ;
       } else if(contents.back() == '\'') {
         state = State::Code ;
