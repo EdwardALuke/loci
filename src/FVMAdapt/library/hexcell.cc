@@ -133,6 +133,47 @@ void HexCell::resplit(int level,
 
 
 
+bool HexCell::getLeafDepths(std::vector<int>& depths) const {
+  depths.clear() ;
+  std::queue<std::pair<const HexCell*, int> > pending ;
+  pending.push(std::make_pair(this, 0)) ;
+  while(!pending.empty()) {
+    const HexCell* cell = pending.front().first ;
+    const int depth = pending.front().second ;
+    pending.pop() ;
+    if(cell->numChildren() == 0) {
+      if(cell->getCellIndex() != depths.size()+1)
+        return false ;
+      depths.push_back(depth) ;
+    } else {
+      for(int child = 0; child < cell->numChildren(); ++child)
+        pending.push(std::make_pair(cell->getChildCell(child), depth+1)) ;
+    }
+  }
+  return true ;
+}
+
+bool HexCell::getLeafDepths(const std::vector<char>& cellPlan, std::vector<int>& depths) const {
+  depths.clear() ;
+  std::queue<int> pending ;
+  pending.push(0) ;
+  size_t index = 0 ;
+  while(!pending.empty()) {
+    const int depth = pending.front() ;
+    pending.pop() ;
+    const char code = index < cellPlan.size() ? cellPlan[index++] : 0 ;
+    if(code == 0) {
+      depths.push_back(depth) ;
+    } else {
+      const int children = numChildren(code) ;
+      if(children < 0) return false ;
+      for(int child = 0; child < children; ++child)
+        pending.push(depth+1) ;
+    }
+  }
+  return true ;
+}
+
 //this function will return num_fine_cells
 //this function will not set mysplitcode unless the splitCode got from cellPlan
 //is nonzero, and the the current cell from Q is never split

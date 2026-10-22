@@ -1,0 +1,185 @@
+//#############################################################################
+//#
+//# Copyright 2008-2026, Mississippi State University
+//#
+//# This file is part of the Loci Framework.
+//#
+//# The Loci Framework is free software: you can redistribute it and/or modify
+//# it under the terms of the Lesser GNU General Public License as published by
+//# the Free Software Foundation, either version 3 of the License, or
+//# (at your option) any later version.
+//#
+//# The Loci Framework is distributed in the hope that it will be useful,
+//# but WITHOUT ANY WARRANTY; without even the implied warranty of
+//# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//# Lesser GNU General Public License for more details.
+//#
+//# You should have received a copy of the Lesser GNU General Public License
+//# along with the Loci Framework.  If not, see <http://www.gnu.org/licenses>
+//#
+//#############################################################################
+
+#include <algorithm>
+#include <cmath>
+#include <list>
+#include <set>
+#include <vector>
+
+#include <Loci.h>
+#include "diamondcell.h"
+#include "hexcell.h"
+#include "prism.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+namespace {
+  /// Measure endpoint distances without descending into edge children.
+  template<class Iterator>
+  void append_edge_lengths(Iterator first, Iterator last,
+                           std::vector<double>& lengths,
+                           std::vector<double>& lengthsXY) {
+    double longest = 0, longestXY = 0 ;
+    for(; first != last; ++first) {
+      const vect3d delta = (*first)->head->p - (*first)->tail->p ;
+      const double xy = std::hypot(delta.x, delta.y) ;
+      const double length = std::hypot(xy, delta.z) ;
+      if(!std::isfinite(length)) {
+        std::cerr << "Nonfinite cell edge length" << std::endl ;
+        Loci::Abort() ;
+      }
+      longest = std::max(longest, length) ;
+      longestXY = std::max(longestXY, xy) ;
+    }
+    if(longest == 0) {
+      std::cerr << "Cell has no nonzero edges" << std::endl ;
+      Loci::Abort() ;
+    }
+    lengths.push_back(longest) ;
+    lengthsXY.push_back(longestXY) ;
+  }
+}
+
+//-----------------------------------------------------------------------------
+// Hex cells
+//-----------------------------------------------------------------------------
+
+/// Measure final hex leaves, including roots whose neighbors split their faces.
+$rule pointwise(fineMaxEdgeLength, fineMaxEdgeLengthXY <- balancedCellPlan,
+  (hex2face, hex2node, hexOrientCode),
+  (lower, upper, boundary_map)->(fileNumber(face2node), balancedFacePlan),
+  (lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+  (lower, upper, boundary_map)->face2node->pos,
+  (lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(hexcells) {
+  std::list<Node*> boundaryNodes, innerNodes ;
+  std::list<Edge*> edges ;
+  std::list<QuadFace*> faces ;
+  HexCell* cell = build_hex_cell($lower.begin(), $lower.size(),
+    $upper.begin(), $upper.size(), $boundary_map.begin(), $boundary_map.size(),
+    $hex2face, $hex2node, $hexOrientCode, $*face2node, $*face2edge, $*edge2node,
+    $*pos, $*balancedEdgePlan, $*balancedFacePlan, boundaryNodes, edges, faces,
+    $*fileNumber(face2node)) ;
+  std::vector<HexCell*> leaves ;
+  cell->resplit($balancedCellPlan, innerNodes, edges, faces, leaves) ;
+  // An empty leaf vector represents the unsplit root.
+  if(leaves.empty()) leaves.push_back(cell) ;
+
+  $fineMaxEdgeLength.clear() ;
+  $fineMaxEdgeLengthXY.clear() ;
+  $fineMaxEdgeLength.reserve(leaves.size()) ;
+  $fineMaxEdgeLengthXY.reserve(leaves.size()) ;
+  for(HexCell* leaf : leaves) {
+    const std::vector<Edge*> ownEdges = leaf->get_edges() ;
+    append_edge_lengths(ownEdges.begin(), ownEdges.end(),
+                        $fineMaxEdgeLength, $fineMaxEdgeLengthXY) ;
+  }
+  delete cell ;
+  cleanup_list(boundaryNodes, edges, faces) ;
+  cleanup_list(innerNodes) ;
+}
+
+//-----------------------------------------------------------------------------
+// Prism cells
+//-----------------------------------------------------------------------------
+
+/// Measure final prism leaves using their end-face and axial edges.
+$rule pointwise(fineMaxEdgeLength, fineMaxEdgeLengthXY <- balancedCellPlan,
+  (prism2face, prism2node, prismOrientCode),
+  (lower, upper, boundary_map)->(fileNumber(face2node), balancedFacePlan),
+  (lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+  (lower, upper, boundary_map)->face2node->pos,
+  (lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(prisms) {
+  std::list<Node*> boundaryNodes, innerNodes ;
+  std::list<Edge*> edges ;
+  std::list<QuadFace*> quadFaces ;
+  std::list<Face*> endFaces ;
+  Prism* cell = build_prism_cell($lower.begin(), $lower.size(),
+    $upper.begin(), $upper.size(), $boundary_map.begin(), $boundary_map.size(),
+    $prism2face, $prism2node, $prismOrientCode, $*face2node, $*face2edge, $*edge2node,
+    $*pos, $*balancedEdgePlan, $*balancedFacePlan, boundaryNodes, edges, quadFaces,
+    endFaces, $*fileNumber(face2node)) ;
+  std::vector<Prism*> leaves ;
+  cell->resplit($balancedCellPlan, innerNodes, edges, quadFaces, endFaces, leaves) ;
+  // An empty leaf vector represents the unsplit root.
+  if(leaves.empty()) leaves.push_back(cell) ;
+
+  $fineMaxEdgeLength.clear() ;
+  $fineMaxEdgeLengthXY.clear() ;
+  $fineMaxEdgeLength.reserve(leaves.size()) ;
+  $fineMaxEdgeLengthXY.reserve(leaves.size()) ;
+  for(Prism* leaf : leaves) {
+    const std::vector<Edge*> ownEdges = leaf->get_edges() ;
+    append_edge_lengths(ownEdges.begin(), ownEdges.end(),
+                        $fineMaxEdgeLength, $fineMaxEdgeLengthXY) ;
+  }
+  delete cell ;
+  cleanup_list(boundaryNodes, edges, quadFaces) ;
+  cleanup_list(endFaces) ;
+  cleanup_list(innerNodes) ;
+}
+
+//-----------------------------------------------------------------------------
+// General cells
+//-----------------------------------------------------------------------------
+
+/// Measure an intact general cell or the diamond-cell leaves of its plan.
+$rule pointwise(fineMaxEdgeLength, fineMaxEdgeLengthXY <- balancedCellPlan,
+  (lower, upper, boundary_map)->(balancedFacePlan, is_quadface),
+  (lower, upper, boundary_map)->face2edge->balancedEdgePlan,
+  (lower, upper, boundary_map)->face2node->(pos, fileNumber(pos)),
+  (lower, upper, boundary_map)->face2edge->edge2node->pos),
+constraint(gnrlcells) {
+  std::list<Node*> boundaryNodes, innerNodes ;
+  std::list<Edge*> edges ;
+  std::list<Face*> faces ;
+  Cell* cell = build_general_cell($lower.begin(), $lower.size(),
+    $upper.begin(), $upper.size(), $boundary_map.begin(), $boundary_map.size(),
+    $*is_quadface, $*face2node, $*face2edge, $*edge2node, $*pos,
+    $*balancedEdgePlan, $*balancedFacePlan, boundaryNodes, edges, faces,
+    $*fileNumber(pos)) ;
+  std::vector<DiamondCell*> leaves ;
+  cell->resplit($balancedCellPlan, innerNodes, edges, faces, leaves) ;
+
+  $fineMaxEdgeLength.clear() ;
+  $fineMaxEdgeLengthXY.clear() ;
+  // An empty leaf vector represents the unsplit root.
+  const size_t count = leaves.empty() ? 1 : leaves.size() ;
+  $fineMaxEdgeLength.reserve(count) ;
+  $fineMaxEdgeLengthXY.reserve(count) ;
+  if(leaves.empty()) {
+    append_edge_lengths(cell->edge, cell->edge+cell->numEdge,
+                        $fineMaxEdgeLength, $fineMaxEdgeLengthXY) ;
+  } else {
+    for(DiamondCell* leaf : leaves) {
+      std::set<Edge*> ownEdges ;
+      leaf->get_edges(ownEdges) ;
+      append_edge_lengths(ownEdges.begin(), ownEdges.end(),
+                          $fineMaxEdgeLength, $fineMaxEdgeLengthXY) ;
+    }
+  }
+  delete cell ;
+  cleanup_list(boundaryNodes, edges, faces) ;
+  cleanup_list(innerNodes) ;
+}

@@ -380,8 +380,6 @@ namespace Loci {
       maxStateSize = max( maxStateSize, stateSize );
     }
 
-    typename schema_traits::Converter_Base_Type *inbuf;
-
     int typesize = sizeof(typename schema_traits::Converter_Base_Type);
 
     std::vector<typename schema_traits::Converter_Base_Type> inbuf(maxStateSize);

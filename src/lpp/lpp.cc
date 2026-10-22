@@ -1,4 +1,3 @@
-
 //#############################################################################
 //#
 //# Copyright 2008-2025, Mississippi State University
@@ -772,6 +771,7 @@ bool get_block(
           err << "unexpected end of block" ;
           return false ;
         }
+        ch = is.get() ;
         contents += ch ;
       } else if(contents.back() == '\'') {
         state = State::Code ;
@@ -1645,7 +1645,7 @@ void AST_printTree::visit(AST_exprOper &s) {
 
     pushindent(s) ;
     out << '(' ;
-    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     }
@@ -1657,7 +1657,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     {
       pushindent(s) ;
       out << '(' ;
-      AST_type::ASTList::iterator ii = s.terms.begin() ;
+      auto ii = s.terms.begin() ;
       if(ii != s.terms.end() && *ii != 0)
         (*ii)->accept(*this) ;
       out << ')' ;
@@ -1669,7 +1669,15 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_TEMPLATE_CAST:
     pushindent(s) ;
-    for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii) {
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
+      if(*ii != 0)
+	(*ii)->accept(*this) ;
+    }
+    popindent() ;
+    break ;
+  case OP_CONTAINS:
+    pushindent(s) ;
+    for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
       if(*ii != 0)
 	(*ii)->accept(*this) ;
     }
@@ -1679,8 +1687,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     {
       pushindent(s) ;
       out << '{' ;
-      for(AST_type::ASTList::iterator ii = s.terms.begin();
-          ii != s.terms.end(); ++ii)
+      for(auto ii = s.terms.begin(); ii != s.terms.end(); ++ii)
         if(*ii != 0)
           (*ii)->accept(*this) ;
       out << '}' ;
@@ -1689,7 +1696,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_FUNC:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       FATAL(ii == s.terms.end()) ;
       out << "[[" ;
@@ -1714,7 +1721,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_TEMPLATE:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       FATAL(ii == s.terms.end()) ;
       out << "[[" ;
@@ -1738,7 +1745,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_ARRAY:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       if(*ii != 0)
 	(*ii)->accept(*this) ;
@@ -1758,7 +1765,7 @@ void AST_printTree::visit(AST_exprOper &s) {
     break ;
   case OP_TERNARY:
     {
-      AST_type::ASTList::iterator ii=s.terms.begin() ;
+      auto ii=s.terms.begin() ;
       pushindent(s) ;
       if(*ii != 0)
 	(*ii)->accept(*this) ;
@@ -1779,7 +1786,7 @@ void AST_printTree::visit(AST_exprOper &s) {
   case OP_DECREMENT:
     {
       pushindent(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
       popindent() ;
@@ -1789,7 +1796,7 @@ void AST_printTree::visit(AST_exprOper &s) {
   case OP_POSTDECREMENT:
     {
       pushindent(s) ; 
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();++ii)
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii)
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
       popindent() ;
@@ -1798,10 +1805,9 @@ void AST_printTree::visit(AST_exprOper &s) {
   default:
     {
       pushindent(s) ;
-      for(AST_type::ASTList::iterator ii=s.terms.begin();ii!=s.terms.end();) {
+      for(auto ii=s.terms.begin();ii!=s.terms.end();++ii) {
 	if(*ii != 0)
 	  (*ii)->accept(*this) ;
-	++ii ;
       }
       popindent() ;
     }
@@ -1969,6 +1975,7 @@ public:
   virtual void visit(AST_exprOper &) ;
 } ;
 
+
 void AST_editLociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;
   
@@ -2127,8 +2134,6 @@ public:
 
   virtual void visit(AST_exprOper &) ;
 } ;
-
-
 
 void AST_editGPULociVariableAccess::visit(AST_exprOper &op) {
   using namespace nodeTypes ;
@@ -4203,7 +4208,8 @@ void parseFile::process_and_validate_rule_info(
   variableSet named_stores = input_stores ;
   named_stores += output_stores ;
   for(auto ipi = inplace_pairs.begin(); ipi != inplace_pairs.end(); ++ipi) {
-    named_stores -= ipi->first ;
+    if(!input_stores.inSet(ipi->first))
+      named_stores -= ipi->first ;
   }
 
   bool paramOutput = false ;
@@ -4581,10 +4587,19 @@ void parseFile::process_and_validate_rule_info(
   // the source variable ;
   for(auto ipi = inplace_pairs.begin(); ipi != inplace_pairs.end(); ++ipi) {
     vnames[ipi->first] = vnames[ipi->second] ;
-    typetable[ipi->first] = typetable[ipi->second] ;
+    if(!input_stores.inSet(ipi->first))
+      typetable[ipi->first] = typetable[ipi->second] ;
     ctypetable[ipi->first] = ctypetable[ipi->second] ;
     cargtable[ipi->first] = cargtable[ipi->second] ;
     rargtable[ipi->first] = rargtable[ipi->second] ;
+  }
+
+  // Recursive inplace inputs need their own read-only handle for registration.
+  // The rule body still uses the writable alias; both bind to the same storage.
+  map<variable,string> store_names = vnames ;
+  for(auto ipi = inplace_pairs.begin(); ipi != inplace_pairs.end(); ++ipi) {
+    if(input_stores.inSet(ipi->first))
+      store_names[ipi->first] = var2name(ipi->first) ;
   }
 
   // calculate name of the rule class
@@ -4950,7 +4965,7 @@ void parseFile::process_and_validate_rule_info(
     for(auto vi = input_stores.begin(); vi != input_stores.end(); ++vi) {
       DictionaryTemplateValue ctx ;
       ctx["name"] = (*vi).str() ;
-      ctx["vname"] = vnames[*vi] ;
+      ctx["vname"] = store_names[*vi] ;
       ctx["ctype"] = ctypetable[*vi] ;
       ctx["vtype"] = typetable[*vi] ;
       ctx["carg"] = cargtable[*vi] ;
@@ -4981,7 +4996,7 @@ void parseFile::process_and_validate_rule_info(
     for(auto vi = named_stores.begin(); vi != named_stores.end(); ++vi) {
       DictionaryTemplateValue ctx ;
       ctx["name"] = (*vi).str() ;
-      ctx["vname"] = vnames[*vi] ;
+      ctx["vname"] = store_names[*vi] ;
 
       auto mi = access_map.find(lookupVarType(*vi)->second.getFileLoc()) ;
       if(mi != access_map.end()) {
@@ -5753,6 +5768,12 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
   }
   variableSet ins = input ;
   ins -= outs ;
+  // Keep recursive input registration distinct from the writable inplace alias.
+  map<variable,string> store_names = vnames ;
+  for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
+    if(ins.inSet(ipi->first))
+      store_names[ipi->first] = var2name(ipi->first) ;
+  }
   for(auto vi=ins.begin();vi!=ins.end();++vi) {
     auto mi = lookupVarType(*vi) ;
     if(!checkTypeValid(mi)) {
@@ -5765,7 +5786,7 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
     else 
       outputFile << "    const_" << mi->second.container
 		 <<  mi->second.container_args ;
-    outputFile << " " << vnames[*vi] << " ; " << endl ;
+    outputFile << " " << store_names[*vi] << " ; " << endl ;
     syncFile(outputFile) ;
   }
   bool output_param = false ;
@@ -5792,12 +5813,13 @@ void parseFile::setup_Rule(std::ostream &outputFile, const string &comment,
   outputFile <<   "    " << class_name << "() {" << endl ;
   syncFile(outputFile) ;
   for(auto ipi=inplace.begin();ipi!=inplace.end();++ipi) {
-    all_vars -= ipi->first ;
+    if(!ins.inSet(ipi->first))
+      all_vars -= ipi->first ;
   }
 
   for(auto vi=all_vars.begin();vi!=all_vars.end();++vi) {
     outputFile << "       name_store(\"" << *vi << "\","
-               << vnames[*vi] << ") ;" << endl ;
+               << store_names[*vi] << ") ;" << endl ;
     syncFile(outputFile) ;
     auto mi = access_map.find(lookupVarType(*vi)->second.getFileLoc()) ;
     if(mi != access_map.end()) {

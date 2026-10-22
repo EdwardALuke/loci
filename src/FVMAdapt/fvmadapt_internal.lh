@@ -21,6 +21,22 @@
 
 // Internal fact types shared by FVMAdapt rules.
 
+$include "FVMAdapt/fvmadapt.lh"
+
+/// Final leaf depths for each original cell, in fine-cell index order.
+$type fineCellDepth store<std::vector<int> > ;
+
+/// Last adaptation's result for each leaf, in fine-cell index order.
+$type fineCellChange store<std::vector<int> > ;
+
+/// Final leaf edge lengths for each original cell, in fine-cell index order.
+$type fineMaxEdgeLength store<std::vector<double> > ;
+$type fineMaxEdgeLengthXY store<std::vector<double> > ;
+
+/// Base-mesh file number of each original cell.
+$type planRootFileNumber store<int> ;
+$type firstGeomCellFileNumber param<int> ;
+
 // Cell and face classification
 
 /// Cells handled by the general, hexahedral, and prism adaptation paths.
@@ -177,3 +193,16 @@ $type inner_nodes_edge store<Loci::FineNodes> ;
 /// Fine faces created inside refined cells and from original mesh faces.
 $type fine_faces_cell store<Loci::FineFaces> ;
 $type fine_faces store<Loci::FineFaces> ;
+
+/// Enable recording while the refined face trees are available.
+$type recordFaceHistory param<bool> ;
+$type faceHistoryEnabled Constraint ;
+$type faceHistoryDisabled Constraint ;
+#include <FVMAdapt/face_history_internal.h>
+/// Optional face patches in the same order as the generated faces.
+$type fine_face_patches store<Loci::FacePatches> ;
+$type fine_face_patches_cell store<Loci::FacePatches> ;
+/// Base-mesh file number of each original face.
+$type planFaceFileNumber store<int> ;
+/// Offset from cell file numbering to base-mesh numbering.
+$type planCellFileOffset param<std::int64_t> ;
