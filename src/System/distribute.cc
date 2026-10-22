@@ -1679,5 +1679,108 @@ namespace Loci {
     }
   }
 
+  storeRepP redistribute_container(storeRepP sp,
+				   std::vector<entitySet> &dom_ptn,
+				   MPI_Comm comm) {
+    entitySet dom = sp->domain() ;
+    // figure out how the domain is split to send to others
+    int np ;
+    MPI_Comm_size(comm, &np) ;
+    FATAL(size_t(np) != dom_ptn.size()) ;
+    entitySet total_dom ;
+    std::vector<entitySet> dom_split(np) ;
+    for(int i=0;i<np;++i) {
+      dom_split[i] = dom & dom_ptn[i] ;
+      total_dom += dom_ptn[i] ;
+    }
+
+    // compute the send_counts
+    std::vector<int> send_counts(np,0) ;
+    for(int i=0;i<np;++i)
+      send_counts[i] = sp->pack_size(dom_split[i]) ;
+
+    std::vector<int> send_displs(np,0) ;
+    for(int i=1;i<np;++i)
+      send_displs[i] = send_displs[i-1] + send_counts[i-1] ;
+
+    // communicate to get the receive counts
+    std::vector<int> recv_counts(np,0) ;
+    MPI_Alltoall(send_counts.data(), 1, MPI_INT,
+                 recv_counts.data(), 1, MPI_INT, comm) ;
+
+    std::vector<int> recv_displs(np,0) ;
+    for(int i=1;i<np;++i)
+      recv_displs[i] = recv_displs[i-1] + recv_counts[i-1] ;
+
+    // then pack the buffer
+    int tot_send_size = 0 ;
+    for(int i=0;i<np;++i)
+      tot_send_size += send_counts[i] ;
+
+    std::vector<unsigned char> send_buffer(tot_send_size) ;
+    std::vector<unsigned char*> send_ptr(np) ;
+    send_ptr[0] = send_buffer.data() ;
+    for(int i=1;i<np;++i)
+      send_ptr[i] = send_ptr[i-1] + send_counts[i-1] ;
+
+    for(int i=0;i<np;++i) {
+      int position = 0 ;
+      sp->pack(send_ptr[i], position, send_counts[i], dom_split[i]) ;
+    }
+
+    ///////////////////////////////////////////////////////////////
+    // compute the receive sequence for proper unpacking
+    // this involves another MPI_Alltoallv
+    std::vector<sequence> pack_seq(np) ;
+    for(int i=0;i<np;++i)
+      pack_seq[i] = sequence(dom_split[i]) ;
+
+    std::vector<sequence> unpack_seq
+      = transpose_sequence(pack_seq, comm) ;
+    // done, release useless buffers
+    std::vector<sequence>().swap(pack_seq) ;
+    ///////////////////////////////////////////////////////////////
+
+    // we now proceed to communicate the store contents
+    int tot_recv_size = 0 ;
+    for(int i=0;i<np;++i)
+      tot_recv_size += recv_counts[i] ;
+
+    std::vector<unsigned char> recv_buffer(tot_recv_size) ;
+    MPI_Alltoallv(send_buffer.data(), send_counts.data(),
+                  send_displs.data(), MPI_PACKED,
+                  recv_buffer.data(), recv_counts.data(),
+                  recv_displs.data(), MPI_PACKED, comm) ;
+
+    entitySet new_domain ;
+    for(int i=0;i<np;++i)
+      new_domain += entitySet(unpack_seq[i]) ;
+    // if there's any old domain not being redistributed,
+    // we will add it also
+    entitySet old_dom = dom - total_dom ;
+    storeRepP srp = sp->new_store(new_domain+old_dom) ;
+
+    std::vector<unsigned char*> recv_ptr(np) ;
+    recv_ptr[0] = recv_buffer.data() ;
+    for(int i=1;i<np;++i)
+      recv_ptr[i] = recv_ptr[i-1] + recv_counts[i-1] ;
+
+    // unpack
+    for(int i=0;i<np;++i) {
+      int position = 0 ;
+      srp->unpack(recv_ptr[i], position, recv_counts[i], unpack_seq[i]) ;
+    }
+
+    // copy old_dom if any
+    int self_size = sp->pack_size(old_dom) ;
+    vector<unsigned char> self_buf(self_size) ;
+    int position = 0 ;
+    sp->pack(self_buf.data(), position, self_size, old_dom) ;
+    position = 0 ;
+    srp->unpack(self_buf.data(),position,self_size,sequence(old_dom)) ;
+    
+    return srp ;
+  }
+  
   // ... the end of file ...
 } 

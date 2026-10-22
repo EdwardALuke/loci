@@ -645,6 +645,8 @@ namespace Loci {
   } ;
   
 
+  storeRepP redistribute_container(storeRepP sp, std::vector<entitySet> &dom_ptn,
+				  MPI_Comm comm) ;
 }
 
 #endif

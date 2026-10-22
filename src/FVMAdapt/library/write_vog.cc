@@ -87,6 +87,7 @@ typedef double metisreal_t ;
 #endif
 
 #endif
+#include <distribute.h>
 
 namespace Loci {
   // get cell2parent map with cells in current global numbering
@@ -888,7 +889,9 @@ namespace Loci {
       }
     } ENDFORALL ;
     dstore<Array<int,3> > received ;
-    received = records.Rep()->redistribute(grid.local_cells) ;
+    received.setRep(redistribute_container(records.Rep(),grid.local_cells,
+					   MPI_COMM_WORLD)) ;
+    //    received = records.Rep()->redistribute(grid.local_cells) ;
     const entitySet cells = grid.local_cells[MPI_rank] ;
     const int localValid = received.domain() == cells ? 1 : 0 ;
     int valid = 0 ;
@@ -942,7 +945,9 @@ namespace Loci {
       }
     } ENDFORALL ;
     dstore<Array<double,2> > received ;
-    received = records.Rep()->redistribute(grid.local_cells) ;
+    received.setRep(redistribute_container(records.Rep(),grid.local_cells,
+					   MPI_COMM_WORLD)) ;
+    //    received = records.Rep()->redistribute(grid.local_cells) ;
     const entitySet cells = grid.local_cells[MPI_rank] ;
     const int localValid = received.domain() == cells ? 1 : 0 ;
     int valid = 0 ;
