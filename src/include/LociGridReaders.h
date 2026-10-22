@@ -22,6 +22,7 @@
 #define LOCI_GRID_READERS_H
 #include <fact_db.h>
 #include <Tools/basic_types.h>
+#include <Tools/gpu_attr.h>
 #include <string>
 
 namespace Loci {
@@ -67,6 +68,7 @@ namespace Loci {
     vector3d<double> t1,t2 ;
     tensor3d<double> R,Rinv ;
 
+    GPU_DECL
     rigid_transform() {
       t1 = vector3d<double>(0,0,0) ;
       t2 = t1 ;
@@ -76,6 +78,7 @@ namespace Loci {
       Rinv = R ;
     }
 
+    GPU_DECL
     rigid_transform(vector3d<double> center, vector3d<double> v, double angle,
                     vector3d<double> translate) {
       t1 = -1.*center ;
@@ -102,14 +105,14 @@ namespace Loci {
       Rinv.z += vector3d<double>(C*x*z-y*s,C*y*z+x*s,C*(z*z-1.)) ;
     }
 
-    template<class realT> vector3d<realT> rotate_vec(vector3d<realT> v) const {
+    template<class realT> GPU_DECL vector3d<realT> rotate_vec(vector3d<realT> v) const {
       return vector3d<realT>(R.x.x*v.x+R.x.y*v.y+R.x.z*v.z,
 			     R.y.x*v.x+R.y.y*v.y+R.y.z*v.z,
 			     R.z.x*v.x+R.z.y*v.y+R.z.z*v.z) ;
       // return dot(R,v) ;
     }
 
-    template<class realT> tensor3d<realT> rotate_tensor(const tensor3d<realT> &t) const {
+    template<class realT> GPU_DECL tensor3d<realT> rotate_tensor(const tensor3d<realT> &t) const {
       tensor3d<realT> tRinv ;
       tRinv.x.x = t.x.x*Rinv.x.x+t.x.y*Rinv.y.x+t.x.z*Rinv.z.x ;
       tRinv.y.x = t.y.x*Rinv.x.x+t.y.y*Rinv.y.x+t.y.z*Rinv.z.x ;
@@ -139,7 +142,7 @@ namespace Loci {
       //      return product(R,product(t,Rinv)) ;
     }
 
-    template<class realT> vector3d<realT> transform(vector3d<realT> v) const {
+    template<class realT> GPU_DECL vector3d<realT> transform(vector3d<realT> v) const {
       const vector3d<realT> vpt1(v.x+t1.x,v.y+t1.y,v.z+t1.z) ;
       const vector3d<realT> rvpt1=rotate_vec(vpt1) ;
       return vector3d<realT>(rvpt1.x+t2.x,rvpt1.y+t2.y,rvpt1.z+t2.z) ;
