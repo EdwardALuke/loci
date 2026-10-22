@@ -469,7 +469,7 @@ namespace Loci {
   }
 
   inline GPU_DECL FAD2d erf(const FAD2d u) {
-    double ef = ::erf(u.value) ;
+    double ef = erf(u.value) ;
     double efp = (2./sqrt(M_PI))*exp(-u.value*u.value) ;
     double efpp = -2.*u.value*efp ;
     return FAD2d(ef,u.grad*efp,u.grad*u.grad*efpp+efp*u.grad2) ;
@@ -636,7 +636,7 @@ namespace Loci {
     const double strm = sqrt(uv2+1.) ;
     const double uvstrm = uv+strm ;
     const double uvstrm2 = uvstrm*uvstrm ;
-    return FAD2d(::asinh(uv), u.grad*(uv/strm+1.)/uvstrm,
+    return FAD2d(asinh(uv), u.grad*(uv/strm+1.)/uvstrm,
                  ((1. / strm - uv2 / pow(strm, 3)) / uvstrm
                   - pow(uv / strm + 1., 2) / uvstrm2)*u.grad*u.grad
                  + u.grad2*(uv / strm + 1.) / uvstrm) ;
@@ -644,10 +644,10 @@ namespace Loci {
   inline GPU_DECL FAD2d acosh(const FAD2d u) {
     const double uv = u.value ;
     const double uv2 = uv*uv ;
-    const double strm = std::sqrt(uv*uv-1.) ;
+    const double strm = sqrt(uv*uv-1.) ;
     const double uvstrm = uv+strm ;
     const double uvstrm2 = uvstrm*uvstrm ;
-    return FAD2d(::acosh(uv), u.grad*(uv/strm +1.)/uvstrm,
+    return FAD2d(acosh(uv), u.grad*(uv/strm +1.)/uvstrm,
                  ((1 / strm - uv2 / pow(strm, 3)) / uvstrm
                   - pow(uv / strm + 1., 2) / uvstrm2)*u.grad*u.grad
                  + u.grad2*(uv / strm + 1.) / uvstrm) ;
@@ -656,7 +656,7 @@ namespace Loci {
     const double uv = u.value ;
     const double uv2 = uv*uv ;
     const double factor = .5*(1./(1.+uv)+1./(1.-uv)) ;
-    return FAD2d(::atanh(uv), .5*u.grad*factor,
+    return FAD2d(atanh(uv), .5*u.grad*factor,
                  0.5*(1./ (1. - 2.*uv + uv2) -
                       1./ (1. + 2.*uv + uv2))*u.grad*u.grad + u.grad2*factor) ;
   }
@@ -1083,7 +1083,7 @@ namespace Loci {
   }
 
   inline GPU_DECL FADd erf(const FADd u) {
-    double ef = ::erf(u.value) ;
+    double ef = erf(u.value) ;
     double efp = (2./sqrt(M_PI))*exp(-u.value*u.value) ;
     return FADd(ef,u.grad*efp) ;
   }
@@ -1192,16 +1192,16 @@ namespace Loci {
   inline GPU_DECL FADd asinh(const FADd u) {
     double strm = sqrt(u.value*u.value+1.) ;
     double uvstrm = u.value+strm ;
-    return FADd(::asinh(u.value), u.grad*(u.value/strm+1.)/uvstrm) ;
+    return FADd(asinh(u.value), u.grad*(u.value/strm+1.)/uvstrm) ;
   }
   inline GPU_DECL FADd acosh(const FADd u) {
     double strm = sqrt(u.value*u.value-1.) ;
     double uvstrm = u.value+strm ;
-    return FADd(::acosh(u.value), u.grad*(u.value/strm +1.)/uvstrm) ;
+    return FADd(acosh(u.value), u.grad*(u.value/strm +1.)/uvstrm) ;
   }
   inline GPU_DECL FADd atanh(const FADd u) {
     const double uv = u.value ;
-    return FADd(::atanh(uv), .5*u.grad*(1./(1.+uv)+1./(1.-uv))) ;
+    return FADd(atanh(uv), .5*u.grad*(1./(1.+uv)+1./(1.-uv))) ;
   }
 
   inline GPU_DECL FADd operator +(const double u,const FADd v)
@@ -1649,7 +1649,7 @@ namespace Loci {
     return floor(u.value) ;
   }
   inline GPU_DECL MFADd erf(const MFADd u) {
-    double ef = ::erf(u.value) ;
+    double ef = erf(u.value) ;
     size_t s = MFADd::maxN ;
     MFADd out(ef,s) ;
     double efp = (2./sqrt(M_PI))*exp(-u.value*u.value) ;
@@ -1735,7 +1735,7 @@ namespace Loci {
     size_t s = MFADd::maxN;
     double sq = sqrt(u.value);
     MFADd out(sq,s) ;
-    for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]/::max(sq,1e-30) ;
+    for (size_t i=0; i<s; i++) out.grad[i] = 0.5*u.grad[i]/max(sq,1e-30) ;
     return out;
   }
   inline GPU_DECL MFADd pow(const MFADd k, const MFADd u) {
@@ -1826,8 +1826,8 @@ namespace Loci {
   inline GPU_DECL MFADd tanh(const MFADd u) {
     size_t s = MFADd::maxN;
     MFADd out(tanh(u.value),s);
-    double ex = exp(::min(u.value,350.0)) ;
-    double exm = exp(::min(-u.value,350.0)) ;
+    double ex = exp(min(u.value,350.0)) ;
+    double exm = exp(min(-u.value,350.0)) ;
     double dex = ex-exm ;
     double sex = ex+exm ;
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(1.-dex*dex/(sex*sex)) ;
@@ -1858,7 +1858,7 @@ namespace Loci {
 
   inline GPU_DECL MFADd asinh(const MFADd u) {
     size_t s = MFADd::maxN;
-    MFADd out(::asinh(u.value),s);
+    MFADd out(asinh(u.value),s);
     double strm = sqrt(u.value*u.value+1.) ;
     double uvstrm = u.value+strm ;
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(u.value/strm+1.)/uvstrm ;
@@ -1866,7 +1866,7 @@ namespace Loci {
   }
   inline GPU_DECL MFADd acosh(const MFADd u) {
     size_t s = MFADd::maxN;
-    MFADd out(::acosh(u.value),s);
+    MFADd out(acosh(u.value),s);
     double strm = sqrt(u.value*u.value-1.) ;
     double uvstrm = u.value+strm ;
     for (size_t i=0; i<s; i++) out.grad[i] = u.grad[i]*(u.value/strm +1.)/uvstrm ;
@@ -1875,7 +1875,7 @@ namespace Loci {
   inline GPU_DECL MFADd atanh(const MFADd u) {
     size_t s = MFADd::maxN;
     const double uv = u.value ;
-    MFADd out(::atanh(uv),s);
+    MFADd out(atanh(uv),s);
     for (size_t i=0; i<s; i++) out.grad[i] = .5*u.grad[i]*(1./(1.+uv)+1./(1.-uv)) ;
     return out;
   }
@@ -2391,15 +2391,15 @@ namespace Loci {
   }
 
   inline double ceil(const VFAD u) {
-    return std::ceil(u.data.value) ;
+    return ceil(u.data.value) ;
   }
   inline double floor(const VFAD u) {
-    return std::floor(u.data.value) ;
+    return floor(u.data.value) ;
   }
 
   inline VFAD erf(const VFAD u) {
-    double ef = ::erf(u.data.value) ;
-    double efp = (2./sqrt(M_PI))*std::exp(-u.data.value*u.data.value) ;
+    double ef = erf(u.data.value) ;
+    double efp = (2./sqrt(M_PI))*exp(-u.data.value*u.data.value) ;
     VFAD tmp ;
     tmp.data.value = ef ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2407,8 +2407,8 @@ namespace Loci {
     return tmp ;
   }
   inline VFAD sin(const VFAD u) {
-    double su = std::sin(u.data.value) ;
-    double cu = std::cos(u.data.value) ;
+    double su = sin(u.data.value) ;
+    double cu = cos(u.data.value) ;
     VFAD tmp ;
     tmp.data.value = su ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2416,8 +2416,8 @@ namespace Loci {
     return tmp ;
   }
   inline VFAD cos(const VFAD u) {
-    double su = std::sin(u.data.value) ;
-    double cu = std::cos(u.data.value) ;
+    double su = sin(u.data.value) ;
+    double cu = cos(u.data.value) ;
     VFAD tmp ;
     tmp.data.value = cu ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2426,8 +2426,8 @@ namespace Loci {
   }
   inline VFAD tan(const VFAD u) {
     VFAD tmp ;
-    tmp.data.value = std::tan(u.data.value) ;
-    double cu = std::cos(u.data.value) ;
+    tmp.data.value = tan(u.data.value) ;
+    double cu = cos(u.data.value) ;
     double rcu2 = 1./(cu*cu) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*rcu2 ;
@@ -2435,7 +2435,7 @@ namespace Loci {
   }
 
   inline VFAD exp(const VFAD u) {
-    double expu = std::exp(u.data.value) ;
+    double expu = exp(u.data.value) ;
     VFAD tmp ;
     tmp.data.value = expu ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2444,7 +2444,7 @@ namespace Loci {
   }
   inline VFAD log(const VFAD u) {
     VFAD tmp ;
-    tmp.data.value = std::log(u.data.value) ;
+    tmp.data.value = log(u.data.value) ;
     double rvalue = 1./u.data.value ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] =  u.data.grad[i]*rvalue ;
@@ -2452,8 +2452,8 @@ namespace Loci {
   }
   inline VFAD log10(const VFAD u) {
     VFAD tmp ;
-    const double logof10 = std::log(10.0);
-    tmp.data.value = std::log(u.data.value)/logof10 ;
+    const double logof10 = log(10.0);
+    tmp.data.value = log(u.data.value)/logof10 ;
     double rvalue = 1./(u.data.value*logof10) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] =  u.data.grad[i]*rvalue ;
@@ -2472,8 +2472,8 @@ namespace Loci {
   }
   /* MPGCOMMENT [05-12-2017 15:04] ---> POW */
   inline VFAD pow(const VFAD u, const int k) {
-    double pk = std::pow(u.data.value,k) ;
-    double pkm1 = std::pow(u.data.value,k-1) ;
+    double pk = pow(u.data.value,k) ;
+    double pkm1 = pow(u.data.value,k-1) ;
     VFAD tmp ;
     tmp.data.value = pk ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2481,8 +2481,8 @@ namespace Loci {
     return tmp ;
   }
   inline VFAD pow(const VFAD u, const float k) {
-    double pk = std::pow(u.data.value,k) ;
-    double pkm1 = std::pow(u.data.value,k-1) ;
+    double pk = pow(u.data.value,k) ;
+    double pkm1 = pow(u.data.value,k-1) ;
     VFAD tmp ;
     tmp.data.value = pk ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2490,8 +2490,8 @@ namespace Loci {
     return tmp ;
   }
   inline VFAD pow(const VFAD u, const double k) {
-    double pk = std::pow(u.data.value,k) ;
-    double pkm1 = std::pow(u.data.value,k-1) ;
+    double pk = pow(u.data.value,k) ;
+    double pkm1 = pow(u.data.value,k-1) ;
     VFAD tmp ;
     tmp.data.value = pk ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2499,8 +2499,8 @@ namespace Loci {
     return tmp ;
   }
   inline VFAD pow(const VFAD u, const long double k) {
-    double pk = std::pow(u.data.value,k) ;
-    double pkm1 = std::pow(u.data.value,k-1) ;
+    double pk = pow(u.data.value,k) ;
+    double pkm1 = pow(u.data.value,k-1) ;
     VFAD tmp ;
     tmp.data.value = pk ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2508,7 +2508,7 @@ namespace Loci {
     return tmp ;
   }
   inline VFAD sqrt(const VFAD u) {
-    double su = std::sqrt(u.data.value) ;
+    double su = sqrt(u.data.value) ;
     VFAD tmp ;
     tmp.data.value = su ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2516,9 +2516,9 @@ namespace Loci {
     return tmp ;
   }
   inline VFAD pow(const VFAD k, const VFAD u) {
-    double kpu = std::pow(k.data.value,u.data.value) ;
-    double kpum1 = std::pow(k.data.value,u.data.value-1.) ;
-    double logk = std::log(k.data.value) ;
+    double kpu = pow(k.data.value,u.data.value) ;
+    double kpum1 = pow(k.data.value,u.data.value-1.) ;
+    double logk = log(k.data.value) ;
     VFAD tmp ;
     tmp.data.value = kpu ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2529,8 +2529,8 @@ namespace Loci {
     //                kpu*std::log(k.data.value)*u.grad) ;
   }
   inline VFAD pow(const int k, const VFAD u) {
-    double kpu = std::pow(k,u.data.value) ;
-    double logk = std::log(k) ;
+    double kpu = pow(k,u.data.value) ;
+    double logk = log(k) ;
     VFAD tmp ;
     tmp.data.value = kpu ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2540,8 +2540,8 @@ namespace Loci {
     //    return VFAD(kpu,kpu*std::log(double(k))*u.grad) ;
   }
   inline VFAD pow(const float k, const VFAD u) {
-    double kpu = std::pow(k,u.data.value) ;
-    double logk = std::log(k) ;
+    double kpu = pow(k,u.data.value) ;
+    double logk = log(k) ;
     VFAD tmp ;
     tmp.data.value = kpu ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2551,8 +2551,8 @@ namespace Loci {
     //    return VFAD(kpu,kpu*std::log(double(k))*u.grad) ;
   }
   inline VFAD pow(const double k, const VFAD u) {
-    double kpu = std::pow(k,u.data.value) ;
-    double logk = std::log(k) ;
+    double kpu = pow(k,u.data.value) ;
+    double logk = log(k) ;
     VFAD tmp ;
     tmp.data.value = kpu ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2562,8 +2562,8 @@ namespace Loci {
     //    return VFAD(kpu,kpu*std::log(k)*u.grad) ;
   }
   inline VFAD pow(const long double k, const VFAD u) {
-    double kpu = std::pow(k,u.data.value) ;
-    double logk = std::log(k) ;
+    double kpu = pow(k,u.data.value) ;
+    double logk = log(k) ;
     VFAD tmp ;
     tmp.data.value = kpu ;
     for(int i=0;i<VFAD_SIZE;++i)
@@ -2576,9 +2576,9 @@ namespace Loci {
 
   inline VFAD sinh(const VFAD u) {
     VFAD tmp ;
-    tmp.data.value = std::sinh(u.data.value) ;
-    double expu = std::exp(u.data.value) ;
-    double expmu = std::exp(-u.data.value) ;
+    tmp.data.value = sinh(u.data.value) ;
+    double expu = exp(u.data.value) ;
+    double expmu = exp(-u.data.value) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = 0.5*u.data.grad[i]*(expu+expmu) ;
     return tmp ;
@@ -2587,9 +2587,9 @@ namespace Loci {
   }
   inline VFAD cosh(const VFAD u) {
     VFAD tmp ;
-    tmp.data.value = std::cosh(u.data.value) ;
-    double expu = std::exp(u.data.value) ;
-    double expmu = std::exp(-u.data.value) ;
+    tmp.data.value = cosh(u.data.value) ;
+    double expu = exp(u.data.value) ;
+    double expmu = exp(-u.data.value) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = 0.5*u.data.grad[i]*(expu-expmu) ;
     return tmp ;
@@ -2597,13 +2597,13 @@ namespace Loci {
     //                0.5*u.grad*(std::exp(u.data.value) - std::exp(-u.data.value))) ;
   }
   inline VFAD tanh(const VFAD u) {
-    double ex = std::exp(std::min(u.data.value,350.0)) ;
-    double exm = std::exp(std::min(-u.data.value,350.0)) ;
+    double ex = exp(min(u.data.value,350.0)) ;
+    double exm = exp(min(-u.data.value,350.0)) ;
     double dex = ex-exm ;
     double sex = ex+exm ;
     double factor = (1.-dex*dex/(sex*sex)) ;
     VFAD tmp ;
-    tmp.data.value = std::tanh(u.data.value) ;
+    tmp.data.value = tanh(u.data.value) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*factor ;
     return tmp ;
@@ -2613,8 +2613,8 @@ namespace Loci {
 
   inline VFAD asin(const VFAD u) {
     VFAD tmp ;
-    tmp.data.value = std::asin(u.data.value) ;
-    double factor = 1./std::sqrt(1.0-u.data.value*u.data.value) ;
+    tmp.data.value = asin(u.data.value) ;
+    double factor = 1./sqrt(1.0-u.data.value*u.data.value) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*factor ;
     return tmp ;
@@ -2622,8 +2622,8 @@ namespace Loci {
   }
   inline VFAD acos(const VFAD u) {
     VFAD tmp ;
-    tmp.data.value = std::acos(u.data.value) ;
-    double factor = -1./std::sqrt(1.0-u.data.value*u.data.value) ;
+    tmp.data.value = acos(u.data.value) ;
+    double factor = -1./sqrt(1.0-u.data.value*u.data.value) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*factor ;
     return tmp ;
@@ -2631,7 +2631,7 @@ namespace Loci {
   }
   inline VFAD atan(const VFAD u) {
     VFAD tmp ;
-    tmp.data.value = std::atan(u.data.value) ;
+    tmp.data.value = atan(u.data.value) ;
     double factor = 1./(1.0+u.data.value*u.data.value) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*factor ;
@@ -2644,10 +2644,10 @@ namespace Loci {
   }
 
   inline VFAD asinh(const VFAD u) {
-    double strm = std::sqrt(u.data.value*u.data.value+1.) ;
+    double strm = sqrt(u.data.value*u.data.value+1.) ;
     double uvstrm = u.data.value+strm ;
     VFAD tmp ;
-    tmp.data.value = ::asinh(u.data.value) ;
+    tmp.data.value = asinh(u.data.value) ;
     double factor = (u.data.value/strm+1.)/uvstrm ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*factor ;
@@ -2655,10 +2655,10 @@ namespace Loci {
   //return VFAD(::asinh(u.data.value), u.grad*(u.data.value/strm+1.)/uvstrm) ;
   }
   inline VFAD acosh(const VFAD u) {
-    double strm = std::sqrt(u.data.value*u.data.value-1.) ;
+    double strm = sqrt(u.data.value*u.data.value-1.) ;
     double uvstrm = u.data.value+strm ;
     VFAD tmp ;
-    tmp.data.value = ::acosh(u.data.value) ;
+    tmp.data.value = acosh(u.data.value) ;
     double factor = (u.data.value/strm +1.)/uvstrm ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*factor ;
@@ -2668,7 +2668,7 @@ namespace Loci {
   inline VFAD atanh(const VFAD u) {
     const double uv = u.data.value ;
     VFAD tmp ;
-    tmp.data.value = ::atanh(uv) ;
+    tmp.data.value = atanh(uv) ;
     double factor =  .5*(1./(1.+uv)+1./(1.-uv)) ;
     for(int i=0;i<VFAD_SIZE;++i)
       tmp.data.grad[i] = u.data.grad[i]*factor ;
