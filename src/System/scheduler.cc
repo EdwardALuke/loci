@@ -1688,15 +1688,17 @@ bool operator <(const timingData &d) const {
 	  int retval;
 	  #endif
 	*/
+    // Preserve ordinary default setup outside query timing and exception handling.
+    if(rdb.get_module_bindings().empty())
+      facts.setupDefaults(rdb) ;
     stopWatch sw ;
     sw.start() ;
 
     try {
-      validate_module_bindings(rdb, rdb.get_module_bindings()) ;
-      if(rdb.get_module_bindings().empty())
-        facts.setupDefaults(rdb) ;
-      else
+      if(!rdb.get_module_bindings().empty()) {
+        validate_module_bindings(rdb, rdb.get_module_bindings()) ;
         facts.setupDefaults(resolve_module_declarations(rdb, rdb.get_module_bindings())) ;
+      }
       if(MPI_rank == 0) {
         cout << "Quering facts: " << query << endl ;
       }
