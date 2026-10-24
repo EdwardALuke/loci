@@ -1734,6 +1734,23 @@ namespace Loci {
 	add_rule(*i) ;
   }
 
+  void rule_db::set_module_bindings(const module_bindings &table) {
+    if(!bindings.empty() && !(bindings == table))
+      throw module_binding_error("module bindings: cannot rebind rule_db") ;
+    bindings = table ;
+  }
+
+  const std::set<module_origin> &rule_db::get_module_origins(rule r) const {
+    static const std::set<module_origin> empty ;
+    const auto found = module_origins.find(r) ;
+    return found == module_origins.end() ? empty : found->second ;
+  }
+
+  void rule_db::copy_module_origins(rule to, const rule_db &from, rule source) {
+    for(const auto &origin : from.get_module_origins(source))
+      add_module_origin(to, origin) ;
+  }
+
   void rule_db::remove_rule(rule f) {
     module_origins.erase(f) ;
     // remove rules in the appropriate categories

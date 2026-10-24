@@ -272,6 +272,8 @@ namespace Loci {
     std::ostream &write(std::ostream &s) const ;
     std::istream &read(std::istream &s) ;
     void setupDefaults(const rule_db &rdb) ;
+    // Register optional types without creating facts.
+    void setupOptionalTypes(const rule_db &rdb) ;
     std::istream& read_vars(std::istream& s, const rule_db& rdb) ;
     /// Resolve/check each deck write before accessing its storage.
     /// This explicit-context overload requires an unscoped fact database.

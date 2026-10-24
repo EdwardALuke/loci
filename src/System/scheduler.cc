@@ -1688,12 +1688,15 @@ bool operator <(const timingData &d) const {
 	  int retval;
 	  #endif
 	*/
-    validate_module_bindings(rdb, rdb.get_module_bindings()) ;
-    facts.setupDefaults(rdb) ;
     stopWatch sw ;
     sw.start() ;
 
     try {
+      validate_module_bindings(rdb, rdb.get_module_bindings()) ;
+      if(rdb.get_module_bindings().empty())
+        facts.setupDefaults(rdb) ;
+      else
+        facts.setupDefaults(resolve_module_declarations(rdb, rdb.get_module_bindings())) ;
       if(MPI_rank == 0) {
         cout << "Quering facts: " << query << endl ;
       }
@@ -2286,8 +2289,10 @@ bool operator <(const timingData &d) const {
                << ceil(1000.0*eff)/10.0 << "%." << endl ;
         }
       }
-    } catch(const module_binding_error &) {
-      throw ;
+    } catch(const module_binding_error &err) {
+      cerr << "Loci found an error during MakeQuery" << endl ;
+      cerr << err.what() << endl ;
+      Loci::Abort() ;
     } catch(const BasicException &err) {
       cerr << "Loci found an error during MakeQuery" << endl ;
       err.Print(cerr) ;

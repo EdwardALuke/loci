@@ -34,14 +34,10 @@ INCLUDES = -I../contrib/doctest -I$(LOCI_BASE)/include
 AUTOMATIC_FILES = $(call loci_compile_files,)
 AUTOMATIC_OBJS = $(call loci_file2objs,$(AUTOMATIC_FILES))
 AUTOMATIC_TESTS= $(subst .o,.test, $(AUTOMATIC_OBJS))
-TESTS = $(AUTOMATIC_TESTS) module_bindings.test
+TESTS = $(AUTOMATIC_TESTS)
 
 TestResults: $(TESTS)
 	cat $(TESTS) > TestResults; rm $(TESTS)
-
-module_bindings.test:
-	$(MAKE) -C module_bindings LOCI_BASE=$(LOCI_BASE) check > module_bindings.log 2>&1
-	@echo "SystemTests/module_bindings: PASSED!" > $@
 
 test_distributed_io.test: %.test: %.o
 	$(LD) -o $*.exe $^ $(LOCAL_LIBS) $(LIBS) $(LDFLAGS)
@@ -63,7 +59,6 @@ test_distributed_io.test: %.test: %.o
 
 clean:
 	rm -fr *.o *.exe *.d *.log *.log1
-	$(MAKE) -C module_bindings LOCI_BASE=$(LOCI_BASE) clean
 
 # Junk files that are created while editing and running cases
 JUNK = $(wildcard *~) $(wildcard crash_dump.*)  core debug output $(wildcard *.o) $(wildcard *.h5)

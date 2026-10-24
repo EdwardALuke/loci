@@ -690,6 +690,30 @@ namespace Loci {
     }
   }
 
+  void fact_db::setupOptionalTypes(const rule_db &rdb) {
+    const ruleSet special_rules = rdb.get_optional_rules() ;
+    for(ruleSet::const_iterator ri=special_rules.begin();
+        ri!=special_rules.end();++ri) {
+      const variableSet targets = ri->targets() ;
+      bool use_rule = true ;
+      for(variableSet::const_iterator vi=targets.begin();vi!=targets.end();++vi)
+        if(!nspace_vec.empty() && vi->get_info().namespac != nspace_vec)
+          use_rule = false ;
+      if(!use_rule)
+        continue ;
+      rule_implP rp = ri->get_rule_implP() ;
+      for(variableSet::const_iterator vi=targets.begin();vi!=targets.end();++vi) {
+        storeRepP srp = rp->get_store(*vi) ;
+        if(srp == 0) {
+          ostringstream oss ;
+          oss << "rule " << *ri << " unable to provide type for " << *vi << endl ;
+          throw StringError(oss.str()) ;
+        }
+        set_variable_type(*vi,srp) ;
+      }
+    }
+  }
+
   // this read in routine reads the .vars file and set
   // the facts according to the default and optional rules
   std::istream& fact_db::read_vars(std::istream& s, const rule_db& rdb) {
@@ -699,47 +723,14 @@ namespace Loci {
   std::istream &fact_db::read_vars(std::istream &s, const rule_db &rdb,
       const std::function<variable(variable)> &resolve_write) {
     if(resolve_write && !nspace_vec.empty())
-      throw module_binding_error("module deck requires an unscoped fact_db") ;
+      throw StringError("read_vars with an explicit resolver requires an unscoped fact_db") ;
     bool syntax_error = false ;
     try {
       // first of all, we need to process the default and optional rules
 
       setupDefaults(rdb) ;
-      // now process the optional rules
-      ruleSet special_rules = rdb.get_optional_rules() ;
-      for(ruleSet::const_iterator ri=special_rules.begin();
-          ri!=special_rules.end();++ri) {
-        // first we need to create the facts in the fact_db
-        variableSet targets = ri->targets() ;
-	//	Loci::debugout << "targets=" << targets << endl ;
-        bool UseRule = true ;
-        for(variableSet::const_iterator vi=targets.begin();
-            vi!=targets.end();++vi) 
-          if(nspace_vec.size()>0 && vi->get_info().namespac != nspace_vec) {
-            UseRule = false ;
-          }
-        if(!UseRule)
+      setupOptionalTypes(rdb) ;
 
-          continue ;
-
-
-        rule_implP rp = ri->get_rule_implP() ;
-        for(variableSet::const_iterator vi=targets.begin();
-            vi!=targets.end();++vi) {
-          // we need to get the storeRep for this variable
-          storeRepP srp = rp->get_store(*vi) ;
-          if(srp == 0) {
-            ostringstream oss ;
-            oss << "rule " << *ri << " unable to provide type for " << *vi
-                << endl ;
-            throw StringError(oss.str()) ;
-          }
-          // here we only need to set up the variable type in
-          // the fact_db
-          set_variable_type(*vi,srp) ;
-        }
-      }
-    
       string vname ;
       parse::kill_white_space(s) ;
       if(s.peek()!='{') {
@@ -756,8 +747,7 @@ namespace Loci {
 	  parse::kill_white_space(s) ;
 	  if(s.peek() == '@') { // ok now we are reading in vars for a namespace
             if(resolve_write)
-              throw module_binding_error(
-                  "module deck cannot switch instance namespace") ;
+              throw StringError("read_vars with an explicit resolver cannot switch namespace") ;
 	    s.get() ;
 	    parse::kill_white_space(s) ;
 	    vector<std::string> nspace ;
