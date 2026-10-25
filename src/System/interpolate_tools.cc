@@ -239,13 +239,10 @@ namespace Loci {
   // Compute stencil weights from a set of candidate neighbors
   // The code outputs an updated neighbors list and stencil weights
   // This routine uses the following algorithm to determine the stencil:
-  //  1) Since 8 points come from 8 ocatants, they form a hexahedron.  From
-  //     this hexahedron form the two 5 tetrahedra decompositions and find out
-  //     which tetrahedra which has the closest four points and contains the
-  //     interpolating point.  If a tetrahedra is found, use compute
-  //     barycentric coordinates to obtain weights.
-  //  2) If no tetrahedra is formed, then some octants must not have contained
-  //     points and the case should degenerate to a 2-D case.  For this we
+  //  1) Select a corner or central tetrahedron from the octant ordering.
+  //     If it is unsuitable, search the remaining candidate tetrahedra.
+  //     Use barycentric weights for an acceptable enclosing tetrahedron.
+  //  2) If no enclosing tetrahedron is found, project onto a 2-D stencil:
   //     check all possible triangles  that include closest point and select
   //     the triangle with the smallest perimiter that we can project our
   //     interpolant onto.  Use the barycentric corrdinates for this triangle
@@ -400,7 +397,54 @@ namespace Loci {
       //	   << w0 << ",w1="<<w1 << ",w2=" <<w2 << ",w3=" 
       //	   << ",vol=" << vol << endl ;
     }
-    // Got here, so it means we are degenerate.
+    // Irregular octant points may have an enclosing tetrahedron outside the
+    // hexahedron decomposition. Try those before reducing the dimension.
+    vector<int> candidates ;
+    double length = 0.0 ;
+    for(int id : neighbors) {
+      if(id >= 0 && std::find(candidates.begin(),candidates.end(),id) == candidates.end()) {
+        candidates.push_back(id) ;
+        length = std::max(length,norm(loc[id]-ipnt)) ;
+      }
+    }
+    if(length > 0.0) {
+      // Scale distances to avoid a mesh-size-dependent volume cutoff.
+      for(size_t a=0;a<candidates.size();++a)
+        for(size_t b=a+1;b<candidates.size();++b)
+          for(size_t c=b+1;c<candidates.size();++c)
+            for(size_t d=c+1;d<candidates.size();++d) {
+              const int ids[4] = {candidates[a],candidates[b],candidates[c],candidates[d]} ;
+              const vect3d base = loc[ids[0]] ;
+              const vect3d e1 = (loc[ids[1]]-base)/length ;
+              const vect3d e2 = (loc[ids[2]]-base)/length ;
+              const vect3d e3 = (loc[ids[3]]-base)/length ;
+              const vect3d r = (ipnt-base)/length ;
+              const double volume = dot(e1,cross(e2,e3)) ;
+              if(volume == 0.0)
+                continue ;
+
+              double distance = 0.0 ;
+              for(int id : ids) {
+                const vect3d delta = (loc[id]-ipnt)/length ;
+                distance += dot(delta,delta) ;
+              }
+              // Apply the same aspect-ratio limit as the initial candidate.
+              if(distance*distance*distance >= 1.6e10*volume*volume)
+                continue ;
+
+              const double w1 = dot(r,cross(e2,e3))/volume ;
+              const double w2 = dot(e1,cross(r,e3))/volume ;
+              const double w3 = dot(e1,cross(e2,r))/volume ;
+              const double w0 = 1.0-w1-w2-w3 ;
+              if(w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 && w3 >= 0.0) {
+                neighbors.assign(ids,ids+4) ;
+                w = {w0,w1,w2,w3} ;
+                return ;
+              }
+            }
+    }
+
+    // No acceptable enclosing tetrahedron; project onto a lower-dimensional stencil.
     int nt[8] ;
     sz = 0 ;
     double mind = 1e30 ;
