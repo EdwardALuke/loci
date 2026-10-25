@@ -1169,6 +1169,15 @@ namespace Loci {
         $interpolateFace_vec(X)[fc][i]
           = min<real_t>(max<real_t>(vl + 0.5*lim*(vl-vll), 0.0), 1.0) ;
       }
+
+      // Independent limiting preserves bounds, but not the sum of mass fractions.
+      real_t total = 0.0 ;
+      for(int i=0;i<vs;++i)
+        total += $interpolateFace_vec(X)[fc][i] ;
+      if(total > 0.0) {
+        for(int i=0;i<vs;++i)
+          $interpolateFace_vec(X)[fc][i] /= total ;
+      }
     } ENDFORALL ;
     MEMORY_PROFILE(compute_end) ;
   } ;
