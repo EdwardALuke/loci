@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci>
 #include <interpolate.h>
+#include <type_traits>
 
 namespace Loci {
   using std::vector ;
@@ -239,13 +240,10 @@ namespace Loci {
   // Compute stencil weights from a set of candidate neighbors
   // The code outputs an updated neighbors list and stencil weights
   // This routine uses the following algorithm to determine the stencil:
-  //  1) Since 8 points come from 8 ocatants, they form a hexahedron.  From
-  //     this hexahedron form the two 5 tetrahedra decompositions and find out
-  //     which tetrahedra which has the closest four points and contains the
-  //     interpolating point.  If a tetrahedra is found, use compute
-  //     barycentric coordinates to obtain weights.
-  //  2) If no tetrahedra is formed, then some octants must not have contained
-  //     points and the case should degenerate to a 2-D case.  For this we
+  //  1) Select a corner or central tetrahedron from the octant ordering.
+  //     If it is unsuitable, search the remaining candidate tetrahedra.
+  //     Use barycentric weights for an acceptable enclosing tetrahedron.
+  //  2) If no enclosing tetrahedron is found, project onto a 2-D stencil:
   //     check all possible triangles  that include closest point and select
   //     the triangle with the smallest perimiter that we can project our
   //     interpolant onto.  Use the barycentric corrdinates for this triangle
@@ -304,7 +302,7 @@ namespace Loci {
         vect3d vp = ipnt-loc[p2] ;
         if(dot(vp,cross(v1,v2)) < 0.0) {
             double sum = dot(vp,vp) ;
-            vp = ipnt - loc[i] ;
+            vp = ipnt - loc[p0] ;
             sum += dot(vp,vp) ;
             vp = ipnt - loc[p1] ;
             sum += dot(vp,vp) ;
@@ -400,7 +398,54 @@ namespace Loci {
       //	   << w0 << ",w1="<<w1 << ",w2=" <<w2 << ",w3=" 
       //	   << ",vol=" << vol << endl ;
     }
-    // Got here, so it means we are degenerate.
+    // Irregular octant points may have an enclosing tetrahedron outside the
+    // hexahedron decomposition. Try those before reducing the dimension.
+    vector<int> candidates ;
+    double length = 0.0 ;
+    for(int id : neighbors) {
+      if(id >= 0 && std::find(candidates.begin(),candidates.end(),id) == candidates.end()) {
+        candidates.push_back(id) ;
+        length = std::max(length,norm(loc[id]-ipnt)) ;
+      }
+    }
+    if(length > 0.0) {
+      // Scale distances to avoid a mesh-size-dependent volume cutoff.
+      for(size_t a=0;a<candidates.size();++a)
+        for(size_t b=a+1;b<candidates.size();++b)
+          for(size_t c=b+1;c<candidates.size();++c)
+            for(size_t d=c+1;d<candidates.size();++d) {
+              const int ids[4] = {candidates[a],candidates[b],candidates[c],candidates[d]} ;
+              const vect3d base = loc[ids[0]] ;
+              const vect3d e1 = (loc[ids[1]]-base)/length ;
+              const vect3d e2 = (loc[ids[2]]-base)/length ;
+              const vect3d e3 = (loc[ids[3]]-base)/length ;
+              const vect3d r = (ipnt-base)/length ;
+              const double volume = dot(e1,cross(e2,e3)) ;
+              if(volume == 0.0)
+                continue ;
+
+              double distance = 0.0 ;
+              for(int id : ids) {
+                const vect3d delta = (loc[id]-ipnt)/length ;
+                distance += dot(delta,delta) ;
+              }
+              // Apply the same aspect-ratio limit as the initial candidate.
+              if(distance*distance*distance >= 1.6e10*volume*volume)
+                continue ;
+
+              const double w1 = dot(r,cross(e2,e3))/volume ;
+              const double w2 = dot(e1,cross(r,e3))/volume ;
+              const double w3 = dot(e1,cross(e2,r))/volume ;
+              const double w0 = 1.0-w1-w2-w3 ;
+              if(w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0 && w3 >= 0.0) {
+                neighbors.assign(ids,ids+4) ;
+                w = {w0,w1,w2,w3} ;
+                return ;
+              }
+            }
+    }
+
+    // No acceptable enclosing tetrahedron; project onto a lower-dimensional stencil.
     int nt[8] ;
     sz = 0 ;
     double mind = 1e30 ;
@@ -1382,8 +1427,10 @@ namespace Loci {
 
   using namespace kdTree ;
 
-  void recieveTargetPoints(vector<vector<KDTree<float>::coord_info>  > &recv_targets,
+  template<class T>
+  static void receiveTargetPointsImpl(vector<vector<typename KDTree<T>::coord_info> > &recv_targets,
                            const kdTree::KDTree<float> *kd,
+                           const store<vector3d<double> > *positions,
                            const vector<bound_info> &boxes_g,
                            const vector<int> &box_sp,
                            const vector<int> &box_tp,
@@ -1398,22 +1445,42 @@ namespace Loci {
     int r ;
     MPI_Comm_rank(comm,&r) ;
 
+    typedef typename KDTree<T>::coord_info PointInfo ;
     // loop over boxes and collect target points to send
-    vector<KDTree<float>::coord_info> pntlist ;
+    vector<PointInfo> pntlist ;
     vector<int> scounts(boxes_g.size(),0) ;
     vector<int> block_sends(p,0) ;
     vector<vector<int> > proc_send_list(p) ;
     
     for(size_t i=0;i<boxes_g.size();++i) {
       int bsz = pntlist.size() ;
-      (kd)->find_box(pntlist,boxes_g[i].bnd) ;
+      if constexpr(std::is_same<T,float>::value) {
+        kd->find_box(pntlist,boxes_g[i].bnd) ;
+      } else {
+        // Round coarse bounds outward, then send the original donor coordinates.
+        KDTree<float>::bounds bounds = boxes_g[i].bnd ;
+        for(int d=0;d<3;++d) {
+          bounds.minc[d] = std::nextafter(bounds.minc[d],-std::numeric_limits<float>::infinity()) ;
+          bounds.maxc[d] = std::nextafter(bounds.maxc[d], std::numeric_limits<float>::infinity()) ;
+        }
+        vector<KDTree<float>::coord_info> candidates ;
+        kd->find_box(candidates,bounds) ;
+        for(const auto &candidate : candidates) {
+          PointInfo point ;
+          point.id = candidate.id ;
+          for(int d=0;d<3;++d)
+            point.coords[d] = point.id == std::numeric_limits<int>::max() ?
+              candidate.coords[d] : (*positions)[point.id][d] ;
+          pntlist.push_back(point) ;
+        }
+      }
       scounts[i] = pntlist.size()-bsz ;
       
 #ifdef VERBOSE
       if(scounts[i] != 0) {
 
         debugout << "sending " << scounts[i] << " points to " << box_tp[i] << endl ;
-        kdTree::KDTree<float>::bounds btmp ;
+        typename KDTree<T>::bounds btmp ;
 
         for(int d=0;d<3;++d) {
           btmp.minc[d] = pntlist[bsz].coords[d] ;
@@ -1522,7 +1589,7 @@ namespace Loci {
 #endif
 
     {
-      vector<vector<kdTree::KDTree<float>::coord_info>  > tmpx(boxes_g.size()) ;
+      vector<vector<PointInfo> > tmpx(boxes_g.size()) ;
       recv_targets.swap(tmpx) ;
     }
     MEMORY_PROFILE(RecieveTargetPointsMid) ;
@@ -1530,14 +1597,14 @@ namespace Loci {
     // allocate points to receive 
     for(size_t i=0;i<recv_tot_size.size();++i) {
       if(recv_tot_size[i] != 0) {
-	vector<kdTree::KDTree<float>::coord_info>  tmp(recv_tot_size[i]) ;
+	vector<PointInfo> tmp(recv_tot_size[i]) ;
 	recv_targets[i].swap(tmp) ;
       }
     }
     
     vector<int> recv_offset(recv_tot_size.size(),0) ;
     cnt = 0 ;
-    int coord_size = sizeof(kdTree::KDTree<float>::coord_info) ;
+    int coord_size = sizeof(PointInfo) ;
     for(int i=0;i<p;++i) 
       for(int j=0;j<block_recvs[i];++j) {
 	int bk = recv_info[cnt].first ;
@@ -1567,6 +1634,33 @@ namespace Loci {
       MPI_Waitall(num_recv,req_queue.data(),stat_queue.data()) ;
     }
     MEMORY_PROFILE(RecieveTargetPointsEnd) ;
+  }
+
+  void recieveTargetPoints(vector<vector<KDTree<float>::coord_info> > &recv_targets,
+                           const kdTree::KDTree<float> *kd,
+                           const vector<bound_info> &boxes_g,
+                           const vector<int> &box_sp,
+                           const vector<int> &box_tp,
+                           const vector<int> &b_sizes,
+                           const vector<int> &send_block_id,
+                           const vector<int> &recv_block_id,
+                           const MPI_Comm &comm) {
+    receiveTargetPointsImpl<float>(recv_targets,kd,nullptr,boxes_g,box_sp,box_tp,b_sizes,
+                                    send_block_id,recv_block_id,comm) ;
+  }
+
+  void recieveTargetPoints(vector<vector<KDTree<double>::coord_info> > &recv_targets,
+                           const kdTree::KDTree<float> *kd,
+                           const store<vector3d<double> > &positions,
+                           const vector<bound_info> &boxes_g,
+                           const vector<int> &box_sp,
+                           const vector<int> &box_tp,
+                           const vector<int> &b_sizes,
+                           const vector<int> &send_block_id,
+                           const vector<int> &recv_block_id,
+                           const MPI_Comm &comm) {
+    receiveTargetPointsImpl<double>(recv_targets,kd,&positions,boxes_g,box_sp,box_tp,b_sizes,
+                                    send_block_id,recv_block_id,comm) ;
   }
 
 }

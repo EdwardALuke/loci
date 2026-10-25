@@ -470,9 +470,11 @@ namespace Loci {
     Loci::debugout << "pbox.size() = " << pbox.size() << endl ;
 #endif
 
+    vector<vector3d<double> > search_points(pbox.size()) ;
     for(size_t i=0;i<pbox.size();++i) {
       int fc = pbox[i].id ;
       vector3d<double>  fcenter = realToDouble($facecenter[fc]) ;
+      search_points[i] = fcenter ;
 
       vector3d<double>  n = realToDouble($area[fc].n) ;
       // compute local stencil distance as either the normal projected
@@ -520,6 +522,10 @@ namespace Loci {
     communicateBoxPoints(loc_pbox,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,pbox,boxes,
                          MPI_COMM_WORLD) ;
+    vector<vector<vector3d<double> > > loc_search_points ;
+    communicateBoxPoints(loc_search_points,box_sp,box_tp,b_sizes,
+                         send_block_id,recv_block_id,search_points,boxes,
+                         MPI_COMM_WORLD) ;
     vector<vector<vector3d<double> > > loc_ndelta ;
     communicateBoxPoints(loc_ndelta,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,ndelta,boxes,
@@ -544,8 +550,8 @@ namespace Loci {
 //    using namespace Loci::kdTree ;
     const interpolate_points *interp_pnts = &(*$interpolatePoints(cellcenter,
                                                                   iblank)) ;
-    vector<vector<Loci::kdTree::KDTree<float>::coord_info>  > recv_targets ;
-    recieveTargetPoints(recv_targets,interp_pnts->kd,
+    vector<vector<Loci::kdTree::KDTree<double>::coord_info> > recv_targets ;
+    recieveTargetPoints(recv_targets,interp_pnts->kd,interp_pnts->pos,
                         boxes_g,box_sp,box_tp,b_sizes,
                         send_block_id,recv_block_id,
                         MPI_COMM_WORLD) ;
@@ -557,6 +563,7 @@ namespace Loci {
     // Now we build the stencils
     vector< vector<Array<int,4> > >  stencil_block(recv_block_id.size()) ;
     vector< vector<Array<double,4> > > weights_block(recv_block_id.size()) ;
+    vector<vector<double> > slope_scale_block(recv_block_id.size()) ;
 
     int st_error = 0 ;
     int st_warnings = 0 ;
@@ -564,6 +571,7 @@ namespace Loci {
     for(size_t i=0;i<recv_block_id.size();++i) {
       int bk = recv_block_id[i] ;
       int ssz = loc_pbox[i].size() ; // Search points for block bk
+      slope_scale_block[i].resize(ssz) ;
 
       store<vector3d<double> > loc ;
       store<int> ids ;
@@ -579,7 +587,7 @@ namespace Loci {
 	      recv_targets[bk][ii].id = ii ;
       }
 
-      Loci::kdTree::KDTree<float> stree(recv_targets[bk]) ;
+      Loci::kdTree::KDTree<double> stree(recv_targets[bk]) ;
 #ifdef VERBOSE
       Loci::debugout << "bk=" << bk << ",bksz=" << tsz<< endl ;
 #endif
@@ -594,9 +602,7 @@ namespace Loci {
       }
                            ;
       for(int j=0;j<ssz;++j) {
-        vector3d<double>  fcenter(loc_pbox[i][j].coords[0],
-                            loc_pbox[i][j].coords[1],
-                            loc_pbox[i][j].coords[2]) ;
+        vector3d<double> fcenter = loc_search_points[i][j] ;
         double dnorm = norm(loc_ndelta[i][j]) ;
         double dval = dnorm ;
         vector3d<double>  n = (1./dnorm)*loc_ndelta[i][j] ;
@@ -625,8 +631,8 @@ namespace Loci {
           }
 
           if(invalid_stencil) {
-            Loci::kdTree::KDTree<float>::bounds box ;
-            coord3df ccenter =realToFloat(fcenter) ;
+            Loci::kdTree::KDTree<double>::bounds box ;
+            vector3d<double> ccenter = fcenter ;
 
             for(int i=0;i<3;++i) {
               box.minc[i] = ccenter[i] ;
@@ -663,6 +669,8 @@ namespace Loci {
         }
 
         double locdist = dval*1.05 ; // Saftey factor to ensure proper upwinding
+        // Compare slopes over the ghost/ghost and owner/ghost spacings.
+        slope_scale_block[i][j] = 2.0*locdist/(locdist+dnorm) ;
 
         vector3d<double>  prr = fcenter+n*(locdist*3.) ;
         vector3d<double>  pr  = fcenter+n*locdist ;
@@ -923,6 +931,8 @@ namespace Loci {
                     send_block_id,recv_block_id,MPI_COMM_WORLD) ;
 
     $interpolateFaceStencil->weights.swap(weight_rcv) ;
+    returnBlockData($interpolateFaceStencil->face_slope_scale,slope_scale_block,1,boxes,box_sp,box_tp,b_sizes,
+                    send_block_id,recv_block_id,MPI_COMM_WORLD) ;
 
     // put stencil blocks into place, renumber to local numbering and set ids
     // send weights
@@ -976,6 +986,8 @@ namespace Loci {
       int cnt = slookup[fc]*2 ;
       int cll = cnt + 0 ;
       int cl = cnt + 1 ;
+      const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+        1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
 
       // Compute the estimate of the variable at the second interpolant point
       real_t vll = 0 ;
@@ -1000,7 +1012,7 @@ namespace Loci {
 
       // Van Albada slope limiter for a limited second-order extrapolation to
       // the face
-      const real_t r = max<real_t>(0.0, (vr-vl)/dv) ;
+      const real_t r = max<real_t>(0.0, slope_scale*(vr-vl)/dv) ;
       const real_t lim = (r+r*r)/(1.+r*r) ;
       $interpolateFace(X)[fc] = vl + 0.5*lim*(vl-vll) ;
 
@@ -1042,6 +1054,8 @@ namespace Loci {
         int cnt = slookup[fc]*2 ;
         int cll = cnt + 0 ;
         int cl = cnt + 1 ;
+        const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+          1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
 
         // Compute the estimate of the variable at the second interpolant point
         vector3d<real_t>  vll = vector3d<real_t> (0,0,0) ;
@@ -1076,13 +1090,13 @@ namespace Loci {
 
         // Van Albada slope limiter for a limited second-order extrapolation to
         // the face
-        const real_t rx = (vr.x-vl.x)/dv.x ;
+        const real_t rx = max<real_t>(0.0, slope_scale*(vr.x-vl.x)/dv.x) ;
         const real_t limx= (rx+rx*rx)/(1.+rx*rx) ;
         $interpolateFace_v3d(X)[fc].x = vl.x + 0.5*limx*(vl.x-vll.x) ;
-        const real_t ry = (vr.y-vl.y)/dv.y ;
+        const real_t ry = max<real_t>(0.0, slope_scale*(vr.y-vl.y)/dv.y) ;
         const real_t limy= (ry+ry*ry)/(1.+ry*ry) ;
         $interpolateFace_v3d(X)[fc].y = vl.y + 0.5*limy*(vl.y-vll.y) ;
-        const real_t rz = (vr.z-vl.z)/dv.z ;
+        const real_t rz = max<real_t>(0.0, slope_scale*(vr.z-vl.z)/dv.z) ;
         const real_t limz= (rz+rz*rz)/(1.+rz*rz) ;
         $interpolateFace_v3d(X)[fc].z = vl.z + 0.5*limz*(vl.z-vll.z) ;
       } ENDFORALL ;
@@ -1135,6 +1149,9 @@ namespace Loci {
       int cll = cnt + 0 ;
       int cl = cnt + 1 ;
 
+      const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+        1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
+
       // Loop over all vector components
       for(int i=0;i<vs;++i) {
 
@@ -1162,12 +1179,21 @@ namespace Loci {
 
         // Van Albada slope limiter for a limited second-order extrapolation to
         // the face
-        const real_t r = (vr-vl)/dv ;
+        const real_t r = max<real_t>(0.0, slope_scale*(vr-vl)/dv) ;
         const real_t lim = (r+r*r)/(1.+r*r) ;
 
         // Limit mixture fractions should be between 0 and 1
         $interpolateFace_vec(X)[fc][i]
           = min<real_t>(max<real_t>(vl + 0.5*lim*(vl-vll), 0.0), 1.0) ;
+      }
+
+      // Independent limiting preserves bounds, but not the sum of mass fractions.
+      real_t total = 0.0 ;
+      for(int i=0;i<vs;++i)
+        total += $interpolateFace_vec(X)[fc][i] ;
+      if(total > 0.0) {
+        for(int i=0;i<vs;++i)
+          $interpolateFace_vec(X)[fc][i] /= total ;
       }
     } ENDFORALL ;
     MEMORY_PROFILE(compute_end) ;
@@ -1312,6 +1338,10 @@ namespace Loci {
 #endif
 
 
+    vector<vector3d<double> > search_points(pbox.size()) ;
+    for(size_t i=0;i<pbox.size();++i)
+      search_points[i] = realToDouble($cellcenter[pbox[i].id]) ;
+
     // Adjust bounding boxes by stencil size
     for(size_t i=0;i<boxes.size();++i) {
       float spacing = 0  ;
@@ -1349,6 +1379,10 @@ namespace Loci {
     communicateBoxPoints(loc_pbox,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,pbox,boxes,
                          MPI_COMM_WORLD) ;
+    vector<vector<vector3d<double> > > loc_search_points ;
+    communicateBoxPoints(loc_search_points,box_sp,box_tp,b_sizes,
+                         send_block_id,recv_block_id,search_points,boxes,
+                         MPI_COMM_WORLD) ;
 
 #ifdef REPORT_TIMES
     Loci::debugout << "time recv box search points: " << s.stop() << endl ;
@@ -1370,8 +1404,8 @@ namespace Loci {
     const interpolate_points *interp_pnts
       = &(*$interpolatePoints(cellcenter,iblank)) ;
 
-    vector<vector<Loci::kdTree::KDTree<float>::coord_info>  > recv_targets ;
-    recieveTargetPoints(recv_targets,interp_pnts->kd,
+    vector<vector<Loci::kdTree::KDTree<double>::coord_info> > recv_targets ;
+    recieveTargetPoints(recv_targets,interp_pnts->kd,interp_pnts->pos,
                         boxes_g,box_sp,box_tp,b_sizes,
                         send_block_id,recv_block_id,
                         MPI_COMM_WORLD) ;
@@ -1419,7 +1453,7 @@ namespace Loci {
         }
       }
 
-      Loci::kdTree::KDTree<float> stree(recv_targets[bk]) ;
+      Loci::kdTree::KDTree<double> stree(recv_targets[bk]) ;
 #ifdef VERBOSE
       Loci::debugout << "bk=" << bk <<  ",tsz=" << tsz << endl ;
 #endif
@@ -1437,9 +1471,7 @@ namespace Loci {
 
       delta_stencil *= 5.1 ;
       for(int j=0;j<ssz;++j) {
-	      vector3d<double>  pnt(loc_pbox[i][j].coords[0],
-			                        loc_pbox[i][j].coords[1],
-			                        loc_pbox[i][j].coords[2]) ;
+        vector3d<double> pnt = loc_search_points[i][j] ;
 
 	      vector<int> neighbors = get_stencil(stree,pnt,delta_stencil) ;
 
@@ -1464,7 +1496,7 @@ namespace Loci {
         vector<double> w  ;
         stencil_weights(w,neighbors,loc,pnt) ;
         if(neighbors.size() ==0) {
-          neighbors.push_back(stree.find_closest(loc_pbox[i][j].coords)) ;
+          neighbors.push_back(stree.find_closest(pnt)) ;
           if(neighbors[0] < 0 ||
           neighbors[0] == std::numeric_limits<int>::max()) {
             neighbors[0] = defaultid ;
