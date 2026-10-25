@@ -304,7 +304,7 @@ namespace Loci {
         vect3d vp = ipnt-loc[p2] ;
         if(dot(vp,cross(v1,v2)) < 0.0) {
             double sum = dot(vp,vp) ;
-            vp = ipnt - loc[i] ;
+            vp = ipnt - loc[p0] ;
             sum += dot(vp,vp) ;
             vp = ipnt - loc[p1] ;
             sum += dot(vp,vp) ;
