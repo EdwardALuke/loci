@@ -1076,13 +1076,13 @@ namespace Loci {
 
         // Van Albada slope limiter for a limited second-order extrapolation to
         // the face
-        const real_t rx = (vr.x-vl.x)/dv.x ;
+        const real_t rx = max<real_t>(0.0, (vr.x-vl.x)/dv.x) ;
         const real_t limx= (rx+rx*rx)/(1.+rx*rx) ;
         $interpolateFace_v3d(X)[fc].x = vl.x + 0.5*limx*(vl.x-vll.x) ;
-        const real_t ry = (vr.y-vl.y)/dv.y ;
+        const real_t ry = max<real_t>(0.0, (vr.y-vl.y)/dv.y) ;
         const real_t limy= (ry+ry*ry)/(1.+ry*ry) ;
         $interpolateFace_v3d(X)[fc].y = vl.y + 0.5*limy*(vl.y-vll.y) ;
-        const real_t rz = (vr.z-vl.z)/dv.z ;
+        const real_t rz = max<real_t>(0.0, (vr.z-vl.z)/dv.z) ;
         const real_t limz= (rz+rz*rz)/(1.+rz*rz) ;
         $interpolateFace_v3d(X)[fc].z = vl.z + 0.5*limz*(vl.z-vll.z) ;
       } ENDFORALL ;
@@ -1162,7 +1162,7 @@ namespace Loci {
 
         // Van Albada slope limiter for a limited second-order extrapolation to
         // the face
-        const real_t r = (vr-vl)/dv ;
+        const real_t r = max<real_t>(0.0, (vr-vl)/dv) ;
         const real_t lim = (r+r*r)/(1.+r*r) ;
 
         // Limit mixture fractions should be between 0 and 1
