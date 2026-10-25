@@ -359,6 +359,9 @@ namespace Loci {
     std::vector<Loci::Array<int ,4> > stencils ;
     std::vector<int> send_info, req_sizes, snd_sizes ;
     Loci::storeRepP slookup ;
+    // Spacing ratio for the one-dimensional face slope estimate.
+    // Empty for equal-spacing custom stencils.
+    std::vector<double> face_slope_scale ;
   } ;
 }
 #endif

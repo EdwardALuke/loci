@@ -557,6 +557,7 @@ namespace Loci {
     // Now we build the stencils
     vector< vector<Array<int,4> > >  stencil_block(recv_block_id.size()) ;
     vector< vector<Array<double,4> > > weights_block(recv_block_id.size()) ;
+    vector<vector<double> > slope_scale_block(recv_block_id.size()) ;
 
     int st_error = 0 ;
     int st_warnings = 0 ;
@@ -564,6 +565,7 @@ namespace Loci {
     for(size_t i=0;i<recv_block_id.size();++i) {
       int bk = recv_block_id[i] ;
       int ssz = loc_pbox[i].size() ; // Search points for block bk
+      slope_scale_block[i].resize(ssz) ;
 
       store<vector3d<double> > loc ;
       store<int> ids ;
@@ -663,6 +665,8 @@ namespace Loci {
         }
 
         double locdist = dval*1.05 ; // Saftey factor to ensure proper upwinding
+        // Compare slopes over the ghost/ghost and owner/ghost spacings.
+        slope_scale_block[i][j] = 2.0*locdist/(locdist+dnorm) ;
 
         vector3d<double>  prr = fcenter+n*(locdist*3.) ;
         vector3d<double>  pr  = fcenter+n*locdist ;
@@ -923,6 +927,8 @@ namespace Loci {
                     send_block_id,recv_block_id,MPI_COMM_WORLD) ;
 
     $interpolateFaceStencil->weights.swap(weight_rcv) ;
+    returnBlockData($interpolateFaceStencil->face_slope_scale,slope_scale_block,1,boxes,box_sp,box_tp,b_sizes,
+                    send_block_id,recv_block_id,MPI_COMM_WORLD) ;
 
     // put stencil blocks into place, renumber to local numbering and set ids
     // send weights
@@ -976,6 +982,8 @@ namespace Loci {
       int cnt = slookup[fc]*2 ;
       int cll = cnt + 0 ;
       int cl = cnt + 1 ;
+      const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+        1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
 
       // Compute the estimate of the variable at the second interpolant point
       real_t vll = 0 ;
@@ -1000,7 +1008,7 @@ namespace Loci {
 
       // Van Albada slope limiter for a limited second-order extrapolation to
       // the face
-      const real_t r = max<real_t>(0.0, (vr-vl)/dv) ;
+      const real_t r = max<real_t>(0.0, slope_scale*(vr-vl)/dv) ;
       const real_t lim = (r+r*r)/(1.+r*r) ;
       $interpolateFace(X)[fc] = vl + 0.5*lim*(vl-vll) ;
 
@@ -1042,6 +1050,8 @@ namespace Loci {
         int cnt = slookup[fc]*2 ;
         int cll = cnt + 0 ;
         int cl = cnt + 1 ;
+        const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+          1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
 
         // Compute the estimate of the variable at the second interpolant point
         vector3d<real_t>  vll = vector3d<real_t> (0,0,0) ;
@@ -1076,13 +1086,13 @@ namespace Loci {
 
         // Van Albada slope limiter for a limited second-order extrapolation to
         // the face
-        const real_t rx = max<real_t>(0.0, (vr.x-vl.x)/dv.x) ;
+        const real_t rx = max<real_t>(0.0, slope_scale*(vr.x-vl.x)/dv.x) ;
         const real_t limx= (rx+rx*rx)/(1.+rx*rx) ;
         $interpolateFace_v3d(X)[fc].x = vl.x + 0.5*limx*(vl.x-vll.x) ;
-        const real_t ry = max<real_t>(0.0, (vr.y-vl.y)/dv.y) ;
+        const real_t ry = max<real_t>(0.0, slope_scale*(vr.y-vl.y)/dv.y) ;
         const real_t limy= (ry+ry*ry)/(1.+ry*ry) ;
         $interpolateFace_v3d(X)[fc].y = vl.y + 0.5*limy*(vl.y-vll.y) ;
-        const real_t rz = max<real_t>(0.0, (vr.z-vl.z)/dv.z) ;
+        const real_t rz = max<real_t>(0.0, slope_scale*(vr.z-vl.z)/dv.z) ;
         const real_t limz= (rz+rz*rz)/(1.+rz*rz) ;
         $interpolateFace_v3d(X)[fc].z = vl.z + 0.5*limz*(vl.z-vll.z) ;
       } ENDFORALL ;
@@ -1135,6 +1145,9 @@ namespace Loci {
       int cll = cnt + 0 ;
       int cl = cnt + 1 ;
 
+      const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+        1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
+
       // Loop over all vector components
       for(int i=0;i<vs;++i) {
 
@@ -1162,7 +1175,7 @@ namespace Loci {
 
         // Van Albada slope limiter for a limited second-order extrapolation to
         // the face
-        const real_t r = max<real_t>(0.0, (vr-vl)/dv) ;
+        const real_t r = max<real_t>(0.0, slope_scale*(vr-vl)/dv) ;
         const real_t lim = (r+r*r)/(1.+r*r) ;
 
         // Limit mixture fractions should be between 0 and 1
