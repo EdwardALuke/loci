@@ -29,6 +29,7 @@ public:
                          int pos, int size, double degrees) ;
   virtual void FillShade(int shade) ;
   virtual void FillPoly(const positions *pnts, int num_pnts) ;
+  virtual void FillPolyMarker(const positions *pnts, int num_pnts) ;
 } ;
 
 
