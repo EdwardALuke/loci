@@ -42,6 +42,10 @@ struct drawfigure {
   void drawshading() ;
   void drawtitle() ;
   void drawrulers() ;
+  void drawprobe() ;
+  void computeViewport(double &xscale, double &yscale,
+                        double &viewMinX, double &viewMaxX,
+                        double &viewMinY, double &viewMaxY) ;
   void drawlegend() ;
   void draw() ;
 } ;
