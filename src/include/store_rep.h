@@ -21,9 +21,6 @@
 #ifndef STORE_REP_H
 #define STORE_REP_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 // Alignment for store allocation (0x40 makes allocations aligned with 1024

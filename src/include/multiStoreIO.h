@@ -20,9 +20,6 @@
 //#############################################################################
 #ifndef MULTISTOREIO_H
 #define MULTISTOREIO_H
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <dist_internal.h>
 #include <distribute_container.h>
 #include <distribute.h>

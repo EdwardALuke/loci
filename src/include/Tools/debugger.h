@@ -21,9 +21,6 @@
 #ifndef DEBUGGER_H
 #define DEBUGGER_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 namespace Loci {

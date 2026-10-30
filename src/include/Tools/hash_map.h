@@ -21,9 +21,6 @@
 #ifndef LOCAL_HASH_MAP_H
 #define LOCAL_HASH_MAP_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #ifdef USE_MAP_FOR_HASH_MAP

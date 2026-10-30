@@ -21,9 +21,6 @@
 #ifndef RMAP_DEF_H
 #define RMAP_DEF_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 #include <Config/conf.h>
 
 #include <istream>

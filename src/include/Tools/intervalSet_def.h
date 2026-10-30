@@ -21,9 +21,6 @@
 #ifndef INTERVALSET_DEF_H
 #define INTERVALSET_DEF_H 1
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <cstdint>

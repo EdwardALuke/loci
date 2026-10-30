@@ -20,9 +20,6 @@
 //#############################################################################
 #ifndef PAR_SAMPLE_SORT_H
 #define PAR_SAMPLE_SORT_H
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <Tools/debug.h>

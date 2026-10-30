@@ -26,9 +26,6 @@
 #ifndef MPI_MULTISTOREIO_H
 #define MPI_MULTISTOREIO_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 
 //#ifdef H5_HAVE_PARALLEL
 #include <dist_internal.h>

@@ -21,9 +21,6 @@
 #ifndef UNIT_TYPE_H
 #define UNIT_TYPE_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <Tools/except.h>

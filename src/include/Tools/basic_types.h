@@ -21,9 +21,6 @@
 #ifndef LOCI_BASIC_TYPES_H
 #define LOCI_BASIC_TYPES_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <iostream>

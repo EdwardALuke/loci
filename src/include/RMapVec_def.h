@@ -21,9 +21,6 @@
 #ifndef RMAPVEC_DEF_H
 #define RMAPVEC_DEF_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 #include <Config/conf.h>
 
 #include <istream>

@@ -21,9 +21,6 @@
 #ifndef DISTRIBUTE_IO_H
 #define DISTRIBUTE_IO_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 #include <vector>
 

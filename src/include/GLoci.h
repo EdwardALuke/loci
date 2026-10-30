@@ -21,9 +21,6 @@
 #ifndef GLOCI_NOH
 #define GLOCI_NOH
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 #include <string>
 #include <Loci_version.h>

@@ -21,9 +21,6 @@
 #ifndef MULTIMAP_H
 #define MULTIMAP_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <Tools/debug.h>

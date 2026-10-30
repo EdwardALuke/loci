@@ -22,9 +22,6 @@
 #ifndef LOCI_GPUMAPVEC_DEF_H_
 #define LOCI_GPUMAPVEC_DEF_H_
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
 #include <Config/conf.h>
 
 #include <istream>
