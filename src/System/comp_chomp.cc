@@ -90,11 +90,15 @@ namespace Loci {
     int_type total_obj_size = 0 ;
     for(vector<storeRepP>::iterator vi=chomp_vars_rep.begin();
         vi!=chomp_vars_rep.end();++vi) {
-      int_type my_size = (*vi)->pack_size(test_alloc) ;
+      // Variable-length stores can be unallocated until the first chunk runs.
+      entitySet domain = (*vi)->domain() ;
+      int_type my_size = domain == EMPTY
+        ? (*vi)->estimated_pack_size(test_alloc)
+        : (*vi)->pack_size(interval(domain.Min(),domain.Min())) ;
       total_obj_size += my_size ;
     }
 
-    double scale = (double)D_cache_size / (double)total_obj_size ;
+    double scale = total_obj_size > 0 ? (double)D_cache_size / (double)total_obj_size : 1.0 ;
     
     if(scale <= 1.0)
       chomp_size = 1 ;

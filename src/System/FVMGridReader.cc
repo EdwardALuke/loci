@@ -2087,8 +2087,11 @@ namespace Loci {
     }
 
     vector<pair<int,pair<int,int> > > nsplits(MPI_processes-1) ;
-    for(int i=1;i<MPI_processes;++i) {
-      nsplits[i-1].first = ptn[i].Min() ;
+    // Empty ranks share the next nonempty rank's lower bound.
+    int next = UNIVERSE_MAX ;
+    for(int i=MPI_processes-1;i>0;--i) {
+      if(ptn[i] != EMPTY) next = ptn[i].Min() ;
+      nsplits[i-1].first = next ;
       nsplits[i-1].second.first = 0 ;
       nsplits[i-1].second.second = 0 ;
     }
@@ -2459,7 +2462,7 @@ namespace Loci {
     MPI_Allreduce(&wmaxl,&wmax,1,MPI_DOUBLE,MPI_MAX, MPI_COMM_WORLD) ;
     MPI_Allreduce(&wminl,&wmin,1,MPI_DOUBLE,MPI_MIN, MPI_COMM_WORLD) ;
 
-    double wavg = wsum/usum ;
+    double wavg = usum > 0 ? wsum/usum : 0 ;
 
     debugout << "wavg=" << wavg << ", wmax=" << wmax << ", wmin=" << wmin<<endl ;
     double w_low = 0, w_high = 0 ;
