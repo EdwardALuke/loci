@@ -25,10 +25,11 @@ MODULE_NAME  = fvmadapt
 
 LIB_NAME = fvmadaptfunc
 
-MODULE_FILES = $(call loci_compile_files,)
+GRID_FILES = spacing_source.cc xml_region.cc cell_boundary.cc parametric_mesh.cc parametric_history.cc parametric_cell_data.cc parametric_hex.cc parametric_hex_queries.cc parametric_hex_validation.cc parametric_hex_output.cc parametric_hex_boundary.cc parametric_cell.cc parametric_corner.cc parametric_mixed.cc parametric_online.cc parametric_plan.cc
+MODULE_FILES = $(filter-out $(GRID_FILES),$(call loci_compile_files,))
 MODULE_OBJS  = $(call loci_file2objs,$(MODULE_FILES))
 
-LIB_FILES = $(call loci_compile_files,library/)
+LIB_FILES = $(call loci_compile_files,library/) $(call loci_compile_files,library/parametric/) $(GRID_FILES)
 LIB_OBJS  = $(call loci_file2objs,$(LIB_FILES))
 
 LOCAL_LIBS      = $(LIBXML2_LIBS)
@@ -46,7 +47,7 @@ $(MODULE_NAME)_m.so: $(LIB_OBJS1)
 	$(SHARED_LD) $(SHARED_LD_FLAGS) $(MODULE_NAME)_m.so $(LIB_FLAGS) $(LIB_OBJS1) $(LOCAL_LIBS) $(BASE_LIBS)
 
 lib$(LIB_NAME).$(LIB_SUFFIX): $(LIB_OBJS2)
-	$(DYNAMIC_LD) $(DYNAMIC_LD_FLAGS) lib$(LIB_NAME).$(LIB_SUFFIX) $(LIB_FLAGS) $(LIB_OBJS2) $(BASE_LIBS)
+	$(DYNAMIC_LD) $(DYNAMIC_LD_FLAGS) lib$(LIB_NAME).$(LIB_SUFFIX) $(LIB_FLAGS) $(LIB_OBJS2) $(LOCAL_LIBS) $(BASE_LIBS)
 
 
 FRC :
@@ -64,7 +65,7 @@ uninstall:
 distclean: clean
 	rm -fr $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)
 
-DEPEND_FILES=$(subst .o,.d,$(MODULE_OBJS),$(LIB_OBJS))
+DEPEND_FILES=$(MODULE_OBJS:.o=.d) $(LIB_OBJS:.o=.d)
 #include automatically generated dependencies
 ifeq ($(filter $(MAKECMDGOALS),clean distclean uninstall),)
 -include $(DEPEND_FILES)

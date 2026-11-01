@@ -37,12 +37,7 @@ $type fineMaxEdgeLengthXY store<std::vector<double> > ;
 $type planRootFileNumber store<int> ;
 $type firstGeomCellFileNumber param<int> ;
 
-// Cell and face classification
-
-/// Cells handled by the general, hexahedral, and prism adaptation paths.
-$type gnrlcells Constraint ;
-$type hexcells Constraint ;
-$type prisms Constraint ;
+// Mesh domains
 
 /// Mesh faces used by FVMAdapt edge/face balancing rules.
 $type faces Constraint ;
@@ -50,13 +45,7 @@ $type faces Constraint ;
 /// All non-boundary faces.
 $type interior_faces Constraint ;
 
-/// True when a face is treated as quadrilateral by FVMAdapt.
-$type is_quadface store<bool> ;
-
-/// True when a cell is kept indivisible because an adjacent face is folded.
-$type isIndivisible store<bool> ;
-
-// Mesh connectivity and cell-local ordering
+// Mesh connectivity
 
 /// Mapping from face to edges that bound the face.
 $type face2edge multiMap ;
@@ -64,40 +53,7 @@ $type face2edge multiMap ;
 /// Mapping from edge to its two endpoint nodes.
 $type edge2node MapVec<2> ;
 
-/// Local face indices on the left and right cells adjacent to a mesh face.
-$type fl store<char> ;
-$type fr store<char> ;
-
-/// Cell-local face and node order used to construct hexahedral refinement trees.
-$type hex2face store<Array<char,6> > ;
-$type hex2node store<Array<char,8> > ;
-
-/// Cell-local face and node order used to construct prism refinement trees.
-$type prism2face store<Array<char,5> > ;
-$type prism2node store<Array<char,6> > ;
-
-/// Per-face orientation codes for the hexahedral and prism cell-local orders.
-$type hexOrientCode store<Array<char,6> > ;
-$type prismOrientCode store<Array<char,5> > ;
-
-/// Split mode used when choosing cell refinements.
-$type split_mode_par param<int> ;
-
-// Refinement inputs and plans
-
-/// Common name for a plan supplied through a file or database.
-$type planname_par param<std::string> ;
-
-/// Refinement plans attached to original mesh cells, faces, and edges.
-$type cellPlan store<std::vector<char> > ;
-$type facePlan store<std::vector<char> > ;
-$type edgePlan store<std::vector<char> > ;
-
-/// Cell refinement plan from the previous adaptation cycle.
-$type parentPlan store<std::vector<char> > ;
-
-/// Cell plan produced from the current refinement request, before balancing.
-$type newCellPlan store<std::vector<char> > ;
+// Refinement requests
 
 /// Adaptation requests for original nodes and refinement-created nodes.
 $type posTag store<char> ;
@@ -106,60 +62,6 @@ $type nodeTag store<std::vector<char> > ;
 /// Adaptation requests for original cells and current leaf cells.
 $type cellTag store<char> ;
 $type fineCellTag store<std::vector<char> > ;
-
-/// Input files for XML- and parameter-driven cell-plan construction.
-$type xmlfile_par param<std::string> ;
-$type parfile_par param<std::string> ;
-
-/// Rule-selection parameters for tag input with and without an existing plan.
-$type restart_tag_par param<int> ;
-$type norestart_tag_par param<int> ;
-
-/// Rule-selection parameters for XML input with and without an existing plan.
-$type restart_xml_par param<int> ;
-$type norestart_xml_par param<int> ;
-
-/// Rule-selection parameters for parameter-file input with and without an existing plan.
-$type restart_par_par param<int> ;
-$type norestart_par_par param<int> ;
-
-/// Parsed XML and parameter inputs shared by the cell-plan rules.
-$type cellPlanXMLDoc blackbox<std::shared_ptr<xmlDoc> > ;
-$type cellPlanSources blackbox<std::vector<source_par> > ;
-
-/// Selects the marker-driven plan path.
-$type beginWithMarker param<bool> ;
-
-/// Input plan file name or DataXFER_DB entry name.
-$type planfile_par param<std::string> ;
-$type planDB_par param<std::string> ;
-
-// Plan balancing
-
-/// Temporary cell, face, and edge plans used during a balancing iteration.
-$type tmpCellPlan store<std::vector<char> > ;
-$type tmpFacePlan store<std::vector<char> > ;
-$type tmpEdgePlan store<std::vector<char> > ;
-
-/// Intermediate balanced plans used for restart and derefinement processing.
-$type balancedCellPlan1 store<std::vector<char> > ;
-$type balancedFacePlan1 store<std::vector<char> > ;
-$type balancedEdgePlan1 store<std::vector<char> > ;
-
-/// Cell refinement plan after balancing.
-$type balancedCellPlan store<std::vector<char> > ;
-
-/// Balanced face refinement plan after cell/face balancing.
-$type balancedFacePlan store<std::vector<char> > ;
-
-/// Balanced edge refinement plan derived from balancedPointSet.
-$type balancedEdgePlan store<std::vector<char> > ;
-
-/// True when a cell plan is stable under the current balancing iteration.
-$type cellUnchanged store<bool> ;
-
-/// True when all cells are stable under the current balancing iteration.
-$type finishBalancing param<bool> ;
 
 // Refined-mesh numbering
 
@@ -171,16 +73,16 @@ $type num_original_faces param<int> ;
 $type num_inner_nodes store<int> ;
 $type balanced_num_inner_nodes store<int> ;
 
-/// Numbers of leaf cells for the current, balanced, and parent plans.
+/// Numbers of leaf cells in the input, accepted output and donor histories.
 $type num_fine_cells store<int> ;
 $type balanced_num_fine_cells store<int> ;
 $type parent_num_fine_cells store<int> ;
 
-/// Offsets used to number nodes and cells produced by the balanced plans.
+/// Offsets used to number nodes and cells in the accepted mesh.
 $type balanced_node_offset store<int> ;
 $type balanced_cell_offset store<int> ;
 
-/// Local (new cell, old cell) index pairs relating balanced and parent plans.
+/// One-based (new leaf, old leaf) donor pairs within each original cell.
 $type indexMap store<std::vector<std::pair<int32, int32> > > ;
 
 // Generated refined mesh
@@ -194,15 +96,10 @@ $type inner_nodes_edge store<Loci::FineNodes> ;
 $type fine_faces_cell store<Loci::FineFaces> ;
 $type fine_faces store<Loci::FineFaces> ;
 
-/// Enable recording while the refined face trees are available.
+/// Enable face correspondence for the accepted mesh.
 $type recordFaceHistory param<bool> ;
 $type faceHistoryEnabled Constraint ;
-$type faceHistoryDisabled Constraint ;
 #include <FVMAdapt/face_history_internal.h>
 /// Optional face patches in the same order as the generated faces.
 $type fine_face_patches store<Loci::FacePatches> ;
 $type fine_face_patches_cell store<Loci::FacePatches> ;
-/// Base-mesh file number of each original face.
-$type planFaceFileNumber store<int> ;
-/// Offset from cell file numbering to base-mesh numbering.
-$type planCellFileOffset param<std::int64_t> ;

@@ -1,0 +1,116 @@
+// Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+#include "parametric_mixed.h"
+#include <Loci.h>
+#include <algorithm>
+#include <map>
+#include <set>
+#include <stdexcept>
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+$include "parametric_internal.lh"
+
+using namespace Loci::FVMAdapt ;
+
+namespace {
+  template<class T> struct NodeTagTraceUnion {
+    void operator()(T &target,const T &source) {
+      if(&target==&source) return ;
+      target.insert(target.end(),source.begin(),source.end()) ;
+      std::sort(target.begin(),target.end()) ;
+      target.erase(std::unique(target.begin(),target.end()),target.end()) ;
+    }
+  } ;
+  void addNodeTags(const Loci::FineFaces &record,const std::vector<char> &tags,std::map<ParametricNodeKey,char> &marking) {
+    const auto keys=decodeParametricNodeKeys(record) ;
+    if(keys.size()!=tags.size()) throw std::invalid_argument("parametric node tag count differs from accepted nodes") ;
+    for(unsigned i=0;i<keys.size();++i) {
+      if(tags[i]<0 || tags[i]>2) throw std::invalid_argument("unknown parametric node tag") ;
+      const auto entry=marking.emplace(keys[i],tags[i]) ;
+      if(!entry.second && entry.first->second!=tags[i]) throw std::invalid_argument("conflicting parametric node tags") ;
+    }
+  }
+}
+
+/// Current node ownership, in the same order used to write the accepted mesh.
+$type initialParametricNodeKeys store<Loci::FineFaces> ;
+/// Accepted source-edge intervals for node-tag numbering.
+$type parametricTagEdges store<Loci::FineFaces> ;
+
+$rule unit(parametricTagEdges), constraint(edge2node->pos) { $parametricTagEdges.clear() ; }
+$rule apply((lower,upper,boundary_map)->face2edge->parametricTagEdges <- initialParametricCell,parametricTopology,
+  (lower,upper,boundary_map)->face2edge->fileNumber(edge2node))[NodeTagTraceUnion], constraint(geom_cells) {
+  const auto trace=$initialParametricCell.edgeTrace(decodeParametricTopology($parametricTopology)) ;
+  std::set<int> edges ;
+  const auto addFace=[&](int face) { for(int edge:$*face2edge[face]) edges.insert(edge) ; } ;
+  for(int face:$lower) addFace(face) ; for(int face:$upper) addFace(face) ; for(int face:$boundary_map) addFace(face) ;
+  for(int edge:edges) {
+    Loci::FineFaces rows ;
+    for(const auto &row:trace) if(row[0]==$*fileNumber(edge2node)[edge]) rows.push_back(row) ;
+    join($*parametricTagEdges[edge],rows) ;
+  }
+}
+
+$rule pointwise(initialParametricNodeKeys <- initialParametricCell,parametricTopology), constraint(geom_cells) {
+  $initialParametricNodeKeys=encodeParametricNodeKeys($initialParametricCell.cellNodes(decodeParametricTopology($parametricTopology))) ;
+}
+$rule pointwise(initialParametricNodeKeys <- fileNumber(face2node),(cl,cr)->(parametricTopology,initialParametricCell)),
+  constraint(interior_faces) {
+  const auto left=decodeParametricTopology($cl->$parametricTopology),right=decodeParametricTopology($cr->$parametricTopology) ;
+  $initialParametricNodeKeys=encodeParametricNodeKeys($cl->$initialParametricCell.faceNodes($fileNumber(face2node),left,&$cr->$initialParametricCell,&right)) ;
+}
+$rule pointwise(initialParametricNodeKeys <- fileNumber(face2node),cl->(parametricTopology,initialParametricCell)),
+  constraint(boundary_faces) {
+  const auto left=decodeParametricTopology($cl->$parametricTopology) ;
+  $initialParametricNodeKeys=encodeParametricNodeKeys($cl->$initialParametricCell.faceNodes($fileNumber(face2node),left)) ;
+}
+$rule pointwise(initialParametricNodeKeys <- parametricTagEdges,fileNumber(edge2node)), constraint(edge2node->pos) {
+  $initialParametricNodeKeys=encodeParametricNodeKeys(parametricEdgeNodes($fileNumber(edge2node),$parametricTagEdges)) ;
+}
+$rule pointwise(num_inner_nodes <- initialParametricNodeKeys), constraint(initialParametricNodeKeys) {
+  $num_inner_nodes=int($initialParametricNodeKeys.size()) ;
+}
+
+/// Count generated nodes before accepting file-order input.
+$type parametricInnerNodeCount param<int> ;
+$rule unit(parametricInnerNodeCount), constraint(UNIVERSE) { $parametricInnerNodeCount=0 ; }
+$rule apply(parametricInnerNodeCount <- num_inner_nodes)[Loci::Summation], constraint(num_inner_nodes) {
+  join($parametricInnerNodeCount,$num_inner_nodes) ;
+}
+
+/// Any own vertex tagged 1 refines; all own vertices tagged 2 request coarsening.
+$rule pointwise(parametricRequests <- initialParametricCell,parametricTopology,nodeTag,initialParametricNodeKeys,
+  (lower,upper,boundary_map)->(nodeTag,initialParametricNodeKeys),
+  (lower,upper,boundary_map)->face2edge->(nodeTag,initialParametricNodeKeys),
+  (lower,upper,boundary_map)->face2node->(posTag,fileNumber(pos))), constraint(geom_cells) {
+  std::map<ParametricNodeKey,char> marking ;
+  addNodeTags($initialParametricNodeKeys,$nodeTag,marking) ;
+  std::set<int> faces,edges ;
+  for(int face:$lower) faces.insert(face) ; for(int face:$upper) faces.insert(face) ; for(int face:$boundary_map) faces.insert(face) ;
+  for(int face:faces) {
+    addNodeTags($*initialParametricNodeKeys[face],$*nodeTag[face],marking) ;
+    for(int edge:$*face2edge[face]) edges.insert(edge) ;
+    for(int node:$*face2node[face]) {
+      const int tag=$*posTag[node] ;
+      if(tag<0 || tag>2) throw std::invalid_argument("unknown parametric node tag") ;
+      const ParametricNodeKey key={ {EntityKind::vertex,EntityId($*fileNumber(pos)[node]),{ {0,0,0} } },-1} ;
+      marking[key]=tag ;
+    }
+  }
+  for(int edge:edges) addNodeTags($*initialParametricNodeKeys[edge],$*nodeTag[edge],marking) ;
+  const auto cell=$initialParametricCell.workingCell() ;
+  std::vector<char> tags ;
+  auto own=parametricLeafVertices(decodeParametricTopology($parametricTopology),*cell) ;
+  if(cell->hasCornerGeometry()) {
+    std::vector<ParametricNodeKey> keys ; for(const auto &entry:marking) keys.push_back(entry.first) ;
+    mixedCornerVertices(*cell,keys,own) ;
+  }
+  for(const auto &vertices:own) {
+    bool refine=false,coarsen=true ;
+    for(const auto &vertex:vertices) {
+      const int tag=marking.at(vertex) ; refine=refine || tag==1 ; coarsen=coarsen && tag==2 ;
+    }
+    tags.push_back(refine ? 1:coarsen ? 2:0) ;
+  }
+  $parametricRequests=$initialParametricCell.tagRequests(tags) ;
+}

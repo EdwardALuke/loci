@@ -8,10 +8,9 @@
 namespace Loci {
   class Map ;
   class refinedGridData ;
-  struct RefinementOptions ;
-  void checkFaceState(const RefinementOptions& options, const std::string& base, int level) ;
-  void prepareFaceState(refinedGridData& grid, const std::string& base, int level,
-                        const RefinementOptions& options, bool hasParents) ;
+  void prepareParametricFaceState(refinedGridData& grid, const std::string& base, FaceStateP previous,
+                                  storeRepP oldHistory, storeRepP newHistory) ;
+  FaceStateP recordBaseParametricFaces(fact_db& facts,const refinedGridData& grid,const std::string& name,storeRepP history) ;
   bool installFaceHistory(fact_db& facts, const refinedGridData& grid,
                           const Map& faceNumbers, std::string& error) ;
   namespace face_history_detail {

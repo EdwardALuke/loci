@@ -20,12 +20,14 @@
 //#############################################################################
 #ifndef GRID_INTERFACE_H
 #define GRID_INTERFACE_H
-#include <store_rep.h>
+#include <Loci.h>
+#include <FVMAdapt/defines.h>
 #include <FVMAdapt/face_history.h>
 #include <memory>
 
 namespace Loci {
   class FaceRecording ;
+  struct FacePatch ;
   /// Net change from the preceding mesh; unknown when loading only a saved plan.
   enum CellChange {
     CELL_UNCHANGED = 0,
@@ -34,17 +36,36 @@ namespace Loci {
     CELL_CHANGE_UNKNOWN = 3
   } ;
 
-  /// Optional outputs; every MPI rank must request the same fields.
+  /// Input, geometry and balancing controls for online adaptation.
   struct RefinementOptions {
-    bool cellState = false;
-    bool edgeLengths = false;
-    /// Record face state; supply previousFaceState to also compute face history.
-    bool faceHistory = false;
-    /// Face state of the mesh being adapted, for comparison with the new mesh.
-    std::shared_ptr<const FaceState> previousFaceState;
+    std::string sourceFile ; ///< Optional spacing source file; choose this or regionFile.
+    std::string regionFile ; ///< Optional XML region, recursively refined using minEdgeLength.
+    std::string tagLocation = "cells" ; ///< "cells" or "nodes" of the current mesh, in file order.
+    std::string splitFamily = "native" ; ///< "native", "corner", "mixed" (native hex/prism, corner otherwise), or "extruded".
+    std::string centerMethod = "reference" ; ///< Corner and extruded splits also accept "weighted" and "integrated".
+    std::string grading = "vertices" ; ///< Grade shared faces, edges or vertices.
+    std::string faceBalance = "none" ; ///< "none", "majority", or "opposite" (also includes majority).
+    bool directionalBalance = false ; ///< Native hex/prism balance splits follow active divided-face directions.
+    bool automaticSplit = false ; ///< Choose native hex/prism directions from leaf edge lengths.
+    double splitAspectRatio = 2 ; ///< Split only long directions when this ratio is exceeded.
+    double minEdgeLength = 0 ; ///< Automatic/geometric half-edge cutoff in grid units; balancing may refine further.
+    int extrusionAxis = -1 ; ///< -1 for 3D; 0/1/2 protects an X/Y/Z extrusion.
+    int maxDepth = 10 ; ///< Maximum split depth, at most thirty.
+    int maxNodes = 1000000 ; ///< Retained tree nodes per original cell.
+    int levelDifference = 1 ; ///< Allowed depth difference across the selected contacts.
+    int maxRounds = 32 ; ///< Maximum neighbor-grading rounds.
+    int refinementLevels = 1 ; ///< Subdivision levels requested by each refine tag; coarsen tags merge one level.
+    bool faceHistory = false ; ///< Record old/new face donors and physical area fractions.
+    bool cellState = false ; ///< Return refinementDepth, rootCellFileNumber and cellChange.
+    bool edgeLengths = false ; ///< Return maxEdgeLength and maxEdgeLengthXY from leaf edge endpoints.
   } ;
-
-  void parallelClassifyCell(fact_db &facts) ;
+  /// Accepted histories and root weights in distributed file order. Keep with the original VOG.
+  struct RefinementState {
+    storeRepP histories ; ///< store<vector<unsigned char>>: accepted records for original cells.
+    storeRepP weights ; ///< store<int>: partition weights for the original cells.
+    std::string source ; ///< Original VOG path.
+    FaceStateP faces ; ///< Installed face state of the accepted solver mesh, when requested.
+  } ;
 
   void createVOGNode(store<vector3d<double> > &new_pos,
                      const store<Loci::FineNodes> &inner_nodes_cell,
@@ -64,7 +85,7 @@ namespace Loci {
                      Map& cr,
                      multiMap& face2node,
                      vector<entitySet>& local_faces,
-                     vector<entitySet>& local_cells) ;
+                     vector<entitySet>& local_cells, store<FacePatch>* patches = nullptr) ;
 
 
   // Map a store from the parent cells to the child cells of the adapted mesh
@@ -110,29 +131,21 @@ namespace Loci {
     friend struct FaceHistoryAccess;
   } ;
 
-  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
-			      int &level,
-			      rule_db &refmesh_rdb,
-			      string casename, string weightfile,
-			      string restartplanfile) ;
-
-  /// Reconstruct requested cell fields; cellChange is unknown for saved plans.
-  void initializeGridFromPlan(Loci::CPTR<refinedGridData> &gridDataP,
-                              int &level, rule_db &refmesh_rdb,
-                              string casename, string weightfile,
-                              string restartplanfile, const RefinementOptions &options) ;
-
-  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
-			rule_db &refmesh_rdb,
-			int adaptmode,
-			int level,
-			storeRepP tags,
-			string casename  ) ;
-
-  /// Return requested fields on the final balanced mesh.
-  void onlineRefineMesh(Loci::CPTR<refinedGridData> &gridDataP,
-                       rule_db &refmesh_rdb, int adaptmode, int level,
-                       storeRepP tags, string casename, const RefinementOptions &options) ;
+  /// Adapt staged file-order tags (0 keep, 1 refine, 2 coarsen), retaining geometry across calls.
+  /// Null tags replay history unless a geometric input file is set; geometric requests may accompany tags.
+  /// Load the fvmadapt module into rules first. Use the same options on every rank.
+  /// A rejected proposal returns false without replacing the state or grid. All ranks participate.
+  bool onlineRefineMesh(CPTR<refinedGridData> &grid, rule_db &rules, RefinementState &state,
+      storeRepP tags, const std::string &casename, const RefinementOptions &options, std::string &error) ;
+  /// Record an installed original mesh before its first adaptation. Collective outside queries.
+  bool recordRefinementBaseFaces(fact_db &facts,rule_db &rules,RefinementState &state,
+      const std::string &casename,const RefinementOptions &options,std::string &error) ;
+  /// Rebind restored face patches and connectivity to the accepted parametric history.
+  void restoreRefinementFaceState(refinedGridData& grid,const std::string& casename,const RefinementState& state) ;
+  /// Replay state.histories without marking. Request files and preceding face donors are ignored.
+  /// Load a saved plan into state first; all ranks participate. Rejection leaves state and grid unchanged.
+  bool initializeGridFromPlan(CPTR<refinedGridData> &grid, rule_db &rules, RefinementState &state,
+      const std::string &casename, const RefinementOptions &options, std::string &error) ;
 
   storeRepP getC2PGlobal(fact_db &facts) ;
 

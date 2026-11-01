@@ -1,0 +1,28 @@
+// Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+
+$include "FVMAdapt/parametric_adapt.lh"
+#include <FVMAdapt/defines.h>
+#include "parametric_cell_data.h"
+#include <FVMAdapt/xml_region.h>
+#include <FVMAdapt/spacing_source.h>
+
+/// Compiled physical region, shared by all cell requests on a process.
+$type parametricRegion blackbox<Loci::FVMAdapt::XMLRegionP> ;
+/// Spacing sources shared by all cell requests on a process.
+$type parametricSources blackbox<std::vector<Loci::FVMAdapt::SpacingSource> > ;
+/// Geometric input failure, checked before applying cell requests.
+$type parametricInputError blackbox<std::string> ;
+
+/// Source-cell connectivity in original file numbering; encodeParametricTopology().
+$type parametricTopology store<std::vector<int> > ;
+/// Source mesh for cell correspondence; normally the accepted input history.
+$type parametricDonorCell store<Loci::FVMAdapt::ParametricCellData> ;
+/// Agreed original-edge intervals; parametricEdgeTrace().
+$type balancedParametricEdgeTrace store<Loci::FineFaces> ;
+/// Accepted input history, initialized from the source geometry when empty.
+$type initialParametricHistory store<Loci::FVMAdapt::ParametricRecord> ;
+
+/// Accepted input state shared by tag conversion, balancing and transfer.
+$type initialParametricCell store<Loci::FVMAdapt::ParametricCellData> ;
+/// Accepted output state; rules construct working geometry when needed.
+$type balancedParametricCell store<Loci::FVMAdapt::ParametricCellData> ;

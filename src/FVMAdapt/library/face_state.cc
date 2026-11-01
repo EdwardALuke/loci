@@ -32,8 +32,8 @@ namespace Loci {
       std::string result(path) ; free(path) ; return result ;
     }
 
-    std::array<unsigned long long,2> planStamp() {
-      const_store<std::vector<char> > plan(DataXFER_DB.getItem("currentPlan")) ;
+    std::array<unsigned long long,2> recordStamp(storeRepP rep) {
+      store<std::vector<unsigned char>> plan ; if(rep!=0) plan=rep ; else plan.allocate(EMPTY) ;
       std::array<unsigned long long,2> result{{0,0}} ;
       for(Entity cell : plan.domain()) {
         unsigned long long hash = 14695981039346656037ULL ;
@@ -54,9 +54,12 @@ namespace Loci {
       size_t surface ;
       std::array<long long,4> bounds ;
       int sector, orientation ;
+      std::vector<std::array<double,2>> polygon ;
+      double area ;
+      bool mappedArea ;
     } ;
     std::string base ;
-    int level = 0, keyspace = 0 ;
+    int keyspace = 0 ;
     CellId cellOffset = 0 ;
     std::array<unsigned long long,2> plan ;
     entitySet domain ;
@@ -70,7 +73,7 @@ namespace Loci {
       std::vector<HistoryFace> result ; result.reserve(faces.size()) ;
       for(const auto& face : faces)
         result.push_back({face.id,face.left,face.right,
-          {surfaces[face.surface],face.bounds,face.sector,face.orientation}}) ;
+          {surfaces[face.surface],face.bounds,face.sector,face.orientation,face.polygon,face.area,face.mappedArea}}) ;
       return result ;
     }
   } ;
@@ -85,23 +88,6 @@ namespace Loci {
   } ;
 
   struct FaceHistoryAccess {
-    static void check(const RefinementOptions& options, const std::string& base, int level) {
-      int presence[2] = {bool(options.previousFaceState),bool(options.previousFaceState)} ;
-      MPI_Allreduce(MPI_IN_PLACE,presence,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
-      MPI_Allreduce(MPI_IN_PLACE,presence+1,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
-      std::string error ;
-      if(presence[0] != presence[1]) error = "Every rank must supply the previous face state" ;
-      if(!collective(presence[0] == presence[1],error)) throw std::runtime_error(error) ;
-      if(!presence[0]) return ;
-      const auto& state = options.previousFaceState->impl ;
-      bool valid = state && level == state->level && baseName(base) == state->base &&
-        (level == 0 || DataXFER_DB.getItem("currentPlan") != 0) ;
-      if(!valid) error = "Previous face state does not match the base mesh or adaptation level" ;
-      if(!collective(valid,error)) throw std::runtime_error(error) ;
-      valid = level == 0 || planStamp() == state->plan ;
-      if(!valid) error = "Previous face state does not match the current refinement plan" ;
-      if(!collective(valid,error)) throw std::runtime_error(error) ;
-    }
     static store<FacePatch>& patches(refinedGridData& grid) {
       if(!grid.faceRecording) grid.faceRecording = std::make_shared<FaceRecording>() ;
       return grid.faceRecording->patches ;
@@ -110,13 +96,13 @@ namespace Loci {
       return grid.faceRecording->patches ;
     }
 
-    static std::shared_ptr<const FaceState> base(fact_db& facts, const std::string& name) {
+    static std::shared_ptr<const FaceState> base(fact_db& facts, const std::string& name,
+                                                const refinedGridData& grid,storeRepP history) {
       auto state = std::make_shared<FaceState::Impl>() ; state->base = baseName(name) ;
       const_multiMap f2n = facts.get_variable("face2node") ;
       const_Map cl = facts.get_variable("cl"), cr = facts.get_variable("cr"), ref = facts.get_variable("ref") ;
       const_store<std::string> tags = facts.get_variable("boundary_tags") ;
       constraint cells = facts.get_variable("geom_cells"), boundary = facts.get_variable("boundary_faces") ;
-      const_store<vector3d<double> > pos = facts.get_variable("pos") ;
       state->domain = f2n.domain() ; state->keyspace = f2n.Rep()->getDomainKeySpace() ;
       dMap faceFile, cellFile ;
       if(MPI_processes == 1) {
@@ -131,15 +117,27 @@ namespace Loci {
         entitySet clones = needed-cellFile.domain() ;
         fill_clone(rep,clones,facts.get_init_ptn(0)) ;
       }
-      long long nodeCount = pos.domain().size() ;
-      MPI_Allreduce(MPI_IN_PLACE,&nodeCount,1,MPI_LONG_LONG,MPI_SUM,MPI_COMM_WORLD) ;
       int first[2] = {std::numeric_limits<int>::max(),std::numeric_limits<int>::max()} ;
       for(Entity face : state->domain) first[0] = std::min(first[0],faceFile[face]) ;
       for(Entity cell : *cells) first[1] = std::min(first[1],cellFile[cell]) ;
       MPI_Allreduce(MPI_IN_PLACE,first,2,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
       state->cellOffset = first[1] ;
-      const long long extent = 1LL << MAXLEVEL ;
       std::vector<HistoryFace> faces ; bool valid = true ; std::string error ;
+      FaceDataExchange exchange ; store<HistoryFace> received ;
+      state->plan=recordStamp(history) ;
+      const auto& pending=*grid.faceState->impl ;
+      store<HistoryFace> records ; records.allocate(pending.domain) ;
+      std::vector<FaceId> ids,needed ; auto entity=pending.domain.begin() ;
+      for(const auto& face:pending.expand()) {
+        if(face.patch.surface.size()!=2 || face.patch.surface[0]!=2) valid=false ;
+        else ids.push_back(face.patch.surface[1]) ;
+        records[*entity++]=face ;
+      }
+      if(!valid) error="Base parametric recording requires an unrefined mesh" ;
+      if(!collective(valid,error)) throw std::runtime_error(error) ;
+      for(Entity face:state->domain) needed.push_back(faceFile[face]) ;
+      if(!exchange.setup(ids,needed,error,MPI_COMM_WORLD) ||
+         !exchange.exchange(records.Rep(),received.Rep(),pending.domain,0,1,error)) throw std::runtime_error(error) ;
       for(Entity face : state->domain) {
         CellId right ;
         if((*boundary).inSet(face)) {
@@ -148,9 +146,14 @@ namespace Loci {
           valid = valid && tag.substr(0,3) == "BC_" && bool(number >> id) && id > 0 ;
           right = -id ;
         } else right = CellId(cellFile[cr[face]])-first[1] ;
-        FacePatch patch{{0,nodeCount+FaceId(faceFile[face])-first[0]},{{0,0,extent,extent}},
-                        f2n[face].size() == 4 ? 0 : -int(f2n[face].size()),1} ;
-        faces.push_back({faceFile[face],CellId(cellFile[cl[face]])-first[1],right,std::move(patch)}) ;
+        const CellId left=CellId(cellFile[cl[face]])-first[1] ;
+        const FaceId source=faceFile[face] ;
+        const auto index=std::lower_bound(exchange.sources().begin(),exchange.sources().end(),source)-exchange.sources().begin() ;
+        const auto& old=received[int(index)] ; FacePatch patch=old.patch ;
+        if(old.left==left && old.right==right) {}
+        else if(old.left==right && old.right==left) patch.orientation=-patch.orientation ;
+        else valid=false ;
+        faces.push_back({faceFile[face],left,right,std::move(patch)}) ;
       }
       if(!valid) error = "Base face history requires VOG boundary tags" ;
       if(!collective(valid,error)) throw std::runtime_error(error) ;
@@ -166,16 +169,16 @@ namespace Loci {
         auto entry = surfaces.emplace(face.patch.surface,surfaces.size()) ;
         if(entry.second) state.surfaces.push_back(face.patch.surface) ;
         state.faces.push_back({face.face,face.left,face.right,entry.first->second,
-          face.patch.bounds,face.patch.sector,face.patch.orientation}) ;
+          face.patch.bounds,face.patch.sector,face.patch.orientation,face.patch.polygon,face.patch.area,face.patch.mappedArea}) ;
       }
     }
 
-    static void prepare(refinedGridData& grid, const std::string& base, int level,
-                        const RefinementOptions& options, bool hasParents) {
+    static void prepare(refinedGridData& grid, const std::string& base, FaceStateP previous,
+                        storeRepP oldHistory, storeRepP newHistory) {
       auto state = std::make_shared<FaceState::Impl>() ;
-      state->base = baseName(base) ; state->level = level ;
-      state->plan = planStamp() ;
-      state->previous = options.previousFaceState ;
+      state->base = baseName(base) ;
+      state->plan = recordStamp(newHistory) ;
+      state->previous = std::move(previous) ;
       state->domain = grid.local_faces[MPI_rank] ;
       state->cellOffset = std::numeric_limits<int>::max() ;
       for(const auto& cells : grid.local_cells)
@@ -185,9 +188,9 @@ namespace Loci {
       int presence[2] = {bool(state->previous),bool(state->previous)} ;
       MPI_Allreduce(MPI_IN_PLACE,presence,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
       MPI_Allreduce(MPI_IN_PLACE,presence+1,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
-      bool valid = presence[0] == presence[1] && (!state->previous || (hasParents && state->previous->impl &&
-        state->previous->impl->base == state->base && state->previous->impl->level+1 == level)) ;
-      if(!valid) error = "Previous face state does not belong to this base mesh and adaptation level" ;
+      bool valid = presence[0] == presence[1] && (!state->previous || (state->previous->impl &&
+        state->previous->impl->base == state->base)) ;
+      if(!valid) error = "Previous face state does not belong to this base mesh" ;
       if(!collective(valid,error)) throw std::runtime_error(error) ;
 
       std::vector<HistoryFace> faces ; faces.reserve(state->domain.size()) ;
@@ -195,6 +198,8 @@ namespace Loci {
         faces.push_back({face,grid.new_cl[face]-state->cellOffset,
           grid.new_cr[face] < 0 ? grid.new_cr[face] : grid.new_cr[face]-state->cellOffset,
           recordedFacePatches(grid)[face]}) ;
+      if(state->previous && state->previous->impl->plan!=recordStamp(oldHistory))
+        throw std::runtime_error("Previous face state does not match the accepted parametric history") ;
       record(*state,faces) ;
       if(state->previous) {
         const_store<std::pair<int,int> > pairs(DataXFER_DB.getItem("c2p")) ;
@@ -226,7 +231,7 @@ namespace Loci {
       for(const auto& face : pending.faces) {
         ids.push_back(face.id) ;
         records[*entity++] = {face.id,face.left,face.right,
-          {pending.surfaces[face.surface],face.bounds,face.sector,face.orientation}} ;
+          {pending.surfaces[face.surface],face.bounds,face.sector,face.orientation,face.polygon,face.area,face.mappedArea}} ;
       }
       for(Entity face : domain) requested.push_back(faceNumbers[face]) ;
       FaceDataExchange exchange ;
@@ -243,7 +248,7 @@ namespace Loci {
       }
       received.allocate(EMPTY) ;
       auto state = std::make_shared<FaceState::Impl>() ;
-      state->base = pending.base ; state->level = pending.level ;
+      state->base = pending.base ;
       state->plan = pending.plan ;
       state->cellOffset = pending.cellOffset ; state->domain = domain ; state->keyspace = keyspace ;
       record(*state,next) ;
@@ -293,13 +298,9 @@ namespace Loci {
     }
   } ;
 
-  void prepareFaceState(refinedGridData& grid, const std::string& base, int level,
-                        const RefinementOptions& options, bool hasParents) {
-    FaceHistoryAccess::prepare(grid,base,level,options,hasParents) ;
-  }
-
-  void checkFaceState(const RefinementOptions& options, const std::string& base, int level) {
-    FaceHistoryAccess::check(options,base,level) ;
+  void prepareParametricFaceState(refinedGridData& grid,const std::string& base,FaceStateP previous,
+                                  storeRepP oldHistory,storeRepP newHistory) {
+    FaceHistoryAccess::prepare(grid,base,std::move(previous),oldHistory,newHistory) ;
   }
 
   store<FacePatch>& recordedFacePatches(refinedGridData& grid) {
@@ -321,8 +322,8 @@ namespace Loci {
     const_blackbox<std::shared_ptr<const FaceState> > state(rep) ; return *state ;
   }
 
-  std::shared_ptr<const FaceState> recordBaseFaces(fact_db& facts, const std::string& casename) {
-    return FaceHistoryAccess::base(facts,casename) ;
+  FaceStateP recordBaseParametricFaces(fact_db& facts,const refinedGridData& grid,const std::string& name,storeRepP history) {
+    return FaceHistoryAccess::base(facts,name,grid,history) ;
   }
 
   std::shared_ptr<const FaceHistory> getFaceHistory(fact_db& facts) {

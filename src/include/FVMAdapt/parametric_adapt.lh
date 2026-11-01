@@ -1,0 +1,58 @@
+// Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+
+#include <FVMAdapt/parametric_cell.h>
+#include <FVMAdapt/defines.h>
+#include <string>
+
+/// Accepted history on each original native cell; empty initializes from its VOG corners.
+/// Preserve the original geometry and file numbering across adaptations.
+$type parametricCellHistory store<Loci::FVMAdapt::ParametricRecord> ;
+/// Serialized splits or complete-family merges; empty means no request.
+$type parametricRequests store<Loci::FVMAdapt::ParametricRecord> ;
+/// Maximum refinement depth; default ten, at most thirty.
+$type parametricMaxDepth param<int> ;
+/// Maximum retained tree nodes per original cell; default one million.
+$type parametricMaxNodes param<int> ;
+/// Maximum touching-leaf depth difference; default one.
+$type parametricLevelDifference param<int> ;
+/// Contacts to grade: "faces", "edges" or "vertices"; default vertices.
+$type parametricGrading param<std::string> ;
+/// Extra face-based refinement: "none" (default), "majority", or "opposite" (also includes majority).
+/// Opposite faces share no cell vertices. The "extruded" family counts planar edges.
+$type parametricFaceBalance param<std::string> ;
+/// Restrict native hex/prism balancing to active face-cut directions; default false.
+/// Contacts without directional face information retain the full balancing split.
+$type parametricDirectionalBalance param<bool> ;
+/// Maximum rounds of neighbor-induced refinement; default thirty-two.
+$type parametricMaxRounds param<int> ;
+/// Split centers: "reference", "weighted" or "integrated". Native and mixed splits require reference.
+$type parametricCenterMethod param<std::string> ;
+/// Split construction: "native" (default), "corner", "extruded", or "mixed".
+/// Mixed uses native hex/prism splits and corner splits for other cells; 3D only.
+$type parametricSplitFamily param<std::string> ;
+/// Choose native split directions from leaf edge lengths for full-refinement requests; default false.
+$type parametricAutomaticSplit param<bool> ;
+/// Levels requested by each refine tag; default one. Coarsening merges one complete family.
+$type parametricRefinementLevels param<int> ;
+/// Mean edge-length ratio above which only long directions split; default two, greater than one.
+$type parametricSplitAspectRatio param<double> ;
+/// Optional XML region file; empty disables region refinement.
+$type parametricRegionFile param<std::string> ;
+/// Optional spacing source file; mutually exclusive with parametricRegionFile.
+$type parametricSourceFile param<std::string> ;
+/// Automatic and geometric requests suppress splits with a half-edge below this length; default zero, in grid units.
+/// Explicit cuts and neighbor balancing are not limited by this cutoff.
+$type parametricMinEdgeLength param<double> ;
+/// Preserve a straight X/Y/Z extrusion with 0/1/2; default -1 allows three-dimensional refinement.
+$type parametricExtrusionAxis param<int> ;
+/// True only when every rank accepts the proposed refinement and grading.
+$type parametricAccepted param<bool> ;
+/// Per-original-cell rejection reason; empty on cells without a local failure.
+$type parametricError store<std::string> ;
+/// Accepted history after grading, or the preceding history if any rank rejects.
+$type balancedParametricHistory store<Loci::FVMAdapt::ParametricRecord> ;
+/// Previous leaf index for refinement/unchanged cells; -1 for a merge. Entries are in RefinementHistory::leafIds() order.
+$type parametricParentLeaf store<std::vector<int> > ;
+
+/// Immediate old leaf indices contributing to each output leaf, including complete sibling merges.
+$type parametricDonorLeaves store<std::vector<std::vector<int>> > ;

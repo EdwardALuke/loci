@@ -135,10 +135,10 @@ make_periodic.o: make_periodic.cc
 
 refmesh: refmesh.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
 	$(LD) -o  refmesh  refmesh.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
-marker: marker.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
-	$(LD) -o  marker  marker.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
-refine: refine.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
-	$(LD) -o  refine  refine.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
+marker: marker.o adapt_input.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
+	$(LD) -o  marker  marker.o adapt_input.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
+refine: refine.o adapt_input.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
+	$(LD) -o  refine  refine.o adapt_input.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
 
 
 clean:

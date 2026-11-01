@@ -1,0 +1,54 @@
+// Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+#include <Loci.h>
+#include <FVMAdapt/parametric_cell.h>
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+$include "parametric_internal.lh"
+
+using namespace Loci::FVMAdapt ;
+
+/// Failure to construct an accepted cell or original-face patch record.
+$type parametricCellPatchError store<std::string> ;
+$type parametricFacePatchError store<std::string> ;
+
+/// Accepted internal face patches in fine_faces_cell order.
+$rule pointwise(fine_face_patches_cell,parametricCellPatchError<-parametricTopology,balancedParametricCell),
+conditional(parametricAccepted),constraint(faceHistoryEnabled,geom_cells) {
+  $fine_face_patches_cell.clear() ;
+  $parametricCellPatchError.clear() ;
+  try {
+    const auto cellData = $balancedParametricCell.workingCell() ;
+    const auto &cell = *cellData ;
+    const auto faces=parametricCellFaces(decodeParametricTopology($parametricTopology),cell,{},true) ;
+    for(const auto& face:faces) $fine_face_patches_cell.push_back(face.patch) ;
+  } catch(const std::exception& error) { $parametricCellPatchError=error.what() ; }
+}
+
+/// Accepted shared face patches in fine_faces order.
+$rule pointwise(fine_face_patches,parametricFacePatchError<-fileNumber(face2node),(cl,cr)->(parametricTopology,balancedParametricCell)),
+conditional(parametricAccepted),constraint(faceHistoryEnabled,interior_faces) {
+  $fine_face_patches.clear() ;
+  $parametricFacePatchError.clear() ;
+  try {
+    const auto lt=decodeParametricTopology($cl->$parametricTopology),rt=decodeParametricTopology($cr->$parametricTopology) ;
+    const auto leftData = $cl->$balancedParametricCell.workingCell() ;
+    const auto &left = *leftData ;
+    const auto rightData = $cr->$balancedParametricCell.workingCell() ;
+    const auto &right = *rightData ;
+    const auto faces=parametricFaceFaces($fileNumber(face2node),lt,left,{},&rt,&right,true) ;
+    for(const auto& face:faces) $fine_face_patches.push_back(face.patch) ;
+  } catch(const std::exception& error) { $parametricFacePatchError=error.what() ; }
+}
+
+/// Accepted boundary patches in fine_faces order.
+$rule pointwise(fine_face_patches,parametricFacePatchError<-fileNumber(face2node),cl->(parametricTopology,balancedParametricCell)),
+conditional(parametricAccepted),constraint(faceHistoryEnabled,boundary_faces) {
+  $fine_face_patches.clear() ;
+  $parametricFacePatchError.clear() ;
+  try {
+    const auto cellData = $cl->$balancedParametricCell.workingCell() ;
+    const auto &cell = *cellData ;
+    const auto faces=parametricFaceFaces($fileNumber(face2node),decodeParametricTopology($cl->$parametricTopology),cell,{},nullptr,nullptr,true) ;
+    for(const auto& face:faces) $fine_face_patches.push_back(face.patch) ;
+  } catch(const std::exception& error) { $parametricFacePatchError=error.what() ; }
+}
