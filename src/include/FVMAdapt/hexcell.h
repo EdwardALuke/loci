@@ -115,6 +115,7 @@ public:
   int32 getCellIndex() const { return cellIndex ; }
   char getMySplitCode() const { return mySplitCode ; }
   HexCell* getChildCell(int i) const { return childCell[i] ; }
+  const QuadFace* getFace(int i) const { return face[i] ; }
   HexCell* getParentCell() { return parentCell ; }
 
   /// Return 2 if all cell nodes request derefinement, 1 if any requests
@@ -229,6 +230,15 @@ public:
   /// Apply cellPlan to the child-cell structure, assign local leaf indices
   /// starting at 1, and return the leaf count. No split geometry is created.
   int empty_resplit(const std::vector<char>& cellPlan) ;
+
+  /// Read leaf depths after empty_resplit(), in fine-cell index order.
+  /// Return false if the leaf indices do not match traversal order.
+  bool getLeafDepths(std::vector<int>& depths) const ;
+
+  /// Read plan depths in fine-cell index order without changing this cell.
+  /// Omitted entries are leaves; unused trailing entries are ignored.
+  /// Return false if traversal encounters an invalid split code.
+  bool getLeafDepths(const std::vector<char>& cellPlan, std::vector<int>& depths) const ;
 
   /// Replace indexMap with pairs of local fine-cell indices from the current
   /// tree and parentPlan. Refinement or derefinement can produce several pairs

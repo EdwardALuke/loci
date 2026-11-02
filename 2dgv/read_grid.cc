@@ -149,6 +149,7 @@ void grid::input_2dgv(istream &in,bool read_values) {
         in.get() ;
       in >> y ;
       pos.push_back(positions(x,y)) ;
+      is_node.push_back(true) ;
     }
 
     if(read_values) {
@@ -172,6 +173,7 @@ void grid::input_2dgv(istream &in,bool read_values) {
         double vc = (val[n1]+val[n2]+val[n3]+val[n4])*0.25 ;
         int nc = pos.size() ;
         pos.push_back(center) ;
+        is_node.push_back(false) ;
         if(read_values) {
           val.push_back(vc) ;
           triangle_list.push_back(triangles(n1,n2,nc)) ;
@@ -208,6 +210,7 @@ void grid::input_generalized(std::istream &in,bool read_values) {
     double x = 0, y = 0 ;
     in >> x >> y ;
     pos.push_back(positions(x,y)) ;
+    is_node.push_back(true) ;
   }
   int nfaces, faces_start, ncells, cells_start ;
   in >> nfaces >> faces_start >> ncells >> cells_start ;
@@ -317,6 +320,7 @@ void grid::input_generalized(std::istream &in,bool read_values) {
   
   for(int i=0;i<ncells;++i) {
     pos.push_back(positions(0,0)) ;
+    is_node.push_back(false) ;
     if(has_values)
       val.push_back(double(0)) ;
   }
@@ -389,6 +393,7 @@ void grid::input_cobalt(std::string filename,bool read_values) {
     double x = 0, y = 0 ;
     in >> x >> y ;
     pos.push_back(positions(x,y)) ;
+    is_node.push_back(true) ;
   }
 
   edge_list.reserve(nfaces) ;
@@ -494,6 +499,7 @@ void grid::input_cobalt(std::string filename,bool read_values) {
   
   for(int i=0;i<ncells;++i) {
     pos.push_back(positions(0,0)) ;
+    is_node.push_back(false) ;
     if(has_values)
       val.push_back(double(0)) ;
   }
@@ -833,6 +839,10 @@ void grid::zoom(const grid &gin, const positions &pmn, const positions &pmx) {
   shading_computed = false ;
   filename = gin.filename ;
   rulers = gin.rulers ;
+  has_probe = gin.has_probe ;
+  probe_pos = gin.probe_pos ;
+  probe_has_val = gin.probe_has_val ;
+  probe_val = gin.probe_val ;
   /* Filter edges first */
   for(size_t i=0;i<gin.edge_list.size();++i) {
     if(i==gin.interior)
@@ -845,12 +855,14 @@ void grid::zoom(const grid &gin, const positions &pmn, const positions &pmx) {
       if(pos_alloc[e.l] == -1) {
         pos_alloc[e.l] = pos.size() ;
         pos.push_back(gin.pos[e.l]) ;
+        is_node.push_back(gin.is_node[e.l]) ;
         if(gin.has_values)
           val.push_back(gin.val[e.l]) ;
       }
       if(pos_alloc[e.r] == -1) {
         pos_alloc[e.r] = pos.size() ;
         pos.push_back(gin.pos[e.r]) ;
+        is_node.push_back(gin.is_node[e.r]) ;
         if(gin.has_values)
           val.push_back(gin.val[e.r]) ;
       }
@@ -871,18 +883,21 @@ void grid::zoom(const grid &gin, const positions &pmn, const positions &pmx) {
       if(pos_alloc[t.t1] == -1) {
         pos_alloc[t.t1] = pos.size() ;
         pos.push_back(gin.pos[t.t1]) ;
+        is_node.push_back(gin.is_node[t.t1]) ;
         if(gin.has_values)
           val.push_back(gin.val[t.t1]) ;
       }
       if(pos_alloc[t.t2] == -1) {
         pos_alloc[t.t2] = pos.size() ;
         pos.push_back(gin.pos[t.t2]) ;
+        is_node.push_back(gin.is_node[t.t2]) ;
         if(gin.has_values)
           val.push_back(gin.val[t.t2]) ;
       }
       if(pos_alloc[t.t3] == -1) {
         pos_alloc[t.t3] = pos.size() ;
         pos.push_back(gin.pos[t.t3]) ;
+        is_node.push_back(gin.is_node[t.t3]) ;
         if(gin.has_values)
           val.push_back(gin.val[t.t3]) ;
       }

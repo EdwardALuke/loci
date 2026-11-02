@@ -224,6 +224,24 @@ void PSDevCore::FillPoly(const positions *pnts, int num_pnts)
     fprintf(outf,"P\n") ;
 }
 
+void PSDevCore::FillPolyMarker(const positions *pnts, int num_pnts)
+{
+  if(num_pnts < 2)
+    return ;
+  // Fixed marker color (currently black), set directly rather than
+  // through SelectPen/FillShade's cached pen index -- currentPen is
+  // invalidated afterward so the next normal draw call still emits its
+  // own color correctly.
+  if(outf)
+    fprintf(outf,"0 0 0 C\n") ;
+  for(int i=0;i<num_pnts;++i)
+    if(outf)
+      fprintf(outf,"%f %f ",pnts[i].x, pnts[i].y) ;
+  if(outf)
+    fprintf(outf,"P\n") ;
+  currentPen = -1 ;
+}
+
 PSDevEPS::PSDevEPS(const DevBox &b, const std::string &filename) {
   file = filename ;
   DevBox b2 ;

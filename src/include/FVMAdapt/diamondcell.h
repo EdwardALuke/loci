@@ -122,6 +122,8 @@ public:
 
   char getNfold() const{ return nfold ; }
 
+  const Face* getFace(int i) const { return face[i] ; }
+
   int getLevel() const{ return face[0]->edge[0]->level ; }
 
   /**
@@ -233,6 +235,10 @@ public:
                                 const std::vector<std::vector<Edge*> >& n2e,
                                 std::list<pair<Face*, NeibIndex> >& fine_face);
 
+  /// Insert the existing 4*nfold edge pointers into edge. The output set must
+  /// initially be empty.
+  void get_edges(std::set<Edge*>& edge);
+
   /// Return the minimum length of the cell boundary edges.
   inline double get_min_edge_length() {
     std::set<Edge*> edge ;
@@ -288,10 +294,6 @@ private:
   /// Insert the existing 2*nfold+2 node pointers into node. The output set
   /// must initially be empty.
   void get_nodes(std::set<Node*>& node);
-
-  /// Insert the existing 4*nfold edge pointers into edge. The output set must
-  /// initially be empty.
-  void get_edges(std::set<Edge*>& edge);
 
   /// Calculate the centroid of the DiamondCell, it's defined as the mean value
   /// of facecenters.
@@ -517,6 +519,10 @@ public:
   /// Apply cellPlan to the child-cell structure, assign local leaf indices
   /// starting at 1, and return the leaf count. No split geometry is created.
   int32 empty_resplit(const std::vector<char>& cellPlan);
+
+  /// Read leaf depths after empty_resplit(), in fine-cell index order.
+  /// Return false if the leaf indices do not match traversal order.
+  bool getLeafDepths(std::vector<int>& depths) const ;
 
   //  void get_leaves(std::vector<DiamondCell*>& leaf_cell);
 

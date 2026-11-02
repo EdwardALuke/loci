@@ -1,0 +1,44 @@
+// Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+
+#include <limits>
+#include <Loci.h>
+#include "defines.h"
+#include "face_history.h"
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+
+$type firstFaceFileNumber param<int> ;
+
+/// Face provenance is recorded only when requested by the caller.
+$rule default(recordFaceHistory) {
+  $recordFaceHistory = false ;
+}
+
+/// Select ordinary face generation or generation with refinement patches.
+$rule constraint(faceHistoryEnabled, faceHistoryDisabled <- recordFaceHistory) {
+  $faceHistoryEnabled = $recordFaceHistory ? ~EMPTY : EMPTY ;
+  $faceHistoryDisabled = $recordFaceHistory ? EMPTY : ~EMPTY ;
+}
+
+$rule unit(firstFaceFileNumber), constraint(UNIVERSE) {
+  $firstFaceFileNumber = std::numeric_limits<int>::max() ;
+}
+
+$rule apply(firstFaceFileNumber <- fileNumber(face2node))[Loci::Minimum],
+constraint(faces) {
+  join($firstFaceFileNumber,$fileNumber(face2node)) ;
+}
+
+/// Number original faces consistently with the base VOG file.
+$rule pointwise(planFaceFileNumber <- fileNumber(face2node),
+firstFaceFileNumber, num_original_nodes), constraint(faces) {
+  $planFaceFileNumber = $num_original_nodes+$fileNumber(face2node)-$firstFaceFileNumber ;
+}
+
+/// Offset from original-cell file numbers to base-mesh numbering.
+$rule singleton(planCellFileOffset <- firstGeomCellFileNumber,
+num_original_nodes, num_original_faces) {
+  $planCellFileOffset = static_cast<long long>($num_original_nodes)+
+    $num_original_faces-$firstGeomCellFileNumber ;
+}

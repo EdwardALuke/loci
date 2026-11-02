@@ -80,7 +80,7 @@ namespace Loci {
     CPTR(const CPTR<T> &p) {ptr = p.ptr;  ; link_ptr(); }
     template <class S> explicit CPTR(const CPTR<S> &p) {
       ptr = dynamic_cast<T *>(p.ptr) ;
-      warn(ptr==0) ;
+      //      warn(ptr==0) ;
       link_ptr() ;
     }
 
@@ -130,12 +130,12 @@ namespace Loci {
 
     template <class S> explicit const_CPTR(const CPTR<S> &p) {
       ptr = dynamic_cast<T *>(p.ptr) ;
-      warn(ptr==0) ;
+      //      warn(ptr==0) ;
       link_ptr() ;
     }
     template <class S> explicit const_CPTR(const const_CPTR<S> &p) {
       ptr = dynamic_cast<T *>(p.ptr) ;
-      warn(ptr==0) ;
+      //      warn(ptr==0) ;
       link_ptr() ;
     }
 

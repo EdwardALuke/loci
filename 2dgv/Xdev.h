@@ -38,6 +38,7 @@ class XDevice : public grDevice {
   GC linec ;
   GC forec ;
   GC Penc[MAXPENS] ;
+  GC markerGC ; // dedicated GC for the probe node marker (see realize())
   bool drawnbox ;
   int bx1,by1,bx2,by2 ;
   double ticksize ;
@@ -92,6 +93,7 @@ public:
                          int pos, int size, double degrees) ;
   virtual void FillShade(int shade) ;
   virtual void FillPoly(const positions *pnts, int num_pnts) ;
+  virtual void FillPolyMarker(const positions *pnts, int num_pnts) ;
 } ;
 
 void xinteract(int argc, char *argv[]) ;

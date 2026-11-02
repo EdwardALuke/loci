@@ -194,7 +194,7 @@ public:
     OP_OPENPAREN,OP_CLOSEPAREN,OP_OPENBRACKET,OP_CLOSEBRACKET,
     OP_OPENBRACE,OP_CLOSEBRACE,
     OP_LOCI_DIRECTIVE,OP_LOCI_VARIABLE,OP_LOCI_CONTAINER,
-    OP_TERM, OP_SPECIAL,
+    OP_TERM, OP_SPECIAL, OP_CONTAINS,
     OP_NEW,
     OP_DELETE,
     OP_SIZEOF,
@@ -255,7 +255,7 @@ public:
     TK_VIRTUAL,TK_VOID,TK_TRY,TK_CATCH,TK_THROW,
     TK_IF,TK_ELSE,TK_GOTO,TK_NEW,TK_DELETE,
     ND_SYNTAXERR,
-    ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_WHILE, ND_CTRL_DO,
+    ND_CTRL_IF,ND_CTRL_FOR,ND_CTRL_FOR_RANGE,ND_CTRL_WHILE, ND_CTRL_DO,
     ND_CTRL_SWITCH, ND_SIMPLE_STATEMENT,ND_BLOCK,ND_BLOCK_RAW,
     ND_DECL,ND_TYPE_SPEC,ND_TERMINAL,
     TK_SENTINEL
@@ -424,6 +424,8 @@ namespace nodeTypes {
     AST_type::elementType::OP_TERM;
   constexpr AST_type::elementType OP_SPECIAL =
     AST_type::elementType::OP_SPECIAL;
+  constexpr AST_type::elementType OP_CONTAINS =
+    AST_type::elementType::OP_CONTAINS;
   constexpr AST_type::elementType OP_NEW =
     AST_type::elementType::OP_NEW;
   constexpr AST_type::elementType OP_DELETE =
@@ -697,6 +699,8 @@ namespace nodeTypes {
     AST_type::elementType::ND_CTRL_IF;
   constexpr AST_type::elementType ND_CTRL_FOR =
     AST_type::elementType::ND_CTRL_FOR;
+  constexpr AST_type::elementType ND_CTRL_FOR_RANGE =
+    AST_type::elementType::ND_CTRL_FOR_RANGE;
   constexpr AST_type::elementType ND_CTRL_WHILE =
     AST_type::elementType::ND_CTRL_WHILE;
   constexpr AST_type::elementType ND_CTRL_DO =
