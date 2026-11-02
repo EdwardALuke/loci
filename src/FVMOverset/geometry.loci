@@ -449,19 +449,21 @@ namespace Loci {
         Loci::Abort() ;
       } else if(geomList.size() == 1) {
         Loci::CPTR<geometry_type> comp = geomList[0];
-        comp->getInfo();
+        $[Once]{ comp->getInfo();}
         (*$componentGeometryData)[tag] = comp ;
 #ifdef OVERSET_DEBUG   
-        const auto& mmp = *$componentGeometryData;
-        for (const auto& [key, geom_ptr]: mmp) {
-        std::cout << "geometry list is single entry " << endl;
-        std::cout << "geometry tag is " << tag << " " << key << endl;
+        $[Once]{
+          const auto& mmp = *$componentGeometryData;
+          for (const auto& [key, geom_ptr]: mmp) {
+          std::cout << "geometry list is single entry " << endl;
+          std::cout << "geometry tag is " << tag << " " << key << endl;
         }
+      }
 #endif
       } else {
         Loci::CPTR<geometry_type> comp = new compositeFunc(geomList) ;
         (*$componentGeometryData)[tag] = comp; 
-        comp->getInfo();
+        $[Once]{ comp->getInfo();}
       }
     }
   } ;
