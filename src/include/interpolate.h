@@ -484,20 +484,6 @@ namespace Loci {
                            const std::vector<int> &send_block_id,
                            const std::vector<int> &recv_block_id,
                            const MPI_Comm &comm) ;
-
-  // Collect original coordinates inside exact bounds, in the same block order as boxes_g.
-  void recieveTargetPoints(std::vector<std::vector<kdTree::KDTree<double>::coord_info> > &recv_targets,
-                           const Loci::kdTree::KDTree<float> *kd,
-                           const store<vector3d<double> > &positions,
-                           const std::vector<bound_info> &boxes_g,
-                           const std::vector<kdTree::KDTree<double>::bounds> &bounds_g,
-                           const std::vector<int> &box_sp,
-                           const std::vector<int> &box_tp,
-                           const std::vector<int> &b_sizes,
-                           const std::vector<int> &send_block_id,
-                           const std::vector<int> &recv_block_id,
-                           const MPI_Comm &comm) ;
-
 }
 
 #endif

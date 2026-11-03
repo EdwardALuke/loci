@@ -470,11 +470,9 @@ namespace Loci {
     Loci::debugout << "pbox.size() = " << pbox.size() << endl ;
 #endif
 
-    vector<vector3d<double> > search_points(pbox.size()) ;
     for(size_t i=0;i<pbox.size();++i) {
       int fc = pbox[i].id ;
       vector3d<double>  fcenter = realToDouble($facecenter[fc]) ;
-      search_points[i] = fcenter ;
 
       vector3d<double>  n = realToDouble($area[fc].n) ;
       // compute local stencil distance as either the normal projected
@@ -485,19 +483,11 @@ namespace Loci {
       ndelta[i] = n*locdist ;
     }
 
-    // Adjust bounding boxes by stencil size, retaining exact donor-collection bounds.
-    vector<Loci::kdTree::KDTree<double>::bounds> donor_bounds(boxes.size()) ;
+    // Adjust bounding boxes by stencil size
     for(size_t i=0;i<boxes.size();++i) {
       float spacing = 0  ;
-      for(int d=0;d<3;++d)
-        donor_bounds[i].minc[d] = donor_bounds[i].maxc[d] = search_points[boxes[i].start][d] ;
-      for(int j=boxes[i].start;j<=boxes[i].stop;++j) {
+      for(int j=boxes[i].start;j<=boxes[i].stop;++j)
         spacing = max(spacing,$stencilSizer->getSpacing(pbox[j].coords)) ;
-        for(int d=0;d<3;++d) {
-          donor_bounds[i].minc[d] = min(donor_bounds[i].minc[d],search_points[j][d]) ;
-          donor_bounds[i].maxc[d] = max(donor_bounds[i].maxc[d],search_points[j][d]) ;
-        }
-      }
       spacing *= 6.2 ;
       spacing += *$interpolateMinStencilSize ;
       Loci::debugout << "boxes[" << i << "], spacing =" << spacing
@@ -510,10 +500,6 @@ namespace Loci {
       boxes[i].bnd.maxc[0] += spacing ;
       boxes[i].bnd.maxc[1] += spacing ;
       boxes[i].bnd.maxc[2] += spacing ;
-      for(int d=0;d<3;++d) {
-        donor_bounds[i].minc[d] -= spacing ;
-        donor_bounds[i].maxc[d] += spacing ;
-      }
     }
 
 #ifdef REPORT_TIMES
@@ -534,10 +520,6 @@ namespace Loci {
     communicateBoxPoints(loc_pbox,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,pbox,boxes,
                          MPI_COMM_WORLD) ;
-    vector<vector<vector3d<double> > > loc_search_points ;
-    communicateBoxPoints(loc_search_points,box_sp,box_tp,b_sizes,
-                         send_block_id,recv_block_id,search_points,boxes,
-                         MPI_COMM_WORLD) ;
     vector<vector<vector3d<double> > > loc_ndelta ;
     communicateBoxPoints(loc_ndelta,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,ndelta,boxes,
@@ -553,8 +535,6 @@ namespace Loci {
     // First collect bounding box information for each block
     vector<bound_info> boxes_g ;
     allGatherVec(boxes_g,boxes,MPI_COMM_WORLD) ;
-    vector<Loci::kdTree::KDTree<double>::bounds> donor_bounds_g ;
-    allGatherVec(donor_bounds_g,donor_bounds,MPI_COMM_WORLD) ;
 
 
 #ifdef REPORT_TIMES
@@ -564,9 +544,9 @@ namespace Loci {
 //    using namespace Loci::kdTree ;
     const interpolate_points *interp_pnts = &(*$interpolatePoints(cellcenter,
                                                                   iblank)) ;
-    vector<vector<Loci::kdTree::KDTree<double>::coord_info> > recv_targets ;
-    recieveTargetPoints(recv_targets,interp_pnts->kd,interp_pnts->pos,
-                        boxes_g,donor_bounds_g,box_sp,box_tp,b_sizes,
+    vector<vector<Loci::kdTree::KDTree<float>::coord_info>  > recv_targets ;
+    recieveTargetPoints(recv_targets,interp_pnts->kd,
+                        boxes_g,box_sp,box_tp,b_sizes,
                         send_block_id,recv_block_id,
                         MPI_COMM_WORLD) ;
 
@@ -601,7 +581,7 @@ namespace Loci {
 	      recv_targets[bk][ii].id = ii ;
       }
 
-      Loci::kdTree::KDTree<double> stree(recv_targets[bk]) ;
+      Loci::kdTree::KDTree<float> stree(recv_targets[bk]) ;
 #ifdef VERBOSE
       Loci::debugout << "bk=" << bk << ",bksz=" << tsz<< endl ;
 #endif
@@ -616,7 +596,9 @@ namespace Loci {
       }
                            ;
       for(int j=0;j<ssz;++j) {
-        vector3d<double> fcenter = loc_search_points[i][j] ;
+        vector3d<double>  fcenter(loc_pbox[i][j].coords[0],
+                            loc_pbox[i][j].coords[1],
+                            loc_pbox[i][j].coords[2]) ;
         double dnorm = norm(loc_ndelta[i][j]) ;
         double dval = dnorm ;
         vector3d<double>  n = (1./dnorm)*loc_ndelta[i][j] ;
@@ -645,8 +627,8 @@ namespace Loci {
           }
 
           if(invalid_stencil) {
-            Loci::kdTree::KDTree<double>::bounds box ;
-            vector3d<double> ccenter = fcenter ;
+            Loci::kdTree::KDTree<float>::bounds box ;
+            coord3df ccenter =realToFloat(fcenter) ;
 
             for(int i=0;i<3;++i) {
               box.minc[i] = ccenter[i] ;
@@ -1345,22 +1327,11 @@ namespace Loci {
 #endif
 
 
-    vector<vector3d<double> > search_points(pbox.size()) ;
-    for(size_t i=0;i<pbox.size();++i)
-      search_points[i] = realToDouble($cellcenter[pbox[i].id]) ;
-
-    // Adjust bounding boxes by stencil size, retaining exact donor-collection bounds.
-    vector<Loci::kdTree::KDTree<double>::bounds> donor_bounds(boxes.size()) ;
+    // Adjust bounding boxes by stencil size
     for(size_t i=0;i<boxes.size();++i) {
       float spacing = 0  ;
-      for(int d=0;d<3;++d)
-        donor_bounds[i].minc[d] = donor_bounds[i].maxc[d] = search_points[boxes[i].start][d] ;
       for(int j=boxes[i].start;j<=boxes[i].stop;++j) {
         spacing = max(spacing,$stencilSizer->getSpacing(pbox[j].coords)) ;
-        for(int d=0;d<3;++d) {
-          donor_bounds[i].minc[d] = min(donor_bounds[i].minc[d],search_points[j][d]) ;
-          donor_bounds[i].maxc[d] = max(donor_bounds[i].maxc[d],search_points[j][d]) ;
-        }
       }
       spacing *= 5.1 ;
       spacing += *$interpolateMinStencilSize ;
@@ -1373,10 +1344,6 @@ namespace Loci {
       boxes[i].bnd.maxc[0] += spacing ;
       boxes[i].bnd.maxc[1] += spacing ;
       boxes[i].bnd.maxc[2] += spacing ;
-      for(int d=0;d<3;++d) {
-        donor_bounds[i].minc[d] -= spacing ;
-        donor_bounds[i].maxc[d] += spacing ;
-      }
     }
 
 #ifdef REPORT_TIMES
@@ -1397,10 +1364,6 @@ namespace Loci {
     communicateBoxPoints(loc_pbox,box_sp,box_tp,b_sizes,
                          send_block_id,recv_block_id,pbox,boxes,
                          MPI_COMM_WORLD) ;
-    vector<vector<vector3d<double> > > loc_search_points ;
-    communicateBoxPoints(loc_search_points,box_sp,box_tp,b_sizes,
-                         send_block_id,recv_block_id,search_points,boxes,
-                         MPI_COMM_WORLD) ;
 
 #ifdef REPORT_TIMES
     Loci::debugout << "time recv box search points: " << s.stop() << endl ;
@@ -1414,8 +1377,6 @@ namespace Loci {
     // First collect bounding box information for each block
     vector<bound_info> boxes_g ;
     allGatherVec(boxes_g,boxes,MPI_COMM_WORLD) ;
-    vector<Loci::kdTree::KDTree<double>::bounds> donor_bounds_g ;
-    allGatherVec(donor_bounds_g,donor_bounds,MPI_COMM_WORLD) ;
 
 #ifdef REPORT_TIMES
     Loci::debugout << "time allGatherVec boxes: " << s.stop() << endl ;
@@ -1424,9 +1385,9 @@ namespace Loci {
     const interpolate_points *interp_pnts
       = &(*$interpolatePoints(cellcenter,iblank)) ;
 
-    vector<vector<Loci::kdTree::KDTree<double>::coord_info> > recv_targets ;
-    recieveTargetPoints(recv_targets,interp_pnts->kd,interp_pnts->pos,
-                        boxes_g,donor_bounds_g,box_sp,box_tp,b_sizes,
+    vector<vector<Loci::kdTree::KDTree<float>::coord_info>  > recv_targets ;
+    recieveTargetPoints(recv_targets,interp_pnts->kd,
+                        boxes_g,box_sp,box_tp,b_sizes,
                         send_block_id,recv_block_id,
                         MPI_COMM_WORLD) ;
 
@@ -1473,7 +1434,7 @@ namespace Loci {
         }
       }
 
-      Loci::kdTree::KDTree<double> stree(recv_targets[bk]) ;
+      Loci::kdTree::KDTree<float> stree(recv_targets[bk]) ;
 #ifdef VERBOSE
       Loci::debugout << "bk=" << bk <<  ",tsz=" << tsz << endl ;
 #endif
@@ -1491,7 +1452,9 @@ namespace Loci {
 
       delta_stencil *= 5.1 ;
       for(int j=0;j<ssz;++j) {
-        vector3d<double> pnt = loc_search_points[i][j] ;
+	      vector3d<double>  pnt(loc_pbox[i][j].coords[0],
+			                        loc_pbox[i][j].coords[1],
+			                        loc_pbox[i][j].coords[2]) ;
 
 	      vector<int> neighbors = get_stencil(stree,pnt,delta_stencil) ;
 
@@ -1516,7 +1479,7 @@ namespace Loci {
         vector<double> w  ;
         stencil_weights(w,neighbors,loc,pnt) ;
         if(neighbors.size() ==0) {
-          neighbors.push_back(stree.find_closest(pnt)) ;
+          neighbors.push_back(stree.find_closest(loc_pbox[i][j].coords)) ;
           if(neighbors[0] < 0 ||
           neighbors[0] == std::numeric_limits<int>::max()) {
             neighbors[0] = defaultid ;

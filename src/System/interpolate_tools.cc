@@ -20,7 +20,6 @@
 //#############################################################################
 #include <Loci>
 #include <interpolate.h>
-#include <type_traits>
 
 namespace Loci {
   using std::vector ;
@@ -1384,11 +1383,8 @@ namespace Loci {
 
   using namespace kdTree ;
 
-  template<class T>
-  static void receiveTargetPointsImpl(vector<vector<typename KDTree<T>::coord_info> > &recv_targets,
+  void recieveTargetPoints(vector<vector<KDTree<float>::coord_info>  > &recv_targets,
                            const kdTree::KDTree<float> *kd,
-                           const store<vector3d<double> > *positions,
-                           const vector<KDTree<double>::bounds> *exact_bounds,
                            const vector<bound_info> &boxes_g,
                            const vector<int> &box_sp,
                            const vector<int> &box_tp,
@@ -1403,53 +1399,22 @@ namespace Loci {
     int r ;
     MPI_Comm_rank(comm,&r) ;
 
-    typedef typename KDTree<T>::coord_info PointInfo ;
     // loop over boxes and collect target points to send
-    vector<PointInfo> pntlist ;
+    vector<KDTree<float>::coord_info> pntlist ;
     vector<int> scounts(boxes_g.size(),0) ;
     vector<int> block_sends(p,0) ;
     vector<vector<int> > proc_send_list(p) ;
     
     for(size_t i=0;i<boxes_g.size();++i) {
       int bsz = pntlist.size() ;
-      if constexpr(std::is_same<T,float>::value) {
-        kd->find_box(pntlist,boxes_g[i].bnd) ;
-      } else {
-        // Use the coarse tree to collect candidates, then test their original coordinates.
-        const KDTree<double>::bounds &exact = (*exact_bounds)[i] ;
-        KDTree<float>::bounds bounds ;
-        for(int d=0;d<3;++d) {
-          bounds.minc[d] = exact.minc[d] ;
-          bounds.maxc[d] = exact.maxc[d] ;
-          if(bounds.minc[d] > exact.minc[d])
-            bounds.minc[d] = std::nextafter(bounds.minc[d],-std::numeric_limits<float>::infinity()) ;
-          if(bounds.maxc[d] < exact.maxc[d])
-            bounds.maxc[d] = std::nextafter(bounds.maxc[d], std::numeric_limits<float>::infinity()) ;
-        }
-        vector<KDTree<float>::coord_info> candidates ;
-        kd->find_box(candidates,bounds) ;
-        for(const auto &candidate : candidates) {
-          PointInfo point ;
-          point.id = candidate.id ;
-          bool inside = true ;
-          for(int d=0;d<3;++d)
-            point.coords[d] = point.id == std::numeric_limits<int>::max() ?
-              candidate.coords[d] : (*positions)[point.id][d] ;
-          // Hole markers no longer retain an ID for recovering their exact coordinates.
-          if(point.id != std::numeric_limits<int>::max())
-            for(int d=0;d<3;++d)
-              inside = inside && point.coords[d] >= exact.minc[d] && point.coords[d] <= exact.maxc[d] ;
-          if(inside)
-            pntlist.push_back(point) ;
-        }
-      }
+      (kd)->find_box(pntlist,boxes_g[i].bnd) ;
       scounts[i] = pntlist.size()-bsz ;
       
 #ifdef VERBOSE
       if(scounts[i] != 0) {
 
         debugout << "sending " << scounts[i] << " points to " << box_tp[i] << endl ;
-        typename KDTree<T>::bounds btmp ;
+        kdTree::KDTree<float>::bounds btmp ;
 
         for(int d=0;d<3;++d) {
           btmp.minc[d] = pntlist[bsz].coords[d] ;
@@ -1558,7 +1523,7 @@ namespace Loci {
 #endif
 
     {
-      vector<vector<PointInfo> > tmpx(boxes_g.size()) ;
+      vector<vector<kdTree::KDTree<float>::coord_info>  > tmpx(boxes_g.size()) ;
       recv_targets.swap(tmpx) ;
     }
     MEMORY_PROFILE(RecieveTargetPointsMid) ;
@@ -1566,14 +1531,14 @@ namespace Loci {
     // allocate points to receive 
     for(size_t i=0;i<recv_tot_size.size();++i) {
       if(recv_tot_size[i] != 0) {
-	vector<PointInfo> tmp(recv_tot_size[i]) ;
+	vector<kdTree::KDTree<float>::coord_info>  tmp(recv_tot_size[i]) ;
 	recv_targets[i].swap(tmp) ;
       }
     }
     
     vector<int> recv_offset(recv_tot_size.size(),0) ;
     cnt = 0 ;
-    int coord_size = sizeof(PointInfo) ;
+    int coord_size = sizeof(kdTree::KDTree<float>::coord_info) ;
     for(int i=0;i<p;++i) 
       for(int j=0;j<block_recvs[i];++j) {
 	int bk = recv_info[cnt].first ;
@@ -1603,34 +1568,6 @@ namespace Loci {
       MPI_Waitall(num_recv,req_queue.data(),stat_queue.data()) ;
     }
     MEMORY_PROFILE(RecieveTargetPointsEnd) ;
-  }
-
-  void recieveTargetPoints(vector<vector<KDTree<float>::coord_info> > &recv_targets,
-                           const kdTree::KDTree<float> *kd,
-                           const vector<bound_info> &boxes_g,
-                           const vector<int> &box_sp,
-                           const vector<int> &box_tp,
-                           const vector<int> &b_sizes,
-                           const vector<int> &send_block_id,
-                           const vector<int> &recv_block_id,
-                           const MPI_Comm &comm) {
-    receiveTargetPointsImpl<float>(recv_targets,kd,nullptr,nullptr,boxes_g,box_sp,box_tp,b_sizes,
-                                    send_block_id,recv_block_id,comm) ;
-  }
-
-  void recieveTargetPoints(vector<vector<KDTree<double>::coord_info> > &recv_targets,
-                           const kdTree::KDTree<float> *kd,
-                           const store<vector3d<double> > &positions,
-                           const vector<bound_info> &boxes_g,
-                           const vector<KDTree<double>::bounds> &bounds_g,
-                           const vector<int> &box_sp,
-                           const vector<int> &box_tp,
-                           const vector<int> &b_sizes,
-                           const vector<int> &send_block_id,
-                           const vector<int> &recv_block_id,
-                           const MPI_Comm &comm) {
-    receiveTargetPointsImpl<double>(recv_targets,kd,&positions,&bounds_g,boxes_g,box_sp,box_tp,b_sizes,
-                                    send_block_id,recv_block_id,comm) ;
   }
 
 }
