@@ -174,7 +174,6 @@ class generalCylinderFunc : public geometry_type {
 inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[], 
     const vector3d<real_t> loc[], int sz) const
 {
-  // 1. Calculate the axis geometry
   vector3d<real_t> v = p2-p1;
   real_t H = norm(v);
   real_t oH = 1.0/max<real_t>(1e-30,H);
@@ -194,7 +193,7 @@ inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
     real_t r = radialDist;
     real_t z = axialProj - h; 
     
-    // 3. Evaluate the 2D profile (Inigo Quilez logic)
+    // Evaluate the 2D profile (Inigo Quilez logic)
     real_t dx = r1 - r2;
     real_t mx = 0.5*(r1 + r2); //average to ensure we aren't picking outside of the body
     
@@ -230,7 +229,7 @@ inline void generalCylinderFunc::getDist(real_t dist[], vector3d<real_t> n[],
         else { n2dx = 0.0; n2dy = (z > 0.0) ? 1.0 : -1.0; }
     }
     
-    // 4. Reconstruct the 3D Normal back to global Space
+    // Reconstruct the 3D Normal back to global Space
     // The radial component maps to the normalized radial vector direction
     vector3d<real_t> radialDir = radialVec/max<real_t>(1e-30,radialDist);
 
@@ -429,7 +428,6 @@ inline real_t sdPolygon2D(vector3d<real_t> q, const vector<vector3d<real_t>>& v,
 
 inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
 {
-    // 1. Calculate the axis geometry
     vector3d<real_t> V = p2 - p1;
     real_t H = norm(V);
     real_t oH = 1.0/max<real_t>(1e-30,H);
@@ -439,7 +437,6 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
 
     // Offset angle relative to orientation and percentage 
     // default position is at 0
-    //real_t offset = -sector*angle;
     real_t startAngle = -sectorPosition*angle;
     real_t endAngle = (1.0-sectorPosition)*angle;
 
@@ -447,7 +444,7 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
     vector3d<real_t> r = sectorOrientation - dot(sectorOrientation,V)*V;
     real_t rdist = norm(r);
     if (rdist < 1e-9) {
-      // Fallback if sectorNormal happens to be perfectly parallel to the axis spine
+      // Fallback if sectorNormal aligns with axis
       vector3d<real_t> mX = (abs(V.y) < 0.9) ? vector3d<real_t>{0.,1.,0.} : vector3d<real_t>{1.,0.,0.};
       r = mX - dot(mX,V)*V;
       rdist = norm(r);
@@ -484,7 +481,7 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
       // cylindrical transform of loc[i]
       vector3d<real_t> proj2d = vector3d<real_t>(dot(radialVec,r),dot(radialVec,z),0.0);
 
-      // 4. Evaluate the transformed 2D Polygon Profile
+      // Evaluate the transformed 2D Polygon Profile
       vector3d<real_t> n2d;
       real_t dProfile = sdPolygon2D(q, poly2d, n2d);
       dist[i] = 0.0;
@@ -594,6 +591,107 @@ inline void sectorFunc::getDist(real_t dist[], vector3d<real_t> n[], const vecto
     return new sectorFunc(np1, np2, pv, angle, sectorPosition, nori);
   }
 
+// old-style revolution to maintain backward compatability
+class revolutionFunc : public geometry_type {
+    vector3d<real_t> p1,p2 ; // revolution axis endpoints
+    real_t rlen2 ; // reciprocal of len(pt1-pt2)^2
+    vector<pair<real_t,real_t> > radius_pairs ;
+  public:
+    revolutionFunc() {
+      p1=vector3d<real_t>(0,0,0) ;
+      p2=vector3d<real_t>(0,0,0) ;
+    }
+    revolutionFunc(vector3d<real_t> p1i,
+                   vector3d<real_t> p2i,
+                   vector<pair<real_t,real_t> > rp ) :
+        p1(p1i),p2(p2i),radius_pairs(rp)
+    {
+      std::sort(radius_pairs.begin(),radius_pairs.end()) ;
+      rlen2 = 1./dot(p2-p1,p2-p1) ;
+    }
+    virtual void getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const;
+    virtual Loci::CPTR<geometry_type> transform(rigid_transform Tv) const;
+    virtual Loci::CPTR<geometry_type> applyXform(componentXform xform) const ;
+    virtual void inGeometry(const vector3d<real_t> loc[],bool inGeom[],int sz) const;    
+    virtual void getInfo() const;
+  } ;
+
+  inline void revolutionFunc::inGeometry(const vector3d<real_t> loc[], bool inGeom [], int sz) const
+  {
+    real_t dist[sz];
+    vector3d<real_t> n[sz];
+    getDist(dist, n, loc, sz);
+    for (int i = 0; i< sz; i++)
+    {
+        if (dist[i] < 0) inGeom[i] = true;
+        if (dist[i] > 0) inGeom[i] = false;
+   }
+  }
+
+  inline void revolutionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const 
+  {
+    for(int i=0;i<sz;++i) { // loop over points
+      vector3d<real_t> pt = loc[i] ;
+      vector3d<real_t> p = pt-p1 ;
+      vector3d<real_t> ax = p2 - p1;
+      real_t t = dot(p,ax)*rlen2 ;
+      // outside of end-caps
+      if(t < 0) {
+        dist[i] = norm(p);
+        n[i] = p/dist[i];
+        continue;
+      }
+      if(t > 1) {
+        dist[i] = norm(pt-p2);
+        n[i] = (pt-p2)/dist[i];
+        continue;
+      }
+
+      vector3d<real_t> v = t*(ax) ;
+      real_t r = 0 ;
+      for(size_t i=1;i<radius_pairs.size();++i)
+      {
+        if(t >= radius_pairs[i-1].first && t < radius_pairs[i].first) {
+          real_t t1 = radius_pairs[i-1].first ;
+          real_t t2 = radius_pairs[i].first ;
+          real_t w = (t1-t)/(t1-t2) ;
+          r = radius_pairs[i-1].second*(1.-w)+radius_pairs[i].second*w ;
+        }
+      }
+
+      real_t r2axis = dot(v-p,v-p) ;
+      real_t raxis = sqrt(r2axis);
+      dist[i] = raxis - r ;
+      if (raxis > 1e-8){
+        n[i] = (v-p)/raxis;
+      } else {
+        n[i] = ax/norm(ax);
+      }
+    }
+  }
+
+inline Loci::CPTR<geometry_type> revolutionFunc::applyXform(componentXform xform)  const {
+    vector3d<real_t> x1 = xform.applyXform(p1) ;
+    vector3d<real_t> x2 = xform.applyXform(p2) ;
+    return new revolutionFunc(x1,x2,radius_pairs) ;
+}
+
+
+inline Loci::CPTR<geometry_type> revolutionFunc::transform(rigid_transform Tv)  const {
+    vector3d<real_t> x1 = Tv.transform(p1) ;
+    vector3d<real_t> x2 = Tv.transform(p2) ;
+    return new revolutionFunc(x1,x2,radius_pairs) ;
+}
+
+  inline void revolutionFunc::getInfo() const {
+    cout << "Revolution Geometric Definition " << endl;
+    cout << "Offset/Radii: " << endl;
+    for (const auto& v3d : radius_pairs) {
+        cout << v3d.first << " " << v3d.second << endl;
+    }
+    cout << "Revolution Axis (P1/P2): " << p1 << " " << p2 << endl;
+  }
+
 class extrusionFunc : public geometry_type {
     vector3d<real_t> p1; 
     vector3d<real_t> p2;
@@ -622,7 +720,6 @@ class extrusionFunc : public geometry_type {
 
 inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const vector3d<real_t> loc[], int sz) const
 {
-     // 1. Calculate the main axis geometry (Y-axis of our local frame)
     vector3d<real_t> V = p2 - p1;
     real_t H = norm(V);
     real_t oH = 1.0/max<real_t>(1e-30,H);
@@ -636,7 +733,6 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
       real_t wClen = dot(wC,V);
       
       // Establish the rest of the 3D coordinate frame
-      // We determine the plane normal from the first few vertices of the 3D polygon
       vector3d<real_t> x = polyVerts[1] - polyVerts[0];
       real_t elen = norm(x);
       real_t olene = 1.0/max<real_t>(1e-30,elen);
@@ -668,13 +764,13 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
           poly2d.push_back({ vX, vY,0.0 });
       }
       
-      // 4. Map the test point into the local 3D coordinate values
+      // Map the test point into the local 3D coordinate values
       vector3d<real_t> p2d = vector3d<real_t>(dot(w,x),dot(w,y),0.0);
-      // 5. Evaluate the 2D Polygon profile distance
+      // Evaluate the 2D Polygon profile distance
       vector3d<real_t> n2d;
       real_t dProfile2D = sdPolygon2D(p2d, poly2d, n2d);
 
-      // 6. Evaluate Extrusion Bounds using the user's percentage bias
+      // Evaluate Extrusion Bounds using the user's percentage bias
       // Shift the extrusion center window based on where they anchored the polygon plane
       real_t target = extrusionPercentage * H;
       real_t shift = wClen + target;
@@ -684,9 +780,6 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
       real_t end = shift - H;
       real_t dExtrusion = max<real_t>(begin,end);
       
-      // 7. Combine calculations using the standard bounded 3D Extrusion operator
-      // If inside the profile, it finds the closest exit out of the caps or side walls.
-      // If both distances are negative, the point is deep inside; check which feature is closer
       if (dProfile2D < 0.0 && dExtrusion < 0.0) {
           dist[i]  = max<real_t>(dProfile2D, dExtrusion);
       } else {
@@ -697,7 +790,6 @@ inline void extrusionFunc::getDist(real_t dist[], vector3d<real_t> n[], const ve
           dist[i] = sqrt(odist);
       }
       
-      // 8. Reconstruct the World Normal Vector
       if (dist[i] == dProfile2D || (dProfile2D > dExtrusion && dist[i] <= 0.0)) {
           // Closest feature is the perimeter side walls of the polygon profile
           n[i] = n2d.x*x + n2d.y*y;
