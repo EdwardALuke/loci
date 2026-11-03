@@ -74,7 +74,7 @@ LOCI_LPP_FILES = $(LOCI_FILES:.loci=.$(LPP_I_SUFFIX))
 distclean: clean
 	rm -fr TestResults $(JUNK) $(LOCI_LPP_FILES) $(DEPEND_FILES) $(TESTS)
 
-DEPEND_FILES=$(subst .o,.d,$(OBJS))
+DEPEND_FILES=$(subst .o,.d,$(AUTOMATIC_OBJS))
 
 #include automatically generated dependencies
 ifeq ($(filter $(MAKECMDGOALS),clean distclean ),)
