@@ -277,31 +277,31 @@ namespace Loci {
         } else if(gname == "revolution") { // maintain backwards compatibility    
           vector3d<real_t> p1(0,0,0) ;
           bool fail = false ;
-          if(ol.optionExists("p1")) {
-            ol.getOptionUnits("p1","meter",p1) ;
+          if(fol.optionExists("p1")) {
+            fol.getOptionUnits("p1","meter",p1) ;
           } else {
             fail = true ;
           }
 
           vector3d<real_t> p2(0,0,0) ;
-          if(ol.optionExists("p2")) {
-            ol.getOptionUnits("p2","meter",p2) ;
+          if(fol.optionExists("p2")) {
+            fol.getOptionUnits("p2","meter",p2) ;
           } else {
             fail = true ;
           }
-
+   
           // For a revolution, a series of radius value and offset values are needed
           vector<real_t> radius ;
           vector<real_t> offsets ;
-          if(ol.optionExists("radius")) {
-            Loci::option_value_type ovt= ol.getOptionValueType("radius") ;
+          if(fol.optionExists("radius")) {
+            Loci::option_value_type ovt= fol.getOptionValueType("radius") ;
             if(ovt != Loci::LIST) {
               cerr << "radius for geometry of component '" << tag
                   << "' must be a list" << endl ;
               Loci::Abort() ;
             }
             Loci::options_list::arg_list value_list ;
-            ol.getOption("radius",value_list) ;
+            fol.getOption("radius",value_list) ;
             int sz = value_list.size() ;
             for(int i=0;i<sz;++i) {
               if(value_list[i].type_of() == Loci::UNIT_VALUE) {
@@ -328,15 +328,15 @@ namespace Loci {
             fail = true ;
           }
 
-          if(ol.optionExists("offsets")) {
-            Loci::option_value_type ovt= ol.getOptionValueType("offsets") ;
+          if(fol.optionExists("offsets")) {
+            Loci::option_value_type ovt= fol.getOptionValueType("offsets") ;
             if(ovt != Loci::LIST) {
               cerr << "offsets for geometry of component '" << tag
                   << "' must be a list" << endl ;
               Loci::Abort() ;
             }
             Loci::options_list::arg_list value_list ;
-            ol.getOption("offsets",value_list) ;
+            fol.getOption("offsets",value_list) ;
             int sz = value_list.size() ;
             for(int i=0;i<sz;++i) {
               if(value_list[i].type_of() == Loci::REAL) {
@@ -372,6 +372,7 @@ namespace Loci {
             vrad[i].first = offsets[i] ;
             vrad[i].second = radius[i] ;
           }
+
           geomList.push_back(new revolutionFunc(p1,p2,vrad) ) ;
         } else if(gname == "extrusion") {        
             vector3d<real_t> p1(0,0,0) ;
