@@ -85,45 +85,61 @@ namespace Loci {
         fol.Input(shape);
         if(gname == "hex") {
           vector3d<real_t> p0(0,0,0) ;
-          if(fol.optionExists("p0"))
+          if(fol.optionExists("p0")) {
             fol.getOptionUnits("p0","m",p0) ;
-          else
+          } else {
             cerr << "p0 not defined in hex geometry"<< endl ;
+            Loci::Abort() ;
+          }
           vector3d<real_t> p1(0,0,0) ;
-          if(fol.optionExists("p1"))
+          if(fol.optionExists("p1")) {
             fol.getOptionUnits("p1","m",p1) ;
-          else
+          } else {
             cerr << "p1 not defined in hex geometry"<< endl ;
+            Loci::Abort() ;
+          }
           vector3d<real_t> p2(0,0,0) ;
-          if(fol.optionExists("p2"))
+          if(fol.optionExists("p2")) {
             fol.getOptionUnits("p2","m",p2) ;
-          else
+          } else {
             cerr << "p2 not defined in hex geometry"<< endl ;
+            Loci::Abort();
+          }
           vector3d<real_t> p3(0,0,0) ;
-          if(fol.optionExists("p3"))
+          if(fol.optionExists("p3")) {
             fol.getOptionUnits("p3","m",p3) ;
-          else
+          } else {
             cerr << "p3 not defined in hex geometry"<< endl ;
+            Loci::Abort();
+          }
           vector3d<real_t> p4(0,0,0) ;
-          if(fol.optionExists("p4"))
+          if(fol.optionExists("p4")) {
             fol.getOptionUnits("p4","m",p4) ;
-          else
+          } else {
             cerr << "p4 not defined in hex geometry"<< endl ;
+            Loci::Abort();
+          }
           vector3d<real_t> p5(0,0,0) ;
-          if(fol.optionExists("p5"))
+          if(fol.optionExists("p5")) {
             fol.getOptionUnits("p5","m",p5) ;
-          else
+          } else {
             cerr << "p5 not defined in hex geometry"<< endl ;
+            Loci::Abort() ;
+          }
           vector3d<real_t> p6(0,0,0) ;
-          if(fol.optionExists("p6"))
+          if(fol.optionExists("p6")) {
             fol.getOptionUnits("p6","m",p6) ;
-          else
+          } else {
             cerr << "p6 not defined in hex geometry"<< endl ;
+            Loci::Abort() ;
+          }
           vector3d<real_t> p7(0,0,0) ;
-          if(fol.optionExists("p7"))
+          if(fol.optionExists("p7")) {
             fol.getOptionUnits("p7","m",p7) ;
-          else
+          } else {
             cerr << "p7 not defined in hex geometry"<< endl ;
+            Loci::Abort() ;
+          }
           vector3d<real_t> pts[8] ;
           pts[0] = p0 ;
           pts[1] = p1 ;
@@ -140,9 +156,14 @@ namespace Loci {
             vector3d<real_t> center(0,0,0) ;
             fol.getOptionUnits("center","m",center) ;
             real_t radius= 0.0 ;
-            fol.getOptionUnits("radius","m",radius) ;
+            if (fol.optionExists("radius")) {
+              fol.getOptionUnits("radius","m",radius) ;
+            } else {
+              cerr << "radius not defined in cylinder geometry " << endl;
+              Loci::Abort() ;
+            }
             real_t thickness = 0.0;
-            if (fol.optionExists("thickness")) // for hollow cylinders
+            if (fol.optionExists("thickness")) // for hollow cylinders, optional input
               fol.getOption("thickness");
             geomList.push_back(new hollowGeneralCylinderFunc(center,radius,radius,thickness)) ;
           } else {
@@ -156,13 +177,21 @@ namespace Loci {
               vector3d<real_t> p2(0,0,0) ;
               fol.getOptionUnits("p2","m",p2) ;
               real_t radius = 0.0 ;
-              fol.getOptionUnits("radius","m",radius) ;
+              if (fol.optionExists("radius")) {
+                fol.getOptionUnits("radius","m",radius) ;
+              } else {
+                cerr << "radius not defined in cylinder geometry " << endl;
+                Loci::Abort() ;
+              }
               real_t thickness = 0.0;
-              if (fol.optionExists("thickness")) // for hollow cylinders
+              if (fol.optionExists("thickness")) // for hollow cylinders, optional input
                 fol.getOption("thickness");
               Loci::CPTR<geometry_type> gp = new hollowGeneralCylinderFunc(p1,p2,radius,radius,radius,radius,thickness);
               gp->getInfo();
               geomList.push_back(gp) ;
+            } else {
+              cerr << "cylinder must be defined by a center/radius or two point (p1,p2) axis" << endl;
+              Loci::Abort() ;
             }
           }
         } else if(gname == "cone") {        
@@ -171,6 +200,12 @@ namespace Loci {
             fol.getOptionUnits("center","m",center) ;
             real_t radius = 0.0 ;
             fol.getOptionUnits("radius","m",radius) ;
+            if (fol.optionExists("radius")) {
+                fol.getOptionUnits("radius","m",radius) ;
+            } else {
+              cerr << "radius not defined in cone geometry " << endl ;
+              Loci::Abort() ;
+            }
             real_t thickness = 0.0;
             if (fol.optionExists("thickness")) // for hollow cones
               fol.getOption("thickness",thickness);
@@ -186,11 +221,19 @@ namespace Loci {
               vector3d<real_t> p2(0,0,0) ;
               fol.getOptionUnits("p2","m",p2) ;
               real_t radius = 0.0 ;
-              fol.getOptionUnits("radius","m",radius) ;
+              if (fol.optionExists("radius")) {
+                fol.getOptionUnits("radius","m",radius) ;
+              } else {
+                cerr << "radius not defined in cone geometry " << endl;
+                Loci::Abort() ;
+              }
               real_t thickness = 0.0;
               if (fol.optionExists("thickness")) // for hollow cones
                 fol.getOption("thickness",thickness);
               geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius, radius, radius, radius, thickness)) ;
+            } else {
+              cerr << "cone geometry must be defined by a center/radius or two point (p1,p2) axis! " << endl;
+              Loci::Abort() ;
             }
           }
         } else if(gname == "frustum") {        
@@ -220,6 +263,9 @@ namespace Loci {
             if (fol.optionExists("thickness")) // for hollow frustums
               fol.getOption("thickness",thickness);
             geomList.push_back(new hollowGeneralCylinderFunc(p1,p2,radius_base, radius_top, radius_base, radius_top, thickness)) ;
+          } else {
+            cerr << "frustrum geometry must be defined by a center/radius or two point (p1,p2) axis! " << endl;
+            Loci::Abort() ;
           }
         } else if(gname == "sector") {     
             using namespace Loci ;   
