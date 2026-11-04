@@ -308,17 +308,25 @@ namespace Loci {
   } ;
 
   class  entityPartitionInfo ;
+  class  filePartitionInfo ;
+  class  globalPartitionInfo ;
 
   /// A convenience pointer to the data partitioner interface
   typedef std::shared_ptr<entityPartitionInfo> entityPartitionInfoP ;
+  /// A convenience pointer to the file partition info interface
+  typedef std::shared_ptr<filePartitionInfo> filePartitionInfoP ;
+  /// A convenience pointer to the global partition info interface
+  typedef std::shared_ptr<globalPartitionInfo> globalPartitionInfoP ;
   
   class storeRep : public NPTR_type {
     int domainKeySpace ;
   protected:
     int alloc_id ;
     entityPartitionInfoP ptn ;
+    filePartitionInfoP file_ptn ;
+    globalPartitionInfoP global_ptn ;
   public:
-    storeRep():domainKeySpace(0),alloc_id(-1),ptn(0) {}
+    storeRep():domainKeySpace(0),alloc_id(-1),ptn(0),file_ptn(0),global_ptn(0) {}
     virtual ~storeRep() ;
     virtual int get_alloc_id() const { return alloc_id ; }
     virtual void allocate(const entitySet &p) = 0 ;
@@ -370,6 +378,10 @@ namespace Loci {
     virtual void setDomainKeySpace(int v) { domainKeySpace = v ; }
     virtual void setPartitionInfo(entityPartitionInfoP p) { ptn = p ; }
     virtual entityPartitionInfoP getPartitionInfo() const { return ptn; }
+    virtual void setFilePartitionInfo(filePartitionInfoP p) { file_ptn = p ; }
+    virtual filePartitionInfoP getFilePartitionInfo() const { return file_ptn; }
+    virtual void setGlobalPartitionInfo(globalPartitionInfoP p) { global_ptn = p ; }
+    virtual globalPartitionInfoP getGlobalPartitionInfo() const { return global_ptn; }
   } ;
 
 
@@ -382,6 +394,8 @@ namespace Loci {
     enum instance_type { READ_WRITE, READ_ONLY } ;
     void setRep(const storeRepP &p)
     { rep = p ; rep->setPartitionInfo(p->getPartitionInfo()) ;
+      rep->setFilePartitionInfo(p->getFilePartitionInfo()) ;
+      rep->setGlobalPartitionInfo(p->getGlobalPartitionInfo()) ;
       rep.set_notify(this); notification() ; }
     storeRepP Rep() { return rep->getRep(); }
     storeRepP Rep() const { return rep->getRep(); }
@@ -459,6 +473,18 @@ namespace Loci {
     }
     virtual entityPartitionInfoP getPartitionInfo() const {
       return Rep()->getPartitionInfo();
+    }
+    virtual void setFilePartitionInfo(filePartitionInfoP p) {
+      file_ptn = p ; Rep()->setFilePartitionInfo(p) ;
+    }
+    virtual filePartitionInfoP getFilePartitionInfo() const {
+      return Rep()->getFilePartitionInfo();
+    }
+    virtual void setGlobalPartitionInfo(globalPartitionInfoP p) {
+      global_ptn = p ; Rep()->setGlobalPartitionInfo(p) ;
+    }
+    virtual globalPartitionInfoP getGlobalPartitionInfo() const {
+      return Rep()->getGlobalPartitionInfo();
     }
     
   } ;

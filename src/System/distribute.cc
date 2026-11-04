@@ -46,6 +46,67 @@ using std::sort ;
 
 namespace Loci {
 
+  // =========================================================================
+  // entityPartitionInfo constructors
+  // =========================================================================
+
+  entityPartitionInfo::entityPartitionInfo(entitySet &scope,
+                                          Map &l2g_in,
+                                          store<unsigned char> &key_domain_in,
+                                          Map &l2f_in,
+                                          std::vector<globalPartitionInfoP> &keyspace_info_in,
+                                          MPI_Comm comm_in)
+    : my_entities(scope),keyspaceInfo(keyspace_info_in),comm(comm_in) {
+    l2g.setRep(l2g_in.Rep()) ;
+    l2f.setRep(l2f_in.Rep()) ;
+    key_domain.setRep(key_domain_in.Rep()) ;
+  }
+
+  entityPartitionInfo::entityPartitionInfo(entitySet &scope,
+                                          Map &l2g_in,
+                                          store<unsigned char> &key_domain_in,
+                                          Map &l2f_in,
+                                          std::vector<dataPartitionP> &ptnlist,
+                                          MPI_Comm comm_in)
+    : my_entities(scope),comm(comm_in) {
+    l2g.setRep(l2g_in.Rep()) ;
+    l2f.setRep(l2f_in.Rep()) ;
+    key_domain.setRep(key_domain_in.Rep()) ;
+    // Build globalPartitionInfo per keyspace from the raw l2f map
+    // and global partitions.  We need to extract the g2f relationship
+    // from the l2g and l2f maps.
+    for(size_t kd=0;kd<ptnlist.size();++kd) {
+      // Collect g2f entries for this keyspace from l2g and l2f
+      dMap g2f ;
+      entitySet kd_entities ;
+      entitySet kd_dom = key_domain_in.domain() ;
+      FORALL(kd_dom,i) {
+        if(int(key_domain_in[i]) == int(kd)) {
+          kd_entities += i ;
+          g2f[l2g_in[i]] = l2f_in[i] ;
+        }
+      } ENDFORALL ;
+      // Compute file partition from bounds of file numbers in this keyspace
+      int imx = std::numeric_limits<int>::min() ;
+      int imn = std::numeric_limits<int>::max() ;
+      FORALL(kd_entities,i) {
+        imx = max(int(l2f_in[i]),imx) ;
+        imn = min(int(l2f_in[i]),imn) ;
+      } ENDFORALL ;
+      imx = GLOBAL_MAX(imx,comm_in) ;
+      imn = GLOBAL_MIN(imn,comm_in) ;
+      int p = 0 ;
+      MPI_Comm_size(comm_in,&p) ;
+      dataPartitionP fileptn = createPartition(imn,(imx-imn+p)/p,comm_in) ;
+
+      filePartitionInfoP fpi = std::make_shared<filePartitionInfo>
+        (entitySet(), fileptn, kd, comm_in) ;
+      globalPartitionInfoP gpi = std::make_shared<globalPartitionInfo>
+        (entitySet(), g2f, ptnlist[kd], fpi, kd, comm_in) ;
+      keyspaceInfo.push_back(gpi) ;
+    }
+  }
+
   int entityPartitionInfo::getKeyDomain(entitySet dom) const {
     //    MPI_Comm comm = getCommunicator() ;
     int kdl = 0 ;
@@ -77,7 +138,7 @@ namespace Loci {
     // Get local numbering of entities owned by this processor, only write
     // out these entities.
     dom = myEntities() & dom ;
-    MPI_Comm comm = getCommunicator() ; ;
+    MPI_Comm comm = getCommunicator() ;
     int kd =  getKeyDomain(dom) ;
     if(kd< 0) {
       cerr << "Local2FileOrder not in single keyspace!" << endl ;
@@ -107,6 +168,9 @@ namespace Loci {
     // Create partition across file numbers
     // Maybe use the one provided by the container in the future
     dataPartitionP fileptn = createPartition(imn,(imx-imn+p)/p,comm) ;
+
+
+
 
     // Now compute where to send data to put in file ordering
     vector<entitySet> send_sets(p) ;
@@ -260,6 +324,522 @@ namespace Loci {
 
     vector<int> send_sizes(p), recv_sizes(p) ;
 
+
+    for(int i=0;i<p;++i)
+      send_sizes[i] = input->pack_size(send_sets[i]) ;
+
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,recv_sizes.data(),1,MPI_INT, comm) ;
+
+    vector<int> send_dspl(p), recv_dspl(p) ;
+    send_dspl[0] = 0 ;
+    recv_dspl[0] = 0 ;
+    for(int i=1;i<p;++i) {
+      send_dspl[i] = send_dspl[i-1] + send_sizes[i-1] ;
+      recv_dspl[i] = recv_dspl[i-1] + recv_sizes[i-1] ;
+    }
+    int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
+    int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
+
+    vector<unsigned char> send_store(max(send_sz,1)) ;
+    vector<unsigned char> recv_store(max(recv_sz,1)) ;
+
+    for(int i=0;i<p;++i) {
+      if(send_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        if(send_sizes[i] > 0)
+          input->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                      send_sets[i]) ;
+      }
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
+                  comm) ;
+
+    for(int i=0;i<p;++i) {
+      if(recv_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        if(recv_sizes[i] > 0) 
+          result->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seq[i]) ;
+      }
+    }
+  }
+
+  // =========================================================================
+  // filePartitionInfo implementation
+  // =========================================================================
+
+  filePartitionInfo::filePartitionInfo(entitySet my_file_entities,
+                                      dataPartitionP filePtn,
+                                      int keyspace_in,
+                                      MPI_Comm comm_in)
+    : my_entities(my_file_entities),
+      filePartition(filePtn),
+      keyspace(keyspace_in),
+      comm(comm_in) {
+  }
+
+  storeRepP filePartitionInfo::redistribute(storeRepP sp, entitySet dom,
+                                            dataPartitionP target_ptn) {
+    dom = myEntities() & dom ;
+    MPI_Comm comm = getCommunicator() ;
+
+    int p = 0 ;
+    MPI_Comm_size(comm,&p) ;
+
+    // Compute where to send data based on target partition
+    vector<entitySet> send_sets(p) ;
+    vector<sequence> send_seqs(p) ;
+
+    vector<int> entities(dom.size()) ;
+    int cnt = 0 ;
+    FORALL(dom,ii) {
+      entities[cnt++] = ii ;
+    } ENDFORALL ;
+
+    vector<int> proc(dom.size()) ;
+    target_ptn->processorLookup(proc,entities) ;
+    cnt = 0 ;
+    FORALL(dom,ii) {
+      int dest = proc[cnt++] ;
+      send_sets[dest] += ii ;
+      send_seqs[dest] += ii ;
+    } ENDFORALL ;
+
+    vector<sequence> recv_seqs = transposeSeq(send_seqs,comm) ;
+
+    entitySet recv_dom ;
+    for(int i=0;i<p;++i)
+      recv_dom += entitySet(recv_seqs[i]) ;
+
+    storeRepP qcol_rep ;
+    qcol_rep = sp->new_store(recv_dom) ;
+
+    vector<int> send_sizes(p),recv_sizes(p) ;
+
+    for(int i=0;i<p;++i)
+      send_sizes[i] = sp->pack_size(send_sets[i]) ;
+
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
+                 comm) ;
+
+    vector<int> send_dspl(p),recv_dspl(p) ;
+    send_dspl[0] = 0 ;
+    recv_dspl[0] = 0 ;
+    for(int i=1;i<p;++i) {
+      send_dspl[i] = send_dspl[i-1] + send_sizes[i-1] ;
+      recv_dspl[i] = recv_dspl[i-1] + recv_sizes[i-1] ;
+    }
+    int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
+    int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
+
+    vector<unsigned char> send_store(send_sz) ;
+    vector<unsigned char> recv_store(recv_sz) ;
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      if(send_sizes[i] > 0)
+        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                 send_sets[i]) ;
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
+                  comm) ;
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      if(recv_sizes[i] > 0) 
+        qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seqs[i]) ;
+    }
+    return qcol_rep ;
+  }
+
+  // =========================================================================
+  // globalPartitionInfo implementation
+  // =========================================================================
+
+  globalPartitionInfo::globalPartitionInfo(entitySet my_global_entities,
+                                          dMap &g2f_in,
+                                          dataPartitionP globalPtn,
+                                          filePartitionInfoP file_info_in,
+                                          int keyspace_in,
+                                          MPI_Comm comm_in)
+    : my_entities(my_global_entities),
+      globalPartition(globalPtn),
+      file_info(file_info_in),
+      keyspace(keyspace_in),
+      comm(comm_in) {
+    g2f.setRep(g2f_in.Rep()) ;
+  }
+
+  storeRepP globalPartitionInfo::Global2FileOrder(storeRepP sp,
+                                                  entitySet dom,
+                                                  int &offset) {
+    dom = myEntities() & dom ;
+    MPI_Comm comm = getCommunicator() ;
+
+    int p = 0 ;
+    MPI_Comm_size(comm,&p) ;
+    int prank = 0 ;
+    MPI_Comm_rank(comm,&prank) ;
+
+    // Use the contained file partition
+    dataPartitionP fileptn = file_info->getPartition() ;
+    entitySet g2f_dom = g2f.domain() ;
+
+    // Compute where to send data to put in file ordering
+    vector<entitySet> send_sets(p) ;
+    vector<sequence> send_seqs(p) ;
+
+    vector<int> filenum(dom.size()) ;
+    int cnt = 0 ;
+    FORALL(dom,ii) {
+      if(g2f_dom.inSet(ii))
+        filenum[cnt] = g2f[ii] ;
+      else
+        filenum[cnt] = 0 ;
+      cnt++ ;
+    } ENDFORALL ;
+
+    vector<int> proc(dom.size()) ;
+    fileptn->processorLookup(proc,filenum) ;
+    cnt = 0 ;
+    FORALL(dom,ii) {
+      if(g2f_dom.inSet(ii)) {
+        int p = proc[cnt] ;
+        send_sets[p] += ii ;
+        send_seqs[p] += g2f[ii] ;
+      }
+      cnt++ ;
+    } ENDFORALL ;
+
+    vector<sequence> recv_seqs = transposeSeq(send_seqs,comm) ;
+
+    offset = fileptn->getAllocation(prank).Min() ;
+    for(int i=0;i<p;++i)
+      recv_seqs[i] <<= offset ;
+
+    entitySet file_dom ;
+    for(int i=0;i<p;++i)
+      file_dom += entitySet(recv_seqs[i]) ;
+
+    storeRepP qcol_rep ;
+    qcol_rep = sp->new_store(file_dom) ;
+
+    vector<int> send_sizes(p),recv_sizes(p) ;
+
+    for(int i=0;i<p;++i)
+      send_sizes[i] = sp->pack_size(send_sets[i]) ;
+
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
+                 comm) ;
+
+    vector<int> send_dspl(p),recv_dspl(p) ;
+    send_dspl[0] = 0 ;
+    recv_dspl[0] = 0 ;
+    for(int i=1;i<p;++i) {
+      send_dspl[i] = send_dspl[i-1] + send_sizes[i-1] ;
+      recv_dspl[i] = recv_dspl[i-1] + recv_sizes[i-1] ;
+    }
+    int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
+    int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
+
+    vector<unsigned char> send_store(send_sz) ;
+    vector<unsigned char> recv_store(recv_sz) ;
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      if(send_sizes[i] > 0)
+        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                 send_sets[i]) ;
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
+                  comm) ;
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      if(recv_sizes[i] > 0) 
+        qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seqs[i]) ;
+    }
+    return qcol_rep ;
+  }
+
+  void globalPartitionInfo::File2GlobalOrder(storeRepP &result,
+                                             entitySet resultSet,
+                                             storeRepP input, int offset) {
+    MPI_Comm comm = getCommunicator() ;
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+
+    int mn = input->domain().Min() ;
+    int mx = input->domain().Max() ;
+    if(input->domain() != EMPTY) {
+      mn += offset ;
+      mx += offset ;
+    }
+    vector<int> allmx(p) ;
+    vector<int> allmn(p) ;
+    MPI_Allgather(&mx,1,MPI_INT,allmx.data(),1,MPI_INT,comm) ;
+    MPI_Allgather(&mn,1,MPI_INT,allmn.data(),1,MPI_INT,comm) ;
+
+    // Build requests: for each entity in resultSet, find its file number
+    entitySet g2f_dom = g2f.domain() ;
+    vector<pair<int,int> > file_requests ;
+    FORALL(resultSet,i) {
+      if(g2f_dom.inSet(i)) {
+        file_requests.push_back(pair<int,int>(g2f[i],i)) ;
+      }
+    } ENDFORALL ;
+    sort(file_requests.begin(),file_requests.end()) ;
+
+    vector<vector<pair<int,int> > > dist_plan(p) ;
+
+    int proc = 0 ;
+    for(size_t i=0;i<file_requests.size();++i) {
+      int fn = file_requests[i].first ;
+      while(proc < p && (fn < allmn[proc] || fn > allmx[proc]))
+        proc++ ;
+      if(proc == p || fn < allmn[proc] || fn > allmx[proc]) {
+        cerr << "File2GlobalOrder: Unable to find processor that contains entity!" << endl ;
+        Abort() ;
+      }
+      dist_plan[proc].push_back(pair<int,int>(fn,file_requests[i].second)) ;
+    }
+
+    vector<sequence> recv_seq(p),send_req(p) ;
+    for(int i=0;i<p;++i) {
+      sort(dist_plan[i].begin(),dist_plan[i].end()) ;
+      sequence s1,s2 ;
+      int psz = dist_plan[i].size() ;
+      for(int j=0;j<psz;++j) {
+        s1 +=dist_plan[i][j].first ;
+        s2 +=dist_plan[i][j].second ;
+      }
+      send_req[i] = s1 ;
+      recv_seq[i] = s2 ;
+    }
+
+    vector<sequence> send_seq = transposeSeq(send_req,comm) ;
+    vector<entitySet> send_sets(p) ;
+    for(int i=0;i<p;++i) {
+      send_seq[i] <<= offset ;
+      send_sets[i] = entitySet(send_seq[i]) ;
+    }
+
+    vector<int> send_sizes(p), recv_sizes(p) ;
+
+    for(int i=0;i<p;++i)
+      send_sizes[i] = input->pack_size(send_sets[i]) ;
+
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,recv_sizes.data(),1,MPI_INT, comm) ;
+
+    vector<int> send_dspl(p), recv_dspl(p) ;
+    send_dspl[0] = 0 ;
+    recv_dspl[0] = 0 ;
+    for(int i=1;i<p;++i) {
+      send_dspl[i] = send_dspl[i-1] + send_sizes[i-1] ;
+      recv_dspl[i] = recv_dspl[i-1] + recv_sizes[i-1] ;
+    }
+    int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
+    int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
+
+    vector<unsigned char> send_store(max(send_sz,1)) ;
+    vector<unsigned char> recv_store(max(recv_sz,1)) ;
+
+    for(int i=0;i<p;++i) {
+      if(send_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        if(send_sizes[i] > 0)
+          input->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                      send_sets[i]) ;
+      }
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
+                  comm) ;
+
+    for(int i=0;i<p;++i) {
+      if(recv_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        if(recv_sizes[i] > 0) 
+          result->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seq[i]) ;
+      }
+    }
+  }
+
+  // =========================================================================
+  // entityPartitionInfo: Local2GlobalOrder / Global2LocalOrder
+  // =========================================================================
+
+  storeRepP entityPartitionInfo::Local2GlobalOrder(storeRepP sp,
+                                                   entitySet dom,
+                                                   int &offset) {
+    dom = myEntities() & dom ;
+    MPI_Comm comm = getCommunicator() ;
+    int kd = getKeyDomain(dom) ;
+    if(kd < 0) {
+      cerr << "Local2GlobalOrder not in single keyspace!" << endl ;
+      kd = 0 ;
+    }
+
+    // Use the global partition from the contained keyspace info
+    dataPartitionP globalptn = keyspaceInfo[kd]->getPartition() ;
+
+    int p = 0 ;
+    MPI_Comm_size(comm,&p) ;
+    int prank = 0 ;
+    MPI_Comm_rank(comm,&prank) ;
+
+    // Compute where to send data to put in global ordering
+    vector<entitySet> send_sets(p) ;
+    vector<sequence> send_seqs(p) ;
+
+    vector<int> globalnum(dom.size()) ;
+    int cnt = 0 ;
+    FORALL(dom,ii) {
+      globalnum[cnt++] = l2g[ii] ;
+    } ENDFORALL ;
+
+    vector<int> proc(dom.size()) ;
+    globalptn->processorLookup(proc,globalnum) ;
+    cnt = 0 ;
+    FORALL(dom,ii) {
+      int p = proc[cnt++] ;
+      send_sets[p] += ii ;
+      send_seqs[p] += l2g[ii] ;
+    } ENDFORALL ;
+
+    vector<sequence> recv_seqs = transposeSeq(send_seqs,comm) ;
+
+    offset = globalptn->getAllocation(prank).Min() ;
+    for(int i=0;i<p;++i)
+      recv_seqs[i] <<= offset ;
+
+    entitySet global_dom ;
+    for(int i=0;i<p;++i)
+      global_dom += entitySet(recv_seqs[i]) ;
+
+    storeRepP qcol_rep ;
+    qcol_rep = sp->new_store(global_dom) ;
+
+    vector<int> send_sizes(p),recv_sizes(p) ;
+
+    for(int i=0;i<p;++i)
+      send_sizes[i] = sp->pack_size(send_sets[i]) ;
+
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
+                 comm) ;
+
+    vector<int> send_dspl(p),recv_dspl(p) ;
+    send_dspl[0] = 0 ;
+    recv_dspl[0] = 0 ;
+    for(int i=1;i<p;++i) {
+      send_dspl[i] = send_dspl[i-1] + send_sizes[i-1] ;
+      recv_dspl[i] = recv_dspl[i-1] + recv_sizes[i-1] ;
+    }
+    int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
+    int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
+
+    vector<unsigned char> send_store(send_sz) ;
+    vector<unsigned char> recv_store(recv_sz) ;
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      if(send_sizes[i] > 0)
+        sp->pack(&send_store[send_dspl[i]],loc_pack, send_sizes[i],
+                 send_sets[i]) ;
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
+                  comm) ;
+
+    for(int i=0;i<p;++i) {
+      int loc_pack = 0 ;
+      if(recv_sizes[i] > 0) 
+        qcol_rep->unpack(&recv_store[recv_dspl[i]],loc_pack,recv_sizes[i],
+                         recv_seqs[i]) ;
+    }
+    return qcol_rep ;
+  }
+
+  void entityPartitionInfo::Global2LocalOrder(storeRepP &result,
+                                              entitySet resultSet,
+                                              storeRepP input, int offset) {
+    MPI_Comm comm = getCommunicator() ;
+    int p = 1 ;
+    MPI_Comm_size(comm,&p) ;
+
+    int kd = getKeyDomain(resultSet) ;
+    if(kd < 0) {
+      cerr << "Global2LocalOrder not in single keyspace!" << endl ;
+      kd = 0 ;
+    }
+
+    int mn = input->domain().Min() ;
+    int mx = input->domain().Max() ;
+    if(input->domain() != EMPTY) {
+      mn += offset ;
+      mx += offset ;
+    }
+    vector<int> allmx(p) ;
+    vector<int> allmn(p) ;
+    MPI_Allgather(&mx,1,MPI_INT,allmx.data(),1,MPI_INT,comm) ;
+    MPI_Allgather(&mn,1,MPI_INT,allmn.data(),1,MPI_INT,comm) ;
+
+    // Build requests: for each entity in resultSet, find its global number
+    vector<pair<int,int> > global_requests ;
+    FORALL(resultSet,i) {
+      global_requests.push_back(pair<int,int>(l2g[i],i)) ;
+    } ENDFORALL ;
+    sort(global_requests.begin(),global_requests.end()) ;
+
+    vector<vector<pair<int,int> > > dist_plan(p) ;
+
+    int proc = 0 ;
+    for(size_t i=0;i<global_requests.size();++i) {
+      int gn = global_requests[i].first ;
+      while(proc < p && (gn < allmn[proc] || gn > allmx[proc]))
+        proc++ ;
+      if(proc == p || gn < allmn[proc] || gn > allmx[proc]) {
+        cerr << "Global2LocalOrder: Unable to find processor that contains entity!" << endl ;
+        Abort() ;
+      }
+      dist_plan[proc].push_back(pair<int,int>(gn,global_requests[i].second)) ;
+    }
+
+    vector<sequence> recv_seq(p),send_req(p) ;
+    for(int i=0;i<p;++i) {
+      sort(dist_plan[i].begin(),dist_plan[i].end()) ;
+      sequence s1,s2 ;
+      int psz = dist_plan[i].size() ;
+      for(int j=0;j<psz;++j) {
+        s1 +=dist_plan[i][j].first ;
+        s2 +=dist_plan[i][j].second ;
+      }
+      send_req[i] = s1 ;
+      recv_seq[i] = s2 ;
+    }
+
+    vector<sequence> send_seq = transposeSeq(send_req,comm) ;
+    vector<entitySet> send_sets(p) ;
+    for(int i=0;i<p;++i) {
+      send_seq[i] <<= offset ;
+      send_sets[i] = entitySet(send_seq[i]) ;
+    }
+
+    vector<int> send_sizes(p), recv_sizes(p) ;
 
     for(int i=0;i<p;++i)
       send_sizes[i] = input->pack_size(send_sets[i]) ;

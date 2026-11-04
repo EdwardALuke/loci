@@ -1130,6 +1130,9 @@ namespace Loci {
   storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset,
                             fact_db::distribute_infoP dist, MPI_Comm comm) ;
 
+  storeRepP Local2GlobalOrder(storeRepP sp, entitySet dom, int &offset,
+                              fact_db::distribute_infoP dist, MPI_Comm comm) ;
+
   int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm) ;
   void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist) ;
   void FindSimpleDistribution(entitySet dom, const Map &l2f,

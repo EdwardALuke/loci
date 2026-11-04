@@ -1569,6 +1569,140 @@ namespace Loci {
     return qcol_rep ;
   }
 
+  // Convert container from local numbering to global numbering, return
+  // converted container in global numbering.
+  // pass in store rep pointer: sp
+  // entitySet to write: dom
+  // return offset in global numbering (each processor will allocate from zero,
+  // add offset to domain to get actual global numbering)
+  // distribution info pointer (dist)
+  // MPI Communicator
+  storeRepP Local2GlobalOrder(storeRepP sp, entitySet dom, int &offset,
+                              fact_db::distribute_infoP dist, MPI_Comm comm) {
+
+    // Get local numbering of entities owned by this processor, only write
+    // out these entities.
+    constraint my_entities ;
+    my_entities = dist->my_entities ;
+    dom = *my_entities & dom ;
+    int kd = getKeyDomain(dom, dist, comm) ;
+    if(kd < 0) {
+      cerr << "Local2GlobalOrder not in single keyspace!" << endl ;
+      kd = 0 ;
+    }
+    // Use l2g map for global numbering
+    Map l2g ;
+    l2g = dist->l2g.Rep() ;
+
+    Map newnum ;
+    newnum.allocate(dom) ;
+    FORALL(dom,i) {
+      newnum[i] = l2g[i] ;
+    } ENDFORALL ;
+
+    int imx = std::numeric_limits<int>::min() ;
+    int imn = std::numeric_limits<int>::max() ;
+
+    FORALL(dom,i) {
+      imx = max(newnum[i],imx) ;
+      imn = min(newnum[i],imn) ;
+    } ENDFORALL ;
+
+    imx = GLOBAL_MAX(imx) ;
+    imn = GLOBAL_MIN(imn) ;
+
+    int p = 0 ;
+    MPI_Comm_size(comm,&p) ;
+    int prank = 0 ;
+    MPI_Comm_rank(comm,&prank) ;
+
+    vector<entitySet> out_ptn = simplePartition(imn,imx,comm) ;
+
+    vector<entitySet> send_sets(p) ;
+    vector<sequence> send_seqs(p) ;
+
+    vector<pair<int,int> > global2num(dom.size()) ;
+    size_t cnt = 0 ;
+    FORALL(dom,ii) {
+      global2num[cnt].first = newnum[ii] ;
+      global2num[cnt].second = ii ;
+      cnt++ ;
+    } ENDFORALL ;
+    sort(global2num.begin(),global2num.end()) ;
+
+    cnt = 0 ;
+    for(int i=0;i<p;++i) {
+      if(out_ptn[i] == EMPTY)
+        continue ;
+      int mxi = out_ptn[i].Max() ;
+      while(cnt < global2num.size() && global2num[cnt].first <= mxi) {
+        send_sets[i] += global2num[cnt].second ;
+        cnt++ ;
+      }
+      sequence s ;
+      FORALL(send_sets[i],j) {
+        s+= newnum[j] ;
+      } ENDFORALL ;
+      send_seqs[i] = s ;
+    }
+
+    vector<sequence> recv_seqs = transposeSeq(send_seqs,comm) ;
+
+    offset = out_ptn[prank] == EMPTY ? 0 : out_ptn[prank].Min() ;
+    for(int i=0;i<p;++i)
+      recv_seqs[i] <<= offset ;
+
+    entitySet global_dom ;
+    for(int i=0;i<p;++i)
+      global_dom += entitySet(recv_seqs[i]) ;
+
+    storeRepP qcol_rep ;
+    qcol_rep = sp->new_store(global_dom) ;
+
+    vector<int> send_sizes(p),recv_sizes(p) ;
+
+    for(int i=0;i<p;++i)
+      send_sizes[i] = sp->pack_size(send_sets[i]) ;
+
+    MPI_Alltoall(send_sizes.data(),1,MPI_INT,
+                 recv_sizes.data(),1,MPI_INT,
+                 comm) ;
+
+    vector<int> send_dspl(p),recv_dspl(p) ;
+    send_dspl[0] = 0 ;
+    recv_dspl[0] = 0 ;
+    for(int i=1;i<p;++i) {
+      send_dspl[i] = send_dspl[i-1] + send_sizes[i-1] ;
+      recv_dspl[i] = recv_dspl[i-1] + recv_sizes[i-1] ;
+    }
+    int send_sz = send_dspl[p-1] + send_sizes[p-1] ;
+    int recv_sz = recv_dspl[p-1] + recv_sizes[p-1] ;
+
+    vector<unsigned char> send_store(max(send_sz,1)) ;
+    vector<unsigned char> recv_store(max(recv_sz,1)) ;
+
+    for(int i=0;i<p;++i) {
+      if(send_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        sp->pack(send_store.data()+send_dspl[i],loc_pack, send_sizes[i],
+                 send_sets[i]) ;
+      }
+    }
+
+    MPI_Alltoallv(send_store.data(), send_sizes.data(), send_dspl.data(), MPI_PACKED,
+                  recv_store.data(), recv_sizes.data(), recv_dspl.data(), MPI_PACKED,
+                  comm) ;
+
+    for(int i=0;i<p;++i) {
+      if(recv_sizes[i] != 0) {
+        int loc_pack = 0 ;
+        qcol_rep->unpack(recv_store.data()+recv_dspl[i],loc_pack,recv_sizes[i],
+                         recv_seqs[i]) ;
+      }
+    }
+    return qcol_rep ;
+  }
+
   // Convert container from local numbering to output file numbering
   // pass in store rep pointer: sp
   // entitySet to write: dom

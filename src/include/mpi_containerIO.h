@@ -48,6 +48,9 @@ namespace Loci {
   extern std::vector<Loci::entitySet> simplePartition(int mn, int mx, MPI_Comm comm);
   extern  storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset,
                                     fact_db::distribute_infoP dist, MPI_Comm comm);
+
+  extern storeRepP Local2GlobalOrder(storeRepP sp, entitySet dom, int &offset,
+                                     fact_db::distribute_infoP dist, MPI_Comm comm) ;
   
 
   extern void File2LocalOrder(storeRepP &result, entitySet resultSet,

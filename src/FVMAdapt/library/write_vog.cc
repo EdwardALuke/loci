@@ -465,7 +465,7 @@ namespace Loci {
     //########################################################################
     //
     // Use parSplitSort to map child to parent map to processors according to
-    // child distribution.
+    // child distribution.
     //
     vector<int> csplits(p) ;
     MPI_Allgather(&csplit,1,MPI_INT,&csplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -3280,9 +3280,7 @@ void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
 vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,entitySet> > &origVolTags,
                                                    // string outfile,
                                                    const_store<int> &cell_offset,
-                                                   const_store<int> & num_fine_cells,
-                                                   int num_original_nodes,
-                                                   int num_original_faces) {
+                                                   const_store<int> & num_fine_cells) {
   
 
   
@@ -3290,6 +3288,15 @@ vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,enti
 
   //serial version
   if(Loci::MPI_processes == 1){
+    // Build ordinal-to-entity mapping from cell_offset's domain.
+    // The vol tag ordinals are 0-based cell indices; the cell_offset
+    // store is indexed by entity numbers which may differ (e.g. --big).
+    entitySet cellDom = cell_offset.domain() ;
+    vector<int> ord2ent(cellDom.size()) ;
+    int idx = 0 ;
+    for(entitySet::const_iterator ei=cellDom.begin(); ei!=cellDom.end(); ++ei)
+      ord2ent[idx++] = *ei ;
+
     for(unsigned int i = 0; i < origVolTags.size(); i++){
       string name = origVolTags[i].first;
       //transfer entitySet into vector of interval
@@ -3300,8 +3307,8 @@ vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,enti
         
       entitySet new_set = EMPTY;
       for(int j=0;j<sz;++j){
-        int start = vlist[j].first+num_original_nodes+num_original_faces;
-        int end = vlist[j].second+num_original_nodes+num_original_faces ;
+        int start = ord2ent[vlist[j].first] ;
+        int end = ord2ent[vlist[j].second] ;
           
         start = cell_offset[start]; //the begin of interval changes to  cell_offset+1
         end = cell_offset[end]+num_fine_cells[end]-1;//the end of interval changes to cell_offset+num_fine_cells

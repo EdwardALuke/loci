@@ -926,6 +926,386 @@ TEST_CASE("Local2FileOrder is deterministic across repeated calls") {
 }
 
 
+// ---------------------------------------------------------------------------
+// filePartitionInfo tests
+// ---------------------------------------------------------------------------
+
+TEST_CASE("filePartitionInfo accessors return correct values") {
+  int p, r;
+  MPI_Comm_size(MPI_COMM_WORLD, &p);
+  MPI_Comm_rank(MPI_COMM_WORLD, &r);
+
+  int n = ENTITIES_PER_PROC;
+  int file_start = r * n;
+  entitySet file_entities = entitySet(interval(file_start,
+                                                file_start + n - 1));
+
+  vector<entitySet> fptn(p);
+  for (int i = 0; i < p; ++i)
+    fptn[i] = entitySet(interval(i * n, (i + 1) * n - 1));
+
+  dataPartitionP dp = std::make_shared<dataPartitionGeneral>(
+      fptn, MPI_COMM_WORLD);
+
+  filePartitionInfoP fp_info = std::make_shared<filePartitionInfo>(
+      file_entities, dp, 0, MPI_COMM_WORLD);
+
+  CHECK(fp_info->myEntities() == file_entities);
+  CHECK(fp_info->getKeySpace() == 0);
+  CHECK(fp_info->getPartition() == dp);
+
+  int result;
+  MPI_Comm_compare(fp_info->getCommunicator(), MPI_COMM_WORLD, &result);
+  CHECK((result == MPI_IDENT || result == MPI_CONGRUENT));
+}
+
+TEST_CASE("filePartitionInfo redistribute to same partition is identity") {
+  int p, r;
+  MPI_Comm_size(MPI_COMM_WORLD, &p);
+  MPI_Comm_rank(MPI_COMM_WORLD, &r);
+
+  int n = ENTITIES_PER_PROC;
+  int file_start = r * n;
+  entitySet file_entities = entitySet(interval(file_start,
+                                                file_start + n - 1));
+
+  vector<entitySet> fptn(p);
+  for (int i = 0; i < p; ++i)
+    fptn[i] = entitySet(interval(i * n, (i + 1) * n - 1));
+
+  dataPartitionP dp = std::make_shared<dataPartitionGeneral>(
+      fptn, MPI_COMM_WORLD);
+
+  filePartitionInfoP fp_info = std::make_shared<filePartitionInfo>(
+      file_entities, dp, 0, MPI_COMM_WORLD);
+
+  store<int> values;
+  values.allocate(file_entities);
+  FORALL(file_entities, i) {
+    values[i] = i * 7 + 3;
+  } ENDFORALL;
+
+  // Redistribute to the same partition -- should be identity
+  storeRepP result = fp_info->redistribute(values.Rep(), file_entities, dp);
+
+  CHECK(result->domain() == file_entities);
+  const_store<int> result_vals(result);
+  FORALL(file_entities, i) {
+    CAPTURE(i);
+    CHECK(result_vals[i] == i * 7 + 3);
+  } ENDFORALL;
+}
+
+TEST_CASE("filePartitionInfo redistribute to different partition moves data") {
+  int p, r;
+  MPI_Comm_size(MPI_COMM_WORLD, &p);
+  MPI_Comm_rank(MPI_COMM_WORLD, &r);
+
+  int n = ENTITIES_PER_PROC;
+  int file_start = r * n;
+  entitySet file_entities = entitySet(interval(file_start,
+                                                file_start + n - 1));
+
+  vector<entitySet> fptn(p);
+  for (int i = 0; i < p; ++i)
+    fptn[i] = entitySet(interval(i * n, (i + 1) * n - 1));
+
+  dataPartitionP src_dp = std::make_shared<dataPartitionGeneral>(
+      fptn, MPI_COMM_WORLD);
+
+  filePartitionInfoP fp_info = std::make_shared<filePartitionInfo>(
+      file_entities, src_dp, 0, MPI_COMM_WORLD);
+
+  // Store values: value at file number i is i*11+5
+  store<int> values;
+  values.allocate(file_entities);
+  FORALL(file_entities, i) {
+    values[i] = i * 11 + 5;
+  } ENDFORALL;
+
+  // Create a reversed partition: proc 0 gets the last block, etc.
+  vector<entitySet> rev_ptn(p);
+  for (int i = 0; i < p; ++i)
+    rev_ptn[i] = entitySet(interval((p - 1 - i) * n,
+                                     (p - i) * n - 1));
+
+  dataPartitionP rev_dp = std::make_shared<dataPartitionGeneral>(
+      rev_ptn, MPI_COMM_WORLD);
+
+  storeRepP result = fp_info->redistribute(values.Rep(), file_entities, rev_dp);
+
+  // This processor should now have the reversed block
+  entitySet expected_dom = rev_ptn[r];
+  CHECK(result->domain() == expected_dom);
+
+  const_store<int> result_vals(result);
+  FORALL(expected_dom, i) {
+    CAPTURE(i);
+    CHECK(result_vals[i] == i * 11 + 5);
+  } ENDFORALL;
+}
+
+
+// ---------------------------------------------------------------------------
+// Local2GlobalOrder -> Global2LocalOrder round-trip (identity)
+// ---------------------------------------------------------------------------
+
+TEST_CASE("Local2GlobalOrder followed by Global2LocalOrder is identity for store<int>") {
+  TestDistribution td;
+
+  store<int> values;
+  values.allocate(td.local_entities);
+  int global_start = MPI_rank * ENTITIES_PER_PROC;
+  FORALL(td.local_entities, i) {
+    values[i] = (global_start + i) * 100 + 7;
+  } ENDFORALL;
+
+  int offset = 0;
+  storeRepP global_order = td.ptn_info->Local2GlobalOrder(
+      values.Rep(), td.local_entities, offset);
+
+  CHECK(global_order != (storeRep*)0);
+  CHECK(global_order->domain().size() > 0);
+
+  store<int> restored;
+  restored.allocate(td.local_entities);
+  storeRepP restored_rep = restored.Rep();
+  td.ptn_info->Global2LocalOrder(restored_rep, td.local_entities,
+                                  global_order, offset);
+
+  FORALL(td.local_entities, i) {
+    CAPTURE(i);
+    CHECK(const_store<int>(restored_rep)[i] == values[i]);
+  } ENDFORALL;
+}
+
+TEST_CASE("Local2GlobalOrder -> Global2LocalOrder identity for store<double>") {
+  TestDistribution td;
+
+  store<double> values;
+  values.allocate(td.local_entities);
+  FORALL(td.local_entities, i) {
+    values[i] = 2.71828 * (MPI_rank * ENTITIES_PER_PROC + i);
+  } ENDFORALL;
+
+  int offset = 0;
+  storeRepP global_order = td.ptn_info->Local2GlobalOrder(
+      values.Rep(), td.local_entities, offset);
+
+  store<double> restored;
+  restored.allocate(td.local_entities);
+  storeRepP restored_rep = restored.Rep();
+  td.ptn_info->Global2LocalOrder(restored_rep, td.local_entities,
+                                  global_order, offset);
+
+  FORALL(td.local_entities, i) {
+    CAPTURE(i);
+    CHECK(const_store<double>(restored_rep)[i] ==
+          doctest::Approx(values[i]));
+  } ENDFORALL;
+}
+
+
+// ---------------------------------------------------------------------------
+// globalPartitionInfo: Global2FileOrder -> File2GlobalOrder round-trip
+// ---------------------------------------------------------------------------
+
+TEST_CASE("globalPartitionInfo: Global2FileOrder followed by File2GlobalOrder is identity") {
+  int p, r;
+  MPI_Comm_size(MPI_COMM_WORLD, &p);
+  MPI_Comm_rank(MPI_COMM_WORLD, &r);
+
+  int n = ENTITIES_PER_PROC;
+  int global_start = r * n;
+  entitySet global_entities = entitySet(interval(global_start,
+                                                  global_start + n - 1));
+
+  // Set up a non-trivial g2f: file number = global number * 2 + 1
+  dMap g2f;
+  g2f.allocate(global_entities);
+  FORALL(global_entities, i) {
+    g2f[i] = i * 2 + 1;
+  } ENDFORALL;
+
+  vector<entitySet> gptn(p);
+  for (int i = 0; i < p; ++i)
+    gptn[i] = entitySet(interval(i * n, (i + 1) * n - 1));
+
+  dataPartitionP dp = std::make_shared<dataPartitionGeneral>(
+      gptn, MPI_COMM_WORLD);
+
+  // Build file partition from g2f image bounds
+  int fmn = std::numeric_limits<int>::max();
+  int fmx = std::numeric_limits<int>::min();
+  FORALL(global_entities, i) {
+    fmn = std::min(fmn, int(g2f[i]));
+    fmx = std::max(fmx, int(g2f[i]));
+  } ENDFORALL;
+  MPI_Allreduce(MPI_IN_PLACE, &fmn, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE, &fmx, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  dataPartitionP file_dp = createPartition(fmn, (fmx-fmn+p)/p, MPI_COMM_WORLD);
+  filePartitionInfoP fpi = std::make_shared<filePartitionInfo>(
+      entitySet(), file_dp, 0, MPI_COMM_WORLD);
+
+  globalPartitionInfoP gptn_info = std::make_shared<globalPartitionInfo>(
+      global_entities, g2f, dp, fpi, 0, MPI_COMM_WORLD);
+
+  // Create test values in global numbering
+  store<int> values;
+  values.allocate(global_entities);
+  FORALL(global_entities, i) {
+    values[i] = i * 37 + 5;
+  } ENDFORALL;
+
+  int offset = 0;
+  storeRepP file_order = gptn_info->Global2FileOrder(
+      values.Rep(), global_entities, offset);
+
+  CHECK(file_order != (storeRep*)0);
+  CHECK(file_order->domain().size() > 0);
+
+  // Convert back
+  store<int> restored;
+  restored.allocate(global_entities);
+  storeRepP restored_rep = restored.Rep();
+  gptn_info->File2GlobalOrder(restored_rep, global_entities,
+                               file_order, offset);
+
+  FORALL(global_entities, i) {
+    CAPTURE(i);
+    CHECK(const_store<int>(restored_rep)[i] == values[i]);
+  } ENDFORALL;
+}
+
+TEST_CASE("globalPartitionInfo accessors return correct values") {
+  int p, r;
+  MPI_Comm_size(MPI_COMM_WORLD, &p);
+  MPI_Comm_rank(MPI_COMM_WORLD, &r);
+
+  int n = ENTITIES_PER_PROC;
+  int global_start = r * n;
+  entitySet global_entities = entitySet(interval(global_start,
+                                                  global_start + n - 1));
+
+  dMap g2f;
+  g2f.allocate(global_entities);
+  FORALL(global_entities, i) {
+    g2f[i] = i;
+  } ENDFORALL;
+
+  vector<entitySet> gptn(p);
+  for (int i = 0; i < p; ++i)
+    gptn[i] = entitySet(interval(i * n, (i + 1) * n - 1));
+
+  dataPartitionP dp = std::make_shared<dataPartitionGeneral>(
+      gptn, MPI_COMM_WORLD);
+
+  dataPartitionP file_dp2 = createPartition(0, n, MPI_COMM_WORLD);
+  filePartitionInfoP fpi2 = std::make_shared<filePartitionInfo>(
+      entitySet(), file_dp2, 2, MPI_COMM_WORLD);
+  globalPartitionInfoP gptn_info = std::make_shared<globalPartitionInfo>(
+      global_entities, g2f, dp, fpi2, 2, MPI_COMM_WORLD);
+
+  CHECK(gptn_info->myEntities() == global_entities);
+  CHECK(gptn_info->getKeySpace() == 2);
+  CHECK(gptn_info->getPartition() == dp);
+
+  int result;
+  MPI_Comm_compare(gptn_info->getCommunicator(), MPI_COMM_WORLD, &result);
+  CHECK((result == MPI_IDENT || result == MPI_CONGRUENT));
+}
+
+TEST_CASE("globalPartitionInfo: identity g2f round-trip") {
+  int p, r;
+  MPI_Comm_size(MPI_COMM_WORLD, &p);
+  MPI_Comm_rank(MPI_COMM_WORLD, &r);
+
+  int n = ENTITIES_PER_PROC;
+  int global_start = r * n;
+  entitySet global_entities = entitySet(interval(global_start,
+                                                  global_start + n - 1));
+
+  // Identity mapping: file number == global number
+  dMap g2f;
+  g2f.allocate(global_entities);
+  FORALL(global_entities, i) {
+    g2f[i] = i;
+  } ENDFORALL;
+
+  vector<entitySet> gptn(p);
+  for (int i = 0; i < p; ++i)
+    gptn[i] = entitySet(interval(i * n, (i + 1) * n - 1));
+
+  dataPartitionP dp = std::make_shared<dataPartitionGeneral>(
+      gptn, MPI_COMM_WORLD);
+
+  // Identity g2f: file partition == global partition
+  filePartitionInfoP fpi3 = std::make_shared<filePartitionInfo>(
+      entitySet(), dp, 0, MPI_COMM_WORLD);
+  globalPartitionInfoP gptn_info = std::make_shared<globalPartitionInfo>(
+      global_entities, g2f, dp, fpi3, 0, MPI_COMM_WORLD);
+
+  store<int> values;
+  values.allocate(global_entities);
+  FORALL(global_entities, i) {
+    values[i] = i * 11 + 3;
+  } ENDFORALL;
+
+  int offset = 0;
+  storeRepP file_order = gptn_info->Global2FileOrder(
+      values.Rep(), global_entities, offset);
+
+  store<int> restored;
+  restored.allocate(global_entities);
+  storeRepP restored_rep = restored.Rep();
+  gptn_info->File2GlobalOrder(restored_rep, global_entities,
+                               file_order, offset);
+
+  FORALL(global_entities, i) {
+    CAPTURE(i);
+    CHECK(const_store<int>(restored_rep)[i] == values[i]);
+  } ENDFORALL;
+}
+
+// ---------------------------------------------------------------------------
+// getKeySpacePartition accessor
+// ---------------------------------------------------------------------------
+
+TEST_CASE("getKeySpaceInfo returns globalPartitionInfo with contained filePartitionInfo") {
+  TestDistribution td;
+
+  globalPartitionInfoP gpi = td.ptn_info->getKeySpaceInfo(0);
+  CHECK(gpi != nullptr);
+  CHECK(gpi->getKeySpace() == 0);
+  CHECK(gpi->getPartition() != nullptr);
+  CHECK(gpi->getGlobal2FileMap() != (storeRep*)0);
+
+  filePartitionInfoP fpi = gpi->getFilePartitionInfo();
+  CHECK(fpi != nullptr);
+  CHECK(fpi->getKeySpace() == 0);
+  CHECK(fpi->getPartition() != nullptr);
+}
+
+TEST_CASE("getKeySpacePartition returns correct partition") {
+  MultiKeyDomainDistribution md;
+
+  dataPartitionP p0 = md.ptn_info->getKeySpacePartition(0);
+  dataPartitionP p1 = md.ptn_info->getKeySpacePartition(1);
+
+  CHECK(p0 != nullptr);
+  CHECK(p1 != nullptr);
+
+  // Verify partition 0 covers the first half of global entities per proc
+  int n = ENTITIES_PER_PROC;
+  int half = n / 2;
+  for (int i = 0; i < MPI_processes; ++i) {
+    int gs = i * n;
+    CHECK(p0->getAllocation(i) == entitySet(interval(gs, gs + half - 1)));
+    CHECK(p1->getAllocation(i) == entitySet(interval(gs + half, gs + n - 1)));
+  }
+}
+
+
 int main(int argc, char **argv) {
   Loci::Init(&argc, &argv);
 

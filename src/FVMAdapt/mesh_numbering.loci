@@ -31,9 +31,13 @@ $type X Constraint ;
 
 $rule pointwise(fileNumber(X)), constraint(X), option(disable_threading), prelude {
   fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
-  if(df == 0) {
+  if(df == 0 || !df->isDistributed) {
+    // Serial or single-process: number entities sequentially starting
+    // from 0.  Entity numbers may not start at 0 (e.g. --big mode),
+    // so we cannot use the entity number directly as a file number.
+    int fnum = 0 ;
     for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si) {
-      $fileNumber(X)[*si] = *si ;
+      $fileNumber(X)[*si] = fnum++ ;
     }
   }else {
     Map l2f ;

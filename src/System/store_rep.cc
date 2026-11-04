@@ -109,18 +109,24 @@ namespace Loci {
   void store_ref::copy(storeRepP &st, const entitySet &context) {
     Rep()->copy(st,context) ;
     Rep()->setPartitionInfo(st->getPartitionInfo()) ;
+    Rep()->setFilePartitionInfo(st->getFilePartitionInfo()) ;
+    Rep()->setGlobalPartitionInfo(st->getGlobalPartitionInfo()) ;
   }
 
   void store_ref::gather(const dMap &m,storeRepP &st,
                          const entitySet &context) {
     Rep()->gather(m,st,context) ;
     Rep()->setPartitionInfo(st->getPartitionInfo()) ;
+    Rep()->setFilePartitionInfo(st->getFilePartitionInfo()) ;
+    Rep()->setGlobalPartitionInfo(st->getGlobalPartitionInfo()) ;
   }
 
   void store_ref::scatter(const dMap &m, storeRepP &st,
                           const entitySet &context) {
     Rep()->scatter(m,st,context) ;
     Rep()->setPartitionInfo(st->getPartitionInfo()) ;
+    Rep()->setFilePartitionInfo(st->getFilePartitionInfo()) ;
+    Rep()->setGlobalPartitionInfo(st->getGlobalPartitionInfo()) ;
   }  
   int store_ref::pack_size(const entitySet &e )  {
     return(Rep()->pack_size(e)) ;

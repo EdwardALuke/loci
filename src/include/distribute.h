@@ -573,13 +573,115 @@ namespace Loci {
                              const std::string& suffix="");
 
 
+  /// This class describes the distribution of a container that exists in
+  /// file numbering, before a partitioning has been established and before
+  /// global numbering exists.  Containers in this state belong to a single
+  /// keyspace.  The file partition describes how file numbers are distributed
+  /// across processors.
+  class filePartitionInfo {
+    /// Entities owned by this processor in file numbering
+    entitySet my_entities ;
+    /// Partition describing how file numbering is distributed
+    dataPartitionP filePartition ;
+    /// Key space this partition describes
+    int keyspace ;
+    /// MPI communicator
+    MPI_Comm comm ;
+  public:
+    filePartitionInfo(entitySet my_file_entities,
+                      dataPartitionP filePtn,
+                      int keyspace_in,
+                      MPI_Comm comm_in) ;
+
+    /// Return entities this processor owns in file numbering
+    entitySet myEntities() const { return my_entities ; }
+    /// Return the MPI communicator
+    MPI_Comm getCommunicator() const { return comm ; }
+    /// Return the key space this partition describes
+    int getKeySpace() const { return keyspace ; }
+    /// Return the file numbering partition
+    dataPartitionP getPartition() const { return filePartition ; }
+
+    /// Redistribute container from its current file-numbering distribution
+    /// to a new distribution described by the target partition.
+    /// This is a collective operation on the stored MPI communicator.
+    ///
+    /// @param[in] sp store representation for the input container
+    /// @param[in] dom file numbering of domain to redistribute
+    /// @param[in] target_ptn partition describing the desired distribution
+    storeRepP redistribute(storeRepP sp, entitySet dom,
+                           dataPartitionP target_ptn) ;
+  } ;
+
+
+  /// This class describes the distribution of a container that exists in
+  /// global numbering, before local numbering has been created (i.e. before
+  /// category analysis).  Containers in this state belong to a single
+  /// keyspace.  The global-to-file map allows conversion between global
+  /// and file numbering.  Contains a filePartitionInfo describing the
+  /// underlying file numbering distribution for this keyspace.
+  class globalPartitionInfo {
+    /// Entities owned by this processor in global numbering
+    entitySet my_entities ;
+    /// Global-to-file numbering map for this keyspace
+    dMap g2f ;
+    /// Partition describing how global numbering is distributed
+    dataPartitionP globalPartition ;
+    /// Contained file partition info for this keyspace
+    filePartitionInfoP file_info ;
+    /// Key space this partition describes
+    int keyspace ;
+    /// MPI communicator
+    MPI_Comm comm ;
+  public:
+    globalPartitionInfo(entitySet my_global_entities,
+                        dMap &g2f_in,
+                        dataPartitionP globalPtn,
+                        filePartitionInfoP file_info_in,
+                        int keyspace_in,
+                        MPI_Comm comm_in) ;
+
+    /// Return entities this processor owns in global numbering
+    entitySet myEntities() const { return my_entities ; }
+    /// Return the MPI communicator
+    MPI_Comm getCommunicator() const { return comm ; }
+    /// Return the key space this partition describes
+    int getKeySpace() const { return keyspace ; }
+    /// Return the global numbering partition
+    dataPartitionP getPartition() const { return globalPartition ; }
+    /// Return the global-to-file map
+    storeRepP getGlobal2FileMap() const { return g2f.Rep() ; }
+    /// Return the contained file partition info
+    filePartitionInfoP getFilePartitionInfo() const { return file_info ; }
+
+    /// Convert container from global numbering to file numbering.
+    /// This is a collective operation on the stored MPI communicator.
+    ///
+    /// @param[in] sp store representation for the input container
+    /// @param[in] dom global numbering of domain to convert
+    /// @param[out] offset offset in file numbering (each processor will
+    ///   allocate from zero, add offset to domain to get actual file numbering)
+    storeRepP Global2FileOrder(storeRepP sp, entitySet dom, int &offset) ;
+
+    /// Convert container from file numbering to global numbering.
+    /// This is a collective operation on the stored MPI communicator.
+    ///
+    /// @param[out] result resulting container in global numbering
+    /// @param[in] resultSet set in global numbering that will be populated
+    /// @param[in] input input container in file numbering
+    /// @param[in] offset add this to input domain to obtain true file
+    ///   numbering
+    void File2GlobalOrder(storeRepP &result, entitySet resultSet,
+                          storeRepP input, int offset) ;
+  } ;
+
+
   /// This class is used to describe how entities are partitioned and
-  /// distributed to processor.  This is used to give information about
-  /// the how data stored in Loci store containers are distributed across
-  /// processors.  It is assumed that the data will be stored in a local
-  /// numbering, and a mapping from the local numbering to the global
-  /// and file numbering is provided.  Note that these global and file
-  /// numberings will be numbered within a key space.
+  /// distributed to processors.  It is assumed that the data will be
+  /// stored in a local numbering, and a mapping from the local numbering
+  /// to the global numbering is provided.  The file numbering is accessed
+  /// through the contained globalPartitionInfo for each keyspace.
+  /// Note that containers in local numbering may span multiple keyspaces.
   class  entityPartitionInfo {
     entityPartitionInfo() {}
     /// Entities owned by this processor in local numbering
@@ -590,22 +692,27 @@ namespace Loci {
     store<unsigned char> key_domain ;
     /// Map from local to file numbering
     Map l2f ;
-    /// Partition for global numbering of each key space
-    std::vector<dataPartitionP> keyspacePartitions ;
+    /// Distribution info for each key space (contains global and file info)
+    std::vector<globalPartitionInfoP> keyspaceInfo ;
     /// MPI communicator for distribution
     MPI_Comm comm ;
   public:
+    /// Construct from contained globalPartitionInfo objects per keyspace
+    entityPartitionInfo(entitySet &scope,
+                        Map &l2g_in,
+                        store<unsigned char> &key_domain_in,
+                        Map &l2f_in,
+                        std::vector<globalPartitionInfoP> &keyspace_info_in,
+                        MPI_Comm comm_in) ;
+
+    /// Backward-compatible constructor: builds contained objects from raw
+    /// maps and partitions.
     entityPartitionInfo(entitySet &scope,
                         Map &l2g_in,
                         store<unsigned char> &key_domain_in,
                         Map &l2f_in,
                         std::vector<dataPartitionP> &ptnlist,
-                        MPI_Comm comm_in):
-      my_entities(scope),keyspacePartitions(ptnlist),comm(comm_in) {
-      l2g.setRep(l2g_in.Rep()) ;
-      l2f.setRep(l2f_in.Rep()) ;
-      key_domain.setRep(key_domain_in.Rep()) ;
-    }
+                        MPI_Comm comm_in) ;
 
     /// return entities this processor owns in local numbering
     entitySet myEntities() const { return my_entities ; }
@@ -620,25 +727,59 @@ namespace Loci {
     /// @param[in] dom The input set in local numbering
     int getKeyDomain(entitySet dom) const ;
 
+    /// return the globalPartitionInfo for a given key space
+    ///
+    /// @param[in] kd the key space index
+    globalPartitionInfoP getKeySpaceInfo(int kd) const {
+      return keyspaceInfo[kd] ;
+    }
+
+    /// return the partition for a given key space in global numbering
+    ///
+    /// @param[in] kd the key space index
+    dataPartitionP getKeySpacePartition(int kd) const {
+      return keyspaceInfo[kd]->getPartition() ;
+    }
+
     /// Convert container from local numbering to file numbering, return
-    /// converted containe.  Note, this is a collective operation on the
+    /// converted container.  Note, this is a collective operation on the
     /// stored MPI communicator
     ///
     /// @param[in] sp, store representation for the input store container
-    /// @param[in] dom, local numbering of domain to convert to global numbering
+    /// @param[in] dom, local numbering of domain to convert to file numbering
     /// @param[out] offset, offset in file numbering (each processor will
     /// allocate from zero, add offset to domain to get actual file numbering)
     storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset) ;
 
     /// Convert container from file numbering to local numbering
     ///
-    /// @param[out] resulting container in local numbering
+    /// @param[out] result, resulting container in local numbering
     /// @param[in] resultSet, set in local numbering that will be converted
     /// @param[in] input, input container in file numbering
     /// @param[in] offset, add this to input domain to obtain true file
     /// numbering
     void File2LocalOrder(storeRepP &result,entitySet resultSet,
                          storeRepP input, int offset) ;
+
+    /// Convert container from local numbering to global numbering, return
+    /// converted container.  Note, this is a collective operation on the
+    /// stored MPI communicator.  Domain must be in a single keyspace.
+    ///
+    /// @param[in] sp, store representation for the input store container
+    /// @param[in] dom, local numbering of domain to convert to global numbering
+    /// @param[out] offset, offset in global numbering (each processor will
+    /// allocate from zero, add offset to domain to get actual global numbering)
+    storeRepP Local2GlobalOrder(storeRepP sp, entitySet dom, int &offset) ;
+
+    /// Convert container from global numbering to local numbering
+    ///
+    /// @param[out] result, resulting container in local numbering
+    /// @param[in] resultSet, set in local numbering that will be populated
+    /// @param[in] input, input container in global numbering
+    /// @param[in] offset, add this to input domain to obtain true global
+    /// numbering
+    void Global2LocalOrder(storeRepP &result, entitySet resultSet,
+                           storeRepP input, int offset) ;
   } ;
   
 
