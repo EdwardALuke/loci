@@ -121,10 +121,19 @@ TEST_CASE("face output preserves the mesh counts when two ranks own no faces") {
 int main(int argc, char** argv) {
   Loci::Init(&argc, &argv);
   if(MPI_processes != 3) {
+#ifdef MPI_STUBB
+    std::cout << "Not running test, can only run in serial mode."
+	      << endl ;
+#else
     if(MPI_rank == 0)
       std::cerr << "test_face_output requires three MPI ranks\n";
+#endif
     Loci::Finalize();
+#ifdef MPI_STUBB
+    return 0 ;
+#else 
     return 1;
+#endif
   }
   doctest::Context context;
   context.applyCommandLine(argc, argv);

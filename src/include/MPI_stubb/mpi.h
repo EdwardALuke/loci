@@ -39,7 +39,7 @@ extern "C" {
 #define MPI_BOTTOM		((MPI_Aint)0)
 #define MPI_STATUSES_IGNORE     (0)
 #define MPI_STATUS_IGNORE       (0)
-  
+#define MPI_IN_PLACE            (0)
 typedef long				MPI_Aint;
 typedef unsigned int		MPI_Request;
 typedef unsigned int		MPI_Group;
@@ -144,6 +144,7 @@ enum {
 
 #define MPI_INT32_T MPI_INTEGER
 #define MPI_INT64_T MPI_LONG_LONG
+#define MPI_UNSIGNED_LONG_LONG MPI_LONG_LONG
   
 int MPI_GET_TYPE_SIZE(MPI_Datatype type);
 
