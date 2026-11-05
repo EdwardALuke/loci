@@ -256,9 +256,19 @@ namespace Loci {
             vector3d<real_t> p2(0,0,0) ;
             fol.getOptionUnits("p2","m",p2) ;
             real_t radius_base = 0.0 ;
-            fol.getOptionUnits("radius_base","m",radius_base) ;
+            if (fol.optionExists("radius_base")) {
+              fol.getOptionUnits("radius_base","m",radius_base) ;
+            } else {
+              cerr << "base radius not defined in frustrum geometry " << endl;
+              Loci::Abort() ;
+            }
             real_t radius_top = 0. ;
-            fol.getOptionUnits("radius_top","m",radius_top) ;
+            if (fol.optionExists("radius_top")) {
+              fol.getOptionUnits("radius_top","m",radius_base) ;
+            } else {
+              cerr << "top radius not defined in frustrum geometry " << endl;
+              Loci::Abort() ;
+            }
             real_t thickness = 0.0;
             if (fol.optionExists("thickness")) // for hollow frustums
               fol.getOption("thickness",thickness);
@@ -267,19 +277,33 @@ namespace Loci {
             cerr << "frustrum geometry must be defined by a center/radius or two point (p1,p2) axis! " << endl;
             Loci::Abort() ;
           }
-        } else if(gname == "sector") {     
-            using namespace Loci ;   
+        } else if(gname == "sector") {      
             vector3d<real_t> p1(0,0,0) ;
-            fol.getOptionUnits("p1","m",p1) ;
+            if (fol.optionExists("p1")) {
+              fol.getOptionUnits("p1","m",p1) ;
+            } else {
+              cerr << " p1 not defined in sector geometry " << endl;
+              Loci::Abort();
+            }
             vector3d<real_t> p2(0.0,0.0,0.0) ;
-            fol.getOptionUnits("p2","m",p2) ;
+            if (fol.optionExists("p2")) {
+              fol.getOptionUnits("p2","m",p2) ;
+            } else {
+              cerr << " p2 not defined in sector geometry " << endl;
+              Loci::Abort();
+            }
             real_t angle = 360.0; // assume full revolution
             fol.getOption("angle",angle);
             angle *=M_PI/180.0; // converting to radians 
-            real_t position;
+            real_t position = 0; // assume starting at 0, range from 0 to 1
             fol.getOption("position",position);
             vector3d<real_t> orientation(0,0,0) ;
-            fol.getOptionUnits("orientation","",orientation) ;
+            if (fol.optionExists("orientation")) {
+              fol.getOptionUnits("orientation","",orientation) ;
+            } else {
+              cerr << " sector orientation not defined in sector geometry " << endl;
+              Loci::Abort() ;
+            }
             vector<vector3d<real_t>> vertices;
             if(fol.optionExists("points")) {
               Loci::option_value_type ovt= fol.getOptionValueType("points") ;
@@ -322,20 +346,19 @@ namespace Loci {
             geomList.push_back(new sectorFunc(p1,p2,vertices,angle,position,orientation)) ;
         } else if(gname == "revolution") { // maintain backwards compatibility    
           vector3d<real_t> p1(0,0,0) ;
-          bool fail = false ;
           if(fol.optionExists("p1")) {
             fol.getOptionUnits("p1","meter",p1) ;
           } else {
-            fail = true ;
+            cerr << " p1 not defined in revolution geometry " << endl;
+            Loci::Abort();
           }
-
           vector3d<real_t> p2(0,0,0) ;
           if(fol.optionExists("p2")) {
             fol.getOptionUnits("p2","meter",p2) ;
           } else {
-            fail = true ;
+            cerr << " p2 not defined in revolution geometry " << endl;
+            Loci::Abort();
           }
-   
           // For a revolution, a series of radius value and offset values are needed
           vector<real_t> radius ;
           vector<real_t> offsets ;
@@ -371,7 +394,8 @@ namespace Loci {
               }
             }
           } else {
-            fail = true ;
+            cerr << "radius list must be defined for revolution geometry " << endl ;
+            Loci::Abort() ;
           }
 
           if(fol.optionExists("offsets")) {
@@ -396,12 +420,7 @@ namespace Loci {
               }
             }
           } else {
-            fail = true ;
-          }
-
-          if(fail) {
-            cerr << "component revolution needs to have a specified "
-                << " 'p1', 'p2', 'radius', 'offsets'." <<endl ;
+            cerr << "offset list must be defined for revolution geometry " << endl ;
             Loci::Abort() ;
           }
 
@@ -421,14 +440,24 @@ namespace Loci {
 
           geomList.push_back(new revolutionFunc(p1,p2,vrad) ) ;
         } else if(gname == "extrusion") {        
-            vector3d<real_t> p1(0,0,0) ;
-            fol.getOptionUnits("p1","m",p1) ;
-            vector3d<real_t> p2(0,0,0) ;
-            fol.getOptionUnits("p2","m",p2) ;
-            real_t percentage;
-            fol.getOption("percentage",percentage);
-            vector<vector3d<real_t>> vertices;
-            if(fol.optionExists("points")) {
+          vector3d<real_t> p1(0,0,0) ;
+          if(fol.optionExists("p1")) {
+            fol.getOptionUnits("p1","meter",p1) ;
+          } else {
+            cerr << " p1 not defined in revolution geometry " << endl;
+            Loci::Abort();
+          }
+          vector3d<real_t> p2(0,0,0) ;
+          if(fol.optionExists("p2")) {
+            fol.getOptionUnits("p2","meter",p2) ;
+          } else {
+            cerr << " p2 not defined in revolution geometry " << endl;
+            Loci::Abort();
+          }
+          real_t percentage = 0.0;
+          fol.getOption("percentage",percentage);
+          vector<vector3d<real_t>> vertices;
+          if(fol.optionExists("points")) {
             Loci::option_value_type ovt= fol.getOptionValueType("points") ;
             if(ovt != Loci::LIST) {
               cerr << "points for geometry of component '" << tag
@@ -464,6 +493,9 @@ namespace Loci {
                 Loci::Abort() ;
               }
               vertices.push_back(pl) ;
+            } else {
+              cerr << " extrustion geometry must have a list of points to define extrusion plane " << endl;
+              Loci::Abort();
             }
             geomList.push_back(new extrusionFunc(p1,p2,vertices,percentage)) ;
           }
@@ -471,64 +503,83 @@ namespace Loci {
           vector3d<real_t> center(0,0,0) ;
           fol.getOptionUnits("center","m",center) ;
           real_t radius = 0 ;
-          fol.getOptionUnits("radius","m",radius) ;
+          if (fol.optionExists("radius")) {
+            fol.getOptionUnits("radius","m",radius) ;
+          } else {
+            cerr << " radius not defined in sphere geometry " << endl;
+            Loci::Abort();
+          }
           geomList.push_back(new sphereFunc(center,radius)) ;
         } else if(gname ==  "box") {
           vector3d<real_t> p1(0,0,0) ;
+          if (fol.optionExists("p1")){
+            fol.getOptionUnits("p1","m",p1) ;
+          } else {
+            cerr << " p1 not defined in box geometry " << endl;
+            Loci::Abort();
+          }
           vector3d<real_t> p2(0,0,0) ;
-          fol.getOptionUnits("p1","m",p1) ;
-          fol.getOptionUnits("p2","m",p2) ;
+          if (fol.optionExists("p2")) {
+            fol.getOptionUnits("p2","m",p2) ;
+          } else {
+            cerr << " p2 not defined in box geometry " << endl;
+            Loci::Abort();
+          }
+          }
           geomList.push_back(new boxFunc(p1,p2)) ;
         } else if (gname == "planeList") {
           vector<vector3d<real_t> > points ;
           vector<vector3d<real_t> > normals ;
 
           if(fol.optionExists("list")) {
-          Loci::option_value_type ovt= fol.getOptionValueType("list") ;
-          if(ovt != Loci::LIST) {
-            cerr << "list for geometry of component '" << tag
-                << "' must be a list" << endl ;
+            Loci::option_value_type ovt= fol.getOptionValueType("list") ;
+            if(ovt != Loci::LIST) {
+              cerr << "list for geometry of component '" << tag
+                  << "' must be a list" << endl ;
+              Loci::Abort() ;
+            }
+
+            Loci::options_list::arg_list value_list ;
+            fol.getOption("list",value_list) ;
+            int sz = value_list.size() ;
+            for(int i=0;i<sz;++i) {
+              if(value_list[i].type_of() != FUNCTION) {
+                cerr << "list should be a list of plane functions in component '"
+                    << tag << "'" << endl ;
+              }
+              string name ;
+              value_list[i].get_value(name) ;
+              if(name != "plane") {
+                cerr << "planeList expecting a list of 'plane', not '"
+                    << name << "'" << endl ;
+                Loci::Abort() ;
+              }
+              options_list::arg_list fvalues ;
+              value_list[i].get_value(fvalues) ;
+              options_list vfol ;
+              vfol.Input(fvalues) ;
+              vector3d<real_t> pl,nl ;
+              if(vfol.optionExists("p")) {
+                vfol.getOptionUnits("p","meter",pl) ;
+              } else {
+                cerr << "plane does not define point 'p=' in component '"
+                    << tag << "'" << endl ;
+                Loci::Abort() ;
+              }
+              if(vfol.optionExists("n")) {
+                vfol.getOptionUnits("n","meter",nl) ;
+              } else {
+                cerr << "plane does not define normal 'n=' in component '"
+                    << tag << "'" << endl ;
+                Loci::Abort() ;
+              }
+              points.push_back(pl) ;
+              normals.push_back(nl) ;
+            }
+          } else {
+            cerr << "planes must be defined by point/normal combinations! '" << endl;
             Loci::Abort() ;
           }
-
-          Loci::options_list::arg_list value_list ;
-          fol.getOption("list",value_list) ;
-          int sz = value_list.size() ;
-          for(int i=0;i<sz;++i) {
-            if(value_list[i].type_of() != FUNCTION) {
-              cerr << "list should be a list of plane functions in component '"
-                  << tag << "'" << endl ;
-            }
-            string name ;
-            value_list[i].get_value(name) ;
-            if(name != "plane") {
-              cerr << "planeList expecting a list of 'plane', not '"
-                  << name << "'" << endl ;
-              Loci::Abort() ;
-            }
-            options_list::arg_list fvalues ;
-            value_list[i].get_value(fvalues) ;
-            options_list vfol ;
-            vfol.Input(fvalues) ;
-            vector3d<real_t> pl,nl ;
-            if(vfol.optionExists("p")) {
-              vfol.getOptionUnits("p","meter",pl) ;
-            } else {
-              cerr << "plane does not define point 'p=' in component '"
-                  << tag << "'" << endl ;
-              Loci::Abort() ;
-            }
-            if(vfol.optionExists("n")) {
-              vfol.getOptionUnits("n","meter",nl) ;
-            } else {
-              cerr << "plane does not define normal 'n=' in component '"
-                  << tag << "'" << endl ;
-              Loci::Abort() ;
-            }
-            points.push_back(pl) ;
-            normals.push_back(nl) ;
-          }
-        }
           geomList.push_back(new planelistFunc(points,normals)) ;
         } else {
           cerr << "unknown geometry '" << gname << "' in Overset Geometry" << endl ;
