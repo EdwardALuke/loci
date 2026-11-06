@@ -154,11 +154,9 @@ namespace FVMAdapt {
         return compose(parent_.evaluate(local.position),local) ;
       }
     } ;
-    void requireQuality(const GeometryMap &map, bool affine = false) {
+    GeometryQuality physicalQuality(const GeometryMap &map, bool affine = false) {
       static const GeometryQualityOptions constantJacobian{{{{.5,.5,.5}}},1} ;
-      const auto quality = affine ? geometryQuality(map,constantJacobian) : geometryQuality(map) ;
-      if(quality.status == GeometryQualityStatus::invalid) throw std::domain_error("hex split has invalid physical geometry") ;
-      if(quality.status != GeometryQualityStatus::sampled) throw std::length_error("hex split physical quality is unresolved") ;
+      return affine ? geometryQuality(map,constantJacobian) : geometryQuality(map) ;
     }
   }
 
@@ -356,6 +354,16 @@ namespace FVMAdapt {
     }
     return compose(source_.evaluate(local.position),local) ;
   }
+  Point HexCellMap::position(const Point &point) const {
+    auto local = point ; auto cell = cell_ ;
+    while(cell != HexPlan::root) {
+      const auto &split = plan_.data_->splits[(cell-1)/8] ; const unsigned ordinal = (cell-1)%8 ;
+      local = split.centers == HexPlan::absent ? midpointValue(ordinal,local).position
+        : hexCornerPosition(childCorners(plan_.data_->centers[split.centers],ordinal),local) ;
+      cell = split.parent ;
+    }
+    return source_.position(local) ;
+  }
   HexCenters hexCenters(const GeometryMap &geometry, CenterMethod method, MeasureOptions options) {
     require(geometry.shape() == Shape::hex,"hex centers require hex geometry") ; HexCenters result ;
     require(method == CenterMethod::reference || method == CenterMethod::weighted || method == CenterMethod::integrated,"unknown hex center method") ;
@@ -372,8 +380,18 @@ namespace FVMAdapt {
     const auto *corners = dynamic_cast<const CornerMap*>(&source) ;
     // Positive source and reference-map Jacobians stay positive under composition.
     if(!corners || !positiveHexJacobian(corners->corners())) {
-      const HexCellMap parent(source,plan,cell) ; requireQuality(parent,parent.affine()) ;
-      for(unsigned child = 0; child < 8; ++child) requireQuality(HexChildMap(parent,centers,child)) ;
+      auto status=GeometryQualityStatus::sampled ;
+      const auto check=[&](const GeometryMap &map,bool affine=false) {
+        const auto quality=physicalQuality(map,affine) ;
+        if(quality.invalidEvaluation) throw std::length_error("hex split geometry evaluation is not finite") ;
+        if(status==GeometryQualityStatus::sampled || quality.status==GeometryQualityStatus::invalid) status=quality.status ;
+      } ;
+      const HexCellMap parent(source,plan,cell) ; check(parent,parent.affine()) ;
+      for(unsigned child = 0; child < 8; ++child) check(HexChildMap(parent,centers,child)) ;
+      if(status!=GeometryQualityStatus::sampled && geometryValidity(source,limits)!=GeometryValidity::valid) {
+        if(status==GeometryQualityStatus::invalid) throw std::domain_error("hex split has invalid physical geometry") ;
+        throw std::length_error("hex split physical quality is unresolved") ;
+      }
     }
     plan.refine(cell,centers,limits) ;
   }

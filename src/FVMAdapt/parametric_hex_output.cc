@@ -36,6 +36,8 @@ namespace FVMAdapt {
       struct Location { unsigned face ; Point point ; } ;
       std::vector<Point> source ; std::vector<Location> locations ;
       std::vector<ParametricNodeKey> keys ;
+      // Face-local node number to temporary vertex index.
+      std::vector<unsigned> localNodes ;
       std::vector<Edge> edges ; std::vector<Face> faces ;
       std::map<std::pair<unsigned,unsigned>,unsigned> edgeIds ;
       std::map<std::array<std::uint32_t,3>,unsigned> faceIds ;
@@ -53,13 +55,13 @@ namespace FVMAdapt {
         faceIds.emplace(std::array<std::uint32_t,3>{{std::min(a[0],b[0]),std::min(a[1],b[1]),std::max(a[0],b[0])-std::min(a[0],b[0])}},id) ;
         faces.push_back(std::move(face)) ; return id ;
       }
-      Point position(unsigned face,Point p) const {
+      Point position(unsigned face,Point p,const CornerMap &geometry) const {
         while(faces[face].parent != absent) {
           const auto &f = faces[face] ; const unsigned v = f.corner ;
-          p = quadChildMap(v,faces[f.parent].center).evaluate(p).position ;
+          p = quadChildMap(v,faces[f.parent].center).position(p) ;
           face = f.parent ;
         }
-        return CornerMap(Shape::quad,source).evaluate(p).position ;
+        return geometry.position(p) ;
       }
       unsigned point(unsigned face,const Point &p) {
         const unsigned id = locations.size() ; locations.push_back({face,p}) ;
@@ -100,16 +102,20 @@ namespace FVMAdapt {
         const bool reverse = e.vertices[0] != start ;
         edgeKeys(e.children[reverse ? 1:0],start,edgeOwner,lo,mid) ; edgeKeys(e.children[reverse ? 0:1],e.middle,edgeOwner,mid,hi) ;
       }
-      void facePoint(unsigned vertex,int &next) { if(keys[vertex].reference.kind == EntityKind::face && keys[vertex].local < 0) keys[vertex].local = next++ ; }
-      void faceEdgeKeys(unsigned id,unsigned start,int &next) {
-        const auto &e = edges[id] ; if(e.middle == absent) return ;
-        facePoint(e.middle,next) ; const bool reverse = e.vertices[0] != start ;
-        faceEdgeKeys(e.children[reverse ? 1:0],start,next) ; faceEdgeKeys(e.children[reverse ? 0:1],e.middle,next) ;
+      void facePoint(unsigned vertex) {
+        if(keys[vertex].reference.kind == EntityKind::face && keys[vertex].local < 0) {
+          keys[vertex].local = localNodes.size() ; localNodes.push_back(vertex) ;
+        }
       }
-      void faceKeys(unsigned id,int &next) {
-        const auto &face = faces[id] ; for(unsigned e = 0; e < 4; ++e) faceEdgeKeys(face.edges[e],face.vertices[e],next) ;
+      void faceEdgeKeys(unsigned id,unsigned start) {
+        const auto &e = edges[id] ; if(e.middle == absent) return ;
+        facePoint(e.middle) ; const bool reverse = e.vertices[0] != start ;
+        faceEdgeKeys(e.children[reverse ? 1:0],start) ; faceEdgeKeys(e.children[reverse ? 0:1],e.middle) ;
+      }
+      void faceKeys(unsigned id) {
+        const auto &face = faces[id] ; for(unsigned e = 0; e < 4; ++e) faceEdgeKeys(face.edges[e],face.vertices[e]) ;
         if(face.centerVertex == absent) return ;
-        facePoint(face.centerVertex,next) ; for(auto child : face.children) faceKeys(child,next) ;
+        facePoint(face.centerVertex) ; for(auto child : face.children) faceKeys(child) ;
       }
       void cover(const ParametricHex &cell,bool right) {
         const bool reverse = cell.topology.faceOrientation(faceIndex(cell.topology,owner)) >= 4 ;
@@ -158,18 +164,19 @@ namespace FVMAdapt {
           }
           edgeKeys(faces[0].edges[e],reverse ? (e+1)%4:e,edgeOwner,0,1) ;
         }
-        int next = 0 ; faceKeys(0,next) ; cover(left,false) ; if(right) cover(*right,true) ;
+        faceKeys(0) ; cover(left,false) ; if(right) cover(*right,true) ;
       }
       void splitParents(unsigned id) {
         while(edges[id].parent != absent) { id = edges[id].parent ; edges[id].active = true ; }
       }
-      void edgeVertices(unsigned id,unsigned start,std::vector<ParametricNodeKey> &vertices) const {
+      template<class Visit> void visitEdgeVertices(unsigned id,unsigned start,const Visit &visit) const {
         const auto &e = edges[id] ;
-        if(!e.active) { vertices.push_back(keys[start]) ; return ; }
+        if(!e.active) { visit(start) ; return ; }
         require(e.middle != absent,"active face edge has no midpoint") ; const bool reverse = e.vertices[0] != start ;
-        edgeVertices(e.children[reverse ? 1:0],start,vertices) ; edgeVertices(e.children[reverse ? 0:1],e.middle,vertices) ;
+        visitEdgeVertices(e.children[reverse ? 1:0],start,visit) ; visitEdgeVertices(e.children[reverse ? 0:1],e.middle,visit) ;
       }
-      std::vector<ParametricOutputFace> output(bool neighbor,const std::vector<ParametricNodeKey> &required = {}) {
+      /// Propagate leaf coverage and activate the edges of the selected face pieces.
+      std::vector<unsigned> selectFaces(bool neighbor) {
         std::vector<unsigned> selected ;
         for(unsigned id = 0; id < faces.size(); ++id) {
           const auto &face = faces[id] ;
@@ -177,46 +184,63 @@ namespace FVMAdapt {
             require(child != absent,"active face has no children") ;
             faces[child].covers.insert(faces[child].covers.end(),face.covers.begin(),face.covers.end()) ;
           } else if(!face.covers.empty()) {
-            require(face.covers.size() == (neighbor ? 2u:1u),"hex face coverage is incomplete") ; selected.push_back(id) ;
+            require(face.covers.size() == (neighbor ? 2u:1u),"hex face coverage is incomplete") ;
+            if(neighbor) require(face.covers[0].reverse != face.covers[1].reverse,"hex face orientations disagree") ;
+            selected.push_back(id) ;
             for(auto edge : face.edges) splitParents(edge) ;
           }
         }
+        return selected ;
+      }
+      std::vector<ParametricOutputFace> output(bool neighbor,const std::vector<ParametricNodeKey> &required = {}) {
+        const auto selected = selectFaces(neighbor) ;
         const std::set<ParametricNodeKey> needed(required.begin(),required.end()) ;
         for(unsigned e = 0; e < edges.size(); ++e) if(edges[e].middle != absent && needed.count(keys[edges[e].middle])) {
           edges[e].active = true ; splitParents(e) ;
         }
-        std::vector<ParametricOutputFace> result ;
+        std::vector<ParametricOutputFace> result ; result.reserve(selected.size()) ;
         for(auto id : selected) {
           auto &face = faces[id] ; if(face.covers.front().right) std::reverse(face.covers.begin(),face.covers.end()) ;
-          if(neighbor) require(face.covers[0].reverse != face.covers[1].reverse,"hex face orientations disagree") ;
           ParametricOutputFace output{{},face.covers[0].leaf,neighbor ? face.covers[1].leaf:-1} ;
-          for(unsigned e = 0; e < 4; ++e) edgeVertices(face.edges[e],face.vertices[e],output.vertices) ;
+          const auto append = [&](unsigned vertex) { output.vertices.push_back(keys[vertex]) ; } ;
+          for(unsigned e = 0; e < 4; ++e) visitEdgeVertices(face.edges[e],face.vertices[e],append) ;
           if(face.covers[0].reverse) std::reverse(output.vertices.begin(),output.vertices.end()) ;
           result.push_back(std::move(output)) ;
         }
         return result ;
       }
       std::vector<ParametricNodeKey> nodes(bool neighbor) {
-        std::set<ParametricNodeKey> result ;
-        for(const auto &face : output(neighbor)) for(const auto &key : face.vertices)
-          if(key.reference.kind == EntityKind::face) result.insert(key) ;
-        return {result.begin(),result.end()} ;
+        const auto selected = selectFaces(neighbor) ; std::vector<unsigned char> used(keys.size(),0) ; std::size_t count = 0 ;
+        const auto mark = [&](unsigned vertex) {
+          if(!used[vertex] && keys[vertex].reference.kind == EntityKind::face) { used[vertex] = 1 ; ++count ; }
+        } ;
+        for(auto id : selected) {
+          const auto &face = faces[id] ; for(unsigned e = 0; e < 4; ++e) visitEdgeVertices(face.edges[e],face.vertices[e],mark) ;
+        }
+        std::vector<ParametricNodeKey> result ; result.reserve(count) ;
+        for(auto vertex : localNodes) if(used[vertex]) result.push_back(keys[vertex]) ;
+        return result ;
+      }
+      std::vector<Point> positions(const std::vector<ParametricNodeKey> &nodes) const {
+        if(nodes.empty()) return {} ;
+        const CornerMap geometry(Shape::quad,source) ;
+        std::vector<Point> result ; result.reserve(nodes.size()) ;
+        for(const auto &key:nodes) {
+          const auto vertex=localNodes.at(key.local) ;
+          require(keys[vertex]==key,"face node does not belong to the output face") ;
+          const auto &p=locations[vertex] ; result.push_back(position(p.face,p.point,geometry)) ;
+        }
+        return result ;
       }
     } ;
   }
-  std::vector<ParametricNodeKey> ParametricHex::faceNodes(EntityId face,const ParametricHex *right) const {
-    return FaceOutput(face,*this,right).nodes(right != nullptr) ;
+  std::vector<ParametricNodeKey> ParametricHex::faceNodes(EntityId face,const ParametricHex *right,std::vector<Point> *positions) const {
+    FaceOutput output(face,*this,right) ; auto nodes=output.nodes(right!=nullptr) ;
+    if(positions) *positions=output.positions(nodes) ;
+    return nodes ;
   }
   std::vector<Point> ParametricHex::facePositions(EntityId face,const ParametricHex *right) const {
-    FaceOutput output(face,*this,right) ; const auto nodes = output.nodes(right != nullptr) ;
-    std::map<ParametricNodeKey,unsigned> points ;
-    for(unsigned i = 0; i < output.keys.size(); ++i) points.emplace(output.keys[i],i) ;
-    // Numbering and connectivity need only local coordinates; project the requested nodes here.
-    std::vector<Point> result ;
-    for(const auto &key : nodes) {
-      const auto &p = output.locations[points.at(key)] ; result.push_back(output.position(p.face,p.point)) ;
-    }
-    return result ;
+    std::vector<Point> positions ; faceNodes(face,right,&positions) ; return positions ;
   }
   std::vector<ParametricOutputFace> ParametricHex::faceFaces(EntityId face,const std::vector<ParametricNodeKey> &required,const ParametricHex *right) const {
     return FaceOutput(face,*this,right,required).output(right != nullptr,required) ;

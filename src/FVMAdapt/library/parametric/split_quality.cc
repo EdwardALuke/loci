@@ -75,9 +75,12 @@ namespace FVMAdapt {
       ChildQuality result ;
       result.quality = geometryQuality(map,options.quality) ;
       if(result.quality.status != GeometryQualityStatus::sampled) {
-        problem(report,result.quality.status,parent,child,result.quality.status == GeometryQualityStatus::invalid ?
-          "invalid sampled geometry" : "unresolved geometry quality") ;
-        return result ;
+        if(!result.quality.invalidEvaluation) result.validity = geometryValidity(map) ;
+        if(result.validity != GeometryValidity::valid) {
+          problem(report,result.quality.status,parent,child,result.quality.status == GeometryQualityStatus::invalid ?
+            "invalid sampled geometry" : "unresolved geometry quality") ;
+          return result ;
+        }
       }
       MeasuredMap measured(map) ;
       try {
@@ -120,13 +123,19 @@ namespace FVMAdapt {
 
     void requireComplete(const ChildQuality &cell, const std::string &name) {
       const auto &quality = cell.quality ;
-      if(quality.status == GeometryQualityStatus::invalid || quality.invalidCount != 0)
-        throw std::domain_error(name+": invalid sampled geometry") ;
-      if(quality.status != GeometryQualityStatus::sampled || quality.sampleCount == 0 ||
-         quality.measuredCount != quality.sampleCount || quality.unresolvedCount != 0 || !cell.measure.converged)
+      if(cell.validity != GeometryValidity::valid) {
+        if(quality.status == GeometryQualityStatus::invalid || quality.invalidCount != 0)
+          throw std::domain_error(name+": invalid sampled geometry") ;
+        if(quality.status != GeometryQualityStatus::sampled || quality.sampleCount == 0 ||
+           quality.measuredCount != quality.sampleCount || quality.unresolvedCount != 0)
+          throw std::length_error(name+": incomplete geometry assessment") ;
+      }
+      if(quality.invalidEvaluation || !std::isfinite(quality.minScaledJacobian) ||
+         !std::isfinite(quality.maxAlignment) || !std::isfinite(quality.maxDerivativeRatio))
+        throw std::length_error(name+": unrepresentable geometry assessment") ;
+      if(!cell.measure.converged)
         throw std::length_error(name+": incomplete geometry assessment") ;
-      if(!std::isfinite(cell.measure.measure) || cell.measure.measure <= 0 ||
-         !std::isfinite(quality.minScaledJacobian) || !std::isfinite(quality.maxAlignment) || !std::isfinite(quality.maxDerivativeRatio))
+      if(!std::isfinite(cell.measure.measure) || cell.measure.measure <= 0)
         throw std::length_error(name+": unrepresentable geometry assessment") ;
     }
 
@@ -178,7 +187,10 @@ namespace FVMAdapt {
     for(std::size_t i = 0; i < report.children.size(); ++i) {
       const auto &child = report.children[i] ; const auto name = label(false,i) ;
       requireComplete(child,name) ;
-      if(child.quality.minScaledJacobian < limits.minScaledJacobian)
+      if((limits.minScaledJacobian > 0 || limits.maxAlignment < 1 || std::isfinite(limits.maxDerivativeRatio)) &&
+         (child.quality.sampleCount == 0 || child.quality.measuredCount != child.quality.sampleCount || child.quality.unresolvedCount != 0))
+        throw std::length_error(name+": quality limits require complete boundary measurements") ;
+      if(limits.minScaledJacobian > 0 && child.quality.minScaledJacobian < limits.minScaledJacobian)
         throw std::domain_error(name+": scaled Jacobian is below its limit") ;
       if(child.quality.maxAlignment > limits.maxAlignment)
         throw std::domain_error(name+": tangent alignment exceeds its limit") ;

@@ -109,7 +109,7 @@ namespace FVMAdapt {
     std::vector<int> t(in.count(128,4)) ; for(auto &v : t) v = in.u32() ;
     const auto topology = decodeParametricTopology(t) ; require(topology.shape() == Shape::hex,"compact source is not a hex") ;
     std::vector<Point> corners(8) ; for(auto &p : corners) for(auto &x : p) x = in.real() ;
-    require(geometryQuality(CornerMap(Shape::hex,corners)).status == GeometryQualityStatus::sampled,"invalid compact hex source geometry") ;
+    require(validParametricSource(CornerMap(Shape::hex,corners),limits.jacobian),"invalid compact hex source geometry") ;
     ParametricHex result(topology,std::move(corners),limits) ;
     require(limits.maxNodes > 0,"compact hex requires a positive node limit") ;
     result.plan = HexPlan::decode(bytes(in,limits.exact.maxBytes),std::min(limits.maxSplits,(limits.maxNodes-1)/8),limits.jacobian) ;

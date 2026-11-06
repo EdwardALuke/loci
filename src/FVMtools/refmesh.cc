@@ -20,7 +20,7 @@
 //#############################################################################
 
 #include <Loci.h>
-#include <FVMAdapt/parametric_plan.h>
+#include "adapt_input.h"
 #include <iostream>
 #include <map>
 #include <set>
@@ -33,9 +33,10 @@ int main(int argc,char **argv) {
       if(Loci::MPI_rank==0) std::cout<<
         "refmesh -g original.vog -r saved.plan [-o out.vog] [-c2p parents.txt] [-pr previous.plan]\n"
         "Cell-parent pairs are one-based. Without -pr, parents are original cells.\n"
-        "Plans retain their split and geometry controls.\n" ;
+        "Plans retain their split, geometry and quality controls.\n" ;
+      FVMTools::showQualityHelp() ;
     } else {
-      const std::set<std::string> known={"-g","-r","-o","-c2p","-pr"} ; std::map<std::string,std::string> args ;
+      const std::set<std::string> known={"-g","-r","-o","-c2p","-pr","-quality","-quality-centroid","-max-nonorthogonality","-max-face-warpage","-max-child-volume-ratio"} ; std::map<std::string,std::string> args ;
       for(int i=1;i<argc;++i) {
         const std::string key=argv[i] ;
         if(!known.count(key) || i+1==argc || args.count(key)) throw std::invalid_argument("unknown, repeated or incomplete option: "+key) ;
@@ -45,6 +46,7 @@ int main(int argc,char **argv) {
       if(args.count("-pr") && !args.count("-c2p")) throw std::invalid_argument("-pr requires -c2p") ;
       namespace F=Loci::FVMAdapt ; Loci::RefinementState state,parent ; Loci::RefinementOptions options,parentOptions ; std::string error ;
       if(!F::readParametricPlan(args.at("-r"),args.at("-g"),state,options,error)) throw std::runtime_error(error) ;
+      FVMTools::applyQualityOptions(args,options) ;
       if(args.count("-pr")) {
         if(!F::readParametricPlan(args.at("-pr"),args.at("-g"),parent,parentOptions,error)) throw std::runtime_error(error) ;
         if(options.splitFamily!=parentOptions.splitFamily || options.extrusionAxis!=parentOptions.extrusionAxis)

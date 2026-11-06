@@ -21,6 +21,7 @@
 
 #include <FVMAdapt/parametric/geometry_quality.h>
 #include "geometry_bounds.h"
+#include "geometry_validity.h"
 
 #include <algorithm>
 #include <cmath>
@@ -105,12 +106,13 @@ namespace FVMAdapt {
     }
 
     void measure(GeometryQuality &quality, const MapValue &value, const Point &point, unsigned dimension) {
-      if(!finite(value.position)) { recordProblem(quality,point,true) ; return ; }
+      if(!finite(value.position)) { quality.invalidEvaluation=true ; recordProblem(quality,point,true) ; return ; }
       if(!value.hasJacobian) { recordProblem(quality,point,false) ; return ; }
+      for(unsigned d = 0; d < dimension; ++d)
+        if(!finite(value.jacobian[d])) { quality.invalidEvaluation=true ; recordProblem(quality,point,true) ; return ; }
       std::array<WidePoint,3> tangents{} ;
       std::array<long double,3> norms{}, lengths{} ;
       for(unsigned d = 0; d < dimension; ++d) {
-        if(!finite(value.jacobian[d])) { recordProblem(quality,point,true) ; return ; }
         long double scale = 0 ;
         for(double component : value.jacobian[d]) scale = std::max(scale,std::abs(static_cast<long double>(component))) ;
         if(scale == 0) { quality.collapsed = true ; recordProblem(quality,point,true) ; return ; }
@@ -156,6 +158,246 @@ namespace FVMAdapt {
 
   }
 
+  namespace {
+    using detail::Exact ;
+    using detail::ExactPoint ;
+    using detail::BernsteinCoefficients ;
+    using detail::jacobianDifference ;
+    using detail::jacobianDeterminant ;
+    using detail::jacobianIndex ;
+
+    ExactPoint exactPoint(const Point &point) { return {{Exact(point[0]),Exact(point[1]),Exact(point[2])}} ; }
+    ExactPoint exactCross(const ExactPoint &a,const ExactPoint &b) {
+      return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ;
+    }
+    Exact exactNorm(const ExactPoint &a) { return a[0]*a[0]+a[1]*a[1]+a[2]*a[2] ; }
+    std::vector<ExactPoint> exactCorners(const CornerMap &map) {
+      std::vector<ExactPoint> result ; for(const auto &p:map.corners()) result.push_back(exactPoint(p)) ; return result ;
+    }
+
+    template<class Function> BernsteinCoefficients coefficients(Function value) {
+      BernsteinCoefficients result ;
+      for(unsigned k=0;k<3;++k) for(unsigned j=0;j<3;++j) for(unsigned i=0;i<3;++i)
+        result[jacobianIndex(i,j,k)]=value(Exact(i)/2,Exact(j)/2,Exact(k)/2) ;
+      for(unsigned step:{1u,3u,9u}) for(unsigned i=0;i<27;++i) if(i/step%3==0)
+        result[i+step]=2*result[i+step]-(result[i]+result[i+2*step])/2 ;
+      return result ;
+    }
+
+    GeometryValidity certify(BernsteinCoefficients values,unsigned dimension,JacobianCheckLimits limits,std::size_t &remaining) {
+      struct Box { BernsteinCoefficients values ; unsigned depth,boundary ; } ;
+      std::vector<Box> pending{{std::move(values),0,(1u<<(2*dimension))-1}} ;
+      while(!pending.empty()) {
+        if(remaining==0) return GeometryValidity::unresolved ;
+        --remaining ;
+        auto box=std::move(pending.back()) ; pending.pop_back() ;
+        bool nonnegative=true ; for(const auto &v:box.values) if(v<0) { nonnegative=false ; break ; }
+        for(unsigned k=0;k<(dimension==3 ? 3u:1u);k+=2) for(unsigned j=0;j<(dimension>=2 ? 3u:1u);j+=2) for(unsigned i:{0u,2u}) {
+          const auto &v=box.values[jacobianIndex(i,j,k)] ;
+          if(v<0) return GeometryValidity::invalid ;
+          bool exterior=false ; const unsigned q[3]={i,j,k} ;
+          for(unsigned d=0;d<dimension;++d) exterior=exterior || (box.boundary&(1u<<(2*d+q[d]/2))) ;
+          if(v==0 && !exterior) return GeometryValidity::invalid ;
+        }
+        if(nonnegative) {
+          // Each open face, edge and vertex inside the original domain must stay positive.
+          // Bounds introduced by proof subdivision are not permitted singular boundaries.
+          const unsigned count=dimension==3 ? 27:dimension==2 ? 9:3 ;
+          for(unsigned stratum=0;stratum<count;++stratum) {
+            unsigned code=stratum ; std::array<unsigned,3> side{} ; bool exterior=false ;
+            for(unsigned d=0;d<dimension;++d) {
+              side[d]=code%3 ; code/=3 ;
+              if(side[d]) exterior=exterior || (box.boundary&(1u<<(2*d+side[d]-1))) ;
+            }
+            if(exterior) continue ;
+            bool positive=false ;
+            for(unsigned n=0;n<27 && !positive;++n) {
+              unsigned index=n ; bool member=true ;
+              for(unsigned d=0;d<dimension;++d) {
+                const unsigned q=index%3 ; index/=3 ;
+                if(side[d] && q!=2*(side[d]-1)) member=false ;
+              }
+              if(member && box.values[n]>0) positive=true ;
+            }
+            if(!positive) return GeometryValidity::invalid ;
+          }
+          continue ;
+        }
+        if(box.depth>=limits.maxDepth) return GeometryValidity::unresolved ;
+        const unsigned axis=box.depth%dimension ; auto children=detail::bisectJacobianCoefficients(box.values,axis) ;
+        pending.push_back({std::move(children[1]),box.depth+1,box.boundary&~(1u<<(2*axis))}) ;
+        pending.push_back({std::move(children[0]),box.depth+1,box.boundary&~(1u<<(2*axis+1))}) ;
+      }
+      return GeometryValidity::valid ;
+    }
+
+    struct SurfaceValue { ExactPoint point,u,v ; } ;
+    SurfaceValue surfaceValue(const std::vector<ExactPoint> &p,const Exact &u,const Exact &v) {
+      SurfaceValue result ; const bool quad=p.size()==4 ;
+      for(unsigned d=0;d<3;++d) {
+        const Exact a=p[1][d]-p[0][d],b=p[quad ? 3:2][d]-p[0][d] ;
+        const Exact twist=quad ? Exact(p[2][d]-p[1][d]-p[3][d]+p[0][d]):Exact(0) ;
+        result.point[d]=p[0][d]+u*a+v*b+u*v*twist ;
+        result.u[d]=a+v*twist ; result.v[d]=b+u*twist ;
+      }
+      return result ;
+    }
+    GeometryValidity cornerValidity(const CornerMap &map,JacobianCheckLimits limits,std::size_t &remaining) {
+      const auto shape=map.shape() ; const auto p=exactCorners(map) ;
+      switch(shape) {
+      case Shape::segment: return exactNorm(jacobianDifference(p[1],p[0]))>0 ? GeometryValidity::valid:GeometryValidity::invalid ;
+      case Shape::triangle: return exactNorm(exactCross(jacobianDifference(p[1],p[0]),jacobianDifference(p[2],p[0])))>0
+          ? GeometryValidity::valid:GeometryValidity::invalid ;
+      case Shape::tet: return jacobianDeterminant(jacobianDifference(p[1],p[0]),jacobianDifference(p[2],p[0]),jacobianDifference(p[3],p[0]))>0
+          ? GeometryValidity::valid:GeometryValidity::invalid ;
+      case Shape::hex:
+        if(positiveHexJacobian(map.corners())) return GeometryValidity::valid ;
+        return certify(detail::hexJacobianCoefficients<Exact>(map.corners()),3,limits,remaining) ;
+      case Shape::quad:
+        return certify(coefficients([&](const Exact &u,const Exact &v,const Exact &) {
+          const auto s=surfaceValue(p,u,v) ; return exactNorm(exactCross(s.u,s.v)) ;
+        }),2,limits,remaining) ;
+      case Shape::pyramid: {
+        const std::vector<ExactPoint> base(p.begin(),p.begin()+4) ;
+        return certify(coefficients([&](const Exact &u,const Exact &v,const Exact &) {
+          const auto s=surfaceValue(base,u,v) ; return jacobianDeterminant(s.u,s.v,jacobianDifference(p[4],s.point)) ;
+        }),2,limits,remaining) ;
+      }
+      case Shape::prism: {
+        const auto a=jacobianDifference(p[3],p[0]),b=jacobianDifference(p[1],p[0]),c=jacobianDifference(p[2],p[0]) ;
+        const auto db=jacobianDifference(jacobianDifference(p[4],p[3]),b),dc=jacobianDifference(jacobianDifference(p[5],p[3]),c) ;
+        return certify(coefficients([&](const Exact &u,const Exact &q,const Exact &z) {
+          const Exact v=(1-u)*q ; ExactPoint x,y,w ;
+          for(unsigned d=0;d<3;++d) { x[d]=b[d]+z*db[d] ; y[d]=c[d]+z*dc[d] ; w[d]=a[d]+u*db[d]+v*dc[d] ; }
+          return jacobianDeterminant(x,y,w) ;
+        }),3,limits,remaining) ;
+      }
+      default: return GeometryValidity::unresolved ;
+      }
+    }
+
+    bool inside(Shape shape,const ExactPoint &p) {
+      const auto &x=p[0],&y=p[1],&z=p[2] ;
+      if(x<0 || y<0 || z<0) return false ;
+      switch(shape) {
+      case Shape::segment: return x<=1 && y==0 && z==0 ;
+      case Shape::triangle: return x+y<=1 && z==0 ;
+      case Shape::quad: return x<=1 && y<=1 && z==0 ;
+      case Shape::tet: return x+y+z<=1 ;
+      case Shape::prism: return x+y<=1 && z<=1 ;
+      case Shape::hex: return x<=1 && y<=1 && z<=1 ;
+      case Shape::pyramid: return x+z<=1 && y+z<=1 && z<=1 ;
+      default: return false ;
+      }
+    }
+    bool contained(const CornerMap &placement,Shape parent) {
+      for(const auto &p:placement.corners()) if(!inside(parent,exactPoint(p))) return false ;
+      return true ;
+    }
+    ExactPoint affineValue(const detail::ExactMapView &map,const ExactPoint &q) {
+      auto p=map.origin ;
+      for(unsigned d=0;d<3;++d) for(unsigned c=0;c<3;++c) p[d]+=map.columns[c][d]*q[c] ;
+      return p ;
+    }
+    using detail::affineTrace ;
+    bool bilinearSurfaceCorners(const std::array<std::shared_ptr<const GeometryMap>,4> &curves,
+                                const std::array<Point,4> &blend,std::vector<ExactPoint> &p,std::size_t &remaining) {
+      std::array<std::array<ExactPoint,2>,4> edges ;
+      for(unsigned edge=0;edge<4;++edge) {
+        edges[edge]={{exactPoint({{0,0,0}}),exactPoint({{1,0,0}})}} ;
+        if(!affineTrace(*curves[edge],edges[edge],remaining)) return false ;
+      }
+      // Affine edges make the Coons expression bilinear, including any endpoint mismatch.
+      // Derive its coefficients from that expression rather than fitting evaluated positions.
+      for(unsigned edge=0;edge<4;++edge) {
+        ExactPoint corner ;
+        for(unsigned d=0;d<3;++d)
+          corner[d]=edges[edge][0][d]+edges[(edge+3)%4][1][d]-Exact(blend[edge][d]) ;
+        p.push_back(std::move(corner)) ;
+      }
+      return true ;
+    }
+    bool surfaceCorners(const GeometryMap &geometry,std::vector<ExactPoint> &p,std::size_t &remaining) {
+      const GeometryMap *map=&geometry ;
+      while(remaining) {
+        --remaining ;
+        if(const auto *corners=dynamic_cast<const CornerMap *>(map)) {
+          if(map->shape()!=Shape::triangle && map->shape()!=Shape::quad) return false ;
+          p=exactCorners(*corners) ; return true ;
+        }
+        if(const auto *surface=dynamic_cast<const BoundarySurfaceMap *>(map))
+          return bilinearSurfaceCorners(surface->edges(),surface->corners(),p,remaining) ;
+        const auto view=detail::exactMapView(*map) ;
+        if(view.kind==detail::ExactMapView::Kind::delegate) { map=view.delegate ; continue ; }
+        if(view.kind==detail::ExactMapView::Kind::coons)
+          return bilinearSurfaceCorners(*view.edges,*view.corners,p,remaining) ;
+        if(view.kind!=detail::ExactMapView::Kind::affine || map->dimension()!=2) return false ;
+        // A frozen affine sector extends over the parameter plane; its determinant is constant.
+        const auto &element=referenceElement(map->shape()==Shape::quad ? Shape::quad:Shape::triangle) ;
+        for(unsigned v=0;v<element.vertexCount;++v) p.push_back(affineValue(view,exactPoint(element.vertices[v]))) ;
+        return true ;
+      }
+      return false ;
+    }
+    int surfaceOrientation(const std::vector<ExactPoint> &p,JacobianCheckLimits limits,std::size_t &remaining) {
+      auto values=coefficients([&](const Exact &u,const Exact &v,const Exact &) {
+        const auto s=surfaceValue(p,u,v) ; return Exact(s.u[0]*s.v[1]-s.u[1]*s.v[0]) ;
+      }) ;
+      if(certify(values,2,limits,remaining)==GeometryValidity::valid) return 1 ;
+      for(auto &v:values) v=-v ;
+      return certify(std::move(values),2,limits,remaining)==GeometryValidity::valid ? -1:0 ;
+    }
+    GeometryValidity coneValidity(const ConeMap &cone,JacobianCheckLimits limits,std::size_t &remaining) {
+      const GeometryMap *base=cone.base().get() ; int orientation=1 ; bool restricted=false ; std::size_t maps=limits.maxBoxes ;
+      while(true) {
+        if(maps==0) return GeometryValidity::unresolved ;
+        --maps ;
+        const auto view=detail::exactMapView(*base) ;
+        if(view.kind==detail::ExactMapView::Kind::delegate) { base=view.delegate ; continue ; }
+        const auto *map=dynamic_cast<const RestrictedMap *>(base) ; if(!map) break ;
+        std::vector<ExactPoint> placement ;
+        if(map->parent()->dimension()!=2 || !surfaceCorners(*map->referenceMap(),placement,maps)) return GeometryValidity::unresolved ;
+        if(detail::exactMapView(*map->parent()).kind!=detail::ExactMapView::Kind::affine)
+          for(const auto &q:placement) if(!inside(map->parent()->shape(),q)) return GeometryValidity::unresolved ;
+        const int sign=surfaceOrientation(placement,limits,remaining) ; if(sign==0) return GeometryValidity::unresolved ;
+        orientation*=sign ; base=map->parent().get() ; restricted=true ;
+      }
+      std::vector<ExactPoint> p ;
+      if(!surfaceCorners(*base,p,maps)) return GeometryValidity::unresolved ;
+      const auto apex=exactPoint(cone.apex()) ;
+      const auto result=certify(coefficients([&](const Exact &u,const Exact &v,const Exact &) {
+        const auto s=surfaceValue(p,u,v) ; return Exact(Exact(orientation)*jacobianDeterminant(s.u,s.v,jacobianDifference(apex,s.point))) ;
+      }),2,limits,remaining) ;
+      // Failure on the whole parent surface does not establish failure on a restriction.
+      return restricted && result==GeometryValidity::invalid ? GeometryValidity::unresolved:result ;
+    }
+  }
+
+  GeometryValidity geometryValidity(const GeometryMap &geometry,JacobianCheckLimits limits) {
+    if(limits.maxBoxes==0) throw std::invalid_argument("geometry validity requires a positive box limit") ;
+    if(geometry.dimension()==0) throw std::invalid_argument("geometry validity requires a positive-dimensional shape") ;
+    const GeometryMap *map=&geometry ; std::size_t remaining=limits.maxBoxes,maps=limits.maxBoxes ; bool restricted=false ;
+    while(maps) {
+      --maps ; GeometryValidity result=GeometryValidity::unresolved ;
+      if(const auto *corners=dynamic_cast<const CornerMap *>(map)) result=cornerValidity(*corners,limits,remaining) ;
+      else if(const auto *cone=dynamic_cast<const ConeMap *>(map)) result=coneValidity(*cone,limits,remaining) ;
+      else if(const auto *child=dynamic_cast<const RestrictedMap *>(map)) {
+        const auto *placement=dynamic_cast<const CornerMap *>(child->referenceMap().get()) ;
+        if(!placement || child->dimension()!=child->parent()->dimension() || !contained(*placement,child->parent()->shape()) ||
+           cornerValidity(*placement,limits,remaining)!=GeometryValidity::valid) return GeometryValidity::unresolved ;
+        map=child->parent().get() ; restricted=true ; continue ;
+      }
+      return restricted && result==GeometryValidity::invalid ? GeometryValidity::unresolved:result ;
+    }
+    return GeometryValidity::unresolved ;
+  }
+
+  bool validGeometry(const GeometryMap &geometry,const GeometryQualityOptions &options,JacobianCheckLimits limits) {
+    if(limits.maxBoxes==0) throw std::invalid_argument("geometry validity requires a positive box limit") ;
+    const auto quality=geometryQuality(geometry,options) ;
+    return quality.status==GeometryQualityStatus::sampled || (!quality.invalidEvaluation && geometryValidity(geometry,limits)==GeometryValidity::valid) ;
+  }
+
   GeometryQuality geometryQuality(const GeometryMap &geometry, const GeometryQualityOptions &options) {
     const Shape shape = geometry.shape() ;
     const unsigned dimension = geometry.dimension() ;
@@ -181,7 +423,7 @@ namespace FVMAdapt {
     for(const auto &point : samples) {
       try { measure(quality,geometry.evaluate(point),point,dimension) ; }
       catch(const std::bad_alloc &) { throw ; }
-      catch(const std::exception &) { recordProblem(quality,point,false) ; }
+      catch(const std::exception &) { quality.invalidEvaluation=true ; recordProblem(quality,point,false) ; }
     }
     return quality ;
   }

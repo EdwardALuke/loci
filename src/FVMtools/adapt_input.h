@@ -2,6 +2,7 @@
 #ifndef LOCI_FVMTOOLS_ADAPT_INPUT_H
 #define LOCI_FVMTOOLS_ADAPT_INPUT_H
 #include <FVMAdapt/parametric_plan.h>
+#include <map>
 
 namespace FVMTools {
   /// Files, controls and optional saved history for marker and refine.
@@ -12,6 +13,9 @@ namespace FVMTools {
   } ;
   /// Parse requests and restore controls from -r before applying command-line overrides.
   AdaptInput readAdaptInput(int argc,char **argv,bool meshOutput) ;
+  /// Apply the shared optional quality controls after reading a saved plan.
+  void applyQualityOptions(const std::map<std::string,std::string> &,Loci::RefinementOptions &) ;
+  void showQualityHelp() ;
   void showAdaptHelp(bool meshOutput) ;
 }
 #endif

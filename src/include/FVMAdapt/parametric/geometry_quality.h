@@ -29,6 +29,12 @@
 namespace Loci {
 namespace FVMAdapt {
 
+  /// Work limits for exact Bernstein bounds on a map's Jacobian.
+  struct JacobianCheckLimits {
+    unsigned maxDepth = 18 ;
+    std::size_t maxBoxes = 4096 ;
+  } ;
+
   /// Sampled success is not a validity certificate; invalid takes precedence over unresolved.
   enum class GeometryQualityStatus { sampled, invalid, unresolved } ;
 
@@ -55,6 +61,8 @@ namespace FVMAdapt {
     /// First invalid or unresolved sample; meaningful when either count is nonzero.
     Point problemPoint = {{0,0,0}} ;
     bool inverted = false, collapsed = false ;
+    /// Nonfinite evaluated positions/derivatives or an exception from the map evaluator.
+    bool invalidEvaluation = false ;
   } ;
 
   /// Evaluate finite samples inside a segment, triangle, quad, tet, prism, pyramid or hex.
@@ -63,6 +71,18 @@ namespace FVMAdapt {
   /// Surface orientation is not tested. Explicit pyramid-apex samples may be unresolved.
   /// Invalid shapes, sample coordinates or work limits throw invalid_argument; allocation failures propagate.
   GeometryQuality geometryQuality(const GeometryMap &geometry, const GeometryQualityOptions &options = {}) ;
+
+  /// Interior rank/orientation proof; boundary singularities are permitted.
+  enum class GeometryValidity { valid, invalid, unresolved } ;
+
+  /// Certify positive interior volume Jacobians or full interior surface rank for supported maps.
+  /// Exact input doubles define the geometry. Unsupported maps and exhausted bounds are unresolved.
+  /// This does not certify boundary incidence, global injectivity or mesh quality.
+  GeometryValidity geometryValidity(const GeometryMap &geometry, JacobianCheckLimits limits = {}) ;
+
+  /// Accept sampled regular geometry or a certified positive interior with boundary singularities.
+  /// This retains the ordinary sampled check; it is not a global injectivity certificate.
+  bool validGeometry(const GeometryMap &geometry, const GeometryQualityOptions &options = {}, JacobianCheckLimits limits = {}) ;
 
   /// Prove a positive Jacobian throughout a trilinear hex from bounds on its edge derivatives.
   /// False means inconclusive. Eight finite corners in native order are required.

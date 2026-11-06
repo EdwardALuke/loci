@@ -22,6 +22,7 @@
 #include <FVMAdapt/parametric/vertex_volume_split.h>
 #include "exact_geometry.h"
 #include "geometry_bounds.h"
+#include "geometry_validity.h"
 #include <FVMAdapt/parametric/geometry_quality.h>
 
 #include <algorithm>
@@ -37,7 +38,10 @@ namespace FVMAdapt {
 
     using detail::Exact ;
     using detail::ExactPoint ;
-    using BernsteinCoefficients = std::array<Exact,27> ;
+    using detail::BernsteinCoefficients ;
+    using detail::hexJacobianCoefficients ;
+    using detail::bisectJacobianCoefficients ;
+    using detail::jacobianIndex ;
     using FaceCorners = std::array<unsigned,4> ;
 
     using detail::Bounds ;
@@ -66,65 +70,12 @@ namespace FVMAdapt {
              a[2]*(b[0]*c[1]-b[1]*c[0]) ;
     }
 
-    unsigned index(unsigned x, unsigned y, unsigned z) {
-      return x+3*y+9*z ;
-    }
-
-    template<class Number> std::array<Number,27> jacobianCoefficients(const std::vector<Point> &corners) {
-      const auto &element = referenceElement(Shape::hex) ;
-      // Tensor order: x+2*y+4*z.
-      std::array<std::array<Number,3>,8> points ;
-      for(unsigned v = 0; v < 8; ++v) {
-        const auto &q = element.vertices[v] ;
-        points[unsigned(q[0])+2*unsigned(q[1])+4*unsigned(q[2])] = {{Number(corners[v][0]),Number(corners[v][1]),Number(corners[v][2])}} ;
-      }
-
-      // Each derivative is bilinear in the other two coordinates. Its corner
-      // values are edge differences; midpoints fill the remaining 3x3 samples.
-      std::array<std::array<std::array<Number,3>,9>,3> derivatives ;
-      for(unsigned axis = 0; axis < 3; ++axis) {
-        const unsigned u = (axis+1)%3, v = (axis+2)%3 ;
-        auto &samples = derivatives[axis] ;
-        for(unsigned j = 0; j < 2; ++j) for(unsigned i = 0; i < 2; ++i) {
-          const unsigned start = (i<<u)+(j<<v) ;
-          samples[2*i+6*j] = difference(points[start+(1u<<axis)],points[start]) ;
-        }
-        for(unsigned row : {0u,6u}) samples[row+1] = midpoint(samples[row],samples[row+2]) ;
-        for(unsigned i = 0; i < 3; ++i) samples[i+3] = midpoint(samples[i],samples[i+6]) ;
-      }
-
-      std::array<Number,27> coefficients{} ;
-      // A trilinear map's determinant has degree at most two in each coordinate.
-      // Exact values on the 3x3x3 tensor grid determine that polynomial completely.
-      for(unsigned i = 0; i < 27; ++i) {
-        const unsigned x = i%3, y = i/3%3, z = i/9 ;
-        coefficients[i] = determinant(derivatives[0][y+3*z],derivatives[1][z+3*x],derivatives[2][x+3*y]) ;
-      }
-      // Convert the tensor quadratic to Bernstein coefficients, which bound its full range.
-      for(unsigned step : {1u,3u,9u})
-        for(unsigned i = 0; i < 27; ++i) if(i/step%3 == 0)
-          coefficients[i+step] = 2*coefficients[i+step]-(coefficients[i]+coefficients[i+2*step])/2 ;
-      return coefficients ;
-    }
-
-    std::array<BernsteinCoefficients,2> bisectCoefficients(const BernsteinCoefficients &coefficients, unsigned axis) {
-      std::array<BernsteinCoefficients,2> result{} ;
-      const unsigned step = axis == 0 ? 1 : axis == 1 ? 3 : 9 ;
-      for(unsigned i = 0; i < 27; ++i) if(i/step%3 == 0) {
-        const Exact &a = coefficients[i], &b = coefficients[i+step], &c = coefficients[i+2*step] ;
-        const Exact center = (a+2*b+c)/4 ;
-        result[0][i] = a ; result[0][i+step] = (a+b)/2 ; result[0][i+2*step] = center ;
-        result[1][i] = center ; result[1][i+step] = (b+c)/2 ; result[1][i+2*step] = c ;
-      }
-      return result ;
-    }
-
     void certifyChildJacobian(const std::vector<Point> &corners, JacobianCheckLimits limits) {
       if(positiveHexJacobian(corners)) return ;
-      const auto bounds = jacobianCoefficients<Bounds>(corners) ;
+      const auto bounds = hexJacobianCoefficients<Bounds>(corners) ;
       if(std::all_of(bounds.begin(),bounds.end(),[](Bounds b) { return b.low > 0 && std::isfinite(b.high) ; })) return ;
       struct Box { BernsteinCoefficients coefficients ; unsigned depth ; } ;
-      std::vector<Box> pending{{jacobianCoefficients<Exact>(corners),0}} ;
+      std::vector<Box> pending{{hexJacobianCoefficients<Exact>(corners),0}} ;
       std::size_t examined = 0 ;
       while(!pending.empty()) {
         if(++examined > limits.maxBoxes)
@@ -134,11 +85,11 @@ namespace FVMAdapt {
         for(const auto &coefficient : box.coefficients) if(coefficient <= 0) { positive = false ; break ; }
         if(positive) continue ;
         for(unsigned i : {0u,2u}) for(unsigned j : {0u,2u}) for(unsigned k : {0u,2u})
-          if(box.coefficients[index(i,j,k)] <= 0)
+          if(box.coefficients[jacobianIndex(i,j,k)] <= 0)
             throw std::invalid_argument("vertex volume child has a nonpositive Jacobian") ;
         if(box.depth >= limits.maxDepth)
           throw std::length_error("vertex volume Jacobian certification exceeded its depth limit") ;
-        auto children = bisectCoefficients(box.coefficients,box.depth%3) ;
+        auto children = bisectJacobianCoefficients(box.coefficients,box.depth%3) ;
         pending.push_back({std::move(children[1]),box.depth+1}) ;
         pending.push_back({std::move(children[0]),box.depth+1}) ;
       }

@@ -77,12 +77,45 @@ namespace FVMAdapt {
   /// Cone from a retained surface to an interior point.
   struct ConeRecord { MapId base ; Point apex ; } ;
 
+  /// Piecewise planar face with an accepted physical center.
+  struct FanRecord {
+    Shape shape ;
+  private:
+    struct Data { std::vector<Point> corners ; Point center ; } ;
+    std::shared_ptr<const Data> data_ ;
+    const Data &data() const {
+      if(!data_) throw std::invalid_argument("face fan has no controls") ;
+      return *data_ ;
+    }
+  public:
+    FanRecord(Shape shape, std::vector<Point> corners, Point center)
+      : shape(shape), data_(std::make_shared<const Data>(Data{std::move(corners),center})) {}
+    const std::vector<Point> &corners() const { return data().corners ; }
+    const Point &center() const { return data().center ; }
+  } ;
+  /// Face domain in the coordinates of an earlier retained source surface.
+  struct SurfacePatchRecord { MapId source ; std::vector<Point> chartCorners ; } ;
+  /// Four retained boundary curves joined to one accepted physical center.
+  class BoundaryFanRecord {
+    struct Data { std::array<MapId,4> edges ; Point center ; } ;
+    std::shared_ptr<const Data> data_ ;
+    const Data &data() const {
+      if(!data_) throw std::invalid_argument("boundary fan has no controls") ;
+      return *data_ ;
+    }
+  public:
+    BoundaryFanRecord(std::array<MapId,4> edges,Point center)
+      : data_(std::make_shared<const Data>(Data{edges,center})) {}
+    const std::array<MapId,4> &edges() const { return data().edges ; }
+    const Point &center() const { return data().center ; }
+  } ;
+
   using GeometryRecord = std::variant<CornerRecord,TensorBezierRecord,AffineRecord,ComposeRecord,
-                                      BoundarySurfaceRecord,ConeRecord> ;
+                                      BoundarySurfaceRecord,ConeRecord,FanRecord,SurfacePatchRecord,BoundaryFanRecord> ;
   /// Dependencies in construction order; each must precede its user in the store.
   std::vector<MapId> geometryDependencies(const GeometryRecord &record) ;
 
-  /// Bounds on one retained table; maxControls counts all stored physical points.
+  /// Bounds on one retained table; maxControls counts physical and chart control points.
   /// exact.maxBytes bounds record/cache payloads, excluding allocator and evaluator-object overhead.
   /// exact.maxOperations bounds estimated work for one map evaluation, including repeated dependencies.
   struct GeometryLimits {

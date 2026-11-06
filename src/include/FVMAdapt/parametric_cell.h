@@ -152,8 +152,9 @@ namespace FVMAdapt {
   /// Sorted interior nodes of an original edge from its accepted intervals.
   std::vector<ParametricNodeKey> parametricEdgeNodes(EntityId, const ParametricTrace &) ;
   std::vector<ParametricNodeKey> parametricCellNodes(const CellTopology &, const ParametricCell &) ;
+  /// Original-face nodes, optionally with physical positions in the same order.
   std::vector<ParametricNodeKey> parametricFaceNodes(EntityId face, const CellTopology &, const ParametricCell &,
-      const CellTopology *right = nullptr, const ParametricCell *rightCell = nullptr) ;
+      const CellTopology *right = nullptr, const ParametricCell *rightCell = nullptr, std::vector<Point> *positions = nullptr) ;
   /// Interior polygons, optionally with retained-surface identity and physical area.
   std::vector<ParametricOutputFace> parametricCellFaces(const CellTopology &, const ParametricCell &,
       const std::vector<ParametricNodeKey> &boundaryNodes, bool patches = false) ;

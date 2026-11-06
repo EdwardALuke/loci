@@ -1,53 +1,117 @@
 # History and Balancing {#fvmadapt_plans_and_balancing}
 
-A history records parents, children and accepted split locations. Each parent
-selects either no split or one saved split. A selected cell with no children
-is a leaf. Coarsening changes this selection without deleting the saved points.
+FVMAdapt records the topology it intends to construct before it creates the
+fine mesh. Here, *balancing* means making the subdivisions of shared faces and
+edges compatible and enforcing refinement-grading rules. It does not mean
+processor load balancing.
 
-## Local Histories
+## What Is Stored
 
-| Type | Retained state |
-| --- | --- |
-| `RefinementHistory` | Standard cuts and mapped child placements |
-| `HexPlan` | Compact eight-child hex splits and accepted centers |
-| `CornerSubdivision` | Cells defined by their shared faces, including pyramids and general cells |
+Each original cell has a refinement history. It records the parent-and-child
+relationships, the accepted splits and their locations, and which descendants
+form the current mesh. The saved geometry places those descendants in physical
+space. The history describes the complete refinement below the original cell,
+not merely the changes requested in the latest cycle.
 
-`AffineSubdivision`, `MappedVolumeSubdivision` and `PlanarSubdivision` provide
-cell operations over `RefinementHistory`. The module's `ParametricCellData`
-presents these representations through one rule-facing interface.
-`applyRequests()` and `balance()` edit independent candidates.
-`workingCell()` supplies read-only working geometry; `workingCopy()` supplies
-an editable copy. Expanding compact state can be expensive, so ordinary queries
-use the direct cell-data methods.
+A plan is a stored description from which a subdivision can be reconstructed.
+Compact plans are used for ordinary eight-child hex refinement. Other splits
+retain explicit parent-and-child records. Neither requires the complete output
+mesh to be stored inside each original cell's history.
 
-`CellKey` identifies an accepted construction lineage. A `CellPath` is only the
-sequence of child ordinals. Local array indices are not output mesh numbers and
-may change when records are reordered or compacted.
+Cell histories describe volume subdivision. Face and edge divisions describe
+the shared boundaries on which independently reconstructed cells must agree.
+An original face or edge provides the common reference even when neighboring
+cells describe it with different local numbering or orientation.
 
-Saving retains the geometry and accepted choices. Loading validates them;
-it does not recompute centers. Unknown or invalid records reject before replacing
-accepted state. Keep saved histories with their original grid.
+Faces and edges created inside a split cell are consequences of the cell's
+subdivision. They do not each receive another independently stored mesh-wide plan.
 
-## Balancing in Loci
+## A Cell History
 
-1. Cells contribute their accepted face and edge divisions.
-2. Loci reductions combine contributions on shared entities. Conflicting centers reject.
-3. Cells read neighbor depths and request any additional splits.
-4. Repeat until no cell changes, or reject if a limit is reached.
+Consider a hex split into eight children, with child 0 then split into two:
 
-The kernel performs local edits. The module owns communication, reductions,
-iteration and collective acceptance.
+```text
+root
+├─ 0
+│  ├─ 0.0  leaf
+│  └─ 0.1  leaf
+├─ 1       leaf
+├─ 2       leaf
+├─ ...
+└─ 7       leaf
+```
 
-`parametricLevelDifference` bounds the difference in split depth across faces,
-edges or vertices, selected by `parametricGrading`. Depth counts cell splits,
-not physical size ratios or separate directional depths.
+There are nine leaves: the two children beneath child 0 and the seven unsplit
+root children. These are the cells used to construct the current mesh.
+The labels describe positions in the tree, not output mesh numbers.
 
-`parametricFaceBalance="majority"` also refines a leaf when more than half its
-faces are divided. `"opposite"` also handles two divided faces sharing no vertex.
-The planar path counts edges. Only divisions used by current neighbors count;
-unused saved splits do not prevent coarsening.
+Coarsening children 0.0 and 0.1 makes their parent, child 0, a leaf again.
+Their accepted construction remains saved. Repeating the same split reuses
+its points rather than choosing new centers. Loading saved history likewise
+restores accepted choices. Keep the history with its original grid.
 
-The usual response is isotropic, preserving a requested extrusion axis.
-`parametricDirectionalBalance=true` lets native hexes and prisms respond in
-the divided directions. Missing direction information uses a full split.
-A refused merge restores its previous accepted split.
+## Deriving Shared Face and Edge Divisions
+
+Each cell's subdivision determines how its boundary faces appear from that
+cell's local view. For an interior face, there is one contribution from each
+adjacent cell. The contributions are first mapped into the shared face's
+orientation, then combined:
+
+```text
+left cell  --extract and orient-┐
+                                ├──> one shared-face subdivision
+right cell --extract and orient-┘
+```
+
+Edges shared by several faces also need one consistent set of divisions.
+Both sides must use the same accepted split points. Incompatible choices are
+rejected, rather than moving an already accepted point to make them agree.
+See [identities and output numbers](@ref fvmadapt_numbering) for orientation.
+
+Compatibility does not require adjacent cells to have identical refinement
+trees. A coarse cell can retain several fine faces on its boundary without
+being split. Grading rules determine when further cell refinement is needed.
+
+## What Balancing Enforces
+
+Refinement grading limits the difference in cell split depth across shared
+faces, edges or vertices. The default allows a difference of one level across
+vertices. Depth counts cell splits, not physical size ratios or separate
+directional depths.
+
+Optional policies also refine a cell when more than half its faces are divided,
+or when two divided faces share no vertex. The planar path counts edges.
+Only divisions used by current neighbors count; unused saved splits do not
+prevent coarsening.
+
+The usual response is an isotropic split, preserving a requested extrusion
+axis. Directional balancing can instead split hexes and prisms along the
+required local directions. Missing direction information uses a full split.
+The [interface reference](@ref fvmadapt_reference_subdivision) lists the controls.
+
+## The Iterative Balancing Loop
+
+```text
+apply requested refinements and coarsenings to a candidate history
+        ↓
+combine shared face and edge requirements
+        ↓
+check neighbor depths and enabled balancing policies
+        ↓
+add required cell splits or restore a refused coarsening
+        ↓
+has any cell changed?
+        ├── yes: repeat the shared-boundary and grading checks
+        └── no: check enabled physical-mesh quality limits, then accept and output
+```
+
+A split in cell A can require its neighbor B to split. That split can then
+affect B's other neighbor C, which is why more than one pass may be needed.
+The kernel performs local edits; the Loci rules coordinate the mesh-wide
+iteration. If the proposal fails on any rank or exhausts a limit, the preceding
+accepted histories are retained. Optional quality limits can also reject the
+balanced candidate before histories or transfer data are published.
+
+A balanced result provides compatible shared boundaries and the requested
+refinement grading. It does not imply uniform refinement, coordinate smoothing,
+or general mesh-quality optimization.

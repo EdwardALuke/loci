@@ -64,7 +64,7 @@ namespace FVMAdapt {
     }
 
     // Partition of unity permits accumulation relative to a fixed origin.
-    struct MapSum {
+    template<bool withJacobian> struct MapSum {
       const Point &origin ;
       Point position = {{0,0,0}} ;
       std::array<Point,3> derivative = {} ;
@@ -73,33 +73,115 @@ namespace FVMAdapt {
         for(unsigned component = 0; component < 3; ++component) {
           const double offset = control[component]-origin[component] ;
           position[component] += weight*offset ;
-          for(unsigned direction = 0; direction < 3; ++direction)
-            derivative[direction][component] += gradient[direction]*offset ;
+          if constexpr(withJacobian)
+            for(unsigned direction = 0; direction < 3; ++direction)
+              derivative[direction][component] += gradient[direction]*offset ;
         }
       }
 
-      MapValue value() const {
-        MapValue result = emptyValue() ;
-        for(unsigned component = 0; component < 3; ++component) {
-          result.position[component] = origin[component]+position[component] ;
-          for(unsigned direction = 0; direction < 3; ++direction)
-            result.jacobian[direction][component] = derivative[direction][component] ;
-        }
-        return result ;
+      auto value() const {
+        Point result ;
+        for(unsigned component = 0; component < 3; ++component)
+          result[component] = origin[component]+position[component] ;
+        if constexpr(withJacobian) return MapValue{result,derivative,true} ;
+        else return result ;
       }
     } ;
 
-    MapValue hexValue(const Point *corners, const Point &origin, const Point &point) {
-      MapSum sum{origin} ;
+    template<bool withJacobian> auto hexValue(const Point *corners, const Point &origin, const Point &point) {
+      MapSum<withJacobian> sum{origin} ;
       const auto &element = referenceElement(Shape::hex) ;
       for(unsigned i = 0; i < 8; ++i) {
-        Point factors, signs, gradient ;
+        Point factors, signs, gradient{} ;
         for(unsigned d = 0; d < 3; ++d) {
           const bool upper = element.vertices[i][d] == 1 ;
           factors[d] = upper ? point[d] : 1-point[d] ; signs[d] = upper ? 1 : -1 ;
         }
-        for(unsigned d = 0; d < 3; ++d) gradient[d] = signs[d]*factors[(d+1)%3]*factors[(d+2)%3] ;
+        if constexpr(withJacobian)
+          for(unsigned d = 0; d < 3; ++d) gradient[d] = signs[d]*factors[(d+1)%3]*factors[(d+2)%3] ;
         sum.add(corners[i],factors[0]*factors[1]*factors[2],gradient) ;
+      }
+      return sum.value() ;
+    }
+
+    template<bool withJacobian> auto cornerValue(Shape shape, const Point *corners, const Point &origin, const Point &point) {
+      validatePoint(point) ;
+      MapSum<withJacobian> sum{origin} ;
+      const double x = point[0], y = point[1], z = point[2] ;
+      switch(shape) {
+      case Shape::polygon: throw std::invalid_argument("polygon requires a PolygonMap") ;
+      case Shape::point:
+        break ;
+      case Shape::segment:
+        sum.add(corners[0],1-x,{{-1,0,0}}) ;
+        sum.add(corners[1],x,{{1,0,0}}) ;
+        break ;
+      case Shape::triangle:
+        sum.add(corners[0],1-x-y,{{-1,-1,0}}) ;
+        sum.add(corners[1],x,{{1,0,0}}) ;
+        sum.add(corners[2],y,{{0,1,0}}) ;
+        break ;
+      case Shape::tet:
+        sum.add(corners[0],1-x-y-z,{{-1,-1,-1}}) ;
+        sum.add(corners[1],x,{{1,0,0}}) ;
+        sum.add(corners[2],y,{{0,1,0}}) ;
+        sum.add(corners[3],z,{{0,0,1}}) ;
+        break ;
+      case Shape::hex:
+        return hexValue<withJacobian>(corners,origin,point) ;
+      case Shape::quad: {
+        const ReferenceElement &element = referenceElement(shape) ;
+        for(unsigned i = 0; i < element.vertexCount; ++i) {
+          Point factors = {{1,1,1}}, signs = {{0,0,0}}, gradient = {{0,0,0}} ;
+          for(unsigned d = 0; d < element.dimension; ++d) {
+            const bool upper = element.vertices[i][d] == 1 ;
+            factors[d] = upper ? point[d] : 1-point[d] ;
+            signs[d] = upper ? 1 : -1 ;
+          }
+          if constexpr(withJacobian)
+            for(unsigned d = 0; d < element.dimension; ++d)
+              gradient[d] = signs[d]*factors[(d+1)%3]*factors[(d+2)%3] ;
+          sum.add(corners[i],factors[0]*factors[1]*factors[2],gradient) ;
+        }
+        break ;
+      }
+      case Shape::prism: {
+        const double triangle[3] = {1-x-y,x,y} ;
+        const Point gradients[3] = {{{-1,-1,0}},{{1,0,0}},{{0,1,0}}} ;
+        for(unsigned layer = 0; layer < 2; ++layer) {
+          const double height = layer ? z : 1-z, sign = layer ? 1 : -1 ;
+          for(unsigned i = 0; i < 3; ++i) {
+            Point gradient{} ;
+            if constexpr(withJacobian) gradient = {{gradients[i][0]*height,gradients[i][1]*height,sign*triangle[i]}} ;
+            sum.add(corners[3*layer+i],triangle[i]*height,gradient) ;
+          }
+        }
+        break ;
+      }
+      case Shape::pyramid: {
+        if(z == 1) {
+          if(x != 0 || y != 0)
+            throw std::invalid_argument("pyramid coordinates are singular at z = 1 outside the apex") ;
+          if constexpr(withJacobian) return MapValue{corners[4],{},false} ;
+          else return corners[4] ;
+        }
+        // Within the reference pyramid, collapsed square coordinates keep the basis bounded near the apex.
+        const double height = 1-z, u = x/height, v = y/height ;
+        const ReferenceElement &element = referenceElement(Shape::quad) ;
+        for(unsigned i = 0; i < 4; ++i) {
+          const double a = element.vertices[i][0] == 1 ? u : 1-u ;
+          const double b = element.vertices[i][1] == 1 ? v : 1-v ;
+          Point gradient{} ;
+          if constexpr(withJacobian) {
+            const double du = (element.vertices[i][0] == 1 ? 1 : -1)*b ;
+            const double dv = (element.vertices[i][1] == 1 ? 1 : -1)*a ;
+            gradient = {{du,dv,-a*b+u*du+v*dv}} ;
+          }
+          sum.add(corners[i],height*a*b,gradient) ;
+        }
+        sum.add(corners[4],z,{{0,0,1}}) ;
+        break ;
+      }
       }
       return sum.value() ;
     }
@@ -119,7 +201,11 @@ namespace FVMAdapt {
 
   MapValue evaluateHexCorners(const std::array<Point,8> &corners, const Point &point) {
     validatePoint(point) ;
-    return hexValue(corners.data(),controlOrigin(corners),point) ;
+    return hexValue<true>(corners.data(),controlOrigin(corners),point) ;
+  }
+  Point hexCornerPosition(const std::array<Point,8> &corners, const Point &point) {
+    validatePoint(point) ;
+    return hexValue<false>(corners.data(),controlOrigin(corners),point) ;
   }
 
   ReferenceCorners GeometryMap::referenceCorners() const {
@@ -208,80 +294,10 @@ namespace FVMAdapt {
   }
 
   MapValue CornerMap::evaluate(const Point &point) const {
-    validatePoint(point) ;
-    MapSum sum{origin_} ;
-    const double x = point[0], y = point[1], z = point[2] ;
-    switch(shape_) {
-    case Shape::polygon: throw std::invalid_argument("polygon requires a PolygonMap") ;
-    case Shape::point:
-      break ;
-    case Shape::segment:
-      sum.add(corners_[0],1-x,{{-1,0,0}}) ;
-      sum.add(corners_[1],x,{{1,0,0}}) ;
-      break ;
-    case Shape::triangle:
-      sum.add(corners_[0],1-x-y,{{-1,-1,0}}) ;
-      sum.add(corners_[1],x,{{1,0,0}}) ;
-      sum.add(corners_[2],y,{{0,1,0}}) ;
-      break ;
-    case Shape::tet:
-      sum.add(corners_[0],1-x-y-z,{{-1,-1,-1}}) ;
-      sum.add(corners_[1],x,{{1,0,0}}) ;
-      sum.add(corners_[2],y,{{0,1,0}}) ;
-      sum.add(corners_[3],z,{{0,0,1}}) ;
-      break ;
-    case Shape::hex:
-      return hexValue(corners_.data(),origin_,point) ;
-    case Shape::quad: {
-      const ReferenceElement &element = referenceElement(shape_) ;
-      for(unsigned i = 0; i < element.vertexCount; ++i) {
-        Point factors = {{1,1,1}}, signs = {{0,0,0}}, gradient = {{0,0,0}} ;
-        for(unsigned d = 0; d < element.dimension; ++d) {
-          const bool upper = element.vertices[i][d] == 1 ;
-          factors[d] = upper ? point[d] : 1-point[d] ;
-          signs[d] = upper ? 1 : -1 ;
-        }
-        for(unsigned d = 0; d < element.dimension; ++d)
-          gradient[d] = signs[d]*factors[(d+1)%3]*factors[(d+2)%3] ;
-        sum.add(corners_[i],factors[0]*factors[1]*factors[2],gradient) ;
-      }
-      break ;
-    }
-    case Shape::prism: {
-      const double triangle[3] = {1-x-y,x,y} ;
-      const Point gradients[3] = {{{-1,-1,0}},{{1,0,0}},{{0,1,0}}} ;
-      for(unsigned layer = 0; layer < 2; ++layer) {
-        const double height = layer ? z : 1-z, sign = layer ? 1 : -1 ;
-        for(unsigned i = 0; i < 3; ++i)
-          sum.add(corners_[3*layer+i],triangle[i]*height,
-                  {{gradients[i][0]*height,gradients[i][1]*height,sign*triangle[i]}}) ;
-      }
-      break ;
-    }
-    case Shape::pyramid: {
-      if(z == 1) {
-        if(x != 0 || y != 0)
-          throw std::invalid_argument("pyramid coordinates are singular at z = 1 outside the apex") ;
-        MapValue apex = emptyValue() ;
-        apex.position = corners_[4] ;
-        apex.hasJacobian = false ;
-        return apex ;
-      }
-      // Within the reference pyramid, collapsed square coordinates keep the basis bounded near the apex.
-      const double height = 1-z, u = x/height, v = y/height ;
-      const ReferenceElement &element = referenceElement(Shape::quad) ;
-      for(unsigned i = 0; i < 4; ++i) {
-        const double a = element.vertices[i][0] == 1 ? u : 1-u ;
-        const double b = element.vertices[i][1] == 1 ? v : 1-v ;
-        const double du = (element.vertices[i][0] == 1 ? 1 : -1)*b ;
-        const double dv = (element.vertices[i][1] == 1 ? 1 : -1)*a ;
-        sum.add(corners_[i],height*a*b,{{du,dv,-a*b+u*du+v*dv}}) ;
-      }
-      sum.add(corners_[4],z,{{0,0,1}}) ;
-      break ;
-    }
-    }
-    return sum.value() ;
+    return cornerValue<true>(shape_,corners_.data(),origin_,point) ;
+  }
+  Point CornerMap::position(const Point &point) const {
+    return cornerValue<false>(shape_,corners_.data(),origin_,point) ;
   }
 
   BezierMap::BezierMap(Shape shape, std::array<unsigned,3> degree, std::vector<Point> controls)
@@ -315,7 +331,7 @@ namespace FVMAdapt {
       for(std::size_t i = 0; i <= degree_[d]; ++i)
         derivative[d][i] = degree_[d]*((i > 0 ? lower[i-1] : 0)-(i < degree_[d] ? lower[i] : 0)) ;
     }
-    MapSum sum{origin_} ;
+    MapSum<true> sum{origin_} ;
     std::size_t index = 0 ;
     for(std::size_t k = 0; k <= degree_[2]; ++k)
       for(std::size_t j = 0; j <= degree_[1]; ++j)
@@ -349,6 +365,9 @@ namespace FVMAdapt {
             value.jacobian[direction][component] += physical.jacobian[inner][component]*reference.jacobian[direction][inner] ;
     return value ;
   }
+  Point RestrictedMap::position(const Point &point) const {
+    return parent_->position(referenceMap_->position(point)) ;
+  }
 
   BoundarySurfaceMap::BoundarySurfaceMap(std::array<std::shared_ptr<const GeometryMap>,4> edges)
     : edges_(std::move(edges)) {
@@ -368,18 +387,23 @@ namespace FVMAdapt {
   }
 
   MapValue BoundarySurfaceMap::evaluate(const Point &point) const {
+    return detail::evaluateBoundarySurface(edges_,corners_,point) ;
+  }
+
+  MapValue detail::evaluateBoundarySurface(const std::array<std::shared_ptr<const GeometryMap>,4> &curves,
+                                          const std::array<Point,4> &corners,const Point &point) {
     validatePoint(point) ; const double u=point[0], v=point[1] ;
-    const std::array<MapValue,4> edges{{edges_[0]->evaluate({{u,0,0}}),edges_[1]->evaluate({{v,0,0}}),
-      edges_[2]->evaluate({{1-u,0,0}}),edges_[3]->evaluate({{1-v,0,0}})}} ;
+    const std::array<MapValue,4> edges{{curves[0]->evaluate({{u,0,0}}),curves[1]->evaluate({{v,0,0}}),
+      curves[2]->evaluate({{1-u,0,0}}),curves[3]->evaluate({{1-v,0,0}})}} ;
     // Coons blending preserves each edge curve, subtracting the corner blend counted twice.
     MapValue result=emptyValue() ;
     for(const auto &edge:edges) result.hasJacobian=result.hasJacobian && edge.hasJacobian ;
     for(unsigned d=0; d<3; ++d) {
-      const double a=edges[0].position[d]-corners_[0][d], b=edges[1].position[d]-corners_[0][d],
-                   c=edges[2].position[d]-corners_[0][d], f=edges[3].position[d]-corners_[0][d] ;
-      const double p=corners_[1][d]-corners_[0][d], q=corners_[2][d]-corners_[0][d], r=corners_[3][d]-corners_[0][d] ;
+      const double a=edges[0].position[d]-corners[0][d], b=edges[1].position[d]-corners[0][d],
+                   c=edges[2].position[d]-corners[0][d], f=edges[3].position[d]-corners[0][d] ;
+      const double p=corners[1][d]-corners[0][d], q=corners[2][d]-corners[0][d], r=corners[3][d]-corners[0][d] ;
       const double blend=u*(1-v)*p+u*v*q+(1-u)*v*r ;
-      result.position[d]=corners_[0][d]+(1-v)*a+u*b+v*c+(1-u)*f-blend ;
+      result.position[d]=corners[0][d]+(1-v)*a+u*b+v*c+(1-u)*f-blend ;
       if(result.hasJacobian) {
         result.jacobian[0][d]=(1-v)*edges[0].jacobian[0][d]+b-v*edges[2].jacobian[0][d]-f-((1-v)*p+v*(q-r)) ;
         result.jacobian[1][d]=-a+u*edges[1].jacobian[0][d]+c-(1-u)*edges[3].jacobian[0][d]-(u*(q-p)+(1-u)*r) ;

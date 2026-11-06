@@ -16,6 +16,22 @@ namespace FVMAdapt {
     const VertexVolumeSplit &pattern() {
       static const auto split=splitVertexVolume(Shape::hex,std::vector<Point>(6,{{.5,.5,0}}),{{.5,.5,.5}}) ; return split ;
     }
+    std::shared_ptr<const GeometryMap> placedChild(std::shared_ptr<const GeometryMap> parent,
+                                                  const VertexVolumeSplit &split,unsigned child) {
+      std::vector<Point> points ; for(auto v:split.children.at(child).vertices) points.push_back(split.points[v]) ;
+      return std::make_shared<RestrictedMap>(std::move(parent),std::make_shared<CornerMap>(Shape::hex,std::move(points))) ;
+    }
+    // Expand only for a boundary-singularity proof; ordinary cells use compact evaluators.
+    std::shared_ptr<const GeometryMap> placedCell(const CornerMap &source,const HexPlan &plan,unsigned id) {
+      std::vector<unsigned> path ;
+      for(auto cell=id;cell!=HexPlan::root;cell=plan.parent(cell)) path.push_back(cell) ;
+      std::shared_ptr<const GeometryMap> map=std::make_shared<CornerMap>(source) ;
+      for(auto i=path.rbegin();i!=path.rend();++i) {
+        const auto parent=plan.parent(*i) ; const auto siblings=plan.children(parent) ;
+        map=placedChild(std::move(map),plan.construction(parent),std::find(siblings.begin(),siblings.end(),*i)-siblings.begin()) ;
+      }
+      return map ;
+    }
     unsigned orientation(const Quad &local,const Quad &canonical) {
       for(unsigned o=0;o<8;++o) {
         bool match=true ; for(unsigned v=0;v<4;++v) match=match && local[v]==canonical[orientedVertex(Shape::quad,o,v)] ;
@@ -261,12 +277,12 @@ namespace FVMAdapt {
           }
           require(error<=2e-11*scale,"saved shared geometry disagrees with cell geometry") ;
         } ;
-        for(unsigned v=0;v<8;++v) close(map.evaluate(hex.vertices[v]).position,position(cells[id].vertices[v])) ;
+        for(unsigned v=0;v<8;++v) close(map.position(hex.vertices[v]),position(cells[id].vertices[v])) ;
         const std::array<Point,5> probes{{{{0,0,0}},{{1,0,0}},{{1,1,0}},{{0,1,0}},{{.5,.5,0}}}} ;
         for(unsigned f=0;f<6;++f) {
           const auto use=cells[id].faces[f] ; const auto geometry=faceGeometry(use.face) ;
-          for(const auto &p:probes) close(map.evaluate(boundaryPoint(Shape::hex,f,p)).position,
-            geometry->evaluate(orientPoint(Shape::quad,use.orientation,p)).position) ;
+          for(const auto &p:probes) close(map.position(boundaryPoint(Shape::hex,f,p)),
+            geometry->position(orientPoint(Shape::quad,use.orientation,p))) ;
         }
       }
       void refine(ParametricHex &target,unsigned id,CenterMethod method) {
@@ -287,32 +303,41 @@ namespace FVMAdapt {
         const auto split=target.plan.splitCount() ; target.plan.refine(id,centers,limits.jacobian) ;
         std::vector<std::shared_ptr<const GeometryMap>> children ;
         for(auto child:target.plan.children(id)) children.push_back(std::make_shared<HexCellMap>(source,target.plan,child)) ;
-        requireSplitQuality(splitQuality(parent,children)) ;
+        auto assessment=splitQuality(parent,children) ;
+        bool finite=!assessment.parent.quality.invalidEvaluation ;
+        for(const auto &child:assessment.children) finite=finite && !child.quality.invalidEvaluation ;
+        if(assessment.status!=GeometryQualityStatus::sampled && finite && geometryValidity(source,limits.jacobian)==GeometryValidity::valid) {
+          const auto geometry=placedCell(source,target.plan,id) ; const auto construction=target.plan.construction(id) ;
+          children.clear() ; for(unsigned child=0;child<8;++child) children.push_back(placedChild(geometry,construction,child)) ;
+          assessment=splitQuality(*geometry,children) ;
+        }
+        requireSplitQuality(assessment) ;
         construct(split) ; for(auto child:target.plan.children(id)) checkCell(child) ;
       }
       Point position(unsigned vertex) const {
         const auto &location=locations.at(vertex) ;
-        if(location.face==absent) return HexCellMap(source,saved.plan,location.cell).evaluate(location.point).position ;
+        if(location.face==absent) return HexCellMap(source,saved.plan,location.cell).position(location.point) ;
         auto id=location.face ; auto p=location.point ;
         while(faces[id].parent!=absent) {
           const auto &f=faces[id] ; const auto v=f.corner ;
-          p=quadChildMap(v,faces[f.parent].center).evaluate(p).position ; id=f.parent ;
+          p=quadChildMap(v,faces[f.parent].center).position(p) ; id=f.parent ;
         }
         const auto &f=faces[id] ;
         if(f.exterior) {
-          std::vector<Point> corners ; for(auto v:f.vertices) corners.push_back(saved.corners[v]) ; return CornerMap(Shape::quad,corners).evaluate(p).position ;
+          std::vector<Point> corners ; for(auto v:f.vertices) corners.push_back(saved.corners[v]) ; return CornerMap(Shape::quad,corners).position(p) ;
         }
-        return HexCellMap(source,saved.plan,f.cell).evaluate(boundaryPoint(Shape::hex,f.boundary,p)).position ;
+        return HexCellMap(source,saved.plan,f.cell).position(boundaryPoint(Shape::hex,f.boundary,p)) ;
       }
       void splitParents(unsigned id) {
         while(edges[id].parent!=absent) { id=edges[id].parent ; edges[id].active=true ; }
       }
-      void edgeVertices(unsigned id,unsigned start,std::vector<ParametricNodeKey> &vertices) const {
-        const auto &e=edges[id] ; if(!e.active) { vertices.push_back(keys[start]) ; return ; }
+      template<class Visit> void visitEdgeVertices(unsigned id,unsigned start,const Visit &visit) const {
+        const auto &e=edges[id] ; if(!e.active) { visit(start) ; return ; }
         require(e.middle!=absent,"active hex edge has no midpoint") ; const bool reverse=e.vertices[0]!=start ;
-        edgeVertices(e.children[reverse ? 1:0],start,vertices) ; edgeVertices(e.children[reverse ? 0:1],e.middle,vertices) ;
+        visitEdgeVertices(e.children[reverse ? 1:0],start,visit) ; visitEdgeVertices(e.children[reverse ? 0:1],e.middle,visit) ;
       }
-      std::vector<ParametricOutputFace> output(const std::vector<ParametricNodeKey> &required) {
+      /// Propagate leaf coverage and activate the edges of the selected interior faces.
+      std::vector<unsigned> selectFaces() {
         std::vector<unsigned> selected ;
         for(unsigned id=0;id<faces.size();++id) {
           const auto &f=faces[id] ; if(f.exterior) continue ;
@@ -323,12 +348,30 @@ namespace FVMAdapt {
             selected.push_back(id) ; for(auto edge:f.edges) splitParents(edge) ;
           }
         }
+        return selected ;
+      }
+      std::vector<ParametricNodeKey> nodes() {
+        const auto selected=selectFaces() ; std::vector<unsigned char> used(keys.size(),0) ; std::size_t count=0 ;
+        const auto mark=[&](unsigned vertex) {
+          if(!used[vertex] && keys[vertex].reference.kind==EntityKind::cell) { used[vertex]=1 ; ++count ; }
+        } ;
+        for(auto id:selected) {
+          const auto &f=faces[id] ; for(unsigned e=0;e<4;++e) visitEdgeVertices(f.edges[e],f.vertices[e],mark) ;
+        }
+        // Cell-owned keys use the vertex index as their local ID.
+        std::vector<ParametricNodeKey> result ; result.reserve(count) ;
+        for(unsigned vertex=0;vertex<keys.size();++vertex) if(used[vertex]) result.push_back(keys[vertex]) ;
+        return result ;
+      }
+      std::vector<ParametricOutputFace> output(const std::vector<ParametricNodeKey> &required) {
+        const auto selected=selectFaces() ;
         const std::set<ParametricNodeKey> needed(required.begin(),required.end()) ;
         for(unsigned e=0;e<edges.size();++e) if(edges[e].middle!=absent && needed.count(keys[edges[e].middle])) { edges[e].active=true ; splitParents(e) ; }
-        std::vector<ParametricOutputFace> result ;
+        std::vector<ParametricOutputFace> result ; result.reserve(selected.size()) ;
         for(auto id:selected) {
           const auto &f=faces[id] ; ParametricOutputFace face{{},f.covers[0].leaf,f.covers[1].leaf} ;
-          for(unsigned e=0;e<4;++e) edgeVertices(f.edges[e],f.vertices[e],face.vertices) ;
+          const auto append=[&](unsigned vertex) { face.vertices.push_back(keys[vertex]) ; } ;
+          for(unsigned e=0;e<4;++e) visitEdgeVertices(f.edges[e],f.vertices[e],append) ;
           if(f.covers[0].reverse) std::reverse(face.vertices.begin(),face.vertices.end()) ;
           result.push_back(std::move(face)) ;
         }
@@ -389,11 +432,15 @@ namespace FVMAdapt {
     if(boundary && changed) boundary->save(*this) ;
     return changed ;
   }
-  std::vector<ParametricNodeKey> ParametricHex::cellNodes() const {
+  std::vector<ParametricNodeKey> ParametricHex::cellNodes(std::vector<Point> *positions) const {
+    if(positions) positions->clear() ;
     if(plan.leaf(0)) return {} ;
-    HexBoundary view(*this) ; std::set<ParametricNodeKey> nodes ;
-    for(const auto &face:view.output({})) for(const auto &key:face.vertices) if(key.reference.kind==EntityKind::cell) nodes.insert(key) ;
-    return {nodes.begin(),nodes.end()} ;
+    HexBoundary view(*this) ; auto nodes=view.nodes() ;
+    if(positions) {
+      positions->reserve(nodes.size()) ;
+      for(const auto &key:nodes) positions->push_back(view.position(key.local)) ;
+    }
+    return nodes ;
   }
   std::vector<Point> ParametricHex::cellPositions(const std::vector<ParametricNodeKey> &keys) const {
     if(keys.empty()) return {} ;

@@ -25,8 +25,6 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
-#include <map>
-#include <set>
 #include <stdexcept>
 
 $include "FVM.lh"
@@ -38,22 +36,21 @@ using namespace Loci::FVMAdapt ;
 namespace {
 
   void addNodeNumbers(const Loci::FineFaces &record, int offset,
-                      std::map<ParametricNodeKey,int> &numbers, std::vector<ParametricNodeKey> *points = nullptr) {
-    const auto keys = decodeParametricNodeKeys(record) ;
-    for(std::size_t i = 0; i < keys.size(); ++i) {
-      const auto entry = numbers.emplace(keys[i],offset+int(i)) ;
-      if(!entry.second && entry.first->second != offset+int(i))
-        throw std::logic_error("parametric node has conflicting output numbers") ;
+                      ParametricNodeNumbers &numbers, std::vector<ParametricNodeKey> *points = nullptr) {
+    numbers.add(record,offset) ;
+    if(points) {
+      const auto keys=decodeParametricNodeKeys(record) ;
+      points->insert(points->end(),keys.begin(),keys.end()) ;
     }
-    if(points) points->insert(points->end(),keys.begin(),keys.end()) ;
   }
 
-  void numberFaces(const std::vector<ParametricOutputFace> &faces, const std::map<ParametricNodeKey,int> &numbers,
+  void numberFaces(const std::vector<ParametricOutputFace> &faces, const ParametricNodeNumbers &numbers,
                    int leftOffset, int rightOffset, int boundary, Loci::FineFaces &output) {
     output.clear() ; output.reserve(faces.size()) ;
     for(const auto &face : faces) {
       // FineFaces uses one-based cell numbers; node numbers are zero-based.
-      std::vector<int> row = {leftOffset+face.left+1,face.right < 0 ? boundary : rightOffset+face.right+1} ;
+      std::vector<int> row ; row.reserve(2+face.vertices.size()) ;
+      row.push_back(leftOffset+face.left+1) ; row.push_back(face.right < 0 ? boundary : rightOffset+face.right+1) ;
       for(const auto &key : face.vertices)
         row.push_back(key.reference.kind == EntityKind::vertex ? int(key.reference.entity) : numbers.at(key)) ;
       output.push_back(std::move(row)) ;
@@ -74,25 +71,35 @@ namespace {
 /// Sorted original-entity-owned node keys, shared by counting, positioning and numbering.
 $type parametricNodeKeys store<Loci::FineFaces> ;
 
-$rule pointwise(parametricNodeKeys <- balancedParametricCell, parametricTopology), conditional(parametricAccepted), constraint(geom_cells) {
+/// Cell-owned node identities and positions from the same accepted subdivision.
+$rule pointwise(parametricNodeKeys,inner_nodes_cell <- balancedParametricCell,parametricTopology), conditional(parametricAccepted), constraint(geom_cells) {
   try {
-    $parametricNodeKeys = encodeParametricNodeKeys($balancedParametricCell.cellNodes(decodeParametricTopology($parametricTopology))) ;
+    std::vector<Point> positions ;
+    $parametricNodeKeys = encodeParametricNodeKeys($balancedParametricCell.cellNodes($parametricTopology,&positions)) ;
+    $inner_nodes_cell.clear() ;
+    for(const auto &p:positions) $inner_nodes_cell.push_back(vect3d(p[0],p[1],p[2])) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
 
-$rule pointwise(parametricNodeKeys <- fileNumber(face2node), (cl,cr)->(parametricTopology,balancedParametricCell)),
+$rule pointwise(parametricNodeKeys,inner_nodes_face <- fileNumber(face2node), (cl,cr)->(parametricTopology,balancedParametricCell)),
 conditional(parametricAccepted), constraint(interior_faces) {
   try {
-    const auto left = decodeParametricTopology($cl->$parametricTopology), right = decodeParametricTopology($cr->$parametricTopology) ;
-    $parametricNodeKeys = encodeParametricNodeKeys($cl->$balancedParametricCell.faceNodes($fileNumber(face2node),left,&$cr->$balancedParametricCell,&right)) ;
+    const auto &left=$cl->$parametricTopology, &right=$cr->$parametricTopology ;
+    std::vector<Point> positions ;
+    $parametricNodeKeys = encodeParametricNodeKeys($cl->$balancedParametricCell.faceNodes($fileNumber(face2node),left,&$cr->$balancedParametricCell,&right,&positions)) ;
+    $inner_nodes_face.clear() ;
+    for(const auto &p:positions) $inner_nodes_face.push_back(vect3d(p[0],p[1],p[2])) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
 
-$rule pointwise(parametricNodeKeys <- fileNumber(face2node), cl->(parametricTopology,balancedParametricCell)),
+$rule pointwise(parametricNodeKeys,inner_nodes_face <- fileNumber(face2node), cl->(parametricTopology,balancedParametricCell)),
 conditional(parametricAccepted), constraint(boundary_faces) {
   try {
-    const auto left = decodeParametricTopology($cl->$parametricTopology) ;
-    $parametricNodeKeys = encodeParametricNodeKeys($cl->$balancedParametricCell.faceNodes($fileNumber(face2node),left)) ;
+    const auto &left=$cl->$parametricTopology ;
+    std::vector<Point> positions ;
+    $parametricNodeKeys = encodeParametricNodeKeys($cl->$balancedParametricCell.faceNodes($fileNumber(face2node),left,nullptr,nullptr,&positions)) ;
+    $inner_nodes_face.clear() ;
+    for(const auto &p:positions) $inner_nodes_face.push_back(vect3d(p[0],p[1],p[2])) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
 
@@ -117,33 +124,6 @@ $rule pointwise(balanced_num_fine_cells, fineCellDepth <- balancedParametricCell
 // Physical positions from retained root coordinates
 //-----------------------------------------------------------------------------
 
-$rule pointwise(inner_nodes_cell <- parametricNodeKeys,balancedParametricCell),
-  conditional(parametricAccepted), constraint(geom_cells) {
-  try {
-    $inner_nodes_cell.clear() ;
-    for(const auto &p: $balancedParametricCell.cellPositions(decodeParametricNodeKeys($parametricNodeKeys))) $inner_nodes_cell.push_back(vect3d(p[0],p[1],p[2])) ;
-  } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
-}
-
-$rule pointwise(inner_nodes_face <- fileNumber(face2node),cl->(parametricTopology,balancedParametricCell)),
-  conditional(parametricAccepted), constraint(boundary_faces) {
-  try {
-    const auto topology = decodeParametricTopology($cl->$parametricTopology) ;
-    $inner_nodes_face.clear() ;
-    for(const auto &p: $cl->$balancedParametricCell.facePositions($fileNumber(face2node),topology)) $inner_nodes_face.push_back(vect3d(p[0],p[1],p[2])) ;
-  } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
-}
-
-$rule pointwise(inner_nodes_face <- fileNumber(face2node),(cl,cr)->(parametricTopology,balancedParametricCell)),
-  conditional(parametricAccepted), constraint(interior_faces) {
-  try {
-    const auto left = decodeParametricTopology($cl->$parametricTopology), right = decodeParametricTopology($cr->$parametricTopology) ;
-    $inner_nodes_face.clear() ;
-    for(const auto &p: $cl->$balancedParametricCell.facePositions($fileNumber(face2node),left,&$cr->$balancedParametricCell,&right))
-      $inner_nodes_face.push_back(vect3d(p[0],p[1],p[2])) ;
-  } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
-}
-
 $rule pointwise(inner_nodes_edge <- parametricNodeKeys,edge2node->(pos,fileNumber(pos))), conditional(parametricAccepted), constraint(edge2node->pos) {
   try {
     const bool reverse = $edge2node[1]->$fileNumber(pos) < $edge2node[0]->$fileNumber(pos) ;
@@ -163,27 +143,28 @@ $rule pointwise(fine_faces_cell <- balancedParametricCell,parametricTopology,par
 (lower,upper,boundary_map)->(parametricNodeKeys,balanced_node_offset),
 (lower,upper,boundary_map)->face2edge->(parametricNodeKeys,balanced_node_offset)), conditional(parametricAccepted), constraint(geom_cells) {
   try {
-    const auto topology = decodeParametricTopology($parametricTopology) ;
-    std::map<ParametricNodeKey,int> numbers ; std::vector<ParametricNodeKey> boundary ;
+    ParametricNodeNumbers numbers ; std::vector<ParametricNodeKey> boundary ;
     addNodeNumbers($parametricNodeKeys,$balanced_node_offset,numbers) ;
     std::vector<int> faces ;
     for(int face : $lower) faces.push_back(face) ;
     for(int face : $upper) faces.push_back(face) ;
     for(int face : $boundary_map) faces.push_back(face) ;
+    std::vector<int> edges ;
     for(int face : faces) {
       addNodeNumbers($*parametricNodeKeys[face],$*balanced_node_offset[face],numbers,&boundary) ;
-      for(int edge : $*face2edge[face])
-        addNodeNumbers($*parametricNodeKeys[edge],$*balanced_node_offset[edge],numbers,&boundary) ;
+      for(int edge : $*face2edge[face]) edges.push_back(edge) ;
     }
-    numberFaces($balancedParametricCell.cellFaces(topology,boundary),numbers,$balanced_cell_offset,$balanced_cell_offset,0,$fine_faces_cell) ;
+    std::sort(edges.begin(),edges.end()) ; edges.erase(std::unique(edges.begin(),edges.end()),edges.end()) ;
+    for(int edge : edges) addNodeNumbers($*parametricNodeKeys[edge],$*balanced_node_offset[edge],numbers,&boundary) ;
+    numberFaces($balancedParametricCell.cellFaces($parametricTopology,boundary),numbers,$balanced_cell_offset,$balanced_cell_offset,0,$fine_faces_cell) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
 
 $rule pointwise(fine_faces <- fileNumber(face2node),parametricNodeKeys,balanced_node_offset,
 face2edge->(parametricNodeKeys,balanced_node_offset),(cl,cr)->(parametricTopology,balancedParametricCell,balanced_cell_offset)), conditional(parametricAccepted), constraint(interior_faces) {
   try {
-    const auto left = decodeParametricTopology($cl->$parametricTopology), right = decodeParametricTopology($cr->$parametricTopology) ;
-    std::map<ParametricNodeKey,int> numbers ; std::vector<ParametricNodeKey> edgeNodes ;
+    const auto &left=$cl->$parametricTopology, &right=$cr->$parametricTopology ;
+    ParametricNodeNumbers numbers ; std::vector<ParametricNodeKey> edgeNodes ;
     addNodeNumbers($parametricNodeKeys,$balanced_node_offset,numbers) ;
     for(int edge : $face2edge) addNodeNumbers($*parametricNodeKeys[edge],$*balanced_node_offset[edge],numbers,&edgeNodes) ;
     numberFaces($cl->$balancedParametricCell.faceFaces($fileNumber(face2node),left,edgeNodes,&$cr->$balancedParametricCell,&right),numbers,
@@ -194,8 +175,8 @@ face2edge->(parametricNodeKeys,balanced_node_offset),(cl,cr)->(parametricTopolog
 $rule pointwise(fine_faces <- fileNumber(face2node),parametricNodeKeys,balanced_node_offset,
 face2edge->(parametricNodeKeys,balanced_node_offset),cl->(parametricTopology,balancedParametricCell,balanced_cell_offset),ref->boundary_tags), conditional(parametricAccepted), constraint(boundary_faces) {
   try {
-    const auto left = decodeParametricTopology($cl->$parametricTopology) ;
-    std::map<ParametricNodeKey,int> numbers ; std::vector<ParametricNodeKey> edgeNodes ;
+    const auto &left=$cl->$parametricTopology ;
+    ParametricNodeNumbers numbers ; std::vector<ParametricNodeKey> edgeNodes ;
     addNodeNumbers($parametricNodeKeys,$balanced_node_offset,numbers) ;
     for(int edge : $face2edge) addNodeNumbers($*parametricNodeKeys[edge],$*balanced_node_offset[edge],numbers,&edgeNodes) ;
     const int boundary = -std::atoi($ref->$boundary_tags.c_str()+3) ;

@@ -23,6 +23,7 @@
 #define LOCI_FVMADAPT_VERTEX_VOLUME_SPLIT_H
 
 #include "subdivision.h"
+#include "geometry_quality.h"
 
 #include <cstddef>
 
@@ -31,12 +32,6 @@ namespace FVMAdapt {
 
   /// Quad child at a parent corner, bounded by two edge midpoints and the accepted center.
   CornerMap quadChildMap(unsigned corner, const Point &center) ;
-
-  /// Work limits for exact Bernstein bounds of a reference child's Jacobian.
-  struct JacobianCheckLimits {
-    unsigned maxDepth = 18 ;
-    std::size_t maxBoxes = 4096 ;
-  } ;
 
   /// One hex chart in parent reference coordinates; vertices address VertexVolumeSplit::points.
   struct VertexVolumeChild {

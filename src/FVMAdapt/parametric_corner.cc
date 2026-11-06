@@ -2,7 +2,9 @@
 #include <FVMAdapt/parametric_cell.h>
 #include "parametric_mixed.h"
 #include <FVMAdapt/parametric/face_plan.h>
+#include <FVMAdapt/parametric/surface_map.h>
 #include "library/parametric/record_io.h"
+#include "library/parametric/exact_geometry.h"
 #include <functional>
 #include <set>
 
@@ -20,7 +22,33 @@ namespace FVMAdapt {
       ParametricRecord out(r.count(limit)) ; for(auto &b:out) b=r.byte() ; return out ;
     }
 
-    CornerCell sourceBoundary(CornerBoundary &state,const CellTopology &t,const std::vector<Point> &corners) {
+    bool nearlyStraightCorner(const std::vector<Point> &points) {
+      if(points.size()<4) return false ;
+      long double scale=0 ;
+      for(const auto &p:points) for(double x:p) scale=std::max(scale,std::abs(static_cast<long double>(x))) ;
+      const auto tolerance=64*std::numeric_limits<double>::epsilon()*scale ;
+      for(unsigned i=0;i<points.size();++i) {
+        std::array<long double,3> a,b,cross ; long double dot=0 ;
+        for(unsigned d=0;d<3;++d) {
+          a[d]=static_cast<long double>(points[i][d])-points[(i+points.size()-1)%points.size()][d] ;
+          b[d]=static_cast<long double>(points[(i+1)%points.size()][d])-points[i][d] ; dot+=a[d]*b[d] ;
+        }
+        if(dot<=0) continue ;
+        for(unsigned d=0;d<3;++d) cross[d]=a[(d+1)%3]*b[(d+2)%3]-a[(d+2)%3]*b[(d+1)%3] ;
+        const auto first=std::hypot(a[0],a[1],a[2]),second=std::hypot(b[0],b[1],b[2]) ;
+        const auto area=std::hypot(cross[0],cross[1],cross[2]) ;
+        // Coordinate roundoff alone must not classify a resolved turn as straight.
+        if(area<=tolerance*(first+second) && area<=std::sqrt(std::numeric_limits<double>::epsilon())*first*second) return true ;
+      }
+      return false ;
+    }
+    bool needsFaceFan(Shape shape,const std::vector<Point> &points) {
+      if(!nearlyStraightCorner(points)) return false ;
+      // Keep a planar quad's original coordinates when its interior is certified regular.
+      return shape!=Shape::quad || !detail::hasStraightQuadCorner(points) ||
+        geometryValidity(CornerMap(shape,points))!=GeometryValidity::valid ;
+    }
+    CornerCell sourceBoundary(CornerBoundary &state,const CellTopology &t,const std::vector<Point> &corners,bool patches=false) {
       CornerCell root ;
       require(corners.size()==t.vertexCount(),"source corner count differs from its shape") ;
       for(const auto &p:corners) root.vertices.push_back(state.addPoint(p)) ;
@@ -36,14 +64,14 @@ namespace FVMAdapt {
           const auto j=orientedVertex(unsigned(loop.size()),t.faceOrientation(f),v) ; vertices[j]=loop[v] ; points[j]=corners[loop[v]] ;
         }
         for(unsigned i=0;i<vertices.size();++i) faceEdges.push_back(edges.at(state.endpoints(vertices[i],vertices[(i+1)%vertices.size()]))) ;
-        std::shared_ptr<const GeometryMap> geometry=shape==Shape::polygon
+        std::shared_ptr<const GeometryMap> geometry=patches ? sourceFaceGeometry(shape,points):shape==Shape::polygon
           ? std::shared_ptr<const GeometryMap>(std::make_shared<PolygonMap>(points)):std::make_shared<CornerMap>(shape,points) ;
         root.faces.push_back({state.addSurface(std::move(vertices),std::move(faceEdges),std::move(geometry)),t.faceOrientation(f)}) ;
       }
       return root ;
     }
     CornerSubdivision boundarySubdivision(const CellTopology &t,const std::vector<Point> &corners,HistoryLimits limits) {
-      CornerBoundary boundary ; auto root=sourceBoundary(boundary,t,corners) ;
+      CornerBoundary boundary ; auto root=sourceBoundary(boundary,t,corners,true) ;
       Point interior=corners.at(0) ; std::array<long double,3> sum{} ;
       for(const auto &p:corners) for(unsigned d=0;d<3;++d) sum[d]+=static_cast<long double>(p[d])-corners[0][d] ;
       for(unsigned d=0;d<3;++d) interior[d]+=sum[d]/corners.size() ;
@@ -52,9 +80,31 @@ namespace FVMAdapt {
 
   }
 
+  std::shared_ptr<const GeometryMap> sourceFaceGeometry(Shape shape,const std::vector<Point> &points) {
+    if(needsFaceFan(shape,points)) {
+      Point center=points.front() ; std::array<long double,3> sum{} ;
+      for(const auto &p:points) for(unsigned d=0;d<3;++d) sum[d]+=static_cast<long double>(p[d])-points.front()[d] ;
+      for(unsigned d=0;d<3;++d) center[d]+=sum[d]/points.size() ;
+      return std::make_shared<FanMap>(shape,points,center) ;
+    }
+    return shape==Shape::polygon ? std::shared_ptr<const GeometryMap>(std::make_shared<PolygonMap>(points)):
+      std::make_shared<CornerMap>(shape,points) ;
+  }
+  bool needsFacePatches(const CellTopology &topology,const std::vector<Point> &corners) {
+    require(corners.size()==topology.vertexCount(),"source corner count differs from its topology") ;
+    for(unsigned f=0;f<topology.faceCount();++f) {
+      const auto loop=topology.faceVertices(f) ; std::vector<Point> points(loop.size()) ;
+      for(unsigned v=0;v<loop.size();++v)
+        points[orientedVertex(unsigned(loop.size()),topology.faceOrientation(f),v)]=corners[loop[v]] ;
+      if(needsFaceFan(topology.faceShape(f),points)) return true ;
+    }
+    return false ;
+  }
+
   ParametricCorner::ParametricCorner(const CellTopology &t,const std::vector<Point> &corners,HistoryLimits limits)
     : topology(t),subdivision(std::make_shared<CornerMap>(t.shape(),corners),t.id(),0,limits) {
     require(t.shape()==Shape::hex || t.shape()==Shape::prism || t.shape()==Shape::tet,"corner splitting requires hex, prism or tet source cells") ;
+    require(validParametricSource(CornerMap(t.shape(),corners),limits.jacobian),"invalid or unresolved corner source geometry") ;
     options.maxNodes=limits.maxNodes ; options.maxSnapshotBytes=limits.exact.maxBytes ; options.jacobianLimits=limits.jacobian ;
     cells.push_back(sourceBoundary(*this,t,corners)) ;
   }
@@ -122,6 +172,7 @@ namespace FVMAdapt {
     }
     r.finish() ; cell.validateCells(cell.subdivision,cell.cells) ;
     const auto &h=cell.subdivision.history() ; const auto *root=std::get_if<CornerRecord>(&h.geometry().record(h.node(0).map)) ;
+    require(root && validParametricSource(CornerMap(root->shape,root->corners),limits.jacobian),"invalid or unresolved corner source geometry") ;
     require(root && root->shape==cell.topology.shape(),"corner source requires its original corner map") ;
     const auto &e=referenceElement(root->shape) ;
     for(unsigned f=0;f<e.boundaryCount;++f) {
@@ -167,12 +218,18 @@ namespace FVMAdapt {
     for(unsigned f=0;f<root.faces.size();++f) {
       const auto use=root.faces[f] ; const auto &face=result.boundaries.faces[use.surface] ; const auto expected=source.faceVertices(f) ; const auto shape=source.faceShape(f) ;
       require(use.orientation==result.topology.faceOrientation(f) && face.parent==absent,"boundary source face orientation differs") ;
-      const auto *map=std::get_if<CornerRecord>(&result.boundaries.geometry.record(face.geometry)) ;
-      require(map && map->shape==shape && face.vertices.size()==expected.size(),"boundary source face map differs") ;
+      const auto &record=result.boundaries.geometry.record(face.geometry) ;
+      const auto *map=std::get_if<CornerRecord>(&record) ; const auto *fan=std::get_if<FanRecord>(&record) ;
+      require((map && map->shape==shape) || (fan && fan->shape==shape),"boundary source face map differs") ;
+      const auto &corners=map ? map->corners:fan->corners() ;
+      require(face.vertices.size()==expected.size() && corners.size()==expected.size(),"boundary source face size differs") ;
       for(unsigned v=0;v<expected.size();++v) {
         const auto canonical=orientedVertex(unsigned(expected.size()),use.orientation,v) ; const auto vertex=root.vertices[expected[v]] ;
-        require(face.vertices[canonical]==vertex && map->corners[canonical]==result.boundaries.points[vertex],"boundary source incidence differs") ;
+        require(face.vertices[canonical]==vertex && corners[canonical]==result.boundaries.points[vertex],"boundary source incidence differs") ;
       }
+      const auto sourceGeometry=sourceFaceGeometry(shape,corners) ;
+      const auto *sourceFan=dynamic_cast<const FanMap *>(sourceGeometry.get()) ;
+      require(bool(fan)==bool(sourceFan) && (!fan || fan->center()==sourceFan->center()),"saved boundary source geometry differs") ;
     }
     return result ;
   }

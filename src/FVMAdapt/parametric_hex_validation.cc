@@ -38,15 +38,15 @@ namespace FVMAdapt {
       Point position(unsigned id, Point p) const {
         while(nodes[id].parent != absent) {
           const auto &node = nodes[id] ; const auto &parent = nodes[node.parent] ; const auto v = node.corner ;
-          p = quadChildMap(v,parent.center).evaluate(p).position ;
+          p = quadChildMap(v,parent.center).position(p) ;
           id = node.parent ;
         }
         if(original) {
           const auto &boundary = referenceElement(Shape::hex).boundaries[face] ; std::vector<Point> corners(4) ;
           for(unsigned v = 0; v < 4; ++v) corners[orientedVertex(Shape::quad,orientation,v)] = source.corners()[boundary.vertices[v]] ;
-          return CornerMap(Shape::quad,std::move(corners)).evaluate(p).position ;
+          return CornerMap(Shape::quad,std::move(corners)).position(p) ;
         }
-        return HexCellMap(source,plan,owner).evaluate(boundaryPoint(Shape::hex,face,p)).position ;
+        return HexCellMap(source,plan,owner).position(boundaryPoint(Shape::hex,face,p)) ;
       }
       void readEdge(detail::FacePlanReader &in, unsigned id, Point a, Point b, unsigned depth) {
         if(!in.edge(depth)) return ;
@@ -155,15 +155,22 @@ namespace FVMAdapt {
     require(next == interior.size(),"unused hex interior face plan") ;
     // Check retained (including dormant) boundaries and the selected physical leaves.
     const std::array<Point,5> probes{{{{0,0,0}},{{1,0,0}},{{1,1,0}},{{0,1,0}},{{.5,.5,0}}}} ;
+    bool sourceProved=false ;
     for(HexPlan::Cell id = 0; id < cells.size(); ++id) {
       const HexCellMap map(source,plan,id) ;
       for(unsigned f = 0; f < 6; ++f) {
         const auto use = cells[id][f] ;
-        for(const auto &p : probes) close(map.evaluate(boundaryPoint(Shape::hex,f,p)).position,
+        for(const auto &p : probes) close(map.position(boundaryPoint(Shape::hex,f,p)),
           trees.at(use.tree).position(use.node,orientPoint(Shape::quad,use.orientation,p))) ;
       }
-      if(plan.active(id) && plan.leaf(id))
-        require(geometryQuality(map).status == GeometryQualityStatus::sampled,"invalid compact hex leaf geometry") ;
+      if(plan.active(id) && plan.leaf(id)) {
+        const auto quality=geometryQuality(map) ;
+        require(!quality.invalidEvaluation,"invalid compact hex leaf evaluation") ;
+        if(quality.status!=GeometryQualityStatus::sampled) {
+          if(!sourceProved) sourceProved=geometryValidity(source,limits.jacobian)==GeometryValidity::valid ;
+          require(sourceProved,"invalid compact hex leaf geometry") ;
+        }
+      }
     }
   }
 }

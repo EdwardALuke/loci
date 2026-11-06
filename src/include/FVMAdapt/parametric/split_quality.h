@@ -44,6 +44,8 @@ namespace FVMAdapt {
   struct ChildQuality {
     GeometryMeasure measure ;
     GeometryQuality quality ;
+    /// Interior validity proof used when boundary samples have singular derivatives.
+    GeometryValidity validity = GeometryValidity::unresolved ;
   } ;
 
   /// Local proposal measurements; no hierarchy or geometry is changed.
@@ -82,7 +84,8 @@ namespace FVMAdapt {
     double maxRelativeMomentError = std::numeric_limits<double>::infinity() ;
   } ;
 
-  /// Require complete sampled quality and converged measures, then apply the supplied child and consistency limits.
+  /// Require sampled or proved geometry and converged measures, then apply child and consistency limits.
+  /// Explicit quality limits require complete measurements; an interior proof does not improve boundary quality.
   /// Invalid limits throw invalid_argument, rejected geometry/limits domain_error, and unresolved evidence length_error.
   void requireSplitQuality(const SplitQuality &report, const SplitQualityLimits &limits = {}) ;
 

@@ -46,6 +46,15 @@ namespace {
                std::tie(second.shape,second.placement().origin,second.placement().columns) ;
       } else if constexpr(std::is_same_v<T,ConeRecord>) {
         return std::tie(ids[first.base],first.apex)<std::tie(ids[second.base],second.apex) ;
+      } else if constexpr(std::is_same_v<T,FanRecord>) {
+        return std::tie(first.shape,first.corners(),first.center())<std::tie(second.shape,second.corners(),second.center()) ;
+      } else if constexpr(std::is_same_v<T,SurfacePatchRecord>) {
+        return std::tie(ids[first.source],first.chartCorners)<std::tie(ids[second.source],second.chartCorners) ;
+      } else if constexpr(std::is_same_v<T,BoundaryFanRecord>) {
+        auto a=first.edges(),b=second.edges() ;
+        for(auto &id:a) id=ids[id] ;
+        for(auto &id:b) id=ids[id] ;
+        return std::tie(a,first.center())<std::tie(b,second.center()) ;
       } else {
         auto firstIds=geometryDependencies(a), secondIds=geometryDependencies(b) ;
         for(auto &id:firstIds) id=ids[id] ;
@@ -62,13 +71,27 @@ namespace {
         value.parent=ids[value.parent] ; value.placement=ids[value.placement] ;
       } else if constexpr(std::is_same_v<T,BoundarySurfaceRecord>) {
         for(auto &edge:value.edges) edge=ids[edge] ;
+      } else if constexpr(std::is_same_v<T,BoundaryFanRecord>) {
+        auto edges=value.edges() ; auto center=value.center() ;
+        for(auto &edge:edges) edge=ids[edge] ;
+        for(auto &coordinate:center) if(coordinate==0) coordinate=0 ;
+        value=BoundaryFanRecord(edges,center) ;
       } else if constexpr(std::is_same_v<T,ConeRecord>) {
         value.base=ids[value.base] ;
         for(double &coordinate:value.apex) if(coordinate==0) coordinate=0 ;
+      } else if constexpr(std::is_same_v<T,SurfacePatchRecord>) {
+        value.source=ids[value.source] ;
+        for(auto &point:value.chartCorners) for(double &coordinate:point)
+          if(coordinate==0) coordinate=0 ;
+      } else if constexpr(std::is_same_v<T,FanRecord>) {
+        auto corners=value.corners() ; auto center=value.center() ;
+        for(auto &point:corners) for(double &coordinate:point) if(coordinate==0) coordinate=0 ;
+        for(double &coordinate:center) if(coordinate==0) coordinate=0 ;
+        value=FanRecord(value.shape,std::move(corners),center) ;
       } else if constexpr(std::is_same_v<T,CornerRecord> || std::is_same_v<T,TensorBezierRecord>) {
         auto &points=[&]() -> std::vector<Point>& {
-          if constexpr(std::is_same_v<T,CornerRecord>) return value.corners ;
-          else return value.controls ;
+          if constexpr(std::is_same_v<T,TensorBezierRecord>) return value.controls ;
+          else return value.corners ;
         }() ;
         for(auto &point:points) for(double &coordinate:point)
           if(coordinate==0) coordinate=0 ;

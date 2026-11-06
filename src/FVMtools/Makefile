@@ -133,8 +133,8 @@ predicates.o: predicates.c
 make_periodic.o: make_periodic.cc 
 	$(CXX) $(COPTLESS) -c $(DEFINES) $(LOCI_INCLUDES) $(INCLUDES) -c make_periodic.cc
 
-refmesh: refmesh.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
-	$(LD) -o  refmesh  refmesh.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
+refmesh: refmesh.o adapt_input.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
+	$(LD) -o  refmesh  refmesh.o adapt_input.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
 marker: marker.o adapt_input.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}
 	$(LD) -o  marker  marker.o adapt_input.o $(LOCAL_LIBS) $(LIBS) $(LDFLAGS) -lfvmadaptfunc
 refine: refine.o adapt_input.o $(DEPS) $(LOCI_BASE)/lib/libfvmadaptfunc.${LIB_SUFFIX}

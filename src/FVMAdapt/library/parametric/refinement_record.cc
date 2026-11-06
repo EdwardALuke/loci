@@ -112,9 +112,17 @@ namespace {
         out.byte(4) ; out.u64(ids.at(value.parent)) ; out.u64(ids.at(value.placement)) ;
       } else if constexpr(std::is_same_v<T,BoundarySurfaceRecord>) {
         out.byte(5) ; for(auto edge:value.edges) out.u64(ids.at(edge)) ;
-      } else {
-        static_assert(std::is_same_v<T,ConeRecord>,"geometry record needs an explicit wire tag") ;
+      } else if constexpr(std::is_same_v<T,ConeRecord>) {
         out.byte(6) ; out.u64(ids.at(value.base)) ; for(double coordinate:value.apex) out.real(coordinate) ;
+      } else if constexpr(std::is_same_v<T,FanRecord>) {
+        out.byte(7) ; out.byte(shapeTag(value.shape)) ; writePoints(out,value.corners()) ;
+        for(double coordinate:value.center()) out.real(coordinate) ;
+      } else if constexpr(std::is_same_v<T,SurfacePatchRecord>) {
+        out.byte(8) ; out.u64(ids.at(value.source)) ; writePoints(out,value.chartCorners) ;
+      } else {
+        static_assert(std::is_same_v<T,BoundaryFanRecord>,"geometry record needs an explicit wire tag") ;
+        out.byte(9) ; for(auto edge:value.edges()) out.u64(ids.at(edge)) ;
+        for(double coordinate:value.center()) out.real(coordinate) ;
       }
     },record) ;
   }
@@ -159,6 +167,27 @@ namespace {
       Point apex ; for(double &coordinate:apex) coordinate=in.real() ;
       return ConeRecord{static_cast<MapId>(base),apex} ;
     }
+    case 7: {
+      const auto shape=readShape(in) ;
+      auto corners=readPoints(in,limits.maxControls) ;
+      Point center ; for(double &coordinate:center) coordinate=in.real() ;
+      return FanRecord{shape,std::move(corners),center} ;
+    }
+    case 8: {
+      const auto source=in.u64() ;
+      if(source>=id) throw std::invalid_argument("snapshot geometry reference must precede its use") ;
+      return SurfacePatchRecord{static_cast<MapId>(source),readPoints(in,limits.maxControls)} ;
+    }
+    case 9: {
+      std::array<MapId,4> edges ;
+      for(auto &edge:edges) {
+        const auto value=in.u64() ;
+        if(value>=id) throw std::invalid_argument("snapshot geometry reference must precede its use") ;
+        edge=static_cast<MapId>(value) ;
+      }
+      Point center ; for(auto &coordinate:center) coordinate=in.real() ;
+      return BoundaryFanRecord{edges,center} ;
+    }
     }
     throw std::invalid_argument("unknown snapshot geometry tag") ;
   }
@@ -184,7 +213,12 @@ namespace {
         for(unsigned degree:value.degree)
           if(degree>limits.geometry.maxDegree) throw std::length_error("snapshot degree limit exceeded") ;
       }
-      else if constexpr(std::is_same_v<T,ConeRecord>) count=1 ;
+      else if constexpr(std::is_same_v<T,ConeRecord> || std::is_same_v<T,BoundaryFanRecord>) count=1 ;
+      else if constexpr(std::is_same_v<T,FanRecord>) {
+        if(value.corners().size()>=limits.geometry.maxControls-controls)
+          throw std::length_error("snapshot control limit exceeded") ;
+        count=value.corners().size()+1 ;
+      } else if constexpr(std::is_same_v<T,SurfacePatchRecord>) count=value.chartCorners.size() ;
       if(count>limits.geometry.maxControls-controls)
         throw std::length_error("snapshot control limit exceeded") ;
       controls+=count ;

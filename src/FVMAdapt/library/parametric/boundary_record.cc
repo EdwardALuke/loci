@@ -21,6 +21,7 @@
 
 #include <FVMAdapt/parametric/boundary_record.h>
 #include <FVMAdapt/parametric/refinement_record.h>
+#include <FVMAdapt/parametric/surface_map.h>
 
 #include "record_io.h"
 
@@ -106,6 +107,13 @@ namespace {
         using T=std::decay_t<decltype(record)> ;
         if constexpr(std::is_same_v<T,CornerRecord>) {
           count(record.corners.size(),controls,limits.maxControls) ;
+        } else if constexpr(std::is_same_v<T,FanRecord>) {
+          count(record.corners().size(),controls,limits.maxControls) ;
+          count(1,controls,limits.maxControls) ;
+        } else if constexpr(std::is_same_v<T,SurfacePatchRecord>) {
+          count(record.chartCorners.size(),controls,limits.maxControls) ;
+        } else if constexpr(std::is_same_v<T,BoundaryFanRecord>) {
+          count(1,controls,limits.maxControls) ;
         } else if constexpr(std::is_same_v<T,TensorBezierRecord>) {
           count(record.controls.size(),controls,limits.maxControls) ;
           for(unsigned degree:record.degree)
@@ -296,12 +304,26 @@ namespace {
           require(childFace.vertices==std::vector<BoundaryId>{face.vertices[c],midpoint(c),split.centerVertex,midpoint(previous)},
                   "boundary corner child has an inconsistent vertex order") ;
           require(childFace.geometry<records.geometry.size(),"invalid boundary child face map") ;
-          const auto *composition=std::get_if<ComposeRecord>(&records.geometry.record(childFace.geometry)) ;
-          require(composition && composition->parent==face.geometry,"boundary child face must restrict its parent map") ;
-          const auto *placement=std::get_if<CornerRecord>(&records.geometry.record(composition->placement)) ;
-          const std::vector<Point> corners={coordinates[c],along(c,.5),split.referenceCenter,along(previous,.5)} ;
-          require(placement && placement->shape==Shape::quad && placement->corners==corners,
-                  "boundary child face map does not match its accepted construction") ;
+          std::vector<Point> corners={coordinates[c],along(c,.5),split.referenceCenter,along(previous,.5)} ;
+          const auto &childRecord=records.geometry.record(childFace.geometry) ;
+          if(const auto *childPatch=std::get_if<SurfacePatchRecord>(&childRecord)) {
+            MapId source=face.geometry ;
+            if(const auto *parentPatch=std::get_if<SurfacePatchRecord>(&records.geometry.record(face.geometry))) {
+              source=parentPatch->source ;
+              const auto *patch=dynamic_cast<const SurfacePatchMap *>(map.get()) ;
+              require(patch,"boundary patch has an inconsistent evaluator") ;
+              for(auto &point:corners) point=patch->chartPosition(point) ;
+            }
+            require(childPatch->source==source && childPatch->chartCorners==corners,
+                    "boundary child patch does not match its accepted construction") ;
+          } else {
+            require(!hasSurfacePieces(*map),"piecewise boundary children require a retained source patch") ;
+            const auto *composition=std::get_if<ComposeRecord>(&childRecord) ;
+            require(composition && composition->parent==face.geometry,"boundary child face must restrict its parent map") ;
+            const auto *placement=std::get_if<CornerRecord>(&records.geometry.record(composition->placement)) ;
+            require(placement && placement->shape==Shape::quad && placement->corners==corners,
+                    "boundary child face map does not match its accepted construction") ;
+          }
           faceLinks[child]=1 ;
         }
       }

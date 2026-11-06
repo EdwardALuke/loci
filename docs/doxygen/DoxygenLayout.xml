@@ -7,10 +7,12 @@
     <tab type="mainpage" visible="yes" title=""/>
     <tab type="usergroup" url="@ref fvmadapt_overview" title="FVMAdapt">
       <tab type="user" url="@ref fvmadapt_overview" title="Overview"/>
+      <tab type="user" url="@ref fvmadapt_reference_geometry" title="Cell Geometry"/>
       <tab type="user" url="@ref fvmadapt_geometric_splitting" title="Geometric Splitting"/>
-      <tab type="user" url="@ref fvmadapt_plans_and_balancing" title="Plans and Balancing"/>
-      <tab type="user" url="@ref fvmadapt_derefinement" title="Derefinement"/>
-      <tab type="user" url="@ref fvmadapt_numbering" title="Numbering Conventions"/>
+      <tab type="user" url="@ref fvmadapt_plans_and_balancing" title="History and Balancing"/>
+      <tab type="user" url="@ref fvmadapt_derefinement" title="Coarsening"/>
+      <tab type="user" url="@ref fvmadapt_numbering" title="Identities and Output Numbers"/>
+      <tab type="user" url="@ref fvmadapt_reference_subdivision" title="Module Interface"/>
     </tab>
     <tab type="pages" visible="yes" title="" intro=""/>
     <tab type="topics" visible="yes" title="" intro=""/>

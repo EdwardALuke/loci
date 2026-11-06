@@ -20,6 +20,7 @@
 //#############################################################################
 
 #include <FVMAdapt/parametric/geometry_record.h>
+#include <FVMAdapt/parametric/surface_map.h>
 
 #include <algorithm>
 #include <cmath>
@@ -71,7 +72,9 @@ namespace FVMAdapt {
       using T=std::decay_t<decltype(value)> ;
       if constexpr(std::is_same_v<T,ComposeRecord>) return {value.parent,value.placement} ;
       else if constexpr(std::is_same_v<T,BoundarySurfaceRecord>) return {value.edges.begin(),value.edges.end()} ;
+      else if constexpr(std::is_same_v<T,BoundaryFanRecord>) return {value.edges().begin(),value.edges().end()} ;
       else if constexpr(std::is_same_v<T,ConeRecord>) return {value.base} ;
+      else if constexpr(std::is_same_v<T,SurfacePatchRecord>) return {value.source} ;
       else return {} ;
     },record) ;
   }
@@ -123,6 +126,10 @@ namespace FVMAdapt {
         return retain(CornerRecord{Shape::polygon,polygon->corners()},value) ;
       if(const auto *corner = dynamic_cast<const CornerMap*>(value.get()))
         return retain(CornerRecord{corner->shape(),corner->corners()},value) ;
+      if(const auto *fan=dynamic_cast<const FanMap *>(value.get()))
+        return retain(FanRecord{fan->shape(),fan->corners(),fan->center()},value) ;
+      if(const auto *patch=dynamic_cast<const SurfacePatchMap *>(value.get()))
+        return retain(SurfacePatchRecord{visit(patch->source(),depth+1),patch->chartCorners()},value) ;
       if(const auto *bezier = dynamic_cast<const BezierMap*>(value.get()))
       {
         if(bezier->controls().size() > limits_.maxControls-controls_)
@@ -140,6 +147,11 @@ namespace FVMAdapt {
         BoundarySurfaceRecord record ;
         for(unsigned e=0; e<4; ++e) record.edges[e]=visit(surface->edges()[e],depth+1) ;
         return retain(record,value) ;
+      }
+      if(const auto *fan=dynamic_cast<const BoundaryFanMap *>(value.get())) {
+        std::array<MapId,4> edges ;
+        for(unsigned e=0;e<4;++e) edges[e]=visit(fan->edges()[e],depth+1) ;
+        return retain(BoundaryFanRecord{edges,fan->center()},value) ;
       }
       if(const auto *cone=dynamic_cast<const ConeMap*>(value.get()))
         return retain(ConeRecord{visit(cone->base(),depth+1),cone->apex()},value) ;
@@ -171,7 +183,7 @@ namespace FVMAdapt {
     const auto countControls = [&](const std::vector<Point> &points) {
       if(points.size() > limits_.maxControls-controls)
         throw std::length_error("geometry control limit exceeded") ;
-      // Evaluators keep a second immutable copy of their physical controls.
+      // Evaluators keep a second immutable copy of their controls.
       if(points.size() > (maxBytes-bytes)/(2*sizeof(Point)))
         throw std::length_error("geometry payload limit exceeded") ;
       retain(2*sizeof(Point)*points.size()) ;
@@ -200,6 +212,16 @@ namespace FVMAdapt {
           checkPlacement(description.placement(),limits_.exact,retain) ;
         } else if constexpr(std::is_same_v<Record,ConeRecord>) {
           countControls({description.apex}) ;
+        } else if constexpr(std::is_same_v<Record,BoundaryFanRecord>) {
+          retain(sizeof(std::array<MapId,4>)) ; countControls({description.center()}) ;
+        } else if constexpr(std::is_same_v<Record,FanRecord>) {
+          retain(sizeof(std::vector<Point>)+sizeof(Point)) ;
+          countControls(description.corners()) ; countControls({description.center()}) ;
+          retain(description.corners().size()*sizeof(Point)) ;
+        } else if constexpr(std::is_same_v<Record,SurfacePatchRecord>) {
+          countControls(description.chartCorners) ;
+          retain(description.chartCorners.size()*sizeof(Point)) ;
+          if(description.chartCorners.size()>4) retain(description.chartCorners.size()*sizeof(Point)) ;
         }
       },record) ;
       retained.emplace_back(controls,bytes) ;
@@ -230,6 +252,9 @@ namespace FVMAdapt {
             work(n*n) ; return {std::make_shared<PolygonMap>(description.corners),0,cost} ;
           }
           return {std::make_shared<CornerMap>(description.shape,description.corners),0,cost} ;
+        } else if constexpr(std::is_same_v<Record,FanRecord>) {
+          work(description.corners().size()) ;
+          return {std::make_shared<FanMap>(description.shape,description.corners(),description.center()),0,cost} ;
         } else if constexpr(std::is_same<Record,TensorBezierRecord>::value) {
           work(description.controls.size()) ;
           for(std::size_t degree : description.degree) {
@@ -253,8 +278,20 @@ namespace FVMAdapt {
             std::array<std::shared_ptr<const GeometryMap>,4> edges ;
             for(unsigned e=0; e<4; ++e) edges[e]=lookup(description.edges[e]).value ;
             work(4) ; return {std::make_shared<BoundarySurfaceMap>(std::move(edges)),depth+1,cost} ;
-          } else
+          } else if constexpr(std::is_same_v<Record,BoundaryFanRecord>) {
+            std::array<std::shared_ptr<const GeometryMap>,4> edges ;
+            for(unsigned e=0;e<4;++e) edges[e]=lookup(description.edges()[e]).value ;
+            work(4) ; return {std::make_shared<BoundaryFanMap>(std::move(edges),description.center()),depth+1,cost} ;
+          } else if constexpr(std::is_same_v<Record,ConeRecord>) {
             return {std::make_shared<ConeMap>(lookup(description.base).value,description.apex),depth+1,cost} ;
+          } else {
+            const auto n=description.chartCorners.size() ; work(n) ;
+            if(n>4) {
+              if(n>(limits_.exact.maxOperations-cost)/n) throw std::length_error("polygon evaluation work limit exceeded") ;
+              work(n*n) ;
+            }
+            return {std::make_shared<SurfacePatchMap>(lookup(description.source).value,description.chartCorners),depth+1,cost} ;
+          }
         }
       },record)) ;
       maps.back().controls = retained[maps.size()-1].first ;

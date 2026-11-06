@@ -26,3 +26,12 @@ $type initialParametricHistory store<Loci::FVMAdapt::ParametricRecord> ;
 $type initialParametricCell store<Loci::FVMAdapt::ParametricCellData> ;
 /// Accepted output state; rules construct working geometry when needed.
 $type balancedParametricCell store<Loci::FVMAdapt::ParametricCellData> ;
+/// Finished balancing candidate, before optional physical quality acceptance.
+$type candidateParametricCell store<Loci::FVMAdapt::ParametricCellData> ;
+$type candidateParametricError store<std::string> ;
+/// True when balancing completed without a local or remote failure.
+$type parametricBalanced param<bool> ;
+/// Original-edge divisions of the balanced candidate.
+$type candidateParametricEdgeTrace store<Loci::FineFaces> ;
+/// Quality calculations completed and met the selected acceptance policy.
+$type parametricQualityAccepted param<bool> ;

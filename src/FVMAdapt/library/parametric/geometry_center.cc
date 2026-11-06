@@ -20,6 +20,7 @@
 //#############################################################################
 
 #include <FVMAdapt/parametric/geometry_center.h>
+#include <FVMAdapt/parametric/surface_map.h>
 
 #include <algorithm>
 #include <cmath>
@@ -168,6 +169,64 @@ namespace FVMAdapt {
       throw std::invalid_argument("face center projection did not converge in the face interior") ;
     }
 
+    Point closestTriangle(const std::array<WidePoint,3> &p,const WidePoint &target) {
+      WidePoint a,b,r ;
+      for(unsigned d=0;d<3;++d) { a[d]=p[1][d]-p[0][d] ; b[d]=p[2][d]-p[0][d] ; r[d]=target[d]-p[0][d] ; }
+      const long double aa=dot(a,a),ab=dot(a,b),bb=dot(b,b),det=dot(cross(a,b),cross(a,b)) ;
+      if(!(det>0)) throw std::invalid_argument("surface piece projection has singular derivatives") ;
+      const long double u=(bb*dot(a,r)-ab*dot(b,r))/det,v=(aa*dot(b,r)-ab*dot(a,r))/det ;
+      if(u>=0 && v>=0 && u+v<=1) return {{double(u),double(v),0}} ;
+      const std::array<Point,3> q{{{{0,0,0}},{{1,0,0}},{{0,1,0}}}} ;
+      long double best=std::numeric_limits<long double>::infinity() ; Point result{} ;
+      for(unsigned e=0;e<3;++e) {
+        const unsigned next=(e+1)%3 ; WidePoint edge,residual ;
+        for(unsigned d=0;d<3;++d) { edge[d]=p[next][d]-p[e][d] ; residual[d]=target[d]-p[e][d] ; }
+        const long double t=std::max(0.L,std::min(1.L,dot(residual,edge)/dot(edge,edge))) ;
+        for(unsigned d=0;d<3;++d) residual[d]-=t*edge[d] ;
+        const auto value=dot(residual,residual) ;
+        if(value<best) { best=value ; for(unsigned d=0;d<3;++d) result[d]=q[e][d]+t*(q[next][d]-q[e][d]) ; }
+      }
+      return result ;
+    }
+
+    Point projectTriangle(const GeometryMap &map,const Point &origin,long double scale,const WidePoint &target) {
+      Point q{{1./3,1./3,0}} ;
+      for(unsigned iteration=0;iteration<128;++iteration) {
+        const auto value=checkedEvaluation(map,q) ; WidePoint a,b ; scaledColumns(value,scale,a,b) ;
+        auto residual=difference(value.position,origin) ; std::array<WidePoint,3> linear ;
+        for(unsigned d=0;d<3;++d) {
+          residual[d]/=scale ; linear[0][d]=residual[d]-q[0]*a[d]-q[1]*b[d] ;
+          linear[1][d]=linear[0][d]+a[d] ; linear[2][d]=linear[0][d]+b[d] ; residual[d]-=target[d] ;
+        }
+        const auto next=closestTriangle(linear,target) ;
+        const long double step=std::hypot(static_cast<long double>(next[0])-q[0],static_cast<long double>(next[1])-q[1]) ;
+        if(step<=256*std::numeric_limits<double>::epsilon()) return q ;
+        const long double objective=dot(residual,residual),roundoff=16*accuracy(origin,scale)*std::sqrt(objective) ; bool accepted=false ;
+        for(unsigned backtrack=0;backtrack<48;++backtrack) {
+          const long double t=std::ldexp(1.L,-int(backtrack)) ; const Point trial{{double(q[0]+t*(next[0]-q[0])),double(q[1]+t*(next[1]-q[1])),0}} ;
+          auto r=difference(checkedEvaluation(map,trial).position,origin) ; for(unsigned d=0;d<3;++d) r[d]=r[d]/scale-target[d] ;
+          if(dot(r,r)<=objective+roundoff) { q=trial ; accepted=true ; break ; }
+        }
+        if(!accepted) break ;
+      }
+      throw std::invalid_argument("surface piece projection did not converge") ;
+    }
+
+    Point projectSurfacePieces(const GeometryMap &geometry,const Point &origin,long double scale,const WidePoint &target) {
+      const auto borrowed=std::shared_ptr<const GeometryMap>(&geometry,[](const GeometryMap *) {}) ;
+      const auto partition=smoothSurfacePieces(borrowed) ; long double best=std::numeric_limits<long double>::infinity() ; Point chart{} ;
+      for(const auto &piece:partition.pieces) {
+        const auto q=projectTriangle(*piece.geometry,origin,scale,target) ;
+        auto residual=difference(checkedEvaluation(*piece.geometry,q).position,origin) ; for(unsigned d=0;d<3;++d) residual[d]=residual[d]/scale-target[d] ;
+        const auto objective=dot(residual,residual) ;
+        if(objective<best) { best=objective ; chart=piece.coordinates->position(q) ; }
+      }
+      const auto local=inverseSurfaceCoordinates(*partition.placement,chart) ;
+      const bool inside=geometry.shape()==Shape::polygon ? insideReferencePolygon(geometry.referenceCorners().size(),local):interior(geometry.shape(),local) ;
+      if(!inside) throw std::invalid_argument("surface center projects onto its outer boundary") ;
+      return local ;
+    }
+
     WidePoint weightedCellTarget(const GeometryMap &geometry, const std::vector<Point> &faceCenters,
                                  const std::vector<Point> &corners, long double scale) {
       const Shape shape = geometry.shape() ;
@@ -262,6 +321,7 @@ namespace FVMAdapt {
     WidePoint target{{0,0,0}} ;
     if(method == CenterMethod::weighted) target = weightedFaceTarget(geometry,corners,scale,q) ;
     if(method == CenterMethod::integrated) target = integratedTarget(geometry,corners[0],scale,options) ;
+    if(hasSurfacePieces(geometry)) return method==CenterMethod::reference ? q:projectSurfacePieces(geometry,corners[0],scale,target) ;
     return projectFaceTarget(geometry,corners[0],scale,target,q,method) ;
   }
 

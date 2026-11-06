@@ -148,9 +148,10 @@ namespace Loci { namespace FVMAdapt {
       return keys ;
     }
   }
-  std::string parametricCellFamily(const CellTopology &topology,const std::string &family) {
-    if(family!="mixed") return family ;
-    return topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ? "native":"corner" ;
+  std::string parametricCellFamily(const CellTopology &topology,const std::string &family,const std::vector<Point> &corners) {
+    const auto selected=family!="mixed" ? family:
+      topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ? "native":"corner" ;
+    return selected=="native" && !corners.empty() && needsFacePatches(topology,corners) ? "corner":selected ;
   }
   bool mixedFace(const ParametricCell &left,const ParametricCell *right) {
     return right && ((left.native() && right->hasCornerGeometry()) || (left.hasCornerGeometry() && right->native())) ;
@@ -183,16 +184,16 @@ namespace Loci { namespace FVMAdapt {
     std::sort(result.begin(),result.end(),[](const ParametricOutputFace &a,const ParametricOutputFace &b) { return a.vertices<b.vertices ; }) ;
     return result ;
   }
-  std::vector<ParametricNodeKey> mixedFaceNodes(EntityId id,const CellTopology &lt,const ParametricCell &lc,const CellTopology &rt,const ParametricCell &rc) {
+  std::vector<ParametricNodeKey> mixedFaceNodes(EntityId id,const CellTopology &lt,const ParametricCell &lc,
+      const CellTopology &rt,const ParametricCell &rc,std::vector<Point> *positions) {
     std::set<ParametricNodeKey> nodes ;
     for(const auto &face:mixedFaceFaces(id,lt,lc,rt,rc,{})) for(const auto &key:face.vertices)
       if(key.reference.kind==EntityKind::face) nodes.insert(key) ;
+    if(positions) {
+      const SourceFace face(id,lt,lc) ; positions->clear() ; positions->reserve(nodes.size()) ;
+      for(const auto &key:nodes) positions->push_back(face.position(key.reference.point)) ;
+    }
     return {nodes.begin(),nodes.end()} ;
-  }
-  std::vector<Point> mixedFacePositions(EntityId id,const CellTopology &lt,const ParametricCell &lc,const CellTopology &rt,const ParametricCell &rc) {
-    const SourceFace face(id,lt,lc) ; std::vector<Point> points ;
-    for(const auto &key:mixedFaceNodes(id,lt,lc,rt,rc)) points.push_back(face.position(key.reference.point)) ;
-    return points ;
   }
   void mixedCornerFaces(const ParametricCell &cell,const std::vector<ParametricNodeKey> &required,std::vector<ParametricOutputFace> &faces) {
     const auto keys=cornerKeys(cell,required) ; if(keys.empty()) return ; std::set<EntityId> originals ;

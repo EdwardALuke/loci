@@ -23,6 +23,7 @@
 #define LOCI_FVMADAPT_EXACT_GEOMETRY_H
 
 #include <FVMAdapt/parametric/reference_coordinate.h>
+#include <vector>
 
 namespace Loci {
 namespace FVMAdapt {
@@ -33,6 +34,22 @@ namespace detail {
 
   inline const Exact &exact(const Fraction &value) {
     return value.rational() ;
+  }
+
+  /// Whether a quad has two consecutive edges continuing along exactly one line.
+  inline bool hasStraightQuadCorner(const std::vector<Point> &points) {
+    if(points.size()!=4) return false ;
+    for(unsigned i=0;i<4;++i) {
+      ExactPoint before,after ; Exact dot=0 ;
+      for(unsigned d=0;d<3;++d) {
+        before[d]=Exact(points[i][d])-Exact(points[(i+3)%4][d]) ;
+        after[d]=Exact(points[(i+1)%4][d])-Exact(points[i][d]) ;
+        dot+=before[d]*after[d] ;
+      }
+      if(dot>0 && before[1]*after[2]==before[2]*after[1] &&
+         before[2]*after[0]==before[0]*after[2] && before[0]*after[1]==before[1]*after[0]) return true ;
+    }
+    return false ;
   }
 
 }

@@ -337,34 +337,52 @@ $rule apply(parametricAnyFailure <- tmpParametricError)[Loci::LogicalOr], constr
 $rule singleton(finishParametricBalancing <- parametricAllUnchanged,parametricAnyFailure), constraint(geom_cells) {
   $finishParametricBalancing = $parametricAllUnchanged || $parametricAnyFailure ;
 }
-$rule singleton(parametricAccepted <- parametricAnyFailure{parametricBalance},finishParametricBalancing{parametricBalance}),
+$rule unit(parametricBalanced), constraint(UNIVERSE) { $parametricBalanced=true ; }
+$rule apply(parametricBalanced <- candidateParametricError)[Loci::LogicalAnd], constraint(geom_cells) {
+  join($parametricBalanced,$candidateParametricError.empty()) ;
+}
+$rule pointwise(candidateParametricCell,candidateParametricError <- tmpParametricCell{parametricBalance},tmpParametricError{parametricBalance},initialParametricCell,
+  parametricAnyFailure{parametricBalance},finishParametricBalancing{parametricBalance}),
   conditional(finishParametricBalancing{parametricBalance}), constraint(geom_cells) {
-  $parametricAccepted = !$parametricAnyFailure{parametricBalance} ;
+  $candidateParametricError=$tmpParametricError{parametricBalance} ;
+  $candidateParametricCell=$parametricAnyFailure{parametricBalance} ? ($initialParametricCell) : ($tmpParametricCell{parametricBalance}) ;
 }
-$rule pointwise(balancedParametricCell,balancedParametricHistory,parametricError <- tmpParametricCell{parametricBalance},tmpParametricError{parametricBalance},
-  parametricAnyFailure{parametricBalance},initialParametricCell,initialParametricHistory,finishParametricBalancing{parametricBalance}),
-  conditional(finishParametricBalancing{parametricBalance}), constraint(geom_cells) {
-  $balancedParametricCell = $parametricAnyFailure{parametricBalance} ? ($initialParametricCell) : $tmpParametricCell{parametricBalance} ;
-  $balancedParametricHistory = $parametricAnyFailure{parametricBalance} ? ($initialParametricHistory) : $balancedParametricCell.record() ;
-  $parametricError = $tmpParametricError{parametricBalance} ;
+$rule singleton(parametricAccepted <- parametricBalanced,parametricQualityAccepted), constraint(geom_cells) {
+  $parametricAccepted=$parametricBalanced && $parametricQualityAccepted ;
 }
-
-/// Accepted cell edge intervals for final output numbering.
-$type parametricAcceptedEdges store<Loci::FineFaces> ;
-$rule pointwise(parametricAcceptedEdges <- balancedParametricCell,parametricTopology),
-  conditional(parametricAccepted), constraint(geom_cells) {
-  $parametricAcceptedEdges = $balancedParametricCell.edgeTrace(P::decodeParametricTopology($parametricTopology)) ;
-}
-$rule unit(balancedParametricEdgeTrace), conditional(parametricAccepted), constraint(edge2node->pos) { $balancedParametricEdgeTrace.clear() ; }
-
-$rule apply(face2edge->balancedParametricEdgeTrace <- cl->parametricAcceptedEdges,face2edge->fileNumber(edge2node))[ParametricTraceUnion],
-  conditional(parametricAccepted), constraint(faces) {
-  for(int edge: $face2edge) join($*balancedParametricEdgeTrace[edge],edgeRows($cl->$parametricAcceptedEdges,$*fileNumber(edge2node)[edge])) ;
+$rule pointwise(balancedParametricCell,balancedParametricHistory,parametricError <- candidateParametricCell,candidateParametricError,
+  parametricAccepted,initialParametricCell,initialParametricHistory,parametricQualityReport,
+  parametricQualityMode,parametricQualityCentroid,parametricMaxNonOrthogonality,parametricMaxFaceWarpage,parametricMaxChildVolumeRatio,parametricTopology), constraint(geom_cells) {
+  $balancedParametricCell=$parametricAccepted ? ($candidateParametricCell) : ($initialParametricCell) ;
+  $balancedParametricHistory=$parametricAccepted ? ($balancedParametricCell.record()) : ($initialParametricHistory) ;
+  $parametricError=$candidateParametricError ;
+  if(!$parametricAccepted && $parametricError.empty()) {
+    const auto &q=$parametricQualityReport ; const int root=P::decodeParametricTopology($parametricTopology).id() ;
+    if(q.invalidRoot==root || q.nonOrthogonality.root==root || q.faceWarpage.root==root || q.childVolumeRatio.root==root) {
+      const P::MeshQualityOptions options = { ($parametricQualityMode), ($parametricQualityCentroid), ($parametricMaxNonOrthogonality), ($parametricMaxFaceWarpage), ($parametricMaxChildVolumeRatio) } ;
+      $parametricError=q.description(options) ;
+    }
+  }
 }
 
-$rule apply(face2edge->balancedParametricEdgeTrace <- cr->parametricAcceptedEdges,face2edge->fileNumber(edge2node))[ParametricTraceUnion],
-  conditional(parametricAccepted), constraint(interior_faces) {
-  for(int edge: $face2edge) join($*balancedParametricEdgeTrace[edge],edgeRows($cr->$parametricAcceptedEdges,$*fileNumber(edge2node)[edge])) ;
+/// Candidate cell edge intervals for shared-edge agreement before final acceptance.
+$type parametricCandidateEdges store<Loci::FineFaces> ;
+$rule pointwise(parametricCandidateEdges <- candidateParametricCell,parametricTopology,parametricBalanced), constraint(geom_cells) {
+  $parametricCandidateEdges.clear() ;
+  if(!$parametricBalanced) return ;
+  $parametricCandidateEdges=$candidateParametricCell.edgeTrace(P::decodeParametricTopology($parametricTopology)) ;
+}
+$rule unit(candidateParametricEdgeTrace), constraint(edge2node->pos) { $candidateParametricEdgeTrace.clear() ; }
+$rule apply(face2edge->candidateParametricEdgeTrace <- cl->parametricCandidateEdges,face2edge->fileNumber(edge2node))[ParametricTraceUnion],
+  constraint(faces) {
+  for(int edge:$face2edge) join($*candidateParametricEdgeTrace[edge],edgeRows($cl->$parametricCandidateEdges,$*fileNumber(edge2node)[edge])) ;
+}
+$rule apply(face2edge->candidateParametricEdgeTrace <- cr->parametricCandidateEdges,face2edge->fileNumber(edge2node))[ParametricTraceUnion],
+  constraint(interior_faces) {
+  for(int edge:$face2edge) join($*candidateParametricEdgeTrace[edge],edgeRows($cr->$parametricCandidateEdges,$*fileNumber(edge2node)[edge])) ;
+}
+$rule pointwise(balancedParametricEdgeTrace <- candidateParametricEdgeTrace),conditional(parametricAccepted) {
+  $balancedParametricEdgeTrace=$candidateParametricEdgeTrace ;
 }
 
 $rule pointwise(parametricDonorLeaves,parametricParentLeaf <- parametricDonorCell,balancedParametricCell),

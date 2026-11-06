@@ -14,7 +14,7 @@ Facts live on the original cells:
 | --- | --- |
 | `parametricCellHistory` | Accepted saved history; empty initializes from VOG corners |
 | `parametricRequests` | Encoded edits; empty means none |
-| `parametricAccepted` | All ranks accepted the proposal and balancing |
+| `parametricAccepted` | All ranks accepted balancing and any enabled quality limits |
 | `parametricError` | Local rejection reason, otherwise empty |
 | `balancedParametricHistory` | Accepted new history, or the preceding history after rejection |
 | `parametricDonorLeaves` | Old leaf indices contributing to each new leaf |
@@ -27,6 +27,10 @@ requesting mesh output. Carry `balancedParametricHistory` into the next
 
 Inside the module, `ParametricCellData` owns accepted per-cell state. Its query
 and edit methods choose the appropriate compact plan or working geometry.
+`applyRequests()` and `balance()` edit independent candidates. `workingCell()`
+supplies read-only working geometry; `workingCopy()` supplies an editable copy.
+Expanding compact state can be expensive, so ordinary queries use the direct
+cell-data methods.
 The rules retain responsibility for neighbor reductions and iteration.
 Shared face plans contain accepted local centers and edge divisions, without
 physical geometry maps. Both sides use the original grid's shared face geometry.
@@ -67,6 +71,11 @@ Stale or overlapping requests reject.
 | `parametricMaxRounds` | `32` balancing rounds |
 | `parametricRefinementLevels` | `1` subdivision per refine tag; coarsening always merges one generation |
 
+Mixed mode uses native cuts in hexes and prisms and one-child-per-vertex splits
+in tets, pyramids and general cells. It requires reference centers and full 3D
+refinement, with midpoint cuts at mixed interfaces. Weighted/integrated mixed
+interfaces and 2D extrusion are not supported.
+
 Automatic selection compares mean edge lengths in each local direction. It
 splits directions longer than the smallest mean by the aspect ratio; otherwise
 it splits all directions. A direction is skipped when half its shortest edge
@@ -83,6 +92,39 @@ See [XML regions](README_xml) and [spacing sources](spacing_sources.md).
 Histories have a 64 MiB limit per original cell. Parallel point records require
 signed-int reference numerators and denominators. Unsupported coordinates or
 exhausted limits reject the proposal on every rank.
+
+## Mesh Quality
+
+Quality checking is optional and defaults to `off`. It measures the physical
+polygons after balancing, including divisions imposed by neighbors.
+
+| Control | Default and meaning |
+| --- | --- |
+| `parametricQualityMode` | `"off"`; `"report"` measures quality; `"reject"` also rejects a proposal exceeding any enabled limit |
+| `parametricQualityCentroid` | `"wireframe"`; also `"exact"`, matching Cartesian FVM metrics |
+| `parametricMaxNonOrthogonality` | `-1`; maximum angle in degrees between a face normal and the line joining cell centers; boundaries use the cell-to-face line |
+| `parametricMaxFaceWarpage` | `-1`; maximum angle in degrees between a polygon's area vector and its center-to-edge triangle normals |
+| `parametricMaxChildVolumeRatio` | `-1`; largest/smallest immediate child volume at any split, summing active descendants |
+
+`-1` disables a limit. Angle limits lie in `[0,180]`; a volume-ratio limit is
+at least one. These are Cartesian mesh measures, not axisymmetric swept volumes.
+The metric centroid choice is separate from the method used to place split points.
+
+`parametricQualityReport` gives each maximum and its original cell ID, current
+root-local leaf index, and original face ID when applicable. It also identifies
+invalid output geometry, which rejects in either enabled mode. The usual
+topology and subdivision checks still apply with quality off.
+
+Online callers set `RefinementOptions::quality` and may pass a
+`MeshQualityReport*` as the final `onlineRefineMesh()` argument. Rejection leaves
+the accepted grid, histories and transfer database unchanged. No alternative
+split or local retry is selected automatically. Base-face recording and accepted
+checkpoint restoration report quality without rejecting on optional limits.
+
+The command-line tools accept `-quality off|report|reject`,
+`-quality-centroid wireframe|exact`, `-max-nonorthogonality`,
+`-max-face-warpage` and `-max-child-volume-ratio`. Saved plans retain these
+controls; command-line values override them.
 
 ## Solver Connection
 
@@ -190,6 +232,8 @@ below each tagged leaf; coarsening removes one complete generation.
 The default is isotropic splitting around each vertex (`-mode 2`) with weighted
 centers. `-mode 1` preserves a Z extrusion; `-mode 0` selects automatic native
 cuts. `-family`, `-center` and `-axis` select these controls individually.
+Use `-family mixed -automatic 1` for automatic hex/prism cuts and isotropic
+splits of other cell types. `-automatic 0` disables automatic selection.
 `-balance 0|1|2` selects level grading, added majority-face refinement, or added
 opposite-face refinement. `-help` lists the controls. The old `-fold` option is
 unsupported; `-tol` limits geometric and automatic requests.
@@ -202,3 +246,43 @@ including every donor of a merged cell.
 Plans retain geometry controls and histories, so reconstruction needs no request
 files. Parallel rank counts may change; serial/parallel transitions are rejected.
 Original plan files must be regenerated. Keep each plan with its original VOG.
+
+## Local C++ Representations
+
+The local geometry and history classes are in `library/parametric/`, without
+MPI communication or Loci stores.
+
+`referenceElement(shape)` gives the local vertices, edges and faces.
+`GeometryMap::evaluate(q)` gives a physical position and, where available,
+derivatives. `CornerMap` implements the standard shapes. `PolygonMap` uses
+[Wachspress coordinates](https://pmc.ncbi.nlm.nih.gov/articles/PMC3549276/)
+over a regular reference polygon. `BezierMap` supports curved segments,
+quads and hexes with additional control points. `RestrictedMap` evaluates
+a child through its parent without refitting the parent geometry.
+
+| Type | Retained state |
+| --- | --- |
+| `RefinementHistory` | Standard cuts and mapped child placements |
+| `HexPlan` | Compact eight-child hex splits and accepted centers |
+| `CornerSubdivision` | Cells defined by their shared faces, including pyramids and general cells |
+
+`AffineSubdivision`, `MappedVolumeSubdivision` and `PlanarSubdivision` provide
+cell operations over `RefinementHistory`. For a standard directional cut:
+
+```cpp
+AffineSubdivision cells(Shape::hex);
+TensorSplit cut;
+cut.cuts[0] = {Fraction(1,2)};
+cells.splitLeaf(0, cut);
+```
+
+`CellKey` identifies an accepted construction lineage. A `CellPath` is only the
+sequence of child ordinals. Local array indices are not output mesh numbers and
+may change when records are reordered or compacted. `compactHistory()` discards
+unused constructions separately from ordinary coarsening. `CornerSubdivision`
+retains its accepted constructions and does not provide this compaction.
+
+`geometryMeasure()` computes length, area or volume and its centroid;
+`MeasureOptions` sets accuracy and work limits. Check its convergence result.
+`geometryQuality()` and `splitQuality()` assess the mapped shapes. Small pieces
+used only for integration are not necessarily small solver cells.

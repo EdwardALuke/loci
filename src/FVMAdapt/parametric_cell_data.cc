@@ -4,6 +4,7 @@
 #include "parametric_hex.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <limits>
 #include <optional>
 
@@ -23,7 +24,8 @@ namespace FVMAdapt {
   Loci::FineFaces encodeParametricNodeKeys(const std::vector<ParametricNodeKey> &keys) {
     Loci::FineFaces record ; record.reserve(keys.size()) ;
     for(const auto &key : keys) {
-      std::vector<int> row = {int(key.reference.kind),int(key.reference.entity)} ;
+      std::vector<int> row ; row.reserve(9) ;
+      row.push_back(int(key.reference.kind)) ; row.push_back(int(key.reference.entity)) ;
       for(const auto &coordinate : key.reference.point) {
         row.push_back(checkedExactInteger<int>(coordinate.numerator())) ;
         row.push_back(checkedExactInteger<int>(coordinate.denominator())) ;
@@ -31,6 +33,77 @@ namespace FVMAdapt {
       row.push_back(key.local) ; record.push_back(std::move(row)) ;
     }
     return record ;
+  }
+
+  namespace {
+    struct NodeRecordLess {
+      template<class A,class B> bool operator()(const A &a,const B &b) const {
+        for(unsigned i=0;i<2;++i) if(a[i]!=b[i]) return a[i]<b[i] ;
+        // Products of signed 32-bit numerators and positive denominators fit in 64 bits.
+        static_assert(std::numeric_limits<int>::digits<=31,"node records require at most 32-bit integers") ;
+        for(unsigned i=2;i<8;i+=2) {
+          const auto left=std::int64_t(a[i])*b[i+1],right=std::int64_t(b[i])*a[i+1] ;
+          if(left!=right) return left<right ;
+        }
+        return a[8]<b[8] ;
+      }
+    } ;
+    bool nodeOwnerLess(const std::vector<int> &row,EntityKind kind,EntityId entity) {
+      return row[0]!=int(kind) ? row[0]<int(kind) : EntityId(row[1])<entity ;
+    }
+  }
+
+  void ParametricNodeNumbers::add(const Loci::FineFaces &record,int offset) {
+    if(record.empty()) return ;
+    if(offset<0 || record.size()-1>std::size_t(std::numeric_limits<int>::max()-offset))
+      throw std::overflow_error("parametric node numbers exceed output range") ;
+    const NodeRecordLess less ; bool local=true ;
+    for(std::size_t i=0;i<record.size();++i) {
+      const auto &row=record[i] ;
+      if(row.size()!=9 || row[0]<0 || row[0]>3 || row[1]<0 || row[3]<=0 || row[5]<=0 || row[7]<=0)
+        throw std::invalid_argument("invalid parametric node record") ;
+      if(row[0]!=record[0][0] || row[1]!=record[0][1] || (i && !less(record[i-1],row)))
+        throw std::invalid_argument("parametric owner nodes are not strictly ordered") ;
+      local=local && row[8]>=0 && row[2]==0 && row[4]==0 && row[6]==0 ;
+    }
+    const auto kind=EntityKind(record[0][0]) ; const auto entity=EntityId(record[0][1]) ;
+    const auto owner=std::lower_bound(owners_.begin(),owners_.end(),entity,[&](const Owner &item,EntityId id) {
+      return nodeOwnerLess(item.record->front(),kind,id) ;
+    }) ;
+    if(owner!=owners_.end() && owner->record->front()[0]==int(kind) && EntityId(owner->record->front()[1])==entity) {
+      if(owner->offset!=offset || owner->record->size()!=record.size())
+        throw std::logic_error("parametric node owner has conflicting output numbers") ;
+      if(owner->record!=&record) for(std::size_t i=0;i<record.size();++i)
+        if(less((*owner->record)[i],record[i]) || less(record[i],(*owner->record)[i]))
+          throw std::logic_error("parametric node owner has conflicting output numbers") ;
+      return ;
+    }
+    owners_.insert(owner,{&record,offset,local}) ;
+  }
+
+  int ParametricNodeNumbers::at(const ParametricNodeKey &key) const {
+    const auto kind=key.reference.kind ; const auto entity=key.reference.entity ;
+    const auto owner=std::lower_bound(owners_.begin(),owners_.end(),entity,[&](const Owner &item,EntityId id) {
+      return nodeOwnerLess(item.record->front(),kind,id) ;
+    }) ;
+    if(owner==owners_.end() || owner->record->front()[0]!=int(kind) || EntityId(owner->record->front()[1])!=entity)
+      throw std::out_of_range("parametric output node owner is absent") ;
+    const auto &record=*owner->record ; auto node=record.end() ;
+    if(owner->local && key.local>=0 && key.reference.point[0].rational()==0 &&
+        key.reference.point[1].rational()==0 && key.reference.point[2].rational()==0) {
+      node=std::lower_bound(record.begin(),record.end(),key.local,[](const auto &row,int local) { return row[8]<local ; }) ;
+      if(node==record.end() || (*node)[8]!=key.local) throw std::out_of_range("parametric output node is absent") ;
+    } else {
+      std::array<int,9> row{{int(kind),int(entity),0,1,0,1,0,1,key.local}} ;
+      for(unsigned d=0;d<3;++d) {
+        row[2+2*d]=checkedExactInteger<int>(key.reference.point[d].numerator()) ;
+        row[3+2*d]=checkedExactInteger<int>(key.reference.point[d].denominator()) ;
+      }
+      const NodeRecordLess less ; node=std::lower_bound(record.begin(),record.end(),row,less) ;
+      if(node==record.end() || less(row,*node)) throw std::out_of_range("parametric output node is absent") ;
+    }
+    // Persistent local IDs may have gaps; output numbers follow the owned row order.
+    return owner->offset+int(node-record.begin()) ;
   }
 
   namespace {
@@ -42,7 +115,7 @@ namespace FVMAdapt {
     std::array<double,2> mapEdgeLengths(const GeometryMap &map) {
       const auto &element=referenceElement(map.shape()) ;
       std::array<Point,8> points ; std::array<double,2> lengths{} ;
-      for(unsigned i=0;i<element.vertexCount;++i) points[i]=map.evaluate(element.vertices[i]).position ;
+      for(unsigned i=0;i<element.vertexCount;++i) points[i]=map.position(element.vertices[i]) ;
       for(unsigned i=0;i<element.edgeCount;++i)
         includeEdge(lengths,points[element.edges[i][0]],points[element.edges[i][1]]) ;
       return lengths ;
@@ -71,7 +144,12 @@ namespace FVMAdapt {
     auto data=std::make_shared<Data>() ; data->maxDepth=maxDepth ; data->maxNodes=maxNodes ;
     try {
       const auto limits=parametricHistoryLimits(maxDepth,maxNodes) ;
-      if(ParametricHex::saved(record)) data->hex=std::make_unique<ParametricHex>(ParametricHex::decode(record,limits)) ;
+      if(ParametricHex::saved(record)) {
+        auto hex=std::make_unique<ParametricHex>(ParametricHex::decode(record,limits)) ;
+        if(needsFacePatches(hex->topology,hex->corners))
+          throw std::invalid_argument("saved compact hex geometry differs from the source face representation") ;
+        data->hex=std::move(hex) ;
+      }
       else data->retain(decodeParametricCell(record,limits)) ;
     } catch(const std::exception &error) { data->error=error.what() ; }
     data_=std::move(data) ;
@@ -84,10 +162,14 @@ namespace FVMAdapt {
   }
   ParametricCellData ParametricCellData::initial(const CellTopology &topology,const std::vector<Point> &corners,
       const ParametricRecord &record,int maxDepth,int maxNodes,const std::string &requested,int axis) {
-    const auto family=parametricCellFamily(topology,requested) ;
+    const auto family=parametricCellFamily(topology,requested,corners) ;
     if(requested=="mixed" && axis>=0) throw std::invalid_argument("mixed splitting requires full 3D refinement") ;
+    if(requested=="native" && family=="corner" && axis>=0)
+      throw std::invalid_argument("source faces with nearly straight corners require full 3D boundary refinement") ;
     const auto limits=parametricHistoryLimits(maxDepth,maxNodes) ;
     if(ParametricHex::saved(record)) {
+      if(needsFacePatches(topology,corners))
+        throw std::invalid_argument("saved compact hex geometry differs from the source face representation") ;
       ParametricCellData result(record,maxDepth,maxNodes) ;
       if(!result.data_->hex) throw std::invalid_argument(result.data_->error) ;
       const auto &hex=*result.data_->hex ;
@@ -218,32 +300,53 @@ namespace FVMAdapt {
     }
     return encodeParametricTags(*workingCell(),tags) ;
   }
-  std::vector<ParametricNodeKey> ParametricCellData::cellNodes(const CellTopology &topology) const {
-    return compactHex() ? data_->hex->cellNodes() : parametricCellNodes(topology,*workingCell()) ;
+  std::vector<ParametricNodeKey> ParametricCellData::cellNodes(const std::vector<int> &topology,std::vector<Point> *positions) const {
+    if(compactHex()) return data_->hex->cellNodes(positions) ;
+    const auto cell=workingCell() ; auto keys=parametricCellNodes(decodeParametricTopology(topology),*cell) ;
+    if(positions) *positions=parametricCellPositions(*cell,keys) ;
+    return keys ;
+  }
+  std::vector<CellPath> ParametricCellData::leafPaths() const {
+    std::vector<CellPath> result ;
+    if(const auto *plan=hexPlan()) {
+      for(auto leaf:plan->leaves()) {
+        CellPath path ;
+        while(leaf!=0) { const auto parent=plan->parent(leaf) ; const auto children=plan->children(parent) ;
+          path.push_back(std::find(children.begin(),children.end(),leaf)-children.begin()) ; leaf=parent ; }
+        std::reverse(path.begin(),path.end()) ; result.push_back(std::move(path)) ;
+      }
+    } else { const auto cell=workingCell() ; for(auto leaf:cell->leafIds()) result.push_back(cell->path(leaf)) ; }
+    return result ;
   }
   std::vector<Point> ParametricCellData::cellPositions(const std::vector<ParametricNodeKey> &keys) const {
     return compactHex() ? data_->hex->cellPositions(keys) : parametricCellPositions(*workingCell(),keys) ;
   }
-  std::vector<ParametricOutputFace> ParametricCellData::cellFaces(const CellTopology &topology,const std::vector<ParametricNodeKey> &required) const {
-    return compactHex() ? data_->hex->cellFaces(required) : parametricCellFaces(topology,*workingCell(),required) ;
+  std::vector<ParametricOutputFace> ParametricCellData::cellFaces(const std::vector<int> &topology,const std::vector<ParametricNodeKey> &required) const {
+    return compactHex() ? data_->hex->cellFaces(required) : parametricCellFaces(decodeParametricTopology(topology),*workingCell(),required) ;
   }
-  std::vector<ParametricNodeKey> ParametricCellData::faceNodes(EntityId face,const CellTopology &topology,
-      const ParametricCellData *right,const CellTopology *rightTopology) const {
-    if(compactHex() && (!right || right->compactHex())) return data_->hex->faceNodes(face,right ? right->data_->hex.get():nullptr) ;
+  std::vector<ParametricNodeKey> ParametricCellData::faceNodes(EntityId face,const std::vector<int> &topology,
+      const ParametricCellData *right,const std::vector<int> *rightTopology,std::vector<Point> *positions) const {
+    if(compactHex() && (!right || right->compactHex())) return data_->hex->faceNodes(face,right ? right->data_->hex.get():nullptr,positions) ;
+    const auto left=decodeParametricTopology(topology) ;
+    const auto other=rightTopology ? std::make_optional(decodeParametricTopology(*rightTopology)) : std::nullopt ;
     const auto leftCell = workingCell(),rightCell = right ? right->workingCell():nullptr ;
-    return parametricFaceNodes(face,topology,*leftCell,rightTopology,rightCell.get()) ;
+    return parametricFaceNodes(face,left,*leftCell,other ? &*other:nullptr,rightCell.get(),positions) ;
   }
-  std::vector<Point> ParametricCellData::facePositions(EntityId face,const CellTopology &topology,
-      const ParametricCellData *right,const CellTopology *rightTopology) const {
+  std::vector<Point> ParametricCellData::facePositions(EntityId face,const std::vector<int> &topology,
+      const ParametricCellData *right,const std::vector<int> *rightTopology) const {
     if(compactHex() && (!right || right->compactHex())) return data_->hex->facePositions(face,right ? right->data_->hex.get():nullptr) ;
-    const auto leftCell = workingCell(),rightCell = right ? right->workingCell():nullptr ;
-    return parametricFacePositions(face,topology,*leftCell,rightTopology,rightCell.get()) ;
+    const auto left=decodeParametricTopology(topology) ;
+    const auto other=rightTopology ? std::make_optional(decodeParametricTopology(*rightTopology)) : std::nullopt ;
+    const auto leftCell=workingCell(),rightCell=right ? right->workingCell():nullptr ;
+    return parametricFacePositions(face,left,*leftCell,other ? &*other:nullptr,rightCell.get()) ;
   }
-  std::vector<ParametricOutputFace> ParametricCellData::faceFaces(EntityId face,const CellTopology &topology,
-      const std::vector<ParametricNodeKey> &required,const ParametricCellData *right,const CellTopology *rightTopology) const {
+  std::vector<ParametricOutputFace> ParametricCellData::faceFaces(EntityId face,const std::vector<int> &topology,
+      const std::vector<ParametricNodeKey> &required,const ParametricCellData *right,const std::vector<int> *rightTopology) const {
     if(compactHex() && (!right || right->compactHex())) return data_->hex->faceFaces(face,required,right ? right->data_->hex.get():nullptr) ;
+    const auto left=decodeParametricTopology(topology) ;
+    const auto other=rightTopology ? std::make_optional(decodeParametricTopology(*rightTopology)) : std::nullopt ;
     const auto leftCell = workingCell(),rightCell = right ? right->workingCell():nullptr ;
-    return parametricFaceFaces(face,topology,*leftCell,required,rightTopology,rightCell.get()) ;
+    return parametricFaceFaces(face,left,*leftCell,required,other ? &*other:nullptr,rightCell.get()) ;
   }
   const HexPlan *ParametricCellData::hexPlan() const {
     if(data_ && data_->hex) return &data_->hex->plan ;
@@ -272,7 +375,8 @@ namespace FVMAdapt {
       const ParametricCellData &rightData, const CellTopology &right, unsigned difference, NeighborGrading grading) const {
     const auto a = hexPlan(), b = rightData.hexPlan() ;
     if(a && b) {
-      mergeFacePlans(facePlan(face),rightData.facePlan(face)) ;
+      const auto leftPlan=facePlan(face),rightPlan=rightData.facePlan(face) ;
+      if(leftPlan!=rightPlan) mergeFacePlans(leftPlan,rightPlan) ;
       return hexFaceRequests(face,left,*a,right,*b,difference,grading) ;
     }
     const auto l = workingCell(), r = rightData.workingCell() ;

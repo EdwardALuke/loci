@@ -30,6 +30,9 @@
 namespace Loci {
 namespace FVMAdapt {
 
+  /// Source-cell admission, preserving nonzero edges and faces when boundary derivatives are singular.
+  bool validParametricSource(const CornerMap &geometry, JacobianCheckLimits limits = {}) ;
+
   /// Serialized accepted history or persistent refinement requests.
   typedef std::vector<unsigned char> ParametricRecord ;
 

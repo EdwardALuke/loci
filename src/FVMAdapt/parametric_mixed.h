@@ -5,7 +5,7 @@
 
 namespace Loci { namespace FVMAdapt {
   /// Select directional standard-cell or isotropic general-cell splitting.
-  std::string parametricCellFamily(const CellTopology &,const std::string &) ;
+  std::string parametricCellFamily(const CellTopology &,const std::string &,const std::vector<Point> &corners) ;
   /// Original-face coordinates of corner points; requires midpoint face constructions.
   std::map<ParametricNodeKey,ReferencePoint> cornerFaceCoordinates(EntityId,const ParametricCell &) ;
   void validateMixedFacePlan(const ParametricRecord &) ;
@@ -13,9 +13,7 @@ namespace Loci { namespace FVMAdapt {
   std::vector<ParametricOutputFace> mixedFaceFaces(EntityId,const CellTopology &,const ParametricCell &,
       const CellTopology &,const ParametricCell &,const std::vector<ParametricNodeKey> &,bool patches = false) ;
   std::vector<ParametricNodeKey> mixedFaceNodes(EntityId,const CellTopology &,const ParametricCell &,
-      const CellTopology &,const ParametricCell &) ;
-  std::vector<Point> mixedFacePositions(EntityId,const CellTopology &,const ParametricCell &,
-      const CellTopology &,const ParametricCell &) ;
+      const CellTopology &,const ParametricCell &,std::vector<Point> *positions = nullptr) ;
   ParametricTrace mixedFaceRequests(EntityId,const CellTopology &,const ParametricCell &,
       const CellTopology &,const ParametricCell &,unsigned,NeighborGrading) ;
   std::vector<FaceBalanceRequest> mixedDividedFaces(EntityId,const CellTopology &,const ParametricCell &,

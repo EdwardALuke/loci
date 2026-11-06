@@ -26,9 +26,24 @@ namespace {
   }
 }
 
+  void applyQualityOptions(const std::map<std::string,std::string> &args,Loci::RefinementOptions &options) {
+    auto &q=options.quality ;
+    if(args.count("-quality")) q.mode=args.at("-quality") ;
+    if(args.count("-quality-centroid")) q.centroid=args.at("-quality-centroid") ;
+    if(args.count("-max-nonorthogonality")) q.maxNonOrthogonality=number(args.at("-max-nonorthogonality")) ;
+    if(args.count("-max-face-warpage")) q.maxFaceWarpage=number(args.at("-max-face-warpage")) ;
+    if(args.count("-max-child-volume-ratio")) q.maxChildVolumeRatio=number(args.at("-max-child-volume-ratio")) ;
+    q.validate() ;
+  }
+  void showQualityHelp() {
+    if(Loci::MPI_rank==0) std::cout<<
+      "Quality: -quality off|report|reject (default off) -quality-centroid wireframe|exact\n"
+      "  -max-nonorthogonality degrees -max-face-warpage degrees -max-child-volume-ratio ratio\n" ;
+  }
+
   AdaptInput readAdaptInput(int argc,char **argv,bool meshOutput) {
-    std::set<std::string> known={"-g","-r","-o","-ctag","-tag","-xml","-par","-mode","-family","-center","-axis",
-      "-levels","-tol","-balance","-grading","-difference","-factor","-max-depth","-max-nodes","-max-rounds"} ;
+    std::set<std::string> known={"-g","-r","-o","-ctag","-tag","-xml","-par","-mode","-family","-center","-axis","-automatic",
+      "-levels","-tol","-balance","-grading","-difference","-factor","-max-depth","-max-nodes","-max-rounds","-quality","-quality-centroid","-max-nonorthogonality","-max-face-warpage","-max-child-volume-ratio"} ;
     if(meshOutput) { known.insert("-oplan") ; known.insert("-c2p") ; }
     std::map<std::string,std::string> args ;
     for(int i=1;i<argc;++i) {
@@ -51,6 +66,11 @@ namespace {
     }
     if(args.count("-center")) options.centerMethod=args.at("-center") ;
     if(args.count("-axis")) options.extrusionAxis=integer(args.at("-axis")) ;
+    if(args.count("-automatic")) {
+      const int automatic=integer(args.at("-automatic")) ;
+      if(automatic<0 || automatic>1) throw std::invalid_argument("-automatic must be 0 or 1") ;
+      options.automaticSplit=automatic!=0 ;
+    }
     if(args.count("-grading")) options.grading=args.at("-grading") ;
     if(args.count("-balance")) {
       const int balance=integer(args.at("-balance")) ;
@@ -75,6 +95,7 @@ namespace {
       if(args.count("-oplan")) input.outputPlan=args.at("-oplan") ;
       if(args.count("-c2p")) input.cellParents=args.at("-c2p") ;
     } else input.outputPlan=args.count("-o") ? args.at("-o"):"out.plan" ;
+    applyQualityOptions(args,options) ;
     return input ;
   }
   void showAdaptHelp(bool meshOutput) {
@@ -87,11 +108,13 @@ namespace {
       "Tags: positive refines, negative coarsens, zero keeps; current mesh file order.\n"
       "Controls: -mode 0|1|2 (automatic native | planar Z | isotropic; default 2)\n"
       "  -family native|corner|mixed|extruded  -center reference|weighted|integrated\n"
+      "  -automatic 0|1 (choose native hex/prism split directions; also available with mixed)\n"
       "  -axis 0|1|2  -levels N  -tol length (XML requires positive length)\n"
       "  -balance 0|1|2 (level grading | also majority | also opposite faces)\n"
       "  -grading faces|edges|vertices  -difference N  -factor ratio\n"
       "  -max-depth N  -max-nodes N  -max-rounds N\n"
       "Saved plans retain controls; command-line controls override them.\n" ;
+    showQualityHelp() ;
     if(meshOutput) std::cout<<"Cell-parent pairs are one-based and refer to the input plan, or original cells without -r.\n" ;
   }
 }

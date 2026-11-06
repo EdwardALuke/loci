@@ -2,6 +2,7 @@
 
 #include <FVMAdapt/parametric_cell.h>
 #include <FVMAdapt/defines.h>
+#include <FVMAdapt/quality.h>
 #include <string>
 
 /// Accepted history on each original native cell; empty initializes from its VOG corners.
@@ -47,6 +48,18 @@ $type parametricMinEdgeLength param<double> ;
 $type parametricExtrusionAxis param<int> ;
 /// True only when every rank accepts the proposed refinement and grading.
 $type parametricAccepted param<bool> ;
+/// Optional physical quality checks: off (default), report, or reject.
+$type parametricQualityMode param<std::string> ;
+/// FVM center convention for quality measurements: wireframe (default) or exact.
+$type parametricQualityCentroid param<std::string> ;
+/// Maximum face non-orthogonality in degrees; -1 disables the limit.
+$type parametricMaxNonOrthogonality param<double> ;
+/// Maximum face triangle-normal deviation in degrees; -1 disables the limit.
+$type parametricMaxFaceWarpage param<double> ;
+/// Maximum largest/smallest immediate-child volume ratio; -1 disables the limit.
+$type parametricMaxChildVolumeRatio param<double> ;
+/// Global worst physical measurements and original file IDs. Empty when quality is off.
+$type parametricQualityReport param<Loci::FVMAdapt::MeshQualityReport> ;
 /// Per-original-cell rejection reason; empty on cells without a local failure.
 $type parametricError store<std::string> ;
 /// Accepted history after grading, or the preceding history if any rank rejects.

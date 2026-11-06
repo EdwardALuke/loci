@@ -8,6 +8,11 @@
 
 namespace Loci {
 namespace FVMAdapt {
+  /// Shared source-face geometry, selected from its canonical vertex order.
+  std::shared_ptr<const GeometryMap> sourceFaceGeometry(Shape,const std::vector<Point> &) ;
+  /// Extra nearly straight face corners require a piecewise surface representation.
+  bool needsFacePatches(const CellTopology &,const std::vector<Point> &) ;
+
   /// One original cell's corner history and accepted boundary constructions.
   /// Shared source faces are reconciled by the module before acceptance.
   struct ParametricCorner : CornerBoundary {

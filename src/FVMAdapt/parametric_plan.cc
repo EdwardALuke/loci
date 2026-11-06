@@ -15,22 +15,28 @@ namespace FVMAdapt {
     }
     std::string settings(const RefinementOptions &o,int roots) {
       std::ostringstream out ; out<<std::setprecision(17) ;
-      out<<"FVMAdaptPlan 1 "<<(MPI_processes>1)<<' '<<roots<<'\n'
+      out<<"FVMAdaptPlan 2 "<<(MPI_processes>1)<<' '<<roots<<'\n'
         <<o.splitFamily<<' '<<o.centerMethod<<' '<<o.extrusionAxis<<'\n'
         <<o.grading<<' '<<o.faceBalance<<' '<<o.directionalBalance<<'\n'
         <<o.automaticSplit<<' '<<o.splitAspectRatio<<' '<<o.minEdgeLength<<'\n'
-        <<o.maxDepth<<' '<<o.maxNodes<<' '<<o.levelDifference<<' '<<o.maxRounds<<' '<<o.refinementLevels<<'\n' ;
+        <<o.maxDepth<<' '<<o.maxNodes<<' '<<o.levelDifference<<' '<<o.maxRounds<<' '<<o.refinementLevels<<'\n'
+        <<o.quality.mode<<' '<<o.quality.centroid<<' '<<o.quality.maxNonOrthogonality<<' '<<o.quality.maxFaceWarpage<<' '<<o.quality.maxChildVolumeRatio<<'\n' ;
       return out.str() ;
     }
     bool parseSettings(const std::string &text,RefinementOptions &o,int &roots,std::string &error) {
       std::istringstream in(text) ; std::string magic ; int version=0 ; bool parallel=false ;
-      if(!(in>>magic>>version>>parallel>>roots) || magic!="FVMAdaptPlan" || version!=1) {
+      if(!(in>>magic>>version>>parallel>>roots) || magic!="FVMAdaptPlan" || (version!=1 && version!=2)) {
         error="not a supported parametric plan; regenerate old plans with marker" ; return false ;
       }
       if(parallel!=(MPI_processes>1)) { error="plans cannot cross between serial and parallel execution" ; return false ; }
       if(!(in>>o.splitFamily>>o.centerMethod>>o.extrusionAxis>>o.grading>>o.faceBalance>>o.directionalBalance
           >>o.automaticSplit>>o.splitAspectRatio>>o.minEdgeLength>>o.maxDepth>>o.maxNodes>>o.levelDifference>>o.maxRounds>>o.refinementLevels)
-          || roots<1 || !(in>>std::ws).eof()) { error="invalid parametric plan settings" ; return false ; }
+          || roots<1) { error="invalid parametric plan settings" ; return false ; }
+      if(version==2 && !(in>>o.quality.mode>>o.quality.centroid>>o.quality.maxNonOrthogonality>>o.quality.maxFaceWarpage>>o.quality.maxChildVolumeRatio)) {
+        error="invalid parametric quality settings" ; return false ;
+      }
+      if(!(in>>std::ws).eof()) { error="unexpected parametric plan settings" ; return false ; }
+      try { o.quality.validate() ; } catch(const std::exception &e) { error=e.what() ; return false ; }
       return true ;
     }
     bool writeSettings(hid_t file,const std::string &text) {

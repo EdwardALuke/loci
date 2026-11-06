@@ -47,12 +47,13 @@ namespace FVMAdapt {
     /// Active leaf coverage in canonical face coordinates; boxes describe adjacency only.
     struct FaceLeaf { std::array<std::uint32_t,2> lower ; std::uint32_t width ; int leaf ; } ;
     std::vector<FaceLeaf> faceLeaves(EntityId face) const ;
-    /// Cell-interior output from accepted connectivity; evaluate coordinates only when requested.
-    std::vector<ParametricNodeKey> cellNodes() const ;
+    /// Cell-interior nodes, optionally with positions in the same order, from accepted connectivity.
+    std::vector<ParametricNodeKey> cellNodes(std::vector<Point> *positions = nullptr) const ;
     std::vector<Point> cellPositions(const std::vector<ParametricNodeKey> &) const ;
     std::vector<ParametricOutputFace> cellFaces(const std::vector<ParametricNodeKey> &required) const ;
-    /// Original-face output from accepted plans, without expanding cell geometry.
-    std::vector<ParametricNodeKey> faceNodes(EntityId face,const ParametricHex *right = nullptr) const ;
+    /// Original-face nodes, optionally with positions in the same order, without expanding cell geometry.
+    std::vector<ParametricNodeKey> faceNodes(EntityId face,const ParametricHex *right = nullptr,
+        std::vector<Point> *positions = nullptr) const ;
     std::vector<Point> facePositions(EntityId face,const ParametricHex *right = nullptr) const ;
     std::vector<ParametricOutputFace> faceFaces(EntityId face,const std::vector<ParametricNodeKey> &required,
         const ParametricHex *right = nullptr) const ;

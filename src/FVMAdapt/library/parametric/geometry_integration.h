@@ -27,7 +27,7 @@
 
 namespace Loci { namespace FVMAdapt { namespace detail {
 
-  /// Physical position and positive measure per unit reference volume, area or length.
+  /// Physical position and positive measure density per unit reference volume, area or length.
   struct MeasureSample {
     Point position ;
     long double density ;
@@ -40,8 +40,20 @@ namespace Loci { namespace FVMAdapt { namespace detail {
     long double radius = 0 ;
   } ;
 
+  /// Origin and physical scales for a whole-domain centroid error check.
+  struct MeasureScale { Point origin ; long double radius=0,magnitude=0 ; } ;
+
+  /// Sum positive pieces under one error tolerance and evaluation budget.
+  /// A null scale selects the first centroid and the measured domain size.
+  /// Initial-estimate budget failure throws; unresolved continuation returns converged=false.
+  GeometryMeasure measureGeometryPieces(const std::vector<std::shared_ptr<const GeometryMap>> &pieces,
+    MeasureOptions options,const MeasureScale *scale=nullptr) ;
+
   MeasureIntegral integrateGeometryRule(Shape shape,
     const std::function<MeasureSample(const Point&)> &sample, unsigned order, const Point &origin) ;
+
+  /// Factor a radial triangle's cone into at most two curve integrals; false for other maps.
+  bool radialConeSamples(const ConeMap &, std::vector<std::function<MeasureSample(const Point&)>> &samples) ;
 
   /// Shared Gaussian driver for maps and factored reference transformations.
   GeometryMeasure integrateGeometry(Shape shape,

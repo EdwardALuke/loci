@@ -52,16 +52,16 @@ $rule apply((lower,upper,boundary_map)->face2edge->parametricTagEdges <- initial
 }
 
 $rule pointwise(initialParametricNodeKeys <- initialParametricCell,parametricTopology), constraint(geom_cells) {
-  $initialParametricNodeKeys=encodeParametricNodeKeys($initialParametricCell.cellNodes(decodeParametricTopology($parametricTopology))) ;
+  $initialParametricNodeKeys=encodeParametricNodeKeys($initialParametricCell.cellNodes($parametricTopology)) ;
 }
 $rule pointwise(initialParametricNodeKeys <- fileNumber(face2node),(cl,cr)->(parametricTopology,initialParametricCell)),
   constraint(interior_faces) {
-  const auto left=decodeParametricTopology($cl->$parametricTopology),right=decodeParametricTopology($cr->$parametricTopology) ;
+  const auto &left=$cl->$parametricTopology, &right=$cr->$parametricTopology ;
   $initialParametricNodeKeys=encodeParametricNodeKeys($cl->$initialParametricCell.faceNodes($fileNumber(face2node),left,&$cr->$initialParametricCell,&right)) ;
 }
 $rule pointwise(initialParametricNodeKeys <- fileNumber(face2node),cl->(parametricTopology,initialParametricCell)),
   constraint(boundary_faces) {
-  const auto left=decodeParametricTopology($cl->$parametricTopology) ;
+  const auto &left=$cl->$parametricTopology ;
   $initialParametricNodeKeys=encodeParametricNodeKeys($cl->$initialParametricCell.faceNodes($fileNumber(face2node),left)) ;
 }
 $rule pointwise(initialParametricNodeKeys <- parametricTagEdges,fileNumber(edge2node)), constraint(edge2node->pos) {

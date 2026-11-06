@@ -103,6 +103,7 @@ namespace FVMAdapt {
     /// An affine corner source and midpoint-only ancestry give a constant Jacobian.
     bool affine() const ;
     MapValue evaluate(const Point &point) const override ;
+    Point position(const Point &point) const override ;
   } ;
 
   /// Choose centers on one hex. Callers reconcile shared face choices before accepting a mesh-wide split.

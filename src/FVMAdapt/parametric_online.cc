@@ -30,10 +30,11 @@ namespace FVMAdapt {
     const RefinementState *parent=nullptr ; ///< Override donors on replay; otherwise use the input history.
   } ;
   bool adapt(CPTR<refinedGridData> &grid,rule_db &rules,RefinementState &state,
-      storeRepP tags,const std::string &mesh,const RefinementOptions &options,const PlanOutput &outputFiles,std::string &error) {
+      storeRepP tags,const std::string &mesh,const RefinementOptions &options,const PlanOutput &outputFiles,std::string &error,MeshQualityReport *qualityReport=nullptr) {
     rule_db queryRules=rules ;
     const std::string casename=mesh.size()>4 && mesh.substr(mesh.size()-4)==".vog" ? mesh.substr(0,mesh.size()-4):mesh ;
-    error.clear() ;
+    error.clear() ; if(qualityReport) *qualityReport=MeshQualityReport() ;
+    try { options.quality.validate() ; } catch(const std::exception &e) { error=e.what() ; return false ; }
     if(state.histories!=0 && state.source!=mesh) { error="parametric state belongs to another source mesh" ; return false ; }
     if(options.tagLocation!="cells" && options.tagLocation!="nodes") { error="parametric tag location must be cells or nodes" ; return false ; }
     // The grid reader consumes its weight store. Keep accepted state available on rejection.
@@ -68,6 +69,10 @@ namespace FVMAdapt {
     parameter(facts,"parametricAutomaticSplit",options.automaticSplit) ;
     parameter(facts,"parametricRefinementLevels",options.refinementLevels) ;
     parameter(facts,"parametricSplitAspectRatio",options.splitAspectRatio) ; parameter(facts,"parametricMinEdgeLength",options.minEdgeLength) ;
+    parameter(facts,"parametricQualityMode",options.quality.mode) ; parameter(facts,"parametricQualityCentroid",options.quality.centroid) ;
+    parameter(facts,"parametricMaxNonOrthogonality",options.quality.maxNonOrthogonality) ;
+    parameter(facts,"parametricMaxFaceWarpage",options.quality.maxFaceWarpage) ;
+    parameter(facts,"parametricMaxChildVolumeRatio",options.quality.maxChildVolumeRatio) ;
     parameter(facts,"recordFaceHistory",options.faceHistory) ;
     parameter(facts,"parametricHistoryReplay",tags==0 && outputFiles.tagFile.empty() && options.regionFile.empty() && options.sourceFile.empty() && state.histories!=0) ;
     const std::string initialResults="initialParametricCell,initialParametricHistory,parametricTopology,parametricInitialError" ;
@@ -111,10 +116,13 @@ namespace FVMAdapt {
       store<ParametricRecord> requests ; requests.allocate(cells) ; facts.create_fact("parametricRequests",requests) ;
     }
     // Check acceptance and face geometry before outputs publish transfer data.
-    std::string query="parametricAccepted,parametricError,balancedParametricCell,balancedParametricHistory,balanced_num_fine_cells,fineCellDepth" ;
+    std::string query="candidateParametricCell,parametricBalanced,parametricAccepted,parametricQualityReport,parametricError,balancedParametricCell,balancedParametricHistory,balanced_num_fine_cells,fineCellDepth" ;
     if(options.faceHistory) query+=",parametricCellPatchError,parametricFacePatchError,fine_face_patches_cell,fine_face_patches" ;
     if(!makeQuery(queryRules,facts,query)) { error="parametric acceptance query failed" ; return false ; }
     const_param<bool> accepted=facts.get_variable("parametricAccepted") ;
+    const_param<MeshQualityReport> measured=facts.get_variable("parametricQualityReport") ;
+    if(qualityReport) *qualityReport=*measured ;
+    if(options.quality.mode!="off" && MPI_rank==0) std::cout<<"FVMAdapt quality: "<<measured->description(options.quality)<<std::endl ;
     if(!*accepted) {
       const_store<std::string> reasons=facts.get_variable("parametricError") ;
       for(int cell:cells) if(!reasons[cell].empty()) std::cerr<<"Parametric cell "<<cell<<": "<<reasons[cell]<<std::endl ;
@@ -218,14 +226,16 @@ namespace FVMAdapt {
   }
 }
   bool onlineRefineMesh(CPTR<refinedGridData> &grid,rule_db &rules,RefinementState &state,
-      storeRepP tags,const std::string &casename,const RefinementOptions &options,std::string &error) {
-    return FVMAdapt::adapt(grid,rules,state,tags,casename+".vog",options,{},error) ;
+      storeRepP tags,const std::string &casename,const RefinementOptions &options,std::string &error,FVMAdapt::MeshQualityReport *qualityReport) {
+    return FVMAdapt::adapt(grid,rules,state,tags,casename+".vog",options,{},error,qualityReport) ;
   }
   bool initializeGridFromPlan(CPTR<refinedGridData> &grid,rule_db &rules,RefinementState &state,
       const std::string &casename,const RefinementOptions &options,std::string &error) {
     if(state.histories==0) { error="mesh reconstruction requires a saved plan" ; return false ; }
     auto candidate=state ; candidate.faces.reset() ;
     auto controls=options ; controls.regionFile.clear() ; controls.sourceFile.clear() ;
+    // Restoring an accepted mesh does not apply proposal limits.
+    if(controls.quality.mode=="reject") controls.quality.mode="report" ;
     if(!onlineRefineMesh(grid,rules,candidate,0,casename,controls,error)) return false ;
     state=std::move(candidate) ; return true ;
   }
@@ -234,6 +244,7 @@ namespace FVMAdapt {
     if(!options.faceHistory || state.histories!=0) { error="base face recording requires a fresh face-enabled parametric state" ; return false ; }
     RefinementState candidate ; CPTR<refinedGridData> grid ;
     auto baseOptions=options ; baseOptions.regionFile.clear() ; baseOptions.sourceFile.clear() ;
+    if(baseOptions.quality.mode=="reject") baseOptions.quality.mode="report" ;
     if(!onlineRefineMesh(grid,rules,candidate,0,casename,baseOptions,error)) return false ;
     candidate.faces=recordBaseParametricFaces(facts,*grid,casename,candidate.histories) ; state=std::move(candidate) ;
     DataXFER_DB.deleteItem("parametricHistory") ; DataXFER_DB.deleteItem("cellweights") ; DataXFER_DB.deleteItem("c2p") ;

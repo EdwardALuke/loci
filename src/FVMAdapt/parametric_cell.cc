@@ -319,8 +319,7 @@ namespace FVMAdapt {
       if(patches) {
         auto &p=out.patch ; p.surface={2,static_cast<long long>(face)} ; p.sector=loop.size()==4 ? 0:-int(loop.size()) ;
         p.bounds={{0,0,faceExtent,faceExtent}} ; p.orientation=reverse ? -1:1 ; p.mappedArea=true ;
-        const auto measure=shape==Shape::polygon ? geometryMeasure(PolygonMap(positions),MeasureOptions{}):
-          geometryMeasure(CornerMap(shape,positions),MeasureOptions{}) ;
+        const auto measure=geometryMeasure(*sourceFaceGeometry(shape,positions),MeasureOptions{}) ;
         require(measure.converged && measure.measure>0,"corner face area integration did not converge") ; p.area=measure.measure ;
       }
       return out ;
@@ -329,11 +328,12 @@ namespace FVMAdapt {
 
   ParametricCell ParametricCell::original(const CellTopology &topology,const std::vector<Point> &corners,HistoryLimits limits) {
     require(limits.maxNodes>0,"parametric source requires a positive node limit") ;
+    if(needsFacePatches(topology,corners)) return ParametricBoundary(topology,corners,limits) ;
     if(topology.isStandard()) {
       const auto shape=topology.shape() ;
       require(shape==Shape::hex || shape==Shape::prism || shape==Shape::tet || shape==Shape::pyramid,"unsupported corner source cell") ;
       const CornerMap geometry(shape,corners) ;
-      require(geometryQuality(geometry).status==GeometryQualityStatus::sampled,"invalid or unresolved parametric root geometry") ;
+      require(validParametricSource(geometry,limits.jacobian),"invalid or unresolved parametric root geometry") ;
     } else {
       const ParametricBoundary checked(topology,corners,limits) ;
     }
@@ -476,7 +476,7 @@ namespace FVMAdapt {
     else if(corner()) require(axis<0,"corner splitting requires full 3D refinement") ;
     else require(axis==extruded()->axis,"saved extrusion axis differs") ;
     for(auto id:history().leafIds())
-      require(geometryQuality(*history().geometry().map(history().node(id).map)).status==GeometryQualityStatus::sampled,"invalid or unresolved parametric leaf geometry") ;
+      require(validGeometry(*history().geometry().map(history().node(id).map)),"invalid or unresolved parametric leaf geometry") ;
   }
   bool ParametricNodeKey::operator<(const ParametricNodeKey &o) const { return reference==o.reference ? local<o.local:reference<o.reference ; }
   bool ParametricNodeKey::operator==(const ParametricNodeKey &o) const { return reference==o.reference && local==o.local ; }
@@ -522,14 +522,16 @@ namespace FVMAdapt {
   }
   ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
       const ParametricRecord &record,HistoryLimits limits,const std::string &requested,int axis) {
-    const auto family=parametricCellFamily(topology,requested) ;
+    const auto family=parametricCellFamily(topology,requested,corners) ;
     if(requested=="mixed" && axis>=0) throw std::invalid_argument("mixed splitting requires full 3D refinement") ;
+    if(requested=="native" && family=="corner" && axis>=0)
+      throw std::invalid_argument("source faces with nearly straight corners require full 3D boundary refinement") ;
     require(family=="native" || family=="extruded" || family=="corner","unknown parametric split family") ;
     if(family=="native") return makeParametricHistory(topology,corners,record,limits) ;
     if(family=="corner") {
       require(axis<0,"corner splitting requires full 3D refinement") ;
       if(record.empty()) {
-        if(!topology.isStandard() || topology.shape()==Shape::pyramid) return ParametricBoundary(topology,corners,limits) ;
+        if(!topology.isStandard() || topology.shape()==Shape::pyramid || needsFacePatches(topology,corners)) return ParametricBoundary(topology,corners,limits) ;
         return ParametricCorner(topology,corners,limits) ;
       }
       auto saved=decodeParametricCell(record,limits) ; require(saved.hasCornerGeometry(),"saved history has a different split family") ;
@@ -537,6 +539,7 @@ namespace FVMAdapt {
       if(saved.boundary()) {
         require(saved.boundary()->sourceCorners()==corners,"saved boundary source geometry differs") ; return saved ;
       }
+      require(!needsFacePatches(topology,corners),"saved corner geometry differs from the source face representation") ;
       const auto &p=*saved.corner() ; const auto &h=p.subdivision.history() ;
       const auto *root=std::get_if<CornerRecord>(&h.geometry().record(h.node(0).map)) ;
       require(root && root->corners==corners,"saved corner source geometry differs") ;
@@ -667,42 +670,47 @@ namespace FVMAdapt {
     if(c.hasCornerGeometry()) return cornerNodes(c,EntityKind::cell,t.id()) ;
     return {} ;
   }
-  std::vector<ParametricNodeKey> parametricFaceNodes(EntityId face,const CellTopology &t,const ParametricCell &c,const CellTopology *r,const ParametricCell *rc) {
+  std::vector<ParametricNodeKey> parametricFaceNodes(EntityId face,const CellTopology &t,const ParametricCell &c,
+      const CellTopology *r,const ParametricCell *rc,std::vector<Point> *positions) {
+    if(positions) positions->clear() ;
     if(c.source() && (!rc || rc->source())) return {} ;
     if(c.source() || (rc && rc->source())) {
-      auto left=c ; left.expand() ; if(!rc) return parametricFaceNodes(face,t,left) ;
-      auto right=*rc ; right.expand() ; return parametricFaceNodes(face,t,left,r,&right) ;
+      auto left=c ; left.expand() ; if(!rc) return parametricFaceNodes(face,t,left,nullptr,nullptr,positions) ;
+      auto right=*rc ; right.expand() ; return parametricFaceNodes(face,t,left,r,&right,positions) ;
     }
-    if(mixedFace(c,rc)) return mixedFaceNodes(face,t,c,*r,*rc) ;
-    if(const auto *p=c.native()) { require(!rc || rc->native(),"mixed native and center-based boundaries are unsupported") ; return outputKeys(parametricFaceNodes(face,t,*p,r,rc ? rc->native():nullptr)) ; }
+    if(mixedFace(c,rc)) return mixedFaceNodes(face,t,c,*r,*rc,positions) ;
+    if(const auto *p=c.native()) {
+      require(!rc || rc->native(),"mixed native and center-based boundaries are unsupported") ;
+      auto keys=outputKeys(parametricFaceNodes(face,t,*p,r,rc ? rc->native():nullptr)) ;
+      if(positions) {
+        positions->reserve(keys.size()) ; const auto geometry=c.history().geometry().map(c.history().node(0).map) ;
+        for(const auto &key:keys) {
+          ReferencePoint q ; require(t.locateVertex(key.reference,q),"face point is outside source topology") ;
+          positions->push_back(geometry->evaluate(approximate(q)).position) ;
+        }
+      }
+      return keys ;
+    }
     if(c.hasCornerGeometry()) {
       require(!rc || rc->hasCornerGeometry(),"mixed corner and other split families are unsupported") ;
-      return cornerNodes(c,EntityKind::face,face,rc) ;
+      auto keys=cornerNodes(c,EntityKind::face,face,rc) ;
+      if(positions) { auto merged=c ; if(rc) merged.mergeFace(face,parametricFacePlan(face,*rc)) ; *positions=cornerPositions(merged,keys) ; }
+      return keys ;
     }
     require(!rc || rc->extruded(),"mixed native and center-based boundaries are unsupported") ;
     const ExtrudedView v(t,*c.extruded()) ; const int layer=v.cap(face) ;
     if(layer<0) return {} ;
     require(!rc,"center-based extrusion end faces must be boundary faces") ;
-    std::vector<ParametricNodeKey> keys ; for(const auto &p:v.interior) keys.push_back(v.key(p,layer)) ; return keys ;
+    std::vector<ParametricNodeKey> keys ; keys.reserve(v.interior.size()) ;
+    if(positions) positions->reserve(v.interior.size()) ;
+    for(const auto &p:v.interior) {
+      keys.push_back(v.key(p,layer)) ;
+      if(positions) positions->push_back(v.position(keys.back().local,layer)) ;
+    }
+    return keys ;
   }
   std::vector<Point> parametricFacePositions(EntityId face,const CellTopology &t,const ParametricCell &c,const CellTopology *r,const ParametricCell *rc) {
-    if(c.source() && (!rc || rc->source())) return {} ;
-    if(c.source() || (rc && rc->source())) {
-      auto left=c ; left.expand() ; if(!rc) return parametricFacePositions(face,t,left) ;
-      auto right=*rc ; right.expand() ; return parametricFacePositions(face,t,left,r,&right) ;
-    }
-    if(mixedFace(c,rc)) return mixedFacePositions(face,t,c,*r,*rc) ;
-    const auto keys=parametricFaceNodes(face,t,c,r,rc) ; std::vector<Point> points ;
-    if(c.hasCornerGeometry()) {
-      auto merged=c ; if(rc) merged.mergeFace(face,parametricFacePlan(face,*rc)) ; return cornerPositions(merged,keys) ;
-    }
-    if(const auto *p=c.extruded()) {
-      const ExtrudedView v(t,*p) ; const int layer=v.cap(face) ; for(const auto &key:keys) points.push_back(v.position(key.local,layer)) ;
-    } else {
-      const auto geometry=c.history().geometry().map(c.history().node(0).map) ;
-      for(const auto &key:keys) { ReferencePoint q ; require(t.locateVertex(key.reference,q),"face point is outside source topology") ; points.push_back(geometry->evaluate(approximate(q)).position) ; }
-    }
-    return points ;
+    std::vector<Point> positions ; parametricFaceNodes(face,t,c,r,rc,&positions) ; return positions ;
   }
   std::vector<ParametricOutputFace> parametricCellFaces(const CellTopology &t,const ParametricCell &c,const std::vector<ParametricNodeKey> &points,bool patches) {
     if(c.source()) return {} ;

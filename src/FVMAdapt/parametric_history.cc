@@ -135,6 +135,22 @@ namespace FVMAdapt {
     }
   }
 
+  bool validParametricSource(const CornerMap &geometry,JacobianCheckLimits limits) {
+    if(geometry.dimension()!=3 || limits.maxBoxes==0) throw std::invalid_argument("invalid source cell shape or Jacobian bounds") ;
+    const auto quality=geometryQuality(geometry) ;
+    if(quality.status==GeometryQualityStatus::sampled) return true ;
+    if(quality.invalidEvaluation || geometryValidity(geometry,limits)!=GeometryValidity::valid) return false ;
+    const auto &element=referenceElement(geometry.shape()) ; const auto &points=geometry.corners() ;
+    for(unsigned e=0;e<element.edgeCount;++e)
+      if(points[element.edges[e][0]]==points[element.edges[e][1]]) return false ;
+    for(unsigned f=0;f<element.boundaryCount;++f) {
+      const auto &face=element.boundaries[f] ; std::vector<Point> corners ;
+      for(unsigned v=0;v<face.vertexCount;++v) corners.push_back(points[face.vertices[v]]) ;
+      if(geometryValidity(CornerMap(face.shape,std::move(corners)),limits)!=GeometryValidity::valid) return false ;
+    }
+    return true ;
+  }
+
   HistoryLimits parametricHistoryLimits(int maxDepth, int maxNodes) {
     if(maxDepth < 0 || maxDepth > 30 || maxNodes <= 0)
       throw std::invalid_argument("parametric limits require depth in [0,30] and positive node count") ;
@@ -155,11 +171,13 @@ namespace FVMAdapt {
       if(history.rootKey() != topology.id() || history.geometryRevision() != 0 || !root ||
          root->shape != topology.shape() || root->corners != corners)
         throw std::invalid_argument("parametric history does not match the original cell geometry") ;
+      if(!validParametricSource(CornerMap(root->shape,root->corners),limits.jacobian))
+        throw std::invalid_argument("invalid or unresolved parametric root geometry") ;
       return saved ;
     }
     GeometryStore geometry(limits.geometry) ;
     const auto root = geometry.append(CornerRecord{topology.shape(),corners}) ;
-    if(geometryQuality(*geometry.map(root)).status != GeometryQualityStatus::sampled)
+    if(!validParametricSource(CornerMap(topology.shape(),corners),limits.jacobian))
       throw std::invalid_argument("invalid or unresolved parametric root geometry") ;
     return AffineSubdivision(RefinementHistory(topology.id(),std::move(geometry),root,0,limits)) ;
   }

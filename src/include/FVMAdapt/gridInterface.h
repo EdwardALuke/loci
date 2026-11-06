@@ -23,6 +23,7 @@
 #include <Loci.h>
 #include <FVMAdapt/defines.h>
 #include <FVMAdapt/face_history.h>
+#include <FVMAdapt/quality.h>
 #include <memory>
 
 namespace Loci {
@@ -38,6 +39,7 @@ namespace Loci {
 
   /// Input, geometry and balancing controls for online adaptation.
   struct RefinementOptions {
+    FVMAdapt::MeshQualityOptions quality ; ///< Optional physical-mesh quality acceptance.
     std::string sourceFile ; ///< Optional spacing source file; choose this or regionFile.
     std::string regionFile ; ///< Optional XML region, recursively refined using minEdgeLength.
     std::string tagLocation = "cells" ; ///< "cells" or "nodes" of the current mesh, in file order.
@@ -136,7 +138,8 @@ namespace Loci {
   /// Load the fvmadapt module into rules first. Use the same options on every rank.
   /// A rejected proposal returns false without replacing the state or grid. All ranks participate.
   bool onlineRefineMesh(CPTR<refinedGridData> &grid, rule_db &rules, RefinementState &state,
-      storeRepP tags, const std::string &casename, const RefinementOptions &options, std::string &error) ;
+      storeRepP tags, const std::string &casename, const RefinementOptions &options, std::string &error,
+      FVMAdapt::MeshQualityReport *qualityReport = nullptr) ;
   /// Record an installed original mesh before its first adaptation. Collective outside queries.
   bool recordRefinementBaseFaces(fact_db &facts,rule_db &rules,RefinementState &state,
       const std::string &casename,const RefinementOptions &options,std::string &error) ;

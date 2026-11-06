@@ -1,5 +1,8 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 #include <FVMAdapt/parametric/corner_boundary.h>
+#include <FVMAdapt/parametric/surface_map.h>
+#include "exact_geometry.h"
+#include "geometry_integration.h"
 #include <set>
 
 namespace Loci {
@@ -7,6 +10,9 @@ namespace FVMAdapt {
   namespace {
     using Id=BoundaryId ;
     void require(bool ok,const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+    struct InvalidInterior : std::invalid_argument {
+      InvalidInterior():std::invalid_argument("cell cone has invalid or unresolved sampled geometry") {}
+    } ;
     std::vector<Id> outwardVertices(const BoundaryRecords &b,CornerFaceUse use) {
       const auto &face=b.faces.at(use.surface) ;
       require(use.orientation<2*face.vertices.size(),"invalid cell face orientation") ;
@@ -27,6 +33,64 @@ namespace FVMAdapt {
         std::make_shared<CornerMap>(Shape::segment,std::vector<Point>{{{1,0,0}},{{0,0,0}}})) ;
       return map ;
     }
+    // Find a candidate along the corner-to-center diagonal inside the sampled tangent planes.
+    Point diagonalInterior(const std::vector<std::shared_ptr<const GeometryMap>> &pieces,const Point &corner,const Point &center) {
+      long double lower=0,upper=1 ;
+      for(const auto &piece:pieces) {
+        const auto &base=*static_cast<const ConeMap &>(*piece).base() ;
+        for(unsigned j=0;j<=2;++j) for(unsigned i=0;i<=2;++i) {
+          if(base.shape()==Shape::triangle && i+j>2) continue ;
+          const auto value=base.evaluate({{i*.5,j*.5,0}}) ;
+          require(value.hasJacobian,"cell interior requires surface derivatives") ;
+          long double a=0,b=0 ;
+          for(unsigned d=0;d<3;++d) {
+            const unsigned u=(d+1)%3,v=(d+2)%3 ;
+            const long double normal=static_cast<long double>(value.jacobian[0][u])*value.jacobian[1][v]-
+              static_cast<long double>(value.jacobian[0][v])*value.jacobian[1][u] ;
+            a+=normal*(static_cast<long double>(corner[d])-value.position[d]) ;
+            b+=normal*(static_cast<long double>(center[d])-value.position[d]) ;
+          }
+          if(!std::isfinite(a) || !std::isfinite(b)) throw InvalidInterior() ;
+          if(a==b) { if(a<0) throw InvalidInterior() ; continue ; }
+          const auto cut=a/(a-b) ;
+          if(b>a) lower=std::max(lower,cut) ; else upper=std::min(upper,cut) ;
+          if(!(lower<upper)) throw InvalidInterior() ;
+        }
+      }
+      Point result ; const auto fraction=(lower+upper)/2 ;
+      for(unsigned d=0;d<3;++d) result[d]=corner[d]+fraction*(static_cast<long double>(center[d])-corner[d]) ;
+      return result ;
+    }
+
+    // Changing the cone apex leaves the prepared surface pieces unchanged.
+    void setInterior(std::vector<std::shared_ptr<const GeometryMap>> &pieces,const Point &interior) {
+      for(auto &piece:pieces) piece=std::make_shared<ConeMap>(static_cast<const ConeMap &>(*piece).base(),interior) ;
+    }
+
+    GeometryMeasure measurePieces(const CornerBoundary &boundary,const CornerCell &cell,const Point &interior,
+                                  const std::vector<std::shared_ptr<const GeometryMap>> &pieces) {
+      for(const auto &piece:pieces) {
+        auto samples=boundary.options.assessment.quality ;
+        if(samples.samples.empty()) {
+          // Cone coordinates have no unique derivative at the apex.
+          for(double z:{0.,.5,.9375}) for(unsigned j=0; j<=2; ++j) for(unsigned i=0; i<=2; ++i)
+            if(piece->shape()==Shape::pyramid || i+j<=2) samples.samples.push_back({{i*.5*(1-z),j*.5*(1-z),z}}) ;
+        }
+        if(!validGeometry(*piece,samples)) throw InvalidInterior() ;
+      }
+      long double radius=0,magnitude=0 ;
+      for(auto vertex:cell.vertices) {
+        const auto &point=boundary.boundaries.points[vertex] ;
+        radius=std::max(radius,std::hypot(static_cast<long double>(point[0])-interior[0],
+          static_cast<long double>(point[1])-interior[1],static_cast<long double>(point[2])-interior[2])) ;
+        for(double x:point) magnitude=std::max(magnitude,std::abs(static_cast<long double>(x))) ;
+      }
+      const detail::MeasureScale scale{interior,radius,magnitude} ;
+      const auto result=detail::measureGeometryPieces(pieces,boundary.options.assessment.measure,&scale) ;
+      if(!result.converged) throw std::length_error("cell boundary integration did not converge") ;
+      return result ;
+    }
+
   }
 
   void CornerBoundary::validateCell(const CornerCell &cell) const {
@@ -81,6 +145,14 @@ namespace FVMAdapt {
     validateCell(cell) ; std::vector<std::shared_ptr<const GeometryMap>> result ;
     for(auto use:cell.faces) {
       const auto &face=boundaries.faces[use.surface] ; const auto map=boundaries.geometry.map(face.geometry) ;
+      if(hasSurfacePieces(*map)) {
+        for(const auto &piece:smoothSurfacePieces(map).pieces) {
+          auto base=piece.geometry ;
+          if(use.orientation<face.vertices.size()) base=reverseSurfacePiece(base) ;
+          result.push_back(std::make_shared<ConeMap>(base,interior)) ;
+        }
+        continue ;
+      }
       const auto reference=map->referenceCorners() ; const unsigned n=reference.size() ; std::vector<Point> coordinates ;
       // Reverse the outward face so its normal points toward the cone apex.
       for(unsigned v=0;v<n;++v) coordinates.push_back(reference[orientedVertex(n,use.orientation,(n-v)%n)]) ;
@@ -99,33 +171,7 @@ namespace FVMAdapt {
   }
 
   GeometryMeasure CornerBoundary::measureCell(const CornerCell &cell,const Point &interior) const {
-    GeometryMeasure result ; result.converged=true ; result.estimatedMeasureError=result.estimatedCentroidError=0 ;
-    long double volume=0, centroidError=0 ; std::array<long double,3> moment{} ;
-    for(const auto &piece:cellPieces(cell,interior)) {
-      auto samples=options.assessment.quality ;
-      if(samples.samples.empty()) {
-        // Cone coordinates have no unique derivative at the apex.
-        for(double z:{0.,.5,.9375}) for(unsigned j=0; j<=2; ++j) for(unsigned i=0; i<=2; ++i)
-          if(piece->shape()==Shape::pyramid || i+j<=2) samples.samples.push_back({{i*.5*(1-z),j*.5*(1-z),z}}) ;
-      }
-      require(geometryQuality(*piece,samples).status==GeometryQualityStatus::sampled,"cell cone has invalid or unresolved sampled geometry") ;
-      const auto value=geometryMeasure(*piece,options.assessment.measure) ;
-      if(!value.converged) throw std::length_error("cell cone integration did not converge") ;
-      volume+=value.measure ;
-      for(unsigned d=0; d<3; ++d) moment[d]+=value.measure*(static_cast<long double>(value.centroid[d])-interior[d]) ;
-      result.order=std::max(result.order,value.order) ; result.evaluations+=value.evaluations ;
-      result.estimatedMeasureError+=value.estimatedMeasureError ;
-      centroidError+=value.measure*value.estimatedCentroidError+value.estimatedMeasureError*
-        std::hypot(value.centroid[0]-interior[0],value.centroid[1]-interior[1],value.centroid[2]-interior[2]) ;
-    }
-    result.measure=volume ;
-    require(std::isfinite(result.measure) && result.measure>0,"cell volume is not positive and finite") ;
-    for(unsigned d=0; d<3; ++d) {
-      result.centroid[d]=interior[d]+moment[d]/volume ; require(std::isfinite(result.centroid[d]),"cell centroid is not finite") ;
-    }
-    result.estimatedCentroidError=(centroidError+result.estimatedMeasureError*
-      std::hypot(moment[0]/volume,moment[1]/volume,moment[2]/volume))/volume ;
-    return result ;
+    return measurePieces(*this,cell,interior,cellPieces(cell,interior)) ;
   }
 
   CornerSplit CornerBoundary::splitCell(const CornerCell &cell,Point interior,CenterMethod method,
@@ -140,7 +186,17 @@ namespace FVMAdapt {
     require(method==CenterMethod::reference || method==CenterMethod::weighted || method==CenterMethod::integrated,
             "unknown cell center method") ;
     require(cell.vertices.size()<=options.assessment.maxChildren,"corner child count exceeds its limit") ;
-    const auto parentMeasure=measureCell(cell,interior) ; CornerSplit result ; result.centerMethod=method ;
+    auto parentPieces=cellPieces(cell,interior) ;
+    const auto parentMeasure=measurePieces(*this,cell,interior,parentPieces) ; CornerSplit result ; result.centerMethod=method ;
+    bool useFaceFans=false ;
+    for(auto use:cell.faces) {
+      const auto map=boundaries.geometry.map(boundaries.faces[use.surface].geometry) ;
+      const auto *quad=dynamic_cast<const CornerMap *>(map.get()) ;
+      // At a straight corner, the two boundary tangents are dependent.
+      useFaceFans=hasSurfacePieces(*map) || (quad && quad->shape()==Shape::quad &&
+        detail::hasStraightQuadCorner(quad->corners())) ;
+      if(useFaceFans) break ;
+    }
     std::vector<Id> centers ;
     for(auto use:cell.faces) {
       const auto choice=splitSurface(use.surface,method,active,transaction) ; result.faceSplits.push_back(choice) ;
@@ -165,7 +221,10 @@ namespace FVMAdapt {
       require(total>0 && std::isfinite(total),"cell center requires finite nonzero face areas") ;
       for(unsigned d=0; d<3; ++d) center[d]=interior[d]+sum[d]/total ;
     }
-    measureCell(cell,center) ; result.centerVertex=addPoint(center) ; result.children.resize(cell.vertices.size()) ;
+    if(center!=interior) {
+      setInterior(parentPieces,center) ; measurePieces(*this,cell,center,parentPieces) ;
+    }
+    parentPieces.clear() ; result.centerVertex=addPoint(center) ; result.children.resize(cell.vertices.size()) ;
     std::map<Id,unsigned> childIds ; for(unsigned v=0; v<cell.vertices.size(); ++v) childIds.emplace(cell.vertices[v],v) ;
     std::map<std::pair<Id,Id>,Id> edges ;
     const auto remember=[&](Id face) {
@@ -197,18 +256,29 @@ namespace FVMAdapt {
         const auto id=edges.at(endpoints(vertices[e],vertices[(e+1)%4])) ; faceEdges.push_back(id) ;
         curves[e]=directedEdge(boundaries,id,vertices[e]) ;
       }
-      const auto surface=addSurface(vertices,faceEdges,std::make_shared<BoundarySurfaceMap>(std::move(curves))) ;
+      // A face fan preserves edge curves without imposing a smooth tangent at a hanging vertex.
+      std::shared_ptr<const GeometryMap> geometry ;
+      if(useFaceFans) geometry=std::make_shared<BoundaryFanMap>(std::move(curves),average(boundaries,vertices)) ;
+      else geometry=std::make_shared<BoundarySurfaceMap>(std::move(curves)) ;
+      const auto surface=addSurface(vertices,faceEdges,std::move(geometry)) ;
       // Along [midpoint, first face center], the new face opposes the exterior patch.
       const auto loop=outwardVertices(boundaries,cell.faces[incident[0]]) ; bool forward=false ;
       for(unsigned v=0; v<loop.size(); ++v) if(loop[v]==ends[0] && loop[(v+1)%loop.size()]==ends[1]) forward=true ;
       result.children[childIds.at(ends[0])].faces.push_back({surface,forward ? 4u:0u}) ;
       result.children[childIds.at(ends[1])].faces.push_back({surface,forward ? 0u:4u}) ;
     }
-    for(auto &child:result.children) {
-      std::set<Id> vertices ;
+    for(unsigned c=0;c<result.children.size();++c) {
+      auto &child=result.children[c] ; std::set<Id> vertices ;
       for(auto use:child.faces) for(auto v:boundaries.faces[use.surface].vertices) vertices.insert(v) ;
-      child.vertices.assign(vertices.begin(),vertices.end()) ; const auto seed=average(boundaries,child.vertices) ;
-      measureCell(child,seed) ; result.interiors.push_back(seed) ;
+      child.vertices.assign(vertices.begin(),vertices.end()) ; auto seed=average(boundaries,child.vertices) ;
+      auto pieces=cellPieces(child,seed) ;
+      try { measurePieces(*this,child,seed,pieces) ; }
+      catch(const InvalidInterior &) {
+        seed=diagonalInterior(pieces,boundaries.points[cell.vertices[c]],center) ;
+        setInterior(pieces,seed) ; measurePieces(*this,child,seed,pieces) ;
+      }
+
+      result.interiors.push_back(seed) ;
     }
     return result ;
   }

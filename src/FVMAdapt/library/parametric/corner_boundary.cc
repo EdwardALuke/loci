@@ -1,5 +1,6 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 #include <FVMAdapt/parametric/corner_boundary.h>
+#include <FVMAdapt/parametric/surface_map.h>
 #include <type_traits>
 namespace Loci {
 namespace FVMAdapt {
@@ -99,6 +100,10 @@ namespace FVMAdapt {
     }
     for(std::size_t i = 0; i < parent.splits.size(); ++i) if(!accepted && parent.splits[i].centerMethod == method) return i ;
     const auto geometry = boundaries.geometry.map(parent.geometry) ;
+    const bool piecewise = hasSurfacePieces(*geometry) ;
+    const auto *patch = dynamic_cast<const SurfacePatchMap *>(geometry.get()) ;
+    const auto source = patch ? patch->source() : geometry ;
+    const auto chartPoint = [&](const Point &point) { return patch ? patch->chartPosition(point) : point ; } ;
     const auto center = accepted ? accepted->referenceCenter : faceCenterCoordinates(*geometry,method,options.assessment.measure) ;
     for(std::size_t i = 0; i < parent.splits.size(); ++i) if(parent.splits[i].referenceCenter == center) return i ;
     const auto centerVertex = addPoint(geometry->evaluate(center).position) ;
@@ -110,15 +115,21 @@ namespace FVMAdapt {
     for(auto edge: parent.edges) midpoints.push_back(splitEdge(edge,transaction)) ;
     for(unsigned e = 0; e < n; ++e) {
       const auto mid = midpoint(e) ;
-      radial.push_back(addEdge(midpoints[e],centerVertex,std::make_shared<RestrictedMap>(geometry,
-        std::make_shared<CornerMap>(Shape::segment,std::vector<Point>{mid,center})))) ;
+      radial.push_back(addEdge(midpoints[e],centerVertex,std::make_shared<RestrictedMap>(piecewise ? source : geometry,
+        std::make_shared<CornerMap>(Shape::segment,piecewise ? std::vector<Point>{chartPoint(mid),chartPoint(center)} :
+          std::vector<Point>{mid,center})))) ;
     }
     for(unsigned v = 0; v < n; ++v) {
       const unsigned prev = (v+n-1)%n ;
-      auto placement = std::make_shared<CornerMap>(Shape::quad,std::vector<Point>{coordinates[v],midpoint(v),center,midpoint(prev)}) ;
+      std::vector<Point> corners{coordinates[v],midpoint(v),center,midpoint(prev)} ;
+      std::shared_ptr<const GeometryMap> child ;
+      if(piecewise) {
+        for(auto &point:corners) point=chartPoint(point) ;
+        child=std::make_shared<SurfacePatchMap>(source,std::move(corners)) ;
+      } else child=std::make_shared<RestrictedMap>(geometry,std::make_shared<CornerMap>(Shape::quad,std::move(corners))) ;
       children.push_back(addSurface({parent.vertices[v],midpoints[v],centerVertex,midpoints[prev]},
         {edgeSegment(parent.edges[v],parent.vertices[v]),radial[v],radial[prev],edgeSegment(parent.edges[prev],parent.vertices[v])},
-        std::make_shared<RestrictedMap>(geometry,placement),parent.boundary,id,parent.splits.size())) ;
+        child,parent.boundary,id,parent.splits.size())) ;
     }
     transaction.saveSurface(id) ;
     boundaries.faces[id].splits.push_back({method,center,centerVertex,std::move(children)}) ;

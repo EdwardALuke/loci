@@ -41,6 +41,8 @@ namespace FVMAdapt {
   /// Trilinear interpolation in native hex corner order, without allocating a map object.
   /// Corners must be finite. Reference coordinates may extrapolate.
   MapValue evaluateHexCorners(const std::array<Point,8> &corners, const Point &point) ;
+  /// Position-only form of evaluateHexCorners, with the same coordinate contract.
+  Point hexCornerPosition(const std::array<Point,8> &corners, const Point &point) ;
 
   /// Read-only corners owned by a map or a standard reference table.
   struct ReferenceCorners {
@@ -64,6 +66,8 @@ namespace FVMAdapt {
     /// Nonfinite coordinates throw invalid_argument. Use containsReference() separately for domain membership.
     /// Evaluation does not certify injectivity or positive orientation.
     virtual MapValue evaluate(const Point &point) const = 0 ;
+    /// Evaluate only the position, with the same coordinate contract as evaluate().
+    virtual Point position(const Point &point) const { return evaluate(point).position ; }
   } ;
 
   /// Regular reference polygon, centered at (1/2,1/2), with radius 1/2.
@@ -99,6 +103,7 @@ namespace FVMAdapt {
     /// At the pyramid apex the position is defined, but the rational basis has no unique derivative.
     /// Other points with z == 1 are singular and throw invalid_argument.
     MapValue evaluate(const Point &point) const override ;
+    Point position(const Point &point) const override ;
   } ;
 
   /// Tensor-product Bernstein map for a segment, quad or hex. Controls are Bezier controls, not samples.
@@ -135,6 +140,7 @@ namespace FVMAdapt {
     std::shared_ptr<const GeometryMap> referenceMap() const { return referenceMap_ ; }
     /// Compose Jacobians by the chain rule; unavailable derivatives remain unavailable.
     MapValue evaluate(const Point &point) const override ;
+    Point position(const Point &point) const override ;
   } ;
 
   /// Quad surface interpolating four edge curves in counterclockwise boundary order.
@@ -146,8 +152,15 @@ namespace FVMAdapt {
     explicit BoundarySurfaceMap(std::array<std::shared_ptr<const GeometryMap>,4> edges) ;
     Shape shape() const override { return Shape::quad ; }
     const auto &edges() const { return edges_ ; }
+    const auto &corners() const { return corners_ ; }
     MapValue evaluate(const Point &point) const override ;
   } ;
+
+  namespace detail {
+    /// Shared Coons evaluator; retained pieces use their own one-sided edge derivatives.
+    MapValue evaluateBoundarySurface(const std::array<std::shared_ptr<const GeometryMap>,4> &edges,
+                                    const std::array<Point,4> &corners,const Point &point) ;
+  }
 
   /// Linear cone from a triangle or quad surface to an apex at reference z=1.
   /// The base orientation points into the cone for a positive volume Jacobian.

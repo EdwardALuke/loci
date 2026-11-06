@@ -18,6 +18,19 @@ namespace FVMAdapt {
   Loci::FineFaces encodeParametricNodeKeys(const std::vector<ParametricNodeKey> &) ;
   std::vector<ParametricNodeKey> decodeParametricNodeKeys(const Loci::FineFaces &) ;
 
+  /// Output numbers from sorted owner records, borrowed unchanged for this object's lifetime.
+  class ParametricNodeNumbers {
+    struct Owner {
+      const Loci::FineFaces *record ;
+      int offset ;
+      bool local ;
+    } ;
+    std::vector<Owner> owners_ ;
+  public:
+    void add(const Loci::FineFaces &,int offset) ;
+    int at(const ParametricNodeKey &) const ;
+  } ;
+
   /// Cell-local controls; neighbor policies and stopping conditions belong to the rules.
   struct CellRefinementOptions {
     CenterMethod center = CenterMethod::reference ;
@@ -65,6 +78,8 @@ namespace FVMAdapt {
     ParametricRecord tagRequests(const std::vector<char> &) const ;
     std::size_t leafCount() const ;
     std::vector<int> leafDepths() const ;
+    /// Active child-ordinal paths in output leaf order, without expanding compact hex geometry.
+    std::vector<CellPath> leafPaths() const ;
     /// Longest leaf edge chord in 3D and XY; ignores neighboring edge subdivisions.
     std::vector<std::array<double,2>> edgeLengths() const ;
     ParametricRecord facePlan(EntityId face) const ;
@@ -83,17 +98,18 @@ namespace FVMAdapt {
     std::vector<int> faceBalanceRequests(const CellTopology &,const std::vector<FaceBalanceRequest> &,FaceBalance,
         std::map<int,unsigned> *directions = nullptr) const ;
     std::vector<std::vector<int>> donorsFrom(const ParametricCellData &previous) const ;
-    /// Cell-interior output; compact hexes read accepted plans without expanding geometry.
-    std::vector<ParametricNodeKey> cellNodes(const CellTopology &) const ;
+    /// Output uses encoded source topology; compact hexes use their retained topology.
+    /// Cell-interior nodes, optionally with positions in the same order.
+    std::vector<ParametricNodeKey> cellNodes(const std::vector<int> &topology,std::vector<Point> *positions = nullptr) const ;
     std::vector<Point> cellPositions(const std::vector<ParametricNodeKey> &) const ;
-    std::vector<ParametricOutputFace> cellFaces(const CellTopology &,const std::vector<ParametricNodeKey> &) const ;
-    /// Original-face output; compact hex pairs read accepted plans directly.
-    std::vector<ParametricNodeKey> faceNodes(EntityId,const CellTopology &,const ParametricCellData *right = nullptr,
-        const CellTopology *rightTopology = nullptr) const ;
-    std::vector<Point> facePositions(EntityId,const CellTopology &,const ParametricCellData *right = nullptr,
-        const CellTopology *rightTopology = nullptr) const ;
-    std::vector<ParametricOutputFace> faceFaces(EntityId,const CellTopology &,const std::vector<ParametricNodeKey> &,
-        const ParametricCellData *right = nullptr,const CellTopology *rightTopology = nullptr) const ;
+    std::vector<ParametricOutputFace> cellFaces(const std::vector<int> &topology,const std::vector<ParametricNodeKey> &) const ;
+    /// Original-face nodes, optionally with positions in the same order; compact hex pairs read accepted plans directly.
+    std::vector<ParametricNodeKey> faceNodes(EntityId,const std::vector<int> &topology,const ParametricCellData *right = nullptr,
+        const std::vector<int> *rightTopology = nullptr,std::vector<Point> *positions = nullptr) const ;
+    std::vector<Point> facePositions(EntityId,const std::vector<int> &topology,const ParametricCellData *right = nullptr,
+        const std::vector<int> *rightTopology = nullptr) const ;
+    std::vector<ParametricOutputFace> faceFaces(EntityId,const std::vector<int> &topology,const std::vector<ParametricNodeKey> &,
+        const ParametricCellData *right = nullptr,const std::vector<int> *rightTopology = nullptr) const ;
     /// Compact plan, or an empty plan for an original hex; null for other representations.
     const HexPlan *hexPlan() const ;
     bool compactHex() const ;
