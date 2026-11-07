@@ -1,5 +1,6 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 #include <Loci.h>
+#include <cmath>
 
 $include "fvmadapt_internal.lh"
 $include "parametric_internal.lh"
@@ -7,14 +8,47 @@ $include "parametric_internal.lh"
 $rule default(parametricRegionFile) { $parametricRegionFile="" ; }
 $rule default(parametricSourceFile) { $parametricSourceFile="" ; }
 
-/// Read once per query on each process; input errors reject the collective proposal.
-$rule blackbox(parametricRegion,parametricSources,parametricInputError <- parametricRegionFile,parametricSourceFile),
+/// Resolve query controls and read geometric inputs once on each process; errors reject the collective proposal.
+$rule blackbox(parametricControls,parametricRegion,parametricSources,parametricInputError <-
+    parametricCenterMethod,parametricRefinementLevels,parametricExtrusionAxis,parametricAutomaticSplit,
+    parametricSplitAspectRatio,parametricMinEdgeLength,parametricSplitFamily,parametricLevelDifference,parametricGrading,
+    parametricFaceBalance,parametricDirectionalBalance,parametricMaxRounds,parametricRegionFile,parametricSourceFile,
+    parametricQualityMode,parametricQualityCentroid,parametricMaxNonOrthogonality,parametricMaxFaceWarpage,parametricMaxChildVolumeRatio),
     prelude {
+  namespace P=Loci::FVMAdapt ;
+  *$parametricControls=P::AdaptationControls() ;
   $parametricRegion->reset() ; $parametricSources->clear() ; *$parametricInputError="" ;
   try {
+    auto &controls=*$parametricControls ; auto &refinement=controls.refinement ;
+    controls.quality={ (*$parametricQualityMode), (*$parametricQualityCentroid), (*$parametricMaxNonOrthogonality),
+      (*$parametricMaxFaceWarpage), (*$parametricMaxChildVolumeRatio) } ;
+    refinement.center=P::parametricCenterMethod(*$parametricCenterMethod) ;
+    refinement.levels=*$parametricRefinementLevels ; refinement.extrusionAxis=*$parametricExtrusionAxis ;
+    refinement.automatic=*$parametricAutomaticSplit ; refinement.aspectRatio=*$parametricSplitAspectRatio ;
+    refinement.minEdgeLength=*$parametricMinEdgeLength ;
+    controls.levelDifference=*$parametricLevelDifference ; controls.maxRounds=*$parametricMaxRounds ;
+    controls.grading=P::parametricGrading(*$parametricGrading) ;
+    controls.faceBalance=P::parametricFaceBalance(*$parametricFaceBalance) ;
+    controls.directionalBalance=*$parametricDirectionalBalance ;
+    if(refinement.levels<1 || refinement.levels>30)
+      throw std::invalid_argument("parametricRefinementLevels must be in [1,30]") ;
+    if(controls.levelDifference<0 || controls.levelDifference>30)
+      throw std::invalid_argument("parametricLevelDifference must be in [0,30]") ;
+    if(controls.maxRounds<0) throw std::invalid_argument("parametricMaxRounds must be nonnegative") ;
+    if(*$parametricSplitFamily=="mixed" && (refinement.center!=P::CenterMethod::reference || refinement.extrusionAxis!=-1))
+      throw std::invalid_argument("mixed splitting requires reference centers and full 3D refinement") ;
+    if(controls.directionalBalance && *$parametricSplitFamily!="native" && *$parametricSplitFamily!="mixed")
+      throw std::invalid_argument("directional balancing requires native cells") ;
+    if(refinement.automatic) {
+      if((*$parametricSplitFamily!="native" && *$parametricSplitFamily!="mixed") || refinement.extrusionAxis!=-1)
+        throw std::invalid_argument("automatic splitting requires native three-dimensional cells") ;
+      if(!std::isfinite(refinement.aspectRatio) || refinement.aspectRatio<=1 ||
+          !std::isfinite(refinement.minEdgeLength) || refinement.minEdgeLength<0)
+        throw std::invalid_argument("automatic splitting requires a finite aspect ratio greater than one and a nonnegative edge cutoff") ;
+    }
     if(!$parametricRegionFile->empty() && !$parametricSourceFile->empty())
       throw std::invalid_argument("choose either an XML region or spacing source file") ;
-    if(!$parametricRegionFile->empty()) *$parametricRegion=std::make_shared<Loci::FVMAdapt::XMLRegion>(*$parametricRegionFile) ;
-    if(!$parametricSourceFile->empty()) *$parametricSources=Loci::FVMAdapt::readSpacingSources(*$parametricSourceFile) ;
+    if(!$parametricRegionFile->empty()) *$parametricRegion=std::make_shared<P::XMLRegion>(*$parametricRegionFile) ;
+    if(!$parametricSourceFile->empty()) *$parametricSources=P::readSpacingSources(*$parametricSourceFile) ;
   } catch(const std::exception &error) { *$parametricInputError=error.what() ; }
 } ;

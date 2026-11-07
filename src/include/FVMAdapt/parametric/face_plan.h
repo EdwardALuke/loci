@@ -9,6 +9,7 @@ namespace FVMAdapt {
   struct CornerBoundary ;
 
   /// Accepted polygon divisions in canonical face order. Empty means no divisions.
+  /// Each face has at most one accepted construction; conflicting centers reject.
   /// Contains centers and midpoint edge trees, without physical coordinates or geometry maps.
   using FacePlan = std::vector<unsigned char> ;
 

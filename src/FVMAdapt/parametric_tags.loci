@@ -1,5 +1,4 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
-#include "parametric_mixed.h"
 #include <Loci.h>
 #include <algorithm>
 #include <map>
@@ -98,19 +97,5 @@ $rule pointwise(parametricRequests <- initialParametricCell,parametricTopology,n
     }
   }
   for(int edge:edges) addNodeTags($*initialParametricNodeKeys[edge],$*nodeTag[edge],marking) ;
-  const auto cell=$initialParametricCell.workingCell() ;
-  std::vector<char> tags ;
-  auto own=parametricLeafVertices(decodeParametricTopology($parametricTopology),*cell) ;
-  if(cell->hasCornerGeometry()) {
-    std::vector<ParametricNodeKey> keys ; for(const auto &entry:marking) keys.push_back(entry.first) ;
-    mixedCornerVertices(*cell,keys,own) ;
-  }
-  for(const auto &vertices:own) {
-    bool refine=false,coarsen=true ;
-    for(const auto &vertex:vertices) {
-      const int tag=marking.at(vertex) ; refine=refine || tag==1 ; coarsen=coarsen && tag==2 ;
-    }
-    tags.push_back(refine ? 1:coarsen ? 2:0) ;
-  }
-  $parametricRequests=$initialParametricCell.tagRequests(tags) ;
+  $parametricRequests=$initialParametricCell.nodeTagRequests($parametricTopology,marking) ;
 }

@@ -17,10 +17,7 @@ conditional(parametricAccepted),constraint(faceHistoryEnabled,geom_cells) {
   $fine_face_patches_cell.clear() ;
   $parametricCellPatchError.clear() ;
   try {
-    const auto cellData = $balancedParametricCell.workingCell() ;
-    const auto &cell = *cellData ;
-    const auto faces=parametricCellFaces(decodeParametricTopology($parametricTopology),cell,{},true) ;
-    for(const auto& face:faces) $fine_face_patches_cell.push_back(face.patch) ;
+    $fine_face_patches_cell=$balancedParametricCell.cellPatches($parametricTopology) ;
   } catch(const std::exception& error) { $parametricCellPatchError=error.what() ; }
 }
 
@@ -30,13 +27,8 @@ conditional(parametricAccepted),constraint(faceHistoryEnabled,interior_faces) {
   $fine_face_patches.clear() ;
   $parametricFacePatchError.clear() ;
   try {
-    const auto lt=decodeParametricTopology($cl->$parametricTopology),rt=decodeParametricTopology($cr->$parametricTopology) ;
-    const auto leftData = $cl->$balancedParametricCell.workingCell() ;
-    const auto &left = *leftData ;
-    const auto rightData = $cr->$balancedParametricCell.workingCell() ;
-    const auto &right = *rightData ;
-    const auto faces=parametricFaceFaces($fileNumber(face2node),lt,left,{},&rt,&right,true) ;
-    for(const auto& face:faces) $fine_face_patches.push_back(face.patch) ;
+    $fine_face_patches=$cl->$balancedParametricCell.facePatches($fileNumber(face2node),$cl->$parametricTopology,
+        &$cr->$balancedParametricCell,&$cr->$parametricTopology) ;
   } catch(const std::exception& error) { $parametricFacePatchError=error.what() ; }
 }
 
@@ -46,9 +38,6 @@ conditional(parametricAccepted),constraint(faceHistoryEnabled,boundary_faces) {
   $fine_face_patches.clear() ;
   $parametricFacePatchError.clear() ;
   try {
-    const auto cellData = $cl->$balancedParametricCell.workingCell() ;
-    const auto &cell = *cellData ;
-    const auto faces=parametricFaceFaces($fileNumber(face2node),decodeParametricTopology($cl->$parametricTopology),cell,{},nullptr,nullptr,true) ;
-    for(const auto& face:faces) $fine_face_patches.push_back(face.patch) ;
+    $fine_face_patches=$cl->$balancedParametricCell.facePatches($fileNumber(face2node),$cl->$parametricTopology) ;
   } catch(const std::exception& error) { $parametricFacePatchError=error.what() ; }
 }

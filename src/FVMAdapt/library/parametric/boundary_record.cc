@@ -24,6 +24,7 @@
 #include <FVMAdapt/parametric/surface_map.h>
 
 #include "record_io.h"
+#include "geometry_validity.h"
 
 #include <algorithm>
 #include <cmath>
@@ -169,13 +170,8 @@ namespace {
     const auto position=[&](MapId map, const Point &coordinate) {
       return records.geometry.map(map)->evaluate(coordinate).position ;
     } ;
-    const auto samePoint=[](const Point &first, const Point &second) {
-      for(unsigned d=0; d<3; ++d) {
-        const double scale=std::max({1.0,std::abs(first[d]),std::abs(second[d])}) ;
-        require(std::isfinite(first[d]) && std::isfinite(second[d]) &&
-                std::abs(first[d]-second[d])<=256*std::numeric_limits<double>::epsilon()*scale,
-                "boundary points disagree with their accepted geometry") ;
-      }
+    const auto samePoint=[](const Point &first, const Point &second, double extent) {
+      require(detail::storedPointAgrees(first,second,extent),"boundary points disagree with their accepted geometry") ;
     } ;
 
     std::vector<unsigned char> edgeLinks(records.edges.size(),0), faceLinks(records.faces.size(),0) ;
@@ -186,8 +182,9 @@ namespace {
               edge.vertices[0]!=edge.vertices[1],"invalid boundary edge endpoints") ;
       require(edge.geometry<records.geometry.size(),"invalid boundary edge map") ;
       require(records.geometry.map(edge.geometry)->shape()==Shape::segment,"boundary edge map must be a segment") ;
+      const double extent=detail::pointExtent(2,[&](std::size_t v) { return records.points[edge.vertices[v]] ; }) ;
       for(unsigned v=0; v<2; ++v)
-        samePoint(records.points[edge.vertices[v]],position(edge.geometry,{{double(v),0,0}})) ;
+        samePoint(records.points[edge.vertices[v]],position(edge.geometry,{{double(v),0,0}}),extent) ;
       if(edge.parent!=noBoundary) {
         require(edge.parent<id,"boundary edge parent must precede its child") ;
         edgeDepth[id]=edgeDepth[edge.parent]+1 ;
@@ -203,7 +200,7 @@ namespace {
         fraction(cut.position) ;
         require(cut.position>previous && cut.position<Fraction(1),"boundary edge cuts must be sorted and interior") ;
         require(cut.vertex<records.points.size() && vertices.insert(cut.vertex).second,"invalid boundary edge cut vertex") ;
-        samePoint(records.points[cut.vertex],position(edge.geometry,{{cut.position.value(),0,0}})) ;
+        samePoint(records.points[cut.vertex],position(edge.geometry,{{cut.position.value(),0,0}}),extent) ;
         previous=cut.position ;
       }
       for(std::size_t c=0; c<edge.children.size(); ++c) {
@@ -235,8 +232,8 @@ namespace {
           map=composition->parent ;
         }
         const bool forward=childEdge.vertices[0]==first ;
-        samePoint(endpoints[0],{{(forward ? begin : end).value(),0,0}}) ;
-        samePoint(endpoints[1],{{(forward ? end : begin).value(),0,0}}) ;
+        samePoint(endpoints[0],{{(forward ? begin : end).value(),0,0}},1) ;
+        samePoint(endpoints[1],{{(forward ? end : begin).value(),0,0}},1) ;
       }
     }
     for(BoundaryId id=0; id<records.edges.size(); ++id)
@@ -254,17 +251,19 @@ namespace {
       require(face.vertices.size()==vertexCount && face.edges.size()==vertexCount,"invalid boundary face loop size") ;
       payload(face.vertices.size()+face.edges.size(),sizeof(BoundaryId)) ;
       std::set<BoundaryId> vertices ;
+      for(auto vertex:face.vertices)
+        require(vertex<records.points.size() && vertices.insert(vertex).second,"invalid boundary face vertex") ;
+      const double extent=detail::pointExtent(vertexCount,[&](std::size_t v) { return records.points[face.vertices[v]] ; }) ;
       for(std::size_t v=0; v<face.vertices.size(); ++v) {
-        require(face.vertices[v]<records.points.size() && vertices.insert(face.vertices[v]).second,"invalid boundary face vertex") ;
         require(face.edges[v]<records.edges.size(),"invalid boundary face edge") ;
         const auto &edge=records.edges[face.edges[v]] ;
         require(connects(edge,face.vertices[v],face.vertices[(v+1)%vertexCount]),
                 "boundary face edges must follow its vertex loop") ;
-        samePoint(records.points[face.vertices[v]],position(face.geometry,coordinates[v])) ;
+        samePoint(records.points[face.vertices[v]],position(face.geometry,coordinates[v]),extent) ;
         for(double coordinate:{.25,.5,.75}) {
           const double alongEdge=edge.vertices[0]==face.vertices[v] ? coordinate : 1-coordinate ;
           samePoint(position(edge.geometry,{{alongEdge,0,0}}),
-                    position(face.geometry,along(v,coordinate))) ;
+                    position(face.geometry,along(v,coordinate)),extent) ;
         }
       }
       if(face.parent==noBoundary) {
@@ -286,7 +285,7 @@ namespace {
                 (shape==Shape::triangle ? center[0]+center[1]<1 : center[0]<1 && center[1]<1),
                 "boundary face center must lie inside its reference element") ;
         require(split.centerVertex<records.points.size() && !vertices.count(split.centerVertex),"invalid boundary face center vertex") ;
-        samePoint(records.points[split.centerVertex],position(face.geometry,split.referenceCenter)) ;
+        samePoint(records.points[split.centerVertex],position(face.geometry,split.referenceCenter),extent) ;
         require(split.children.size()==vertexCount,"boundary corner construction needs one child per vertex") ;
         payload(split.children.size(),sizeof(BoundaryId)) ;
         for(std::size_t c=0; c<split.children.size(); ++c) {

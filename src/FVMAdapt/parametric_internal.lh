@@ -6,11 +6,14 @@ $include "FVMAdapt/parametric_adapt.lh"
 #include <FVMAdapt/xml_region.h>
 #include <FVMAdapt/spacing_source.h>
 
+/// Parsed query controls, shared by cell requests and quality acceptance.
+$type parametricControls blackbox<Loci::FVMAdapt::AdaptationControls> ;
+
 /// Compiled physical region, shared by all cell requests on a process.
 $type parametricRegion blackbox<Loci::FVMAdapt::XMLRegionP> ;
 /// Spacing sources shared by all cell requests on a process.
 $type parametricSources blackbox<std::vector<Loci::FVMAdapt::SpacingSource> > ;
-/// Geometric input failure, checked before applying cell requests.
+/// Control or geometric-input failure, checked before applying cell requests.
 $type parametricInputError blackbox<std::string> ;
 
 /// Source-cell connectivity in original file numbering; encodeParametricTopology().

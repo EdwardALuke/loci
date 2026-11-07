@@ -13,7 +13,7 @@ namespace FVMAdapt {
   /// Extra nearly straight face corners require a piecewise surface representation.
   bool needsFacePatches(const CellTopology &,const std::vector<Point> &) ;
 
-  /// One original cell's corner history and accepted boundary constructions.
+  /// Vertex-based splits of a standard mapped cell and its accepted boundary constructions.
   /// Shared source faces are reconciled by the module before acceptance.
   struct ParametricCorner : CornerBoundary {
     CellTopology topology ;
@@ -30,7 +30,7 @@ namespace FVMAdapt {
     BoundaryId faceId(EntityId face) const ;
   } ;
 
-  /// Original-cell topology and a history whose children are defined by their shared faces.
+  /// Cell topology and vertex-based splits defined by shared face maps.
   struct ParametricBoundary : CornerSubdivision {
     CellTopology topology ;
     ParametricBoundary(const CellTopology &, const std::vector<Point> &, HistoryLimits) ;

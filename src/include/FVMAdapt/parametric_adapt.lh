@@ -5,7 +5,7 @@
 #include <FVMAdapt/quality.h>
 #include <string>
 
-/// Accepted history on each original native cell; empty initializes from its VOG corners.
+/// Accepted history on each original cell; empty initializes from its VOG corners.
 /// Preserve the original geometry and file numbering across adaptations.
 $type parametricCellHistory store<Loci::FVMAdapt::ParametricRecord> ;
 /// Serialized splits or complete-family merges; empty means no request.
@@ -46,7 +46,7 @@ $type parametricSourceFile param<std::string> ;
 $type parametricMinEdgeLength param<double> ;
 /// Preserve a straight X/Y/Z extrusion with 0/1/2; default -1 allows three-dimensional refinement.
 $type parametricExtrusionAxis param<int> ;
-/// True only when every rank accepts the proposed refinement and grading.
+/// True only when every rank accepts refinement, grading and any enabled quality checks.
 $type parametricAccepted param<bool> ;
 /// Optional physical quality checks: off (default), report, or reject.
 $type parametricQualityMode param<std::string> ;
@@ -64,7 +64,7 @@ $type parametricQualityReport param<Loci::FVMAdapt::MeshQualityReport> ;
 $type parametricError store<std::string> ;
 /// Accepted history after grading, or the preceding history if any rank rejects.
 $type balancedParametricHistory store<Loci::FVMAdapt::ParametricRecord> ;
-/// Previous leaf index for refinement/unchanged cells; -1 for a merge. Entries are in RefinementHistory::leafIds() order.
+/// Previous leaf index for refinement/unchanged cells; -1 for a merge. Entries are in ParametricCell::leafIds() order.
 $type parametricParentLeaf store<std::vector<int> > ;
 
 /// Immediate old leaf indices contributing to each output leaf, including complete sibling merges.

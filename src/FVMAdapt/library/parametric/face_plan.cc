@@ -53,6 +53,7 @@ namespace FVMAdapt {
       auto division = left.split ? left : right ;
       if(left.split && right.split) {
         require(left.center == right.center,"shared face plan centers disagree") ;
+        // The accepted point defines the construction; retain a deterministic method label.
         division.method = CenterMethod(std::min(unsigned(left.method),unsigned(right.method))) ;
       }
       budget.division(division.split) ;

@@ -107,6 +107,14 @@ namespace FVMAdapt {
   }
 
   namespace {
+    void checkIncomingFaces(const IncomingFacePlans &incoming) {
+      if(incoming.size()<2) return ;
+      std::vector<EntityId> faces ; faces.reserve(incoming.size()) ;
+      for(const auto &input:incoming) faces.push_back(input.face) ;
+      std::sort(faces.begin(),faces.end()) ;
+      if(std::adjacent_find(faces.begin(),faces.end())!=faces.end())
+        throw std::invalid_argument("repeated incoming face") ;
+    }
     void includeEdge(std::array<double,2> &lengths, const Point &a, const Point &b) {
       const double xy=std::hypot(b[0]-a[0],b[1]-a[1]), xyz=std::hypot(xy,b[2]-a[2]) ;
       if(!std::isfinite(xyz) || xyz<=0) throw std::invalid_argument("invalid leaf edge length") ;
@@ -122,19 +130,20 @@ namespace FVMAdapt {
     }
   }
   struct ParametricCellData::Data {
-    ParametricRecord record ;
+    // Accepted state owns either a working cell or a compact hex; failed receives own only an error.
+    ParametricRecord savedRecord ;
     std::optional<ParametricCell> cell ;
-    std::unique_ptr<ParametricHex> hex ;
+    std::unique_ptr<CompactHexCell> hex ;
     std::string error ;
     int maxDepth=10,maxNodes=1000000 ;
     void retain(ParametricCell value) {
       const auto *corner = value.corner() ;
       if(corner && corner->topology.shape() == Shape::hex) {
         value.validate(-1) ;
-        hex = std::make_unique<ParametricHex>(*corner) ; ParametricRecord().swap(record) ;
+        hex = std::make_unique<CompactHexCell>(*corner) ; ParametricRecord().swap(savedRecord) ;
       } else {
-        if(!value.source()) record = encodeParametricCell(value) ;
-        else ParametricRecord().swap(record) ;
+        if(!value.source()) savedRecord = encodeParametricCell(value) ;
+        else ParametricRecord().swap(savedRecord) ;
         cell = std::move(value) ;
       }
     }
@@ -144,8 +153,8 @@ namespace FVMAdapt {
     auto data=std::make_shared<Data>() ; data->maxDepth=maxDepth ; data->maxNodes=maxNodes ;
     try {
       const auto limits=parametricHistoryLimits(maxDepth,maxNodes) ;
-      if(ParametricHex::saved(record)) {
-        auto hex=std::make_unique<ParametricHex>(ParametricHex::decode(record,limits)) ;
+      if(CompactHexCell::saved(record)) {
+        auto hex=std::make_unique<CompactHexCell>(CompactHexCell::decode(record,limits)) ;
         if(needsFacePatches(hex->topology,hex->corners))
           throw std::invalid_argument("saved compact hex geometry differs from the source face representation") ;
         data->hex=std::move(hex) ;
@@ -162,26 +171,22 @@ namespace FVMAdapt {
   }
   ParametricCellData ParametricCellData::initial(const CellTopology &topology,const std::vector<Point> &corners,
       const ParametricRecord &record,int maxDepth,int maxNodes,const std::string &requested,int axis) {
-    const auto family=parametricCellFamily(topology,requested,corners) ;
-    if(requested=="mixed" && axis>=0) throw std::invalid_argument("mixed splitting requires full 3D refinement") ;
-    if(requested=="native" && family=="corner" && axis>=0)
-      throw std::invalid_argument("source faces with nearly straight corners require full 3D boundary refinement") ;
+    const auto selection=selectParametricCell(topology,corners,requested,axis) ;
     const auto limits=parametricHistoryLimits(maxDepth,maxNodes) ;
-    if(ParametricHex::saved(record)) {
-      if(needsFacePatches(topology,corners))
+    if(CompactHexCell::saved(record)) {
+      if(selection.facePatches)
         throw std::invalid_argument("saved compact hex geometry differs from the source face representation") ;
       ParametricCellData result(record,maxDepth,maxNodes) ;
       if(!result.data_->hex) throw std::invalid_argument(result.data_->error) ;
       const auto &hex=*result.data_->hex ;
-      if(family!="corner" || axis>=0 || hex.topology!=topology || hex.corners!=corners)
+      if(!selection.corner() || axis>=0 || hex.topology!=topology || hex.corners!=corners)
         throw std::invalid_argument("saved compact hex source or split family differs") ;
       return result ;
     }
-    if(record.empty() && family=="corner") {
-      if(axis>=0) throw std::invalid_argument("corner splitting requires full 3D refinement") ;
-      return ParametricCellData(ParametricCell::original(topology,corners,limits)) ;
+    if(record.empty() && selection.corner()) {
+      return ParametricCellData(ParametricCell::original(topology,corners,limits,selection)) ;
     }
-    return ParametricCellData(makeParametricCell(topology,corners,record,limits,family,axis)) ;
+    return ParametricCellData(makeParametricCell(topology,corners,record,limits,selection,axis)) ;
   }
   std::shared_ptr<const ParametricCell> ParametricCellData::workingCell() const {
     if(!data_) throw std::invalid_argument("parametric cell is not initialized") ;
@@ -202,7 +207,7 @@ namespace FVMAdapt {
     return decodeParametricRequests(record,*workingCell()) ;
   }
   std::optional<ParametricCellData> ParametricCellData::editPlan(const std::vector<ParametricLeafRequest> &requests,int levels,CenterMethod method,
-      const std::vector<std::pair<EntityId,const ParametricRecord *>> &incoming,bool *changed,const GeometricRefinement *selection) const {
+      const IncomingFacePlans &incoming,bool *changed,const GeometricRefinement *selection) const {
     if(changed) *changed=false ;
     if(!hexPlan()) { workingCell() ; return std::nullopt ; }
     if(levels<1 || levels>30) throw std::invalid_argument("parametricRefinementLevels must be in [1,30]") ;
@@ -214,16 +219,16 @@ namespace FVMAdapt {
       throw std::invalid_argument("geometric refinement requires a nonnegative finite minEdgeLength") ;
     if(requests.empty() && incoming.empty() && !(selection && selection->select)) return *this ;
     auto data=std::make_shared<Data>() ; data->maxDepth=data_->maxDepth ; data->maxNodes=data_->maxNodes ;
-    if(compactHex()) data->hex=std::make_unique<ParametricHex>(*data_->hex) ;
+    if(compactHex()) data->hex=std::make_unique<CompactHexCell>(*data_->hex) ;
     else {
       const auto &source=*data_->cell->source() ;
-      data->hex=std::make_unique<ParametricHex>(source.topology,source.corners,source.limits) ;
+      data->hex=std::make_unique<CompactHexCell>(source.topology,source.corners,source.limits) ;
     }
     std::array<const FacePlan *,6> faces{} ;
     for(const auto &input:incoming) {
-      unsigned f=0 ; while(f<6 && data->hex->topology.faceId(f)!=input.first) ++f ;
-      if(f==6 || !input.second || faces[f]) throw std::invalid_argument("invalid or repeated incoming hex face") ;
-      faces[f]=input.second ;
+      unsigned f=0 ; while(f<6 && data->hex->topology.faceId(f)!=input.face) ++f ;
+      if(f==6 || faces[f]) throw std::invalid_argument("invalid or repeated incoming hex face") ;
+      faces[f]=&input.record.get() ;
     }
     if(!data->hex->edit(requests,levels,method,faces,selection)) return *this ;
     ParametricCellData result ; result.data_=std::move(data) ;
@@ -242,8 +247,8 @@ namespace FVMAdapt {
       const auto edited=editPlan(requests,options.levels,options.center,incoming,nullptr,&selection) ;
       if(edited) return *edited ;
     }
-    auto cell=workingCopy() ;
-    for(const auto &face:incoming) cell.mergeFace(face.first,*face.second) ;
+    checkIncomingFaces(incoming) ; auto cell=workingCopy() ;
+    for(const auto &face:incoming) cell.mergeFace(face.face,face.record.get()) ;
     if(!record.empty()) cell.expand() ;
     if(!compact) requests=decodeParametricRequests(record,cell) ;
     for(const auto &request:requests) {
@@ -279,8 +284,8 @@ namespace FVMAdapt {
       const auto edited=editPlan(requests,1,method,incoming,&changed) ;
       if(edited) return *edited ;
     }
-    auto cell=workingCopy() ; bool faceChanged=false ;
-    for(const auto &face:incoming) faceChanged=cell.mergeFace(face.first,*face.second) || faceChanged ;
+    checkIncomingFaces(incoming) ; auto cell=workingCopy() ; bool faceChanged=false ;
+    for(const auto &face:incoming) faceChanged=cell.mergeFace(face.face,face.record.get()) || faceChanged ;
     if(!required.empty()) {
       cell.expand() ; const auto leaves=cell.leafIds() ; const auto old=previous.workingCell() ;
       for(int index:required) if(old->source() || !cell.restoreSplit(leaves.at(index),*old)) {
@@ -299,6 +304,25 @@ namespace FVMAdapt {
       return hexTagRequests(*plan,root,limits,tags) ;
     }
     return encodeParametricTags(*workingCell(),tags) ;
+  }
+  ParametricRecord ParametricCellData::nodeTagRequests(const std::vector<int> &topology,const std::map<ParametricNodeKey,char> &marking) const {
+    const auto cell=workingCell() ; auto vertices=parametricLeafVertices(decodeParametricTopology(topology),*cell) ;
+    if(cell->hasCornerGeometry()) {
+      std::vector<ParametricNodeKey> keys ; keys.reserve(marking.size()) ;
+      for(const auto &entry:marking) keys.push_back(entry.first) ;
+      mixedCornerVertices(*cell,keys,vertices) ;
+    }
+    std::vector<char> tags ; tags.reserve(vertices.size()) ;
+    for(const auto &leaf:vertices) {
+      bool refine=false,coarsen=true ;
+      for(const auto &vertex:leaf) {
+        const int tag=marking.at(vertex) ;
+        if(tag<0 || tag>2) throw std::invalid_argument("unknown parametric node tag") ;
+        refine=refine || tag==1 ; coarsen=coarsen && tag==2 ;
+      }
+      tags.push_back(refine ? 1:coarsen ? 2:0) ;
+    }
+    return tagRequests(tags) ;
   }
   std::vector<ParametricNodeKey> ParametricCellData::cellNodes(const std::vector<int> &topology,std::vector<Point> *positions) const {
     if(compactHex()) return data_->hex->cellNodes(positions) ;
@@ -347,6 +371,24 @@ namespace FVMAdapt {
     const auto other=rightTopology ? std::make_optional(decodeParametricTopology(*rightTopology)) : std::nullopt ;
     const auto leftCell = workingCell(),rightCell = right ? right->workingCell():nullptr ;
     return parametricFaceFaces(face,left,*leftCell,required,other ? &*other:nullptr,rightCell.get()) ;
+  }
+  std::vector<FacePatch> ParametricCellData::cellPatches(const std::vector<int> &topology) const {
+    const auto cell=workingCell() ;
+    const auto faces=parametricCellFaces(decodeParametricTopology(topology),*cell,{},true) ;
+    std::vector<FacePatch> patches ; patches.reserve(faces.size()) ;
+    for(const auto &face:faces) patches.push_back(face.patch) ;
+    return patches ;
+  }
+  std::vector<FacePatch> ParametricCellData::facePatches(EntityId face,const std::vector<int> &topology,
+      const ParametricCellData *right,const std::vector<int> *rightTopology) const {
+    if(bool(right)!=bool(rightTopology)) throw std::invalid_argument("shared face requires both neighbor state and topology") ;
+    const auto left=decodeParametricTopology(topology) ;
+    const auto other=rightTopology ? std::make_optional(decodeParametricTopology(*rightTopology)) : std::nullopt ;
+    const auto leftCell=workingCell(),rightCell=right ? right->workingCell():nullptr ;
+    const auto faces=parametricFaceFaces(face,left,*leftCell,{},other ? &*other:nullptr,rightCell.get(),true) ;
+    std::vector<FacePatch> patches ; patches.reserve(faces.size()) ;
+    for(const auto &piece:faces) patches.push_back(piece.patch) ;
+    return patches ;
   }
   const HexPlan *ParametricCellData::hexPlan() const {
     if(data_ && data_->hex) return &data_->hex->plan ;
@@ -500,7 +542,7 @@ namespace FVMAdapt {
     return lengths ;
   }
   ParametricRecord ParametricCellData::record() const {
-    return compactHex() ? data_->hex->record() : (data_ ? data_->record : ParametricRecord{}) ;
+    return compactHex() ? data_->hex->record() : (data_ ? data_->savedRecord : ParametricRecord{}) ;
   }
   int ParametricCellData::maxDepth() const { return data_ ? data_->maxDepth:10 ; }
   int ParametricCellData::maxNodes() const { return data_ ? data_->maxNodes:1000000 ; }

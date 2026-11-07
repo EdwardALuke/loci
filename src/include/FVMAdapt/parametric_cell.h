@@ -22,6 +22,8 @@ namespace FVMAdapt {
     PlanarSubdivision planar ;
   } ;
 
+  struct CellSelection ;
+
   /// Original corner-cell geometry, with no subdivision or accepted split choices.
   struct ParametricSource {
     CellTopology topology ;
@@ -35,6 +37,8 @@ namespace FVMAdapt {
     std::shared_ptr<const ParametricSource> source_ ;
     std::unique_ptr<Subdivision> cell_ ;
     explicit ParametricCell(std::shared_ptr<const ParametricSource> source) : source_(std::move(source)) {}
+    static ParametricCell original(const CellTopology &,const std::vector<Point> &,HistoryLimits,const CellSelection &) ;
+    friend class ParametricCellData ;
   public:
     ParametricCell(AffineSubdivision cell) : cell_(std::make_unique<Subdivision>(std::move(cell))) {}
     ParametricCell(ExtrudedSubdivision cell) : cell_(std::make_unique<Subdivision>(std::move(cell))) {}

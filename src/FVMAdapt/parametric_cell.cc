@@ -17,6 +17,10 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
     void require(bool ok, const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+    CellRepresentation cornerRepresentation(const CellTopology &topology,bool facePatches) {
+      return !topology.isStandard() || topology.shape()==Shape::pyramid || facePatches
+        ? CellRepresentation::boundary:CellRepresentation::mappedCorner ;
+    }
     RecordLimits recordLimits(const HistoryLimits &h) {
       RecordLimits r ; r.maxBytes=h.exact.maxBytes ; r.maxNodes=h.maxNodes ; r.maxSplits=h.maxSplits ;
       r.maxDepth=h.maxDepth ; r.geometry=h.geometry ; r.geometry.exact=h.exact ; r.jacobian=h.jacobian ; return r ;
@@ -326,9 +330,37 @@ namespace FVMAdapt {
     }
   }
 
+  CellSelection selectParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
+      const std::string &requested,int axis) {
+    require(requested=="native" || requested=="corner" || requested=="extruded" || requested=="mixed","unknown parametric split family") ;
+    require(axis>=-1 && axis<=2,"parametricExtrusionAxis must be -1, 0, 1 or 2") ;
+    if(requested=="mixed") require(axis<0,"mixed splitting requires full 3D refinement") ;
+    const auto family=requested!="mixed" ? requested:
+      topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ? "native":"corner" ;
+    if(family=="extruded") {
+      require(topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism),"extrusion requires a hex or prism") ;
+      require(axis>=0,"center-based extrusion requires axis 0, 1 or 2") ;
+      return {CellRepresentation::extruded,false} ;
+    }
+    const bool facePatches=needsFacePatches(topology,corners) ;
+    if(family=="native" && !facePatches) {
+      require(topology.isStandard(),"native splitting requires a standard volume cell") ;
+      if(axis>=0) require(topology.shape()==Shape::hex || topology.shape()==Shape::prism,"parametric extrusion requires hexes or prisms") ;
+      return {CellRepresentation::native,false} ;
+    }
+    if(family=="native") require(axis<0,"source faces with nearly straight corners require full 3D boundary refinement") ;
+    require(axis<0,"corner splitting requires full 3D refinement") ;
+    return {cornerRepresentation(topology,facePatches),facePatches} ;
+  }
+
   ParametricCell ParametricCell::original(const CellTopology &topology,const std::vector<Point> &corners,HistoryLimits limits) {
+    return original(topology,corners,std::move(limits),selectParametricCell(topology,corners,"corner",-1)) ;
+  }
+  ParametricCell ParametricCell::original(const CellTopology &topology,const std::vector<Point> &corners,
+      HistoryLimits limits,const CellSelection &selection) {
     require(limits.maxNodes>0,"parametric source requires a positive node limit") ;
-    if(needsFacePatches(topology,corners)) return ParametricBoundary(topology,corners,limits) ;
+    require(selection.corner(),"original cell requires corner splitting") ;
+    if(selection.facePatches) return ParametricBoundary(topology,corners,limits) ;
     if(topology.isStandard()) {
       const auto shape=topology.shape() ;
       require(shape==Shape::hex || shape==Shape::prism || shape==Shape::tet || shape==Shape::pyramid,"unsupported corner source cell") ;
@@ -347,7 +379,8 @@ namespace FVMAdapt {
   }
   void ParametricCell::expand() {
     if(const auto *p=source()) {
-      auto cell=!p->topology.isStandard() || p->topology.shape()==Shape::pyramid
+      // Deferred sources already passed the source-face check.
+      auto cell=cornerRepresentation(p->topology,false)==CellRepresentation::boundary
         ? std::make_unique<Subdivision>(ParametricBoundary(p->topology,p->corners,p->limits))
         : std::make_unique<Subdivision>(ParametricCorner(p->topology,p->corners,p->limits)) ;
       cell_=std::move(cell) ; source_.reset() ;
@@ -490,7 +523,7 @@ namespace FVMAdapt {
     }
     if(const auto *p=cell.native()) return encodeParametricHistory(*p) ;
     if(const auto *p=cell.boundary()) return p->record() ;
-    if(const auto *p=cell.corner()) return p->topology.shape()==Shape::hex ? ParametricHex(*p).record() : p->record() ;
+    if(const auto *p=cell.corner()) return p->topology.shape()==Shape::hex ? CompactHexCell(*p).record() : p->record() ;
     const auto &p=*cell.extruded() ; const auto limits=recordLimits(cell.history().limits()) ;
     detail::RecordWriter out(limits.maxBytes,limits.geometry.exact) ; out.u32(extrusionMagic) ; out.u32(1) ;
     out.u32(unsigned(p.shape)) ; out.u32(p.axis) ; out.u64(p.corners.size()) ;
@@ -498,7 +531,7 @@ namespace FVMAdapt {
     const auto history=encodeRefinement(cell.history(),limits) ; out.u64(history.size()) ; out.append(history) ; return out.take() ;
   }
   ParametricCell decodeParametricCell(const ParametricRecord &record,HistoryLimits limits) {
-    if(ParametricHex::saved(record)) return ParametricHex::decode(record,limits).expand() ;
+    if(CompactHexCell::saved(record)) return CompactHexCell::decode(record,limits).expand() ;
     detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
     const auto magic=in.u32() ;
     if(magic==sourceMagic) {
@@ -522,16 +555,15 @@ namespace FVMAdapt {
   }
   ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
       const ParametricRecord &record,HistoryLimits limits,const std::string &requested,int axis) {
-    const auto family=parametricCellFamily(topology,requested,corners) ;
-    if(requested=="mixed" && axis>=0) throw std::invalid_argument("mixed splitting requires full 3D refinement") ;
-    if(requested=="native" && family=="corner" && axis>=0)
-      throw std::invalid_argument("source faces with nearly straight corners require full 3D boundary refinement") ;
-    require(family=="native" || family=="extruded" || family=="corner","unknown parametric split family") ;
-    if(family=="native") return makeParametricHistory(topology,corners,record,limits) ;
-    if(family=="corner") {
+    return makeParametricCell(topology,corners,record,std::move(limits),selectParametricCell(topology,corners,requested,axis),axis) ;
+  }
+  ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
+      const ParametricRecord &record,HistoryLimits limits,const CellSelection &selection,int axis) {
+    if(selection.representation==CellRepresentation::native) return makeParametricHistory(topology,corners,record,limits) ;
+    if(selection.corner()) {
       require(axis<0,"corner splitting requires full 3D refinement") ;
       if(record.empty()) {
-        if(!topology.isStandard() || topology.shape()==Shape::pyramid || needsFacePatches(topology,corners)) return ParametricBoundary(topology,corners,limits) ;
+        if(selection.representation==CellRepresentation::boundary) return ParametricBoundary(topology,corners,limits) ;
         return ParametricCorner(topology,corners,limits) ;
       }
       auto saved=decodeParametricCell(record,limits) ; require(saved.hasCornerGeometry(),"saved history has a different split family") ;
@@ -545,6 +577,7 @@ namespace FVMAdapt {
       require(root && root->corners==corners,"saved corner source geometry differs") ;
       return saved ;
     }
+    require(selection.representation==CellRepresentation::extruded,"unknown parametric cell representation") ;
     const ExtrusionLayout layout(topology.shape(),corners,axis) ;
     if(!record.empty()) {
       auto saved=decodeParametricCell(record,limits) ; const auto *p=saved.extruded() ;

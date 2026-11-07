@@ -1,6 +1,7 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 #include <FVMAdapt/parametric/corner_boundary.h>
 #include <FVMAdapt/parametric/surface_map.h>
+#include "geometry_validity.h"
 #include <type_traits>
 namespace Loci {
 namespace FVMAdapt {
@@ -161,15 +162,14 @@ namespace FVMAdapt {
 
 
   void CornerBoundary::validateCells(const MappedVolumeSubdivision &subdivision, const std::vector<CornerCell> &cells) const {
-    const auto close = [](const Point &a, const Point &b) {
-      double error = 0, scale = 1 ;
-      for(unsigned d = 0; d < 3; ++d) { error = std::max(error,std::abs(a[d]-b[d])) ; scale = std::max({scale,std::abs(a[d]),std::abs(b[d])}) ; }
-      require(error <= 2e-11*scale,"saved shared geometry disagrees with cell geometry") ;
-    } ;
     require(cells.size() == subdivision.nodes().size(),"saved cell connectivity count does not match history") ;
     for(TreeNodeId id = 0; id < cells.size(); ++id) {
       const auto &cell = cells[id] ; const auto geometry = subdivision.geometry(id) ; const auto &element = referenceElement(geometry->shape()) ;
       require(cell.vertices.size() == element.vertexCount && cell.faces.size() == element.boundaryCount,"invalid saved cell connectivity") ;
+      const double extent = detail::pointExtent(cell.vertices.size(),[&](std::size_t v) { return boundaries.points.at(cell.vertices[v]) ; }) ;
+      const auto close = [extent](const Point &a, const Point &b) {
+        require(detail::mappedPointAgrees(a,b,extent),"saved shared geometry disagrees with cell geometry") ;
+      } ;
       for(unsigned v = 0; v < element.vertexCount; ++v)
         close(boundaries.points.at(cell.vertices[v]),geometry->evaluate(element.vertices[v]).position) ;
       for(unsigned f = 0; f < element.boundaryCount; ++f) {

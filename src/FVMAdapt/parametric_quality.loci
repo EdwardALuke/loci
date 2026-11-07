@@ -180,10 +180,9 @@ $rule apply(parametricQualityReport <- qualityFaces,qualityFaceError,fileNumber(
 }
 
 $rule singleton(parametricQualityReport),constraint(parametricQualityDisabled) { $parametricQualityReport=Q::MeshQualityReport() ; }
-$rule singleton(parametricQualityAccepted <- parametricQualityReport,parametricQualityMode,parametricQualityCentroid,
-  parametricMaxNonOrthogonality,parametricMaxFaceWarpage,parametricMaxChildVolumeRatio) {
+$rule singleton(parametricQualityAccepted <- parametricQualityReport,parametricControls) {
   $parametricQualityAccepted=false ;
-  const Q::MeshQualityOptions options = { ($parametricQualityMode), ($parametricQualityCentroid), ($parametricMaxNonOrthogonality), ($parametricMaxFaceWarpage), ($parametricMaxChildVolumeRatio) } ;
+  const auto &options=$parametricControls.quality ;
   try { options.validate() ; }
   catch(const std::exception &error) { if(Loci::MPI_rank==0) std::cerr<<error.what()<<std::endl ; return ; }
   $parametricQualityAccepted=!$parametricQualityReport.invalid() && (options.mode!="reject" || !$parametricQualityReport.exceeds(options)) ;

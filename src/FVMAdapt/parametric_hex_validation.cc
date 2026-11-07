@@ -2,6 +2,7 @@
 #include "parametric_hex.h"
 #include <FVMAdapt/parametric/geometry_quality.h>
 #include "library/parametric/face_plan_io.h"
+#include "library/parametric/geometry_validity.h"
 
 namespace Loci {
 namespace FVMAdapt {
@@ -13,11 +14,6 @@ namespace FVMAdapt {
     }
     void finite(const Point &p) {
       for(double x : p) require(std::isfinite(x),"nonfinite shared boundary point") ;
-    }
-    void close(const Point &a, const Point &b) {
-      finite(a) ; finite(b) ; double error = 0, scale = 1 ;
-      for(unsigned d = 0; d < 3; ++d) { error = std::max(error,std::abs(a[d]-b[d])) ; scale = std::max({scale,std::abs(a[d]),std::abs(b[d])}) ; }
-      require(error <= 2e-11*scale,"saved shared geometry disagrees with cell geometry") ;
     }
 
     struct FaceNode {
@@ -117,7 +113,7 @@ namespace FVMAdapt {
     }
   }
 
-  void ParametricHex::validate() const {
+  void CompactHexCell::validate() const {
     const CornerMap source(Shape::hex,corners) ;
     BoundaryRecordLimits boundaryLimits ; boundaryLimits.maxSplits = boundaryLimits.maxEntities ;
     boundaryLimits.maxBytes = limits.exact.maxBytes ;
@@ -158,10 +154,14 @@ namespace FVMAdapt {
     bool sourceProved=false ;
     for(HexPlan::Cell id = 0; id < cells.size(); ++id) {
       const HexCellMap map(source,plan,id) ;
+      const auto &hex = referenceElement(Shape::hex) ;
+      const double extent = detail::pointExtent(8,[&](std::size_t v) { return map.position(hex.vertices[v]) ; }) ;
       for(unsigned f = 0; f < 6; ++f) {
         const auto use = cells[id][f] ;
-        for(const auto &p : probes) close(map.position(boundaryPoint(Shape::hex,f,p)),
-          trees.at(use.tree).position(use.node,orientPoint(Shape::quad,use.orientation,p))) ;
+        for(const auto &p : probes)
+          require(detail::mappedPointAgrees(map.position(boundaryPoint(Shape::hex,f,p)),
+            trees.at(use.tree).position(use.node,orientPoint(Shape::quad,use.orientation,p)),extent),
+            "saved shared geometry disagrees with cell geometry") ;
       }
       if(plan.active(id) && plan.leaf(id)) {
         const auto quality=geometryQuality(map) ;

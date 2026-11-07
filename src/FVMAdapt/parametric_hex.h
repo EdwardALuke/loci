@@ -11,7 +11,7 @@ namespace FVMAdapt {
   struct GeometricRefinement ;
   /// Module-owned hex source, compact cell plan and accepted shared-face choices.
   /// Working geometry is constructed locally and never retained here.
-  struct ParametricHex {
+  struct CompactHexCell {
     struct InteriorFace {
       std::uint32_t split ;
       unsigned face ;
@@ -25,9 +25,9 @@ namespace FVMAdapt {
     /// Only divided interior faces need records; ordinals follow child-face order.
     std::vector<InteriorFace> interior ;
 
-    explicit ParametricHex(const ParametricCorner &) ;
+    explicit CompactHexCell(const ParametricCorner &) ;
     /// Unsplit hex from validated source topology and coordinates.
-    ParametricHex(CellTopology t, std::vector<Point> p, HistoryLimits h)
+    CompactHexCell(CellTopology t, std::vector<Point> p, HistoryLimits h)
       : topology(std::move(t)), corners(std::move(p)), limits(std::move(h)) {}
     /// Merge borrowed face plans, then apply decoded requests to a private candidate; return whether it changed.
     /// Geometric selection follows explicit requests; failure may leave the candidate partially edited.
@@ -38,7 +38,7 @@ namespace FVMAdapt {
     ParametricRecord record() const ;
     static bool saved(const ParametricRecord &) ;
     /// Check bounded plans, shared choices and physical geometry without expanding the cell.
-    static ParametricHex decode(const ParametricRecord &, HistoryLimits) ;
+    static CompactHexCell decode(const ParametricRecord &, HistoryLimits) ;
     /// Grading queries use only the split topology; no physical geometry is built.
     std::vector<int> localRequests(unsigned difference, NeighborGrading) const ;
     ParametricTrace edgeTrace() const ;
@@ -52,11 +52,11 @@ namespace FVMAdapt {
     std::vector<Point> cellPositions(const std::vector<ParametricNodeKey> &) const ;
     std::vector<ParametricOutputFace> cellFaces(const std::vector<ParametricNodeKey> &required) const ;
     /// Original-face nodes, optionally with positions in the same order, without expanding cell geometry.
-    std::vector<ParametricNodeKey> faceNodes(EntityId face,const ParametricHex *right = nullptr,
+    std::vector<ParametricNodeKey> faceNodes(EntityId face,const CompactHexCell *right = nullptr,
         std::vector<Point> *positions = nullptr) const ;
-    std::vector<Point> facePositions(EntityId face,const ParametricHex *right = nullptr) const ;
+    std::vector<Point> facePositions(EntityId face,const CompactHexCell *right = nullptr) const ;
     std::vector<ParametricOutputFace> faceFaces(EntityId face,const std::vector<ParametricNodeKey> &required,
-        const ParametricHex *right = nullptr) const ;
+        const CompactHexCell *right = nullptr) const ;
   private:
     void validate() const ;
   } ;

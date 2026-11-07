@@ -3,10 +3,44 @@
 #define LOCI_FVMADAPT_GEOMETRY_VALIDITY_INTERNAL_H
 #include "exact_geometry.h"
 #include <FVMAdapt/parametric/geometry_map.h>
+#include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace Loci {
 namespace FVMAdapt {
 namespace detail {
+  /// Largest coordinate span across a cell, face or edge's corners.
+  template<class Position> double pointExtent(std::size_t count, const Position &position) {
+    if(!count) return 0 ;
+    Point lower = position(0), upper = lower ;
+    for(std::size_t v = 0; v < count; ++v) {
+      const auto point = position(v) ;
+      for(unsigned d = 0; d < 3; ++d) {
+        if(!std::isfinite(point[d])) return std::numeric_limits<double>::quiet_NaN() ;
+        lower[d] = std::min(lower[d],point[d]) ; upper[d] = std::max(upper[d],point[d]) ;
+      }
+    }
+    return std::max({upper[0]-lower[0],upper[1]-lower[1],upper[2]-lower[2]}) ;
+  }
+  inline bool pointAgreement(const Point &a, const Point &b, double extent, double relative) {
+    if(!std::isfinite(extent) || extent < 0) return false ;
+    for(unsigned d = 0; d < 3; ++d) {
+      if(!std::isfinite(a[d]) || !std::isfinite(b[d])) return false ;
+      const double roundoff = 256*std::numeric_limits<double>::epsilon()*std::max({extent,std::abs(a[d]),std::abs(b[d])}) ;
+      if(std::abs(a[d]-b[d]) > relative*extent+roundoff) return false ;
+    }
+    return true ;
+  }
+  /// Saved points allow only evaluation roundoff, including coordinate translation.
+  inline bool storedPointAgrees(const Point &a, const Point &b, double extent) {
+    return pointAgreement(a,b,extent,0) ;
+  }
+  /// Independent cell and face maps also allow error relative to the local size.
+  inline bool mappedPointAgrees(const Point &a, const Point &b, double extent) {
+    return pointAgreement(a,b,extent,2e-11) ;
+  }
+
   /// Algebra retained by temporary piece evaluators; unknown callbacks have no view.
   struct ExactMapView {
     enum class Kind { unknown, affine, delegate, coons } ;

@@ -117,14 +117,14 @@ namespace FVMAdapt {
         if(face.centerVertex == absent) return ;
         facePoint(face.centerVertex) ; for(auto child : face.children) faceKeys(child) ;
       }
-      void cover(const ParametricHex &cell,bool right) {
+      void cover(const CompactHexCell &cell,bool right) {
         const bool reverse = cell.topology.faceOrientation(faceIndex(cell.topology,owner)) >= 4 ;
         for(const auto &leaf : cell.faceLeaves(owner)) {
           auto id = faceIds.at({{leaf.lower[0],leaf.lower[1],leaf.width}}) ; faces[id].covers.push_back({leaf.leaf,right,reverse}) ;
           while(faces[id].parent != absent) { id = faces[id].parent ; faces[id].active = true ; }
         }
       }
-      FaceOutput(EntityId face,const ParametricHex &left,const ParametricHex *right,const std::vector<ParametricNodeKey> &required = {}) : owner(face) {
+      FaceOutput(EntityId face,const CompactHexCell &left,const CompactHexCell *right,const std::vector<ParametricNodeKey> &required = {}) : owner(face) {
         const auto f = faceIndex(left.topology,face),orientation = left.topology.faceOrientation(f) ;
         const auto &hex = referenceElement(Shape::hex) ; const auto &boundary = hex.boundaries[f] ;
         source.resize(4) ; keys.resize(4) ; std::array<unsigned,4> native ;
@@ -175,8 +175,8 @@ namespace FVMAdapt {
         require(e.middle != absent,"active face edge has no midpoint") ; const bool reverse = e.vertices[0] != start ;
         visitEdgeVertices(e.children[reverse ? 1:0],start,visit) ; visitEdgeVertices(e.children[reverse ? 0:1],e.middle,visit) ;
       }
-      /// Propagate leaf coverage and activate the edges of the selected face pieces.
-      std::vector<unsigned> selectFaces(bool neighbor) {
+      /// Propagate coverage and activate edges once, before this temporary's output query.
+      std::vector<unsigned> prepareFaces(bool neighbor) {
         std::vector<unsigned> selected ;
         for(unsigned id = 0; id < faces.size(); ++id) {
           const auto &face = faces[id] ;
@@ -193,7 +193,7 @@ namespace FVMAdapt {
         return selected ;
       }
       std::vector<ParametricOutputFace> output(bool neighbor,const std::vector<ParametricNodeKey> &required = {}) {
-        const auto selected = selectFaces(neighbor) ;
+        const auto selected = prepareFaces(neighbor) ;
         const std::set<ParametricNodeKey> needed(required.begin(),required.end()) ;
         for(unsigned e = 0; e < edges.size(); ++e) if(edges[e].middle != absent && needed.count(keys[edges[e].middle])) {
           edges[e].active = true ; splitParents(e) ;
@@ -210,7 +210,7 @@ namespace FVMAdapt {
         return result ;
       }
       std::vector<ParametricNodeKey> nodes(bool neighbor) {
-        const auto selected = selectFaces(neighbor) ; std::vector<unsigned char> used(keys.size(),0) ; std::size_t count = 0 ;
+        const auto selected = prepareFaces(neighbor) ; std::vector<unsigned char> used(keys.size(),0) ; std::size_t count = 0 ;
         const auto mark = [&](unsigned vertex) {
           if(!used[vertex] && keys[vertex].reference.kind == EntityKind::face) { used[vertex] = 1 ; ++count ; }
         } ;
@@ -234,15 +234,15 @@ namespace FVMAdapt {
       }
     } ;
   }
-  std::vector<ParametricNodeKey> ParametricHex::faceNodes(EntityId face,const ParametricHex *right,std::vector<Point> *positions) const {
+  std::vector<ParametricNodeKey> CompactHexCell::faceNodes(EntityId face,const CompactHexCell *right,std::vector<Point> *positions) const {
     FaceOutput output(face,*this,right) ; auto nodes=output.nodes(right!=nullptr) ;
     if(positions) *positions=output.positions(nodes) ;
     return nodes ;
   }
-  std::vector<Point> ParametricHex::facePositions(EntityId face,const ParametricHex *right) const {
+  std::vector<Point> CompactHexCell::facePositions(EntityId face,const CompactHexCell *right) const {
     std::vector<Point> positions ; faceNodes(face,right,&positions) ; return positions ;
   }
-  std::vector<ParametricOutputFace> ParametricHex::faceFaces(EntityId face,const std::vector<ParametricNodeKey> &required,const ParametricHex *right) const {
+  std::vector<ParametricOutputFace> CompactHexCell::faceFaces(EntityId face,const std::vector<ParametricNodeKey> &required,const CompactHexCell *right) const {
     return FaceOutput(face,*this,right,required).output(right != nullptr,required) ;
   }
 }

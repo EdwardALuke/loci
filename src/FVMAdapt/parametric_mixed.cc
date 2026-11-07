@@ -148,11 +148,6 @@ namespace Loci { namespace FVMAdapt {
       return keys ;
     }
   }
-  std::string parametricCellFamily(const CellTopology &topology,const std::string &family,const std::vector<Point> &corners) {
-    const auto selected=family!="mixed" ? family:
-      topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ? "native":"corner" ;
-    return selected=="native" && !corners.empty() && needsFacePatches(topology,corners) ? "corner":selected ;
-  }
   bool mixedFace(const ParametricCell &left,const ParametricCell *right) {
     return right && ((left.native() && right->hasCornerGeometry()) || (left.hasCornerGeometry() && right->native())) ;
   }

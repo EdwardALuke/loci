@@ -65,7 +65,7 @@ namespace FVMAdapt {
       }
     } ;
   }
-  std::vector<int> ParametricHex::localRequests(unsigned difference, NeighborGrading grading) const {
+  std::vector<int> CompactHexCell::localRequests(unsigned difference, NeighborGrading grading) const {
     const LeafIndex index(plan) ; std::set<int> required ;
     // A fine box's contact with a coarser box fits on one face, edge or corner.
     // Probe from the fine side; the boxes nest regardless of the physical centers.
@@ -113,13 +113,13 @@ namespace FVMAdapt {
     } ;
     visit(a,af,b,bf,right) ; visit(b,bf,a,af,left) ; return out ;
   }
-  std::vector<ParametricHex::FaceLeaf> ParametricHex::faceLeaves(EntityId face) const {
+  std::vector<CompactHexCell::FaceLeaf> CompactHexCell::faceLeaves(EntityId face) const {
     const auto boxes = plan.leafBoxes() ; const FaceAxes axes(topology,face) ; std::vector<FaceLeaf> result ;
     for(unsigned i = 0; i < boxes.size(); ++i)
       if(axes.incident(boxes[i])) result.push_back({axes.lower(boxes[i]),boxes[i].width(),int(i)}) ;
     return result ;
   }
-  ParametricTrace ParametricHex::edgeTrace() const {
+  ParametricTrace CompactHexCell::edgeTrace() const {
     const auto boxes = plan.leafBoxes() ; const auto &e = referenceElement(Shape::hex) ; ParametricTrace result ;
     for(unsigned i = 0; i < boxes.size(); ++i) for(unsigned edge = 0; edge < e.edgeCount; ++edge) {
       const auto &box = boxes[i] ; const auto &a = e.vertices[e.edges[edge][0]], &b = e.vertices[e.edges[edge][1]] ;
@@ -137,12 +137,12 @@ namespace FVMAdapt {
     }
     return result ;
   }
-  std::vector<int> ParametricHex::vertexDepths() const {
+  std::vector<int> CompactHexCell::vertexDepths() const {
     std::vector<int> result ;
     for(unsigned v = 0; v < 8; ++v) result.push_back(plan.depth(plan.findLeaf(vertexPoint(v)))) ;
     return result ;
   }
-  std::vector<int> ParametricHex::vertexRequests(const std::map<EntityId,int> &depth, unsigned difference) const {
+  std::vector<int> CompactHexCell::vertexRequests(const std::map<EntityId,int> &depth, unsigned difference) const {
     const LeafIndex index(plan) ; std::set<int> result ;
     for(unsigned v = 0; v < 8; ++v) {
       const int other = depth.at(topology.vertexId(v)) ;

@@ -27,6 +27,10 @@ requesting mesh output. Carry `balancedParametricHistory` into the next
 
 Inside the module, `ParametricCellData` owns accepted per-cell state. Its query
 and edit methods choose the appropriate compact plan or working geometry.
+Untouched corner cells retain their source geometry; piecewise source faces
+are built immediately. Vertex-based hex splits use `CompactHexCell`: source
+geometry, a compact plan and accepted face choices.
+Other cells retain the working representation appropriate to their shape.
 `applyRequests()` and `balance()` edit independent candidates. `workingCell()`
 supplies read-only working geometry; `workingCopy()` supplies an editable copy.
 Expanding compact state can be expensive, so ordinary queries use the direct
@@ -34,6 +38,8 @@ cell-data methods.
 The rules retain responsibility for neighbor reductions and iteration.
 Shared face plans contain accepted local centers and edge divisions, without
 physical geometry maps. Both sides use the original grid's shared face geometry.
+Each face has one accepted construction. A new preference cannot move a center
+that the face already uses.
 
 To encode one isotropic request:
 

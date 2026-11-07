@@ -4,8 +4,23 @@
 #include <FVMAdapt/parametric_cell.h>
 
 namespace Loci { namespace FVMAdapt {
-  /// Select directional standard-cell or isotropic general-cell splitting.
-  std::string parametricCellFamily(const CellTopology &,const std::string &,const std::vector<Point> &corners) ;
+  /// Working geometry selected for a source cell; compact storage is chosen separately.
+  enum class CellRepresentation { native, mappedCorner, boundary, extruded } ;
+  struct CellSelection {
+    CellRepresentation representation ;
+    bool facePatches ; ///< Source faces need piecewise maps and cannot use deferred corner geometry.
+    bool corner() const {
+      return representation==CellRepresentation::mappedCorner || representation==CellRepresentation::boundary ;
+    }
+  } ;
+  /// Resolve split family, source-face representation and extrusion compatibility.
+  CellSelection selectParametricCell(const CellTopology &,const std::vector<Point> &,const std::string &family,int axis) ;
+
+  /// Construct using the selection already resolved for these source coordinates.
+  /// Saved-history and physical-geometry checks still apply.
+  ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
+      const ParametricRecord &record,HistoryLimits limits,const CellSelection &,int axis) ;
+
   /// Original-face coordinates of corner points; requires midpoint face constructions.
   std::map<ParametricNodeKey,ReferencePoint> cornerFaceCoordinates(EntityId,const ParametricCell &) ;
   void validateMixedFacePlan(const ParametricRecord &) ;

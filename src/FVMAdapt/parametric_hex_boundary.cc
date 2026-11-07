@@ -2,6 +2,7 @@
 #include "parametric_hex.h"
 #include <FVMAdapt/parametric_cell.h>
 #include "library/parametric/face_plan_io.h"
+#include "library/parametric/geometry_validity.h"
 #include <set>
 
 namespace Loci {
@@ -62,7 +63,7 @@ namespace FVMAdapt {
       struct Use { unsigned face,orientation ; } ;
       /// Hex incidence in native vertex and face order.
       struct Cell { std::array<unsigned,8> vertices ; std::array<Use,6> faces ; } ;
-      const ParametricHex &saved ;
+      const CompactHexCell &saved ;
       const CornerMap source ;
       std::vector<Location> locations ; std::vector<ParametricNodeKey> keys ;
       std::vector<Edge> edges ; std::vector<Face> faces ; std::vector<Cell> cells ;
@@ -169,7 +170,7 @@ namespace FVMAdapt {
         if(f.centerVertex==absent) return ;
         facePoint(f.centerVertex,owner,next) ; for(auto child:f.children) faceKeys(child,owner,next) ;
       }
-      explicit HexBoundary(const ParametricHex &state,const std::vector<ParametricNodeKey> &required={},bool forOutput=true)
+      explicit HexBoundary(const CompactHexCell &state,const std::vector<ParametricNodeKey> &required={},bool forOutput=true)
         : saved(state),source(Shape::hex,state.corners) {
         const auto &hex=referenceElement(Shape::hex) ; const auto &t=saved.topology ; Cell root ;
         for(unsigned v=0;v<8;++v) { root.vertices[v]=point({absent,0,hex.vertices[v]}) ; keys[v]={{EntityKind::vertex,t.vertexId(v),{}},-1} ; }
@@ -255,7 +256,7 @@ namespace FVMAdapt {
         detail::RecordWriter out(limits.maxBytes,limits.geometry.exact) ; detail::header(out,4) ;
         detail::FacePlanBudget budget{limits} ; writeFace(out,id,budget,0) ; return out.take() ;
       }
-      void save(ParametricHex &target) const {
+      void save(CompactHexCell &target) const {
         for(unsigned f=0;f<6;++f) target.faces[f]=record(f) ;
         target.interior.clear() ;
         for(unsigned i=0;i<target.plan.splitCount();++i) {
@@ -269,15 +270,13 @@ namespace FVMAdapt {
       }
       void checkCell(unsigned id) const {
         const HexCellMap map(source,saved.plan,id) ; const auto &hex=referenceElement(Shape::hex) ;
-        const auto close=[](const Point &a,const Point &b) {
-          double error=0,scale=1 ;
-          for(unsigned d=0;d<3;++d) {
-            require(std::isfinite(a[d]) && std::isfinite(b[d]),"nonfinite shared boundary point") ;
-            error=std::max(error,std::abs(a[d]-b[d])) ; scale=std::max({scale,std::abs(a[d]),std::abs(b[d])}) ;
-          }
-          require(error<=2e-11*scale,"saved shared geometry disagrees with cell geometry") ;
+        std::array<Point,8> corners ;
+        for(unsigned v=0;v<8;++v) corners[v]=map.position(hex.vertices[v]) ;
+        const double extent=detail::pointExtent(8,[&](std::size_t v) { return corners[v] ; }) ;
+        const auto close=[extent](const Point &a,const Point &b) {
+          require(detail::mappedPointAgrees(a,b,extent),"saved shared geometry disagrees with cell geometry") ;
         } ;
-        for(unsigned v=0;v<8;++v) close(map.position(hex.vertices[v]),position(cells[id].vertices[v])) ;
+        for(unsigned v=0;v<8;++v) close(corners[v],position(cells[id].vertices[v])) ;
         const std::array<Point,5> probes{{{{0,0,0}},{{1,0,0}},{{1,1,0}},{{0,1,0}},{{.5,.5,0}}}} ;
         for(unsigned f=0;f<6;++f) {
           const auto use=cells[id].faces[f] ; const auto geometry=faceGeometry(use.face) ;
@@ -285,7 +284,7 @@ namespace FVMAdapt {
             geometry->position(orientPoint(Shape::quad,use.orientation,p))) ;
         }
       }
-      void refine(ParametricHex &target,unsigned id,CenterMethod method) {
+      void refine(CompactHexCell &target,unsigned id,CenterMethod method) {
         require(target.plan.leaf(id),"hex refinement requires an active leaf") ;
         if(target.plan.accepted(id)) { target.plan.refine(id) ; return ; }
         const auto &limits=target.limits ;
@@ -336,8 +335,8 @@ namespace FVMAdapt {
         require(e.middle!=absent,"active hex edge has no midpoint") ; const bool reverse=e.vertices[0]!=start ;
         visitEdgeVertices(e.children[reverse ? 1:0],start,visit) ; visitEdgeVertices(e.children[reverse ? 0:1],e.middle,visit) ;
       }
-      /// Propagate leaf coverage and activate the edges of the selected interior faces.
-      std::vector<unsigned> selectFaces() {
+      /// Propagate coverage and activate edges once, before this temporary's output query.
+      std::vector<unsigned> prepareFaces() {
         std::vector<unsigned> selected ;
         for(unsigned id=0;id<faces.size();++id) {
           const auto &f=faces[id] ; if(f.exterior) continue ;
@@ -351,7 +350,7 @@ namespace FVMAdapt {
         return selected ;
       }
       std::vector<ParametricNodeKey> nodes() {
-        const auto selected=selectFaces() ; std::vector<unsigned char> used(keys.size(),0) ; std::size_t count=0 ;
+        const auto selected=prepareFaces() ; std::vector<unsigned char> used(keys.size(),0) ; std::size_t count=0 ;
         const auto mark=[&](unsigned vertex) {
           if(!used[vertex] && keys[vertex].reference.kind==EntityKind::cell) { used[vertex]=1 ; ++count ; }
         } ;
@@ -364,7 +363,7 @@ namespace FVMAdapt {
         return result ;
       }
       std::vector<ParametricOutputFace> output(const std::vector<ParametricNodeKey> &required) {
-        const auto selected=selectFaces() ;
+        const auto selected=prepareFaces() ;
         const std::set<ParametricNodeKey> needed(required.begin(),required.end()) ;
         for(unsigned e=0;e<edges.size();++e) if(edges[e].middle!=absent && needed.count(keys[edges[e].middle])) { edges[e].active=true ; splitParents(e) ; }
         std::vector<ParametricOutputFace> result ; result.reserve(selected.size()) ;
@@ -379,7 +378,7 @@ namespace FVMAdapt {
       }
     } ;
   }
-  bool ParametricHex::edit(const std::vector<ParametricLeafRequest> &requests,int levels,CenterMethod method,
+  bool CompactHexCell::edit(const std::vector<ParametricLeafRequest> &requests,int levels,CenterMethod method,
       const std::array<const FacePlan *,6> &incoming,const GeometricRefinement *selection) {
     std::unique_ptr<HexBoundary> boundary ; bool changed=!requests.empty() ;
     for(unsigned f=0;f<6;++f) if(incoming[f] && !incoming[f]->empty() && *incoming[f]!=faces[f]) {
@@ -432,7 +431,7 @@ namespace FVMAdapt {
     if(boundary && changed) boundary->save(*this) ;
     return changed ;
   }
-  std::vector<ParametricNodeKey> ParametricHex::cellNodes(std::vector<Point> *positions) const {
+  std::vector<ParametricNodeKey> CompactHexCell::cellNodes(std::vector<Point> *positions) const {
     if(positions) positions->clear() ;
     if(plan.leaf(0)) return {} ;
     HexBoundary view(*this) ; auto nodes=view.nodes() ;
@@ -442,7 +441,7 @@ namespace FVMAdapt {
     }
     return nodes ;
   }
-  std::vector<Point> ParametricHex::cellPositions(const std::vector<ParametricNodeKey> &keys) const {
+  std::vector<Point> CompactHexCell::cellPositions(const std::vector<ParametricNodeKey> &keys) const {
     if(keys.empty()) return {} ;
     const HexBoundary view(*this) ; std::vector<Point> result ; result.reserve(keys.size()) ;
     for(const auto &key:keys) {
@@ -451,7 +450,7 @@ namespace FVMAdapt {
     }
     return result ;
   }
-  std::vector<ParametricOutputFace> ParametricHex::cellFaces(const std::vector<ParametricNodeKey> &required) const {
+  std::vector<ParametricOutputFace> CompactHexCell::cellFaces(const std::vector<ParametricNodeKey> &required) const {
     if(plan.leaf(0)) return {} ;
     return HexBoundary(*this,required).output(required) ;
   }

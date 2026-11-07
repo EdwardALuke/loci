@@ -33,7 +33,7 @@ namespace FVMAdapt {
     }
   }
 
-  ParametricHex::ParametricHex(const ParametricCorner &cell) : topology(cell.topology), limits(cell.subdivision.history().limits()) {
+  CompactHexCell::CompactHexCell(const ParametricCorner &cell) : topology(cell.topology), limits(cell.subdivision.history().limits()) {
     require(topology.shape() == Shape::hex,"compact hex history requires a hex source") ;
     const auto &history = cell.subdivision.history() ;
     const auto *source = std::get_if<CornerRecord>(&history.geometry().record(history.node(0).map)) ;
@@ -62,7 +62,7 @@ namespace FVMAdapt {
     const auto leaves = history.leafIds() ;
     require(plan.leaves() == std::vector<HexPlan::Cell>(leaves.begin(),leaves.end()),"hex selections differ") ;
   }
-  ParametricCorner ParametricHex::expand() const {
+  ParametricCorner CompactHexCell::expand() const {
     ParametricCorner cell(topology,corners,limits) ;
     for(unsigned f = 0; f < 6; ++f) cell.mergeFace(topology.faceId(f),faces[f]) ;
     std::size_t next = 0 ;
@@ -90,7 +90,7 @@ namespace FVMAdapt {
     }
     return cell ;
   }
-  ParametricRecord ParametricHex::record() const {
+  ParametricRecord CompactHexCell::record() const {
     detail::RecordWriter out(limits.exact.maxBytes,limits.exact) ; out.u32(magic) ; out.u32(1) ;
     const auto t = encodeParametricTopology(topology) ; out.u64(t.size()) ; for(int v : t) out.u32(v) ;
     for(const auto &p : corners) for(double x : p) out.real(x) ;
@@ -99,18 +99,18 @@ namespace FVMAdapt {
     for(const auto &face : interior) { out.u32(face.split) ; out.byte(face.face) ; bytes(out,face.plan) ; }
     return out.take() ;
   }
-  bool ParametricHex::saved(const ParametricRecord &record) {
+  bool CompactHexCell::saved(const ParametricRecord &record) {
     if(record.size() < 4) return false ;
     unsigned tag = 0 ; for(unsigned b = 0; b < 4; ++b) tag |= unsigned(record[b])<<(8*b) ; return tag == magic ;
   }
-  ParametricHex ParametricHex::decode(const ParametricRecord &record, HistoryLimits limits) {
+  CompactHexCell CompactHexCell::decode(const ParametricRecord &record, HistoryLimits limits) {
     detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
     require(in.u32() == magic && in.u32() == 1,"unsupported compact hex record") ;
     std::vector<int> t(in.count(128,4)) ; for(auto &v : t) v = in.u32() ;
     const auto topology = decodeParametricTopology(t) ; require(topology.shape() == Shape::hex,"compact source is not a hex") ;
     std::vector<Point> corners(8) ; for(auto &p : corners) for(auto &x : p) x = in.real() ;
     require(validParametricSource(CornerMap(Shape::hex,corners),limits.jacobian),"invalid compact hex source geometry") ;
-    ParametricHex result(topology,std::move(corners),limits) ;
+    CompactHexCell result(topology,std::move(corners),limits) ;
     require(limits.maxNodes > 0,"compact hex requires a positive node limit") ;
     result.plan = HexPlan::decode(bytes(in,limits.exact.maxBytes),std::min(limits.maxSplits,(limits.maxNodes-1)/8),limits.jacobian) ;
     for(std::size_t i = 0; i < result.plan.splitCount(); ++i)
