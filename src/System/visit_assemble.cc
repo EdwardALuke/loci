@@ -464,10 +464,12 @@ namespace Loci {
              }
           */
           if(sp!=0) {
-            if(isPARAMETER(sp) && !isGPU(sp)) {
-              reduce_var_vector.push_back(xi->first) ;
-              unit_rule_vector.push_back(unit_rule) ;
-              join_op_vector.push_back(join_op) ;
+            if(isPARAMETER(sp)) {
+              if(!isGPU(sp)) {
+                reduce_var_vector.push_back(xi->first) ;
+                unit_rule_vector.push_back(unit_rule) ;
+                join_op_vector.push_back(join_op) ;
+              }
             } else {
               warn(!isSTORE(sp)) ;
 #ifdef VERBOSE
