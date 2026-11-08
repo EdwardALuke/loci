@@ -21,6 +21,7 @@
 #include "lpp.h"
 #include <Config/version_details.h>
 #include <unistd.h>
+#include <cstring>
 
 using namespace std ;
 
@@ -121,6 +122,9 @@ int main(int argc, char *argv[]) {
       if(argv[i][1] == 'I') {
         string dir = &argv[i][2] ;
         include_dirs.push_back(dir) ;
+      } else if(strncmp(argv[i], "-isystem", 8) == 0) {
+	string dir = &argv[i][8] ;
+	include_dirs.push_back(dir) ;
       } else if(argv[i][1] == 'p') {
         prettyOutput = true ;
       } else  if(argv[i][1] == 'x') {
