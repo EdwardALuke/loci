@@ -239,9 +239,17 @@
 	* Improved memory behavior by vog grid converter code
 	* Added openfoam converter
 //-----------------------------------------------------------------------------
-	Version V 4.1.1 -> V 4.1.2
+	Version V 4.1.2 -> V 4.1.3
 	* Fixed for PETSc support for latest release API changes
 	* Fixed parsing Cmake Configuration from HDF5 installs in configure
 	* Added support for vector variables in extract -cut
 	* Fixed issues with --big support for FVMAdapt library code
 	* Fixed memory scaling in createEdgesPar
+//-----------------------------------------------------------------------------
+	Version V 4.1.3 -> V 4.1.4
+	* Fixed issue with spurious categories causing failed boundary output
+	* Fixed issue with periodic iterative gradient option
+	* Fixed issue with empty entitySet in petsc interface
+	* Fixed issue with empty set in c2p map for online adaptivity
+	* Fixed issue with uninitialized data and bounds checking
+	* Improvement of 2dgv interface
