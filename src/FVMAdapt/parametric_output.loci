@@ -20,6 +20,7 @@
 //#############################################################################
 #include <Loci.h>
 #include <FVMAdapt/defines.h>
+#include <FVMAdapt/gridInterface.h>
 #include <FVMAdapt/parametric_cell.h>
 #include <FVMAdapt/parametric/geometry_map.h>
 #include <algorithm>
@@ -34,6 +35,7 @@ $include "parametric_internal.lh"
 using namespace Loci::FVMAdapt ;
 
 namespace {
+  namespace P = Loci::FVMAdapt ;
 
   void addNodeNumbers(const Loci::FineFaces &record, int offset,
                       ParametricNodeNumbers &numbers, std::vector<ParametricNodeKey> *points = nullptr) {
@@ -184,3 +186,27 @@ face2edge->(parametricNodeKeys,balanced_node_offset),cl->(parametricTopology,bal
     numberFaces($cl->$balancedParametricCell.faceFaces($fileNumber(face2node),left,edgeNodes),numbers,$cl->$balanced_cell_offset,0,boundary,$fine_faces) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
+
+/// Accepted history and weights in file numbering, ready for the next online query.
+$type parametricOutputState blackbox<Loci::RefinementState> ;
+
+namespace Loci {
+  storeRepP Local2FileOrder(storeRepP,entitySet,int &,fact_db::distribute_infoP,MPI_Comm) ;
+}
+
+$rule blackbox(parametricOutputState <- balancedParametricHistory,balanced_num_fine_cells),
+  conditional(parametricAccepted), constraint(geom_cells), option(disable_threading), prelude {
+  const auto dist=Loci::exec_current_fact_db->get_distribute_info() ;
+  entitySet cells=$balancedParametricHistory.domain() ; if(dist!=0) cells &= dist->my_entities ;
+  int offset=0 ;
+  if(dist==0) {
+    Loci::store<P::ParametricRecord> history ; history.allocate(cells) ;
+    Loci::store<int> weights ; weights.allocate(cells) ;
+    for(int cell:cells) { history[cell]=$balancedParametricHistory[cell] ; weights[cell]=$balanced_num_fine_cells[cell] ; }
+    $parametricOutputState->histories=history.Rep() ; $parametricOutputState->weights=weights.Rep() ;
+  } else {
+    auto history=Loci::Local2FileOrder($balancedParametricHistory.Rep(),cells,offset,dist,MPI_COMM_WORLD) ; history->shift(offset) ;
+    auto weights=Loci::Local2FileOrder($balanced_num_fine_cells.Rep(),cells,offset,dist,MPI_COMM_WORLD) ; weights->shift(offset) ;
+    $parametricOutputState->histories=history ; $parametricOutputState->weights=weights ;
+  }
+} ;

@@ -1,7 +1,7 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 
 #include <FVMAdapt/parametric_cell.h>
-#include "parametric_hex.h"
+#include "compact_hex.h"
 #include <FVMAdapt/parametric/geometry_quality.h>
 #include <FVMAdapt/parametric/planar_subdivision.h>
 #include "library/parametric/record_io.h"

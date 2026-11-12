@@ -34,6 +34,7 @@
 
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
+$include "parametric_internal.lh"
 
 using Loci::storeRepP ;
 using std::cerr ;
@@ -45,16 +46,6 @@ using std::queue ;
 using std::set ;
 using std::string ;
 using std::vector ;
-
-//-----------------------------------------------------------------------------
-// Parent-cell offsets
-//-----------------------------------------------------------------------------
-
-$type parent_cell_offset store<int> ;
-$type cell2parent store<std::vector<std::pair<int32, int32> > > ;
-$type cell2parent_file_par param<std::string> ;
-$type cell2parent_output store<bool> ;
-$type cell2parent_DB store<bool> ;
 
 typedef Loci::vector3d<double> vect3d ;
 namespace Loci {
@@ -74,6 +65,84 @@ namespace Loci {
                        fact_db::distribute_infoP dist,
                        MPI_Comm comm) ;
 }
+
+// Donor history and local cell correspondence.
+
+/// Optional earlier plan used by refmesh for cell correspondence.
+$type parametricParentHistoryInput blackbox<Loci::storeRepP> ;
+$type parametricParentHistory store<Loci::FVMAdapt::ParametricRecord> ;
+$type parametricParentError store<std::string> ;
+
+$rule pointwise(parametricDonorCell,parametricParentError <- initialParametricCell), constraint(geom_cells) {
+  $parametricDonorCell=$initialParametricCell ; $parametricParentError.clear() ;
+}
+
+$rule pointwise(parametricParentHistory <- parametricParentHistoryInput), constraint(geom_cells), option(disable_threading), prelude {
+  const entitySet cells=entitySet(seq) ;
+  if(*$parametricParentHistoryInput==0) {
+    for(int cell:cells) $parametricParentHistory[cell].clear() ;
+  } else {
+    const auto dist=Loci::exec_current_fact_db->get_distribute_info() ;
+    Loci::store<Loci::FVMAdapt::ParametricRecord> saved=*$parametricParentHistoryInput ;
+    if(dist==0) { for(int cell:cells) $parametricParentHistory[cell]=saved[cell] ; }
+    else {
+      auto rep=$parametricParentHistory.Rep() ;
+      Loci::File2LocalOrder(rep,cells,saved.Rep(),0,dist,MPI_COMM_WORLD) ;
+      $parametricParentHistory=rep ;
+    }
+  }
+} ;
+
+$rule pointwise(priority::plan::parametricDonorCell,priority::plan::parametricParentError <- parametricParentHistory,parametricTopology,initialParametricCell,
+  (lower,upper,boundary_map)->face2node->(pos,fileNumber(pos)),parametricMaxDepth,parametricMaxNodes,parametricSplitFamily,parametricExtrusionAxis),
+  constraint(geom_cells) {
+  $parametricParentError.clear() ;
+  try {
+    namespace P=Loci::FVMAdapt ;
+    const auto topology=P::decodeParametricTopology($parametricTopology) ;
+    std::map<P::EntityId,P::Point> positions ;
+    const auto addFace=[&](int face) {
+      for(int node:$*face2node[face]) {
+        const auto &p=$*pos[node] ; positions[$*fileNumber(pos)[node]]=P::Point{p.x,p.y,p.z} ;
+      }
+    } ;
+    for(int face:$lower) addFace(face) ; for(int face:$upper) addFace(face) ; for(int face:$boundary_map) addFace(face) ;
+    std::vector<P::Point> corners ;
+    for(unsigned v=0;v<topology.vertexCount();++v) corners.push_back(positions.at(topology.vertexId(v))) ;
+    $parametricDonorCell=P::ParametricCellData::initial(topology,corners,$parametricParentHistory,
+      $parametricMaxDepth,$parametricMaxNodes,$parametricSplitFamily,$parametricExtrusionAxis,$initialParametricCell.sourceEdgeControls(topology)) ;
+  } catch(const std::exception &error) { $parametricParentError=error.what() ; }
+}
+
+$rule pointwise(parametricDonorLeaves,parametricParentLeaf <- parametricDonorCell,balancedParametricCell),
+  conditional(parametricAccepted), constraint(geom_cells) {
+  $parametricDonorLeaves = $balancedParametricCell.donorsFrom($parametricDonorCell) ;
+  $parametricParentLeaf.clear() ;
+  for(const auto &donors: $parametricDonorLeaves) $parametricParentLeaf.push_back(donors.size() == 1 ? donors.front() : -1) ;
+}
+
+/// Donor leaf counts for parent numbering.
+$rule pointwise(parent_num_fine_cells <- parametricDonorCell), constraint(geom_cells) {
+  $parent_num_fine_cells = int($parametricDonorCell.leafCount()) ;
+}
+
+/// One-based local donor pairs consumed by the existing distributed cell correspondence rules.
+$rule pointwise(indexMap <- parametricDonorLeaves), conditional(parametricAccepted), constraint(geom_cells) {
+  $indexMap.clear() ;
+  for(unsigned child=0;child<$parametricDonorLeaves.size();++child)
+    for(int parent:$parametricDonorLeaves[child]) $indexMap.push_back(std::make_pair(int(child)+1,parent+1)) ;
+}
+
+//-----------------------------------------------------------------------------
+// Parent-cell offsets
+//-----------------------------------------------------------------------------
+
+$type parent_cell_offset store<int> ;
+$type cell2parent store<std::vector<std::pair<int32, int32> > > ;
+$type cell2parent_file_par param<std::string> ;
+$type cell2parent_output store<bool> ;
+$type cell2parent_DB store<bool> ;
+
 
 $rule pointwise(parent_cell_offset <- parent_num_fine_cells),
 constraint(geom_cells), option(disable_threading), prelude {

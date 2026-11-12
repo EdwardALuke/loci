@@ -20,7 +20,7 @@
 //#############################################################################
 
 #include "face_history.h"
-#include "../face_history_internal.h"
+#include "../face_history_helpers.h"
 
 #include <algorithm>
 #include <limits>

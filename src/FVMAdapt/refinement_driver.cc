@@ -1,10 +1,11 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+// Adaptation queries and publication of accepted mesh state.
 #include <FVMAdapt/parametric_plan.h>
 #include "parametric_cell_data.h"
 #include "cell_state_internal.h"
 #include <FVMAdapt/defines.h>
 #include <dataxferDB.h>
-#include "face_history_internal.h"
+#include "face_history_helpers.h"
 #include <iostream>
 
 namespace Loci {

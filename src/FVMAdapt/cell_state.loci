@@ -30,6 +30,7 @@
 
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
+$include "parametric_internal.lh"
 
 $rule unit(firstGeomCellFileNumber), constraint(UNIVERSE) {
   $firstGeomCellFileNumber = std::numeric_limits<int>::max() ;
@@ -47,4 +48,47 @@ constraint(geom_cells) {
   // Use node count + face count + zero-based cell ordinal on every rank.
   $planRootFileNumber = $num_original_nodes+$num_original_faces+
     $fileNumber(geom_cells)-$firstGeomCellFileNumber ;
+}
+
+/// Loading a saved mesh provides no preceding adaptation to classify.
+$type parametricHistoryReplay param<bool> ;
+$rule default(parametricHistoryReplay) { $parametricHistoryReplay = false ; }
+
+/// Classify accepted changes, including splits and merges imposed by balancing.
+$rule pointwise(fineCellChange <- parametricDonorLeaves, parent_num_fine_cells, parametricHistoryReplay),
+conditional(parametricAccepted), constraint(geom_cells) {
+  $fineCellChange.assign($parametricDonorLeaves.size(),Loci::CELL_CHANGE_UNKNOWN) ;
+  if($parametricHistoryReplay) return ;
+  std::vector<int> children($parent_num_fine_cells,0) ;
+  for(const auto &donors : $parametricDonorLeaves) for(int donor : donors) {
+    if(donor < 0 || donor >= $parent_num_fine_cells) {
+      std::cerr << "Invalid old cell for parametric cell state" << std::endl ; Loci::Abort() ;
+    }
+    ++children[donor] ;
+  }
+  for(std::size_t i=0;i<$parametricDonorLeaves.size();++i) {
+    const auto &donors=$parametricDonorLeaves[i] ;
+    if(donors.empty()) {
+      std::cerr << "Missing old cell for parametric cell state" << std::endl ; Loci::Abort() ;
+    }
+    for(int donor : donors) if(donors.size()>1 && children[donor]>1) {
+      std::cerr << "Cell relationship is not a nested split or merge" << std::endl ; Loci::Abort() ;
+    }
+    $fineCellChange[i] = donors.size()>1 ? Loci::CELL_COARSENED :
+      (children[donors.front()]>1 ? Loci::CELL_REFINED : Loci::CELL_UNCHANGED) ;
+  }
+}
+
+/// Measure each leaf's own edges, before shared faces acquire neighboring subdivisions.
+$rule pointwise(fineMaxEdgeLength,fineMaxEdgeLengthXY <- balancedParametricCell),
+conditional(parametricAccepted), constraint(geom_cells) {
+  try {
+    const auto lengths=$balancedParametricCell.edgeLengths() ;
+    $fineMaxEdgeLength.resize(lengths.size()) ; $fineMaxEdgeLengthXY.resize(lengths.size()) ;
+    for(std::size_t i=0;i<lengths.size();++i) {
+      $fineMaxEdgeLength[i]=lengths[i][0] ; $fineMaxEdgeLengthXY[i]=lengths[i][1] ;
+    }
+  } catch(const std::exception &error) {
+    std::cerr << "Parametric cell edge lengths: " << error.what() << std::endl ; Loci::Abort() ;
+  }
 }

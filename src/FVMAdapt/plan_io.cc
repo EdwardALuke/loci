@@ -1,4 +1,5 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+// Collective I/O for source geometry and accepted refinement histories.
 #include <FVMAdapt/parametric_plan.h>
 #include <FVMAdapt/parametric_cell.h>
 #include <iomanip>

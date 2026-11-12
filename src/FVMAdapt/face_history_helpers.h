@@ -1,6 +1,6 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
-#ifndef FVMADAPT_FACE_HISTORY_INTERNAL_H
-#define FVMADAPT_FACE_HISTORY_INTERNAL_H
+#ifndef FVMADAPT_FACE_HISTORY_HELPERS_H
+#define FVMADAPT_FACE_HISTORY_HELPERS_H
 
 #include <FVMAdapt/face_history_internal.h>
 #include <functional>

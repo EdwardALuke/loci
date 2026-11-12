@@ -25,7 +25,13 @@ MODULE_NAME  = fvmadapt
 
 LIB_NAME = fvmadaptfunc
 
-GRID_FILES = spacing_source.cc xml_region.cc cell_boundary.cc parametric_mesh.cc parametric_history.cc parametric_cell_data.cc parametric_hex.cc parametric_hex_queries.cc parametric_hex_validation.cc parametric_hex_output.cc parametric_hex_boundary.cc parametric_cell.cc parametric_corner.cc parametric_mixed.cc parametric_online.cc parametric_plan.cc
+# These module helpers are linked into fvmadaptfunc for rules and standalone tools.
+# Distributed queries remain here; library/parametric contains the local geometry kernel.
+GRID_FILES = spacing_source.cc xml_region.cc cell_boundary.cc \
+             parametric_mesh.cc parametric_history.cc parametric_cell_data.cc \
+             compact_hex.cc compact_hex_queries.cc compact_hex_cell.cc compact_hex_face.cc \
+             parametric_cell.cc parametric_corner.cc parametric_mixed.cc \
+             refinement_driver.cc plan_io.cc
 MODULE_FILES = $(filter-out $(GRID_FILES),$(call loci_compile_files,))
 MODULE_OBJS  = $(call loci_file2objs,$(MODULE_FILES))
 

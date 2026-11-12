@@ -2,7 +2,7 @@
 #include "parametric_mixed.h"
 
 #include <FVMAdapt/parametric_cell.h>
-#include "parametric_hex.h"
+#include "compact_hex.h"
 #include <FVMAdapt/parametric/face_plan.h>
 #include <FVMAdapt/parametric/geometry_quality.h>
 #include <FVMAdapt/parametric/geometry_measure.h>

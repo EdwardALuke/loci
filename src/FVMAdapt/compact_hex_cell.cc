@@ -1,5 +1,6 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
-#include "parametric_hex.h"
+// Cell refinement and cell-interior output from compact hex plans.
+#include "compact_hex.h"
 #include <FVMAdapt/parametric_cell.h>
 #include "library/parametric/face_plan_io.h"
 #include "library/parametric/geometry_validity.h"

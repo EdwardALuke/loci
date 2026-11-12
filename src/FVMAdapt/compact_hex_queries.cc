@@ -1,5 +1,6 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
-#include "parametric_hex.h"
+// Neighbor queries and cell correspondence from compact hex plans.
+#include "compact_hex.h"
 #include <algorithm>
 #include <numeric>
 #include <set>

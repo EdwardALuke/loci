@@ -1,7 +1,7 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 #include "parametric_mixed.h"
 #include "parametric_cell_data.h"
-#include "parametric_hex.h"
+#include "compact_hex.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>

@@ -1,6 +1,6 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
-#ifndef LOCI_FVMADAPT_PARAMETRIC_HEX_H
-#define LOCI_FVMADAPT_PARAMETRIC_HEX_H
+#ifndef LOCI_FVMADAPT_COMPACT_HEX_H
+#define LOCI_FVMADAPT_COMPACT_HEX_H
 
 #include <FVMAdapt/parametric_corner.h>
 #include <FVMAdapt/parametric/face_plan.h>

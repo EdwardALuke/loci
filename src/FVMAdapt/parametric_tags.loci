@@ -99,3 +99,16 @@ $rule pointwise(parametricRequests <- initialParametricCell,parametricTopology,n
   for(int edge:edges) addNodeTags($*initialParametricNodeKeys[edge],$*nodeTag[edge],marking) ;
   $parametricRequests=$initialParametricCell.nodeTagRequests($parametricTopology,marking) ;
 }
+
+/// Translate solver tags into leaf refinement and complete-family coarsening requests.
+$rule pointwise(parametricRequests <- fineCellTag,initialParametricCell), constraint(geom_cells) {
+  if($fineCellTag.size()!=$initialParametricCell.leafCount()) throw std::invalid_argument("parametric tag count differs from accepted leaves") ;
+  bool unchanged=true ;
+  for(int tag:$fineCellTag) {
+    if(tag<0 || tag>2) throw std::invalid_argument("unknown parametric refinement tag") ;
+    unchanged=unchanged && tag==0 ;
+  }
+  $parametricRequests.clear() ;
+  if(unchanged) return ;
+  $parametricRequests=$initialParametricCell.tagRequests($fineCellTag) ;
+}

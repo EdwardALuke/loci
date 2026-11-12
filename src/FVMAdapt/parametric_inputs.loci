@@ -1,5 +1,8 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 #include <Loci.h>
+#include <FVMAdapt/parametric_cell.h>
+#include <map>
+#include <stdexcept>
 #include <cmath>
 #include <set>
 #include <algorithm>
@@ -7,6 +10,25 @@
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
 $include "parametric_internal.lh"
+
+namespace {
+  namespace P = Loci::FVMAdapt ;
+}
+
+$rule default(parametricMaxDepth) { $parametricMaxDepth = 10 ; }
+$rule default(parametricMaxNodes) { $parametricMaxNodes = 1000000 ; }
+$rule default(parametricLevelDifference) { $parametricLevelDifference = 1 ; }
+$rule default(parametricGrading) { $parametricGrading = "vertices" ; }
+$rule default(parametricFaceBalance) { $parametricFaceBalance = "none" ; }
+$rule default(parametricDirectionalBalance) { $parametricDirectionalBalance = false ; }
+$rule default(parametricMaxRounds) { $parametricMaxRounds = 32 ; }
+$rule default(parametricCenterMethod) { $parametricCenterMethod = "reference" ; }
+$rule default(parametricSplitFamily) { $parametricSplitFamily = "native" ; }
+$rule default(parametricAutomaticSplit) { $parametricAutomaticSplit = false ; }
+$rule default(parametricRefinementLevels) { $parametricRefinementLevels = 1 ; }
+$rule default(parametricSplitAspectRatio) { $parametricSplitAspectRatio = 2 ; }
+$rule default(parametricMinEdgeLength) { $parametricMinEdgeLength = 0 ; }
+$rule default(parametricExtrusionAxis) { $parametricExtrusionAxis = -1 ; }
 
 $rule default(parametricRegionFile) { $parametricRegionFile="" ; }
 $rule default(parametricSourceFile) { $parametricSourceFile="" ; }
@@ -149,4 +171,105 @@ $rule apply(parametricMatchedGeometryPairs <- parametricInputEdgeControls)[Loci:
 }
 $rule singleton(parametricGeometryPairsValid <- parametricSuppliedGeometryPairs,parametricMatchedGeometryPairs), constraint(UNIVERSE) {
   $parametricGeometryPairsValid=$parametricSuppliedGeometryPairs==$parametricMatchedGeometryPairs ;
+}
+
+// Saved histories and original cell geometry.
+
+/// Saved file-order histories supplied by the online driver; null initializes original cells.
+$type parametricHistoryInput blackbox<Loci::storeRepP> ;
+
+$rule pointwise(parametricCellHistory <- parametricHistoryInput), constraint(geom_cells), option(disable_threading), prelude {
+  const entitySet cells=entitySet(seq) ;
+  if(*$parametricHistoryInput==0) {
+    for(int cell:cells) $parametricCellHistory[cell].clear() ;
+  } else {
+    const auto dist=Loci::exec_current_fact_db->get_distribute_info() ;
+    Loci::store<P::ParametricRecord> saved ; saved=*$parametricHistoryInput ;
+    if(dist==0) { for(int cell:cells) $parametricCellHistory[cell]=saved[cell] ; }
+    else {
+      Loci::store<P::ParametricRecord> local ; local.allocate(cells) ; auto rep=local.Rep() ;
+      Loci::File2LocalOrder(rep,cells,saved.Rep(),0,dist,MPI_COMM_WORLD) ; local=rep ;
+      for(int cell:cells) $parametricCellHistory[cell]=local[cell] ;
+    }
+  }
+} ;
+
+$rule pointwise(parametricTopology,initialParametricHistory,initialParametricCell,parametricInitialError <- parametricCellHistory,fileNumber(geom_cells),
+  (lower,upper,boundary_map)->fileNumber(face2node), (lower,upper,boundary_map)->face2node->(pos,fileNumber(pos)),
+  (lower,upper,boundary_map)->face2edge->(fileNumber(edge2node),parametricInputEdgeControls,parametricInputEdgeError),
+  (lower,upper,boundary_map)->face2edge->edge2node->fileNumber(pos),parametricGeometryPairsValid,
+  parametricMaxDepth,parametricMaxNodes,parametricSplitFamily,parametricExtrusionAxis), constraint(geom_cells) {
+  $initialParametricHistory = $parametricCellHistory ; $initialParametricCell = P::ParametricCellData() ; $parametricInitialError.clear() ; $parametricTopology.clear() ;
+  try {
+    if(!$parametricGeometryPairsValid) throw std::invalid_argument("cubic geometry names a pair that is not a source edge") ;
+    std::vector<P::EntityId> faceIds, edgeIds ; std::vector<std::vector<P::EntityId>> loops ;
+    std::vector<std::array<P::EntityId,2>> ends ; std::map<P::EntityId,P::Point> positions ;
+    std::map<P::EntityId,std::vector<P::Point>> edgeControls ;
+    const auto addFace = [&](int face, bool reverse) {
+      faceIds.push_back($*fileNumber(face2node)[face]) ; std::vector<P::EntityId> loop ;
+      for(int node: $*face2node[face]) {
+        const auto id = $*fileNumber(pos)[node] ; const auto &p = $*pos[node] ;
+        loop.push_back(id) ; positions[id] = {{p.x,p.y,p.z} } ;
+      }
+      if(reverse) std::reverse(loop.begin(),loop.end()) ; loops.push_back(std::move(loop)) ;
+      for(int edge: $*face2edge[face]) {
+        if(!$*parametricInputEdgeError[edge].empty()) throw std::invalid_argument($*parametricInputEdgeError[edge]) ;
+        edgeIds.push_back($*fileNumber(edge2node)[edge]) ;
+        ends.push_back({P::EntityId($*fileNumber(pos)[$*edge2node[edge][0]]),P::EntityId($*fileNumber(pos)[$*edge2node[edge][1]])}) ;
+        const auto &controls=$*parametricInputEdgeControls[edge] ;
+        if(!controls.empty()) {
+          auto &row=edgeControls[$*fileNumber(edge2node)[edge]] ; row.clear() ;
+          for(const auto &p:controls) row.push_back({p.x,p.y,p.z}) ;
+        }
+      }
+    } ;
+    for(int face: $lower) addFace(face,true) ;
+    for(int face: $upper) addFace(face,false) ;
+    for(int face: $boundary_map) addFace(face,false) ;
+    const auto topology = P::parametricCellTopology($fileNumber(geom_cells),faceIds,loops,edgeIds,ends) ;
+    $parametricTopology = P::encodeParametricTopology(topology) ; std::vector<P::Point> corners ;
+    for(unsigned v = 0; v < topology.vertexCount(); ++v) corners.push_back(positions.at(topology.vertexId(v))) ;
+    P::ParametricEdgeControls controls ;
+    if(!edgeControls.empty()) {
+      controls.resize(topology.edgeCount()) ;
+      for(unsigned e=0;e<topology.edgeCount();++e) {
+        const auto found=edgeControls.find(topology.edgeId(e)) ;
+        if(found!=edgeControls.end()) controls[e]=found->second ;
+      }
+    }
+    $initialParametricCell = P::ParametricCellData::initial(topology,corners,$parametricCellHistory,
+      $parametricMaxDepth,$parametricMaxNodes,$parametricSplitFamily,$parametricExtrusionAxis,controls) ;
+    $initialParametricHistory = $initialParametricCell.record() ;
+  } catch(const std::exception &error) { $parametricInitialError = error.what() ; }
+}
+
+/// Incident cells must retain the same source curve on each shared edge.
+$rule unit(parametricSourceEdgeGeometry), constraint(edge2node->pos) {
+  $parametricSourceEdgeGeometry=P::EdgeGeometryData() ;
+}
+$rule apply((lower,upper,boundary_map)->face2edge->parametricSourceEdgeGeometry <- initialParametricCell,parametricInitialError,parametricTopology,
+  (lower,upper,boundary_map)->face2edge->fileNumber(edge2node))[ParametricFaceUnion], constraint(geom_cells) {
+  if(!$parametricInitialError.empty()) return ;
+  std::map<P::EntityId,P::EdgeGeometryData> curves ; bool failed=false ;
+  try {
+    const auto topology=P::decodeParametricTopology($parametricTopology) ;
+    const auto controls=$initialParametricCell.sourceEdgeControls(topology) ;
+    for(unsigned e=0;e<topology.edgeCount();++e) {
+      auto &curve=curves[topology.edgeId(e)] ; curve.assigned=true ; curve.controls=controls[e] ;
+    }
+  } catch(const std::exception &) { failed=true ; }
+  std::set<int> visited ;
+  const auto contribute=[&](int face) {
+    for(int edge:$*face2edge[face]) if(visited.insert(edge).second) {
+      P::EdgeGeometryData value ; const auto found=curves.find($*fileNumber(edge2node)[edge]) ;
+      if(failed || found==curves.end()) value.failed=true ; else value=found->second ;
+      join($*parametricSourceEdgeGeometry[edge],value) ;
+    }
+  } ;
+  for(int face:$lower) contribute(face) ; for(int face:$upper) contribute(face) ; for(int face:$boundary_map) contribute(face) ;
+}
+
+/// Input leaf counts for file-order marking.
+$rule pointwise(num_fine_cells <- initialParametricCell), constraint(geom_cells) {
+  $num_fine_cells = int($initialParametricCell.leafCount()) ;
 }

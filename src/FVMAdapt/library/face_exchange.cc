@@ -1,6 +1,6 @@
 // Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
 
-#include "../face_history_internal.h"
+#include "../face_history_helpers.h"
 
 #include <algorithm>
 #include <cstdint>

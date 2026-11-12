@@ -24,6 +24,9 @@ $type parametricGeometryPairsValid param<bool> ;
 /// Source geometry agreed from accepted cell histories, including on restart.
 $type parametricSourceEdgeGeometry store<Loci::FVMAdapt::EdgeGeometryData> ;
 
+/// Source topology or geometry could not be initialized.
+$type parametricInitialError store<std::string> ;
+
 /// Source-cell connectivity in original file numbering; encodeParametricTopology().
 $type parametricTopology store<std::vector<int> > ;
 /// Source mesh for cell correspondence; normally the accepted input history.
@@ -46,3 +49,9 @@ $type parametricBalanced param<bool> ;
 $type candidateParametricEdgeTrace store<Loci::FineFaces> ;
 /// Quality calculations completed and met the selected acceptance policy.
 $type parametricQualityAccepted param<bool> ;
+
+namespace {
+  template<class T> struct ParametricFaceUnion {
+    void operator()(T &target, const T &source) { target.merge(source) ; }
+  } ;
+}

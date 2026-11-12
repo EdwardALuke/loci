@@ -11,7 +11,7 @@
 #include <FVMAdapt/defines.h>
 #include <FVMAdapt/dataxferDB.h>
 #include <FVMAdapt/gridInterface.h>
-#include "../face_history_internal.h"
+#include "../face_history_helpers.h"
 
 namespace Loci {
   class FaceRecording {
