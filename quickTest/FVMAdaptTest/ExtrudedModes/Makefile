@@ -14,8 +14,10 @@ hexMode1 prismMode1: MODE = 1
 hexMode2 prismMode2: MODE = 2
 
 # Both fixtures are one cell thick in z. Modes 0/1 preserve that direction;
-# mode 2 splits in all directions. Cell types and coordinate planes distinguish
-# the directional outcomes without requiring visualization.
+# mode 2 splits in all directions. Native prism mode 0 retains triangular ends.
+# Mode 1 splits each marked planar cell around its vertices, so three marked
+# quads become twelve children; six coarse neighbors retain hanging faces.
+# Cell types and coordinate planes distinguish these constructions.
 $(CASES):
 	cp $(INPUT)/$(FIXTURE).ugrid mesh.ugrid
 	$(SERIAL) $(LOCI_BASE)/bin/ugrid2vog $(LOCI_CMD_FLAGS) -o -m mesh

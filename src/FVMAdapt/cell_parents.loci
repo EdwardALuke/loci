@@ -30,10 +30,7 @@
 #include <Tools/tools.h>
 #include "dataxferDB.h"
 #include "defines.h"
-#include "diamondcell.h"
-#include "hexcell.h"
 #include "mpi.h"
-#include "prism.h"
 
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
@@ -48,115 +45,6 @@ using std::queue ;
 using std::set ;
 using std::string ;
 using std::vector ;
-
-//-----------------------------------------------------------------------------
-// General-cell parent indices
-//-----------------------------------------------------------------------------
-
-$rule pointwise(priority::c2p::balanced_num_fine_cells, parent_num_fine_cells, indexMap <-
-balancedCellPlan, parentPlan,
-(lower, upper, boundary_map)->face2node->fileNumber(pos),
-(lower, upper, boundary_map)->face2edge->edge2node->fileNumber(pos)),
-constraint(gnrlcells) {
-  // both former cycle and current cycle didn't split this cell
-  if($balancedCellPlan.size() == 0 && $parentPlan.size() == 0 ) {
-    $balanced_num_fine_cells = 1 ;
-    $parent_num_fine_cells  = 1 ;
-    $indexMap.push_back(make_pair(1,1)) ;
-    reduce_vector($indexMap) ;
-    return ;
-  }
-
-  std::list<Node*> node_list ;
-  std::list<Edge*> edge_list ;
-  std::list<Face*> face_list ;
-
-  Cell* aCell = build_general_cell(
-    $lower.begin(), $*lower.num_elems(_e_), $upper.begin(), $*upper.num_elems(_e_),
-    $boundary_map.begin(), $*boundary_map.num_elems(_e_), $*face2node, $*face2edge,
-    $*edge2node, node_list, edge_list, face_list, $*fileNumber(pos)) ;
-
-  $parent_num_fine_cells = aCell->empty_resplit($parentPlan);
-  if($balancedCellPlan.empty()) {
-    // Every old fine cell contributes to the restored root cell.
-    $balanced_num_fine_cells = 1 ;
-    $indexMap.clear() ;
-    for(int old_cell = 1; old_cell <= $parent_num_fine_cells; ++old_cell)
-      $indexMap.push_back(make_pair(1, old_cell)) ;
-  } else {
-    $balanced_num_fine_cells = aCell->empty_resplit($balancedCellPlan) ;
-    aCell->traverse($parentPlan,$indexMap) ;
-  }
-  reduce_vector($indexMap) ;
-
-  // clean up
-  if(aCell != 0) {
-    delete aCell ;
-    aCell = 0 ;
-  }
-
-  // aCell will clean up these
-  cleanup_list(node_list, edge_list, face_list) ;
-}
-
-
-//-----------------------------------------------------------------------------
-// Hex-cell parent indices
-//-----------------------------------------------------------------------------
-
-$rule pointwise(priority::c2p::balanced_num_fine_cells, parent_num_fine_cells, indexMap <-
-balancedCellPlan, parentPlan), constraint(hexcells) {
-  // both former cycle and current cycle didn't split this cell
-  if($balancedCellPlan.size() == 0 && $parentPlan.size() == 0) {
-    $balanced_num_fine_cells = 1 ;
-    $parent_num_fine_cells = 1 ;
-    $indexMap.push_back(make_pair(1,1)) ;
-    reduce_vector($indexMap) ;
-    return ;
-  }
-
-  HexCell* aCell = new HexCell ;
-  $parent_num_fine_cells = aCell->empty_resplit($parentPlan) ;
-  $balanced_num_fine_cells = aCell->empty_resplit($balancedCellPlan) ;
-  aCell->traverse($parentPlan,$indexMap) ;
-  reduce_vector($indexMap) ;
-
-  // clean up
-  if(aCell != 0) {
-    delete aCell ;
-    aCell = 0 ;
-  }
-}
-
-
-//-----------------------------------------------------------------------------
-// Prism-cell parent indices
-//-----------------------------------------------------------------------------
-
-$rule pointwise(priority::c2p::balanced_num_fine_cells, parent_num_fine_cells, indexMap <-
-balancedCellPlan, parentPlan), constraint(prisms) {
-  // both former cycle and current cycle didn't split this cell
-  if($balancedCellPlan.size() == 0 && $parentPlan.size() == 0) {
-    $balanced_num_fine_cells = 1 ;
-    $parent_num_fine_cells = 1 ;
-    $indexMap.push_back(make_pair(1,1)) ;
-    reduce_vector($indexMap) ;
-    return ;
-  }
-
-  Prism* aCell = new Prism ;
-  $parent_num_fine_cells = aCell->empty_resplit($parentPlan) ;
-  $balanced_num_fine_cells = aCell->empty_resplit($balancedCellPlan) ;
-  aCell->traverse($parentPlan,$indexMap) ;
-  reduce_vector($indexMap) ;
-  
-  // clean up
-  if(aCell != 0) {
-    delete aCell ;
-    aCell = 0 ;
-  }
-}
-
 
 //-----------------------------------------------------------------------------
 // Parent-cell offsets
@@ -249,19 +137,7 @@ constraint(geom_cells), option(disable_threading), prelude {
 // Cell-to-parent mapping
 //-----------------------------------------------------------------------------
 
-$rule pointwise(cell2parent <- balanced_num_fine_cells, balanced_cell_offset,
-fileNumber(geom_cells), num_original_nodes, num_original_faces),
-constraint(geom_cells) {
-  std::vector<pair<int32, int32> > c2p($balanced_num_fine_cells) ;
-  for(int i=0; i<$balanced_num_fine_cells; i++) {
-    int child_index = $balanced_cell_offset+i+1 ; //local cellindex start with 1
-    int parent_index = $fileNumber(geom_cells) - $num_original_nodes-$num_original_faces + 1 ;
-    c2p[i] = make_pair(child_index, parent_index) ;
-  }
-  c2p.swap($cell2parent) ;
-}
-
-$rule pointwise(priority::restart::cell2parent <- balanced_cell_offset,
+$rule pointwise(cell2parent <- balanced_cell_offset,
 parent_cell_offset, indexMap), constraint(geom_cells) {
   vector<pair<int32, int32> > c2p($indexMap.size()) ;
 

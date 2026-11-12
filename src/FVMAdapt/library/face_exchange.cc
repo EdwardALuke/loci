@@ -410,7 +410,7 @@ namespace Loci {
         const int side = buffer[i++] ;
         const size_t index = buffer[i++] ;
         const auto other = unpack(buffer,i) ;
-        coverage[side][index].push_back({{},other.patch.bounds,other.patch.sector,1}) ;
+        coverage[side][index].push_back(other.patch) ;
         if(side) {
           const auto& target = next[index] ;
           neighbors.push_back({target.face,other.left,other.right,target.left,target.right}) ;
@@ -469,6 +469,28 @@ namespace Loci {
       }
     }
     if(!agree(valid,error,comm)) return false ;
+    // Use the common fine cover for both sides of an integrated-area transfer.
+    // Coverage checks above bound the difference from independently measured coarse areas.
+    std::vector<std::pair<Word,Word>> normalizations ; std::set<Word> neededScales ;
+    for(size_t i=0;i<previous.size();++i) if(previous[i].patch.mappedArea && !coverage[0][i].empty()) {
+      const auto& face=previous[i].patch ; long double sum=0 ;
+      for(const auto& part:coverage[0][i]) {
+        const auto common=commonMeasure(face,part) ;
+        sum+=wholePatch(common,face) ? face.area:part.area ;
+      }
+      const double scale=face.area/sum ; Word bits ; std::memcpy(&bits,&scale,sizeof(bits)) ;
+      normalizations.emplace_back(previous[i].face,bits) ;
+    }
+    for(size_t i=0;i<next.size();++i) if(next[i].patch.mappedArea)
+      for(const auto& source:result.sources[i]) neededScales.insert(source.source) ;
+    int localMapped=!normalizations.empty() || !neededScales.empty(),mapped=0 ;
+    MPI_Allreduce(&localMapped,&mapped,1,MPI_INT,MPI_MAX,comm) ;
+    if(mapped) {
+      Lookup scales ; if(!lookup(normalizations,neededScales,true,scales,comm,error,stats)) return false ;
+      for(size_t i=0;i<next.size();++i) if(next[i].patch.mappedArea) for(auto& source:result.sources[i]) {
+        const Word bits=scales.at(source.source) ; double scale ; std::memcpy(&scale,&bits,sizeof(scale)) ; source.areaFraction*=scale ;
+      }
+    }
     history = std::move(result) ;
     return true ;
   }

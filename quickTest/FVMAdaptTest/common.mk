@@ -23,9 +23,9 @@ H5DUMP ?= h5dump
 TIMEOUT_SECONDS ?= 120
 export H5DUMP
 LOCI_CMD_FLAGS += --timeout $(TIMEOUT_SECONDS)
-SERIAL = LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(LOCI_BASE)/lib DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$(LOCI_BASE)/lib $(SERIALRUN)
-PARALLEL = LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(LOCI_BASE)/lib DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$(LOCI_BASE)/lib $(MPIRUN)
-THREE_RANKS = LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(LOCI_BASE)/lib DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$(LOCI_BASE)/lib $(MPI_RUN) -np 3
+SERIAL = LD_LIBRARY_PATH=$(LOCI_BASE)/lib:$$LD_LIBRARY_PATH DYLD_LIBRARY_PATH=$(LOCI_BASE)/lib:$$DYLD_LIBRARY_PATH $(SERIALRUN)
+PARALLEL = LD_LIBRARY_PATH=$(LOCI_BASE)/lib:$$LD_LIBRARY_PATH DYLD_LIBRARY_PATH=$(LOCI_BASE)/lib:$$DYLD_LIBRARY_PATH $(MPIRUN)
+THREE_RANKS = LD_LIBRARY_PATH=$(LOCI_BASE)/lib:$$LD_LIBRARY_PATH DYLD_LIBRARY_PATH=$(LOCI_BASE)/lib:$$DYLD_LIBRARY_PATH $(MPI_RUN) -np 3
 MESH_SUMMARY = sh $(TEST_BASE)/FVMAdaptTest/mesh_summary.sh
 
 ifndef CASE_WORK
@@ -42,9 +42,10 @@ CASE_RESULTS := $(foreach c,$(CASES),work/$c/TestResults)
 TestResults: $(CASE_RESULTS)
 	@rm -f $@
 	@cat $^ > $@
+	@! grep -q FAILED $@
 
 $(CASES): %: work/%/TestResults
-	@:
+	@! grep -q FAILED $<
 
 $(CASE_RESULTS): work/%/TestResults: FORCE | check
 	@rm -rf work/$*
@@ -56,7 +57,7 @@ $(CASE_RESULTS): work/%/TestResults: FORCE | check
 	cat $@; \
 	if test $$status -ne 0; then \
 	  tail -n 35 work/$*/run.log; \
-	  echo "Log: $(INPUT)/work/$*/run.log"; \
+	  echo "Log: $(abspath work/$*)/run.log"; \
 	fi
 else
 INCLUDES = -I$(TEST_BASE)/contrib/doctest -I$(LOCI_BASE)/include

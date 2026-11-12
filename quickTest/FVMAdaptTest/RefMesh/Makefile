@@ -22,7 +22,7 @@ testGrid.tag: testGrid.vog
 	$(SERIAL) $(LOCI_BASE)/bin/extract -ascii testGrid 0 x | sed "s/0[.][01234].*/0/" | sed "s/0[.][56789].*/1/"| sed "s/.*e-.*/0/"> testGrid.tag
 
 testGrid.plan: testGrid.vog testGrid.tag
-	$(PARALLEL) $(LOCI_BASE)/bin/marker $(LOCI_CMD_FLAGS) -g testGrid.vog -tag testGrid.tag -o testGrid.plan
+	$(PARALLEL) $(LOCI_BASE)/bin/marker $(LOCI_CMD_FLAGS) -g testGrid.vog -tag testGrid.tag -mode 2 -o testGrid.plan
 
 testGridRef.vog: testGrid.vog testGrid.plan
 	$(PARALLEL) $(LOCI_BASE)/bin/refmesh $(LOCI_CMD_FLAGS) -g testGrid.vog -r testGrid.plan -o testGridRef.vog
@@ -37,7 +37,7 @@ testGridRef.tag: output/testGridRef.topo
 	$(SERIAL) $(LOCI_BASE)/bin/extract -ascii testGridRef 0 y | sed "s/0[.][01234].*/0/" | sed "s/0[.][56789].*/1/" |sed "s/.*e-.*/0/" > testGridRef.tag
 
 testGridRef2.plan: testGrid.vog testGrid.plan testGridRef.tag
-	$(PARALLEL) $(LOCI_BASE)/bin/marker $(LOCI_CMD_FLAGS) -g testGrid.vog -r testGrid.plan -tag testGridRef.tag -o testGridRef2.plan
+	$(PARALLEL) $(LOCI_BASE)/bin/marker $(LOCI_CMD_FLAGS) -g testGrid.vog -r testGrid.plan -tag testGridRef.tag -mode 2 -o testGridRef2.plan
 
 testGridRef2.vog: testGrid.vog testGridRef2.plan
 	$(PARALLEL) $(LOCI_BASE)/bin/refmesh $(LOCI_CMD_FLAGS) -g testGrid.vog -r testGridRef2.plan -o testGridRef2.vog
@@ -49,7 +49,7 @@ testGridRef2.dat: output/testGridRef2.topo
 	$(SERIAL) $(LOCI_BASE)/bin/extract -ascii testGridRef2 0 x y z | sort -g > testGridRef2.dat
 
 testGridRef3.plan: testGridRef.vog testGridRef.tag
-	$(PARALLEL) $(LOCI_BASE)/bin/marker $(LOCI_CMD_FLAGS) -g testGridRef.vog -tag testGridRef.tag -o testGridRef3.plan
+	$(PARALLEL) $(LOCI_BASE)/bin/marker $(LOCI_CMD_FLAGS) -g testGridRef.vog -tag testGridRef.tag -mode 2 -o testGridRef3.plan
 
 testGridRef3.vog: testGridRef.vog testGridRef3.plan
 	$(PARALLEL) $(LOCI_BASE)/bin/refmesh $(LOCI_CMD_FLAGS) -g testGridRef.vog -r testGridRef3.plan -o testGridRef3.vog

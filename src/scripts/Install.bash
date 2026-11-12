@@ -151,6 +151,8 @@ for i in  Tools Config MPI_stubb FVMAdapt FVMOverset FVMMod; do
     glob_soft_copy "include/$i/*.h" $INSTALL_PATH/include/$i
 done
 soft_copy_dir include/FVMOverset/overset $INSTALL_PATH/include/FVMOverset
+mkdir -p $INSTALL_PATH/include/FVMAdapt/parametric
+glob_soft_copy "include/FVMAdapt/parametric/*.h" $INSTALL_PATH/include/FVMAdapt/parametric
 glob_soft_copy "include/FVMOverset/*.lh" $INSTALL_PATH/include/FVMOverset
 glob_soft_copy "include/FVMMod/*.lh" $INSTALL_PATH/include/FVMMod
 glob_soft_copy "include/FVMAdapt/*.lh" $INSTALL_PATH/include/FVMAdapt

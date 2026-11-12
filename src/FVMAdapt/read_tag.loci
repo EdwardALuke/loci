@@ -86,10 +86,13 @@ vector<char> read_tags_txt(string filename,MPI_Comm &comm) {
 
     int cnt = 0 ;
     for(;;) {
+      inFileScan >> std::ws ;
+      if(inFileScan.eof()) break ;
       int tmp = 0 ;
-      inFileScan >> tmp ;
-      if(inFileScan.eof() || inFileScan.fail())
-        break ;
+      if(!(inFileScan >> tmp)) {
+        cerr << "invalid integer tag in '" << filename << "'" << endl ;
+        Loci::Abort() ;
+      }
       cnt++ ;
     }
     inFileScan.close() ;

@@ -47,6 +47,7 @@ namespace Loci {
     FaceId source ; // Old mesh face file number.
     int orientation ; // +1 for matching vertex-loop normals, -1 for opposing.
     double referenceFraction ; // Overlap / old reference-patch measure; not physical area.
+    double areaFraction = -1 ; ///< Physical overlap / old area; -1 when unavailable.
   } ;
 
   std::ostream& operator<<(std::ostream&, const FaceSource&) ;
@@ -95,12 +96,12 @@ namespace Loci {
     /// Output contents are unspecified on failure; input and output must not alias.
     /// Input uses the retained mesh's installed numbering on MPI_COMM_WORLD.
     template<class T>
-    bool gather(const FaceState& previous, const_store<T> input,
+    bool gather(const FaceState& previous, const const_store<T>& input,
                 store<T>& donors, std::string& error) const {
       return gather(previous,input.Rep(),donors.Rep(),1,error) ;
     }
     template<class T>
-    bool gather(const FaceState& previous, const_storeVec<T> input,
+    bool gather(const FaceState& previous, const const_storeVec<T>& input,
                 storeVec<T>& donors, std::string& error) const {
       return gather(previous,input.Rep(),donors.Rep(),input.vecSize(),error) ;
     }
@@ -110,10 +111,6 @@ namespace Loci {
   std::shared_ptr<const FaceState> getFaceState(fact_db& facts) ;
   /// History of the latest adaptation; null when correspondence was not requested.
   std::shared_ptr<const FaceHistory> getFaceHistory(fact_db& facts) ;
-  /// Record an unrefined VOG mesh's face state in memory before its first adaptation.
-  /// Pass as previousFaceState with faceHistory enabled; later use getFaceState() from the new mesh.
-  /// Collective outside queries; does not write a file.
-  std::shared_ptr<const FaceState> recordBaseFaces(fact_db& facts, const std::string& casename) ;
   typedef std::shared_ptr<const FaceState> FaceStateP ;
   typedef std::shared_ptr<const FaceHistory> FaceHistoryP ;
 

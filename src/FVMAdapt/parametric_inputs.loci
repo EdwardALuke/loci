@@ -1,0 +1,152 @@
+// Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+#include <Loci.h>
+#include <cmath>
+#include <set>
+#include <algorithm>
+
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+$include "parametric_internal.lh"
+
+$rule default(parametricRegionFile) { $parametricRegionFile="" ; }
+$rule default(parametricSourceFile) { $parametricSourceFile="" ; }
+
+/// Resolve query controls and read geometric inputs once on each process; errors reject the collective proposal.
+$rule blackbox(parametricControls,parametricRegion,parametricSources,parametricInputError <-
+    parametricCenterMethod,parametricRefinementLevels,parametricExtrusionAxis,parametricAutomaticSplit,
+    parametricSplitAspectRatio,parametricMinEdgeLength,parametricSplitFamily,parametricLevelDifference,parametricGrading,
+    parametricFaceBalance,parametricDirectionalBalance,parametricMaxRounds,parametricRegionFile,parametricSourceFile,
+    parametricQualityMode,parametricQualityCentroid,parametricMaxNonOrthogonality,parametricMaxFaceWarpage,parametricMaxChildVolumeRatio),
+    prelude {
+  namespace P=Loci::FVMAdapt ;
+  *$parametricControls=P::AdaptationControls() ;
+  $parametricRegion->reset() ; $parametricSources->clear() ; *$parametricInputError="" ;
+  try {
+    auto &controls=*$parametricControls ; auto &refinement=controls.refinement ;
+    controls.quality={ (*$parametricQualityMode), (*$parametricQualityCentroid), (*$parametricMaxNonOrthogonality),
+      (*$parametricMaxFaceWarpage), (*$parametricMaxChildVolumeRatio) } ;
+    refinement.center=P::parametricCenterMethod(*$parametricCenterMethod) ;
+    refinement.levels=*$parametricRefinementLevels ; refinement.extrusionAxis=*$parametricExtrusionAxis ;
+    refinement.automatic=*$parametricAutomaticSplit ; refinement.aspectRatio=*$parametricSplitAspectRatio ;
+    refinement.minEdgeLength=*$parametricMinEdgeLength ;
+    controls.levelDifference=*$parametricLevelDifference ; controls.maxRounds=*$parametricMaxRounds ;
+    controls.grading=P::parametricGrading(*$parametricGrading) ;
+    controls.faceBalance=P::parametricFaceBalance(*$parametricFaceBalance) ;
+    controls.directionalBalance=*$parametricDirectionalBalance ;
+    if(refinement.levels<1 || refinement.levels>30)
+      throw std::invalid_argument("parametricRefinementLevels must be in [1,30]") ;
+    if(controls.levelDifference<0 || controls.levelDifference>30)
+      throw std::invalid_argument("parametricLevelDifference must be in [0,30]") ;
+    if(controls.maxRounds<0) throw std::invalid_argument("parametricMaxRounds must be nonnegative") ;
+    if(*$parametricSplitFamily=="mixed" && (refinement.center!=P::CenterMethod::reference || refinement.extrusionAxis!=-1))
+      throw std::invalid_argument("mixed splitting requires reference centers and full 3D refinement") ;
+    if(controls.directionalBalance && *$parametricSplitFamily!="native" && *$parametricSplitFamily!="mixed")
+      throw std::invalid_argument("directional balancing requires native cells") ;
+    if(refinement.automatic) {
+      if((*$parametricSplitFamily!="native" && *$parametricSplitFamily!="mixed") || refinement.extrusionAxis!=-1)
+        throw std::invalid_argument("automatic splitting requires native three-dimensional cells") ;
+      if(!std::isfinite(refinement.aspectRatio) || refinement.aspectRatio<=1 ||
+          !std::isfinite(refinement.minEdgeLength) || refinement.minEdgeLength<0)
+        throw std::invalid_argument("automatic splitting requires a finite aspect ratio greater than one and a nonnegative edge cutoff") ;
+    }
+    if(!$parametricRegionFile->empty() && !$parametricSourceFile->empty())
+      throw std::invalid_argument("choose either an XML region or spacing source file") ;
+    if(!$parametricRegionFile->empty()) *$parametricRegion=std::make_shared<P::XMLRegion>(*$parametricRegionFile) ;
+    if(!$parametricSourceFile->empty()) *$parametricSources=P::readSpacingSources(*$parametricSourceFile) ;
+  } catch(const std::exception &error) { *$parametricInputError=error.what() ; }
+} ;
+
+// Original-node file rows keep geometry input independent of generated edge numbering.
+
+namespace Loci {
+  void File2LocalOrder(storeRepP &,entitySet,storeRepP,int,fact_db::distribute_infoP,MPI_Comm) ;
+}
+$type parametricGeometryRows store<std::vector<Loci::CubicEdgeInput>> ;
+$type parametricGeometryRowError store<std::string> ;
+$type parametricSuppliedGeometryPairs param<int64_t> ;
+$type parametricMatchedGeometryPairs param<int64_t> ;
+
+$rule default(parametricCubicGeometryInput) {
+  $*parametricCubicGeometryInput.set_entitySet(~EMPTY) ; $parametricCubicGeometryInput=0 ;
+}
+
+$rule pointwise(parametricGeometryRows,parametricGeometryRowError <- parametricCubicGeometryInput,fileNumber(pos)),
+  constraint(pos), option(disable_threading), prelude {
+  const entitySet nodes=entitySet(seq) ;
+  for(int node:nodes) { $parametricGeometryRows[node].clear() ; $parametricGeometryRowError[node].clear() ; }
+  const int supplied=(*$parametricCubicGeometryInput!=0) ; int minimum=0,maximum=0 ;
+  MPI_Allreduce(&supplied,&minimum,1,MPI_INT,MPI_MIN,MPI_COMM_WORLD) ;
+  MPI_Allreduce(&supplied,&maximum,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+  std::string error ;
+  if(minimum!=maximum) error="cubic geometry input must be supplied on every rank" ;
+  else if(maximum) {
+    Loci::store<std::vector<Loci::CubicEdgeInput>> input ;
+    int bad=0,anyBad=0,localMaximum=-1,globalMaximum=-1 ;
+    for(int node:nodes) localMaximum=std::max(localMaximum,$fileNumber(pos)[node]) ;
+    MPI_Allreduce(&localMaximum,&globalMaximum,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    int range[3]={0,-1,0} ;
+    try {
+      if(Loci::NPTR<Loci::storeRepI<std::vector<Loci::CubicEdgeInput>>>((*$parametricCubicGeometryInput)->getRep())==0)
+        throw std::invalid_argument("cubic geometry input has the wrong store type") ;
+      input=*$parametricCubicGeometryInput ; const auto domain=input.domain() ;
+      if(domain!=EMPTY) {
+        range[0]=domain.Min() ; range[1]=domain.Max() ; range[2]=domain.size() ;
+        if(range[0]<0 || static_cast<long long>(range[1])-range[0]+1!=range[2]) bad=1 ;
+      }
+      for(int node:domain) {
+        std::set<int> endpoints ;
+        for(const auto &edge:input[node]) {
+          if(edge.otherVertex<=node || edge.otherVertex>globalMaximum || !endpoints.insert(edge.otherVertex).second) bad=1 ;
+          for(const auto &p:{edge.firstControl,edge.secondControl})
+            if(!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) bad=1 ;
+        }
+      }
+    } catch(const std::exception &) { bad=1 ; }
+    std::vector<int> ranges(3*Loci::MPI_processes) ;
+    MPI_Allgather(range,3,MPI_INT,ranges.data(),3,MPI_INT,MPI_COMM_WORLD) ;
+    long long next=0 ;
+    for(int rank=0;rank<Loci::MPI_processes;++rank) if(ranges[3*rank+2]) {
+      if(ranges[3*rank]!=next) bad=1 ;
+      next=static_cast<long long>(ranges[3*rank+1])+1 ;
+    }
+    if(next!=static_cast<long long>(globalMaximum)+1) bad=1 ;
+    MPI_Allreduce(&bad,&anyBad,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
+    if(anyBad) error="invalid cubic geometry rows or original-node file partition" ;
+    else {
+      const auto dist=Loci::exec_current_fact_db->get_distribute_info() ;
+      if(dist==0) for(int node:nodes) $parametricGeometryRows[node]=input[$fileNumber(pos)[node]] ;
+      else {
+        auto rep=$parametricGeometryRows.Rep() ;
+        Loci::File2LocalOrder(rep,nodes,input.Rep(),0,dist,MPI_COMM_WORLD) ; $parametricGeometryRows=rep ;
+      }
+      for(int node:nodes) std::sort($parametricGeometryRows[node].begin(),$parametricGeometryRows[node].end(),
+        [](const auto &a,const auto &b) { return a.otherVertex<b.otherVertex ; }) ;
+    }
+  }
+  if(!error.empty()) for(int node:nodes) $parametricGeometryRowError[node]=error ;
+} ;
+
+$rule pointwise(parametricInputEdgeControls,parametricInputEdgeError <- edge2node->(fileNumber(pos),parametricGeometryRows,parametricGeometryRowError)),
+  constraint(edge2node->pos) {
+  $parametricInputEdgeControls.clear() ; $parametricInputEdgeError.clear() ;
+  const bool reverse=$edge2node[1]->$fileNumber(pos)<$edge2node[0]->$fileNumber(pos) ;
+  for(unsigned i=0;i<2;++i) if(!$edge2node[i]->$parametricGeometryRowError.empty())
+    $parametricInputEdgeError=$edge2node[i]->$parametricGeometryRowError ;
+  const auto &rows=$edge2node[reverse ? 1:0]->$parametricGeometryRows ;
+  const int other=$edge2node[reverse ? 0:1]->$fileNumber(pos) ;
+  const auto found=std::lower_bound(rows.begin(),rows.end(),other,
+    [](const auto &row,int vertex) { return row.otherVertex<vertex ; }) ;
+  if(found!=rows.end() && found->otherVertex==other)
+    $parametricInputEdgeControls={found->firstControl,found->secondControl} ;
+}
+$rule unit(parametricSuppliedGeometryPairs), constraint(UNIVERSE) { $parametricSuppliedGeometryPairs=0 ; }
+$rule apply(parametricSuppliedGeometryPairs <- parametricGeometryRows)[Loci::Summation], constraint(pos) {
+  join($parametricSuppliedGeometryPairs,static_cast<long long>($parametricGeometryRows.size())) ;
+}
+$rule unit(parametricMatchedGeometryPairs), constraint(UNIVERSE) { $parametricMatchedGeometryPairs=0 ; }
+$rule apply(parametricMatchedGeometryPairs <- parametricInputEdgeControls)[Loci::Summation], constraint(edge2node->pos) {
+  join($parametricMatchedGeometryPairs,$parametricInputEdgeControls.empty() ? 0LL:1LL) ;
+}
+$rule singleton(parametricGeometryPairsValid <- parametricSuppliedGeometryPairs,parametricMatchedGeometryPairs), constraint(UNIVERSE) {
+  $parametricGeometryPairsValid=$parametricSuppliedGeometryPairs==$parametricMatchedGeometryPairs ;
+}

@@ -1,0 +1,57 @@
+// Copyright 2026, Mississippi State University. LGPL-3.0-or-later.
+#include <Loci.h>
+#include "parametric_cell_data.h"
+#include <map>
+$include "FVM.lh"
+$include "fvmadapt_internal.lh"
+$include "parametric_internal.lh"
+
+namespace Loci {
+  void File2LocalOrder(storeRepP &,entitySet,storeRepP,int,fact_db::distribute_infoP,MPI_Comm) ;
+}
+
+/// Optional earlier plan used by refmesh for cell correspondence.
+$type parametricParentHistoryInput blackbox<Loci::storeRepP> ;
+$type parametricParentHistory store<Loci::FVMAdapt::ParametricRecord> ;
+$type parametricParentError store<std::string> ;
+
+$rule pointwise(parametricDonorCell,parametricParentError <- initialParametricCell), constraint(geom_cells) {
+  $parametricDonorCell=$initialParametricCell ; $parametricParentError.clear() ;
+}
+
+$rule pointwise(parametricParentHistory <- parametricParentHistoryInput), constraint(geom_cells), option(disable_threading), prelude {
+  const entitySet cells=entitySet(seq) ;
+  if(*$parametricParentHistoryInput==0) {
+    for(int cell:cells) $parametricParentHistory[cell].clear() ;
+  } else {
+    const auto dist=Loci::exec_current_fact_db->get_distribute_info() ;
+    Loci::store<Loci::FVMAdapt::ParametricRecord> saved=*$parametricParentHistoryInput ;
+    if(dist==0) { for(int cell:cells) $parametricParentHistory[cell]=saved[cell] ; }
+    else {
+      auto rep=$parametricParentHistory.Rep() ;
+      Loci::File2LocalOrder(rep,cells,saved.Rep(),0,dist,MPI_COMM_WORLD) ;
+      $parametricParentHistory=rep ;
+    }
+  }
+} ;
+
+$rule pointwise(priority::plan::parametricDonorCell,priority::plan::parametricParentError <- parametricParentHistory,parametricTopology,initialParametricCell,
+  (lower,upper,boundary_map)->face2node->(pos,fileNumber(pos)),parametricMaxDepth,parametricMaxNodes,parametricSplitFamily,parametricExtrusionAxis),
+  constraint(geom_cells) {
+  $parametricParentError.clear() ;
+  try {
+    namespace P=Loci::FVMAdapt ;
+    const auto topology=P::decodeParametricTopology($parametricTopology) ;
+    std::map<P::EntityId,P::Point> positions ;
+    const auto addFace=[&](int face) {
+      for(int node:$*face2node[face]) {
+        const auto &p=$*pos[node] ; positions[$*fileNumber(pos)[node]]=P::Point{p.x,p.y,p.z} ;
+      }
+    } ;
+    for(int face:$lower) addFace(face) ; for(int face:$upper) addFace(face) ; for(int face:$boundary_map) addFace(face) ;
+    std::vector<P::Point> corners ;
+    for(unsigned v=0;v<topology.vertexCount();++v) corners.push_back(positions.at(topology.vertexId(v))) ;
+    $parametricDonorCell=P::ParametricCellData::initial(topology,corners,$parametricParentHistory,
+      $parametricMaxDepth,$parametricMaxNodes,$parametricSplitFamily,$parametricExtrusionAxis,$initialParametricCell.sourceEdgeControls(topology)) ;
+  } catch(const std::exception &error) { $parametricParentError=error.what() ; }
+}

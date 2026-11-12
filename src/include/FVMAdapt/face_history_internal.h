@@ -4,26 +4,18 @@
 
 // Implementation records; solver interfaces are in face_history.h.
 #include <FVMAdapt/face_history.h>
+#include <FVMAdapt/face_patch.h>
 #include <array>
 #include <mpi.h>
 
 namespace Loci {
-  /// Identifies a face region so subdivisions can be matched between meshes.
-  /// Coordinates describe logical refinement, not physical positions.
-  struct FacePatch {
-    std::vector<long long> surface ; // Opaque surface identity within one base mesh.
-    std::array<long long,4> bounds{} ; // xmin, ymin, xmax, ymax
-    int sector = 0 ; // Negative values denote an unsplit polygon's sector count.
-    int orientation = 1 ;
-  } ;
-
   typedef std::vector<FacePatch> FacePatches ;
 
   class FacePatchConverter {
     FacePatch& value ;
   public:
     explicit FacePatchConverter(FacePatch& v): value(v) {}
-    int getSize() const { return 6+value.surface.size() ; }
+    int getSize() const { return 10+value.surface.size()+2*value.polygon.size() ; }
     void getState(long long* buffer, int& size) const ;
     void setState(const long long* buffer, int size) ;
   } ;
