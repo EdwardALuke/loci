@@ -1,0 +1,84 @@
+# XML Refinement Regions {#fvmadapt_xml_regions}
+
+A region selects cells with at least one own vertex inside it. Refinement
+continues on their children until the edge-size cutoff is reached. A small
+object entirely inside a cell may select no vertices and therefore no cells.
+
+Region requirements are applied after cell requests and before neighbor
+balancing. A positive edge-size cutoff limits regional refinement; balancing
+may refine beyond the region.
+
+Example: refine near a sphere, excluding a box.
+
+```xml
+<region>
+  <object><shape><sphere><r>2</r></sphere></shape></object>
+  <op>difference</op>
+  <object><shape><box/></shape></object>
+</region>
+```
+
+Set operations
+--------------
+
+A region contains objects or nested regions separated by union, intersection,
+or difference. Operations run from left to right; use nested regions to group
+an expression. A difference A - B selects points in A that are outside B.
+Put complement before the object or nested region to invert it:
+
+```xml
+<region>
+  <op>complement</op>
+  <region>
+    <object><shape><sphere/></shape></object>
+    <op>intersection</op>
+    <object><shape><box/></shape></object>
+  </region>
+</region>
+```
+
+Shapes
+------
+
+Each object contains one shape. All primitive boundaries are included.
+Parameters are child elements containing finite numbers.
+
+```text
+Shape          Parameters and defaults
+sphere         x0=y0=z0=0, r=1
+cylinder       x0=y0=0, r=1, z1=0, z2=1
+cone           x0=y0=z0=0, r=1, z1=0, z2=1
+box            x1=y1=z1=0, x2=y2=z2=1
+x_plus_plane   x1=0; selects x >= x1
+x_minus_plane  x1=0; selects x <= x1
+```
+
+The y and z planes use y1 and z1. Cylinders and cones are bounded by z1 and
+z2. A cone satisfies (x-x0)^2+(y-y0)^2 <= r^2*(z-z0)^2; r is its slope.
+Radii must be nonnegative and lower bounds must not exceed upper bounds.
+
+Transforms
+----------
+
+An optional transform precedes the shape. It maps physical points into shape
+coordinates in the listed order. Translate subtracts (x0,y0,z0), default zero.
+Scale divides by (x0,y0,z0), default one; zero scales are invalid. rotateX,
+rotateY and rotateZ apply the inverse of a right-handed rotation by theta
+in degrees (default zero).
+
+This box occupies 2 <= x <= 4, 0 <= y <= 1, 0 <= z <= 1:
+
+```xml
+<region>
+  <object>
+    <transform>
+      <translate><x0>2</x0></translate>
+      <scale><x0>2</x0></scale>
+    </transform>
+    <shape><box/></shape>
+  </object>
+</region>
+```
+
+Malformed expressions and invalid parameters reject the adaptation. Unknown
+names and duplicate parameters are errors. XML input requires libxml2.
