@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+"""
+Build a uniform Cartesian Plot3D grid and convert it to VOG via plot3d2vog.
+
+Usage:
+  cartesianGrid <basename> [-n N] [-L length] [--bc file] ...
+
+Example:
+  cartesianGrid schrange
+
+Requires plot3d2vog on PATH or under $LOCI_BASE/bin.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from typing import Iterable
+
+
+def plot3d_float(v: float) -> str:
+    """Match default iostream formatting used by g.cc for simple coordinates."""
+    if abs(v - round(v)) < 1e-12:
+        return str(int(round(v)))
+    return f"{v:.6f}".rstrip("0").rstrip(".")
+
+
+def write_plot3d_ascii(path: Path, ni: int, nj: int, nk: int, delta: float) -> None:
+    """Write a single-block ASCII PLOT3D grid (one block, dimensions ni×nj×nk)."""
+
+    def coord(axis: int) -> Iterable[float]:
+        for k in range(nk):
+            for j in range(nj):
+                for i in range(ni):
+                    yield (i if axis == 0 else j if axis == 1 else k) * delta
+
+    with path.open("w", encoding="ascii") as out:
+        out.write("1\n")
+        out.write(f"{ni} {nj} {nk}\n")
+        for axis in range(3):
+            for val in coord(axis):
+                out.write(f"{plot3d_float(val)}\n")
+
+
+DEFAULT_BC_TEXT = """6
+1 1 minusx
+1 JK1 -1 -1 -1 -1
+2 1 plusx
+1 JKN -1 -1 -1 -1
+3 1 minusy
+1 IK1 -1 -1 -1 -1
+4 1 plusy
+1 IKN -1 -1 -1 -1
+5 1 minusz
+1 IJ1 -1 -1 -1 -1
+6 1 plusz
+1 IJN -1 -1 -1 -1
+"""
+
+
+def find_plot3d2vog() -> str:
+    loci_base = os.environ.get("LOCI_BASE")
+    if loci_base:
+        candidate = Path(loci_base) / "bin" / "plot3d2vog"
+        if candidate.is_file() or candidate.is_symlink():
+            return str(candidate)
+    here = Path(__file__).resolve().parent
+    for rel in (
+        here.parent / "OBJ" / "bin" / "plot3d2vog",
+        here.parent / "src" / "OBJ" / "bin" / "plot3d2vog",
+    ):
+        if rel.is_file() or rel.is_symlink():
+            return str(rel)
+    exe = shutil.which("plot3d2vog")
+    if exe:
+        return exe
+    raise FileNotFoundError(
+        "plot3d2vog not found; set LOCI_BASE or add Loci bin to PATH"
+    )
+
+
+def run_plot3d2vog(
+    plot3d2vog: str,
+    workdir: Path,
+    basename: str,
+    bc_file: Path,
+    units: str,
+) -> Path:
+    """Invoke plot3d2vog; grid is <basename>.grd in workdir."""
+    grd = workdir / f"{basename}.grd"
+    if not grd.is_file():
+        raise FileNotFoundError(f"missing Plot3D file {grd}")
+    if not bc_file.is_file():
+        raise FileNotFoundError(f"missing boundary file {bc_file}")
+
+    cmd = [
+        plot3d2vog,
+        units,
+        "-bc",
+        str(bc_file.resolve()),
+        basename,
+    ]
+    print("running:", " ".join(cmd), f"(in {workdir})")
+    proc = subprocess.run(
+        cmd,
+        cwd=workdir,
+        capture_output=True,
+        text=True,
+    )
+    if proc.stdout:
+        print(proc.stdout, end="" if proc.stdout.endswith("\n") else "\n")
+    if proc.returncode != 0:
+        if proc.stderr:
+            print(
+                proc.stderr,
+                file=sys.stderr,
+                end="" if proc.stderr.endswith("\n") else "\n",
+            )
+        raise SystemExit(proc.returncode)
+
+    vog = workdir / f"{basename}.vog"
+    if not vog.is_file():
+        print("plot3d2vog exited OK but", vog, "was not created", file=sys.stderr)
+        raise SystemExit(1)
+    return vog
+
+
+def remove_intermediates(grd_path: Path, bc_path: Path) -> None:
+    for path in (grd_path, bc_path):
+        if path.is_file():
+            path.unlink()
+            print(f"removed {path}")
+
+
+def main() -> None:
+    here = Path(__file__).resolve().parent
+    parser = argparse.ArgumentParser(
+        description="Generate a Cartesian Plot3D grid and convert to VOG.",
+    )
+    parser.add_argument(
+        "basename",
+        help="grid file basename (writes <basename>.grd and <basename>.vog)",
+    )
+    parser.add_argument(
+        "-n",
+        type=int,
+        default=3,
+        help="cells per side (default 3)",
+    )
+    parser.add_argument(
+        "-L",
+        type=float,
+        default=1.0,
+        help="physical edge length of the cube in meters (default 1)",
+    )
+    parser.add_argument(
+        "--bc",
+        type=Path,
+        default=here / "grid.bc",
+        help="boundary condition file (default grid.bc in this directory)",
+    )
+    parser.add_argument(
+        "--write-bc",
+        action="store_true",
+        help="write default grid.bc if the BC file does not exist",
+    )
+    parser.add_argument(
+        "--units",
+        choices=("-m", "-cm", "-mm", "-in", "-ft"),
+        default="-m",
+        help="grid length units for plot3d2vog (default: -m meters)",
+    )
+    parser.add_argument(
+        "--plot3d2vog",
+        type=str,
+        default=None,
+        help="path to plot3d2vog (default: LOCI_BASE/bin/plot3d2vog or PATH)",
+    )
+    parser.add_argument(
+        "--keep-intermediate",
+        action="store_true",
+        help="keep .grd and .bc files after conversion (default: remove)",
+    )
+    parser.add_argument(
+        "--grd-only",
+        action="store_true",
+        help="only write the Plot3D .grd file",
+    )
+    args = parser.parse_args()
+
+    if args.n < 1:
+        parser.error("-n must be at least 1")
+
+    workdir = Path.cwd()
+    basename = args.basename
+    ni = nj = nk = args.n + 1
+    delta = args.L / float(args.n)
+    grd_path = workdir / f"{basename}.grd"
+    bc_path = args.bc if args.bc.is_absolute() else workdir / args.bc
+
+    write_plot3d_ascii(grd_path, ni, nj, nk, delta)
+    print(f"wrote {grd_path}  ({args.n}^3 cells, block {{{ni},{nj},{nk}}})")
+
+    if not bc_path.is_file():
+        default_bc = here / "grid.bc"
+        if args.write_bc or bc_path == default_bc or bc_path.name == "grid.bc":
+            bc_path.write_text(DEFAULT_BC_TEXT, encoding="ascii")
+            print(f"wrote default BC file {bc_path}")
+        else:
+            parser.error(f"boundary file not found: {bc_path}")
+
+    if args.grd_only:
+        return
+
+    try:
+        converter = args.plot3d2vog or find_plot3d2vog()
+    except FileNotFoundError as err:
+        print(err, file=sys.stderr)
+        raise SystemExit(1) from err
+
+    vog_path = run_plot3d2vog(
+        converter, workdir, basename, bc_path, str(args.units)
+    )
+    print(f"wrote {vog_path}")
+
+    if not args.keep_intermediate:
+        remove_intermediates(grd_path, bc_path)
+
+
+if __name__ == "__main__":
+    main()

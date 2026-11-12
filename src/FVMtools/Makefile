@@ -151,6 +151,7 @@ LOCI_INTERMEDIATE_FILES = $(subst .loci,.$(LPP_I_SUFFIX), $(wildcard *.loci) )
 uninstall:
 	@for d in $(APPS);  do rm -f  $(LOCI_INSTALL_PATH)/bin/$$d; done
 	@rm -f $(LOCI_INSTALL_PATH)/bin/extract_movie
+	@rm -f $(LOCI_INSTALL_PATH)/bin/cartesianGrid
 
 distclean: clean 
 	rm -fr $(DEPEND_FILES) $(LOCI_INTERMEDIATE_FILES)

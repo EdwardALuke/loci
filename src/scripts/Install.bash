@@ -119,6 +119,7 @@ soft_copy_dir FVMtools/vogmerge $INSTALL_PATH/bin
 soft_copy_dir FVMtools/vogcheck $INSTALL_PATH/bin
 soft_copy_dir FVMtools/vogcut $INSTALL_PATH/bin
 soft_copy_dir FVMtools/extract_movie $INSTALL_PATH/bin
+soft_copy_dir FVMtools/cartesianGrid $INSTALL_PATH/bin
 soft_copy_dir FVMtools/extruder $INSTALL_PATH/bin
 soft_copy_dir FVMtools/refmesh $INSTALL_PATH/bin
 soft_copy_dir FVMtools/marker $INSTALL_PATH/bin
