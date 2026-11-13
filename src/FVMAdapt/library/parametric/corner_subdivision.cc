@@ -155,9 +155,11 @@ namespace FVMAdapt {
     if(depth(id)>=limits_.maxDepth || splits_.size()>=limits_.maxSplits || count>limits_.maxNodes-nodes_.size())
       throw std::length_error("corner history limit exceeded") ;
     reserveRecords(nodes_,nodes_.size()+count,limits_.maxNodes) ; reserveRecords(splits_,splits_.size()+1,limits_.maxSplits) ;
-    std::vector<std::size_t> selected(boundaries.faces.size(),noBoundary) ;
-    for(std::size_t f=0;f<boundaries.faces.size();++f) if(!boundaries.faces[f].splits.empty()) {
-      require(boundaries.faces[f].splits.size()==1,"corner history requires one accepted construction per face") ; selected[f]=0 ;
+    std::vector<std::size_t> selected ; selected.reserve(node(id).cell.faces.size()) ;
+    for(auto use:node(id).cell.faces) {
+      const auto &splits=boundaries.faces.at(use.surface).splits ;
+      require(splits.size()<=1,"corner history requires one accepted construction per face") ;
+      selected.push_back(splits.empty() ? noBoundary : 0) ;
     }
     Transaction transaction(*this) ;
     auto accepted=constructCell(node(id).cell,node(id).interior,method,selected,transaction) ;

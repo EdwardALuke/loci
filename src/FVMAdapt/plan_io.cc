@@ -10,34 +10,39 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
+    constexpr int planFormatVersion=2 ;
+    constexpr int maxPlanSettingsBytes=4096 ;
+
     void broadcast(std::string &value) {
       int size=int(value.size()) ; MPI_Bcast(&size,1,MPI_INT,0,MPI_COMM_WORLD) ;
       value.resize(size) ; MPI_Bcast(value.data(),size,MPI_CHAR,0,MPI_COMM_WORLD) ;
     }
-    std::string settings(const RefinementOptions &o,int roots) {
+    std::string encodePlanSettings(const RefinementOptions &options,int roots) {
       std::ostringstream out ; out<<std::setprecision(17) ;
-      out<<"FVMAdaptPlan 2 "<<(MPI_processes>1)<<' '<<roots<<'\n'
-        <<o.splitFamily<<' '<<o.centerMethod<<' '<<o.extrusionAxis<<'\n'
-        <<o.grading<<' '<<o.faceBalance<<' '<<o.directionalBalance<<'\n'
-        <<o.automaticSplit<<' '<<o.splitAspectRatio<<' '<<o.minEdgeLength<<'\n'
-        <<o.maxDepth<<' '<<o.maxNodes<<' '<<o.levelDifference<<' '<<o.maxRounds<<' '<<o.refinementLevels<<'\n'
-        <<o.quality.mode<<' '<<o.quality.centroid<<' '<<o.quality.maxNonOrthogonality<<' '<<o.quality.maxFaceWarpage<<' '<<o.quality.maxChildVolumeRatio<<'\n' ;
+      out<<"FVMAdaptPlan "<<planFormatVersion<<' '<<(MPI_processes>1)<<' '<<roots<<'\n'
+        <<options.splitFamily<<' '<<options.centerMethod<<' '<<options.extrusionAxis<<'\n'
+        <<options.grading<<' '<<options.faceBalance<<' '<<options.directionalBalance<<'\n'
+        <<options.automaticSplit<<' '<<options.splitAspectRatio<<' '<<options.minEdgeLength<<'\n'
+        <<options.maxDepth<<' '<<options.maxNodes<<' '<<options.levelDifference<<' '<<options.maxRounds<<' '<<options.refinementLevels<<'\n'
+        <<options.quality.mode<<' '<<options.quality.centroid<<' '<<options.quality.maxNonOrthogonality<<' '<<options.quality.maxFaceWarpage<<' '<<options.quality.maxChildVolumeRatio<<'\n' ;
       return out.str() ;
     }
-    bool parseSettings(const std::string &text,RefinementOptions &o,int &roots,std::string &error) {
+    bool decodePlanSettings(const std::string &text,RefinementOptions &options,int &roots,std::string &error) {
       std::istringstream in(text) ; std::string magic ; int version=0 ; bool parallel=false ;
-      if(!(in>>magic>>version>>parallel>>roots) || magic!="FVMAdaptPlan" || (version!=1 && version!=2)) {
+      if(!(in>>magic>>version>>parallel>>roots) || magic!="FVMAdaptPlan" || (version!=1 && version!=planFormatVersion)) {
         error="not a supported parametric plan; regenerate old plans with marker" ; return false ;
       }
       if(parallel!=(MPI_processes>1)) { error="plans cannot cross between serial and parallel execution" ; return false ; }
-      if(!(in>>o.splitFamily>>o.centerMethod>>o.extrusionAxis>>o.grading>>o.faceBalance>>o.directionalBalance
-          >>o.automaticSplit>>o.splitAspectRatio>>o.minEdgeLength>>o.maxDepth>>o.maxNodes>>o.levelDifference>>o.maxRounds>>o.refinementLevels)
+      if(!(in>>options.splitFamily>>options.centerMethod>>options.extrusionAxis
+          >>options.grading>>options.faceBalance>>options.directionalBalance
+          >>options.automaticSplit>>options.splitAspectRatio>>options.minEdgeLength
+          >>options.maxDepth>>options.maxNodes>>options.levelDifference>>options.maxRounds>>options.refinementLevels)
           || roots<1) { error="invalid parametric plan settings" ; return false ; }
-      if(version==2 && !(in>>o.quality.mode>>o.quality.centroid>>o.quality.maxNonOrthogonality>>o.quality.maxFaceWarpage>>o.quality.maxChildVolumeRatio)) {
+      if(version==planFormatVersion && !(in>>options.quality.mode>>options.quality.centroid>>options.quality.maxNonOrthogonality>>options.quality.maxFaceWarpage>>options.quality.maxChildVolumeRatio)) {
         error="invalid parametric quality settings" ; return false ;
       }
       if(!(in>>std::ws).eof()) { error="unexpected parametric plan settings" ; return false ; }
-      try { o.quality.validate() ; } catch(const std::exception &e) { error=e.what() ; return false ; }
+      try { options.quality.validate() ; } catch(const std::exception &e) { error=e.what() ; return false ; }
       return true ;
     }
     bool writeSettings(hid_t file,const std::string &text) {
@@ -54,7 +59,7 @@ namespace FVMAdapt {
       if(H5Lexists(file,"settings",H5P_DEFAULT)>0 && H5Lexists(file,"parametricHistory",H5P_DEFAULT)>0) {
         const auto data=H5Dopen(file,"settings",H5P_DEFAULT),space=H5Dget_space(data) ;
         const auto size=H5Sget_simple_extent_npoints(space) ;
-        if(size>0 && size<=4096 && H5Sget_simple_extent_ndims(space)==1) {
+        if(size>0 && size<=maxPlanSettingsBytes && H5Sget_simple_extent_ndims(space)==1) {
           text.resize(size) ;
           if(H5Dread(data,H5T_NATIVE_CHAR,H5S_ALL,H5S_ALL,H5P_DEFAULT,text.data())<0) text.clear() ;
         }
@@ -76,7 +81,7 @@ namespace FVMAdapt {
     const auto file=hdf5CreateFile(temporary.c_str(),H5F_ACC_TRUNC,H5P_DEFAULT,H5P_DEFAULT) ;
     const bool owner=MPI_rank==0 || use_parallel_io ; hid_t group=0 ; int bad=0,anyBad=0 ;
     if(owner) {
-      bad=file<0 || !writeSettings(file,settings(options,roots)) ;
+      bad=file<0 || !writeSettings(file,encodePlanSettings(options,roots)) ;
       if(!bad) { group=H5Gcreate(file,"parametricHistory",H5P_DEFAULT,H5P_DEFAULT,H5P_DEFAULT) ; bad=group<0 ; }
     }
     MPI_Allreduce(&bad,&anyBad,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
@@ -94,7 +99,7 @@ namespace FVMAdapt {
     if(MPI_rank==0) text=readSettings(name) ;
     broadcast(text) ;
     RefinementOptions controls ; int roots=0 ;
-    if(!parseSettings(text,controls,roots,error)) return false ;
+    if(!decodePlanSettings(text,controls,roots,error)) return false ;
     const auto file=hdf5OpenFile(name.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT) ; hid_t group=0 ;
     const bool owner=MPI_rank==0 || use_parallel_io ;
     if(owner) group=H5Gopen(file,"parametricHistory",H5P_DEFAULT) ;

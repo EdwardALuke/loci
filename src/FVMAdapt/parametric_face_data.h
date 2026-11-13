@@ -11,6 +11,7 @@ namespace FVMAdapt {
   /// Canonical source-edge controls agreed by incident cells; empty controls mean straight.
   struct EdgeGeometryData {
     std::vector<Point> controls ;
+    /// Unassigned is the reduction identity; a conflict remains failed through every merge.
     bool assigned=false, failed=false ;
     void merge(const EdgeGeometryData &other) {
       if(this==&other) return ;
@@ -34,6 +35,7 @@ namespace FVMAdapt {
     explicit EdgeGeometryDataConverter(EdgeGeometryData &value):value_(value) {}
     int getSize() const { return !value_.failed && value_.assigned && !value_.controls.empty() ? 7:1 ; }
     void getState(double *buffer,int &size) const {
+      // Tags: unassigned, straight, cubic, failed; cubic adds two XYZ controls.
       size=getSize() ; buffer[0]=value_.failed ? 3 : !value_.assigned ? 0 : value_.controls.empty() ? 1:2 ;
       if(size==7) for(unsigned i=0;i<2;++i) for(unsigned d=0;d<3;++d) buffer[1+3*i+d]=value_.controls.at(i)[d] ;
     }

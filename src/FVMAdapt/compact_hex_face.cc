@@ -22,35 +22,48 @@ namespace FVMAdapt {
     // Temporary connectivity for one original face. Geometry is evaluated along its saved face path.
     struct FaceOutput {
       struct Edge {
-        std::array<unsigned,2> vertices,children{{absent,absent}} ;
-        unsigned parent = absent, middle = absent ; bool active = false ;
+        std::array<unsigned,2> vertices ;
+        std::array<unsigned,2> children{{absent,absent}} ;
+        unsigned parent = absent, middle = absent ;
+        bool active = false ;
       } ;
       struct Cover { int leaf ; bool right,reverse ; } ;
       struct Face {
-        std::array<unsigned,4> vertices,edges{},children{{absent,absent,absent,absent}} ;
+        std::array<unsigned,4> vertices,edges{} ;
+        std::array<unsigned,4> children{{absent,absent,absent,absent}} ;
         // Midpoint boxes identify adjoining leaves; accepted centers determine physical positions.
         std::array<IndexPoint,4> box ;
         unsigned parent = absent,corner = 0,centerVertex = absent ;
-        Point center{{0,0,0}} ; bool active = false ; std::vector<Cover> covers ;
+        Point center{{0,0,0}} ;
+        bool active = false ;
+        std::vector<Cover> covers ;
       } ;
       EntityId owner ;
       struct Location { unsigned face ; Point point ; } ;
-      std::shared_ptr<const GeometryMap> source ; std::vector<Location> locations ;
+      std::shared_ptr<const GeometryMap> source ;
+      std::vector<Location> locations ;
       std::vector<ParametricNodeKey> keys ;
       // Face-local node number to temporary vertex index.
       std::vector<unsigned> localNodes ;
-      std::vector<Edge> edges ; std::vector<Face> faces ;
+      std::vector<Edge> edges ;
+      std::vector<Face> faces ;
       std::map<std::pair<unsigned,unsigned>,unsigned> edgeIds ;
       std::map<std::array<std::uint32_t,3>,unsigned> faceIds ;
 
-      unsigned edge(unsigned a,unsigned b,unsigned parent = absent) {
-        const auto key = std::minmax(a,b) ; const auto found = edgeIds.find(key) ;
+      unsigned findOrAddEdge(unsigned a,unsigned b,unsigned parent = absent) {
+        const auto key = std::minmax(a,b) ;
+        const auto found = edgeIds.find(key) ;
         if(found != edgeIds.end()) return found->second ;
-        const unsigned id = edges.size() ; Edge e ; e.vertices = {{a,b}} ; e.parent = parent ;
-        edges.push_back(e) ; edgeIds.emplace(key,id) ; return id ;
+        const unsigned id = edges.size() ;
+        Edge edge ;
+        edge.vertices = {{a,b}} ;
+        edge.parent = parent ;
+        edges.push_back(edge) ;
+        edgeIds.emplace(key,id) ;
+        return id ;
       }
       unsigned addFace(Face face) {
-        for(unsigned e = 0; e < 4; ++e) face.edges[e] = edge(face.vertices[e],face.vertices[(e+1)%4]) ;
+        for(unsigned e = 0; e < 4; ++e) face.edges[e] = findOrAddEdge(face.vertices[e],face.vertices[(e+1)%4]) ;
         const auto &a = face.box[0], &b = face.box[2] ;
         const unsigned id = faces.size() ;
         faceIds.emplace(std::array<std::uint32_t,3>{{std::min(a[0],b[0]),std::min(a[1],b[1]),std::max(a[0],b[0])-std::min(a[0],b[0])}},id) ;
@@ -64,16 +77,21 @@ namespace FVMAdapt {
         }
         return geometry.position(p) ;
       }
-      unsigned point(unsigned face,const Point &p) {
-        const unsigned id = locations.size() ; locations.push_back({face,p}) ;
-        keys.push_back({{EntityKind::face,owner,{{0,0,0}}},-1}) ; return id ;
+      unsigned addPoint(unsigned face,const Point &p) {
+        const unsigned id = locations.size() ;
+        locations.push_back({face,p}) ;
+        keys.push_back({{EntityKind::face,owner,{{0,0,0}}},-1}) ;
+        return id ;
       }
       unsigned splitEdge(unsigned id,unsigned face,const Point &a,const Point &b) {
         if(edges[id].middle != absent) return edges[id].middle ;
-        const auto ends = edges[id].vertices ; const unsigned mid = point(face,midpoint(a,b)) ;
+        const auto ends = edges[id].vertices ;
+        const unsigned mid = addPoint(face,midpoint(a,b)) ;
         edges[id].middle = mid ;
-        const auto first = edge(ends[0],mid,id),second = edge(mid,ends[1],id) ;
-        edges[id].children = {{first,second}} ; return mid ;
+        const auto first = findOrAddEdge(ends[0],mid,id) ;
+        const auto second = findOrAddEdge(mid,ends[1],id) ;
+        edges[id].children = {{first,second}} ;
+        return mid ;
       }
       void readEdge(detail::FacePlanReader &in,unsigned id,unsigned start,unsigned face,Point a,Point b,unsigned depth) {
         if(!in.edge(depth)) return ;
@@ -86,7 +104,7 @@ namespace FVMAdapt {
         const auto division = in.face(4,depth) ; const auto face = faces[id] ; const auto &q = referenceElement(Shape::quad) ;
         for(unsigned e = 0; e < 4; ++e) readEdge(in,face.edges[e],face.vertices[e],id,q.vertices[e],q.vertices[(e+1)%4],depth) ;
         if(!division.split) return ;
-        faces[id].center = division.center ; const unsigned center = point(id,division.center) ; faces[id].centerVertex = center ;
+        faces[id].center = division.center ; const unsigned center = addPoint(id,division.center) ; faces[id].centerVertex = center ;
         std::array<unsigned,4> mid ;
         for(unsigned e = 0; e < 4; ++e) mid[e] = splitEdge(face.edges[e],id,q.vertices[e],q.vertices[(e+1)%4]) ;
         for(unsigned v = 0; v < 4; ++v) {

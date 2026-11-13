@@ -121,6 +121,7 @@ namespace FVMAdapt {
     const std::array<unsigned,3> &degree() const { return degree_ ; }
     const std::vector<Point> &controls() const { return controls_ ; }
     MapValue evaluate(const Point &point) const override ;
+    Point position(const Point &point) const override ;
   } ;
 
   /// Cubic Bernstein triangle with barycentric coordinates (w,u,v)=(1-u-v,u,v).

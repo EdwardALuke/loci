@@ -13,11 +13,12 @@ namespace FVMAdapt {
   /// Contains centers and midpoint edge trees, without physical coordinates or geometry maps.
   using FacePlan = std::vector<unsigned char> ;
 
-  FacePlan encodeFacePlan(const BoundaryRecords &, BoundaryId face, const BoundaryRecordLimits &limits = {}) ;
+  FacePlan encodeFacePlan(const BoundaryRecords &boundaries, BoundaryId face, const BoundaryRecordLimits &limits = {}) ;
   /// Union accepted divisions; conflicting centers reject. Both inputs use the same root face order.
-  FacePlan mergeFacePlans(const FacePlan &, const FacePlan &, const BoundaryRecordLimits &limits = {}) ;
+  FacePlan mergeFacePlans(const FacePlan &first, const FacePlan &second, const BoundaryRecordLimits &limits = {}) ;
   /// Apply accepted choices to existing source geometry. Failure leaves the boundary unchanged.
-  bool applyFacePlan(CornerBoundary &, BoundaryId face, const FacePlan &) ;
+  /// Return true when retained divisions are added; false when all are already present.
+  bool applyFacePlan(CornerBoundary &boundary, BoundaryId face, const FacePlan &plan) ;
 }
 }
 #endif

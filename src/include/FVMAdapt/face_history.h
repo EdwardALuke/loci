@@ -47,7 +47,8 @@ namespace Loci {
     FaceId source ; // Old mesh face file number.
     int orientation ; // +1 for matching vertex-loop normals, -1 for opposing.
     double referenceFraction ; // Overlap / old reference-patch measure; not physical area.
-    double areaFraction = -1 ; ///< Physical overlap / old area; -1 when unavailable.
+    /// Physical-area weight, normalized over the old face's common fine cover; -1 when unavailable.
+    double areaFraction = -1 ;
   } ;
 
   std::ostream& operator<<(std::ostream&, const FaceSource&) ;

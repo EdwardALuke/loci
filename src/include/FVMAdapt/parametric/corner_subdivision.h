@@ -11,6 +11,7 @@ namespace FVMAdapt {
   struct CornerNode {
     TreeNodeId parent = noTreeNode ;
     unsigned ordinal = 0 ;
+    /// Retained construction index; refined controls whether its children are selected.
     std::size_t split = noTreeNode ;
     bool refined = false ;
     CornerCell cell ;
@@ -23,6 +24,7 @@ namespace FVMAdapt {
     NodeRange children ;
     CenterMethod centerMethod ;
     BoundaryId centerVertex ;
+    /// FaceRecord::splits indices in parent-cell face order.
     std::vector<std::size_t> faceSplits ;
   } ;
 
@@ -40,9 +42,9 @@ namespace FVMAdapt {
     CornerSubdivision(std::uint64_t root, HistoryLimits limits) ;
     BoundaryRecordLimits savedBoundaryLimits() const ;
     void validate() const ;
-    void validateSplit(const CornerConstruction &) const ;
-    GeometryMeasure measureCellGeometry(const CornerCell &, const Point &) const ;
-    std::shared_ptr<const GeometryMap> project(std::shared_ptr<const GeometryMap>) const ;
+    void validateSplit(const CornerConstruction &split) const ;
+    GeometryMeasure measureCellGeometry(const CornerCell &cell, const Point &interior) const ;
+    std::shared_ptr<const GeometryMap> project(std::shared_ptr<const GeometryMap> map) const ;
   public:
     CornerSubdivision(std::uint64_t root, CornerBoundary boundary, CornerCell cell, Point interior, HistoryLimits limits = {}) ;
     /// Split a standard source volume in its reference coordinates; retain the source map once.
@@ -71,7 +73,7 @@ namespace FVMAdapt {
     unsigned depth(TreeNodeId id) const ;
     CellPath path(TreeNodeId id) const ;
     /// Resolve an active or dormant path. Child order is the parent vertex order.
-    TreeNodeId nodeId(const CellPath &) const ;
+    TreeNodeId nodeId(const CellPath &path) const ;
     /// Retained children, including dormant ones; empty for a cell never split.
     NodeRange children(TreeNodeId id) const ;
     std::vector<TreeNodeId> leafIds() const ;
@@ -86,7 +88,7 @@ namespace FVMAdapt {
     GeometryMeasure measure(TreeNodeId id) const { const auto &n=node(id) ; return measureCellGeometry(n.cell,n.interior) ; }
     /// Save explicit cell links, accepted constructions and shared geometry; IDs keep their order.
     std::vector<unsigned char> encode() const ;
-    static CornerSubdivision decode(const std::vector<unsigned char> &, HistoryLimits limits = {}) ;
+    static CornerSubdivision decode(const std::vector<unsigned char> &record, HistoryLimits limits = {}) ;
   } ;
 }
 }

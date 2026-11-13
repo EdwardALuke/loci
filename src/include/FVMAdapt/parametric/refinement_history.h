@@ -32,6 +32,8 @@
 namespace Loci {
 namespace FVMAdapt {
 
+  struct RecordLimits ;
+
   /// Bounds include retained ancestors, accepted geometry and exact local coordinates.
   /// exact.maxOperations applies to each construction or root-coordinate query;
   /// maxNodes and exact.maxBytes bound the complete snapshot.
@@ -50,6 +52,7 @@ namespace FVMAdapt {
     unsigned ordinal = 0 ;
     MapId map = 0 ;
     std::size_t activeSplit = noTreeNode ;
+    /// No split is selected locally; this node may belong to a dormant branch.
     bool isLeaf() const { return activeSplit == noTreeNode ; }
   } ;
 
@@ -74,6 +77,11 @@ namespace FVMAdapt {
     std::vector<std::size_t> firstSplit_, nextSplit_ ;
     std::size_t retainedBytes_ = 0 ;
     std::size_t splitId(TreeNodeId parent, const SplitConstruction &construction) const ;
+    /// Only the decoder supplies mapped constructions already validated under these limits.
+    static RefinementHistory restoreRecords(std::uint64_t root, std::uint64_t revision,
+        GeometryStore geometry, std::vector<CellNode> nodes, std::vector<AcceptedSplit> splits,
+        HistoryLimits limits, bool mappedValidated) ;
+    friend RefinementHistory decodeRefinement(const std::vector<unsigned char> &record, const RecordLimits &limits) ;
     friend class HistoryEdit ;
   public:
     RefinementHistory(std::uint64_t root, GeometryStore geometry, MapId rootMap,
@@ -89,9 +97,11 @@ namespace FVMAdapt {
     const CellNode &node(TreeNodeId id) const { return nodes_.at(id) ; }
     /// Accepted affine placement; mapped children throw invalid_argument. The root is the identity.
     const Child &localCell(TreeNodeId id) const ;
+    /// Selected children; empty when this node has no selected split.
     NodeRange children(TreeNodeId id) const ;
     /// Children of a retained construction, selected or dormant; empty if it is not saved.
     NodeRange retainedChildren(TreeNodeId parent, const SplitConstruction &construction) const ;
+    /// Selected native request; null for a leaf or a mapped/planar construction.
     const SplitOperation *operation(TreeNodeId id) const ;
     /// Active root-reachable leaves in child order; dormant records are excluded.
     std::vector<TreeNodeId> leafIds() const ;
@@ -100,10 +110,12 @@ namespace FVMAdapt {
     CellKey key(TreeNodeId id) const ;
     /// Find an active or dormant cell by identity; missing keys throw out_of_range.
     TreeNodeId nodeId(const CellKey &key) const ;
+    /// Compose affine child placements into root reference coordinates.
+    /// Mapped or planar ancestry throws invalid_argument.
     Placement rootPlacement(TreeNodeId id) const ;
     void swap(RefinementHistory &other) noexcept ;
     /// Import accepted records; validate topology, local geometry and limits before publication.
-    /// Child construction is not rerun. Invalid data leaves the caller's snapshot unchanged.
+    /// Preserve accepted centers and split choices; rebuild and validate derived charts.
     static RefinementHistory restore(std::uint64_t root, std::uint64_t revision,
                                      GeometryStore geometry, std::vector<CellNode> nodes,
                                      std::vector<AcceptedSplit> splits,
@@ -136,7 +148,7 @@ namespace FVMAdapt {
       std::size_t nodes, splits, maps, firstSplit, retainedBytes ;
     } ;
     MappedRefinement beforeMappedRefinement(TreeNodeId leaf) const ;
-    void undoMappedRefinement(const MappedRefinement &) noexcept ;
+    void undoMappedRefinement(const MappedRefinement &before) noexcept ;
     friend class MappedVolumeSubdivision ;
   public:
     explicit HistoryEdit(RefinementHistory history) : history_(std::move(history)) {}

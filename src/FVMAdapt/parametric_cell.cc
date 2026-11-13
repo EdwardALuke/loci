@@ -335,8 +335,11 @@ namespace FVMAdapt {
     require(requested=="native" || requested=="corner" || requested=="extruded" || requested=="mixed","unknown parametric split family") ;
     require(axis>=-1 && axis<=2,"parametricExtrusionAxis must be -1, 0, 1 or 2") ;
     if(requested=="mixed") require(axis<0,"mixed splitting requires full 3D refinement") ;
-    const auto family=requested!="mixed" ? requested:
-      topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ? "native":"corner" ;
+    auto family=requested ;
+    if(family=="mixed") {
+      const bool nativeShape=topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ;
+      family=nativeShape ? "native":"corner" ;
+    }
     if(family=="extruded") {
       require(topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism),"extrusion requires a hex or prism") ;
       require(axis>=0,"center-based extrusion requires axis 0, 1 or 2") ;
@@ -374,22 +377,39 @@ namespace FVMAdapt {
   ParametricCell::ParametricCell(const ParametricCell &other) : source_(other.source_),
     cell_(other.cell_ ? std::make_unique<Subdivision>(*other.cell_):nullptr) {}
   ParametricCell &ParametricCell::operator=(const ParametricCell &other) {
-    if(this!=&other) { ParametricCell copy(other) ; source_.swap(copy.source_) ; cell_.swap(copy.cell_) ; }
+    if(this!=&other) {
+      ParametricCell copy(other) ;
+      source_.swap(copy.source_) ;
+      cell_.swap(copy.cell_) ;
+    }
     return *this ;
   }
   void ParametricCell::expand() {
-    if(const auto *p=source()) {
+    if(const auto *original=source()) {
       // Deferred sources already passed the source-face check.
-      auto cell=cornerRepresentation(p->topology,false)==CellRepresentation::boundary
-        ? std::make_unique<Subdivision>(ParametricBoundary(p->topology,p->corners,p->limits))
-        : std::make_unique<Subdivision>(ParametricCorner(p->topology,p->corners,p->limits)) ;
-      cell_=std::move(cell) ; source_.reset() ;
+      auto cell=cornerRepresentation(original->topology,false)==CellRepresentation::boundary
+        ? std::make_unique<Subdivision>(ParametricBoundary(original->topology,original->corners,original->limits))
+        : std::make_unique<Subdivision>(ParametricCorner(original->topology,original->corners,original->limits)) ;
+      cell_=std::move(cell) ;
+      source_.reset() ;
     }
   }
   std::size_t ParametricCell::leafCount() const { return source() ? 1:leafIds().size() ; }
-  std::vector<TreeNodeId> ParametricCell::leafIds() const { return source() ? std::vector<TreeNodeId>{0}:boundary() ? boundary()->leafIds():history().leafIds() ; }
-  const HistoryLimits &ParametricCell::limits() const { return source() ? source()->limits:boundary() ? boundary()->limits():history().limits() ; }
-  std::uint64_t ParametricCell::rootKey() const { return source() ? source()->topology.id():boundary() ? boundary()->rootKey():history().rootKey() ; }
+  std::vector<TreeNodeId> ParametricCell::leafIds() const {
+    if(source()) return {0} ;
+    if(boundary()) return boundary()->leafIds() ;
+    return history().leafIds() ;
+  }
+  const HistoryLimits &ParametricCell::limits() const {
+    if(source()) return source()->limits ;
+    if(boundary()) return boundary()->limits() ;
+    return history().limits() ;
+  }
+  std::uint64_t ParametricCell::rootKey() const {
+    if(source()) return source()->topology.id() ;
+    if(boundary()) return boundary()->rootKey() ;
+    return history().rootKey() ;
+  }
   CellPath ParametricCell::path(TreeNodeId id) const {
     if(source()) { require(id==0,"original cell has no child") ; return {} ; }
     return boundary() ? boundary()->path(id):history().path(id) ;
@@ -400,13 +420,22 @@ namespace FVMAdapt {
   }
   NodeRange ParametricCell::children(TreeNodeId id) const {
     if(source()) { require(id==0,"original cell has no child") ; return {} ; }
-    return boundary() ? (boundary()->node(id).refined ? boundary()->children(id):NodeRange()):history().children(id) ;
+    if(boundary()) return boundary()->node(id).refined ? boundary()->children(id):NodeRange() ;
+    return history().children(id) ;
   }
-  bool ParametricCell::active(TreeNodeId id) const { return source() ? id==0:boundary() ? boundary()->active(id):history().active(id) ; }
+  bool ParametricCell::active(TreeNodeId id) const {
+    if(source()) return id==0 ;
+    if(boundary()) return boundary()->active(id) ;
+    return history().active(id) ;
+  }
   bool ParametricCell::leaf(TreeNodeId id) const {
     return active(id) && (source() || (boundary() ? !boundary()->node(id).refined:history().node(id).isLeaf())) ;
   }
-  std::size_t ParametricCell::splitCount() const { return source() ? 0:boundary() ? boundary()->splits().size():history().splits().size() ; }
+  std::size_t ParametricCell::splitCount() const {
+    if(source()) return 0 ;
+    if(boundary()) return boundary()->splits().size() ;
+    return history().splits().size() ;
+  }
   TreeNodeId ParametricCell::splitParent(std::size_t i) const { return boundary() ? boundary()->splits().at(i).parent:history().splits().at(i).parent ; }
   NodeRange ParametricCell::splitChildren(std::size_t i) const { return boundary() ? boundary()->splits().at(i).children:history().splits().at(i).children ; }
   const CellTopology &ParametricCell::cornerTopology() const {
@@ -453,19 +482,32 @@ namespace FVMAdapt {
     throw std::invalid_argument("unknown parametric center method") ;
   }
   void ParametricCell::refine(TreeNodeId leaf,const SplitOperation &request,CenterMethod method) {
-    if(auto *p=std::get_if<AffineSubdivision>(cell_.get())) { require(method==CenterMethod::reference,"native cuts support only reference centers") ; p->refine(leaf,request) ; }
-    else throw std::invalid_argument("corner and extruded splitting require an isotropic request") ;
+    auto *cell=std::get_if<AffineSubdivision>(cell_.get()) ;
+    require(cell,"corner and extruded splitting require an isotropic request") ;
+    require(method==CenterMethod::reference,"native cuts support only reference centers") ;
+    cell->refine(leaf,request) ;
   }
 
   void ParametricCell::refineIsotropic(TreeNodeId leaf,CenterMethod method,int axis) {
     if(source()) {
-      auto candidate=*this ; candidate.expand() ; candidate.refineIsotropic(leaf,method,axis) ;
-      *this=std::move(candidate) ; return ;
+      auto candidate=*this ;
+      candidate.expand() ;
+      candidate.refineIsotropic(leaf,method,axis) ;
+      *this=std::move(candidate) ;
+      return ;
     }
-    if(const auto *p=native()) refine(leaf,axis<0 ? isotropicSplit(p->node(leaf).cell.shape):parametricGradingSplit(*p,axis),method) ;
-    else if(auto *p=std::get_if<ParametricCorner>(cell_.get())) { require(axis<0,"corner splitting requires full 3D refinement") ; p->refine(leaf,method) ; }
-    else if(auto *p=std::get_if<ParametricBoundary>(cell_.get())) { require(axis<0,"corner splitting requires full 3D refinement") ; p->refine(leaf,method) ; }
-    else std::get<ExtrudedSubdivision>(*cell_).planar.splitLeaf(leaf,method) ;
+    if(const auto *cell=native()) {
+      const auto request=axis<0 ? isotropicSplit(cell->node(leaf).cell.shape):parametricGradingSplit(*cell,axis) ;
+      refine(leaf,request,method) ;
+    } else if(auto *cell=std::get_if<ParametricCorner>(cell_.get())) {
+      require(axis<0,"corner splitting requires full 3D refinement") ;
+      cell->refine(leaf,method) ;
+    } else if(auto *cell=std::get_if<ParametricBoundary>(cell_.get())) {
+      require(axis<0,"corner splitting requires full 3D refinement") ;
+      cell->refine(leaf,method) ;
+    } else {
+      std::get<ExtrudedSubdivision>(*cell_).planar.splitLeaf(leaf,method) ;
+    }
   }
   void ParametricCell::refineForBalance(TreeNodeId leaf,CenterMethod method,int axis,unsigned directions) {
     require(directions<8,"invalid balancing directions") ;
@@ -992,27 +1034,32 @@ namespace FVMAdapt {
     }
     return out ;
   }
-  std::vector<int> parametricFaceBalanceRequests(const CellTopology &t,const ParametricCell &cell,
-      const std::vector<FaceBalanceRequest> &shared,FaceBalance policy,std::map<int,unsigned> *directions) {
-    if(policy==FaceBalance::none && !directions) return {} ;
-    if(directions) directions->clear() ;
-    if(!cell.native()) directions=nullptr ;
-    std::map<int,std::vector<unsigned>> divided ; std::set<int> fullSplit ;
+  std::vector<int> parametricFaceBalanceRequests(const CellTopology &topology,const ParametricCell &cell,
+      const std::vector<FaceBalanceRequest> &sharedFaces,FaceBalance policy,std::map<int,unsigned> *splitDirections) {
+    if(policy==FaceBalance::none && !splitDirections) return {} ;
+    if(splitDirections) splitDirections->clear() ;
+    if(!cell.native()) splitDirections=nullptr ;
+    std::map<int,std::vector<unsigned>> dividedFaces ;
+    std::set<int> fullSplit ;
     const auto collect=[&](const FaceBalanceRequest &entry) {
-      require(entry.face>=0,"face balancing received a level-grading request") ; divided[entry.leaf].push_back(entry.face) ;
-      if(directions) {
+      require(entry.face>=0,"face balancing received a level-grading request") ;
+      dividedFaces[entry.leaf].push_back(entry.face) ;
+      if(splitDirections) {
         require(entry.directions<8,"invalid balancing directions") ;
         if(entry.directions==0) fullSplit.insert(entry.leaf) ;
-        (*directions)[entry.leaf]|=entry.directions ;
+        (*splitDirections)[entry.leaf]|=entry.directions ;
       }
     } ;
-    for(const auto &entry:localDividedFaces(t,cell,directions!=nullptr)) collect(entry) ;
-    for(const auto &entry:shared) if(entry.root==int(t.id())) collect(entry) ;
-    if(directions) for(int leaf:fullSplit) (*directions)[leaf]=0 ;
-    const auto leaves=cell.leafIds() ; std::vector<int> out ;
-    for(const auto &entry:divided)
-      if(faceBalanceRequired(leafFaceVertices(t,cell,leaves.at(entry.first)),entry.second,policy)) out.push_back(entry.first) ;
-    return out ;
+    for(const auto &entry:localDividedFaces(topology,cell,splitDirections!=nullptr)) collect(entry) ;
+    for(const auto &entry:sharedFaces) if(entry.root==int(topology.id())) collect(entry) ;
+    // A full-split request takes precedence over any directional requests.
+    if(splitDirections) for(int leaf:fullSplit) (*splitDirections)[leaf]=0 ;
+    const auto leaves=cell.leafIds() ;
+    std::vector<int> leavesToRefine ;
+    for(const auto &entry:dividedFaces)
+      if(faceBalanceRequired(leafFaceVertices(topology,cell,leaves.at(entry.first)),entry.second,policy))
+        leavesToRefine.push_back(entry.first) ;
+    return leavesToRefine ;
   }
 
   std::vector<int> parametricLocalRequests(const CellTopology &t,const ParametricCell &c,unsigned difference,NeighborGrading grading) {
@@ -1034,32 +1081,61 @@ namespace FVMAdapt {
     }
     return {result.begin(),result.end()} ;
   }
-  ParametricTrace parametricFaceRequests(EntityId face,const CellTopology &t,const ParametricCell &c,const CellTopology &r,const ParametricCell &rc,unsigned difference,NeighborGrading grading) {
-    if(c.source() && rc.source()) return {} ;
-    if(c.source() || rc.source()) {
-      auto left=c,right=rc ; left.expand() ; right.expand() ; return parametricFaceRequests(face,t,left,r,right,difference,grading) ;
+  ParametricTrace parametricFaceRequests(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
+      const CellTopology &rightTopology,const ParametricCell &rightCell,unsigned difference,NeighborGrading grading) {
+    if(leftCell.source() && rightCell.source()) return {} ;
+    if(leftCell.source() || rightCell.source()) {
+      auto left=leftCell,right=rightCell ;
+      left.expand() ;
+      right.expand() ;
+      return parametricFaceRequests(face,leftTopology,left,rightTopology,right,difference,grading) ;
     }
-    if(mixedFace(c,&rc)) return mixedFaceRequests(face,t,c,r,rc,difference,grading) ;
-    if(const auto *p=c.native()) { require(rc.native(),"mixed native and center-based boundaries are unsupported") ; return parametricFaceRequests(face,t,*p,r,*rc.native(),difference,grading) ; }
-    if(c.hasCornerGeometry()) {
-      require(rc.hasCornerGeometry(),"mixed corner and other split families are unsupported") ;
-      auto lc=c,rr=rc ;
-      const auto shared=mergeFacePlans(parametricFacePlan(face,c),parametricFacePlan(face,rc),c.cornerGeometry().boundaryLimits()) ;
-      lc.mergeFace(face,shared) ; rr.mergeFace(face,shared) ;
-      const auto faces=parametricFaceFaces(face,t,lc,{},&r,&rr) ; auto d=depths(c) ; const int offset=d.size() ; const auto rd=depths(rc) ; d.insert(d.end(),rd.begin(),rd.end()) ;
-      const auto needed=cornerContacts(faces,d,difference,grading,offset) ; ParametricTrace out ;
-      for(int i:needed) out.push_back({int(i<offset ? t.id():r.id()),i<offset ? i:i-offset}) ;
-      return out ;
+    if(mixedFace(leftCell,&rightCell))
+      return mixedFaceRequests(face,leftTopology,leftCell,rightTopology,rightCell,difference,grading) ;
+    if(const auto *native=leftCell.native()) {
+      require(rightCell.native(),"mixed native and center-based boundaries are unsupported") ;
+      return parametricFaceRequests(face,leftTopology,*native,rightTopology,*rightCell.native(),difference,grading) ;
     }
-    require(rc.extruded(),"mixed native and center-based boundaries are unsupported") ;
-    const auto faces=parametricFaceFaces(face,t,c,{},&r,&rc) ; auto d=depths(c) ; const int offset=d.size() ; const auto rd=depths(rc) ; d.insert(d.end(),rd.begin(),rd.end()) ;
-    std::set<int> needed ; std::map<ParametricNodeKey,std::set<int>> contacts ;
-    for(const auto &f:faces) {
-      gradePair(needed,f.left,offset+f.right,d,difference) ;
-      if(grading!=NeighborGrading::faces) for(const auto &p:f.vertices) { contacts[p].insert(f.left) ; contacts[p].insert(offset+f.right) ; }
+    if(leftCell.hasCornerGeometry()) {
+      require(rightCell.hasCornerGeometry(),"mixed corner and other split families are unsupported") ;
+      // Compare both sides using the same accepted divisions of the shared face.
+      auto left=leftCell,right=rightCell ;
+      const auto sharedPlan=mergeFacePlans(parametricFacePlan(face,leftCell),parametricFacePlan(face,rightCell),
+                                          leftCell.cornerGeometry().boundaryLimits()) ;
+      left.mergeFace(face,sharedPlan) ;
+      right.mergeFace(face,sharedPlan) ;
+      const auto faces=parametricFaceFaces(face,leftTopology,left,{},&rightTopology,&right) ;
+      auto leafDepths=depths(leftCell) ;
+      const int rightOffset=leafDepths.size() ;
+      const auto rightDepths=depths(rightCell) ;
+      leafDepths.insert(leafDepths.end(),rightDepths.begin(),rightDepths.end()) ;
+      const auto leavesToRefine=cornerContacts(faces,leafDepths,difference,grading,rightOffset) ;
+      ParametricTrace result ;
+      for(int leaf:leavesToRefine)
+        result.push_back({int(leaf<rightOffset ? leftTopology.id():rightTopology.id()),leaf<rightOffset ? leaf:leaf-rightOffset}) ;
+      return result ;
     }
-    for(const auto &entry:contacts) for(int a:entry.second) for(int b:entry.second) gradePair(needed,a,b,d,difference) ;
-    ParametricTrace result ; for(int i:needed) result.push_back({int(i<offset ? t.id():r.id()),i<offset ? i:i-offset}) ; return result ;
+    require(rightCell.extruded(),"mixed native and center-based boundaries are unsupported") ;
+    const auto faces=parametricFaceFaces(face,leftTopology,leftCell,{},&rightTopology,&rightCell) ;
+    auto leafDepths=depths(leftCell) ;
+    const int rightOffset=leafDepths.size() ;
+    const auto rightDepths=depths(rightCell) ;
+    leafDepths.insert(leafDepths.end(),rightDepths.begin(),rightDepths.end()) ;
+    std::set<int> leavesToRefine ;
+    std::map<ParametricNodeKey,std::set<int>> contacts ;
+    for(const auto &sharedFace:faces) {
+      gradePair(leavesToRefine,sharedFace.left,rightOffset+sharedFace.right,leafDepths,difference) ;
+      if(grading!=NeighborGrading::faces) for(const auto &vertex:sharedFace.vertices) {
+        contacts[vertex].insert(sharedFace.left) ;
+        contacts[vertex].insert(rightOffset+sharedFace.right) ;
+      }
+    }
+    for(const auto &entry:contacts) for(int a:entry.second) for(int b:entry.second)
+      gradePair(leavesToRefine,a,b,leafDepths,difference) ;
+    ParametricTrace result ;
+    for(int leaf:leavesToRefine)
+      result.push_back({int(leaf<rightOffset ? leftTopology.id():rightTopology.id()),leaf<rightOffset ? leaf:leaf-rightOffset}) ;
+    return result ;
   }
   ParametricTrace parametricEdgeTrace(const CellTopology &t,const ParametricCell &c) {
     if(c.source()) {

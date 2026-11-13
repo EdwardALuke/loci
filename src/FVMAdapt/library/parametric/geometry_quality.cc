@@ -170,11 +170,12 @@ namespace FVMAdapt {
     ExactPoint exactCross(const ExactPoint &a,const ExactPoint &b) {
       return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ;
     }
-    Exact exactNorm(const ExactPoint &a) { return a[0]*a[0]+a[1]*a[1]+a[2]*a[2] ; }
+    Exact exactSquaredNorm(const ExactPoint &a) { return a[0]*a[0]+a[1]*a[1]+a[2]*a[2] ; }
     std::vector<ExactPoint> exactCorners(const CornerMap &map) {
       std::vector<ExactPoint> result ; for(const auto &p:map.corners()) result.push_back(exactPoint(p)) ; return result ;
     }
 
+    // Convert endpoint/midpoint samples to quadratic Bernstein coefficients along each axis.
     template<class Function> BernsteinCoefficients coefficients(Function value) {
       BernsteinCoefficients result ;
       for(unsigned k=0;k<3;++k) for(unsigned j=0;j<3;++j) for(unsigned i=0;i<3;++i)
@@ -185,36 +186,56 @@ namespace FVMAdapt {
     }
 
     GeometryValidity certify(BernsteinCoefficients values,unsigned dimension,JacobianCheckLimits limits,std::size_t &remaining) {
-      struct Box { BernsteinCoefficients values ; unsigned depth,boundary ; } ;
+      struct Box {
+        BernsteinCoefficients values ;
+        unsigned depth ;
+        /// Bits 2*d and 2*d+1 mark sides on the original domain's lower and upper boundaries.
+        unsigned boundarySides ;
+      } ;
       std::vector<Box> pending{{std::move(values),0,(1u<<(2*dimension))-1}} ;
       while(!pending.empty()) {
         if(remaining==0) return GeometryValidity::unresolved ;
         --remaining ;
-        auto box=std::move(pending.back()) ; pending.pop_back() ;
-        bool nonnegative=true ; for(const auto &v:box.values) if(v<0) { nonnegative=false ; break ; }
-        for(unsigned k=0;k<(dimension==3 ? 3u:1u);k+=2) for(unsigned j=0;j<(dimension>=2 ? 3u:1u);j+=2) for(unsigned i:{0u,2u}) {
-          const auto &v=box.values[jacobianIndex(i,j,k)] ;
-          if(v<0) return GeometryValidity::invalid ;
-          bool exterior=false ; const unsigned q[3]={i,j,k} ;
-          for(unsigned d=0;d<dimension;++d) exterior=exterior || (box.boundary&(1u<<(2*d+q[d]/2))) ;
-          if(v==0 && !exterior) return GeometryValidity::invalid ;
-        }
+        auto box=std::move(pending.back()) ;
+        pending.pop_back() ;
+        bool nonnegative=true ;
+        for(const auto &v:box.values)
+          if(v<0) { nonnegative=false ; break ; }
+
+        // Corner coefficients are exact values. Only original-domain boundaries may vanish.
+        for(unsigned k=0;k<(dimension==3 ? 3u:1u);k+=2)
+          for(unsigned j=0;j<(dimension>=2 ? 3u:1u);j+=2)
+            for(unsigned i:{0u,2u}) {
+              const auto &v=box.values[jacobianIndex(i,j,k)] ;
+              if(v<0) return GeometryValidity::invalid ;
+              bool exterior=false ;
+              const unsigned q[3]={i,j,k} ;
+              for(unsigned d=0;d<dimension;++d)
+                exterior=exterior || (box.boundarySides&(1u<<(2*d+q[d]/2))) ;
+              if(v==0 && !exterior) return GeometryValidity::invalid ;
+            }
         if(nonnegative) {
-          // Each open face, edge and vertex inside the original domain must stay positive.
-          // Bounds introduced by proof subdivision are not permitted singular boundaries.
+          // Nonnegative coefficients bound the polynomial below by zero. Require a positive
+          // contribution on each interior part, including sides introduced by proof subdivision.
           const unsigned count=dimension==3 ? 27:dimension==2 ? 9:3 ;
-          for(unsigned stratum=0;stratum<count;++stratum) {
-            unsigned code=stratum ; std::array<unsigned,3> side{} ; bool exterior=false ;
+          for(unsigned part=0;part<count;++part) {
+            unsigned code=part ;
+            std::array<unsigned,3> side{} ;
+            bool exterior=false ;
             for(unsigned d=0;d<dimension;++d) {
-              side[d]=code%3 ; code/=3 ;
-              if(side[d]) exterior=exterior || (box.boundary&(1u<<(2*d+side[d]-1))) ;
+              // 0 spans the axis; 1 and 2 select its lower and upper ends.
+              side[d]=code%3 ;
+              code/=3 ;
+              if(side[d]) exterior=exterior || (box.boundarySides&(1u<<(2*d+side[d]-1))) ;
             }
             if(exterior) continue ;
             bool positive=false ;
             for(unsigned n=0;n<27 && !positive;++n) {
-              unsigned index=n ; bool member=true ;
+              unsigned index=n ;
+              bool member=true ;
               for(unsigned d=0;d<dimension;++d) {
-                const unsigned q=index%3 ; index/=3 ;
+                const unsigned q=index%3 ;
+                index/=3 ;
                 if(side[d] && q!=2*(side[d]-1)) member=false ;
               }
               if(member && box.values[n]>0) positive=true ;
@@ -224,9 +245,10 @@ namespace FVMAdapt {
           continue ;
         }
         if(box.depth>=limits.maxDepth) return GeometryValidity::unresolved ;
-        const unsigned axis=box.depth%dimension ; auto children=detail::bisectJacobianCoefficients(box.values,axis) ;
-        pending.push_back({std::move(children[1]),box.depth+1,box.boundary&~(1u<<(2*axis))}) ;
-        pending.push_back({std::move(children[0]),box.depth+1,box.boundary&~(1u<<(2*axis+1))}) ;
+        const unsigned axis=box.depth%dimension ;
+        auto children=detail::bisectJacobianCoefficients(box.values,axis) ;
+        pending.push_back({std::move(children[1]),box.depth+1,box.boundarySides&~(1u<<(2*axis))}) ;
+        pending.push_back({std::move(children[0]),box.depth+1,box.boundarySides&~(1u<<(2*axis+1))}) ;
       }
       return GeometryValidity::valid ;
     }
@@ -243,19 +265,21 @@ namespace FVMAdapt {
       return result ;
     }
     GeometryValidity cornerValidity(const CornerMap &map,JacobianCheckLimits limits,std::size_t &remaining) {
-      const auto shape=map.shape() ; const auto p=exactCorners(map) ;
+      const auto shape=map.shape() ;
+      if(shape==Shape::hex) {
+        if(positiveHexJacobian(map.corners())) return GeometryValidity::valid ;
+        return certify(detail::hexJacobianCoefficients<Exact>(map.corners()),3,limits,remaining) ;
+      }
+      const auto p=exactCorners(map) ;
       switch(shape) {
-      case Shape::segment: return exactNorm(jacobianDifference(p[1],p[0]))>0 ? GeometryValidity::valid:GeometryValidity::invalid ;
-      case Shape::triangle: return exactNorm(exactCross(jacobianDifference(p[1],p[0]),jacobianDifference(p[2],p[0])))>0
+      case Shape::segment: return exactSquaredNorm(jacobianDifference(p[1],p[0]))>0 ? GeometryValidity::valid:GeometryValidity::invalid ;
+      case Shape::triangle: return exactSquaredNorm(exactCross(jacobianDifference(p[1],p[0]),jacobianDifference(p[2],p[0])))>0
           ? GeometryValidity::valid:GeometryValidity::invalid ;
       case Shape::tet: return jacobianDeterminant(jacobianDifference(p[1],p[0]),jacobianDifference(p[2],p[0]),jacobianDifference(p[3],p[0]))>0
           ? GeometryValidity::valid:GeometryValidity::invalid ;
-      case Shape::hex:
-        if(positiveHexJacobian(map.corners())) return GeometryValidity::valid ;
-        return certify(detail::hexJacobianCoefficients<Exact>(map.corners()),3,limits,remaining) ;
       case Shape::quad:
         return certify(coefficients([&](const Exact &u,const Exact &v,const Exact &) {
-          const auto s=surfaceValue(p,u,v) ; return exactNorm(exactCross(s.u,s.v)) ;
+          const auto s=surfaceValue(p,u,v) ; return exactSquaredNorm(exactCross(s.u,s.v)) ;
         }),2,limits,remaining) ;
       case Shape::pyramid: {
         const std::vector<ExactPoint> base(p.begin(),p.begin()+4) ;

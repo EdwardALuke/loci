@@ -14,6 +14,7 @@ namespace FVMAdapt {
     unsigned contactAxes(NeighborGrading grading) {
       return grading == NeighborGrading::faces ? 1 : grading == NeighborGrading::edges ? 2 : 3 ;
     }
+    // Translate retained plan-node IDs to the current output leaf order.
     struct LeafIndex {
       const HexPlan &plan ;
       std::vector<HexPlan::LeafBox> boxes ;
@@ -27,6 +28,7 @@ namespace FVMAdapt {
         if(depth > own && depth-own > difference) required.insert(i) ;
       }
     } ;
+    // Integer point just beyond either side, or inside the interval when side is zero.
     bool probe(std::uint32_t low, std::uint32_t width, int side, std::uint32_t &point) {
       if(side < 0) { if(low == 0) return false ; point = low-1 ; }
       else if(side > 0) { point = low+width ; if(point == extent) return false ; }

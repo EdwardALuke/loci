@@ -11,8 +11,8 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
-    // Retain complete rule outputs as inputs for this call's remaining queries.
-    // Removing their producers lets Loci communicate them as distributed inputs.
+    /// Retain every later-needed output of removed producers; these values stay fixed for the remaining queries.
+    /// Removing their producers lets Loci communicate them as distributed inputs.
     void keepQueryResults(rule_db &rules,fact_db &facts,const std::string &query) {
       ruleSet producers ;
       for(const auto &name:variableSet(expression::create(query))) {
@@ -22,6 +22,30 @@ namespace FVMAdapt {
     }
     template<class T> void parameter(fact_db &facts,const std::string &name,const T &value) {
       param<T> p ; *p=value ; facts.create_fact(name,p) ;
+    }
+    void installRefinementOptions(fact_db &facts,const RefinementOptions &options) {
+      parameter(facts,"parametricSplitFamily",options.splitFamily) ;
+      parameter(facts,"parametricRegionFile",options.regionFile) ;
+      parameter(facts,"parametricSourceFile",options.sourceFile) ;
+      parameter(facts,"parametricCenterMethod",options.centerMethod) ;
+      parameter(facts,"parametricExtrusionAxis",options.extrusionAxis) ;
+      parameter(facts,"parametricMaxDepth",options.maxDepth) ;
+      parameter(facts,"parametricMaxNodes",options.maxNodes) ;
+      parameter(facts,"parametricLevelDifference",options.levelDifference) ;
+      parameter(facts,"parametricMaxRounds",options.maxRounds) ;
+      parameter(facts,"parametricGrading",options.grading) ;
+      parameter(facts,"parametricFaceBalance",options.faceBalance) ;
+      parameter(facts,"parametricDirectionalBalance",options.directionalBalance) ;
+      parameter(facts,"parametricAutomaticSplit",options.automaticSplit) ;
+      parameter(facts,"parametricRefinementLevels",options.refinementLevels) ;
+      parameter(facts,"parametricSplitAspectRatio",options.splitAspectRatio) ;
+      parameter(facts,"parametricMinEdgeLength",options.minEdgeLength) ;
+      parameter(facts,"parametricQualityMode",options.quality.mode) ;
+      parameter(facts,"parametricQualityCentroid",options.quality.centroid) ;
+      parameter(facts,"parametricMaxNonOrthogonality",options.quality.maxNonOrthogonality) ;
+      parameter(facts,"parametricMaxFaceWarpage",options.quality.maxFaceWarpage) ;
+      parameter(facts,"parametricMaxChildVolumeRatio",options.quality.maxChildVolumeRatio) ;
+      parameter(facts,"recordFaceHistory",options.faceHistory) ;
     }
   }
   namespace {
@@ -45,6 +69,7 @@ namespace FVMAdapt {
       for(int cell:saved.domain()) weights[cell]=saved[cell] ;
       inputWeights=weights.Rep() ;
     }
+    // Read the original mesh and restore accepted histories.
     fact_db facts ;
     if(!setupFVMGridWithWeightInStore(facts,mesh,inputWeights)) { error="unable to read parametric source grid" ; return false ; }
     createLowerUpper(facts) ; createEdgesPar(facts) ;
@@ -61,22 +86,7 @@ namespace FVMAdapt {
     facts.create_fact("parametricHistoryInput",savedHistory) ;
     blackbox<storeRepP> cubicInput ; cubicInput.set_entitySet(~EMPTY) ; *cubicInput=options.cubicEdges ;
     facts.create_fact("parametricCubicGeometryInput",cubicInput) ;
-    parameter(facts,"parametricSplitFamily",options.splitFamily) ;
-    parameter(facts,"parametricRegionFile",options.regionFile) ; parameter(facts,"parametricSourceFile",options.sourceFile) ;
-    parameter(facts,"parametricCenterMethod",options.centerMethod) ; parameter(facts,"parametricExtrusionAxis",options.extrusionAxis) ;
-    parameter(facts,"parametricMaxDepth",options.maxDepth) ; parameter(facts,"parametricMaxNodes",options.maxNodes) ;
-    parameter(facts,"parametricLevelDifference",options.levelDifference) ; parameter(facts,"parametricMaxRounds",options.maxRounds) ;
-    parameter(facts,"parametricGrading",options.grading) ;
-    parameter(facts,"parametricFaceBalance",options.faceBalance) ;
-    parameter(facts,"parametricDirectionalBalance",options.directionalBalance) ;
-    parameter(facts,"parametricAutomaticSplit",options.automaticSplit) ;
-    parameter(facts,"parametricRefinementLevels",options.refinementLevels) ;
-    parameter(facts,"parametricSplitAspectRatio",options.splitAspectRatio) ; parameter(facts,"parametricMinEdgeLength",options.minEdgeLength) ;
-    parameter(facts,"parametricQualityMode",options.quality.mode) ; parameter(facts,"parametricQualityCentroid",options.quality.centroid) ;
-    parameter(facts,"parametricMaxNonOrthogonality",options.quality.maxNonOrthogonality) ;
-    parameter(facts,"parametricMaxFaceWarpage",options.quality.maxFaceWarpage) ;
-    parameter(facts,"parametricMaxChildVolumeRatio",options.quality.maxChildVolumeRatio) ;
-    parameter(facts,"recordFaceHistory",options.faceHistory) ;
+    installRefinementOptions(facts,options) ;
     parameter(facts,"parametricHistoryReplay",tags==0 && outputFiles.tagFile.empty() && options.regionFile.empty() && options.sourceFile.empty() && state.histories!=0) ;
     const std::string initialResults="initialParametricCell,initialParametricHistory,parametricTopology,parametricInitialError" ;
     std::string initialQuery=initialResults ;
@@ -97,6 +107,7 @@ namespace FVMAdapt {
       for(int i:marking.domain()) marking[i]=(*input)[i] ;
       tags=marking.Rep() ;
     }
+    // Validate tags before constructing a candidate.
     const_store<ParametricCellData> initialized=facts.get_variable("initialParametricCell") ;
     int oldCount=0,tagCount=0,totalOld=0,totalTags=0 ;
     if(tags!=0 && options.tagLocation=="nodes") {
@@ -119,9 +130,10 @@ namespace FVMAdapt {
       store<ParametricRecord> requests ; requests.allocate(cells) ; facts.create_fact("parametricRequests",requests) ;
     }
     // Check acceptance and face geometry before outputs publish transfer data.
-    std::string query="candidateParametricCell,parametricBalanced,parametricAccepted,parametricQualityReport,parametricError,balancedParametricCell,balancedParametricHistory,balanced_num_fine_cells,fineCellDepth" ;
-    if(options.faceHistory) query+=",parametricCellPatchError,parametricFacePatchError,fine_face_patches_cell,fine_face_patches" ;
-    if(!makeQuery(queryRules,facts,query)) { error="parametric acceptance query failed" ; return false ; }
+    std::string acceptanceResults="candidateParametricCell,parametricBalanced,parametricAccepted,parametricQualityReport,parametricError,balancedParametricCell,balancedParametricHistory,balanced_num_fine_cells" ;
+    if(options.cellState) acceptanceResults+=",fineCellDepth" ;
+    if(options.faceHistory) acceptanceResults+=",parametricCellPatchError,parametricFacePatchError,fine_face_patches_cell,fine_face_patches" ;
+    if(!makeQuery(queryRules,facts,acceptanceResults)) { error="parametric acceptance query failed" ; return false ; }
     const_param<bool> accepted=facts.get_variable("parametricAccepted") ;
     const_param<MeshQualityReport> measured=facts.get_variable("parametricQualityReport") ;
     if(qualityReport) *qualityReport=*measured ;
@@ -140,7 +152,7 @@ namespace FVMAdapt {
       MPI_Allreduce(&bad,&anyBad,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
       if(anyBad) { error="parametric face patches rejected; accepted mesh retained" ; return false ; }
     }
-    keepQueryResults(queryRules,facts,query) ;
+    keepQueryResults(queryRules,facts,acceptanceResults) ;
     // The accepted results replace the complete balancing iteration.
     ruleSet balancing ;
     for(const auto &rule:queryRules.all_rules())
@@ -171,16 +183,17 @@ namespace FVMAdapt {
       const auto file=hdf5OpenFile(mesh.c_str(),H5F_ACC_RDONLY,H5P_DEFAULT) ; readVolTags(file,*volumeTags) ; hdf5CloseFile(file) ;
     }
     facts.create_fact("volTagInput",volumeTags) ;
-    std::string output="inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox,parametricOutputState" ;
-    if(outputFiles.transferData) output+=",cell2parent_DB" ;
-    if(!outputFiles.cellParents.empty()) output+=",cell2parent_output" ;
-    if(options.faceHistory) output+=",fine_face_patches_cell,fine_face_patches" ;
-    if(options.cellState) output+=",fineCellDepth,fineCellChange,planRootFileNumber" ;
-    if(options.edgeLengths) output+=",fineMaxEdgeLength,fineMaxEdgeLengthXY,balanced_num_fine_cells" ;
-    if(options.cellState || options.edgeLengths) output+=",balanced_cell_offset" ;
-    if(!makeQuery(queryRules,facts,output)) {
+    std::string meshResults="inner_nodes_cell,inner_nodes_face,inner_nodes_edge,fine_faces_cell,fine_faces,volTag_blackbox,parametricOutputState" ;
+    if(outputFiles.transferData) meshResults+=",cell2parent_DB" ;
+    if(!outputFiles.cellParents.empty()) meshResults+=",cell2parent_output" ;
+    if(options.faceHistory) meshResults+=",fine_face_patches_cell,fine_face_patches" ;
+    if(options.cellState) meshResults+=",fineCellDepth,fineCellChange,planRootFileNumber" ;
+    if(options.edgeLengths) meshResults+=",fineMaxEdgeLength,fineMaxEdgeLengthXY,balanced_num_fine_cells" ;
+    if(options.cellState || options.edgeLengths) meshResults+=",balanced_cell_offset" ;
+    if(!makeQuery(queryRules,facts,meshResults)) {
       error="parametric mesh output query failed" ; return false ;
     }
+    // Construct the accepted mesh before publishing state.
     CPTR<refinedGridData> candidate=new refinedGridData ;
     readBCfromVOG(mesh,candidate->boundary_ids) ;
     store<FineNodes> cellNodes=facts.get_variable("inner_nodes_cell"),faceNodes=facts.get_variable("inner_nodes_face"),edgeNodes=facts.get_variable("inner_nodes_edge") ;

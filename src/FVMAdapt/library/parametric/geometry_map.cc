@@ -286,15 +286,36 @@ namespace FVMAdapt {
       return sum.value() ;
     }
 
-    std::vector<double> bernstein(unsigned degree, double coordinate) {
-      std::vector<double> values(static_cast<std::size_t>(degree)+1,0) ;
+    // Degree elevation builds the Bernstein basis in zero-initialized storage.
+    void bernstein(unsigned degree, double coordinate, double *values) {
       values[0] = 1 ;
       for(std::size_t level = 1; level <= degree; ++level) {
         for(std::size_t i = level; i > 0; --i)
           values[i] = (1-coordinate)*values[i]+coordinate*values[i-1] ;
         values[0] *= 1-coordinate ;
       }
+    }
+
+    std::vector<double> bernstein(unsigned degree, double coordinate) {
+      std::vector<double> values(static_cast<std::size_t>(degree)+1) ;
+      bernstein(degree,coordinate,values.data()) ;
       return values ;
+    }
+
+    template<bool withJacobian>
+    auto cubicSegmentValue(const std::vector<Point> &controls, const Point &origin, const Point &point) {
+      validatePoint(point) ;
+      std::array<double,4> basis{}, derivative{} ;
+      bernstein(3,point[0],basis.data()) ;
+      if constexpr(withJacobian) {
+        std::array<double,3> lower{} ;
+        bernstein(2,point[0],lower.data()) ;
+        for(unsigned i=0; i<4; ++i)
+          derivative[i]=3*((i>0 ? lower[i-1]:0)-(i<3 ? lower[i]:0)) ;
+      }
+      MapSum<withJacobian> sum{origin} ;
+      for(unsigned i=0; i<4; ++i) sum.add(controls[i],basis[i],{{derivative[i],0,0}}) ;
+      return sum.value() ;
     }
 
     template<bool withJacobian>
@@ -409,6 +430,7 @@ namespace FVMAdapt {
         if constexpr(withJacobian) return MapValue{apex,{},false} ;
         else return apex ;
       }
+      // u,v cover the unit square as the pyramid section shrinks toward its apex.
       const double u=x/s, v=y/s, ss=s*s, zz=z*z ;
       MapSum<withJacobian> sum{origin} ;
       // Coons sections blend the triangular sides. Cancel height factors before
@@ -420,6 +442,7 @@ namespace FVMAdapt {
           gradient={{overHeight*du,overHeight*dv,heightDerivative*weight+overHeight*(u*du+v*dv)}} ;
         sum.add(control,scale*weight,gradient) ;
       } ;
+      // Base corners and the controls on the four edges leading to the apex.
       const auto &quad=referenceElement(Shape::quad) ;
       for(unsigned i=0; i<4; ++i) {
         const double a=quad.vertices[i][0] ? u:1-u, b=quad.vertices[i][1] ? v:1-v ;
@@ -429,6 +452,7 @@ namespace FVMAdapt {
         add(cubicEdgeControl(edges[4+i],1),3*ss*z,3*s*z,3*ss-6*s*z,n*g,da*b*(g+a),db*a*(g+b)) ;
         add(cubicEdgeControl(edges[4+i],2),3*s*zz,3*zz,6*s*z-3*zz,n,da*b,db*a) ;
       }
+      // Base-edge controls and the interior controls of the triangular sides.
       const double t[4]={u,v,1-u,1-v}, w[4]={1-v,u,v,1-u} ;
       const double tu[4]={1,0,-1,0}, tv[4]={0,1,0,-1}, wu[4]={0,1,0,-1}, wv[4]={-1,0,1,0} ;
       for(unsigned e=0; e<4; ++e) {
@@ -442,6 +466,7 @@ namespace FVMAdapt {
         blend(cubicEdgeControl(edges[e],2),3*ss*s,3*ss,-9*ss,a*b*b,2*a*b-b*b) ;
         blend(faceControls[e],6*ss*z,6*s*z,6*ss-12*s*z,a*b,a-b) ;
       }
+      // The common apex contributes once to the completed blend.
       sum.add(apex,zz*z,{{0,0,3*zz}}) ;
       return sum.value() ;
     }
@@ -570,6 +595,8 @@ namespace FVMAdapt {
   }
 
   MapValue BezierMap::evaluate(const Point &point) const {
+    if(shape_==Shape::segment && degree_[0]==3)
+      return cubicSegmentValue<true>(controls_,origin_,point) ;
     validatePoint(point) ;
     std::array<std::vector<double>,3> basis, derivative ;
     for(unsigned d = 0; d < 3; ++d) {
@@ -590,6 +617,12 @@ namespace FVMAdapt {
                     basis[0][i]*derivative[1][j]*basis[2][k],
                     basis[0][i]*basis[1][j]*derivative[2][k]}}) ;
     return sum.value() ;
+  }
+
+  Point BezierMap::position(const Point &point) const {
+    if(shape_==Shape::segment && degree_[0]==3)
+      return cubicSegmentValue<false>(controls_,origin_,point) ;
+    return evaluate(point).position ;
   }
 
   CubicTriangleMap::CubicTriangleMap(std::array<Point,10> controls)

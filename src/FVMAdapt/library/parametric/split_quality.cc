@@ -20,6 +20,7 @@
 //#############################################################################
 
 #include <FVMAdapt/parametric/split_quality.h>
+#include "geometry_integration.h"
 
 #include <algorithm>
 #include <cmath>
@@ -38,23 +39,6 @@ namespace FVMAdapt {
         value = next ;
       }
       long double total() const { return value+correction ; }
-    } ;
-
-    // Distinguish an unavailable evaluator from invalid geometry observed by integration.
-    class MeasuredMap final : public GeometryMap {
-      const GeometryMap &map_ ;
-    public:
-      mutable bool unavailable = false ;
-      explicit MeasuredMap(const GeometryMap &map) : map_(map) {}
-      Shape shape() const override { return map_.shape() ; }
-      MapValue evaluate(const Point &point) const override {
-        try {
-          const auto value = map_.evaluate(point) ;
-          unavailable = unavailable || !value.hasJacobian ;
-          return value ;
-        } catch(const std::bad_alloc &) { throw ; }
-        catch(...) { unavailable = true ; throw ; }
-      }
     } ;
 
     std::string label(bool parent, std::size_t child) {
@@ -82,14 +66,14 @@ namespace FVMAdapt {
           return result ;
         }
       }
-      MeasuredMap measured(map) ;
       try {
-        result.measure = geometryMeasure(measured,options.measure) ;
+        // Keep the map's piece boundaries and exact integration directions available.
+        result.measure = geometryMeasure(map,options.measure) ;
         if(!result.measure.converged)
           problem(report,GeometryQualityStatus::unresolved,parent,child,"integration did not converge within its bounds") ;
       } catch(const std::bad_alloc &) { throw ; }
-      catch(const std::invalid_argument &error) {
-        problem(report,measured.unavailable ? GeometryQualityStatus::unresolved : GeometryQualityStatus::invalid,parent,child,error.what()) ;
+      catch(const detail::InvalidMeasureSample &error) {
+        problem(report,GeometryQualityStatus::invalid,parent,child,error.what()) ;
       } catch(const std::exception &error) {
         problem(report,GeometryQualityStatus::unresolved,parent,child,error.what()) ;
       }

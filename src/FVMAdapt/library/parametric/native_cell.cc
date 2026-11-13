@@ -34,6 +34,11 @@ namespace FVMAdapt {
     typedef std::vector<EntityId> Loop ;
     typedef std::pair<EntityId,EntityId> Edge ;
 
+    struct EdgeUse {
+      unsigned count = 0 ;
+      int orientationSum = 0 ; ///< +1 follows increasing vertex ID; -1 follows decreasing ID.
+    } ;
+
     Loop sorted(Loop vertices) {
       std::sort(vertices.begin(),vertices.end()) ;
       return vertices ;
@@ -82,7 +87,7 @@ namespace FVMAdapt {
     const ReferenceElement &element = referenceElement(shape) ;
     std::map<Loop,unsigned> faceIndex ;
     std::map<EntityId,std::set<EntityId> > neighbors ;
-    std::map<Edge,std::pair<unsigned,int> > edgeUses ;
+    std::map<Edge,EdgeUse> edgeUses ;
     for(unsigned f = 0; f < outwardFaces.size(); ++f) {
       const Loop &face = outwardFaces[f] ;
       const Loop key = sorted(face) ;
@@ -95,8 +100,8 @@ namespace FVMAdapt {
         neighbors[a].insert(b) ;
         neighbors[b].insert(a) ;
         auto &use = edgeUses[std::minmax(a,b)] ;
-        ++use.first ;
-        use.second += a < b ? 1 : -1 ;
+        ++use.count ;
+        use.orientationSum += a < b ? 1 : -1 ;
       }
     }
     if(neighbors.size() != element.vertexCount || edgeUses.size() != element.edgeCount)
@@ -110,7 +115,7 @@ namespace FVMAdapt {
     if(degreeFour != (shape == Shape::pyramid ? 1u : 0u))
       throw std::invalid_argument("native pyramid requires one four-edge apex") ;
     for(const auto &entry : edgeUses)
-      if(entry.second.first != 2 || entry.second.second != 0)
+      if(entry.second.count != 2 || entry.second.orientationSum != 0)
         throw std::invalid_argument("native cell edges require two opposite face uses") ;
 
     NativeCell best{shape,{},{},{}} ;

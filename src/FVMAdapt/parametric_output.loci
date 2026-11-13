@@ -115,11 +115,16 @@ $rule pointwise(balanced_num_inner_nodes <- parametricNodeKeys), conditional(par
   $balanced_num_inner_nodes = int($parametricNodeKeys.size()) ;
 }
 
-$rule pointwise(balanced_num_fine_cells, fineCellDepth <- balancedParametricCell), conditional(parametricAccepted), constraint(geom_cells) {
+$rule pointwise(balanced_num_fine_cells <- balancedParametricCell), conditional(parametricAccepted), constraint(geom_cells) {
   try {
     $balanced_num_fine_cells = int($balancedParametricCell.leafCount()) ;
-    $fineCellDepth = $balancedParametricCell.leafDepths() ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
+}
+
+/// Leaf depths are computed only when requested by the caller.
+$rule pointwise(fineCellDepth <- balancedParametricCell), conditional(parametricAccepted), constraint(geom_cells) {
+  try { $fineCellDepth = $balancedParametricCell.leafDepths() ; }
+  catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
 
 //-----------------------------------------------------------------------------

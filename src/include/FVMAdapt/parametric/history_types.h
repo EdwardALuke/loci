@@ -77,6 +77,7 @@ namespace FVMAdapt {
   enum class SplitFamily : unsigned { tensor = 1, triangle = 2, prism = 3, tet = 4, pyramid = 5, vertexVolume = 6, planar = 7 } ;
 
   /// Accepted local placements, shared by child identities independently of table indices.
+  /// family selects children, vertexVolume or planar; the other payloads must be empty.
   struct SplitConstruction {
     /// Reference shape of the parent.
     Shape parentShape ;

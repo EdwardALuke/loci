@@ -176,13 +176,15 @@ namespace FVMAdapt {
 
   CornerSplit CornerBoundary::splitCell(const CornerCell &cell,Point interior,CenterMethod method,
                                         const std::vector<std::size_t> &active) {
+    std::vector<std::size_t> selected ; selected.reserve(cell.faces.size()) ;
+    for(auto use:cell.faces) selected.push_back(use.surface<active.size() ? active[use.surface] : absent) ;
     Transaction transaction(*this) ;
-    auto result=constructCell(cell,interior,method,active,transaction) ;
+    auto result=constructCell(cell,interior,method,selected,transaction) ;
     transaction.committed=true ; return result ;
   }
 
   CornerSplit CornerBoundary::constructCell(const CornerCell &cell,Point interior,CenterMethod method,
-                                            const std::vector<std::size_t> &active,Transaction &transaction) {
+                                            const std::vector<std::size_t> &selected,Transaction &transaction) {
     require(method==CenterMethod::reference || method==CenterMethod::weighted || method==CenterMethod::integrated,
             "unknown cell center method") ;
     require(cell.vertices.size()<=options.assessment.maxChildren,"corner child count exceeds its limit") ;
@@ -198,8 +200,11 @@ namespace FVMAdapt {
       if(useFaceFans) break ;
     }
     std::vector<Id> centers ;
-    for(auto use:cell.faces) {
-      const auto choice=splitSurface(use.surface,method,active,transaction) ; result.faceSplits.push_back(choice) ;
+    for(unsigned f=0;f<cell.faces.size();++f) {
+      const auto use=cell.faces[f] ; auto choice=selected.at(f) ;
+      if(choice==absent) choice=splitSurface(use.surface,method,{},transaction) ;
+      else require(choice<boundaries.faces[use.surface].splits.size(),"selected face construction does not exist") ;
+      result.faceSplits.push_back(choice) ;
       centers.push_back(boundaries.faces[use.surface].splits[choice].centerVertex) ;
     }
     Point center=interior ;

@@ -51,7 +51,7 @@ $type candidateParametricEdgeTrace store<Loci::FineFaces> ;
 $type parametricQualityAccepted param<bool> ;
 
 namespace {
-  template<class T> struct ParametricFaceUnion {
+  template<class T> struct ParametricMerge {
     void operator()(T &target, const T &source) { target.merge(source) ; }
   } ;
 }

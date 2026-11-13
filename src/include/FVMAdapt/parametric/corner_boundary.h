@@ -13,7 +13,7 @@
 
 namespace Loci {
 namespace FVMAdapt {
-  /// Construction bounds and center selection for corner subdivision.
+  /// Construction and assessment limits for corner subdivision.
   struct CornerBoundaryOptions {
     /// Retained history nodes per source cell.
     std::size_t maxNodes = 1000000 ;
@@ -21,11 +21,14 @@ namespace FVMAdapt {
     std::size_t maxEntities = 10000000 ;
     /// Maximum encoded snapshot size, including shared geometry.
     std::size_t maxSnapshotBytes = 64*1024*1024 ;
-    CenterMethod centerMethod = CenterMethod::weighted ;
     JacobianCheckLimits jacobianLimits ;
     SplitQualityOptions assessment ;
   } ;
-  struct CornerFaceUse { BoundaryId surface ; unsigned orientation ; } ;
+  struct CornerFaceUse {
+    BoundaryId surface ;
+    /// Maps the cell's outward vertex order to the stored face order.
+    unsigned orientation ;
+  } ;
   /// One cell's vertices and outward uses of shared faces.
   struct CornerCell { std::vector<BoundaryId> vertices ; std::vector<CornerFaceUse> faces ; } ;
 
@@ -33,6 +36,7 @@ namespace FVMAdapt {
   struct CornerSplit {
     CenterMethod centerMethod = CenterMethod::weighted ;
     BoundaryId centerVertex = noBoundary ;
+    /// FaceRecord::splits indices in parent-cell face order.
     std::vector<std::size_t> faceSplits ;
     std::vector<CornerCell> children ;
     /// Interior points used to measure each child's retained surface geometry.
@@ -78,6 +82,7 @@ namespace FVMAdapt {
                          SurfaceId parent = absent, std::size_t parentSplit = absent) ;
     VertexId splitEdge(EdgeId id, Transaction &transaction) ;
     EdgeId edgeSegment(EdgeId parent, VertexId endpoint) const ;
+    /// active[surface] selects a retained split, overriding method; absent or missing leaves it unspecified.
     std::size_t splitSurface(SurfaceId id, CenterMethod method, const std::vector<std::size_t> &active,
       Transaction &transaction, const FaceSplitRecord *accepted = nullptr) ;
     /// Include only cuts required by emitted neighboring edges.
@@ -98,19 +103,23 @@ namespace FVMAdapt {
                          const std::vector<std::size_t> &active = {}) ;
 
     /// Check cell incidence and sampled agreement with retained face geometry.
-    void validateCells(const MappedVolumeSubdivision &, const std::vector<CornerCell> &) const ;
+    void validateCells(const MappedVolumeSubdivision &subdivision, const std::vector<CornerCell> &cells) const ;
 
     /// Split a cell using the selected shared face constructions. Failure preserves its state.
     std::vector<TreeNodeId> splitCell(MappedVolumeSubdivision &subdivision, std::vector<CornerCell> &cells,
         TreeNodeId leaf, CenterMethod method, const std::vector<std::size_t> &active,
         const SplitQualityLimits &limits = {}, SplitQuality *report = nullptr) ;
     /// Rebuild an accepted hex split. Its shared face choices must already be present.
-    void restoreHexCell(MappedVolumeSubdivision &, std::vector<CornerCell> &, HexPlan::Cell leaf, const HexPlan &) ;
+    void restoreHexCell(MappedVolumeSubdivision &subdivision, std::vector<CornerCell> &cells,
+                        HexPlan::Cell leaf, const HexPlan &plan) ;
   private:
     friend class CornerSubdivision ;
-    CornerSplit constructCell(const CornerCell &, Point, CenterMethod, const std::vector<std::size_t> &, Transaction &) ;
-    std::vector<TreeNodeId> constructCell(MappedVolumeSubdivision &, std::vector<CornerCell> &, TreeNodeId,
-        CenterMethod, const std::vector<std::size_t> &, const SplitQualityLimits &, SplitQuality *, const VertexVolumeSplit *) ;
+    /// Selected split indices follow the cell's face order; absent leaves a face unspecified.
+    CornerSplit constructCell(const CornerCell &cell, Point interior, CenterMethod method,
+                             const std::vector<std::size_t> &selected, Transaction &transaction) ;
+    std::vector<TreeNodeId> constructCell(MappedVolumeSubdivision &subdivision, std::vector<CornerCell> &cells,
+        TreeNodeId leaf, CenterMethod method, const std::vector<std::size_t> &active,
+        const SplitQualityLimits &limits, SplitQuality *report, const VertexVolumeSplit *accepted) ;
   } ;
 }
 }

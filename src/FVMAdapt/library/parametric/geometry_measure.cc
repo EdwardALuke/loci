@@ -122,9 +122,9 @@ namespace FVMAdapt {
                                         dimension > 2 ? rule[k].coordinate : 0,weight) ;
         const auto value = sample(q) ;
         for(double x: value.position) if(!std::isfinite(x))
-          throw std::invalid_argument("geometry measure requires finite positions") ;
+          throw detail::InvalidMeasureSample("geometry measure requires finite positions") ;
         if(!std::isfinite(value.density) || !(value.density > 0))
-          throw std::invalid_argument("geometry measure requires positive nonsingular sampled Jacobians") ;
+          throw detail::InvalidMeasureSample("geometry measure requires positive nonsingular sampled Jacobians") ;
         if(!hasOrigin) { origin = value.position ; hasOrigin = true ; }
         WidePoint offset ;
         for(unsigned d = 0; d < 3; ++d) offset[d] = static_cast<long double>(value.position[d])-origin[d] ;
@@ -169,7 +169,7 @@ namespace FVMAdapt {
       std::array<WidePoint,3> columns{} ;
       for(unsigned d=0;d<dimension;++d) for(unsigned c=0;c<3;++c) {
         const double entry=value.jacobian[d][c] ;
-        if(!std::isfinite(entry)) throw std::invalid_argument("geometry measure requires finite derivatives") ;
+        if(!std::isfinite(entry)) throw detail::InvalidMeasureSample("geometry measure requires finite derivatives") ;
         columns[d][c]=entry ;
       }
       long double density=norm(columns[0]) ;
@@ -181,6 +181,7 @@ namespace FVMAdapt {
       return {value.position,density} ;
     }
 
+    // Smooth pieces with a reference domain that can be bisected for integration.
     struct MeasureDomain {
       Shape shape=Shape::point ;
       std::vector<std::function<detail::MeasureSample(const Point&)>> samples ;
@@ -228,8 +229,13 @@ namespace FVMAdapt {
       }
     } ;
 
+    // One integration region; vertices are reference coordinates, not mesh nodes.
     struct MeasurePanel {
-      Estimate value ; std::size_t source=0,serial=0 ; unsigned interval=0 ; long double priority=0 ; bool expanded=false ;
+      Estimate value ;
+      std::size_t source=0,serial=0 ; // Source piece and stable queue order.
+      unsigned interval=0 ;
+      long double priority=0 ;
+      bool expanded=false ;
       std::array<Point,3> vertices{{{{0,0,0}},{{1,0,0}},{{0,1,0}}}} ;
       bool operator<(const MeasurePanel &other) const {
         return priority<other.priority || (priority==other.priority && serial>other.serial) ;

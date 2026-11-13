@@ -165,6 +165,7 @@ namespace FVMAdapt {
     GeometryLimits limits_ ;
     std::vector<GeometryRecord> records_ ;
     std::vector<CachedMap> maps_ ;
+    // maps_ owns the evaluators used as pointer keys.
     std::unordered_map<const GeometryMap*,MapId> captured_ ;
     std::size_t controls_ = 0, bytes_ = 0 ;
   public:
@@ -179,6 +180,7 @@ namespace FVMAdapt {
     /// Validate before append; invalid descriptions or exhausted limits leave the store unchanged.
     MapId append(GeometryRecord record) ;
     /// Retain supported geometry descriptions exactly. Unknown map types throw.
+    /// Supplied evaluators are shared; callers must not modify them after capture.
     /// Invalid inputs and exhausted limits leave the store unchanged.
     MapId capture(std::shared_ptr<const GeometryMap> map) ;
     /// Validate existing records against new limits, preserving shared evaluators and map IDs.

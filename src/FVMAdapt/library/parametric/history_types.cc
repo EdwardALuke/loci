@@ -32,8 +32,10 @@ namespace FVMAdapt {
              std::tie(b.shape,b.placement.origin,b.placement.columns) ;
     }
     bool stepLess(const CellStep &a, const CellStep &b) {
-      if(*a.construction < *b.construction) return true ;
-      if(*b.construction < *a.construction) return false ;
+      if(a.construction != b.construction) {
+        if(*a.construction < *b.construction) return true ;
+        if(*b.construction < *a.construction) return false ;
+      }
       return a.child < b.child ;
     }
   }
@@ -51,6 +53,8 @@ namespace FVMAdapt {
     const auto first = std::tie(a.parentShape,a.family,a.version) ;
     const auto second = std::tie(b.parentShape,b.family,b.version) ;
     if(first != second) return first < second ;
+    // Validated mapped/planar points determine their charts and connectivity.
+    // Center-method labels do not change identity.
     if(bool(a.vertexVolume) != bool(b.vertexVolume)) return bool(a.vertexVolume) < bool(b.vertexVolume) ;
     if(a.vertexVolume) return a.vertexVolume->points < b.vertexVolume->points ;
     if(bool(a.planar) != bool(b.planar)) return bool(a.planar) < bool(b.planar) ;
@@ -63,7 +67,8 @@ namespace FVMAdapt {
     return a.root == b.root && a.lineage.size() == b.lineage.size() &&
       std::equal(a.lineage.begin(),a.lineage.end(),b.lineage.begin(),
         [](const CellStep &first, const CellStep &second) {
-          return first.child == second.child && *first.construction == *second.construction ;
+          return first.child == second.child &&
+            (first.construction == second.construction || *first.construction == *second.construction) ;
         }) ;
   }
 

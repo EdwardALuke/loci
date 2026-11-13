@@ -131,7 +131,7 @@ namespace FVMAdapt {
   }
   struct ParametricCellData::Data {
     // Accepted state owns either a working cell or a compact hex; failed receives own only an error.
-    ParametricRecord savedRecord ;
+    ParametricRecord savedRecord ; // Cached encoding for expanded, non-source cells.
     std::optional<ParametricCell> cell ;
     std::unique_ptr<CompactHexCell> hex ;
     std::string error ;
@@ -140,7 +140,8 @@ namespace FVMAdapt {
       const auto *corner = value.corner() ;
       if(corner && corner->topology.shape() == Shape::hex) {
         value.validate(-1) ;
-        hex = std::make_unique<CompactHexCell>(*corner) ; ParametricRecord().swap(savedRecord) ;
+        hex = std::make_unique<CompactHexCell>(*corner) ;
+        ParametricRecord().swap(savedRecord) ;
       } else {
         if(!value.source()) savedRecord = encodeParametricCell(value) ;
         else ParametricRecord().swap(savedRecord) ;
@@ -206,6 +207,7 @@ namespace FVMAdapt {
     if(!data_) throw std::invalid_argument("parametric cell is not initialized") ;
     if(data_->hex) return std::make_shared<const ParametricCell>(data_->hex->expand()) ;
     if(!data_->cell) throw std::invalid_argument(data_->error) ;
+    // Alias the accepted cell while keeping its owning Data alive.
     return std::shared_ptr<const ParametricCell>(data_,&*data_->cell) ;
   }
   ParametricCell ParametricCellData::workingCopy() const {

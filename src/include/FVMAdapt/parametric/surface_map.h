@@ -54,6 +54,7 @@ namespace FVMAdapt {
     Point position(const Point &) const override ;
   } ;
 
+  /// source(coordinates(q)) and geometry(q) represent the same physical point.
   struct SurfacePiece {
     /// Smooth physical evaluator over a native triangle or quad.
     std::shared_ptr<const GeometryMap> geometry ;
@@ -61,7 +62,7 @@ namespace FVMAdapt {
     std::shared_ptr<const GeometryMap> coordinates ;
   } ;
   struct SurfacePieces {
-    std::shared_ptr<const GeometryMap> source ;
+    std::shared_ptr<const GeometryMap> source ; ///< Retained surface shared by all pieces.
     /// Map from the requested surface's local coordinates to the retained source coordinates.
     std::shared_ptr<const GeometryMap> placement ;
     std::vector<SurfacePiece> pieces ;

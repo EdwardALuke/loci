@@ -19,9 +19,12 @@ namespace FVMAdapt {
 
   /// Polygon measurements and tetrahedral first moments; no mesh ownership or connectivity.
   struct FaceMeasure {
-    Point center{}, area{}, wireCenter{} ;
-    double moment[9]{} ; ///< Sum (edge endpoints relative to wireCenter) tensor triangle area / 12.
-    double warpage = 0 ;
+    Point center{} ; ///< Face center using the selected FVM convention.
+    Point area{} ; ///< Oriented area vector following the vertex loop.
+    Point wireCenter{} ; ///< Edge-length-weighted mean of edge midpoints.
+    /// moment[3*d+j] sums (a[d]+b[d])*cross(a,b)[j]/24; a,b are relative to wireCenter.
+    double moment[9]{} ;
+    double warpage = 0 ; ///< Largest triangle-normal deviation from area, in degrees.
   } ;
   /// Finite-volume cell center and signed boundary volume.
   struct CellMeasure {
@@ -30,7 +33,10 @@ namespace FVMAdapt {
   } ;
   /// Oriented use of a measured face; +1 is outward, -1 is inward.
   struct MeasuredFace { const FaceMeasure *face ; int sign ; } ;
+  /// Measure the output polygon using the solver's wireframe or exact center convention.
+  /// These centers do not define split points or integrate a retained curved surface.
   FaceMeasure measurePolygon(const std::vector<Point> &, const std::string &centroid) ;
+  /// Measure a closed cell from its oriented faces using the same center convention.
   CellMeasure measurePolyhedron(const std::vector<MeasuredFace> &, const std::string &centroid) ;
   /// Angle between an oriented area vector and the left-to-right center displacement.
   double faceNonOrthogonality(const FaceMeasure &, const Point &left, const Point &right) ;

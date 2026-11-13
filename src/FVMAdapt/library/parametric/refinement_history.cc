@@ -366,6 +366,12 @@ namespace FVMAdapt {
   RefinementHistory RefinementHistory::restore(std::uint64_t root, std::uint64_t revision,
                                                GeometryStore geometry, std::vector<CellNode> nodes,
                                                std::vector<AcceptedSplit> splits, HistoryLimits limits) {
+    return restoreRecords(root,revision,std::move(geometry),std::move(nodes),std::move(splits),limits,false) ;
+  }
+
+  RefinementHistory RefinementHistory::restoreRecords(std::uint64_t root, std::uint64_t revision,
+      GeometryStore geometry, std::vector<CellNode> nodes, std::vector<AcceptedSplit> splits,
+      HistoryLimits limits, bool mappedValidated) {
     if(nodes.empty()) throw std::invalid_argument("refinement record has no root") ;
     if(nodes.size() > limits.maxNodes || splits.size() > limits.maxSplits)
       throw std::length_error("refinement record exceeds table limits") ;
@@ -408,7 +414,7 @@ namespace FVMAdapt {
         if(split.operation || !construction.children.empty() || construction.planar || !construction.vertexVolume ||
            construction.vertexVolume->shape != parentShape)
           throw std::invalid_argument("invalid accepted mapped construction") ;
-        construction.vertexVolume = validatedMapped(*construction.vertexVolume,limits.jacobian) ;
+        if(!mappedValidated) construction.vertexVolume = validatedMapped(*construction.vertexVolume,limits.jacobian) ;
         retained = addBytes(retained,mappedBytes(*construction.vertexVolume),limits.exact) ;
       } else if(construction.family == SplitFamily::planar) {
         if(split.operation || !construction.children.empty() || construction.vertexVolume || !construction.planar)

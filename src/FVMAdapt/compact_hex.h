@@ -27,34 +27,38 @@ namespace FVMAdapt {
     /// Only divided interior faces need records; ordinals follow child-face order.
     std::vector<InteriorFace> interior ;
 
-    explicit CompactHexCell(const ParametricCorner &) ;
+    explicit CompactHexCell(const ParametricCorner &cell) ;
     /// Unsplit hex from validated source topology and coordinates.
-    CompactHexCell(CellTopology, std::vector<Point>, HistoryLimits, std::shared_ptr<const CubicHexMap> cubic = {}) ;
+    CompactHexCell(CellTopology topology, std::vector<Point> corners, HistoryLimits limits, std::shared_ptr<const CubicHexMap> cubic = {}) ;
     /// Temporary source evaluator; curved sources retain their shared edge maps.
     std::shared_ptr<const GeometryMap> sourceMap() const ;
     /// Original face geometry in canonical face coordinates.
     std::shared_ptr<const GeometryMap> faceMap(unsigned face) const ;
     /// Merge borrowed face plans, then apply decoded requests to a private candidate; return whether it changed.
     /// Geometric selection follows explicit requests; failure may leave the candidate partially edited.
-    bool edit(const std::vector<ParametricLeafRequest> &,int levels,CenterMethod,const std::array<const FacePlan *,6> &incoming,
+    bool edit(const std::vector<ParametricLeafRequest> &requests,int levels,CenterMethod method,const std::array<const FacePlan *,6> &incoming,
         const GeometricRefinement *selection) ;
     /// Build temporary geometry within the working-history allocation limits.
     ParametricCorner expand() const ;
     ParametricRecord record() const ;
-    static bool saved(const ParametricRecord &) ;
+    static bool saved(const ParametricRecord &record) ;
     /// Check bounded plans, shared choices and physical geometry without expanding the cell.
-    static CompactHexCell decode(const ParametricRecord &, HistoryLimits) ;
+    static CompactHexCell decode(const ParametricRecord &record, HistoryLimits limits) ;
     /// Grading queries use only the split topology; no physical geometry is built.
-    std::vector<int> localRequests(unsigned difference, NeighborGrading) const ;
+    std::vector<int> localRequests(unsigned difference, NeighborGrading grading) const ;
     ParametricTrace edgeTrace() const ;
     std::vector<int> vertexDepths() const ;
-    std::vector<int> vertexRequests(const std::map<EntityId,int> &, unsigned difference) const ;
+    std::vector<int> vertexRequests(const std::map<EntityId,int> &depths, unsigned difference) const ;
     /// Active leaf coverage in canonical face coordinates; boxes describe adjacency only.
-    struct FaceLeaf { std::array<std::uint32_t,2> lower ; std::uint32_t width ; int leaf ; } ;
+    struct FaceLeaf {
+      std::array<std::uint32_t,2> lower ;
+      std::uint32_t width ;
+      int leaf ; ///< Current output ordinal, not a retained plan-node ID.
+    } ;
     std::vector<FaceLeaf> faceLeaves(EntityId face) const ;
     /// Cell-interior nodes, optionally with positions in the same order, from accepted connectivity.
     std::vector<ParametricNodeKey> cellNodes(std::vector<Point> *positions = nullptr) const ;
-    std::vector<Point> cellPositions(const std::vector<ParametricNodeKey> &) const ;
+    std::vector<Point> cellPositions(const std::vector<ParametricNodeKey> &nodes) const ;
     std::vector<ParametricOutputFace> cellFaces(const std::vector<ParametricNodeKey> &required) const ;
     /// Original-face nodes, optionally with positions in the same order, without expanding cell geometry.
     std::vector<ParametricNodeKey> faceNodes(EntityId face,const CompactHexCell *right = nullptr,
@@ -66,14 +70,14 @@ namespace FVMAdapt {
     void validate() const ;
   } ;
   /// Resolve persistent requests against accepted hex constructions without expanding geometry.
-  std::vector<ParametricLeafRequest> hexRequests(const ParametricRecord &,const HexPlan &,EntityId,const HistoryLimits &) ;
+  std::vector<ParametricLeafRequest> hexRequests(const ParametricRecord &record,const HexPlan &plan,EntityId root,const HistoryLimits &limits) ;
   /// Cell tags to persistent requests using active leaves and accepted reference constructions.
-  ParametricRecord hexTagRequests(const HexPlan &,EntityId,const HistoryLimits &,const std::vector<char> &) ;
-  ParametricTrace hexFaceRequests(EntityId face, const CellTopology &, const HexPlan &,
-      const CellTopology &, const HexPlan &, unsigned difference, NeighborGrading) ;
-  std::vector<FaceBalanceRequest> hexDividedFaces(const CellTopology &, const HexPlan &) ;
-  std::vector<FaceBalanceRequest> hexDividedFaces(EntityId, const CellTopology &, const HexPlan &,
-      const CellTopology &, const HexPlan &) ;
+  ParametricRecord hexTagRequests(const HexPlan &plan,EntityId root,const HistoryLimits &limits,const std::vector<char> &tags) ;
+  ParametricTrace hexFaceRequests(EntityId face, const CellTopology &leftTopology, const HexPlan &leftPlan,
+      const CellTopology &rightTopology, const HexPlan &rightPlan, unsigned difference, NeighborGrading grading) ;
+  std::vector<FaceBalanceRequest> hexDividedFaces(const CellTopology &topology, const HexPlan &plan) ;
+  std::vector<FaceBalanceRequest> hexDividedFaces(EntityId face, const CellTopology &leftTopology, const HexPlan &leftPlan,
+      const CellTopology &rightTopology, const HexPlan &rightPlan) ;
   /// Old leaf indices for each new leaf; compare accepted centers along shared ancestry.
   std::vector<std::vector<int>> hexCellDonors(const HexPlan &oldPlan, const HexPlan &newPlan) ;
 }

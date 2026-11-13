@@ -709,8 +709,9 @@ namespace {
     historyLimits.maxDepth=static_cast<unsigned>(std::min<std::size_t>(limits.maxDepth,std::numeric_limits<unsigned>::max())) ;
     historyLimits.exact=limits.geometry.exact ; historyLimits.geometry=limits.geometry ;
     historyLimits.jacobian=limits.jacobian ;
-    return RefinementHistory::restore(root,revision,std::move(geometry),std::move(nodes),
-                                      std::move(splits),historyLimits) ;
+    // Mapped charts were reconstructed and validated while reading their accepted data.
+    return RefinementHistory::restoreRecords(root,revision,std::move(geometry),std::move(nodes),
+                                             std::move(splits),historyLimits,true) ;
   }
 
 }

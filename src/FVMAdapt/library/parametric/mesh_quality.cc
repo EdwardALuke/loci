@@ -49,6 +49,7 @@ namespace FVMAdapt {
     for(unsigned d=0;d<3;++d) wire[d]/=perimeter ;
     center=wire ;
     if(centroid=="exact") {
+      // Match the solver's four updates of the area-weighted triangle-fan center.
       center=Point{} ; for(const auto &a:p) for(unsigned d=0;d<3;++d) center[d]+=a[d]/p.size() ;
       for(unsigned iteration=0;iteration<4;++iteration) {
         Point sum{} ; double area=0 ;

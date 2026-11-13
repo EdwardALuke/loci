@@ -31,8 +31,8 @@ namespace FVMAdapt {
 
   /// Work limits for exact Bernstein bounds on a map's Jacobian.
   struct JacobianCheckLimits {
-    unsigned maxDepth = 18 ;
-    std::size_t maxBoxes = 4096 ;
+    unsigned maxDepth = 18 ; ///< Maximum successive reference-domain bisections.
+    std::size_t maxBoxes = 4096 ; ///< Maximum subdomains examined by one check.
   } ;
 
   /// Sampled success is not a validity certificate; invalid takes precedence over unresolved.
@@ -65,7 +65,7 @@ namespace FVMAdapt {
     bool invalidEvaluation = false ;
   } ;
 
-  /// Evaluate finite samples inside a segment, triangle, quad, tet, prism, pyramid or hex.
+  /// Evaluate finite samples inside a segment, triangle, quad, polygon, tet, prism, pyramid or hex.
   /// Nonfinite geometry, zero tangents, zero tangent area or nonpositive 3D determinants are invalid.
   /// Missing derivatives, evaluation exceptions and unrepresentable metrics are unresolved.
   /// Surface orientation is not tested. Explicit pyramid-apex samples may be unresolved.
@@ -76,7 +76,9 @@ namespace FVMAdapt {
   enum class GeometryValidity { valid, invalid, unresolved } ;
 
   /// Certify positive interior volume Jacobians or full interior surface rank for supported maps.
-  /// Exact input doubles define the geometry. Unsupported maps and exhausted bounds are unresolved.
+  /// Supports corner maps, affine/bilinear surface cones, and contained corner-map compositions.
+  /// Exact input doubles define the geometry. Unsupported maps, including cubic maps, are unresolved.
+  /// Exhausted bounds are also unresolved.
   /// This does not certify boundary incidence, global injectivity or mesh quality.
   GeometryValidity geometryValidity(const GeometryMap &geometry, JacobianCheckLimits limits = {}) ;
 

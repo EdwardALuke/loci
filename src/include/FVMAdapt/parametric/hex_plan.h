@@ -55,6 +55,7 @@ namespace FVMAdapt {
     HexPlan &operator=(const HexPlan &other) { HexPlan copy(other) ; data_.swap(copy.data_) ; return *this ; }
     HexPlan(HexPlan &&) noexcept = default ;
     HexPlan &operator=(HexPlan &&) noexcept = default ;
+    /// No accepted subdivision is stored. Coarsening retains stored subdivisions.
     bool empty() const { return !data_ ; }
     bool active(Cell cell) const ;
     bool leaf(Cell cell) const ;

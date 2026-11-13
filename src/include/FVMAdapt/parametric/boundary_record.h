@@ -65,10 +65,12 @@ namespace FVMAdapt {
   /// Faces retain alternatives; current cell uses select the active one.
   struct FaceRecord {
     BoundaryId parent = noBoundary ;
+    /// Index in the parent face's splits; noBoundary for a root face.
     std::size_t parentSplit = noBoundary ;
     MapId geometry = noBoundary ;
     std::vector<BoundaryId> vertices, edges ;
     std::vector<FaceSplitRecord> splits ;
+    /// Caller-supplied boundary label, inherited by child faces.
     int boundary = 0 ;
   } ;
 

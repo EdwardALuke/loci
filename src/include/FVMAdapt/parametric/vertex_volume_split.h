@@ -42,9 +42,9 @@ namespace FVMAdapt {
   /// A child face on the quad patch around one corner of a parent boundary.
   /// orientation maps child-face coordinates into that patch's coordinates.
   struct VertexVolumeBoundary {
-    FaceUse face ;
-    unsigned boundary ;
-    unsigned corner ;
+    FaceUse face ; ///< Child and its local face index.
+    unsigned boundary ; ///< Parent boundary index.
+    unsigned corner ; ///< Corner index within that parent boundary.
     unsigned orientation ;
   } ;
 

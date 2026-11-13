@@ -32,41 +32,68 @@ namespace FVMAdapt {
     Polygon exactPolygon(const std::vector<Point> &p) {
       Polygon out ; for(const auto &q:p) { finite(q) ; require(q[2]==0,"surface chart must lie in the XY plane") ; out.push_back({{Exact(q[0]),Exact(q[1])}}) ; } return out ;
     }
-    Exact area(const Polygon &p) { Exact a=0 ; for(unsigned i=0;i<p.size();++i) a+=p[i][0]*p[(i+1)%p.size()][1]-p[i][1]*p[(i+1)%p.size()][0] ; return a ; }
-    void convex(const Polygon &p) {
-      const auto a=area(p) ; require(a!=0,"surface chart has zero area") ;
+    Exact twiceSignedArea(const Polygon &p) {
+      Exact a=0 ;
+      for(unsigned i=0;i<p.size();++i)
+        a+=p[i][0]*p[(i+1)%p.size()][1]-p[i][1]*p[(i+1)%p.size()][0] ;
+      return a ;
+    }
+    void requireConvex(const Polygon &p) {
+      const auto a=twiceSignedArea(p) ;
+      require(a!=0,"surface chart has zero area") ;
       for(unsigned i=0;i<p.size();++i) {
         require(p[i]!=p[(i+1)%p.size()],"surface chart has a zero edge") ;
-        for(const auto &q:p) require(turn(p[i],p[(i+1)%p.size()],q)*a>=0,"surface chart must be convex") ;
+        for(const auto &q:p)
+          require(turn(p[i],p[(i+1)%p.size()],q)*a>=0,"surface chart must be convex") ;
       }
     }
-    void validFan(const std::vector<Point> &corners,const Point &middle) {
+    void validateFan(const std::vector<Point> &corners,const Point &middle) {
       using EPoint=std::array<Exact,3> ;
       std::vector<EPoint> p ;
-      for(const auto &v:corners) p.push_back({{Exact(v[0])-Exact(middle[0]),Exact(v[1])-Exact(middle[1]),Exact(v[2])-Exact(middle[2])}}) ;
-      const auto cross=[](const EPoint &a,const EPoint &b) -> EPoint { return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ; } ;
-      const auto dot=[](const EPoint &a,const EPoint &b) -> Exact { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2] ; } ;
+      for(const auto &v:corners)
+        p.push_back({{Exact(v[0])-Exact(middle[0]),Exact(v[1])-Exact(middle[1]),Exact(v[2])-Exact(middle[2])}}) ;
+      const auto cross=[](const EPoint &a,const EPoint &b) -> EPoint {
+        return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ;
+      } ;
+      const auto dot=[](const EPoint &a,const EPoint &b) -> Exact {
+        return a[0]*b[0]+a[1]*b[1]+a[2]*b[2] ;
+      } ;
+
+      // Project along the summed face normal; the center must see every projected edge.
       EPoint normal{} ;
-      for(unsigned i=0;i<p.size();++i) { const auto n=cross(p[i],p[(i+1)%p.size()]) ; for(unsigned d=0;d<3;++d) normal[d]+=n[d] ; }
+      for(unsigned i=0;i<p.size();++i) {
+        const auto n=cross(p[i],p[(i+1)%p.size()]) ;
+        for(unsigned d=0;d<3;++d) normal[d]+=n[d] ;
+      }
       require(dot(normal,normal)>0,"face fan has zero area") ;
-      EPoint axis{{1,0,0}} ; if(normal[1]==0 && normal[2]==0) axis={{0,1,0}} ;
-      const auto u=cross(normal,axis),v=cross(normal,u) ; Polygon projected ;
+      EPoint axis{{1,0,0}} ;
+      if(normal[1]==0 && normal[2]==0) axis={{0,1,0}} ;
+      const auto u=cross(normal,axis),v=cross(normal,u) ;
+      Polygon projected ;
       for(const auto &q:p) projected.push_back({{dot(u,q),dot(v,q)}}) ;
       const XY zero{{0,0}} ;
-      for(unsigned i=0;i<p.size();++i) require(turn(zero,projected[i],projected[(i+1)%p.size()])>0,"face fan center must see each projected edge") ;
-      const auto on=[](const XY &a,const XY &b,const XY &q) {
-        return q[0]>=std::min(a[0],b[0]) && q[0]<=std::max(a[0],b[0]) && q[1]>=std::min(a[1],b[1]) && q[1]<=std::max(a[1],b[1]) ;
+      for(unsigned i=0;i<p.size();++i)
+        require(turn(zero,projected[i],projected[(i+1)%p.size()])>0,"face fan center must see each projected edge") ;
+
+      // Nonadjacent boundary edges must not cross or touch in the projection.
+      const auto withinSegmentBounds=[](const XY &a,const XY &b,const XY &q) {
+        return q[0]>=std::min(a[0],b[0]) && q[0]<=std::max(a[0],b[0]) &&
+               q[1]>=std::min(a[1],b[1]) && q[1]<=std::max(a[1],b[1]) ;
       } ;
-      for(unsigned i=0;i<p.size();++i) for(unsigned j=i+1;j<p.size();++j) {
-        if(j==i+1 || (i==0 && j+1==p.size())) continue ;
-        const auto &a=projected[i],&b=projected[(i+1)%p.size()],&c=projected[j],&d=projected[(j+1)%p.size()] ;
-        const Exact x=turn(a,b,c),y=turn(a,b,d),z=turn(c,d,a),w=turn(c,d,b) ;
-        require(!((x*y<0 && z*w<0) || (x==0 && on(a,b,c)) || (y==0 && on(a,b,d)) || (z==0 && on(c,d,a)) || (w==0 && on(c,d,b))),
-                "face fan boundary intersects itself") ;
-      }
+      for(unsigned i=0;i<p.size();++i)
+        for(unsigned j=i+1;j<p.size();++j) {
+          if(j==i+1 || (i==0 && j+1==p.size())) continue ;
+          const auto &a=projected[i],&b=projected[(i+1)%p.size()] ;
+          const auto &c=projected[j],&d=projected[(j+1)%p.size()] ;
+          const Exact x=turn(a,b,c),y=turn(a,b,d),z=turn(c,d,a),w=turn(c,d,b) ;
+          require(!((x*y<0 && z*w<0) ||
+                    (x==0 && withinSegmentBounds(a,b,c)) || (y==0 && withinSegmentBounds(a,b,d)) ||
+                    (z==0 && withinSegmentBounds(c,d,a)) || (w==0 && withinSegmentBounds(c,d,b))),
+                  "face fan boundary intersects itself") ;
+        }
     }
     Polygon clip(Polygon p,const Polygon &boundary) {
-      const auto sign=area(boundary)>0 ? 1:-1 ;
+      const auto sign=twiceSignedArea(boundary)>0 ? 1:-1 ;
       for(unsigned e=0;e<boundary.size() && !p.empty();++e) {
         Polygon next ; const auto &a=boundary[e],&b=boundary[(e+1)%boundary.size()] ;
         for(unsigned i=0;i<p.size();++i) {
@@ -298,7 +325,8 @@ namespace FVMAdapt {
       Shape shape() const override { return Shape::quad ; }
       MapValue evaluate(const Point &q) const override { return detail::evaluateBoundarySurface(edges_,corners_,q) ; }
     } ;
-    Map freezeMap(Map map,const ExactPoint &q,unsigned depth=0) {
+    // Select the smooth branch containing q, retaining its reference coordinates.
+    Map selectMapPiece(Map map,const ExactPoint &q,unsigned depth=0) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
       if(const auto *fan=dynamic_cast<const FanMap *>(map.get()))
         return std::make_shared<FanSectorMap>(std::dynamic_pointer_cast<const FanMap>(map),fanSector(fan->referenceCorners(),fan->shape(),q)) ;
@@ -307,17 +335,17 @@ namespace FVMAdapt {
         const auto refs=fan->referenceCorners() ; const auto a=exactPolygon({refs[sector]})[0],b=exactPolygon({refs[(sector+1)%4]})[0] ;
         const Exact ax=a[0]-Exact(.5),ay=a[1]-Exact(.5),bx=b[0]-Exact(.5),by=b[1]-Exact(.5),det=ax*by-bx*ay ;
         const Exact x=q[0]-Exact(.5),y=q[1]-Exact(.5),u=(by*x-bx*y)/det,v=(ax*y-ay*x)/det,r=u+v,t=r==0 ? Exact(.5):Exact(v/r) ;
-        return std::make_shared<BoundaryFanSectorMap>(freezeMap(fan->edges()[sector],{{t,0,0}},depth+1),fan->center(),sector,t) ;
+        return std::make_shared<BoundaryFanSectorMap>(selectMapPiece(fan->edges()[sector],{{t,0,0}},depth+1),fan->center(),sector,t) ;
       }
       if(const auto *patch=dynamic_cast<const SurfacePatchMap *>(map.get()))
-        return std::make_shared<RestrictedMap>(freezeMap(patch->source(),exactChartPosition(*patch->placement(),q),depth+1),patch->placement()) ;
+        return std::make_shared<RestrictedMap>(selectMapPiece(patch->source(),exactChartPosition(*patch->placement(),q),depth+1),patch->placement()) ;
       if(const auto *r=dynamic_cast<const RestrictedMap *>(map.get())) {
         if(!hasSurfacePieces(*map)) return map ;
-        return std::make_shared<RestrictedMap>(freezeMap(r->parent(),exactChartPosition(*r->referenceMap(),q),depth+1),r->referenceMap()) ;
+        return std::make_shared<RestrictedMap>(selectMapPiece(r->parent(),exactChartPosition(*r->referenceMap(),q),depth+1),r->referenceMap()) ;
       }
       if(const auto *surface=dynamic_cast<const BoundarySurfaceMap *>(map.get())) {
         std::array<Map,4> edges ; const std::array<Exact,4> t{{q[0],q[1],1-q[0],1-q[1]}} ;
-        for(unsigned i=0;i<4;++i) edges[i]=freezeMap(surface->edges()[i],{{t[i],0,0}},depth+1) ;
+        for(unsigned i=0;i<4;++i) edges[i]=selectMapPiece(surface->edges()[i],{{t[i],0,0}},depth+1) ;
         return std::make_shared<CoonsPieceMap>(std::move(edges),surface->corners()) ;
       }
       return map ;
@@ -339,7 +367,11 @@ namespace FVMAdapt {
       const auto refs=parent.referenceCorners() ; auto a=placement.corners() ; std::vector<Point> b(refs.begin(),refs.end()) ;
       std::sort(a.begin(),a.end()) ; std::sort(b.begin(),b.end()) ; return a==b ;
     }
-    struct Chart { Map source,placement ; Polygon domain ; } ;
+    struct Chart {
+      Map source ; ///< Original retained surface.
+      Map placement ; ///< Requested surface coordinates to source coordinates.
+      Polygon domain ; ///< Patch boundary in source coordinates.
+    } ;
     Chart chart(Map map,unsigned depth=0) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
       if(const auto *patch=dynamic_cast<const SurfacePatchMap *>(map.get()))
@@ -351,13 +383,14 @@ namespace FVMAdapt {
         require(affine(*base.placement) || fullReorientation(*r->parent(),*p),"nonlinear surface restrictions require a source-chart patch") ;
         auto placement=std::make_shared<RestrictedMap>(base.placement,r->referenceMap()) ;
         std::vector<Point> corners ; for(const auto &q:p->referenceCorners()) corners.push_back(placement->position(q)) ;
-        base.domain=exactPolygon(corners) ; convex(base.domain) ; base.placement=std::move(placement) ; return base ;
+        base.domain=exactPolygon(corners) ; requireConvex(base.domain) ; base.placement=std::move(placement) ; return base ;
       }
       require(map->dimension()==2,"surface pieces require a surface") ;
       const auto r=map->referenceCorners() ; std::vector<Point> p(r.begin(),r.end()) ;
       return {map,coordinates(p),exactPolygon(p)} ;
     }
     std::vector<double> curveBreaks(Map map,std::size_t limit,unsigned depth) ;
+    // Partition the source reference domain along every retained surface seam.
     std::vector<Polygon> regions(Map source,std::size_t limit,unsigned depth) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
       std::vector<Polygon> out ;
@@ -390,6 +423,7 @@ namespace FVMAdapt {
       }
       return out ;
     }
+    // Return ordered curve parameters at intersections with source-surface seams.
     std::vector<double> curveBreaks(Map map,std::size_t limit,unsigned depth) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
       std::vector<double> result{0,1} ;
@@ -556,7 +590,7 @@ namespace FVMAdapt {
   FanMap::FanMap(Shape shape,std::vector<Point> corners,Point middle):shape_(shape),corners_(std::move(corners)),center_(middle) {
     require(shape==Shape::triangle || shape==Shape::quad || shape==Shape::polygon,"fan requires a surface shape") ;
     require(shape==Shape::polygon ? corners_.size()>=3:corners_.size()==referenceElement(shape).vertexCount,"fan corner count differs from its shape") ;
-    finite(center_) ; for(const auto &p:corners_) finite(p) ; validFan(corners_,center_) ; reference_=reference(shape,corners_.size()) ;
+    finite(center_) ; for(const auto &p:corners_) finite(p) ; validateFan(corners_,center_) ; reference_=reference(shape,corners_.size()) ;
   }
   bool FanMap::containsReference(const Point &p,double tolerance) const {
     return shape_==Shape::polygon ? containsReferencePolygon(corners_.size(),p,tolerance):GeometryMap::containsReference(p,tolerance) ;
@@ -566,7 +600,7 @@ namespace FVMAdapt {
     const XY x{{Exact(p[0]),Exact(p[1])}} ;
     for(unsigned i=0;i<reference_.size();++i) {
       const auto triangle=exactPolygon({c,reference_[i],reference_[(i+1)%reference_.size()]}) ;
-      const auto sign=area(triangle)>0 ? 1:-1 ; bool inside=true ; long double score=std::numeric_limits<long double>::infinity() ;
+      const auto sign=twiceSignedArea(triangle)>0 ? 1:-1 ; bool inside=true ; long double score=std::numeric_limits<long double>::infinity() ;
       for(unsigned e=0;e<3;++e) { const Exact t=sign*turn(triangle[e],triangle[(e+1)%3],x) ; inside=inside && t>=0 ; score=std::min(score,t.convert_to<long double>()) ; }
       if(inside) { selected=i ; break ; } if(score>best) { best=score ; selected=i ; }
     }
@@ -595,7 +629,7 @@ namespace FVMAdapt {
     require(source_ && source_->dimension()==2 && !dynamic_cast<const SurfacePatchMap *>(source_.get()),"surface patch requires an unpatched surface source") ;
     require(!hasSurfacePieces(*source_) || dynamic_cast<const FanMap *>(source_.get()) || dynamic_cast<const BoundaryFanMap *>(source_.get()) || dynamic_cast<const BoundarySurfaceMap *>(source_.get()),
             "surface patch requires a direct retained surface source") ;
-    require(corners_.size()>=3,"surface patch requires at least three corners") ; convex(exactPolygon(corners_)) ;
+    require(corners_.size()>=3,"surface patch requires at least three corners") ; requireConvex(exactPolygon(corners_)) ;
     for(const auto &p:corners_) require(source_->containsReference(p,64*std::numeric_limits<double>::epsilon()),"surface patch lies outside its source") ;
     placement_=coordinates(corners_) ;
   }
@@ -613,19 +647,28 @@ namespace FVMAdapt {
 
   SurfacePieces smoothSurfacePieces(Map map,std::size_t maxPieces) {
     require(maxPieces>0,"surface pieces require a positive work limit") ;
-    auto source=chart(std::move(map)) ; SurfacePieces out{source.source,source.placement,{}} ;
-    const auto partitions=regions(source.source,maxPieces,0) ; const auto *fan=dynamic_cast<const FanMap *>(source.source.get()) ;
-    const bool reversed=area(source.domain)<0 ;
+    auto source=chart(std::move(map)) ;
+    SurfacePieces out{source.source,source.placement,{}} ;
+    const auto partitions=regions(source.source,maxPieces,0) ;
+    const auto *fan=dynamic_cast<const FanMap *>(source.source.get()) ;
+    const bool reversed=twiceSignedArea(source.domain)<0 ;
     for(unsigned sector=0;sector<partitions.size();++sector) {
-      auto polygon=clip(source.domain,partitions[sector]) ; if(polygon.size()<3 || area(polygon)==0) continue ;
-      if((area(polygon)<0)!=reversed) std::reverse(polygon.begin(),polygon.end()) ;
-      ExactPoint middle{} ; for(const auto &p:partitions[sector]) for(unsigned d=0;d<2;++d) middle[d]+=p[d]/partitions[sector].size() ;
-      const auto smooth=fan ? Map{}:freezeMap(source.source,middle) ;
+      // Clip the requested patch against each retained surface piece.
+      auto polygon=clip(source.domain,partitions[sector]) ;
+      if(polygon.size()<3 || twiceSignedArea(polygon)==0) continue ;
+      if((twiceSignedArea(polygon)<0)!=reversed) std::reverse(polygon.begin(),polygon.end()) ;
+      ExactPoint middle{} ;
+      for(const auto &p:partitions[sector])
+        for(unsigned d=0;d<2;++d) middle[d]+=p[d]/partitions[sector].size() ;
+      const auto smooth=fan ? Map{}:selectMapPiece(source.source,middle) ;
       for(unsigned i=1;i+1<polygon.size();++i) {
         if(turn(polygon[0],polygon[i],polygon[i+1])==0) continue ;
         if(out.pieces.size()>=maxPieces) throw std::length_error("surface piece count exceeds its limit") ;
+
+        // Order each triangle for integration without changing its orientation.
         std::array<XY,3> q{{polygon[0],polygon[i],polygon[i+1]}} ;
-        unsigned shortest=0 ; Exact minimum ;
+        unsigned shortest=0 ;
+        Exact minimum ;
         for(unsigned e=0;e<3;++e) {
           const Exact x=q[(e+1)%3][0]-q[e][0],y=q[(e+1)%3][1]-q[e][1],length=x*x+y*y ;
           if(e==0 || length<minimum) { shortest=e ; minimum=length ; }
@@ -635,30 +678,39 @@ namespace FVMAdapt {
         // Affine pieces retain a short first edge to avoid nearly parallel derivatives.
         if(dynamic_cast<const BoundaryFanMap *>(source.source.get()) && detail::exactMapView(*smooth).kind!=detail::ExactMapView::Kind::affine)
           for(unsigned j=0;j<3;++j) if(q[j]==XY{{Exact(.5),Exact(.5)}}) {
-            std::rotate(q.begin(),q.begin()+(j+2)%3,q.end()) ; break ;
+            std::rotate(q.begin(),q.begin()+(j+2)%3,q.end()) ;
+            break ;
           }
-        std::array<ExactPoint,3> chartPoints ; for(unsigned j=0;j<3;++j) chartPoints[j]={{q[j][0],q[j][1],0}} ;
-        auto placement=std::make_shared<AffineTriangleMap>(chartPoints) ; Map physical ;
+
+        // Retain the source geometry on this triangle, with exact coordinates for affine pieces.
+        std::array<ExactPoint,3> chartPoints ;
+        for(unsigned j=0;j<3;++j) chartPoints[j]={{q[j][0],q[j][1],0}} ;
+        auto placement=std::make_shared<AffineTriangleMap>(chartPoints) ;
+        Map physical ;
         if(fan) {
-          std::array<ExactPoint,3> p ; for(unsigned j=0;j<3;++j) p[j]=fanPosition(*fan,sector,q[j]) ;
+          std::array<ExactPoint,3> p ;
+          for(unsigned j=0;j<3;++j) p[j]=fanPosition(*fan,sector,q[j]) ;
           physical=std::make_shared<AffineTriangleMap>(p) ;
         } else {
           auto active=smooth ;
           if(dynamic_cast<const BoundaryFanMap *>(source.source.get())) {
             ExactPoint representative{} ;
-            for(const auto &p:chartPoints) for(unsigned d=0;d<2;++d) representative[d]+=p[d]/3 ;
-            active=freezeMap(source.source,representative) ;
+            for(const auto &p:chartPoints)
+              for(unsigned d=0;d<2;++d) representative[d]+=p[d]/3 ;
+            active=selectMapPiece(source.source,representative) ;
           }
           const auto algebra=detail::exactMapView(*active) ;
           if(algebra.kind==detail::ExactMapView::Kind::affine) {
-            std::array<ExactPoint,3> p ; for(unsigned j=0;j<3;++j) p[j]=affineValue(algebra,chartPoints[j]) ;
+            std::array<ExactPoint,3> p ;
+            for(unsigned j=0;j<3;++j) p[j]=affineValue(algebra,chartPoints[j]) ;
             physical=std::make_shared<AffineTriangleMap>(p) ;
           } else physical=std::make_shared<SmoothMap>(std::make_shared<RestrictedMap>(active,placement)) ;
         }
         out.pieces.push_back({std::move(physical),std::move(placement)}) ;
       }
     }
-    require(!out.pieces.empty(),"surface pieces have zero area") ; return out ;
+    require(!out.pieces.empty(),"surface pieces have zero area") ;
+    return out ;
   }
 
   Map reverseSurfacePiece(Map map) {
@@ -675,7 +727,7 @@ namespace FVMAdapt {
     const auto cuts=curveBreaks(map,maxPieces,0) ; std::vector<Map> out ;
     for(unsigned i=1;i<cuts.size();++i) {
       const Exact middle=(Exact(cuts[i-1])+Exact(cuts[i]))/2 ;
-      out.push_back(std::make_shared<SmoothMap>(std::make_shared<RestrictedMap>(freezeMap(map,{{middle,0,0}}),
+      out.push_back(std::make_shared<SmoothMap>(std::make_shared<RestrictedMap>(selectMapPiece(map,{{middle,0,0}}),
         std::make_shared<CornerMap>(Shape::segment,std::vector<Point>{{{cuts[i-1],0,0}},{{cuts[i],0,0}}})))) ;
     }
     return out ;

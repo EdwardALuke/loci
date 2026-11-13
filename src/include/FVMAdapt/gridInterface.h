@@ -95,7 +95,9 @@ namespace Loci {
     storeRepP histories ; ///< store<vector<unsigned char>>: accepted records for original cells.
     storeRepP weights ; ///< store<int>: partition weights for the original cells.
     std::string source ; ///< Original VOG path.
-    FaceStateP faces ; ///< Installed face state of the accepted solver mesh, when requested.
+    /// Installed face state of the accepted mesh, when requested.
+    /// Refresh from getFaceState(newFacts) after installing each accepted mesh.
+    FaceStateP faces ;
   } ;
 
   void createVOGNode(store<vector3d<double> > &new_pos,

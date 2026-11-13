@@ -44,7 +44,7 @@ $rule unit(initialParametricFacePlan), constraint(faces) {
 }
 
 $rule apply((lower,upper,boundary_map)->initialParametricFacePlan <- initialParametricCell,parametricInitialError,
-  (lower,upper,boundary_map)->fileNumber(face2node))[ParametricFaceUnion], constraint(geom_cells) {
+  (lower,upper,boundary_map)->fileNumber(face2node))[ParametricMerge], constraint(geom_cells) {
   if(!$parametricInitialError.empty()) return ;
   const auto contribute = [&](int face) {
     P::FacePlanData value ;
@@ -101,11 +101,27 @@ $rule pointwise(tmpParametricCell{parametricBalance=0},tmpParametricError{parame
 // Neighbor grading
 //-----------------------------------------------------------------------------
 
-/// Validated per-cell boundary data for distributed reductions.
+/// Original-edge interval rows; see parametricEdgeTrace() for their layout.
 $type parametricCellEdges store<Loci::FineFaces> ;
+/// Rows [original vertex file ID, greatest touching leaf depth] for this candidate.
 $type parametricCellVertices store<Loci::FineFaces> ;
+/// Indices in this candidate's leafIds() requiring local grading.
 $type parametricLocalRequests store<std::vector<int> > ;
+/// Per-original-cell failure while collecting boundary data and local requests.
 $type parametricCheckError store<std::string> ;
+/// Select the vertex reductions only for vertex grading.
+$type parametricVertexGrading Constraint ;
+$type parametricNoVertexGrading Constraint ;
+$rule constraint(parametricVertexGrading,parametricNoVertexGrading <- parametricGrading) {
+  $parametricVertexGrading=$parametricGrading=="vertices" ? ~EMPTY:EMPTY ;
+  $parametricNoVertexGrading=$parametricGrading=="vertices" ? EMPTY:~EMPTY ;
+}
+/// Failure while collecting a cell's vertex depths.
+$type parametricCellVertexError store<std::string> ;
+/// Current leaf indices requiring refinement to meet shared vertex depths.
+$type parametricVertexRequests store<std::vector<int> > ;
+/// Failure while forming vertex-grading requests.
+$type parametricVertexError store<std::string> ;
 /// Refinement requests and active divided-face votes from both sides of an original face.
 $type parametricFaceRequests store<std::vector<Loci::FVMAdapt::FaceBalanceRequest>> ;
 $type parametricFaceError store<std::string> ;
@@ -119,7 +135,7 @@ $rule unit(parametricFacePlan), constraint(faces) {
 }
 
 $rule apply((lower,upper,boundary_map)->parametricFacePlan <- tmpParametricCell,tmpParametricError,
-  (lower,upper,boundary_map)->fileNumber(face2node))[ParametricFaceUnion], constraint(geom_cells) {
+  (lower,upper,boundary_map)->fileNumber(face2node))[ParametricMerge], constraint(geom_cells) {
   if(!$tmpParametricError.empty()) return ;
   const auto contribute = [&](int face) {
     P::FacePlanData value ;
@@ -132,20 +148,28 @@ $rule apply((lower,upper,boundary_map)->parametricFacePlan <- tmpParametricCell,
   for(int face:$boundary_map) contribute(face) ;
 }
 
-$rule pointwise(parametricCellEdges,parametricCellVertices,parametricLocalRequests,parametricCheckError <- tmpParametricCell,tmpParametricError,
+$rule pointwise(parametricCellEdges,parametricLocalRequests,parametricCheckError <- tmpParametricCell,tmpParametricError,
   parametricTopology,parametricControls), constraint(geom_cells) {
-  $parametricCellEdges.clear() ; $parametricCellVertices.clear() ; $parametricLocalRequests.clear() ;
+  $parametricCellEdges.clear() ; $parametricLocalRequests.clear() ;
   $parametricCheckError = $tmpParametricError ;
   if($tmpParametricError.empty()) try {
     const auto topology = P::decodeParametricTopology($parametricTopology) ;
     $parametricLocalRequests = $tmpParametricCell.localRequests(topology,$parametricControls.levelDifference,
       $parametricControls.grading,$parametricControls.refinement.extrusionAxis) ;
     $parametricCellEdges = $tmpParametricCell.edgeTrace(topology) ;
-    const auto depths = $tmpParametricCell.vertexDepths(topology) ;
-    for(unsigned v = 0; v < depths.size(); ++v) $parametricCellVertices.push_back({int(topology.vertexId(v)),depths[v]}) ;
   } catch(const std::exception &error) {
-    $parametricCheckError = error.what() ; $parametricCellEdges.clear() ; $parametricCellVertices.clear() ; $parametricLocalRequests.clear() ;
+    $parametricCheckError = error.what() ; $parametricCellEdges.clear() ; $parametricLocalRequests.clear() ;
   }
+}
+
+$rule pointwise(parametricCellVertices,parametricCellVertexError <- tmpParametricCell,parametricCheckError,parametricTopology),
+  constraint(parametricVertexGrading,geom_cells) {
+  $parametricCellVertices.clear() ; $parametricCellVertexError=$parametricCheckError ;
+  if($parametricCheckError.empty()) try {
+    const auto topology=P::decodeParametricTopology($parametricTopology) ;
+    const auto depths=$tmpParametricCell.vertexDepths(topology) ;
+    for(unsigned v=0;v<depths.size();++v) $parametricCellVertices.push_back({int(topology.vertexId(v)),depths[v]}) ;
+  } catch(const std::exception &error) { $parametricCellVertexError=error.what() ; $parametricCellVertices.clear() ; }
 }
 
 $rule pointwise(parametricFaceRequests,parametricFaceError <- (cl,cr)->(tmpParametricCell,parametricTopology,parametricCheckError),fileNumber(face2node),
@@ -166,12 +190,12 @@ $rule pointwise(parametricFaceRequests,parametricFaceError), constraint(boundary
   $parametricFaceRequests.clear() ; $parametricFaceError.clear() ;
 }
 $rule unit(parametricEdgeTrace), constraint(edge2node->pos) { $parametricEdgeTrace.clear() ; }
-$rule unit(parametricVertexDepth), constraint(pos) { $parametricVertexDepth = 0 ; }
+$rule unit(parametricVertexDepth), constraint(parametricVertexGrading,pos) { $parametricVertexDepth = 0 ; }
 
 $rule apply(face2edge->parametricEdgeTrace <- cl->parametricCellEdges,face2edge->fileNumber(edge2node))[ParametricTraceUnion], constraint(faces) {
   for(int edge: $face2edge) join($*parametricEdgeTrace[edge],edgeRows($cl->$parametricCellEdges,$*fileNumber(edge2node)[edge])) ;
 }
-$rule apply(face2node->parametricVertexDepth <- cl->parametricCellVertices,face2node->fileNumber(pos))[Loci::Maximum], constraint(faces) {
+$rule apply(face2node->parametricVertexDepth <- cl->parametricCellVertices,face2node->fileNumber(pos))[Loci::Maximum], constraint(parametricVertexGrading,faces) {
   for(int node: $face2node)
     for(const auto &row: $cl->$parametricCellVertices)
       if(row[0] == $*fileNumber(pos)[node]) join($*parametricVertexDepth[node],row[1]) ;
@@ -180,10 +204,30 @@ $rule apply(face2node->parametricVertexDepth <- cl->parametricCellVertices,face2
 $rule apply(face2edge->parametricEdgeTrace <- cr->parametricCellEdges,face2edge->fileNumber(edge2node))[ParametricTraceUnion], constraint(interior_faces) {
   for(int edge: $face2edge) join($*parametricEdgeTrace[edge],edgeRows($cr->$parametricCellEdges,$*fileNumber(edge2node)[edge])) ;
 }
-$rule apply(face2node->parametricVertexDepth <- cr->parametricCellVertices,face2node->fileNumber(pos))[Loci::Maximum], constraint(interior_faces) {
+$rule apply(face2node->parametricVertexDepth <- cr->parametricCellVertices,face2node->fileNumber(pos))[Loci::Maximum], constraint(parametricVertexGrading,interior_faces) {
   for(int node: $face2node)
     for(const auto &row: $cr->$parametricCellVertices)
       if(row[0] == $*fileNumber(pos)[node]) join($*parametricVertexDepth[node],row[1]) ;
+}
+
+/// Convert shared vertex depths to leaf requests within each original cell.
+$rule pointwise(parametricVertexRequests,parametricVertexError <- tmpParametricCell,parametricCellVertexError,parametricTopology,
+  (lower,upper,boundary_map)->face2node->(fileNumber(pos),parametricVertexDepth),parametricControls),
+  constraint(parametricVertexGrading,geom_cells) {
+  $parametricVertexRequests.clear() ; $parametricVertexError=$parametricCellVertexError ;
+  if($parametricCellVertexError.empty()) try {
+    std::map<P::EntityId,int> vertices ;
+    const auto addFace=[&](int face) {
+      for(int node:$*face2node[face]) vertices[$*fileNumber(pos)[node]]=$*parametricVertexDepth[node] ;
+    } ;
+    for(int face:$lower) addFace(face) ; for(int face:$upper) addFace(face) ; for(int face:$boundary_map) addFace(face) ;
+    $parametricVertexRequests=$tmpParametricCell.vertexRequests(P::decodeParametricTopology($parametricTopology),vertices,
+      $parametricControls.levelDifference) ;
+  } catch(const std::exception &error) { $parametricVertexError=error.what() ; }
+}
+
+$rule pointwise(parametricVertexRequests,parametricVertexError), constraint(parametricNoVertexGrading,geom_cells) {
+  $parametricVertexRequests.clear() ; $parametricVertexError.clear() ;
 }
 
 /// Refine required leaves and accept shared divisions; otherwise reuse the cell.
@@ -192,51 +236,55 @@ $rule pointwise(tmpParametricCell{parametricBalance+1},tmpParametricError{parame
   parametricRound{parametricBalance},parametricLocalRequests{parametricBalance},parametricTopology,initialParametricCell,
   (lower,upper,boundary_map)->(parametricFaceRequests{parametricBalance},parametricFaceError{parametricBalance},parametricFacePlan{parametricBalance},fileNumber(face2node)),
   (lower,upper,boundary_map)->face2edge->parametricEdgeTrace{parametricBalance},
-  (lower,upper,boundary_map)->face2node->(fileNumber(pos),parametricVertexDepth{parametricBalance}),
+  parametricVertexRequests{parametricBalance},parametricVertexError{parametricBalance},
   parametricControls), constraint(geom_cells) {
   $tmpParametricCell{parametricBalance+1} = $tmpParametricCell{parametricBalance} ;
   $tmpParametricError{parametricBalance+1} = $parametricCheckError{parametricBalance} ;
-  $parametricRound{parametricBalance+1} = $parametricRound{parametricBalance}+($parametricRound{parametricBalance} < $parametricControls.maxRounds) ;
+  $parametricRound{parametricBalance+1} = $parametricRound{parametricBalance} ;
+  if($parametricRound{parametricBalance+1} < $parametricControls.maxRounds)
+    ++$parametricRound{parametricBalance+1} ;
   $parametricCellUnchanged{parametricBalance+1} = true ;
   if($parametricCheckError{parametricBalance}.empty()) try {
+    if(!$parametricVertexError{parametricBalance}.empty()) throw std::invalid_argument($parametricVertexError{parametricBalance}) ;
     const auto topology = P::decodeParametricTopology($parametricTopology) ;
     const auto grading = $parametricControls.grading ;
-    P::IncomingFacePlans incoming ;
-    std::set<int> required($parametricLocalRequests{parametricBalance}.begin(),$parametricLocalRequests{parametricBalance}.end()), edges ;
-    std::map<P::EntityId,int> vertices ;
-    std::vector<P::FaceBalanceRequest> divided ;
+    P::IncomingFacePlans sharedFacePlans ;
+    std::set<int> leavesToRefine($parametricLocalRequests{parametricBalance}.begin(),$parametricLocalRequests{parametricBalance}.end()) ;
+    std::set<int> visitedEdges ;
+    leavesToRefine.insert($parametricVertexRequests{parametricBalance}.begin(),$parametricVertexRequests{parametricBalance}.end()) ;
+    std::vector<P::FaceBalanceRequest> dividedFaces ;
     const auto addFace = [&](int face) {
       if(!$*parametricFaceError{parametricBalance}[face].empty()) throw std::invalid_argument($*parametricFaceError{parametricBalance}[face]) ;
       if($*parametricFacePlan{parametricBalance}[face].failed) throw std::invalid_argument("shared face plans have invalid or conflicting divisions") ;
-      const auto &plan=$*parametricFacePlan{parametricBalance}[face].plan ; const P::EntityId id=$*fileNumber(face2node)[face] ;
-      if($tmpParametricCell{parametricBalance}.needsFaceMerge(id,plan)) incoming.push_back({id,plan}) ;
+      const auto &plan=$*parametricFacePlan{parametricBalance}[face].plan ;
+      const P::EntityId id=$*fileNumber(face2node)[face] ;
+      if($tmpParametricCell{parametricBalance}.needsFaceMerge(id,plan)) sharedFacePlans.push_back({id,plan}) ;
       for(const auto &row: $*parametricFaceRequests{parametricBalance}[face]) if(P::EntityId(row.root)==topology.id()) {
-        if(row.face<0) required.insert(row.leaf) ; else divided.push_back(row) ;
+        if(row.face<0) leavesToRefine.insert(row.leaf) ;
+        else dividedFaces.push_back(row) ;
       }
-      for(int edge: $*face2edge[face]) if(edges.insert(edge).second) {
-        const auto more = P::parametricEdgeRequests(topology.id(),$*parametricEdgeTrace{parametricBalance}[edge],$parametricControls.levelDifference,grading) ;
-        required.insert(more.begin(),more.end()) ;
+      for(int edge: $*face2edge[face]) if(visitedEdges.insert(edge).second) {
+        const auto edgeRequests = P::parametricEdgeRequests(topology.id(),$*parametricEdgeTrace{parametricBalance}[edge],$parametricControls.levelDifference,grading) ;
+        leavesToRefine.insert(edgeRequests.begin(),edgeRequests.end()) ;
       }
-      for(int node: $*face2node[face]) vertices[$*fileNumber(pos)[node]] = $*parametricVertexDepth{parametricBalance}[node] ;
     } ;
-    for(int face: $lower) addFace(face) ; for(int face: $upper) addFace(face) ; for(int face: $boundary_map) addFace(face) ;
-    std::map<int,unsigned> directions ;
-    const auto faceRequired=$tmpParametricCell{parametricBalance}.faceBalanceRequests(topology,divided,
-      $parametricControls.faceBalance,$parametricControls.directionalBalance ? &directions:nullptr) ;
-    required.insert(faceRequired.begin(),faceRequired.end()) ;
-    if(grading == P::NeighborGrading::vertices) {
-      const auto more = $tmpParametricCell{parametricBalance}.vertexRequests(topology,vertices,$parametricControls.levelDifference) ;
-      required.insert(more.begin(),more.end()) ;
-    }
-    if(required.empty() && incoming.empty()) return ;
-    if(!required.empty() && $parametricRound{parametricBalance}>=$parametricControls.maxRounds)
+    for(int face: $lower) addFace(face) ;
+    for(int face: $upper) addFace(face) ;
+    for(int face: $boundary_map) addFace(face) ;
+    std::map<int,unsigned> splitDirections ;
+    const auto faceRequests=$tmpParametricCell{parametricBalance}.faceBalanceRequests(topology,dividedFaces,
+      $parametricControls.faceBalance,$parametricControls.directionalBalance ? &splitDirections:nullptr) ;
+    leavesToRefine.insert(faceRequests.begin(),faceRequests.end()) ;
+    if(leavesToRefine.empty() && sharedFacePlans.empty()) return ;
+    if(!leavesToRefine.empty() && $parametricRound{parametricBalance}>=$parametricControls.maxRounds)
       throw std::length_error("parametric grading round limit exceeded") ;
     bool changed=false ;
-    const auto edited=$tmpParametricCell{parametricBalance}.balance(required,directions,$initialParametricCell,
-      $parametricControls.refinement.center,$parametricControls.refinement.extrusionAxis,incoming,changed) ;
+    const auto balancedCell=$tmpParametricCell{parametricBalance}.balance(leavesToRefine,splitDirections,$initialParametricCell,
+      $parametricControls.refinement.center,$parametricControls.refinement.extrusionAxis,sharedFacePlans,changed) ;
     if(changed) {
       if($parametricRound{parametricBalance}>=$parametricControls.maxRounds) throw std::length_error("parametric grading round limit exceeded") ;
-      $parametricCellUnchanged{parametricBalance+1}=false ; $tmpParametricCell{parametricBalance+1}=edited ;
+      $parametricCellUnchanged{parametricBalance+1}=false ;
+      $tmpParametricCell{parametricBalance+1}=balancedCell ;
     }
   } catch(const std::exception &error) { $tmpParametricError{parametricBalance+1} = error.what() ; }
 }

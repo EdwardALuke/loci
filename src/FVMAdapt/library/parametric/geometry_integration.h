@@ -24,8 +24,16 @@
 
 #include <FVMAdapt/parametric/geometry_measure.h>
 #include <functional>
+#include <stdexcept>
 
 namespace Loci { namespace FVMAdapt { namespace detail {
+
+  /// An evaluated sample is nonfinite or has a nonpositive measure density.
+  /// Split assessment treats missing derivatives and evaluator failures as unresolved.
+  class InvalidMeasureSample : public std::invalid_argument {
+  public:
+    using std::invalid_argument::invalid_argument ;
+  } ;
 
   /// Physical position and positive measure density per unit reference volume, area or length.
   struct MeasureSample {

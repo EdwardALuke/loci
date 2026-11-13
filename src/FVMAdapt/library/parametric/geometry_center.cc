@@ -33,6 +33,9 @@ namespace FVMAdapt {
 
     using WidePoint = std::array<long double,3> ;
 
+    // Bound local searches; failure leaves the proposed split unaccepted.
+    constexpr unsigned maxFaceIterations=128, maxCellIterations=64, maxBacktracks=48 ;
+
     WidePoint difference(const Point &a, const Point &b) {
       return {{static_cast<long double>(a[0])-b[0],static_cast<long double>(a[1])-b[1],
                static_cast<long double>(a[2])-b[2]}} ;
@@ -121,13 +124,14 @@ namespace FVMAdapt {
       return target ;
     }
 
+    // Minimize physical distance to the target with Gauss-Newton steps kept inside the face.
     Point projectFaceTarget(const GeometryMap &geometry, const Point &origin, long double scale,
                             const WidePoint &target, Point q, CenterMethod method) {
       const Shape shape = geometry.shape() ;
       const auto inside=[&](const Point &p) { return shape==Shape::polygon ? insideReferencePolygon(geometry.referenceCorners().size(),p):interior(shape,p) ; } ;
       if(!inside(q)) throw std::invalid_argument("face center has no interior starting point") ;
       const long double tolerance = 256*std::numeric_limits<double>::epsilon() ;
-      for(unsigned iteration = 0; iteration < 128; ++iteration) {
+      for(unsigned iteration = 0; iteration < maxFaceIterations; ++iteration) {
         const auto value = checkedEvaluation(geometry,q) ;
         WidePoint a, b ;
         scaledColumns(value,scale,a,b) ;
@@ -146,11 +150,12 @@ namespace FVMAdapt {
           throw std::invalid_argument("face center has singular derivatives") ;
         const long double dataAccuracy = accuracy(origin,scale) ;
         const long double referenceAccuracy = dataAccuracy*std::sqrt((aa+bb)/determinant) ;
+        // Stop when the reference step is below the accuracy of the physical input.
         if(std::hypot(step0,step1) <= std::max(tolerance,referenceAccuracy)) return q ;
         const long double objective = dot(residual,residual) ;
         const long double descent = gradient0*step0+gradient1*step1 ;
         bool accepted = false ;
-        for(unsigned backtrack = 0; backtrack < 48; ++backtrack) {
+        for(unsigned backtrack = 0; backtrack < maxBacktracks; ++backtrack) {
           const long double fraction = std::ldexp(1.L,-static_cast<int>(backtrack)) ;
           const Point trial{{static_cast<double>(q[0]-fraction*step0),
                              static_cast<double>(q[1]-fraction*step1),0}} ;
@@ -189,9 +194,10 @@ namespace FVMAdapt {
       return result ;
     }
 
+    // Piece boundaries are allowed here; an outer face boundary is rejected after piece selection.
     Point projectTriangle(const GeometryMap &map,const Point &origin,long double scale,const WidePoint &target) {
       Point q{{1./3,1./3,0}} ;
-      for(unsigned iteration=0;iteration<128;++iteration) {
+      for(unsigned iteration=0;iteration<maxFaceIterations;++iteration) {
         const auto value=checkedEvaluation(map,q) ; WidePoint a,b ; scaledColumns(value,scale,a,b) ;
         auto residual=difference(value.position,origin) ; std::array<WidePoint,3> linear ;
         for(unsigned d=0;d<3;++d) {
@@ -202,7 +208,7 @@ namespace FVMAdapt {
         const long double step=std::hypot(static_cast<long double>(next[0])-q[0],static_cast<long double>(next[1])-q[1]) ;
         if(step<=256*std::numeric_limits<double>::epsilon()) return q ;
         const long double objective=dot(residual,residual),roundoff=16*accuracy(origin,scale)*std::sqrt(objective) ; bool accepted=false ;
-        for(unsigned backtrack=0;backtrack<48;++backtrack) {
+        for(unsigned backtrack=0;backtrack<maxBacktracks;++backtrack) {
           const long double t=std::ldexp(1.L,-int(backtrack)) ; const Point trial{{double(q[0]+t*(next[0]-q[0])),double(q[1]+t*(next[1]-q[1])),0}} ;
           auto r=difference(checkedEvaluation(map,trial).position,origin) ; for(unsigned d=0;d<3;++d) r[d]=r[d]/scale-target[d] ;
           if(dot(r,r)<=objective+roundoff) { q=trial ; accepted=true ; break ; }
@@ -254,11 +260,12 @@ namespace FVMAdapt {
       return target ;
     }
 
+    // Newton inversion with decreasing physical residual and reference-interior trial points.
     Point invertCellTarget(const GeometryMap &geometry, const Point &origin, long double scale,
                            const WidePoint &target, Point q, CenterMethod method) {
       const Shape shape = geometry.shape() ;
       const long double dataAccuracy = accuracy(origin,scale) ;
-      for(unsigned iteration = 0; iteration < 64; ++iteration) {
+      for(unsigned iteration = 0; iteration < maxCellIterations; ++iteration) {
         const auto value = checkedEvaluation(geometry,q) ;
         WidePoint a, b, c ;
         scaledColumns(value,scale,a,b) ;
@@ -281,7 +288,7 @@ namespace FVMAdapt {
         const long double objective = dot(residual,residual) ;
         if(std::sqrt(objective) <= dataAccuracy) return q ;
         bool accepted = false ;
-        for(unsigned backtrack = 0; backtrack < 48; ++backtrack) {
+        for(unsigned backtrack = 0; backtrack < maxBacktracks; ++backtrack) {
           const long double fraction = std::ldexp(1.L,-static_cast<int>(backtrack)) ;
           Point trial ;
           for(unsigned d = 0; d < 3; ++d) trial[d] = static_cast<double>(q[d]-fraction*step[d]) ;

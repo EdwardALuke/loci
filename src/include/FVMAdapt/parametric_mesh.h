@@ -45,17 +45,17 @@ namespace FVMAdapt {
     const CubicEdgeUse &operator[](std::size_t i) const { return data[i] ; }
   } ;
   /// Empty for maps other than cubic tet, prism, pyramid and hex source geometry.
-  CubicEdgeView parametricCubicEdges(const GeometryMap &) ;
+  CubicEdgeView parametricCubicEdges(const GeometryMap &geometry) ;
   /// Construct a cubic standard volume; return null when every edge is straight.
-  std::shared_ptr<const GeometryMap> parametricCubicGeometry(const CellTopology &,const std::vector<Point> &,
-      const ParametricEdgeControls &) ;
+  std::shared_ptr<const GeometryMap> parametricCubicGeometry(const CellTopology &topology,const std::vector<Point> &corners,
+      const ParametricEdgeControls &controls) ;
   /// Accepted canonical controls; exactly linear edges have empty rows.
-  ParametricEdgeControls parametricSourceEdgeControls(const CellTopology &,const GeometryMap &) ;
+  ParametricEdgeControls parametricSourceEdgeControls(const CellTopology &topology,const GeometryMap &geometry) ;
   /// Check original corners, supplied controls and source validity; omitted controls retain saved curves.
-  void checkParametricSource(const CellTopology &,const std::vector<Point> &,const GeometryMap &,
+  void checkParametricSource(const CellTopology &topology,const std::vector<Point> &corners,const GeometryMap &geometry,
       const ParametricEdgeControls &controls = {},JacobianCheckLimits limits = {}) ;
   /// Compare complete accepted corner or cubic source geometry in reference order.
-  bool sameParametricSource(const GeometryMap &,const GeometryMap &) ;
+  bool sameParametricSource(const GeometryMap &first,const GeometryMap &second) ;
 
   /// Neighbor contacts that require a bounded difference in refinement depth.
   enum class NeighborGrading { faces, edges, vertices } ;
@@ -64,7 +64,7 @@ namespace FVMAdapt {
   HistoryLimits parametricHistoryLimits(int maxDepth, int maxNodes) ;
   /// Serialize accepted geometry and retained native split constructions.
   std::vector<unsigned char> encodeParametricHistory(const AffineSubdivision &history) ;
-  /// Restore the accepted history without reconstructing its split geometry.
+  /// Restore and validate accepted native placements and source geometry.
   AffineSubdivision decodeParametricHistory(const std::vector<unsigned char> &record, HistoryLimits limits = {}) ;
   /// Build or load a native cell, verifying its original geometry and identity.
   AffineSubdivision makeParametricHistory(const CellTopology &topology, const std::vector<Point> &corners,
@@ -110,9 +110,9 @@ namespace FVMAdapt {
   } ;
   /// Active leaf faces covered by multiple neighboring pieces, locally or across an original face.
   /// When requested, also identify the directions divided on each face.
-  std::vector<FaceBalanceRequest> parametricDividedFaces(const CellTopology &, const AffineSubdivision &, bool directions = false) ;
-  std::vector<FaceBalanceRequest> parametricDividedFaces(EntityId, const CellTopology &, const AffineSubdivision &,
-      const CellTopology &, const AffineSubdivision &, bool directions = false) ;
+  std::vector<FaceBalanceRequest> parametricDividedFaces(const CellTopology &topology, const AffineSubdivision &history, bool directions = false) ;
+  std::vector<FaceBalanceRequest> parametricDividedFaces(EntityId face, const CellTopology &leftTopology, const AffineSubdivision &leftHistory,
+      const CellTopology &rightTopology, const AffineSubdivision &rightHistory, bool directions = false) ;
 
   /// An emitted polygon, oriented from left to right; cell indices use history().leafIds().
   /// right == -1 denotes an original boundary; the caller supplies its boundary tag.

@@ -68,8 +68,9 @@ $type parametricQualityReport param<Loci::FVMAdapt::MeshQualityReport> ;
 $type parametricError store<std::string> ;
 /// Accepted history after grading, or the preceding history if any rank rejects.
 $type balancedParametricHistory store<Loci::FVMAdapt::ParametricRecord> ;
-/// Previous leaf index for refinement/unchanged cells; -1 for a merge. Entries are in ParametricCell::leafIds() order.
+/// Single donor leaf index for refinement/unchanged cells; -1 for a merge. Entries are in output leaf order.
+/// Indices refer to the selected donor history; the input history is used by default.
 $type parametricParentLeaf store<std::vector<int> > ;
 
-/// Immediate old leaf indices contributing to each output leaf, including complete sibling merges.
+/// Selected donor-history leaf indices contributing to each output leaf, including complete sibling merges.
 $type parametricDonorLeaves store<std::vector<std::vector<int>> > ;

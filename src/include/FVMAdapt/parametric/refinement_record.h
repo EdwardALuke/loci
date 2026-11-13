@@ -48,7 +48,7 @@ namespace FVMAdapt {
   GeometryStore decodeGeometry(const std::vector<unsigned char> &record,
                                const RecordLimits &limits = {}) ;
 
-  /// Version 6 stores accepted native, mapped, planar and general geometry with selections.
+  /// Versioned accepted geometry, constructions and current selections.
   /// Local node/map IDs may change on decode; persistent cell keys do not.
   std::vector<unsigned char> encodeRefinement(const RefinementHistory &history,
                                              const RecordLimits &limits = {}) ;

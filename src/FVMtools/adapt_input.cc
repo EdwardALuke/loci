@@ -8,6 +8,8 @@
 
 namespace FVMTools {
 namespace {
+  constexpr int isotropicMode=2 ;
+
   int integer(const std::string &value) {
     std::size_t used=0 ; const int result=std::stoi(value,&used) ;
     if(used!=value.size()) throw std::invalid_argument("expected an integer: "+value) ;
@@ -18,11 +20,29 @@ namespace {
     if(used!=value.size() || !std::isfinite(result)) throw std::invalid_argument("expected a finite number: "+value) ;
     return result ;
   }
-  void mode(Loci::RefinementOptions &o,int value) {
-    o.automaticSplit=value==0 ; o.extrusionAxis=value==1 ? 2:-1 ;
-    o.splitFamily=value==0 ? "native":value==1 ? "extruded":"corner" ;
-    o.centerMethod=value==0 ? "reference":"weighted" ;
-    if(value<0 || value>2) throw std::invalid_argument("-mode must be 0, 1 or 2") ;
+  void applyMode(Loci::RefinementOptions &options,int value) {
+    switch(value) {
+    case 0:
+      options.automaticSplit=true ;
+      options.extrusionAxis=-1 ;
+      options.splitFamily="native" ;
+      options.centerMethod="reference" ;
+      break ;
+    case 1:
+      options.automaticSplit=false ;
+      options.extrusionAxis=2 ;
+      options.splitFamily="extruded" ;
+      options.centerMethod="weighted" ;
+      break ;
+    case isotropicMode:
+      options.automaticSplit=false ;
+      options.extrusionAxis=-1 ;
+      options.splitFamily="corner" ;
+      options.centerMethod="weighted" ;
+      break ;
+    default:
+      throw std::invalid_argument("-mode must be 0, 1 or 2") ;
+    }
   }
 }
 
@@ -55,10 +75,11 @@ namespace {
     int inputs=0 ; for(const char *key:{"-ctag","-tag","-xml","-par"}) inputs+=args.count(key) ;
     if(inputs!=1) throw std::invalid_argument("choose one of -ctag, -tag, -xml or -par") ;
     namespace F=Loci::FVMAdapt ; AdaptInput input ;
-    auto &state=input.state ; auto &options=input.options ; mode(options,2) ;
+    auto &state=input.state ; auto &options=input.options ;
+    applyMode(options,isotropicMode) ;
     input.mesh=args.at("-g") ; std::string error ;
     if(args.count("-r") && !F::readParametricPlan(args.at("-r"),args.at("-g"),state,options,error)) throw std::runtime_error(error) ;
-    if(args.count("-mode")) mode(options,integer(args.at("-mode"))) ;
+    if(args.count("-mode")) applyMode(options,integer(args.at("-mode"))) ;
     if(args.count("-family")) {
       options.splitFamily=args.at("-family") ; options.automaticSplit=false ;
       options.centerMethod=(options.splitFamily=="native" || options.splitFamily=="mixed") ? "reference":"weighted" ;

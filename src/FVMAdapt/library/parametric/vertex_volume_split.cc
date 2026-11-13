@@ -166,19 +166,12 @@ namespace FVMAdapt {
         element.vertexCount+element.edgeCount+faceIndex(element,vertex,b,c)}} ;
     }
 
-    const std::vector<std::array<unsigned,8>> &childPattern(Shape shape) {
-      const auto build = [](Shape shape) {
-        const auto &element = referenceElement(shape) ; std::vector<std::array<unsigned,8>> result ;
-        for(unsigned v = 0; v < element.vertexCount; ++v) result.push_back(childVertices(element,v)) ;
-        return result ;
-      } ;
-      switch(shape) {
-      case Shape::hex: { static const auto value = build(Shape::hex) ; return value ; }
-      case Shape::prism: { static const auto value = build(Shape::prism) ; return value ; }
-      case Shape::tet: { static const auto value = build(Shape::tet) ; return value ; }
-      default: throw std::invalid_argument("vertex volume subdivision requires a hex, prism or tet") ;
-      }
-    }
+    // Connectivity depends only on the parent shape, not on the accepted centers.
+    struct VertexPattern {
+      std::vector<std::array<unsigned,8>> children ;
+      std::vector<InternalFace> internalFaces ;
+      std::vector<VertexVolumeBoundary> boundaryPieces ;
+    } ;
 
     FaceCorners sorted(FaceCorners corners) {
       std::sort(corners.begin(),corners.end()) ; return corners ;
@@ -193,8 +186,8 @@ namespace FVMAdapt {
       throw std::logic_error("vertex volume face orientation") ;
     }
 
-    void connect(VertexVolumeSplit &result) {
-      const auto &parent = referenceElement(result.shape) ;
+    void connect(Shape shape, VertexPattern &result) {
+      const auto &parent = referenceElement(shape) ;
       const auto &hex = referenceElement(Shape::hex) ;
       struct OuterFace { unsigned boundary, corner ; FaceCorners vertices ; } ;
       struct InnerFace { FaceUse face ; FaceCorners vertices ; } ;
@@ -214,7 +207,7 @@ namespace FVMAdapt {
       for(unsigned c = 0; c < result.children.size(); ++c)
         for(unsigned b = 0; b < hex.boundaryCount; ++b) {
           FaceCorners corners ;
-          for(unsigned v = 0; v < 4; ++v) corners[v] = result.children[c].vertices[hex.boundaries[b].vertices[v]] ;
+          for(unsigned v = 0; v < 4; ++v) corners[v] = result.children[c][hex.boundaries[b].vertices[v]] ;
           const auto key = sorted(corners) ;
           const auto outer = boundary.find(key) ;
           if(outer != boundary.end()) {
@@ -234,6 +227,21 @@ namespace FVMAdapt {
           }
         }
       if(!pending.empty() || !boundary.empty()) throw std::logic_error("vertex volume incomplete boundary partition") ;
+    }
+
+    const VertexPattern &childPattern(Shape shape) {
+      const auto build = [](Shape shape) {
+        const auto &element = referenceElement(shape) ; VertexPattern result ;
+        for(unsigned v = 0; v < element.vertexCount; ++v) result.children.push_back(childVertices(element,v)) ;
+        connect(shape,result) ;
+        return result ;
+      } ;
+      switch(shape) {
+      case Shape::hex: { static const auto value = build(Shape::hex) ; return value ; }
+      case Shape::prism: { static const auto value = build(Shape::prism) ; return value ; }
+      case Shape::tet: { static const auto value = build(Shape::tet) ; return value ; }
+      default: throw std::invalid_argument("vertex volume subdivision requires a hex, prism or tet") ;
+      }
     }
 
     std::vector<Point> splitPoints(Shape shape, const std::vector<Point> &faceCenters,
@@ -264,19 +272,21 @@ namespace FVMAdapt {
                                      const Point &cellCenter, JacobianCheckLimits limits) {
     VertexVolumeSplit result ; result.shape = shape ;
     result.points = splitPoints(shape,faceCenters,cellCenter,limits) ;
-    for(const auto &vertices: childPattern(shape)) {
+    const auto &pattern=childPattern(shape) ;
+    for(const auto &vertices: pattern.children) {
       std::vector<Point> corners ; for(unsigned vertex: vertices) corners.push_back(result.points[vertex]) ;
       certifyChildJacobian(corners,limits) ;
       result.children.push_back({vertices,std::make_shared<CornerMap>(Shape::hex,std::move(corners))}) ;
     }
-    connect(result) ; return result ;
+    result.internalFaces=pattern.internalFaces ; result.boundaryPieces=pattern.boundaryPieces ;
+    return result ;
   }
 
   void validateVertexVolumeSplit(Shape shape, const std::vector<Point> &faceCenters,
                                  const Point &cellCenter, JacobianCheckLimits limits) {
     const auto points = splitPoints(shape,faceCenters,cellCenter,limits) ;
     std::vector<Point> corners(8) ;
-    for(const auto &vertices: childPattern(shape)) {
+    for(const auto &vertices: childPattern(shape).children) {
       for(unsigned v = 0; v < 8; ++v) corners[v] = points[vertices[v]] ;
       certifyChildJacobian(corners,limits) ;
     }
@@ -322,15 +332,17 @@ namespace FVMAdapt {
         shape == Shape::prism ? center[0]+center[1] >= 1 : center[0]+center[1]+center[2] >= 1))
       throw std::invalid_argument("accepted vertex volume center is outside its cell") ;
     VertexVolumeSplit result ; result.shape=shape ; result.points=std::move(points) ;
+    const auto &pattern=childPattern(shape) ;
     for(unsigned ordinal=0; ordinal<children.size(); ++ordinal) {
-      if(children[ordinal] != childPattern(shape)[ordinal])
+      if(children[ordinal] != pattern.children[ordinal])
         throw std::invalid_argument("accepted vertex volume child has invalid corner incidence") ;
       std::vector<Point> corners ;
       for(unsigned vertex : children[ordinal]) corners.push_back(result.points[vertex]) ;
       certifyChildJacobian(corners,limits) ;
       result.children.push_back({children[ordinal],std::make_shared<CornerMap>(Shape::hex,std::move(corners))}) ;
     }
-    connect(result) ; return result ;
+    result.internalFaces=pattern.internalFaces ; result.boundaryPieces=pattern.boundaryPieces ;
+    return result ;
   }
 
   CornerMap quadChildMap(unsigned corner,const Point &center) {

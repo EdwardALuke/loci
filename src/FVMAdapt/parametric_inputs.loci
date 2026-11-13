@@ -92,6 +92,7 @@ $rule default(parametricCubicGeometryInput) {
   $*parametricCubicGeometryInput.set_entitySet(~EMPTY) ; $parametricCubicGeometryInput=0 ;
 }
 
+/// Import file-order rows collectively, then redistribute them to local mesh nodes.
 $rule pointwise(parametricGeometryRows,parametricGeometryRowError <- parametricCubicGeometryInput,fileNumber(pos)),
   constraint(pos), option(disable_threading), prelude {
   const entitySet nodes=entitySet(seq) ;
@@ -106,14 +107,15 @@ $rule pointwise(parametricGeometryRows,parametricGeometryRowError <- parametricC
     int bad=0,anyBad=0,localMaximum=-1,globalMaximum=-1 ;
     for(int node:nodes) localMaximum=std::max(localMaximum,$fileNumber(pos)[node]) ;
     MPI_Allreduce(&localMaximum,&globalMaximum,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
-    int range[3]={0,-1,0} ;
+    // Each rank contributes its first file node, last file node and node count.
+    int localFileRange[3]={0,-1,0} ;
     try {
       if(Loci::NPTR<Loci::storeRepI<std::vector<Loci::CubicEdgeInput>>>((*$parametricCubicGeometryInput)->getRep())==0)
         throw std::invalid_argument("cubic geometry input has the wrong store type") ;
       input=*$parametricCubicGeometryInput ; const auto domain=input.domain() ;
       if(domain!=EMPTY) {
-        range[0]=domain.Min() ; range[1]=domain.Max() ; range[2]=domain.size() ;
-        if(range[0]<0 || static_cast<long long>(range[1])-range[0]+1!=range[2]) bad=1 ;
+        localFileRange[0]=domain.Min() ; localFileRange[1]=domain.Max() ; localFileRange[2]=domain.size() ;
+        if(localFileRange[0]<0 || static_cast<long long>(localFileRange[1])-localFileRange[0]+1!=localFileRange[2]) bad=1 ;
       }
       for(int node:domain) {
         std::set<int> endpoints ;
@@ -124,12 +126,12 @@ $rule pointwise(parametricGeometryRows,parametricGeometryRowError <- parametricC
         }
       }
     } catch(const std::exception &) { bad=1 ; }
-    std::vector<int> ranges(3*Loci::MPI_processes) ;
-    MPI_Allgather(range,3,MPI_INT,ranges.data(),3,MPI_INT,MPI_COMM_WORLD) ;
+    std::vector<int> fileRanges(3*Loci::MPI_processes) ;
+    MPI_Allgather(localFileRange,3,MPI_INT,fileRanges.data(),3,MPI_INT,MPI_COMM_WORLD) ;
     long long next=0 ;
-    for(int rank=0;rank<Loci::MPI_processes;++rank) if(ranges[3*rank+2]) {
-      if(ranges[3*rank]!=next) bad=1 ;
-      next=static_cast<long long>(ranges[3*rank+1])+1 ;
+    for(int rank=0;rank<Loci::MPI_processes;++rank) if(fileRanges[3*rank+2]) {
+      if(fileRanges[3*rank]!=next) bad=1 ;
+      next=static_cast<long long>(fileRanges[3*rank+1])+1 ;
     }
     if(next!=static_cast<long long>(globalMaximum)+1) bad=1 ;
     MPI_Allreduce(&bad,&anyBad,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
@@ -248,7 +250,7 @@ $rule unit(parametricSourceEdgeGeometry), constraint(edge2node->pos) {
   $parametricSourceEdgeGeometry=P::EdgeGeometryData() ;
 }
 $rule apply((lower,upper,boundary_map)->face2edge->parametricSourceEdgeGeometry <- initialParametricCell,parametricInitialError,parametricTopology,
-  (lower,upper,boundary_map)->face2edge->fileNumber(edge2node))[ParametricFaceUnion], constraint(geom_cells) {
+  (lower,upper,boundary_map)->face2edge->fileNumber(edge2node))[ParametricMerge], constraint(geom_cells) {
   if(!$parametricInitialError.empty()) return ;
   std::map<P::EntityId,P::EdgeGeometryData> curves ; bool failed=false ;
   try {
