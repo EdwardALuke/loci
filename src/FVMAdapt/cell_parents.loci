@@ -73,6 +73,15 @@ $type parametricParentHistoryInput blackbox<Loci::storeRepP> ;
 $type parametricParentHistory store<Loci::FVMAdapt::ParametricRecord> ;
 $type parametricParentError store<std::string> ;
 
+/// Validated donor cells supplied by an earlier initialization query.
+$type preparedParametricDonorCell store<Loci::FVMAdapt::ParametricCellData> ;
+
+$rule pointwise(prepared::priority::plan::parametricDonorCell,prepared::priority::plan::parametricParentError <- preparedParametricDonorCell),
+  constraint(geom_cells) {
+  $parametricDonorCell=$preparedParametricDonorCell ;
+  $parametricParentError.clear() ;
+}
+
 $rule pointwise(parametricDonorCell,parametricParentError <- initialParametricCell), constraint(geom_cells) {
   $parametricDonorCell=$initialParametricCell ; $parametricParentError.clear() ;
 }
@@ -207,7 +216,7 @@ constraint(geom_cells), option(disable_threading), prelude {
 //-----------------------------------------------------------------------------
 
 $rule pointwise(cell2parent <- balanced_cell_offset,
-parent_cell_offset, indexMap), constraint(geom_cells) {
+parent_cell_offset, indexMap), conditional(parametricAccepted), constraint(geom_cells) {
   vector<pair<int32, int32> > c2p($indexMap.size()) ;
 
   for(unsigned int i=0; i<$indexMap.size(); i++) {
@@ -223,7 +232,7 @@ parent_cell_offset, indexMap), constraint(geom_cells) {
 //-----------------------------------------------------------------------------
 
 $rule pointwise(cell2parent_output <- cell2parent_file_par, cell2parent),
-constraint(geom_cells), option(disable_threading), prelude {
+conditional(parametricAccepted), constraint(geom_cells), option(disable_threading), prelude {
   std::ofstream outFile ;
   int nprocs = Loci::MPI_processes ;
 
@@ -311,27 +320,27 @@ constraint(geom_cells), option(disable_threading), prelude {
   }
 } ;
 
-$rule pointwise(cell2parent_DB <- cell2parent), constraint(geom_cells),
+/// File-numbered donor pairs, retained until the caller publishes the accepted mesh.
+$type cell2parentData blackbox<Loci::storeRepP> ;
+
+$rule blackbox(cell2parentData <- cell2parent), conditional(parametricAccepted), constraint(geom_cells),
 option(disable_threading), prelude {
-  entitySet dom = entitySet(seq) ;
-  int cnt = 0 ;
-  FORALL(dom, cc) {
-    cnt += $cell2parent[cc].size() ;
-  }ENDFORALL ;
+  const auto dist=Loci::exec_current_fact_db->get_distribute_info() ;
+  entitySet cells=$cell2parent.domain() ;
+  if(dist!=0) cells &= dist->my_entities ;
 
-  store<pair<int,int> > c2pset ;
-  entitySet domset = EMPTY ;
-  if(cnt > 0)
-    domset = interval(0,cnt-1) ;
-  c2pset.allocate(domset) ;
+  int count=0 ;
+  for(int cell:cells) count+=$cell2parent[cell].size() ;
+  store<pair<int,int>> pairs ;
+  pairs.allocate(count ? entitySet(interval(0,count-1)) : EMPTY) ;
 
-  cnt = 0 ;
-  FORALL(dom, cc) {
-    for(unsigned int i=0; i<$cell2parent[cc].size(); i++) {
-      c2pset[cnt] = $cell2parent[cc][i] ;
-      cnt++ ;
-    }
-  } ENDFORALL ;
+  int row=0 ;
+  for(int cell:cells)
+    for(const auto &pair:$cell2parent[cell]) pairs[row++]=pair ;
+  *$cell2parentData=pairs.Rep() ;
+} ;
 
-  Loci::DataXFER_DB.insertItem("c2p",c2pset.Rep()) ;
+$rule pointwise(cell2parent_DB <- cell2parentData), conditional(parametricAccepted), constraint(geom_cells),
+option(disable_threading), prelude {
+  Loci::DataXFER_DB.insertItem("c2p",*$cell2parentData) ;
 } ;

@@ -11,11 +11,17 @@ namespace FVMTools {
     Loci::RefinementOptions options ;
     Loci::RefinementState state ;
   } ;
+
   /// Parse requests and restore controls from -r before applying command-line overrides.
   AdaptInput readAdaptInput(int argc,char **argv,bool meshOutput) ;
+
   /// Apply the shared optional quality controls after reading a saved plan.
   void applyQualityOptions(const std::map<std::string,std::string> &,Loci::RefinementOptions &) ;
+
+  /// Print quality controls on rank zero.
   void showQualityHelp() ;
+
+  /// Print marker or refine usage on rank zero.
   void showAdaptHelp(bool meshOutput) ;
 }
 #endif

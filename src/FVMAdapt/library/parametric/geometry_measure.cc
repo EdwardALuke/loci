@@ -34,18 +34,23 @@ namespace FVMAdapt {
 
     using WidePoint = std::array<long double,3> ;
 
+    /// Compensated accumulation for measures and first moments.
     struct Sum {
       long double value = 0, correction = 0 ;
+
+      /// Accumulate a term while retaining the rounding residual.
       void add(long double term) {
         const long double next = value+term ;
         correction += std::abs(value) >= std::abs(term) ? (value-next)+term : (term-next)+value ;
         value = next ;
       }
+
       long double total() const { return value+correction ; }
     } ;
 
     struct GaussPoint { long double coordinate, weight ; } ;
 
+    /// Construct Gaussian quadrature nodes and weights on the unit interval.
     std::vector<GaussPoint> makeGaussRule(unsigned order) {
       std::vector<GaussPoint> rule(order) ;
       const long double pi = std::acos(-1.L) ;
@@ -71,6 +76,7 @@ namespace FVMAdapt {
       return rule ;
     }
 
+    /// Use an immutable common-order rule or fill caller-owned storage.
     const std::vector<GaussPoint> &gaussRule(unsigned order,std::vector<GaussPoint> &work) {
       // Common orders share immutable tables; other orders use local storage.
       static const auto tables=[]() {
@@ -108,6 +114,7 @@ namespace FVMAdapt {
       WidePoint moment{{0,0,0}} ;
     } ;
 
+    /// Integrate positive measure and first moments relative to a shared origin.
     Integral integrate(Shape shape, const std::function<detail::MeasureSample(const Point&)> &sample,
                        const std::vector<GaussPoint> &rule,
                        unsigned dimension, Point &origin, bool &hasOrigin, long double &size) {
@@ -144,12 +151,14 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Require a finite representable result before narrowing to double.
     double checkedDouble(long double value) {
       if(!std::isfinite(value) || std::abs(value) > std::numeric_limits<double>::max())
         throw std::overflow_error("geometry measure result is unrepresentable") ;
       return static_cast<double>(value) ;
     }
 
+    /// Integrate the cone's radial coordinate analytically at one base sample.
     detail::MeasureSample coneSample(const ConeMap &cone,const Point &q) {
       const auto base=cone.base()->evaluate(q) ;
       if(!base.hasJacobian) throw std::invalid_argument("cone measure requires surface derivatives") ;
@@ -163,6 +172,7 @@ namespace FVMAdapt {
       return {centroid,(normal[0]*height[0]+normal[1]*height[1]+normal[2]*height[2])/3} ;
     }
 
+    /// Compute physical position and length, area or signed-volume density.
     detail::MeasureSample mapSample(const GeometryMap &geometry,const Point &q,unsigned dimension) {
       const auto value=geometry.evaluate(q) ;
       if(!value.hasJacobian) throw std::invalid_argument("geometry measure requires derivatives") ;
@@ -185,6 +195,8 @@ namespace FVMAdapt {
     struct MeasureDomain {
       Shape shape=Shape::point ;
       std::vector<std::function<detail::MeasureSample(const Point&)>> samples ;
+
+      /// Select smooth reference domains that support adaptive bisection.
       bool prepare(std::shared_ptr<const GeometryMap> map) {
         if(const auto *cone=dynamic_cast<const ConeMap *>(map.get())) {
           if(hasSurfacePieces(*cone->base())) return false ;
@@ -206,12 +218,16 @@ namespace FVMAdapt {
     struct MeasureTotals {
       Sum measure,measureError,momentError ; std::array<Sum,3> moment ;
       unsigned unknownMeasure=0,unknownMoment=0 ;
+
+      /// Add or remove a panel's measure, moments and error estimates.
       void add(const Estimate &value,int sign=1) {
         measure.add(sign*value.measure) ;
         for(unsigned d=0;d<3;++d) moment[d].add(sign*value.moment[d]) ;
         if(std::isfinite(value.measureError)) measureError.add(sign*value.measureError) ; else unknownMeasure+=sign ;
         if(std::isfinite(value.momentError)) momentError.add(sign*value.momentError) ; else unknownMoment+=sign ;
       }
+
+      /// Convert accumulated moments to a centroid and check the requested tolerances.
       void finish(GeometryMeasure &result,const detail::MeasureScale &scale,MeasureOptions options) const {
         const auto volume=measure.total() ;
         result.measure=checkedDouble(volume) ;
@@ -233,36 +249,50 @@ namespace FVMAdapt {
     struct MeasurePanel {
       Estimate value ;
       std::size_t source=0,serial=0 ; // Source piece and stable queue order.
-      unsigned interval=0 ;
-      long double priority=0 ;
-      bool expanded=false ;
+      unsigned sampleIndex=0 ; ///< Index in MeasureDomain::samples.
+      long double priority=0 ; ///< Largest measure/moment error contribution relative to its tolerance.
+      bool expanded=false ; ///< True for a prepared region; false for the initial whole-piece estimate.
       std::array<Point,3> vertices{{{{0,0,0}},{{1,0,0}},{{0,1,0}}}} ;
+
+      /// Order panels so the largest estimated error is processed first.
       bool operator<(const MeasurePanel &other) const {
         return priority<other.priority || (priority==other.priority && serial>other.serial) ;
       }
     } ;
 
+    /// Divide a reference panel into two nonempty children.
     bool bisectPanel(const MeasurePanel &parent,Shape shape,std::array<MeasurePanel,2> &children) {
-      children={{parent,parent}} ; const auto &p=parent.vertices ;
-      unsigned edge=0 ; long double longest=-1 ;
+      children={{parent,parent}} ;
+      const auto &p=parent.vertices ;
+      unsigned edge=0 ;
+      long double longest=-1 ;
       const unsigned count=shape==Shape::triangle ? 3:shape==Shape::quad ? 2:1 ;
       for(unsigned e=0;e<count;++e) {
         const auto &a=p[shape==Shape::triangle ? e:0],&b=p[shape==Shape::triangle ? (e+1)%3:e+1] ;
-        long double length=0 ; for(unsigned d=0;d<2;++d) { const long double x=static_cast<long double>(b[d])-a[d] ; length+=x*x ; }
+        long double length=0 ;
+        for(unsigned d=0;d<2;++d) {
+          const long double x=static_cast<long double>(b[d])-a[d] ;
+          length+=x*x ;
+        }
         if(length>longest) { longest=length ; edge=e ; }
       }
       const auto &a=p[shape==Shape::triangle ? edge:0],&b=p[shape==Shape::triangle ? (edge+1)%3:edge+1] ;
-      Point midpoint ; for(unsigned d=0;d<3;++d) midpoint[d]=(static_cast<long double>(a[d])+b[d])/2 ;
+      Point midpoint ;
+      for(unsigned d=0;d<3;++d) midpoint[d]=(static_cast<long double>(a[d])+b[d])/2 ;
       if(midpoint==a || midpoint==b) return false ;
       if(shape==Shape::triangle) {
-        const auto &c=p[(edge+2)%3] ; children[0].vertices={{a,midpoint,c}} ; children[1].vertices={{midpoint,b,c}} ;
+        const auto &c=p[(edge+2)%3] ;
+        children[0].vertices={{a,midpoint,c}} ; children[1].vertices={{midpoint,b,c}} ;
       } else {
-        const unsigned axis=edge+1 ; children[0].vertices[axis]=midpoint ; children[1].vertices[0]=midpoint ;
-        if(shape==Shape::quad) for(unsigned d=0;d<3;++d) children[1].vertices[3-axis][d]+=midpoint[d]-a[d] ;
+        const unsigned axis=edge+1 ;
+        children[0].vertices[axis]=midpoint ; children[1].vertices[0]=midpoint ;
+        if(shape==Shape::quad)
+          for(unsigned d=0;d<3;++d) children[1].vertices[3-axis][d]+=midpoint[d]-a[d] ;
       }
       return true ;
     }
 
+    /// Compare two quadrature orders to estimate a panel's measure and moment errors.
     Estimate measurePanel(const MeasurePanel &panel,const MeasureDomain &domain,const Point &origin,
                            const std::vector<GaussPoint> &lowRule,const std::vector<GaussPoint> &highRule) {
       const unsigned dimension=domain.shape==Shape::segment ? 1:2 ;
@@ -272,9 +302,13 @@ namespace FVMAdapt {
                  (static_cast<long double>(b[1])-a[1])*(static_cast<long double>(c[0])-a[0])) ;
       if(!(jacobian>0)) throw std::length_error("integration subdivision has collapsed") ;
       const auto sample=[&](const Point &q) {
-        Point p ; for(unsigned d=0;d<3;++d) p[d]=a[d]+static_cast<long double>(q[0])*(static_cast<long double>(b[d])-a[d])+
-          (dimension==2 ? static_cast<long double>(q[1])*(static_cast<long double>(c[d])-a[d]):0) ;
-        auto value=domain.samples[panel.interval](p) ; value.density*=jacobian ; return value ;
+        Point p ;
+        for(unsigned d=0;d<3;++d)
+          p[d]=a[d]+static_cast<long double>(q[0])*(static_cast<long double>(b[d])-a[d])+
+            (dimension==2 ? static_cast<long double>(q[1])*(static_cast<long double>(c[d])-a[d]):0) ;
+        auto value=domain.samples[panel.sampleIndex](p) ;
+        value.density*=jacobian ;
+        return value ;
       } ;
       Point fixedOrigin=origin ; bool hasOrigin=true ; long double size=0 ;
       const auto low=integrate(domain.shape,sample,lowRule,dimension,fixedOrigin,hasOrigin,size) ;
@@ -285,6 +319,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Integrate smooth pieces under one shared error tolerance and evaluation budget.
   GeometryMeasure detail::measureGeometryPieces(
     const std::vector<std::shared_ptr<const GeometryMap>> &pieces,MeasureOptions options,const MeasureScale *scale) {
     if(pieces.empty()) throw std::invalid_argument("piecewise measure requires at least one piece") ;
@@ -295,7 +330,9 @@ namespace FVMAdapt {
     for(double x:frame.origin) if(!std::isfinite(x)) throw std::invalid_argument("invalid integration origin") ;
     if(!std::isfinite(frame.radius) || !std::isfinite(frame.magnitude) || frame.radius<0 || frame.magnitude<0)
       throw std::invalid_argument("invalid integration scale") ;
-    GeometryMeasure result ; MeasureTotals totals ; std::vector<Estimate> estimates ;
+    GeometryMeasure result ;
+    MeasureTotals totals ;
+    std::vector<Estimate> estimates ;
     estimates.reserve(pieces.size()) ;
     for(const auto &piece:pieces) {
       if(!piece || piece->dimension()==0) throw std::invalid_argument("invalid integration piece") ;
@@ -339,37 +376,54 @@ namespace FVMAdapt {
       return std::max(value.measureError/measureTarget,momentTarget>0 ? momentError/momentTarget:
         momentError>0 ? std::numeric_limits<long double>::infinity():0.L) ;
     } ;
-    std::priority_queue<MeasurePanel> pending ; std::size_t serial=0 ;
+    std::priority_queue<MeasurePanel> pending ;
+    std::size_t serial=0 ;
     for(std::size_t i=0;i<estimates.size();++i) {
       MeasurePanel panel ; panel.value=estimates[i] ; panel.source=i ; panel.serial=serial++ ;
-      panel.priority=priority(panel.value) ; pending.push(panel) ;
+      panel.priority=priority(panel.value) ;
+      pending.push(panel) ;
     }
     std::vector<MeasureDomain> domains(pieces.size()) ;
     std::vector<GaussPoint> lowWork,highWork ;
     const auto &lowRule=gaussRule(4,lowWork),&highRule=gaussRule(8,highWork) ;
     while(!pending.empty()) {
-      auto parent=pending.top() ; pending.pop() ; auto &domain=domains[parent.source] ;
+      auto parent=pending.top() ;
+      pending.pop() ;
+      auto &domain=domains[parent.source] ;
       if(!parent.expanded && !domain.prepare(pieces[parent.source])) continue ;
       const std::size_t cost=domain.shape==Shape::segment ? 12:80 ;
       std::array<MeasurePanel,2> children ;
       const unsigned count=parent.expanded ? 2:domain.samples.size() ;
       if(count==0 || count>children.size()) throw std::logic_error("invalid integration piece count") ;
-      if(parent.expanded) { if(!bisectPanel(parent,domain.shape,children)) continue ; }
-      else for(unsigned i=0;i<count;++i) { children[i]=parent ; children[i].interval=i ; }
+
+      // Prepare the initial regions once, then bisect the largest-error region.
+      if(parent.expanded) {
+        if(!bisectPanel(parent,domain.shape,children)) continue ;
+      } else {
+        for(unsigned i=0;i<count;++i) {
+          children[i]=parent ; children[i].sampleIndex=i ;
+        }
+      }
       if(count*cost>options.maxEvaluations-result.evaluations) break ;
       for(unsigned i=0;i<count;++i) {
-        auto &child=children[i] ; child.expanded=true ; child.serial=serial++ ;
-        child.value=measurePanel(child,domain,frame.origin,lowRule,highRule) ; result.evaluations+=cost ;
+        auto &child=children[i] ;
+        child.expanded=true ; child.serial=serial++ ;
+        child.value=measurePanel(child,domain,frame.origin,lowRule,highRule) ;
+        result.evaluations+=cost ;
         child.priority=priority(child.value) ;
       }
+
+      // Replace the parent's estimate and reassess the combined error.
       totals.add(parent.value,-1) ;
       for(unsigned i=0;i<count;++i) { totals.add(children[i].value) ; pending.push(children[i]) ; }
-      result.order=std::max(result.order,8U) ; totals.finish(result,frame,options) ;
+      result.order=std::max(result.order,8U) ;
+      totals.finish(result,frame,options) ;
       if(result.converged) break ;
     }
     return result ;
   }
 
+  /// Apply one Gaussian rule with moments relative to the supplied origin.
   detail::MeasureIntegral detail::integrateGeometryRule(Shape shape,
     const std::function<MeasureSample(const Point&)> &sample, unsigned order, const Point &origin) {
     const unsigned dimension = referenceElement(shape).dimension ;
@@ -381,6 +435,7 @@ namespace FVMAdapt {
     return {value.measure,value.moment,radius} ;
   }
 
+  /// Increase quadrature order until measure and centroid estimates converge.
   GeometryMeasure detail::integrateGeometry(Shape shape,
     const std::function<MeasureSample(const Point&)> &sample, MeasureOptions options) {
     const unsigned dimension = referenceElement(shape).dimension ;
@@ -422,6 +477,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Measure a retained map, separating surface seams before integration.
   GeometryMeasure geometryMeasure(const GeometryMap &geometry, MeasureOptions options) {
     if(!std::isfinite(options.relativeTolerance) || options.relativeTolerance<=0 ||
        options.maxOrder<2 || options.maxOrder>256 || options.maxEvaluations==0)
@@ -441,6 +497,7 @@ namespace FVMAdapt {
         for(const auto &piece:smoothSurfacePieces(cone->base()).pieces) pieces.push_back(std::make_shared<ConeMap>(piece.geometry,cone->apex())) ;
         return detail::measureGeometryPieces(pieces,options) ;
       }
+
       // Integrate the linear cone direction exactly: volume weight 1/3, first moment 1/4.
       return detail::integrateGeometry(cone->base()->shape(),[&](const Point &q) { return coneSample(*cone,q) ; },options) ;
     }

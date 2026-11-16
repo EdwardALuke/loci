@@ -43,13 +43,13 @@ TEST_CASE("two isotropic levels reach every hex and prism child") {
       std::vector<Point>(element.vertices.begin(),element.vertices.begin()+element.vertexCount));
     MappedVolumeSubdivision cell(map);
     for(unsigned level=0;level<2;++level) {
-      for(auto leaf:cell.leafIds()) {
+      for(auto leaf:cell.leafIdsInCreationOrder()) {
         const auto &child=referenceElement(cell.geometry(leaf)->shape());
         std::vector<Point> centers;
         for(unsigned f=0;f<child.boundaryCount;++f) centers.push_back(center(child.boundaries[f].shape));
         cell.splitLeaf(leaf,centers,center(child.shape));
       }
-      CHECK(cell.leafIds().size()==(level ? 8u:1u)*element.vertexCount);
+      CHECK(cell.leafIdsInCreationOrder().size()==(level ? 8u:1u)*element.vertexCount);
     }
   }
 }

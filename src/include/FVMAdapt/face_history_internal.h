@@ -11,12 +11,16 @@
 namespace Loci {
   typedef std::vector<FacePatch> FacePatches ;
 
+  /// Convert patch geometry and identity to integer-word records for Loci containers.
   class FacePatchConverter {
     FacePatch& value ;
   public:
     explicit FacePatchConverter(FacePatch& v): value(v) {}
+
     int getSize() const { return 10+value.surface.size()+2*value.polygon.size() ; }
+
     void getState(long long* buffer, int& size) const ;
+
     void setState(const long long* buffer, int size) ;
   } ;
 
@@ -26,12 +30,16 @@ namespace Loci {
     typedef FacePatchConverter Converter_Type ;
   } ;
 
+  /// Convert patch lists to length-prefixed integer-word records.
   class FacePatchesConverter {
     FacePatches& value ;
   public:
     explicit FacePatchesConverter(FacePatches& v): value(v) {}
+
     int getSize() const ;
+
     void getState(long long* buffer, int& size) const ;
+
     void setState(const long long* buffer, int size) ;
   } ;
 
@@ -51,12 +59,16 @@ namespace Loci {
     FacePatch patch ;
   } ;
 
+  /// Convert face and cell identities together with their patch record.
   class HistoryFaceConverter {
     HistoryFace& value ;
   public:
     explicit HistoryFaceConverter(HistoryFace& v): value(v) {}
+
     int getSize() const { return 3+FacePatchConverter(value.patch).getSize() ; }
+
     void getState(long long* buffer, int& size) const ;
+
     void setState(const long long* buffer, int size) ;
   } ;
 
@@ -89,7 +101,7 @@ namespace Loci {
   /// Cell pairs may be distributed independently; each (new, old) pair occurs once.
   /// Rows follow local new faces; removed faces belong to their old owner.
   /// Faces must be uniquely owned. Cell IDs are nonnegative; boundary IDs are negative.
-  /// This matches topology only: no periodic transforms, mesh motion, or field reconstruction.
+  /// No periodic transforms, mesh motion, or field reconstruction.
   bool buildFaceHistory(const std::vector<HistoryFace>& previous,
                         const std::vector<HistoryFace>& next,
                         const std::vector<std::pair<CellId,CellId> >& cell2parent,
@@ -101,17 +113,23 @@ namespace Loci {
     struct Impl ;
     std::shared_ptr<Impl> impl ;
   public:
+    /// Resolve the owners of requested face IDs and retain the exchange pattern.
     bool setup(const std::vector<FaceId>& owned, const std::vector<FaceId>& needed,
                std::string& error, MPI_Comm comm) ;
+
+    /// Sorted, unique donor IDs in the order used by exchange output.
     const std::vector<FaceId>& sources() const ;
+
     /// Output follows sources(), with no duplicate donors.
     bool exchange(storeRepP input, storeRepP output, const entitySet& owned,
                   int keyspace, int width, std::string& error) const ;
   } ;
-
-
   class refinedGridData ;
+
+  /// Return the output mesh patch store, allocating it on first use.
   store<FacePatch>& recordedFacePatches(refinedGridData& grid) ;
+
+  /// Return patches already recorded on the output mesh.
   const store<FacePatch>& recordedFacePatches(const refinedGridData& grid) ;
 }
 #endif

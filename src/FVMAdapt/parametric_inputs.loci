@@ -15,22 +15,50 @@ namespace {
   namespace P = Loci::FVMAdapt ;
 }
 
+/// Validated source-cell state supplied by an earlier initialization query.
+$type preparedParametricCell store<P::ParametricCellData> ;
+$type preparedParametricHistory store<P::ParametricRecord> ;
+$type preparedParametricTopology store<std::vector<int> > ;
+
+$rule pointwise(priority::prepared::initialParametricCell,priority::prepared::initialParametricHistory,
+  priority::prepared::parametricTopology,priority::prepared::parametricInitialError <-
+  preparedParametricCell,preparedParametricHistory,preparedParametricTopology), constraint(geom_cells) {
+  $initialParametricCell=$preparedParametricCell ;
+  $initialParametricHistory=$preparedParametricHistory ;
+  $parametricTopology=$preparedParametricTopology ;
+  $parametricInitialError.clear() ;
+}
+
 $rule default(parametricMaxDepth) { $parametricMaxDepth = 10 ; }
+
 $rule default(parametricMaxNodes) { $parametricMaxNodes = 1000000 ; }
+
 $rule default(parametricLevelDifference) { $parametricLevelDifference = 1 ; }
+
 $rule default(parametricGrading) { $parametricGrading = "vertices" ; }
+
 $rule default(parametricFaceBalance) { $parametricFaceBalance = "none" ; }
+
 $rule default(parametricDirectionalBalance) { $parametricDirectionalBalance = false ; }
+
 $rule default(parametricMaxRounds) { $parametricMaxRounds = 32 ; }
+
 $rule default(parametricCenterMethod) { $parametricCenterMethod = "reference" ; }
+
 $rule default(parametricSplitFamily) { $parametricSplitFamily = "native" ; }
+
 $rule default(parametricAutomaticSplit) { $parametricAutomaticSplit = false ; }
+
 $rule default(parametricRefinementLevels) { $parametricRefinementLevels = 1 ; }
+
 $rule default(parametricSplitAspectRatio) { $parametricSplitAspectRatio = 2 ; }
+
 $rule default(parametricMinEdgeLength) { $parametricMinEdgeLength = 0 ; }
+
 $rule default(parametricExtrusionAxis) { $parametricExtrusionAxis = -1 ; }
 
 $rule default(parametricRegionFile) { $parametricRegionFile="" ; }
+
 $rule default(parametricSourceFile) { $parametricSourceFile="" ; }
 
 /// Resolve query controls and read geometric inputs once on each process; errors reject the collective proposal.
@@ -47,6 +75,7 @@ $rule blackbox(parametricControls,parametricRegion,parametricSources,parametricI
     auto &controls=*$parametricControls ; auto &refinement=controls.refinement ;
     controls.quality={ (*$parametricQualityMode), (*$parametricQualityCentroid), (*$parametricMaxNonOrthogonality),
       (*$parametricMaxFaceWarpage), (*$parametricMaxChildVolumeRatio) } ;
+    controls.quality.validate() ;
     refinement.center=P::parametricCenterMethod(*$parametricCenterMethod) ;
     refinement.levels=*$parametricRefinementLevels ; refinement.extrusionAxis=*$parametricExtrusionAxis ;
     refinement.automatic=*$parametricAutomaticSplit ; refinement.aspectRatio=*$parametricSplitAspectRatio ;
@@ -105,6 +134,11 @@ $rule pointwise(parametricGeometryRows,parametricGeometryRowError <- parametricC
   else if(maximum) {
     Loci::store<std::vector<Loci::CubicEdgeInput>> input ;
     int bad=0,anyBad=0,localMaximum=-1,globalMaximum=-1 ;
+    std::string validationError ;
+    const auto invalid=[&](const std::string &reason) {
+      bad=1 ;
+      if(validationError.empty()) validationError=reason ;
+    } ;
     for(int node:nodes) localMaximum=std::max(localMaximum,$fileNumber(pos)[node]) ;
     MPI_Allreduce(&localMaximum,&globalMaximum,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
     // Each rank contributes its first file node, last file node and node count.
@@ -115,27 +149,34 @@ $rule pointwise(parametricGeometryRows,parametricGeometryRowError <- parametricC
       input=*$parametricCubicGeometryInput ; const auto domain=input.domain() ;
       if(domain!=EMPTY) {
         localFileRange[0]=domain.Min() ; localFileRange[1]=domain.Max() ; localFileRange[2]=domain.size() ;
-        if(localFileRange[0]<0 || static_cast<long long>(localFileRange[1])-localFileRange[0]+1!=localFileRange[2]) bad=1 ;
+        if(localFileRange[0]<0 || static_cast<long long>(localFileRange[1])-localFileRange[0]+1!=localFileRange[2])
+          invalid("cubic geometry rows must use a contiguous nonnegative file range") ;
       }
       for(int node:domain) {
         std::set<int> endpoints ;
         for(const auto &edge:input[node]) {
-          if(edge.otherVertex<=node || edge.otherVertex>globalMaximum || !endpoints.insert(edge.otherVertex).second) bad=1 ;
+          if(edge.otherVertex<=node || edge.otherVertex>globalMaximum || !endpoints.insert(edge.otherVertex).second)
+            invalid("cubic geometry has an invalid or repeated higher endpoint") ;
           for(const auto &p:{edge.firstControl,edge.secondControl})
-            if(!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z)) bad=1 ;
+            if(!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
+              invalid("cubic geometry controls must be finite") ;
         }
       }
-    } catch(const std::exception &) { bad=1 ; }
+    } catch(const std::exception &error) {
+      invalid(error.what()) ;
+    }
     std::vector<int> fileRanges(3*Loci::MPI_processes) ;
     MPI_Allgather(localFileRange,3,MPI_INT,fileRanges.data(),3,MPI_INT,MPI_COMM_WORLD) ;
     long long next=0 ;
     for(int rank=0;rank<Loci::MPI_processes;++rank) if(fileRanges[3*rank+2]) {
-      if(fileRanges[3*rank]!=next) bad=1 ;
+      if(fileRanges[3*rank]!=next)
+        invalid("cubic geometry file ranges must be contiguous in rank order") ;
       next=static_cast<long long>(fileRanges[3*rank+1])+1 ;
     }
-    if(next!=static_cast<long long>(globalMaximum)+1) bad=1 ;
+    if(next!=static_cast<long long>(globalMaximum)+1)
+      invalid("cubic geometry rows must cover all original file nodes") ;
     MPI_Allreduce(&bad,&anyBad,1,MPI_INT,MPI_MAX,MPI_COMM_WORLD) ;
-    if(anyBad) error="invalid cubic geometry rows or original-node file partition" ;
+    if(anyBad) error=validationError.empty() ? "invalid cubic geometry input on another rank":validationError ;
     else {
       const auto dist=Loci::exec_current_fact_db->get_distribute_info() ;
       if(dist==0) for(int node:nodes) $parametricGeometryRows[node]=input[$fileNumber(pos)[node]] ;
@@ -163,14 +204,19 @@ $rule pointwise(parametricInputEdgeControls,parametricInputEdgeError <- edge2nod
   if(found!=rows.end() && found->otherVertex==other)
     $parametricInputEdgeControls={found->firstControl,found->secondControl} ;
 }
+
 $rule unit(parametricSuppliedGeometryPairs), constraint(UNIVERSE) { $parametricSuppliedGeometryPairs=0 ; }
+
 $rule apply(parametricSuppliedGeometryPairs <- parametricGeometryRows)[Loci::Summation], constraint(pos) {
   join($parametricSuppliedGeometryPairs,static_cast<long long>($parametricGeometryRows.size())) ;
 }
+
 $rule unit(parametricMatchedGeometryPairs), constraint(UNIVERSE) { $parametricMatchedGeometryPairs=0 ; }
+
 $rule apply(parametricMatchedGeometryPairs <- parametricInputEdgeControls)[Loci::Summation], constraint(edge2node->pos) {
   join($parametricMatchedGeometryPairs,$parametricInputEdgeControls.empty() ? 0LL:1LL) ;
 }
+
 $rule singleton(parametricGeometryPairsValid <- parametricSuppliedGeometryPairs,parametricMatchedGeometryPairs), constraint(UNIVERSE) {
   $parametricGeometryPairsValid=$parametricSuppliedGeometryPairs==$parametricMatchedGeometryPairs ;
 }
@@ -249,6 +295,7 @@ $rule pointwise(parametricTopology,initialParametricHistory,initialParametricCel
 $rule unit(parametricSourceEdgeGeometry), constraint(edge2node->pos) {
   $parametricSourceEdgeGeometry=P::EdgeGeometryData() ;
 }
+
 $rule apply((lower,upper,boundary_map)->face2edge->parametricSourceEdgeGeometry <- initialParametricCell,parametricInitialError,parametricTopology,
   (lower,upper,boundary_map)->face2edge->fileNumber(edge2node))[ParametricMerge], constraint(geom_cells) {
   if(!$parametricInitialError.empty()) return ;

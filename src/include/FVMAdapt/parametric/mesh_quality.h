@@ -50,6 +50,7 @@ namespace FVMAdapt {
   struct MeshQualityReport {
     QualityValue nonOrthogonality, faceWarpage, childVolumeRatio ;
     int invalidRoot = -1, invalidLeaf = -1, invalidFace = -1 ;
+
     bool invalid() const { return invalidRoot >= 0 ; }
     bool exceeds(const MeshQualityOptions &) const ;
     std::string description(const MeshQualityOptions &) const ;

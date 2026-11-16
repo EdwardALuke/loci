@@ -51,19 +51,27 @@ namespace FVMAdapt {
                             std::uint64_t revision, HistoryLimits limits) ;
     /// Restore accepted geometry and selections without choosing new centers.
     explicit MappedVolumeSubdivision(RefinementHistory history) ;
+
     std::size_t maxNodes() const { return history().limits().maxNodes ; }
+
     const RefinementHistory &history() const { return edit_.snapshot() ; }
+
     const std::vector<CellNode> &nodes() const { return history().nodes() ; }
+
     const CellNode &node(TreeNodeId id) const { return history().node(id) ; }
+
     NodeRange children(TreeNodeId id) const { return history().children(id) ; }
+
     /// Retained physical map, shared with the history and boundary constructions.
     std::shared_ptr<const GeometryMap> geometry(TreeNodeId id) const {
       return history().geometry().map(node(id).map) ;
     }
     /// Resolve the selected path; dormant alternatives require history().nodeId(CellKey).
     TreeNodeId nodeId(const CellPath &path) const ;
-    std::vector<TreeNodeId> leafIds() const ;
+    /// Active leaf IDs in creation order.
+    std::vector<TreeNodeId> leafIdsInCreationOrder() const ;
     CellChange coarsen(TreeNodeId parent) ;
+
     CellChange replace(TreeNodeId parent, const std::vector<Point> &faceCenters,
                        const Point &cellCenter, JacobianCheckLimits limits = {}) ;
     CellChange reactivate(TreeNodeId parent, const SplitConstruction &construction) ;
@@ -71,6 +79,7 @@ namespace FVMAdapt {
     void compact() ;
     void restoreHistory(RefinementHistory history) ;
     void swap(MappedVolumeSubdivision &other) noexcept ;
+
     /// Split one leaf using boundary-local face centers and a parent-local cell center.
     /// Invalid requests, certification failures and limits preserve the hierarchy.
     /// Child ordinal is the original vertex index; all children are hexes.

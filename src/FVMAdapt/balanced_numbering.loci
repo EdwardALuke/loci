@@ -32,6 +32,7 @@
 
 $include "FVM.lh"
 $include "fvmadapt_internal.lh"
+$include "FVMAdapt/parametric_adapt.lh"
 
 using Loci::storeRepP ;
 using std::cerr ;
@@ -65,7 +66,7 @@ namespace Loci {
 }
 
 $rule pointwise(balanced_node_offset <- balanced_num_inner_nodes,
-num_original_nodes), option(disable_threading), prelude {
+num_original_nodes), conditional(parametricAccepted), option(disable_threading), prelude {
   int num_procs = Loci::MPI_processes ;
   int my_id = Loci::MPI_rank ;
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;

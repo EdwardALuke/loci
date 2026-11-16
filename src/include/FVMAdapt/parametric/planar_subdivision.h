@@ -75,7 +75,9 @@ namespace FVMAdapt {
     std::vector<PlanarEdgeUse> edges ;
     std::shared_ptr<const GeometryMap> geometry ;
     std::vector<TreeNodeId> children ;
+
     bool isLeaf() const { return children.empty() ; }
+
     Shape shape() const { return corners.size() == 3 ? Shape::triangle : Shape::quad ; }
   } ;
 
@@ -98,9 +100,13 @@ namespace FVMAdapt {
     PlanarSubdivision(std::vector<Point> corners, std::uint64_t root, std::uint64_t revision, HistoryLimits limits) ;
     /// Restore accepted polygons without choosing new centers.
     explicit PlanarSubdivision(RefinementHistory history) ;
+
     std::size_t maxNodes() const { return history().limits().maxNodes ; }
+
     const RefinementHistory &history() const { return edit_.snapshot() ; }
+
     const std::vector<PlanarNode> &nodes() const { return nodes_ ; }
+
     const PlanarNode &node(TreeNodeId id) const { return nodes_.at(id) ; }
     /// Resolve the selected path; dormant alternatives require history().nodeId(CellKey).
     TreeNodeId nodeId(const CellPath &path) const ;
@@ -110,11 +116,13 @@ namespace FVMAdapt {
     PlanarVertexKey vertexAt(const PlanarEdgeKey &edge, Fraction position) const ;
     /// Evaluate a retained corner/center or any exact point on a retained edge support.
     Point evaluate(const PlanarVertexKey &vertex) const ;
+
     /// One quad per corner; accepted edge midpoints and center define physical child charts.
     /// Invalid requests, limits or invalid children preserve the hierarchy.
     std::vector<TreeNodeId> splitLeaf(TreeNodeId leaf, CenterMethod method = CenterMethod::weighted,
                                      MeasureOptions options = {}) ;
     CellChange coarsen(TreeNodeId parent) ;
+
     CellChange replace(TreeNodeId parent, CenterMethod method, MeasureOptions options = {}) ;
     CellChange reactivate(TreeNodeId parent, const SplitConstruction &construction) ;
     /// Discard dormant constructions; local indices may change, persistent keys do not.

@@ -9,11 +9,16 @@ namespace FVMAdapt {
     using VertexId = BoundaryId ;
     using EdgeId = BoundaryId ;
     using SurfaceId = BoundaryId ;
+
     void require(bool ok, const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
+    /// Require a supported face-center construction.
     void checkMethod(CenterMethod method) {
       require(method == CenterMethod::reference || method == CenterMethod::weighted || method == CenterMethod::integrated,
               "unknown vertex volume center policy") ;
     }
+
+    /// Find the rotation or reflection relating local and canonical face loops.
     unsigned orientation(Shape shape, const std::vector<VertexId> &local, const std::vector<VertexId> &canonical) {
       for(unsigned o = 0; o < orientationCount(shape); ++o) {
         bool match = true ;
@@ -22,6 +27,8 @@ namespace FVMAdapt {
       }
       throw std::invalid_argument("inconsistent vertex volume face incidence") ;
     }
+
+    /// Restrict a cell map to one of its reference boundaries.
     std::shared_ptr<const GeometryMap> boundaryMap(const std::shared_ptr<const GeometryMap> &map, unsigned boundary) {
       const auto &face = referenceElement(map->shape()).boundaries[boundary] ;
       const auto &element = referenceElement(face.shape) ;
@@ -30,28 +37,34 @@ namespace FVMAdapt {
       return std::make_shared<RestrictedMap>(map,std::make_shared<CornerMap>(face.shape,corners)) ;
     }
   }
+
+  /// Translate boundary options into retained-record limits.
   BoundaryRecordLimits CornerBoundary::boundaryLimits() const {
     BoundaryRecordLimits limits ; limits.maxEntities = options.maxEntities ;
     limits.maxSplits = options.maxEntities ; limits.maxBytes = options.maxSnapshotBytes ; return limits ;
   }
 
+  /// Apply boundary limits to saved geometry records.
   RecordLimits CornerBoundary::recordLimits() const {
     RecordLimits limits ; limits.maxNodes = options.maxNodes ; limits.maxSplits = options.maxNodes ;
     limits.maxBytes = options.maxSnapshotBytes ; limits.jacobian = options.jacobianLimits ;
     limits.maxDepth = HistoryLimits().maxDepth ; return limits ;
   }
 
+  /// Require room for another retained boundary entity.
   void CornerBoundary::checkEntity() const {
     const auto &b = boundaries ; const auto limit = options.maxEntities ;
     if(b.points.size() > limit || b.edges.size() > limit-b.points.size() || b.faces.size() >= limit-b.points.size()-b.edges.size())
       throw std::length_error("vertex volume shared entity limit exceeded") ;
   }
 
+  /// Retain one finite boundary point and return its stable local ID.
   BoundaryId CornerBoundary::addPoint(const Point &point) {
     checkEntity() ; for(double x: point) require(std::isfinite(x),"nonfinite vertex volume point") ;
     boundaries.points.push_back(point) ; return boundaries.points.size()-1 ;
   }
 
+  /// Retain edge endpoints and their geometry with an optional parent edge.
   BoundaryId CornerBoundary::addEdge(VertexId a, VertexId b, std::shared_ptr<const GeometryMap> geometry, EdgeId parent) {
     if(b < a) {
       std::swap(a,b) ;
@@ -63,6 +76,7 @@ namespace FVMAdapt {
     boundaries.edges.push_back({{{a,b}},map,parent,{},{}}) ; return boundaries.edges.size()-1 ;
   }
 
+  /// Retain an oriented boundary loop and its surface geometry.
   BoundaryId CornerBoundary::addSurface(std::vector<VertexId> vertices, std::vector<EdgeId> edges,
                          std::shared_ptr<const GeometryMap> geometry, int boundary,
                        BoundaryId parent, std::size_t parentSplit) {
@@ -71,6 +85,7 @@ namespace FVMAdapt {
     return boundaries.faces.size()-1 ;
   }
 
+  /// Reuse or create the midpoint and two children of a retained edge.
   BoundaryId CornerBoundary::splitEdge(EdgeId id, Transaction &transaction) {
     if(!boundaries.edges.at(id).cuts.empty()) return boundaries.edges[id].cuts.front().vertex ;
     const auto edge = boundaries.edges[id] ; const auto geometry = boundaries.geometry.map(edge.geometry) ;
@@ -87,11 +102,13 @@ namespace FVMAdapt {
     return middle ;
   }
 
+  /// Find the retained half-edge touching the requested parent endpoint.
   BoundaryId CornerBoundary::edgeSegment(EdgeId parent, VertexId endpoint) const {
     const auto &edge = boundaries.edges.at(parent) ;
     return edge.children.at(edge.vertices[0] == endpoint ? 0 : 1).edge ;
   }
 
+  /// Reuse or construct a face split with one child per boundary vertex.
   std::size_t CornerBoundary::splitSurface(SurfaceId id, CenterMethod method, const std::vector<std::size_t> &active,
       Transaction &transaction, const FaceSplitRecord *accepted) {
     const auto parent = boundaries.faces.at(id) ;
@@ -137,6 +154,7 @@ namespace FVMAdapt {
     return parent.splits.size() ;
   }
 
+  /// Append active edge vertices in the direction starting at the supplied endpoint.
   void CornerBoundary::edgeVertices(EdgeId id, VertexId start, const std::vector<bool> &split, std::vector<VertexId> &vertices) const {
     const auto &edge = boundaries.edges.at(id) ;
     if(!split[id]) { vertices.push_back(start) ; return ; }
@@ -150,6 +168,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Collect unique cell edges by their endpoint pair.
   std::map<std::pair<VertexId,VertexId>,EdgeId> CornerBoundary::cellEdges(const CornerCell &cell) const {
     std::map<std::pair<VertexId,VertexId>,EdgeId> result ;
     for(const auto use: cell.faces) for(auto edge: boundaries.faces.at(use.surface).edges) {
@@ -161,6 +180,7 @@ namespace FVMAdapt {
   }
 
 
+  /// Check retained cell boundaries against their volume subdivisions.
   void CornerBoundary::validateCells(const MappedVolumeSubdivision &subdivision, const std::vector<CornerCell> &cells) const {
     require(cells.size() == subdivision.nodes().size(),"saved cell connectivity count does not match history") ;
     for(TreeNodeId id = 0; id < cells.size(); ++id) {
@@ -190,16 +210,21 @@ namespace FVMAdapt {
     }
   }
 
+  /// Retain a mapped cell split together with its shared face and edge records.
   std::vector<TreeNodeId> CornerBoundary::splitCell(MappedVolumeSubdivision &subdivision, std::vector<CornerCell> &cells,
       TreeNodeId leaf, CenterMethod method, const std::vector<std::size_t> &active, const SplitQualityLimits &limits, SplitQuality *report) {
     return constructCell(subdivision,cells,leaf,method,active,limits,report,nullptr) ;
   }
+
+  /// Recreate retained hex boundary records for a saved volume construction.
   void CornerBoundary::restoreHexCell(MappedVolumeSubdivision &subdivision, std::vector<CornerCell> &cells,
       HexPlan::Cell leaf, const HexPlan &plan) {
     const auto split = plan.construction(leaf) ;
+
     constructCell(subdivision,cells,leaf,CenterMethod::reference,{}, {},nullptr,&split) ;
   }
 
+  /// Construct mapped children and their shared boundary records.
   std::vector<TreeNodeId> CornerBoundary::constructCell(MappedVolumeSubdivision &subdivision, std::vector<CornerCell> &cells,
       TreeNodeId leafId, CenterMethod method, const std::vector<std::size_t> &active,
       const SplitQualityLimits &limits, SplitQuality *report, const VertexVolumeSplit *accepted) {

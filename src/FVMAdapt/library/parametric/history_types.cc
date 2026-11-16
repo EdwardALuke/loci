@@ -27,10 +27,13 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
+    /// Order affine children by their shape and accepted placement.
     bool childLess(const Child &a, const Child &b) {
       return std::tie(a.shape,a.placement.origin,a.placement.columns) <
              std::tie(b.shape,b.placement.origin,b.placement.columns) ;
     }
+
+    /// Order ancestry steps by accepted construction and child ordinal.
     bool stepLess(const CellStep &a, const CellStep &b) {
       if(a.construction != b.construction) {
         if(*a.construction < *b.construction) return true ;
@@ -49,6 +52,7 @@ namespace FVMAdapt {
     return !(a < b) && !(b < a) ;
   }
 
+  /// Order constructions by accepted geometry, independent of center-method labels.
   bool operator<(const SplitConstruction &a, const SplitConstruction &b) {
     const auto first = std::tie(a.parentShape,a.family,a.version) ;
     const auto second = std::tie(b.parentShape,b.family,b.version) ;
@@ -63,6 +67,7 @@ namespace FVMAdapt {
                                         b.children.begin(),b.children.end(),childLess) ;
   }
 
+  /// Compare original-cell identity and the complete accepted ancestry.
   bool operator==(const CellKey &a, const CellKey &b) {
     return a.root == b.root && a.lineage.size() == b.lineage.size() &&
       std::equal(a.lineage.begin(),a.lineage.end(),b.lineage.begin(),
@@ -74,6 +79,7 @@ namespace FVMAdapt {
 
   bool operator!=(const CellKey &a, const CellKey &b) { return !(a == b) ; }
 
+  /// Order persistent cell keys by original cell and accepted ancestry.
   bool operator<(const CellKey &a, const CellKey &b) {
     if(a.root != b.root) return a.root < b.root ;
     return std::lexicographical_compare(a.lineage.begin(),a.lineage.end(),

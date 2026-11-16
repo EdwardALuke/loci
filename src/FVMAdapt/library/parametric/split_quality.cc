@@ -31,13 +31,17 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
 
+    /// Compensated accumulation for child measures and moments.
     struct Sum {
       long double value = 0, correction = 0 ;
+
+      /// Accumulate a term while retaining its rounding correction.
       void add(long double term) {
         const long double next = value+term ;
         correction += std::abs(value) >= std::abs(term) ? (value-next)+term : (term-next)+value ;
         value = next ;
       }
+
       long double total() const { return value+correction ; }
     } ;
 
@@ -45,6 +49,7 @@ namespace FVMAdapt {
       return parent ? "parent" : "child "+std::to_string(child) ;
     }
 
+    /// Retain the first geometry failure, giving invalid geometry precedence over uncertainty.
     void problem(SplitQuality &report, GeometryQualityStatus status, bool parent, std::size_t child,
                  const std::string &reason) {
       if(report.status == GeometryQualityStatus::sampled ||
@@ -54,6 +59,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Measure one mapped cell and record any invalid or unresolved geometry.
     ChildQuality assess(const GeometryMap &map, const SplitQualityOptions &options, SplitQuality &report,
                         bool parent, std::size_t child) {
       ChildQuality result ;
@@ -80,12 +86,14 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Convert a finite diagnostic value without overflowing double precision.
     double finiteDouble(long double value) {
       if(!std::isfinite(value) || std::abs(value) > std::numeric_limits<double>::max())
         throw std::overflow_error("split consistency diagnostic is unrepresentable") ;
       return static_cast<double>(value) ;
     }
 
+    /// Compare summed child measures and moments with the parent.
     void consistency(SplitQuality &report, unsigned dimension) {
       if(!report.parent.measure.converged) return ;
       Sum weight ;
@@ -105,6 +113,7 @@ namespace FVMAdapt {
       report.measuresResolved = true ;
     }
 
+    /// Require complete, finite geometry and measure assessments.
     void requireComplete(const ChildQuality &cell, const std::string &name) {
       const auto &quality = cell.quality ;
       if(cell.validity != GeometryValidity::valid) {
@@ -125,6 +134,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Assess parent and child geometry and compare their integrated measures.
   SplitQuality splitQuality(const GeometryMap &parent, const std::vector<std::shared_ptr<const GeometryMap>> &children,
                             const SplitQualityOptions &options) {
     const unsigned dimension = referenceElement(parent.shape()).dimension ;
@@ -156,6 +166,7 @@ namespace FVMAdapt {
     return report ;
   }
 
+  /// Reject unresolved geometry or quality values outside the supplied limits.
   void requireSplitQuality(const SplitQuality &report, const SplitQualityLimits &limits) {
     if(!std::isfinite(limits.minScaledJacobian) || limits.minScaledJacobian < 0 || limits.minScaledJacobian > 1 ||
        !std::isfinite(limits.maxAlignment) || limits.maxAlignment < 0 || limits.maxAlignment > 1 ||

@@ -30,6 +30,7 @@ namespace Loci {
 namespace FVMAdapt {
 
   namespace {
+    /// Retain the original volume map as an unsplit cell history.
     RefinementHistory initialHistory(std::shared_ptr<const GeometryMap> map, std::uint64_t root,
                                      std::uint64_t revision, HistoryLimits limits) {
       if(!map || (map->shape() != Shape::hex && map->shape() != Shape::prism && map->shape() != Shape::tet))
@@ -37,6 +38,7 @@ namespace FVMAdapt {
       GeometryStore geometry(limits.geometry) ; const auto rootMap = geometry.capture(std::move(map)) ;
       return RefinementHistory(root,std::move(geometry),rootMap,revision,limits) ;
     }
+
     HistoryLimits nodeLimit(std::size_t maxNodes) {
       HistoryLimits limits ; limits.maxNodes=maxNodes ; return limits ;
     }
@@ -49,6 +51,7 @@ namespace FVMAdapt {
                                                    std::uint64_t revision, HistoryLimits limits)
     : MappedVolumeSubdivision(initialHistory(std::move(geometry),root,revision,limits)) {}
 
+  /// Require retained vertex-volume constructions before adopting the history.
   MappedVolumeSubdivision::MappedVolumeSubdivision(RefinementHistory history) : edit_(std::move(history)) {
     const auto &saved = this->history() ;
     const Shape shape = saved.geometry().map(saved.node(0).map)->shape() ;
@@ -59,6 +62,7 @@ namespace FVMAdapt {
         throw std::invalid_argument("mapped-volume subdivision requires vertex-volume constructions") ;
   }
 
+  /// Follow child ordinals through the selected constructions.
   TreeNodeId MappedVolumeSubdivision::nodeId(const CellPath &path) const {
     TreeNodeId id = 0 ;
     for(unsigned ordinal : path) {
@@ -69,10 +73,12 @@ namespace FVMAdapt {
     return id ;
   }
 
-  std::vector<TreeNodeId> MappedVolumeSubdivision::leafIds() const {
+  /// List active leaf IDs in ascending node order.
+  std::vector<TreeNodeId> MappedVolumeSubdivision::leafIdsInCreationOrder() const {
     auto result = history().leafIds() ; std::sort(result.begin(),result.end()) ; return result ;
   }
 
+  /// Construct vertex-centered children using the supplied face and cell centers.
   std::vector<TreeNodeId> MappedVolumeSubdivision::splitLeaf(TreeNodeId leaf, const std::vector<Point> &faceCenters,
                                                  const Point &cellCenter, JacobianCheckLimits limits) {
     const auto &parent = node(leaf) ;
@@ -81,14 +87,17 @@ namespace FVMAdapt {
       splitVertexVolume(geometry(leaf)->shape(),faceCenters,cellCenter,limits))) ;
   }
 
+  /// Save history extents so an incomplete mapped append can be undone.
   MappedVolumeSubdivision::AppendGuard::AppendGuard(MappedVolumeSubdivision &s, TreeNodeId leaf)
     : state(s), before(s.edit_.beforeMappedRefinement(leaf)) {}
 
+  /// Undo newly appended history unless publication completed.
   MappedVolumeSubdivision::AppendGuard::~AppendGuard() {
     if(committed) return ;
     state.edit_.undoMappedRefinement(before) ;
   }
 
+  /// Publish a validated volume split and return its child IDs.
   std::vector<TreeNodeId> MappedVolumeSubdivision::append(TreeNodeId leaf, std::shared_ptr<const VertexVolumeSplit> split) {
     if(!node(leaf).isLeaf() || !history().active(leaf))
       throw std::invalid_argument("mapped-volume subdivision requires an active leaf") ;
@@ -101,10 +110,12 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Select the parent of a complete active leaf family.
   CellChange MappedVolumeSubdivision::coarsen(TreeNodeId parent) {
     return edit_.coarsen(parent) ;
   }
 
+  /// Replace a leaf family using the supplied face and cell centers.
   CellChange MappedVolumeSubdivision::replace(TreeNodeId parent, const std::vector<Point> &faceCenters,
                                               const Point &cellCenter, JacobianCheckLimits limits) {
     HistoryEdit candidate(history()) ;
@@ -113,14 +124,17 @@ namespace FVMAdapt {
     MappedVolumeSubdivision accepted(std::move(candidate).finish()) ; swap(accepted) ; return change ;
   }
 
+  /// Select an already retained volume construction.
   CellChange MappedVolumeSubdivision::reactivate(TreeNodeId parent, const SplitConstruction &construction) {
     return edit_.reactivate(parent,construction) ;
   }
 
+  /// Discard inactive history while preserving the selected cell geometry.
   void MappedVolumeSubdivision::compact() {
     MappedVolumeSubdivision result(compactHistory(history())) ; swap(result) ;
   }
 
+  /// Validate a replacement history before installing it.
   void MappedVolumeSubdivision::restoreHistory(RefinementHistory history) {
     if(history.rootKey() != this->history().rootKey() || history.geometryRevision() != this->history().geometryRevision())
       throw std::invalid_argument("mapped-volume history belongs to a different root or geometry revision") ;

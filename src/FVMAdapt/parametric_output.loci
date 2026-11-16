@@ -37,6 +37,7 @@ using namespace Loci::FVMAdapt ;
 namespace {
   namespace P = Loci::FVMAdapt ;
 
+  /// Register an owner's output node numbers and optionally collect its node keys.
   void addNodeNumbers(const Loci::FineFaces &record, int offset,
                       ParametricNodeNumbers &numbers, std::vector<ParametricNodeKey> *points = nullptr) {
     numbers.add(record,offset) ;
@@ -46,6 +47,7 @@ namespace {
     }
   }
 
+  /// Convert face connectivity to zero-based node and one-based cell numbers.
   void numberFaces(const std::vector<ParametricOutputFace> &faces, const ParametricNodeNumbers &numbers,
                    int leftOffset, int rightOffset, int boundary, Loci::FineFaces &output) {
     output.clear() ; output.reserve(faces.size()) ;
@@ -59,6 +61,7 @@ namespace {
     }
   }
 
+  /// Report an output entity failure and abort the distributed query.
   void parametricOutputError(int entity, const std::exception &error) {
     std::cerr << "Parametric mesh output failed at entity " << entity << ": " << error.what() << std::endl ;
     Loci::Abort() ;
@@ -115,7 +118,8 @@ $rule pointwise(balanced_num_inner_nodes <- parametricNodeKeys), conditional(par
   $balanced_num_inner_nodes = int($parametricNodeKeys.size()) ;
 }
 
-$rule pointwise(balanced_num_fine_cells <- balancedParametricCell), conditional(parametricAccepted), constraint(geom_cells) {
+/// Leaf counts remain available when rejection selects the preceding cell state.
+$rule pointwise(balanced_num_fine_cells <- balancedParametricCell), constraint(geom_cells) {
   try {
     $balanced_num_fine_cells = int($balancedParametricCell.leafCount()) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
@@ -175,7 +179,7 @@ face2edge->(parametricNodeKeys,balanced_node_offset),(cl,cr)->(parametricTopolog
     ParametricNodeNumbers numbers ; std::vector<ParametricNodeKey> edgeNodes ;
     addNodeNumbers($parametricNodeKeys,$balanced_node_offset,numbers) ;
     for(int edge : $face2edge) addNodeNumbers($*parametricNodeKeys[edge],$*balanced_node_offset[edge],numbers,&edgeNodes) ;
-    numberFaces($cl->$balancedParametricCell.faceFaces($fileNumber(face2node),left,edgeNodes,&$cr->$balancedParametricCell,&right),numbers,
+    numberFaces($cl->$balancedParametricCell.facePieces($fileNumber(face2node),left,edgeNodes,&$cr->$balancedParametricCell,&right),numbers,
                 $cl->$balanced_cell_offset,$cr->$balanced_cell_offset,0,$fine_faces) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
@@ -188,7 +192,7 @@ face2edge->(parametricNodeKeys,balanced_node_offset),cl->(parametricTopology,bal
     addNodeNumbers($parametricNodeKeys,$balanced_node_offset,numbers) ;
     for(int edge : $face2edge) addNodeNumbers($*parametricNodeKeys[edge],$*balanced_node_offset[edge],numbers,&edgeNodes) ;
     const int boundary = -std::atoi($ref->$boundary_tags.c_str()+3) ;
-    numberFaces($cl->$balancedParametricCell.faceFaces($fileNumber(face2node),left,edgeNodes),numbers,$cl->$balanced_cell_offset,0,boundary,$fine_faces) ;
+    numberFaces($cl->$balancedParametricCell.facePieces($fileNumber(face2node),left,edgeNodes),numbers,$cl->$balanced_cell_offset,0,boundary,$fine_faces) ;
   } catch(const std::exception &error) { parametricOutputError(_e_,error) ; }
 }
 

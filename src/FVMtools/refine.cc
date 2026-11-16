@@ -23,18 +23,27 @@
 #include <iostream>
 #include <stdexcept>
 
+/// Apply requests and write the adapted mesh and optional plan.
 int main(int argc,char **argv) {
-  Loci::Init(&argc,&argv) ; int status=0 ;
+  Loci::Init(&argc,&argv) ;
+  int status=0 ;
   try {
     if(argc==1 || (argc==2 && std::string(argv[1])=="-help")) FVMTools::showAdaptHelp(true) ;
     else {
       auto input=FVMTools::readAdaptInput(argc,argv,true) ;
-      Loci::rule_db rules ; rules.add_rules(Loci::global_rule_list) ; Loci::load_module("fvmadapt",rules) ;
-      namespace F=Loci::FVMAdapt ; std::string error ;
+      Loci::rule_db rules ;
+      rules.add_rules(Loci::global_rule_list) ;
+      Loci::load_module("fvmadapt",rules) ;
+      namespace F=Loci::FVMAdapt ;
+      std::string error ;
       if(!F::refineParametricFile(rules,input.state,input.mesh,input.options,input.tagFile,input.outputMesh,input.cellParents,error))
         throw std::runtime_error(error) ;
       if(!input.outputPlan.empty() && !F::writeParametricPlan(input.outputPlan,input.state,input.options,error)) throw std::runtime_error(error) ;
     }
-  } catch(const std::exception &error) { if(Loci::MPI_rank==0) std::cerr<<"refine: "<<error.what()<<'\n' ; status=1 ; }
-  Loci::Finalize() ; return status ;
+  } catch(const std::exception &error) {
+    if(Loci::MPI_rank==0) std::cerr<<"refine: "<<error.what()<<'\n' ;
+    status=1 ;
+  }
+  Loci::Finalize() ;
+  return status ;
 }

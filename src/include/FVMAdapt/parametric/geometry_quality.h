@@ -58,6 +58,7 @@ namespace FVMAdapt {
     /// Largest ratio of tangent lengths, separate from angular distortion; one in 1D.
     double maxDerivativeRatio = 1 ;
     Point scaledJacobianPoint = {{0,0,0}}, alignmentPoint = {{0,0,0}}, derivativeRatioPoint = {{0,0,0}} ;
+
     /// First invalid or unresolved sample; meaningful when either count is nonzero.
     Point problemPoint = {{0,0,0}} ;
     bool inverted = false, collapsed = false ;

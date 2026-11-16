@@ -26,8 +26,10 @@
 #include <set>
 #include <stdexcept>
 
+/// Reconstruct a saved plan and write its mesh and optional cell donors.
 int main(int argc,char **argv) {
-  Loci::Init(&argc,&argv) ; int status=0 ;
+  Loci::Init(&argc,&argv) ;
+  int status=0 ;
   try {
     if(argc==1 || (argc==2 && std::string(argv[1])=="-help")) {
       if(Loci::MPI_rank==0) std::cout<<
@@ -36,7 +38,8 @@ int main(int argc,char **argv) {
         "Plans retain their split, geometry and quality controls.\n" ;
       FVMTools::showQualityHelp() ;
     } else {
-      const std::set<std::string> known={"-g","-r","-o","-c2p","-pr","-quality","-quality-centroid","-max-nonorthogonality","-max-face-warpage","-max-child-volume-ratio"} ; std::map<std::string,std::string> args ;
+      const std::set<std::string> known={"-g","-r","-o","-c2p","-pr","-quality","-quality-centroid","-max-nonorthogonality","-max-face-warpage","-max-child-volume-ratio"} ;
+      std::map<std::string,std::string> args ;
       for(int i=1;i<argc;++i) {
         const std::string key=argv[i] ;
         if(!known.count(key) || i+1==argc || args.count(key)) throw std::invalid_argument("unknown, repeated or incomplete option: "+key) ;
@@ -44,7 +47,11 @@ int main(int argc,char **argv) {
       }
       if(!args.count("-g") || !args.count("-r")) throw std::invalid_argument("-g original.vog and -r saved.plan are required") ;
       if(args.count("-pr") && !args.count("-c2p")) throw std::invalid_argument("-pr requires -c2p") ;
-      namespace F=Loci::FVMAdapt ; Loci::RefinementState state,parent ; Loci::RefinementOptions options,parentOptions ; std::string error ;
+
+      namespace F=Loci::FVMAdapt ;
+      Loci::RefinementState state,parent ;
+      Loci::RefinementOptions options,parentOptions ;
+      std::string error ;
       if(!F::readParametricPlan(args.at("-r"),args.at("-g"),state,options,error)) throw std::runtime_error(error) ;
       FVMTools::applyQualityOptions(args,options) ;
       if(args.count("-pr")) {
@@ -52,10 +59,17 @@ int main(int argc,char **argv) {
         if(options.splitFamily!=parentOptions.splitFamily || options.extrusionAxis!=parentOptions.extrusionAxis)
           throw std::invalid_argument("parent and output plans use different split families or extrusion axes") ;
       }
-      Loci::rule_db rules ; rules.add_rules(Loci::global_rule_list) ; Loci::load_module("fvmadapt",rules) ;
+
+      Loci::rule_db rules ;
+      rules.add_rules(Loci::global_rule_list) ;
+      Loci::load_module("fvmadapt",rules) ;
       if(!F::writeParametricMesh(rules,state,args.count("-pr") ? &parent:nullptr,options,
           args.count("-o") ? args.at("-o"):"out.vog",args.count("-c2p") ? args.at("-c2p"):"",error)) throw std::runtime_error(error) ;
     }
-  } catch(const std::exception &error) { if(Loci::MPI_rank==0) std::cerr<<"refmesh: "<<error.what()<<'\n' ; status=1 ; }
-  Loci::Finalize() ; return status ;
+  } catch(const std::exception &error) {
+    if(Loci::MPI_rank==0) std::cerr<<"refmesh: "<<error.what()<<'\n' ;
+    status=1 ;
+  }
+  Loci::Finalize() ;
+  return status ;
 }

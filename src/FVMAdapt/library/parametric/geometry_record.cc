@@ -33,7 +33,7 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
-
+    /// Grow table storage geometrically without exceeding container capacity.
     template<class T> void reserve(std::vector<T> &values, std::size_t count) {
       if(count <= values.capacity()) return ;
       if(count > values.max_size())
@@ -43,6 +43,7 @@ namespace FVMAdapt {
       values.reserve(std::max(count,growth)) ;
     }
 
+    /// Count bytes in the unsigned magnitude of an exact integer.
     std::size_t integerBytes(Fraction::Integer value) {
       if(value < 0) value = -value ;
       if(value == 0) return 0 ;
@@ -50,6 +51,7 @@ namespace FVMAdapt {
       return bits/8+(bits%8 != 0) ;
     }
 
+    /// Validate exact affine coordinates and account for their retained byte cost.
     template<class Retain> void checkPlacement(const Placement &placement,
                                               const ExactLimits &limits, Retain retain) {
       const auto check = [&](const ReferencePoint &point) {
@@ -67,6 +69,7 @@ namespace FVMAdapt {
 
   }
 
+  /// List the earlier maps required to construct this geometry record.
   std::vector<MapId> geometryDependencies(const GeometryRecord &record) {
     return std::visit([](const auto &value) -> std::vector<MapId> {
       using T=std::decay_t<decltype(value)> ;
@@ -80,13 +83,15 @@ namespace FVMAdapt {
     },record) ;
   }
 
+  /// Validate and retain one record, returning its map ID.
   MapId GeometryStore::append(GeometryRecord record) {
     std::vector<GeometryRecord> records ;
     records.push_back(std::move(record)) ;
     return append(std::move(records)) ;
   }
 
-  void GeometryStore::setLimits(GeometryLimits limits, std::size_t maxBytes) {
+  /// Check retained records and evaluator costs against destination limits.
+  void GeometryStore::checkLimits(const GeometryLimits &limits, std::size_t maxBytes) const {
     if(size() > limits.maxRecords || controls_ > limits.maxControls ||
        bytes_ > std::min(maxBytes,limits.exact.maxBytes))
       throw std::length_error("geometry table exceeds its destination limits") ;
@@ -106,9 +111,15 @@ namespace FVMAdapt {
         checkPlacement(affine->placement(),limits.exact,[](std::size_t) {}) ;
       }
     }
-    limits_=limits ;
   }
 
+  /// Apply new limits only after validating the retained table.
+  void GeometryStore::setLimits(GeometryLimits limits, std::size_t maxBytes) {
+    checkLimits(limits,maxBytes) ;
+    limits_ = limits ;
+  }
+
+  /// Retain supported map descriptions and their shared dependencies.
   MapId GeometryStore::capture(std::shared_ptr<const GeometryMap> map) {
     const auto first = size() ;
     std::vector<GeometryRecord> records ;
@@ -190,6 +201,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Validate a dependency-ordered batch before appending its records and evaluators.
   MapId GeometryStore::append(std::vector<GeometryRecord> records, std::size_t maxBytes) {
     maxBytes = std::min(maxBytes,limits_.exact.maxBytes) ;
     if(bytes_ > maxBytes) throw std::length_error("geometry payload limit exceeded") ;
@@ -219,6 +231,7 @@ namespace FVMAdapt {
     retained.reserve(records.size()) ;
     for(const GeometryRecord &record : records) {
       retain(sizeof(GeometryRecord)+sizeof(CachedMap)+sizeof(std::pair<const GeometryMap* const,MapId>)) ;
+
       std::visit([&](const auto &description) {
         using Record = std::decay_t<decltype(description)> ;
         if constexpr(std::is_same<Record,CornerRecord>::value) {
@@ -372,6 +385,7 @@ namespace FVMAdapt {
     return first ;
   }
 
+  /// Remove a table suffix while preserving the remaining map IDs.
   void GeometryStore::truncate(std::size_t count) {
     if(count > size()) throw std::out_of_range("geometry truncation exceeds the table") ;
     controls_ = count ? maps_[count-1].controls : 0 ;
@@ -382,6 +396,7 @@ namespace FVMAdapt {
     maps_.resize(count) ; records_.resize(count) ;
   }
 
+  /// Exchange records, evaluators and accounting as one store state.
   void GeometryStore::swap(GeometryStore &other) noexcept {
     using std::swap ;
     swap(limits_,other.limits_) ;

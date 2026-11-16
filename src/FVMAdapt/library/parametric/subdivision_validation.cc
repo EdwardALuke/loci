@@ -48,6 +48,7 @@ namespace detail {
         throw std::invalid_argument("accepted refinement count differs from request") ;
     }
 
+    /// Require ordered interior cuts within the exact-arithmetic budget.
     void cuts(const std::vector<Fraction> &values, ExactBudget &budget) {
       budget.operations(values.size()) ;
       Fraction previous = 0 ;
@@ -59,10 +60,12 @@ namespace detail {
       }
     }
 
+    /// Return one unit-interval segment between the requested cuts.
     std::array<Fraction,2> interval(const std::vector<Fraction> &cuts, std::size_t index) {
       return {{index ? cuts[index-1] : Fraction(0), index < cuts.size() ? cuts[index] : Fraction(1)}} ;
     }
 
+    /// Match exact child vertices and require positive placement orientation.
     void childMatches(const Child &child, Shape shape, Vertices expected, ExactBudget &budget) {
       if(child.shape != shape)
         throw std::invalid_argument("accepted refinement child has the wrong shape") ;
@@ -91,6 +94,7 @@ namespace detail {
         throw std::invalid_argument("accepted refinement vertices differ from request") ;
     }
 
+    /// List exact child vertex sets for a triangle request.
     Pattern triangles(const TriangleSplit &request, ExactBudget &budget) {
       const ReferencePoint a = {{0,0,0}}, b = {{1,0,0}}, c = {{0,1,0}} ;
       switch(request.kind) {
@@ -115,6 +119,7 @@ namespace detail {
       throw std::invalid_argument("unknown triangle split") ;
     }
 
+    /// List exact child vertex sets for a tet request.
     Pattern tetrahedra(const TetSplit &request, ExactBudget &budget) {
       const auto &element = referenceElement(Shape::tet) ;
       Vertices vertices ;
@@ -156,6 +161,7 @@ namespace detail {
       throw std::invalid_argument("unknown tetrahedron split") ;
     }
 
+    /// Match accepted tensor-product children against the requested coordinate intervals.
     void tensor(Shape parent, const std::vector<Child> &children,
                 const TensorSplit &request, ExactBudget &budget) {
       if(parent != Shape::segment && parent != Shape::quad && parent != Shape::hex)
@@ -188,9 +194,11 @@ namespace detail {
     }
   }
 
+  /// Check accepted child regions against the requested native split.
   void validateSubdivision(Shape parent, const std::vector<Child> &children,
                            const SplitOperation &operation, ExactBudget &budget) {
     if(children.size() < 2) throw std::invalid_argument("refinement requires at least two children") ;
+
     // Matching every ordinal to the requested native partition certifies coverage
     // without pairwise intersection tests. The accepted positive chart is retained.
     std::visit([&](const auto &request) {

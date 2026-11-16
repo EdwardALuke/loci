@@ -18,19 +18,27 @@ namespace FVMAdapt {
   namespace {
     using Predicate=std::function<bool(const Point &)> ;
     using Transform=std::function<Point(Point)> ;
+
     void require(bool ok,const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
     std::string name(xmlNode *node) { return reinterpret_cast<const char *>(node->name) ; }
+
+    /// Return element children, excluding XML text and comment nodes.
     std::vector<xmlNode *> children(xmlNode *node) {
       std::vector<xmlNode *> result ;
       for(auto child=node->children;child;child=child->next) if(child->type==XML_ELEMENT_NODE) result.push_back(child) ;
       return result ;
     }
+
+    /// Read a node's text with leading and trailing whitespace removed.
     std::string content(xmlNode *node) {
       const auto text=xmlNodeGetContent(node) ;
       const std::string value=text ? reinterpret_cast<const char *>(text):"" ; xmlFree(text) ;
       const auto first=value.find_first_not_of(" \t\r\n"),last=value.find_last_not_of(" \t\r\n") ;
       return first==std::string::npos ? "":value.substr(first,last-first+1) ;
     }
+
+    /// Apply finite numeric parameters to the supported shape defaults.
     std::map<std::string,double> parameters(xmlNode *node,std::map<std::string,double> values) {
       std::map<std::string,bool> seen ;
       for(auto child:children(node)) {
@@ -42,6 +50,8 @@ namespace FVMAdapt {
       }
       return values ;
     }
+
+    /// Build a point-containment test for one supported primitive shape.
     Predicate shape(xmlNode *node) {
       const auto elements=children(node) ; require(elements.size()==1,"XML shape requires one primitive") ;
       node=elements.front() ; const auto kind=name(node) ;
@@ -76,6 +86,8 @@ namespace FVMAdapt {
       }
       throw std::invalid_argument("unknown XML region shape: "+kind) ;
     }
+
+    /// Read inverse transforms from physical coordinates to shape coordinates.
     std::vector<Transform> transforms(xmlNode *node) {
       std::vector<Transform> result ;
       for(auto child:children(node)) {
@@ -95,6 +107,8 @@ namespace FVMAdapt {
       }
       return result ;
     }
+
+    /// Combine a primitive with its ordered coordinate transforms.
     Predicate object(xmlNode *node) {
       const auto elements=children(node) ;
       require(elements.size()==1 || elements.size()==2,"XML object requires an optional transform and one shape") ;
@@ -104,6 +118,8 @@ namespace FVMAdapt {
       // XML transforms map physical points into the shape's coordinates, in listed order.
       return [mapping,primitive](Point q) { for(const auto &map:mapping) q=map(q) ; return primitive(q) ; } ;
     }
+
+    /// Combine objects and nested regions using the listed Boolean operations.
     Predicate region(xmlNode *node) {
       require(node && name(node)=="region","XML root must be region") ;
       const auto elements=children(node) ; std::size_t i=0 ;
@@ -129,6 +145,8 @@ namespace FVMAdapt {
       return result ;
     }
   }
+
+  /// Read a region file and retain its physical-point containment test.
   XMLRegion::XMLRegion(const std::string &filename) {
     // libxml2 initializes its NaN/Inf constants with floating-point traps masked.
     std::fenv_t environment ; std::feholdexcept(&environment) ;
@@ -136,9 +154,13 @@ namespace FVMAdapt {
     std::unique_ptr<xmlDoc,decltype(&xmlFreeDoc)> doc(xmlReadFile(filename.c_str(),nullptr,XML_PARSE_NONET),xmlFreeDoc) ;
     require(bool(doc),"unable to read XML region") ; contains_=region(xmlDocGetRootElement(doc.get())) ;
   }
+
+  /// Build a containment test from an existing XML region node.
   XMLRegion::XMLRegion(_xmlNode *root) : contains_(region(root)) {}
 #else
+
   XMLRegion::XMLRegion(const std::string &) { throw std::runtime_error("XML region support requires libxml2") ; }
+
   XMLRegion::XMLRegion(_xmlNode *) { throw std::runtime_error("XML region support requires libxml2") ; }
 #endif
 }

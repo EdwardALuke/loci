@@ -10,37 +10,81 @@ $include "parametric_internal.lh"
 namespace {
   namespace Q=Loci::FVMAdapt ;
   using Positions=std::map<Q::ParametricNodeKey,Q::Point> ;
-  template<class T> struct QualityMaximum { void operator()(T &a,const T &b) { a.include(b) ; } } ;
+
+  template<class T> struct QualityMaximum {
+    void operator()(T &a,const T &b) { a.include(b) ; }
+  } ;
+
+  /// Record the failing root, leaf, and face and print the geometry diagnostic.
   void invalidGeometry(Q::MeshQualityReport &report,int root,int leaf,int face,const std::exception &error) {
-    report.invalidRoot=root ; report.invalidLeaf=leaf ; report.invalidFace=face ;
+    report.invalidRoot=root ;
+    report.invalidLeaf=leaf ;
+    report.invalidFace=face ;
     std::cerr<<"Invalid output geometry at root "<<root<<", leaf "<<leaf<<", face "<<face<<": "<<error.what()<<std::endl ;
   }
+
+  /// Associate encoded node identities with their physical positions.
   void addPositions(Positions &points,const Loci::FineFaces &encoded,const Loci::FineNodes &positions) {
     const auto keys=Q::decodeParametricNodeKeys(encoded) ;
     if(keys.size()!=positions.size()) throw std::invalid_argument("quality node positions differ from keys") ;
     for(unsigned i=0;i<keys.size();++i) points[keys[i]]={ {positions[i].x,positions[i].y,positions[i].z} } ;
   }
+
+  /// Measure output polygons using the selected face-centroid method.
   std::vector<Q::QualityFace> measureFaces(const std::vector<Q::ParametricOutputFace> &faces,const Positions &points,const std::string &centroid) {
-    std::vector<Q::QualityFace> result ; result.reserve(faces.size()) ;
+    std::vector<Q::QualityFace> result ;
+    result.reserve(faces.size()) ;
     for(const auto &face:faces) {
-      std::vector<Q::Point> polygon ; polygon.reserve(face.vertices.size()) ;
+      std::vector<Q::Point> polygon ;
+      polygon.reserve(face.vertices.size()) ;
       for(const auto &key:face.vertices) polygon.push_back(points.at(key)) ;
       result.push_back({Q::measurePolygon(polygon,centroid),face.left,face.right}) ;
     }
     return result ;
   }
+
+  /// Construct and measure the polygons on one original shared face.
+  std::vector<Q::QualityFace> measureFace(int face,
+      const Q::ParametricCellData &left, const std::vector<int> &leftTopology,
+      const Q::ParametricCellData *right, const std::vector<int> *rightTopology,
+      const std::vector<Q::ParametricNodeKey> &edgeKeys, Positions &points,
+      const std::string &centroid) {
+    std::vector<Q::Point> positions ;
+    const auto keys=left.faceNodes(face,leftTopology,right,rightTopology,&positions) ;
+    for(unsigned i=0;i<keys.size();++i) points[keys[i]]=positions.at(i) ;
+    return measureFaces(left.facePieces(face,leftTopology,edgeKeys,right,rightTopology),points,centroid) ;
+  }
+
+  /// Write node identities and physical positions in the same order.
+  void encodePositions(const Positions &points, Loci::FineFaces &keys,
+                       Loci::FineNodes &positions) {
+    std::vector<Q::ParametricNodeKey> allKeys ;
+    for(const auto &item:points) {
+      allKeys.push_back(item.first) ;
+      const auto &p=item.second ;
+      positions.push_back(vect3d(p[0],p[1],p[2])) ;
+    }
+    keys=Q::encodeParametricNodeKeys(allKeys) ;
+  }
 }
 
 $rule default(parametricQualityMode) { $parametricQualityMode="off" ; }
+
 $rule default(parametricQualityCentroid) { $parametricQualityCentroid="wireframe" ; }
+
 $rule default(parametricMaxNonOrthogonality) { $parametricMaxNonOrthogonality=-1 ; }
+
 $rule default(parametricMaxFaceWarpage) { $parametricMaxFaceWarpage=-1 ; }
+
 $rule default(parametricMaxChildVolumeRatio) { $parametricMaxChildVolumeRatio=-1 ; }
 $type parametricQualityEnabled Constraint ;
 $type parametricQualityDisabled Constraint ;
+
 $rule constraint(parametricQualityEnabled,parametricQualityDisabled <- parametricQualityMode) {
-  $parametricQualityEnabled=EMPTY ; $parametricQualityDisabled=EMPTY ;
-  if($parametricQualityMode=="off") $parametricQualityDisabled=~EMPTY ; else $parametricQualityEnabled=~EMPTY ;
+  $parametricQualityEnabled=EMPTY ;
+  $parametricQualityDisabled=EMPTY ;
+  if($parametricQualityMode=="off") $parametricQualityDisabled=~EMPTY ;
+  else $parametricQualityEnabled=~EMPTY ;
 }
 
 /// Temporary node locations and polygon measures on original faces and edges.
@@ -57,10 +101,12 @@ $type qualityCellReport store<Q::MeshQualityReport> ;
 $rule pointwise(qualityEdgeKeys,qualityEdgePositions <- candidateParametricEdgeTrace,parametricSourceEdgeGeometry,parametricBalanced,
   fileNumber(edge2node),edge2node->(pos,fileNumber(pos))),
   constraint(parametricQualityEnabled,edge2node->pos) {
-  $qualityEdgeKeys.clear() ; $qualityEdgePositions.clear() ;
+  $qualityEdgeKeys.clear() ;
+  $qualityEdgePositions.clear() ;
   if(!$parametricBalanced) return ;
   const auto keys=Q::parametricEdgeNodes($fileNumber(edge2node),$candidateParametricEdgeTrace) ;
-  $qualityEdgeKeys=Q::encodeParametricNodeKeys(keys) ; $qualityEdgePositions.clear() ;
+  $qualityEdgeKeys=Q::encodeParametricNodeKeys(keys) ;
+  $qualityEdgePositions.clear() ;
   const bool reverse=$edge2node[1]->$fileNumber(pos)<$edge2node[0]->$fileNumber(pos) ;
   const auto a=$edge2node[reverse?1:0]->$pos,b=$edge2node[reverse?0:1]->$pos ;
   for(const auto &key:keys) {
@@ -72,79 +118,96 @@ $rule pointwise(qualityEdgeKeys,qualityEdgePositions <- candidateParametricEdgeT
 $rule pointwise(qualityFaceKeys,qualityFacePositions,qualityFaces,qualityFaceError <- fileNumber(face2node),face2node->(pos,fileNumber(pos)),
   face2edge->(qualityEdgeKeys,qualityEdgePositions),(cl,cr)->(candidateParametricCell,parametricTopology),parametricQualityCentroid,parametricBalanced),
   constraint(parametricQualityEnabled,interior_faces) {
-  $qualityFaceKeys.clear() ; $qualityFacePositions.clear() ; $qualityFaces.clear() ; $qualityFaceError=Q::MeshQualityReport() ;
+  $qualityFaceKeys.clear() ;
+  $qualityFacePositions.clear() ;
+  $qualityFaces.clear() ;
+  $qualityFaceError=Q::MeshQualityReport() ;
   if(!$parametricBalanced) return ;
   const auto &left=$cl->$parametricTopology, &right=$cr->$parametricTopology ;
   try {
-    Positions points ; std::vector<Q::ParametricNodeKey> edgeKeys ;
+    Positions points ;
+    std::vector<Q::ParametricNodeKey> edgeKeys ;
     for(int node:$face2node) {
       const auto p=$*pos[node] ;
       points[Q::ParametricNodeKey{ {Q::EntityKind::vertex,Q::EntityId($*fileNumber(pos)[node]),{ {0,0,0} } },-1}]={ {p.x,p.y,p.z} } ;
     }
     for(int edge:$face2edge) {
       addPositions(points,$*qualityEdgeKeys[edge],$*qualityEdgePositions[edge]) ;
-      const auto keys=Q::decodeParametricNodeKeys($*qualityEdgeKeys[edge]) ; edgeKeys.insert(edgeKeys.end(),keys.begin(),keys.end()) ;
+      const auto keys=Q::decodeParametricNodeKeys($*qualityEdgeKeys[edge]) ;
+      edgeKeys.insert(edgeKeys.end(),keys.begin(),keys.end()) ;
     }
-    std::vector<Q::Point> positions ;
-    const auto keys=$cl->$candidateParametricCell.faceNodes($fileNumber(face2node),left,&$cr->$candidateParametricCell,&right,&positions) ;
-    for(unsigned i=0;i<keys.size();++i) points[keys[i]]=positions.at(i) ;
-    $qualityFaces=measureFaces($cl->$candidateParametricCell.faceFaces($fileNumber(face2node),left,edgeKeys,&$cr->$candidateParametricCell,&right),points,$parametricQualityCentroid) ;
-    std::vector<Q::ParametricNodeKey> allKeys ;
-    for(const auto &item:points) { allKeys.push_back(item.first) ; const auto &p=item.second ; $qualityFacePositions.push_back(vect3d(p[0],p[1],p[2])) ; }
-    $qualityFaceKeys=Q::encodeParametricNodeKeys(allKeys) ;
-  } catch(const std::exception &error) { invalidGeometry($qualityFaceError,Q::decodeParametricTopology(left).id(),-1,$fileNumber(face2node),error) ; }
+    $qualityFaces=measureFace($fileNumber(face2node),$cl->$candidateParametricCell,left,
+      &$cr->$candidateParametricCell,&right,edgeKeys,points,$parametricQualityCentroid) ;
+    encodePositions(points,$qualityFaceKeys,$qualityFacePositions) ;
+  } catch(const std::exception &error) {
+    invalidGeometry($qualityFaceError,Q::decodeParametricTopology(left).id(),-1,$fileNumber(face2node),error) ;
+  }
 }
 
 $rule pointwise(qualityFaceKeys,qualityFacePositions,qualityFaces,qualityFaceError <- fileNumber(face2node),face2node->(pos,fileNumber(pos)),
   face2edge->(qualityEdgeKeys,qualityEdgePositions),cl->(candidateParametricCell,parametricTopology),parametricQualityCentroid,parametricBalanced),
   constraint(parametricQualityEnabled,boundary_faces) {
-  $qualityFaceKeys.clear() ; $qualityFacePositions.clear() ; $qualityFaces.clear() ; $qualityFaceError=Q::MeshQualityReport() ;
+  $qualityFaceKeys.clear() ;
+  $qualityFacePositions.clear() ;
+  $qualityFaces.clear() ;
+  $qualityFaceError=Q::MeshQualityReport() ;
   if(!$parametricBalanced) return ;
   const auto &left=$cl->$parametricTopology ;
   try {
-    Positions points ; std::vector<Q::ParametricNodeKey> edgeKeys ;
+    Positions points ;
+    std::vector<Q::ParametricNodeKey> edgeKeys ;
     for(int node:$face2node) {
       const auto p=$*pos[node] ;
       points[Q::ParametricNodeKey{ {Q::EntityKind::vertex,Q::EntityId($*fileNumber(pos)[node]),{ {0,0,0} } },-1}]={ {p.x,p.y,p.z} } ;
     }
     for(int edge:$face2edge) {
       addPositions(points,$*qualityEdgeKeys[edge],$*qualityEdgePositions[edge]) ;
-      const auto keys=Q::decodeParametricNodeKeys($*qualityEdgeKeys[edge]) ; edgeKeys.insert(edgeKeys.end(),keys.begin(),keys.end()) ;
+      const auto keys=Q::decodeParametricNodeKeys($*qualityEdgeKeys[edge]) ;
+      edgeKeys.insert(edgeKeys.end(),keys.begin(),keys.end()) ;
     }
-    std::vector<Q::Point> positions ;
-    const auto keys=$cl->$candidateParametricCell.faceNodes($fileNumber(face2node),left,nullptr,nullptr,&positions) ;
-    for(unsigned i=0;i<keys.size();++i) points[keys[i]]=positions.at(i) ;
-    $qualityFaces=measureFaces($cl->$candidateParametricCell.faceFaces($fileNumber(face2node),left,edgeKeys),points,$parametricQualityCentroid) ;
-    std::vector<Q::ParametricNodeKey> allKeys ;
-    for(const auto &item:points) { allKeys.push_back(item.first) ; const auto &p=item.second ; $qualityFacePositions.push_back(vect3d(p[0],p[1],p[2])) ; }
-    $qualityFaceKeys=Q::encodeParametricNodeKeys(allKeys) ;
-  } catch(const std::exception &error) { invalidGeometry($qualityFaceError,Q::decodeParametricTopology(left).id(),-1,$fileNumber(face2node),error) ; }
+    $qualityFaces=measureFace($fileNumber(face2node),$cl->$candidateParametricCell,left,
+      nullptr,nullptr,edgeKeys,points,$parametricQualityCentroid) ;
+    encodePositions(points,$qualityFaceKeys,$qualityFacePositions) ;
+  } catch(const std::exception &error) {
+    invalidGeometry($qualityFaceError,Q::decodeParametricTopology(left).id(),-1,$fileNumber(face2node),error) ;
+  }
 }
 
 $rule pointwise(qualityCells,qualityCellReport <- candidateParametricCell,parametricTopology,fileNumber(geom_cells),parametricQualityCentroid,
   (upper,lower,boundary_map)->(qualityFaceKeys,qualityFacePositions,qualityFaces,qualityFaceError),parametricBalanced),
   constraint(parametricQualityEnabled,geom_cells) {
-  $qualityCells.clear() ; $qualityCellReport=Q::MeshQualityReport() ;
+  $qualityCells.clear() ;
+  $qualityCellReport=Q::MeshQualityReport() ;
   if(!$parametricBalanced) return ;
-  const int root=$fileNumber(geom_cells) ; int leaf=-1 ;
+  const int root=$fileNumber(geom_cells) ;
+  int leaf=-1 ;
   try {
-    Positions points ; std::vector<Q::ParametricNodeKey> boundary ;
+    Positions points ;
+    std::vector<Q::ParametricNodeKey> boundary ;
     const auto addFace=[&](int face) {
       $qualityCellReport.include($*qualityFaceError[face]) ;
       addPositions(points,$*qualityFaceKeys[face],$*qualityFacePositions[face]) ;
     } ;
-    for(int face:$upper) addFace(face) ; for(int face:$lower) addFace(face) ; for(int face:$boundary_map) addFace(face) ;
+    for(int face:$upper) addFace(face) ;
+    for(int face:$lower) addFace(face) ;
+    for(int face:$boundary_map) addFace(face) ;
     if($qualityCellReport.invalid()) return ;
     for(const auto &item:points) boundary.push_back(item.first) ;
-    std::vector<Q::Point> ownPositions ; const auto ownKeys=$candidateParametricCell.cellNodes($parametricTopology,&ownPositions) ;
+    std::vector<Q::Point> ownPositions ;
+    const auto ownKeys=$candidateParametricCell.cellNodes($parametricTopology,&ownPositions) ;
     for(unsigned i=0;i<ownKeys.size();++i) points[ownKeys[i]]=ownPositions.at(i) ;
     const auto internal=measureFaces($candidateParametricCell.cellFaces($parametricTopology,boundary),points,$parametricQualityCentroid) ;
     std::vector<std::vector<Q::MeasuredFace> > uses($candidateParametricCell.leafCount()) ;
-    for(const auto &face:internal) { uses.at(face.left).push_back({&face.geometry,1}) ; uses.at(face.right).push_back({&face.geometry,-1}) ; }
+    for(const auto &face:internal) {
+      uses.at(face.left).push_back({&face.geometry,1}) ;
+      uses.at(face.right).push_back({&face.geometry,-1}) ;
+    }
     const auto append=[&](int id,int sign) {
       for(const auto &face:$*qualityFaces[id]) uses.at(sign==1 ? face.left:face.right).push_back({&face.geometry,sign}) ;
     } ;
-    for(int face:$upper) append(face,1) ; for(int face:$lower) append(face,-1) ; for(int face:$boundary_map) append(face,1) ;
+    for(int face:$upper) append(face,1) ;
+    for(int face:$lower) append(face,-1) ;
+    for(int face:$boundary_map) append(face,1) ;
     for(leaf=0;leaf<int(uses.size());++leaf) $qualityCells.push_back(Q::measurePolyhedron(uses[leaf],$parametricQualityCentroid)) ;
     $qualityCellReport.childVolumeRatio=Q::childVolumeRatio($candidateParametricCell.leafPaths(),$qualityCells,root) ;
     for(const auto &face:internal) {
@@ -155,6 +218,7 @@ $rule pointwise(qualityCells,qualityCellReport <- candidateParametricCell,parame
 }
 
 $rule unit(parametricQualityReport),constraint(parametricQualityEnabled,UNIVERSE) { $parametricQualityReport=Q::MeshQualityReport() ; }
+
 $rule apply(parametricQualityReport <- qualityCellReport)[QualityMaximum],constraint(parametricQualityEnabled,geom_cells) {
   join($parametricQualityReport,$qualityCellReport) ;
 }
@@ -162,7 +226,8 @@ $rule apply(parametricQualityReport <- qualityCellReport)[QualityMaximum],constr
 $rule apply(parametricQualityReport <- qualityFaces,qualityFaceError,fileNumber(face2node),cl->parametricTopology,
   (cl,cr)->(qualityCells,qualityCellReport),parametricBalanced)[QualityMaximum],constraint(parametricQualityEnabled,interior_faces) {
   if(!$parametricBalanced) return ;
-  Q::MeshQualityReport report=$qualityFaceError ; const int root=Q::decodeParametricTopology($cl->$parametricTopology).id() ;
+  Q::MeshQualityReport report=$qualityFaceError ;
+  const int root=Q::decodeParametricTopology($cl->$parametricTopology).id() ;
   if(!report.invalid() && !($cl->$qualityCellReport.invalid() || $cr->$qualityCellReport.invalid())) try {
     for(const auto &face:$qualityFaces) {
       Q::includeQualityValue(report.faceWarpage,face.geometry.warpage,root,face.left,$fileNumber(face2node)) ;
@@ -175,7 +240,8 @@ $rule apply(parametricQualityReport <- qualityFaces,qualityFaceError,fileNumber(
 $rule apply(parametricQualityReport <- qualityFaces,qualityFaceError,fileNumber(face2node),cl->parametricTopology,
   cl->(qualityCells,qualityCellReport),parametricBalanced)[QualityMaximum],constraint(parametricQualityEnabled,boundary_faces) {
   if(!$parametricBalanced) return ;
-  Q::MeshQualityReport report=$qualityFaceError ; const int root=Q::decodeParametricTopology($cl->$parametricTopology).id() ;
+  Q::MeshQualityReport report=$qualityFaceError ;
+  const int root=Q::decodeParametricTopology($cl->$parametricTopology).id() ;
   if(!report.invalid() && !($cl->$qualityCellReport.invalid())) try {
     for(const auto &face:$qualityFaces) {
       Q::includeQualityValue(report.faceWarpage,face.geometry.warpage,root,face.left,$fileNumber(face2node)) ;
@@ -186,10 +252,9 @@ $rule apply(parametricQualityReport <- qualityFaces,qualityFaceError,fileNumber(
 }
 
 $rule singleton(parametricQualityReport),constraint(parametricQualityDisabled) { $parametricQualityReport=Q::MeshQualityReport() ; }
-$rule singleton(parametricQualityAccepted <- parametricQualityReport,parametricControls) {
-  $parametricQualityAccepted=false ;
+
+$rule singleton(parametricQualityAccepted <- parametricQualityReport,parametricControls,parametricInputError) {
   const auto &options=$parametricControls.quality ;
-  try { options.validate() ; }
-  catch(const std::exception &error) { if(Loci::MPI_rank==0) std::cerr<<error.what()<<std::endl ; return ; }
-  $parametricQualityAccepted=!$parametricQualityReport.invalid() && (options.mode!="reject" || !$parametricQualityReport.exceeds(options)) ;
+  $parametricQualityAccepted=$parametricInputError.empty() && !$parametricQualityReport.invalid() &&
+    (options.mode!="reject" || !$parametricQualityReport.exceeds(options)) ;
 }

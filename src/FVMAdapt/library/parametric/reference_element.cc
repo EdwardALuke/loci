@@ -93,6 +93,7 @@ namespace FVMAdapt {
       return std::isfinite(point[0]) && std::isfinite(point[1]) && std::isfinite(point[2]) ;
     }
 
+    /// Compute linear boundary interpolation weights for a segment, triangle, or quad.
     std::array<double,4> boundaryWeights(Shape shape, const Point &point) {
       if(!finite(point))
         throw std::invalid_argument("reference coordinates must be finite") ;
@@ -108,6 +109,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Return the vertices, edges, and outward faces of a standard reference element.
   const ReferenceElement &referenceElement(Shape shape) {
     switch(shape) {
     case Shape::point: return pointElement ;
@@ -123,6 +125,7 @@ namespace FVMAdapt {
     throw std::invalid_argument("unknown reference shape") ;
   }
 
+  /// Test reference-coordinate bounds with the supplied tolerance.
   bool contains(Shape shape, const Point &point, double tolerance) {
     const ReferenceElement &element = referenceElement(shape) ;
     if(!std::isfinite(tolerance) || tolerance < 0)
@@ -147,6 +150,7 @@ namespace FVMAdapt {
     return false ;
   }
 
+  /// Map a boundary-local point into the parent reference element.
   Point boundaryPoint(Shape shape, unsigned boundary, const Point &point) {
     const ReferenceElement &element = referenceElement(shape) ;
     if(boundary >= element.boundaryCount)
@@ -160,6 +164,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Count supported rotations and reflections of the boundary shape.
   unsigned orientationCount(Shape shape) {
     switch(shape) {
     case Shape::point: return 1 ;
@@ -170,12 +175,14 @@ namespace FVMAdapt {
     }
   }
 
+  /// Apply a polygon rotation or reflection to a vertex index.
   unsigned orientedVertex(unsigned vertices, unsigned orientation, unsigned vertex) {
     if(vertices<3 || orientation/vertices>=2 || vertex>=vertices)
       throw std::out_of_range("polygon orientation or vertex index") ;
     return orientation<vertices ? (vertex+orientation)%vertices : (orientation-vertex)%vertices ;
   }
 
+  /// Apply a standard boundary orientation to a vertex index.
   unsigned orientedVertex(Shape shape, unsigned orientation, unsigned vertex) {
     if(orientation >= orientationCount(shape))
       throw std::out_of_range("reference orientation index") ;
@@ -185,6 +192,7 @@ namespace FVMAdapt {
     return (orientation-vertex)%count ;
   }
 
+  /// Transform reference coordinates under a boundary orientation.
   Point orientPoint(Shape shape, unsigned orientation, const Point &point) {
     if(orientation >= orientationCount(shape))
       throw std::out_of_range("reference orientation index") ;
@@ -198,6 +206,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Find the orientation that reverses the supplied coordinate transformation.
   unsigned inverseOrientation(Shape shape, unsigned orientation) {
     if(orientation >= orientationCount(shape))
       throw std::out_of_range("reference orientation index") ;

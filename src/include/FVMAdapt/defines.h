@@ -55,15 +55,18 @@ namespace Loci {
     FineNodes& RefObj ;
   public:
     explicit FineNodes_SchemaConverter(FineNodes& new_obj): RefObj(new_obj) {}
+
     int getSize() const {
       return RefObj.size () ;
     }
+
     void getState(vect3d* buf, int& size) {
       size = getSize() ;
       for(int ii = 0; ii < size; ii++) {
         buf[ii] = RefObj[ii] ;
       }
     }
+
     void setState(vect3d* buf, int size) {
       RefObj.resize(size) ;
       for(int i=0;i<size;++i) {
@@ -128,6 +131,7 @@ namespace Loci {
     FineFaces& RefObj ;
   public:
     explicit FineFaces_SchemaConverter(FineFaces& new_obj): RefObj(new_obj) {}
+
     int getSize() const {
       int vec_size = RefObj.size() ;
       if(vec_size == 0) { return 0 ; }
@@ -135,6 +139,7 @@ namespace Loci {
       for(int i = 0; i < vec_size; i++) { total_size += RefObj[i].size() ; }
       return total_size + vec_size + 1 ;
     }
+
     void getState(int* buf, int& size) {
       size = getSize() ;
       if(size ==0) { return ; }
@@ -147,6 +152,7 @@ namespace Loci {
         }
       }
     }
+
     void setState(int* buf, int size) {
       if(size == 0) {
         RefObj.clear() ;

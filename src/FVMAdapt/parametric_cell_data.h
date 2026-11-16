@@ -13,6 +13,7 @@
 namespace Loci {
 namespace FVMAdapt {
   inline std::ostream &operator<<(std::ostream &out,const FaceBalanceRequest &r) { return out<<r.root<<' '<<r.leaf<<' '<<r.face<<' '<<r.directions ; }
+
   inline std::istream &operator>>(std::istream &in,FaceBalanceRequest &r) { return in>>r.root>>r.leaf>>r.face>>r.directions ; }
   class HexPlan ;
 
@@ -62,6 +63,14 @@ namespace FVMAdapt {
     struct Data ;
     std::shared_ptr<const Data> data_ ;
     friend class ParametricCellDataConverter ;
+    /// Apply isotropic hex splits and coarsening on an independent plan; nullopt for other representations or split families.
+    /// Requests name this state's cells; incoming face plans are borrowed for this call and merged before cell edits.
+    /// Geometric selection then refines descendants to its cutoff. changed is true only after publishing a real edit.
+    std::optional<ParametricCellData> tryEditCompactHex(const std::vector<ParametricLeafRequest> &requests,int refinementLevels = 1,
+        CenterMethod method = CenterMethod::reference,const IncomingFacePlans &incoming = {},
+        bool *changed = nullptr,const GeometricRefinement *selection = nullptr) const ;
+    /// Compact plan, or an empty plan for an original hex; null for other representations.
+    const HexPlan *hexPlan() const ;
   public:
     // Accepted state and temporary working geometry.
     ParametricCellData() = default ;
@@ -69,6 +78,7 @@ namespace FVMAdapt {
     ParametricCellData(ParametricRecord record,int maxDepth,int maxNodes) ;
     /// Retain accepted state; hex working geometry is reduced to compact plans.
     explicit ParametricCellData(ParametricCell cell) ;
+
     /// Original corner cells retain source geometry and an empty saved history.
     static ParametricCellData initial(const CellTopology &topology,const std::vector<Point> &corners,const ParametricRecord &record,
         int maxDepth,int maxNodes,const std::string &family,int axis,const ParametricEdgeControls &controls = {}) ;
@@ -83,6 +93,7 @@ namespace FVMAdapt {
     // Candidate edits preserve the accepted state on failure.
     /// Resolve persistent requests against this cell's accepted history.
     std::vector<ParametricLeafRequest> decodeRequests(const ParametricRecord &record) const ;
+
     /// Merge shared faces and apply requests atomically; failures preserve this state.
     ParametricCellData applyRequests(const ParametricRecord &record, const CellRefinementOptions &options,
         const IncomingFacePlans &incoming = {}, const GeometricRefinement &selection = {}) const ;
@@ -90,12 +101,7 @@ namespace FVMAdapt {
     /// changed reports a published edit; neighbor votes are supplied by the rules.
     ParametricCellData balance(const std::set<int> &required, const std::map<int,unsigned> &directions,
         const ParametricCellData &previous, CenterMethod method, int axis, const IncomingFacePlans &incoming, bool &changed) const ;
-    /// Apply isotropic hex splits and coarsening on an independent plan; nullopt for other representations or split families.
-    /// Requests name this state's cells; incoming face plans are borrowed for this call and merged before cell edits.
-    /// Geometric selection then refines descendants to its cutoff. changed is true only after publishing a real edit.
-    std::optional<ParametricCellData> editPlan(const std::vector<ParametricLeafRequest> &requests,int refinementLevels = 1,
-        CenterMethod method = CenterMethod::reference,const IncomingFacePlans &incoming = {},
-        bool *changed = nullptr,const GeometricRefinement *selection = nullptr) const ;
+
     /// Tags 0/1/2 keep, refine or request complete-family coarsening in active leaf order.
     ParametricRecord tagRequests(const std::vector<char> &tags) const ;
     /// Refine if any own vertex is tagged 1; coarsen only if all are tagged 2.
@@ -135,14 +141,12 @@ namespace FVMAdapt {
         const std::vector<int> *rightTopology = nullptr,std::vector<Point> *positions = nullptr) const ;
     std::vector<Point> facePositions(EntityId face,const std::vector<int> &topology,const ParametricCellData *right = nullptr,
         const std::vector<int> *rightTopology = nullptr) const ;
-    std::vector<ParametricOutputFace> faceFaces(EntityId face,const std::vector<int> &topology,const std::vector<ParametricNodeKey> &requiredNodes,
+    std::vector<ParametricOutputFace> facePieces(EntityId face,const std::vector<int> &topology,const std::vector<ParametricNodeKey> &requiredNodes,
         const ParametricCellData *right = nullptr,const std::vector<int> *rightTopology = nullptr) const ;
-    /// Retained face patches in the same order as cellFaces() and faceFaces().
+    /// Retained face patches in the same order as cellFaces() and facePieces().
     std::vector<FacePatch> cellPatches(const std::vector<int> &topology) const ;
     std::vector<FacePatch> facePatches(EntityId face,const std::vector<int> &topology,const ParametricCellData *right = nullptr,
         const std::vector<int> *rightTopology = nullptr) const ;
-    /// Compact plan, or an empty plan for an original hex; null for other representations.
-    const HexPlan *hexPlan() const ;
     bool compactHex() const ;
     // Serialization retains accepted constructions, not temporary expanded views.
     /// Accepted history bytes; empty for an untouched corner cell.
@@ -169,6 +173,7 @@ namespace FVMAdapt {
 
   template<> struct data_schema_traits<FVMAdapt::FaceBalanceRequest> {
     typedef IDENTITY_CONVERTER Schema_Converter ;
+
     static DatatypeP get_type() {
       CompoundDatatypeP ct=CompoundFactory(FVMAdapt::FaceBalanceRequest()) ;
       LOCI_INSERT_TYPE(ct,FVMAdapt::FaceBalanceRequest,root) ;

@@ -70,6 +70,7 @@ namespace FVMAdapt {
              a[2]*(b[0]*c[1]-b[1]*c[0]) ;
     }
 
+    /// Prove a positive child Jacobian using bounded polynomial subdivision.
     void certifyChildJacobian(const std::vector<Point> &corners, JacobianCheckLimits limits) {
       if(positiveHexJacobian(corners)) return ;
       const auto bounds = hexJacobianCoefficients<Bounds>(corners) ;
@@ -95,6 +96,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Validate a face split point and embed it in the parent reference cell.
     ExactPoint faceCenterCoordinates(Shape shape, unsigned boundary, const Point &point) {
       const auto local = exactPoint(point) ;
       const auto &element = referenceElement(shape) ;
@@ -128,6 +130,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Find a reference edge from its two endpoint indices.
     unsigned edgeIndex(const ReferenceElement &element, unsigned a, unsigned b) {
       for(unsigned edge = 0; edge < element.edgeCount; ++edge) {
         const auto &ends = element.edges[edge] ;
@@ -136,6 +139,7 @@ namespace FVMAdapt {
       throw std::logic_error("vertex volume edge incidence") ;
     }
 
+    /// Find a reference face containing three given vertices.
     unsigned faceIndex(const ReferenceElement &element, unsigned a, unsigned b, unsigned c) {
       for(unsigned face = 0; face < element.boundaryCount; ++face) {
         const auto &vertices = element.boundaries[face].vertices ;
@@ -146,6 +150,7 @@ namespace FVMAdapt {
       throw std::logic_error("vertex volume face incidence") ;
     }
 
+    /// Build one corner child's connectivity from parent edge and face incidence.
     std::array<unsigned,8> childVertices(const ReferenceElement &element, unsigned vertex) {
       std::vector<unsigned> neighbors ;
       for(unsigned edge = 0; edge < element.edgeCount; ++edge)
@@ -177,6 +182,7 @@ namespace FVMAdapt {
       std::sort(corners.begin(),corners.end()) ; return corners ;
     }
 
+    /// Find the rotation or reflection between matching quadrilateral loops.
     unsigned orientation(const FaceCorners &first, const FaceCorners &second) {
       for(unsigned o = 0; o < 8; ++o) {
         bool matches = true ;
@@ -186,6 +192,7 @@ namespace FVMAdapt {
       throw std::logic_error("vertex volume face orientation") ;
     }
 
+    /// Pair child interior faces and identify their original boundary faces.
     void connect(Shape shape, VertexPattern &result) {
       const auto &parent = referenceElement(shape) ;
       const auto &hex = referenceElement(Shape::hex) ;
@@ -229,6 +236,7 @@ namespace FVMAdapt {
       if(!pending.empty() || !boundary.empty()) throw std::logic_error("vertex volume incomplete boundary partition") ;
     }
 
+    /// Return fixed vertex-centered connectivity for a supported reference cell.
     const VertexPattern &childPattern(Shape shape) {
       const auto build = [](Shape shape) {
         const auto &element = referenceElement(shape) ; VertexPattern result ;
@@ -244,6 +252,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Assemble original vertices, edge midpoints, and accepted face and cell centers.
     std::vector<Point> splitPoints(Shape shape, const std::vector<Point> &faceCenters,
                                    const Point &cellCenter, JacobianCheckLimits limits) {
       if(shape != Shape::hex && shape != Shape::prism && shape != Shape::tet)
@@ -268,6 +277,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Construct one hexahedral child per vertex from supplied face and cell centers.
   VertexVolumeSplit splitVertexVolume(Shape shape, const std::vector<Point> &faceCenters,
                                      const Point &cellCenter, JacobianCheckLimits limits) {
     VertexVolumeSplit result ; result.shape = shape ;
@@ -282,6 +292,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Check retained vertex-centered children against the supplied construction.
   void validateVertexVolumeSplit(Shape shape, const std::vector<Point> &faceCenters,
                                  const Point &cellCenter, JacobianCheckLimits limits) {
     const auto points = splitPoints(shape,faceCenters,cellCenter,limits) ;
@@ -292,6 +303,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Rebuild child maps and shared faces from retained points and connectivity.
   VertexVolumeSplit restoreVertexVolumeSplit(Shape shape, std::vector<Point> points,
       const std::vector<std::array<unsigned,8>> &children, JacobianCheckLimits limits) {
     if(shape != Shape::hex && shape != Shape::prism && shape != Shape::tet)
@@ -345,6 +357,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Place one corner child inside a reference quad with the supplied split point.
   CornerMap quadChildMap(unsigned corner,const Point &center) {
     if(corner>=4) throw std::out_of_range("quad child corner") ;
     const auto &q=referenceElement(Shape::quad).vertices ;

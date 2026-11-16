@@ -29,23 +29,31 @@
 
 namespace Loci {
 namespace FVMAdapt {
+  /// Apply the selected edge-division balance test to the cell faces.
   bool faceBalanceRequired(const std::vector<std::vector<unsigned>> &faces,
       const std::vector<unsigned> &divided, FaceBalance policy) {
     if(policy==FaceBalance::none) return false ;
-    if(policy!=FaceBalance::majority && policy!=FaceBalance::opposite) throw std::invalid_argument("invalid face balance policy") ;
-    auto selected=divided ; std::sort(selected.begin(),selected.end()) ;
+    if(policy!=FaceBalance::majority && policy!=FaceBalance::opposite)
+      throw std::invalid_argument("invalid face balance policy") ;
+    auto selected=divided ;
+    std::sort(selected.begin(),selected.end()) ;
     selected.erase(std::unique(selected.begin(),selected.end()),selected.end()) ;
-    for(auto f:selected) if(f>=faces.size()) throw std::invalid_argument("divided face is outside the cell") ;
+    for(auto f:selected)
+      if(f>=faces.size()) throw std::invalid_argument("divided face is outside the cell") ;
     if(selected.size()>faces.size()/2) return true ;
-    if(policy==FaceBalance::opposite) for(unsigned i=0;i<selected.size();++i) for(unsigned j=0;j<i;++j) {
-      const auto &a=faces[selected[i]], &b=faces[selected[j]] ; bool touching=false ;
-      for(auto v:a) touching=touching || std::find(b.begin(),b.end(),v)!=b.end() ;
-      if(!touching) return true ;
-    }
+    if(policy==FaceBalance::opposite)
+      for(unsigned i=0;i<selected.size();++i)
+        for(unsigned j=0;j<i;++j) {
+          const auto &a=faces[selected[i]], &b=faces[selected[j]] ;
+          bool touching=false ;
+          for(auto v:a) touching=touching || std::find(b.begin(),b.end(),v)!=b.end() ;
+          if(!touching) return true ;
+        }
     return false ;
   }
   namespace {
 
+    /// Require the expected number of distinct entity IDs.
     void checkIds(const std::vector<EntityId> &ids, unsigned count) {
       if(ids.size() != count)
         throw std::invalid_argument("entity ID count does not match reference topology") ;
@@ -55,6 +63,7 @@ namespace FVMAdapt {
         throw std::invalid_argument("original entity IDs must be unique within each kind") ;
     }
 
+    /// Choose the face orientation with the smallest ordered vertex IDs.
     unsigned canonicalOrientation(unsigned vertices, const std::vector<EntityId> &ids) {
       unsigned chosen = 0 ;
       std::vector<EntityId> least = ids, candidate(ids.size()) ;
@@ -66,6 +75,7 @@ namespace FVMAdapt {
       return chosen ;
     }
 
+    /// Locate an exact point on a reference edge and return its fractional position.
     bool edgeCoordinate(Shape shape, unsigned edge, const ReferencePoint &point, Fraction &coordinate) {
       const auto &vertices = referenceElement(shape).edges[edge] ;
       const ReferencePoint start = referenceVertex(shape,vertices[0]), end = referenceVertex(shape,vertices[1]) ;
@@ -94,6 +104,7 @@ namespace FVMAdapt {
     return a.point < b.point ;
   }
 
+  /// Associate a standard reference cell with original mesh entity IDs.
   CellTopology::CellTopology(Shape shape, EntityId cell, std::vector<EntityId> vertices,
                              std::vector<EntityId> edges, std::vector<EntityId> faces)
     : shape_(shape), id_(cell), vertices_(std::move(vertices)),
@@ -118,13 +129,17 @@ namespace FVMAdapt {
     std::vector<std::vector<unsigned>> faces ;
   } ;
 
+  /// Retain general-cell connectivity with canonical shared entity orientations.
   CellTopology::CellTopology(EntityId cell, std::vector<EntityId> vertices, std::vector<EntityId> edges,
       std::vector<EntityId> faces, std::vector<std::array<unsigned,2>> edgeVertices,
       std::vector<std::vector<unsigned>> faceVertices)
     : id_(cell),vertices_(std::move(vertices)),edges_(std::move(edges)),faces_(std::move(faces)) {
-    checkIds(vertices_,vertices_.size()) ; checkIds(edges_,edgeVertices.size()) ; checkIds(faces_,faceVertices.size()) ;
+    checkIds(vertices_,vertices_.size()) ;
+    checkIds(edges_,edgeVertices.size()) ;
+    checkIds(faces_,faceVertices.size()) ;
     if(vertices_.size()<4 || faces_.size()<4 || vertices_.size()+faces_.size()!=edges_.size()+2)
       throw std::invalid_argument("cell boundary must be a closed spherical shell") ;
+
     std::map<std::pair<unsigned,unsigned>,unsigned> byEnds ;
     for(unsigned e=0;e<edgeVertices.size();++e) {
       const auto a=edgeVertices[e][0],b=edgeVertices[e][1] ;
@@ -132,31 +147,43 @@ namespace FVMAdapt {
         throw std::invalid_argument("invalid or repeated cell edge") ;
       edgeOrientations_.push_back(vertices_[a]<vertices_[b] ? 0:1) ;
     }
-    std::set<std::vector<unsigned>> uniqueFaces ; std::set<unsigned> usedVertices ;
+    std::set<std::vector<unsigned>> uniqueFaces ;
+    std::set<unsigned> usedVertices ;
     std::vector<std::vector<std::pair<unsigned,int>>> uses(edges_.size()) ;
     for(unsigned f=0;f<faceVertices.size();++f) {
-      const auto &loop=faceVertices[f] ; auto sorted=loop ; std::sort(sorted.begin(),sorted.end()) ;
+      const auto &loop=faceVertices[f] ;
+      auto sorted=loop ;
+      std::sort(sorted.begin(),sorted.end()) ;
       if(loop.size()<3 || sorted.back()>=vertices_.size() ||
          std::adjacent_find(sorted.begin(),sorted.end())!=sorted.end() || !uniqueFaces.insert(sorted).second)
         throw std::invalid_argument("cell requires distinct polygon faces") ;
       std::vector<EntityId> ids ;
       for(unsigned i=0;i<loop.size();++i) {
-        const auto a=loop[i],b=loop[(i+1)%loop.size()] ; const auto edge=byEnds.find(std::minmax(a,b)) ;
+        const auto a=loop[i],b=loop[(i+1)%loop.size()] ;
+        const auto edge=byEnds.find(std::minmax(a,b)) ;
         if(edge==byEnds.end()) throw std::invalid_argument("cell face edge is missing") ;
-        uses[edge->second].push_back({f,a<b ? 1:-1}) ; ids.push_back(vertices_[a]) ; usedVertices.insert(a) ;
+        uses[edge->second].push_back({f,a<b ? 1:-1}) ;
+        ids.push_back(vertices_[a]) ;
+        usedVertices.insert(a) ;
       }
       faceOrientations_.push_back(canonicalOrientation(loop.size(),ids)) ;
     }
+    // Opposite uses of every edge define the face adjacency of the closed shell.
     std::vector<std::vector<unsigned>> adjacent(faces_.size()) ;
     for(const auto &edge:uses) {
       if(edge.size()!=2 || edge[0].second+edge[1].second!=0)
         throw std::invalid_argument("cell edges require two opposite face uses") ;
-      adjacent[edge[0].first].push_back(edge[1].first) ; adjacent[edge[1].first].push_back(edge[0].first) ;
+      adjacent[edge[0].first].push_back(edge[1].first) ;
+      adjacent[edge[1].first].push_back(edge[0].first) ;
     }
-    std::set<unsigned> reached{0} ; std::vector<unsigned> pending{0} ;
+
+    std::set<unsigned> reached{0} ;
+    std::vector<unsigned> pending{0} ;
     while(!pending.empty()) {
-      const auto face=pending.back() ; pending.pop_back() ;
-      for(auto other:adjacent[face]) if(reached.insert(other).second) pending.push_back(other) ;
+      const auto face=pending.back() ;
+      pending.pop_back() ;
+      for(auto other:adjacent[face])
+        if(reached.insert(other).second) pending.push_back(other) ;
     }
     if(reached.size()!=faces_.size() || usedVertices.size()!=vertices_.size())
       throw std::invalid_argument("cell boundary is disconnected or has unused vertices") ;
@@ -173,31 +200,40 @@ namespace FVMAdapt {
     if(!shape_) throw std::invalid_argument("cell has no standard reference element") ;
     return *shape_ ;
   }
+
+  /// Return local vertex indices of a standard or general-cell edge.
   std::array<unsigned,2> CellTopology::edgeVertices(unsigned edge) const {
     edges_.at(edge) ;
     if(incidence_) return incidence_->edges.at(edge) ;
-    const auto &ends=referenceElement(shape()).edges[edge] ; return {{unsigned(ends[0]),unsigned(ends[1])}} ;
+    const auto &ends=referenceElement(shape()).edges[edge] ;
+    return {{unsigned(ends[0]),unsigned(ends[1])}} ;
   }
+
+  /// Return local vertex indices in the cell's face order.
   std::vector<unsigned> CellTopology::faceVertices(unsigned face) const {
     faces_.at(face) ;
     if(incidence_) return incidence_->faces.at(face) ;
     const auto &loop=referenceElement(shape()).boundaries[face] ;
     return {loop.vertices.begin(),loop.vertices.begin()+loop.vertexCount} ;
   }
+
   Shape CellTopology::faceShape(unsigned face) const {
     faces_.at(face) ;
     return incidence_ ? (incidence_->faces.at(face).size()==3 ? Shape::triangle:
       incidence_->faces.at(face).size()==4 ? Shape::quad:Shape::polygon):referenceElement(shape()).boundaries[face].shape ;
   }
 
+  /// Orient an edge from the lower original vertex ID to the higher one.
   unsigned CellTopology::edgeOrientation(unsigned edge) const {
     return edgeOrientations_.at(edge) ;
   }
 
+  /// Return the rotation or reflection into the shared face order.
   unsigned CellTopology::faceOrientation(unsigned face) const {
     return faceOrientations_.at(face) ;
   }
 
+  /// Identify a point by its original vertex, edge, face, or cell.
   VertexKey CellTopology::vertexKey(const ReferencePoint &point) const {
     if(!containsExact(shape(),point))
       throw std::invalid_argument("vertex is outside the original reference cell") ;
@@ -221,6 +257,7 @@ namespace FVMAdapt {
     return {EntityKind::cell,id_,point} ;
   }
 
+  /// Recover this cell's reference coordinates from a shared vertex key.
   bool CellTopology::locateVertex(const VertexKey &key, ReferencePoint &point) const {
     const ReferenceElement &element = referenceElement(shape()) ;
     ReferencePoint located ;

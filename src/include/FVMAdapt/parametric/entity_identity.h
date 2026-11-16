@@ -74,20 +74,29 @@ namespace FVMAdapt {
                  std::vector<std::vector<unsigned>> faceVertices) ;
     /// Same original IDs, local ordering and connectivity.
     bool operator==(const CellTopology &) const ;
+
     bool operator!=(const CellTopology &other) const { return !(*this==other) ; }
+
     bool isStandard() const { return shape_.has_value() ; }
     /// Reference shape; throws for cells defined only by their bounding faces.
     Shape shape() const ;
+
     EntityId id() const { return id_ ; }
+
     std::size_t vertexCount() const { return vertices_.size() ; }
+
     std::size_t edgeCount() const { return edges_.size() ; }
+
     std::size_t faceCount() const { return faces_.size() ; }
     std::array<unsigned,2> edgeVertices(unsigned edge) const ;
     std::vector<unsigned> faceVertices(unsigned face) const ;
     Shape faceShape(unsigned face) const ;
+
     /// Original IDs in local topology order; invalid indices throw out_of_range.
     EntityId vertexId(unsigned vertex) const { return vertices_.at(vertex) ; }
+
     EntityId edgeId(unsigned edge) const { return edges_.at(edge) ; }
+
     EntityId faceId(unsigned face) const { return faces_.at(face) ; }
     /// Map local edge coordinates to increasing endpoint-ID order; invalid indices throw out_of_range.
     unsigned edgeOrientation(unsigned edge) const ;

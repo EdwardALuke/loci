@@ -4,6 +4,7 @@ $include "FVMAdapt/parametric_adapt.lh"
 #include <FVMAdapt/defines.h>
 #include "parametric_cell_data.h"
 #include "parametric_face_data.h"
+#include <algorithm>
 #include <FVMAdapt/xml_region.h>
 #include <FVMAdapt/spacing_source.h>
 
@@ -51,6 +52,15 @@ $type candidateParametricEdgeTrace store<Loci::FineFaces> ;
 $type parametricQualityAccepted param<bool> ;
 
 namespace {
+  template<class T> struct ParametricTraceUnion {
+    void operator()(T &target, const T &source) {
+      if(&target == &source) return ;
+      target.insert(target.end(),source.begin(),source.end()) ;
+      std::sort(target.begin(),target.end()) ;
+      target.erase(std::unique(target.begin(),target.end()),target.end()) ;
+    }
+  } ;
+
   template<class T> struct ParametricMerge {
     void operator()(T &target, const T &source) { target.merge(source) ; }
   } ;

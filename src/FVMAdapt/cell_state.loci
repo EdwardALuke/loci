@@ -52,6 +52,7 @@ constraint(geom_cells) {
 
 /// Loading a saved mesh provides no preceding adaptation to classify.
 $type parametricHistoryReplay param<bool> ;
+
 $rule default(parametricHistoryReplay) { $parametricHistoryReplay = false ; }
 
 /// Classify accepted changes, including splits and merges imposed by balancing.

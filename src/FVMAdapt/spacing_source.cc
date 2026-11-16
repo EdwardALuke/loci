@@ -9,7 +9,10 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
+    /// Measure Euclidean distance between two source points.
     double distance(const Point &a,const Point &b) { return std::hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]) ; }
+
+    /// Compute the arithmetic center of the supplied cell vertices.
     Point average(const std::vector<Point> &points) {
       if(points.empty()) throw std::invalid_argument("spacing requests require cell vertices") ;
       Point center{} ;
@@ -18,6 +21,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Read a positive count followed by endpoints, r0, s0, r1, s1 and exponent per source.
   std::vector<SpacingSource> readSpacingSources(const std::string &filename) {
     std::ifstream input(filename) ;
     if(!input) throw std::invalid_argument("unable to read spacing source file: "+filename) ;
@@ -44,6 +48,7 @@ namespace FVMAdapt {
     return sources ;
   }
 
+  /// Evaluate a validated source at a physical point.
   double sourceSpacing(const Point &p,const SpacingSource &s) {
     const double length=distance(s.start,s.end) ;
     double along=0 ; Point closest=s.start ;
@@ -63,6 +68,7 @@ namespace FVMAdapt {
     return std::exp(base+s.exponent*growth) ;
   }
 
+  /// Minimum source spacing at own vertices and their average position.
   double minimumSourceSpacing(const std::vector<Point> &points,const std::vector<SpacingSource> &sources) {
     const auto center=average(points) ; double spacing=std::numeric_limits<double>::max() ;
     for(const auto &source:sources) {
@@ -72,6 +78,7 @@ namespace FVMAdapt {
     return spacing ;
   }
 
+  /// Sample spacing and resolve nearby source features using the shortest own edge.
   bool refineForSpacing(const std::vector<Point> &points,const std::vector<SpacingSource> &sources,double shortest) {
     const auto center=average(points) ; Point lo=points.front(),hi=lo ;
     for(const auto &p:points) for(unsigned d=0;d<3;++d) { lo[d]=std::min(lo[d],p[d]) ; hi[d]=std::max(hi[d],p[d]) ; }

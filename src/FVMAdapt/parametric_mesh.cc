@@ -33,11 +33,15 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
     const BoundaryLimits meshLimits = {1000000,8000000} ;
+
+    /// Find the local face index for an original face ID.
     unsigned faceIndex(const CellTopology &topology, EntityId face) {
       for(unsigned f = 0; f < referenceElement(topology.shape()).boundaryCount; ++f)
         if(topology.faceId(f) == face) return f ;
       throw std::invalid_argument("face is absent from parametric root") ;
     }
+
+    /// Map retained tree-node IDs to the current output leaf indices.
     std::map<TreeNodeId,int> leafNumbers(const AffineSubdivision &history) {
       std::map<TreeNodeId,int> result ;
       const auto leaves = history.history().leafIds() ;
@@ -45,11 +49,15 @@ namespace FVMAdapt {
       for(std::size_t i = 0; i < leaves.size(); ++i) result.emplace(leaves[i],int(i)) ;
       return result ;
     }
+
+    /// Return refinement depths in output leaf order.
     std::vector<int> leafDepths(const AffineSubdivision &history) {
       std::vector<int> result ;
       for(auto id: history.history().leafIds()) result.push_back(history.history().path(id).size()) ;
       return result ;
     }
+
+    /// List original vertices in the shared face orientation.
     std::vector<EntityId> faceVertices(const CellTopology &topology, unsigned face) {
       const auto &boundary = referenceElement(topology.shape()).boundaries[face] ;
       std::vector<EntityId> result(boundary.vertexCount) ;
@@ -57,6 +65,8 @@ namespace FVMAdapt {
         result[orientedVertex(boundary.shape,topology.faceOrientation(face),v)] = topology.vertexId(boundary.vertices[v]) ;
       return result ;
     }
+
+    /// Express leaf sides on an original face in the face's shared coordinates.
     std::vector<BoundaryUse> faceCover(const CellTopology &topology, const AffineSubdivision &history, unsigned face) {
       const Shape frame = referenceElement(topology.shape()).boundaries[face].shape ;
       std::vector<BoundaryUse> result ; unsigned index = 0 ;
@@ -79,6 +89,8 @@ namespace FVMAdapt {
       }
       return result ;
     }
+
+    /// Identify a shared-face point in the original cell topology.
     VertexKey faceKey(const CellTopology &topology, unsigned face, const ReferencePoint &canonical) {
       const Shape shape = referenceElement(topology.shape()).boundaries[face].shape ;
       const auto local = orientReferencePoint(shape,inverseOrientation(shape,topology.faceOrientation(face)),canonical) ;
@@ -88,6 +100,7 @@ namespace FVMAdapt {
     /// A leaf touching an original face at a vertex or along an edge.
     struct LeafContact { int leaf ; std::vector<VertexKey> nodes ; } ;
 
+    /// Find leaves that exceed the allowed depth difference across the selected contacts.
     std::vector<int> gradeFaces(const std::vector<ParametricFace> &faces, const std::vector<int> &depths,
                                 unsigned difference, NeighborGrading grading, const std::vector<LeafContact> &contacts = {}) {
       std::set<int> required ;
@@ -121,6 +134,8 @@ namespace FVMAdapt {
       for(const auto &entry: edges) grade(entry.second) ;
       return {required.begin(),required.end()} ;
     }
+
+    /// Locate shared node keys in the original cell's reference coordinates.
     std::map<ReferencePoint,VertexKey> referenceNodes(const CellTopology &topology, const std::vector<VertexKey> &nodes) {
       std::map<ReferencePoint,VertexKey> points ;
       for(const auto &key: nodes) {
@@ -130,6 +145,7 @@ namespace FVMAdapt {
       }
       return points ;
     }
+
     // A remote refinement point belongs on every emitted polygon edge that contains it.
     void insertNodes(std::vector<VertexKey> &loop, const CellTopology &topology,
                      const std::map<ReferencePoint,VertexKey> &points) {
@@ -165,6 +181,8 @@ namespace FVMAdapt {
       }
       loop.swap(result) ;
     }
+
+    /// Collect leaf vertices and edges touching an original face.
     std::vector<LeafContact> faceContacts(EntityId face, const CellTopology &topology,
         const AffineSubdivision &history, int offset) {
       std::vector<LeafContact> contacts ; const auto local = faceIndex(topology,face) ;
@@ -201,6 +219,8 @@ namespace FVMAdapt {
         }
       throw std::logic_error("degenerate leaf face in directional balancing") ;
     }
+
+    /// Identify cell axes divided by a partial face overlap.
     unsigned faceDirections(Shape shape,unsigned face,const std::vector<ReferencePoint> &points) {
       if(shape!=Shape::hex && shape!=Shape::prism) return 0 ;
       const auto &side=referenceElement(shape).boundaries[face] ;
@@ -220,6 +240,8 @@ namespace FVMAdapt {
     }
     struct FacePieces { unsigned count=0, directions=0 ; } ;
     using DividedFaces=std::map<std::pair<int,int>,FacePieces> ;
+
+    /// Request splits for leaf faces covered by more than one neighboring piece.
     std::vector<FaceBalanceRequest> dividedFaceRequests(EntityId root,const DividedFaces &pieces,bool directions) {
       std::vector<FaceBalanceRequest> out ;
       for(const auto &p:pieces) if(p.second.count>1) {
@@ -231,6 +253,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Choose a full balancing split or an in-plane split preserving the extrusion thickness.
   SplitOperation parametricGradingSplit(const GeometryMap &root, int axis) {
     if(axis == -1) return isotropicSplit(root.shape()) ;
     if(axis < 0 || axis > 2) throw std::invalid_argument("parametricExtrusionAxis must be -1, 0, 1 or 2") ;
@@ -267,6 +290,7 @@ namespace FVMAdapt {
     throw std::invalid_argument("cell is not a straight extrusion along parametricExtrusionAxis") ;
   }
 
+  /// Choose a balancing split and verify that existing leaves preserve the extrusion thickness.
   SplitOperation parametricGradingSplit(const AffineSubdivision &history, int axis) {
     const auto &saved = history.history() ;
     const auto root = saved.geometry().map(saved.node(0).map) ;
@@ -289,6 +313,7 @@ namespace FVMAdapt {
   }
 
 
+  /// Select whether balancing checks neighbors across faces, edges or vertices.
   NeighborGrading parametricGrading(const std::string &name) {
     if(name == "faces") return NeighborGrading::faces ;
     if(name == "edges") return NeighborGrading::edges ;
@@ -296,6 +321,7 @@ namespace FVMAdapt {
     throw std::invalid_argument("parametricGrading must be faces, edges or vertices") ;
   }
 
+  /// Recover a standard element or a closed polygon shell from outward face loops.
   CellTopology parametricCellTopology(EntityId cell, const std::vector<EntityId> &faces,
       const std::vector<std::vector<EntityId>> &outwardFaces,
       const std::vector<EntityId> &edges, const std::vector<std::array<EntityId,2>> &edgeEnds) {
@@ -343,6 +369,7 @@ namespace FVMAdapt {
     return CellTopology(native.shape,cell,native.vertices,nativeEdges,nativeFaces) ;
   }
 
+  /// Original IDs and either a standard shape or explicit face/edge connectivity. IDs fit nonnegative int.
   std::vector<int> encodeParametricTopology(const CellTopology &topology) {
     std::vector<int> result=topology.isStandard() ? std::vector<int>{1,int(topology.shape())}:std::vector<int>{2} ;
     const auto append = [&](EntityId id) {
@@ -361,6 +388,8 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Restore cell connectivity from its encoded face and edge lists.
   CellTopology decodeParametricTopology(const std::vector<int> &record) {
     if(record.size() < 3 || (record[0] != 1 && record[0] != 2) || std::any_of(record.begin(),record.end(),[](int id) { return id < 0 ; }))
       throw std::invalid_argument("invalid parametric topology record") ;
@@ -395,6 +424,7 @@ namespace FVMAdapt {
     return CellTopology(shape,EntityId(record[2]),{v,e},{e,f},{f,record.end()}) ;
   }
 
+  /// Indices in history().leafIds() requiring a split within one original cell.
   std::vector<int> parametricLocalRequests(const CellTopology &topology, const AffineSubdivision &history,
       unsigned difference, NeighborGrading grading) {
     const auto boundary = assembleBoundaries({{topology,history}},meshLimits) ;
@@ -405,6 +435,7 @@ namespace FVMAdapt {
     return gradeFaces(faces,leafDepths(history),difference,grading) ;
   }
 
+  /// Active leaf faces covered by multiple neighboring pieces, locally or across an original face.
   std::vector<FaceBalanceRequest> parametricDividedFaces(const CellTopology &topology, const AffineSubdivision &history,bool directions) {
     const auto boundary=assembleBoundaries({{topology,history}},meshLimits) ; const auto numbers=leafNumbers(history) ;
     DividedFaces pieces ;
@@ -418,6 +449,8 @@ namespace FVMAdapt {
     }
     return dividedFaceRequests(topology.id(),pieces,directions) ;
   }
+
+  /// Active leaf faces covered by multiple neighboring pieces, locally or across an original face.
   std::vector<FaceBalanceRequest> parametricDividedFaces(EntityId face, const CellTopology &left, const AffineSubdivision &lh,
       const CellTopology &right, const AffineSubdivision &rh,bool directions) {
     const auto lf=faceIndex(left,face), rf=faceIndex(right,face) ;
@@ -426,7 +459,7 @@ namespace FVMAdapt {
     DividedFaces a,b ;
     for(const auto &m:matches) { ++a[{m.first.face.child,m.first.face.boundary}].count ; ++b[{m.second.face.child,m.second.face.boundary}].count ; }
     if(directions) {
-      const auto ll=lh.leafIds(), rl=rh.leafIds() ;
+      const auto ll=lh.leafIdsInCreationOrder(), rl=rh.leafIdsInCreationOrder() ;
       const auto collect=[&](DividedFaces &parts,const BoundaryUse &side,Shape shape,const std::vector<ReferencePoint> &points) {
         auto &part=parts.at({side.face.child,side.face.boundary}) ;
         if(part.count<=1 || (shape!=Shape::hex && shape!=Shape::prism)) return ;
@@ -443,9 +476,10 @@ namespace FVMAdapt {
     return out ;
   }
 
+  /// [original cell ID, index in history().leafIds()] for unequal levels across a shared face.
   ParametricTrace parametricFaceRequests(EntityId face, const CellTopology &left, const AffineSubdivision &lh,
       const CellTopology &right, const AffineSubdivision &rh, unsigned difference, NeighborGrading grading) {
-    auto faces = parametricFaceFaces(face,left,lh,{},&right,&rh) ; auto depths = leafDepths(lh) ;
+    auto faces = parametricFacePieces(face,left,lh,{},&right,&rh) ; auto depths = leafDepths(lh) ;
     const auto other = leafDepths(rh) ; const int offset = depths.size() ; depths.insert(depths.end(),other.begin(),other.end()) ;
     for(auto &piece: faces) piece.right += offset ;
     std::vector<LeafContact> contacts ;
@@ -465,6 +499,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Rows [edge ID, cell ID, leaf index, depth, lower numerator/denominator, upper numerator/denominator].
   ParametricTrace parametricEdgeTrace(const CellTopology &topology, const AffineSubdivision &history) {
     const auto &element = referenceElement(topology.shape()) ; ParametricTrace result ; int index = 0 ;
     for(auto id: history.history().leafIds()) {
@@ -490,18 +525,25 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Find leaves too coarse for neighboring intervals on original edges.
   std::vector<int> parametricEdgeRequests(EntityId root, const ParametricTrace &trace, unsigned difference, NeighborGrading grading) {
     if(grading == NeighborGrading::faces) return {} ;
     std::set<int> required ;
-    for(const auto &own: trace) if(own.at(1) == int(root)) for(const auto &other: trace) {
-      if(own[0] != other[0] || other[3] <= own[3] || unsigned(other[3]-own[3]) <= difference) continue ;
-      const auto lower = std::max(Fraction(own[4],own[5]),Fraction(other[4],other[5])) ;
-      const auto upper = std::min(Fraction(own[6],own[7]),Fraction(other[6],other[7])) ;
-      if(lower < upper || (grading == NeighborGrading::vertices && lower == upper)) required.insert(own[2]) ;
+    for(const auto &row: trace) {
+      const EdgeTraceRow own(row) ;
+      if(own.rootCell()!=int(root)) continue ;
+      for(const auto &neighbor: trace) {
+        const EdgeTraceRow other(neighbor) ;
+        if(own.edge()!=other.edge() || other.depth()<=own.depth() || unsigned(other.depth()-own.depth())<=difference) continue ;
+        const auto lower=std::max(own.lower(),other.lower()) ;
+        const auto upper=std::min(own.upper(),other.upper()) ;
+        if(lower<upper || (grading==NeighborGrading::vertices && lower==upper)) required.insert(own.leafIndex()) ;
+      }
     }
     return {required.begin(),required.end()} ;
   }
 
+  /// Maximum touching leaf depth at each original vertex, in native vertex order.
   std::vector<int> parametricVertexDepths(const CellTopology &topology, const AffineSubdivision &history) {
     std::vector<int> result(referenceElement(topology.shape()).vertexCount,0) ;
     for(auto id: history.history().leafIds()) {
@@ -514,6 +556,8 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Find leaves too coarse for the shared depths at original vertices.
   std::vector<int> parametricVertexRequests(const CellTopology &topology, const AffineSubdivision &history,
       const std::map<EntityId,int> &depths, unsigned difference) {
     std::set<int> result ; int index = 0 ;
@@ -529,19 +573,24 @@ namespace FVMAdapt {
     return {result.begin(),result.end()} ;
   }
 
+  /// Sorted unique nodes owned by the original cell or face, including matching-cut intersections.
   std::vector<VertexKey> parametricCellNodes(const CellTopology &topology, const AffineSubdivision &history) {
     std::set<VertexKey> result ;
     for(const auto &face: assembleBoundaries({{topology,history}},meshLimits).faces)
       for(const auto &key: face.vertices) if(key.kind == EntityKind::cell) result.insert(key) ;
     return {result.begin(),result.end()} ;
   }
+
+  /// List generated nodes in the reconciled shared-face subdivision.
   std::vector<VertexKey> parametricFaceNodes(EntityId face, const CellTopology &left,
       const AffineSubdivision &lh, const CellTopology *right, const AffineSubdivision *rh) {
     std::set<VertexKey> result ;
-    for(const auto &piece: parametricFaceFaces(face,left,lh,{},right,rh))
+    for(const auto &piece: parametricFacePieces(face,left,lh,{},right,rh))
       for(const auto &key: piece.vertices) if(key.kind == EntityKind::face) result.insert(key) ;
     return {result.begin(),result.end()} ;
   }
+
+  /// Interior polygons; supply agreed original face and edge nodes.
   std::vector<ParametricFace> parametricCellFaces(const CellTopology &topology,
       const AffineSubdivision &history, const std::vector<VertexKey> &boundaryNodes) {
     const auto assembled = assembleBoundaries({{topology,history}},meshLimits) ; const auto numbers = leafNumbers(history) ;
@@ -554,7 +603,9 @@ namespace FVMAdapt {
     }
     return result ;
   }
-  std::vector<ParametricFace> parametricFaceFaces(EntityId face, const CellTopology &left,
+
+  /// Common original-face polygons; supply agreed original edge nodes.
+  std::vector<ParametricFace> parametricFacePieces(EntityId face, const CellTopology &left,
       const AffineSubdivision &lh, const std::vector<VertexKey> &edgeNodes,
       const CellTopology *right, const AffineSubdivision *rh) {
     if((right == nullptr) != (rh == nullptr)) throw std::invalid_argument("parametric neighbor needs topology and history") ;

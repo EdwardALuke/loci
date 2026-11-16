@@ -40,6 +40,7 @@ namespace FVMAdapt {
     using Triangle = std::array<unsigned,3> ;
     using Edge = std::pair<unsigned,unsigned> ;
 
+    /// Convert finite input coordinates to exact values for geometric predicates.
     ExactPoint exactPoint(const Point &point) {
       for(double value : point)
         if(!std::isfinite(value))
@@ -72,6 +73,7 @@ namespace FVMAdapt {
       return loop ;
     }
 
+    /// Choose a rotation and direction using the stable vertex IDs.
     Loop canonicalLoop(const std::vector<EntityId> &ids) {
       const unsigned count = ids.size() ;
       const unsigned first = std::min_element(ids.begin(),ids.end())-ids.begin() ;
@@ -82,6 +84,7 @@ namespace FVMAdapt {
       return loop ;
     }
 
+    /// Check vertex references and a closed, consistently oriented face shell.
     void validateShell(const std::vector<Point> &points,
                        const std::vector<EntityId> &vertexIds,
                        const std::vector<CompositeFace> &faces) {
@@ -161,6 +164,7 @@ namespace FVMAdapt {
       std::array<ExactPoint,3> normals ;
     } ;
 
+    /// Form the oriented cone from the interior point to a face triangle.
     RadialTriangle radialTriangle(const Triangle &triangle,
                                   const std::vector<ExactPoint> &radial) {
       const ExactPoint &a = radial[triangle[0]], &b = radial[triangle[1]], &c = radial[triangle[2]] ;
@@ -169,6 +173,7 @@ namespace FVMAdapt {
       return {{{a,b,c}},{{cross(a,b),cross(b,c),cross(c,a)}}} ;
     }
 
+    /// Test whether one cone lies outside a side plane of the other.
     bool separated(const RadialTriangle &first, const RadialTriangle &second) {
       for(const ExactPoint &normal : first.normals) {
         bool outside = true ;
@@ -179,6 +184,7 @@ namespace FVMAdapt {
       return false ;
     }
 
+    /// Test for positive-volume overlap between two triangular cones.
     bool overlap(const RadialTriangle &first, const RadialTriangle &second) {
       if(separated(first,second) || separated(second,first)) return false ;
       std::array<ExactPoint,6> normals ;
@@ -210,6 +216,7 @@ namespace FVMAdapt {
       return false ;
     }
 
+    /// Test whether two face loops describe opposite orientations.
     bool opposite(const Loop &first, const Loop &second) {
       if(first.size() != second.size()) return false ;
       const auto start = std::find(second.begin(),second.end(),first[0]) ;
@@ -222,6 +229,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Triangulate a face consistently using stable vertex identities.
   std::vector<std::array<unsigned,3> > triangulateFace(
       const std::vector<EntityId> &vertexIds, const std::vector<Point> &points) {
     if(points.size() < 3 || points.size() != vertexIds.size() || points.size() >= noCompositeIndex ||
@@ -288,6 +296,7 @@ namespace FVMAdapt {
     return triangles ;
   }
 
+  /// Join face triangles to an interior point and retain their shared boundaries.
   CompositeCell makeCompositeCell(const std::vector<Point> &points,
                                  const std::vector<EntityId> &vertexIds,
                                  const std::vector<CompositeFace> &faces,

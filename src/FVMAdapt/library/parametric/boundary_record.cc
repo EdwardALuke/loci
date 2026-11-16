@@ -29,7 +29,6 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
-#include <type_traits>
 
 namespace Loci {
 namespace FVMAdapt {
@@ -44,18 +43,21 @@ namespace {
     if(!condition) throw std::invalid_argument(message) ;
   }
 
+  /// Accumulate retained entities without exceeding the supplied limit.
   void count(std::size_t amount, std::size_t &used, std::size_t limit) {
     if(used>limit || amount>limit-used)
       throw std::length_error("boundary record count limit exceeded") ;
     used+=amount ;
   }
 
+  /// Use the boundary byte budget when encoding its geometry.
   RecordLimits geometryLimits(const BoundaryRecordLimits &limits) {
     RecordLimits result ;
     result.maxBytes=limits.maxBytes ; result.geometry=limits.geometry ;
     return result ;
   }
 
+  /// Encode a center method using its stable record-format tag.
   unsigned char centerTag(CenterMethod method) {
     switch(method) {
     case CenterMethod::reference: return 1 ;
@@ -65,6 +67,7 @@ namespace {
     throw std::invalid_argument("unknown boundary center method") ;
   }
 
+  /// Decode a saved center method, rejecting unknown tags.
   CenterMethod readCenter(RecordReader &in) {
     switch(in.byte()) {
     case 1: return CenterMethod::reference ;
@@ -74,10 +77,12 @@ namespace {
     throw std::invalid_argument("unknown boundary center method tag") ;
   }
 
+  /// Write a boundary ID with an explicit absent marker.
   void writeId(RecordWriter &out, BoundaryId id) {
     out.u64(id==noBoundary ? absent : id) ;
   }
 
+  /// Read a boundary ID or its absent marker.
   BoundaryId readId(RecordReader &in) {
     const auto id=in.u64() ;
     if(id==absent) return noBoundary ;
@@ -85,60 +90,20 @@ namespace {
     return static_cast<BoundaryId>(id) ;
   }
 
+  /// Write a counted sequence of boundary IDs.
   void writeIds(RecordWriter &out, const std::vector<BoundaryId> &ids) {
     out.u64(ids.size()) ;
     for(const auto id:ids) writeId(out,id) ;
   }
 
 
+  /// Test an edge's endpoints without regard to direction.
   bool connects(const EdgeRecord &edge, BoundaryId first, BoundaryId second) {
     return (edge.vertices[0]==first && edge.vertices[1]==second) ||
            (edge.vertices[1]==first && edge.vertices[0]==second) ;
   }
 
-  void checkGeometryLimits(const GeometryStore &geometry, const GeometryLimits &limits) {
-    if(geometry.size()>limits.maxRecords || geometry.retainedBytes()>limits.exact.maxBytes)
-      throw std::length_error("boundary geometry limit exceeded") ;
-    std::vector<std::size_t> depths(geometry.size(),0) ;
-    std::size_t controls=0 ;
-    for(MapId id=0; id<geometry.size(); ++id) {
-      if(geometry.evaluationCost(id)>limits.exact.maxOperations)
-        throw std::length_error("boundary geometry evaluation limit exceeded") ;
-      std::visit([&](const auto &record) {
-        using T=std::decay_t<decltype(record)> ;
-        if constexpr(std::is_same_v<T,CornerRecord>) {
-          count(record.corners.size(),controls,limits.maxControls) ;
-        } else if constexpr(std::is_same_v<T,FanRecord>) {
-          count(record.corners().size(),controls,limits.maxControls) ;
-          count(1,controls,limits.maxControls) ;
-        } else if constexpr(std::is_same_v<T,SurfacePatchRecord>) {
-          count(record.chartCorners.size(),controls,limits.maxControls) ;
-        } else if constexpr(std::is_same_v<T,BoundaryFanRecord>) {
-          count(1,controls,limits.maxControls) ;
-        } else if constexpr(std::is_same_v<T,TensorBezierRecord>) {
-          count(record.controls.size(),controls,limits.maxControls) ;
-          for(unsigned degree:record.degree)
-            if(degree>limits.maxDegree) throw std::length_error("boundary geometry degree limit exceeded") ;
-        } else if constexpr(std::is_same_v<T,CubicTriangleRecord>) {
-          count(record.controls.size(),controls,limits.maxControls) ;
-          if(limits.maxDegree < 3) throw std::length_error("boundary geometry degree limit exceeded") ;
-        } else if constexpr(isCubicVolumeRecord<T>) {
-          if(limits.maxDegree < 3) throw std::length_error("boundary geometry degree limit exceeded") ;
-        } else if constexpr(std::is_same_v<T,AffineRecord>) {
-          for(const auto &coordinate:record.placement().origin) checkExact(coordinate,limits.exact) ;
-          for(const auto &column:record.placement().columns)
-            for(const auto &coordinate:column) checkExact(coordinate,limits.exact) ;
-        } else if constexpr(std::is_same_v<T,ConeRecord>) count(1,controls,limits.maxControls) ;
-      },geometry.record(id)) ;
-      for(auto dependency:geometryDependencies(geometry.record(id))) {
-        require(dependency<id,"boundary map references must precede their use") ;
-        depths[id]=std::max(depths[id],depths[dependency]+1) ;
-      }
-      if(depths[id]>limits.maxCompositionDepth)
-        throw std::length_error("boundary geometry depth limit exceeded") ;
-    }
-  }
-
+  /// Count the retained bytes of an exact integer magnitude.
   std::size_t integerBytes(Fraction::Integer value) {
     if(value<0) value=-value ;
     if(value==0) return 0 ;
@@ -148,12 +113,13 @@ namespace {
 
 }
 
+  /// Check retained point, edge, and face references and their resource limits.
   void validateBoundaries(const BoundaryRecords &records, const BoundaryRecordLimits &limits) {
     std::size_t entities=0, splits=0 ;
     count(records.points.size(),entities,limits.maxEntities) ;
     count(records.edges.size(),entities,limits.maxEntities) ;
     count(records.faces.size(),entities,limits.maxEntities) ;
-    checkGeometryLimits(records.geometry,limits.geometry) ;
+    records.geometry.checkLimits(limits.geometry) ;
     ExactBudget budget(limits.geometry.exact) ;
     const auto payload=[&](std::size_t amount, std::size_t size) {
       if(amount>limits.geometry.exact.maxBytes/size)
@@ -189,6 +155,7 @@ namespace {
       require(records.geometry.map(edge.geometry)->shape()==Shape::segment,"boundary edge map must be a segment") ;
       const double extent=detail::pointExtent(2,[&](std::size_t v) { return records.points[edge.vertices[v]] ; }) ;
       for(unsigned v=0; v<2; ++v)
+
         samePoint(records.points[edge.vertices[v]],position(edge.geometry,{{double(v),0,0}}),extent) ;
       if(edge.parent!=noBoundary) {
         require(edge.parent<id,"boundary edge parent must precede its child") ;
@@ -205,6 +172,7 @@ namespace {
         fraction(cut.position) ;
         require(cut.position>previous && cut.position<Fraction(1),"boundary edge cuts must be sorted and interior") ;
         require(cut.vertex<records.points.size() && vertices.insert(cut.vertex).second,"invalid boundary edge cut vertex") ;
+
         samePoint(records.points[cut.vertex],position(edge.geometry,{{cut.position.value(),0,0}}),extent) ;
         previous=cut.position ;
       }
@@ -237,7 +205,9 @@ namespace {
           map=composition->parent ;
         }
         const bool forward=childEdge.vertices[0]==first ;
+
         samePoint(endpoints[0],{{(forward ? begin : end).value(),0,0}},1) ;
+
         samePoint(endpoints[1],{{(forward ? end : begin).value(),0,0}},1) ;
       }
     }
@@ -267,6 +237,7 @@ namespace {
         samePoint(records.points[face.vertices[v]],position(face.geometry,coordinates[v]),extent) ;
         for(double coordinate:{.25,.5,.75}) {
           const double alongEdge=edge.vertices[0]==face.vertices[v] ? coordinate : 1-coordinate ;
+
           samePoint(position(edge.geometry,{{alongEdge,0,0}}),
                     position(face.geometry,along(v,coordinate)),extent) ;
         }
@@ -305,6 +276,7 @@ namespace {
             require(found!=cuts.end(),"boundary corner construction needs edge midpoints") ;
             return found->vertex ;
           } ;
+
           require(childFace.vertices==std::vector<BoundaryId>{face.vertices[c],midpoint(c),split.centerVertex,midpoint(previous)},
                   "boundary corner child has an inconsistent vertex order") ;
           require(childFace.geometry<records.geometry.size(),"invalid boundary child face map") ;
@@ -336,11 +308,13 @@ namespace {
       require(bool(faceLinks[id])==(records.faces[id].parent!=noBoundary),"unlinked boundary child face") ;
   }
 
+  /// Write validated boundary records and their shared geometry.
   std::vector<unsigned char> encodeBoundaries(const BoundaryRecords &records, const BoundaryRecordLimits &limits) {
     std::vector<MapId> mapIds ;
     return encodeBoundaries(records,mapIds,limits) ;
   }
 
+  /// Write validated boundary records and their shared geometry.
   std::vector<unsigned char> encodeBoundaries(const BoundaryRecords &records, std::vector<MapId> &mapIds,
                                               const BoundaryRecordLimits &limits) {
     validateBoundaries(records,limits) ;
@@ -377,6 +351,7 @@ namespace {
     return out.take() ;
   }
 
+  /// Read and validate retained boundary records and their geometry.
   BoundaryRecords decodeBoundaries(const std::vector<unsigned char> &record, const BoundaryRecordLimits &limits) {
     RecordReader in(record,limits.maxBytes,limits.geometry.exact) ;
     require(in.u32()==boundaryMagic,"unknown boundary record header") ;

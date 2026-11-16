@@ -28,6 +28,7 @@
 #include <cmath>
 
 namespace Loci {
+  /// Describe donor identity, orientation and weights for Loci containers.
   DatatypeP data_schema_traits<FaceSource>::get_type() {
     CompoundDatatypeP type = CompoundFactory(FaceSource()) ;
     LOCI_INSERT_TYPE(type,FaceSource,source) ;
@@ -50,22 +51,34 @@ namespace Loci {
     using Point = std::array<long double,2> ;
     using Polygon = std::vector<Point> ;
 
+    /// Return the signed cross product in face reference coordinates.
     long double cross(const Point& a,const Point& b,const Point& p) {
       return (b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]) ;
     }
+
+    /// Return signed area in face reference coordinates.
     long double area(const Polygon& p) {
       long double value=0 ;
       for(size_t i=1;i+1<p.size();++i) value+=cross(p[0],p[i],p[i+1]) ;
       return value/2 ;
     }
+
+    /// Convert stored polygon coordinates to the precision used for intersections.
     Polygon polygon(const FacePatch& p) {
-      Polygon out ; for(const auto& point:p.polygon) out.push_back({{point[0],point[1]}}) ; return out ;
+      Polygon out ;
+      for(const auto& point:p.polygon) out.push_back({{point[0],point[1]}}) ;
+      return out ;
     }
+
+    /// Clip a polygon against a convex, counterclockwise boundary.
     Polygon intersect(Polygon p,const Polygon& boundary) {
       if(boundary.empty()) return {} ;
       for(size_t i=0;i<boundary.size() && !p.empty();++i) {
-        const auto& a=boundary[i] ; const auto& b=boundary[(i+1)%boundary.size()] ; Polygon next ;
-        Point previous=p.back() ; long double dp=cross(a,b,previous) ;
+        const auto& a=boundary[i] ;
+        const auto& b=boundary[(i+1)%boundary.size()] ;
+        Polygon next ;
+        Point previous=p.back() ;
+        long double dp=cross(a,b,previous) ;
         for(const auto& q:p) {
           const long double dq=cross(a,b,q) ;
           if((dp<0)!=(dq<0)) {
@@ -73,13 +86,15 @@ namespace Loci {
             next.push_back({{previous[0]+t*(q[0]-previous[0]),previous[1]+t*(q[1]-previous[1])}}) ;
           }
           if(dq>=0) next.push_back(q) ;
-          previous=q ; dp=dq ;
+          previous=q ;
+          dp=dq ;
         }
         p.swap(next) ;
       }
       return p ;
     }
 
+    /// Test whether two reference bounds overlap with positive area.
     bool intersects(const Bounds& a, const Bounds& b) {
       return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3] ;
     }
@@ -94,6 +109,7 @@ namespace Loci {
       std::vector<size_t> faces ;
       std::vector<Node> nodes ;
 
+      /// Partition face bounds along their longest axis.
       int build(const std::vector<HistoryFace>& source, size_t begin, size_t end) {
         Bounds bounds = source[faces[begin]].patch.bounds ;
         for(size_t i=begin+1; i<end; ++i) {
@@ -120,6 +136,7 @@ namespace Loci {
         return index ;
       }
 
+      /// Collect candidate faces whose tree bounds overlap the query.
       void find(int index, const Bounds& bounds, std::vector<size_t>& result) const {
         const auto& node = nodes[index] ;
         if(!intersects(node.bounds,bounds)) return ;
@@ -130,15 +147,19 @@ namespace Loci {
         }
       }
     public:
+      /// Index the supplied faces on one refinement surface.
       SurfaceIndex(const std::vector<HistoryFace>& source, std::vector<size_t> indices):
         faces(std::move(indices)) {
         if(!faces.empty()) build(source,0,faces.size()) ;
       }
+
+      /// Append candidate face indices for the requested bounds.
       void find(const Bounds& bounds, std::vector<size_t>& result) const {
         if(!nodes.empty()) find(0,bounds,result) ;
       }
     } ;
 
+    /// Measure a polygon or sector patch in its reference coordinates.
     long double patchMeasure(const FacePatch& patch) {
       if(!patch.polygon.empty()) return area(polygon(patch)) ;
       const auto& b = patch.bounds ;
@@ -146,6 +167,7 @@ namespace Loci {
         (patch.sector < 0 ? -patch.sector : 1) ;
     }
 
+    /// Measure overlap on a shared surface, excluding edge-only contact.
     long double commonMeasure(const FacePatch& a, const FacePatch& b) {
       if(a.surface != b.surface) return 0 ;
       if(!a.polygon.empty() || !b.polygon.empty()) {
@@ -164,13 +186,15 @@ namespace Loci {
       return static_cast<long double>(x)*y*sectors ;
     }
 
+    /// Check patch coordinates, orientation and available physical area.
     bool validPatch(const FacePatch& patch) {
       if(!std::isfinite(patch.area) || patch.area<0) return false ;
       if(patch.mappedArea && !(patch.area>0)) return false ;
       if(!patch.polygon.empty()) {
         if(patch.polygon.size()<3 || patch.polygon.size()>1024) return false ;
         for(const auto& p:patch.polygon) for(double x:p) if(!std::isfinite(x)) return false ;
-        const auto p=polygon(patch) ; const auto measure=area(p) ;
+        const auto p=polygon(patch) ;
+        const auto measure=area(p) ;
         if(!(measure>0)) return false ;
         for(size_t i=0;i<p.size();++i)
           for(const auto& q:p) if(cross(p[i],p[(i+1)%p.size()],q)<-1e-12L*measure) return false ;
@@ -182,11 +206,13 @@ namespace Loci {
         (patch.orientation == 1 || patch.orientation == -1) ;
     }
 
+    /// Test whether an overlap covers the full reference patch.
     bool wholePatch(long double common,const FacePatch &patch) {
       const auto measure=patchMeasure(patch) ;
       return patch.polygon.empty() ? common==measure : std::abs(common-measure)<=1e-11L*measure ;
     }
 
+    /// Return relative orientation and old-face overlap fractions; unavailable physical fractions are -1.
     FaceSource contribution(const HistoryFace& old, const HistoryFace& next) {
       const auto& a = old.patch ;
       const auto& b = next.patch ;
@@ -220,12 +246,15 @@ namespace Loci {
       }
       if(face.mappedArea && std::abs(physical-face.area)>1e-9*face.area) return fail("incomplete physical face coverage") ;
       if(!face.polygon.empty()) {
-        const auto boundary=polygon(face) ; const auto total=area(boundary) ;
-        const long double tolerance=1e-11L*total ; long double covered=0 ;
+        const auto boundary=polygon(face) ;
+        const auto total=area(boundary) ;
+        const long double tolerance=1e-11L*total ;
+        long double covered=0 ;
         std::vector<Polygon> clipped ;
         for(const auto& part:parts) {
           if(part.surface!=face.surface || part.polygon.empty()) return fail("incompatible polygon patch") ;
-          auto p=intersect(polygon(part),boundary) ; covered+=area(p) ;
+          auto p=intersect(polygon(part),boundary) ;
+          covered+=area(p) ;
           for(const auto& previous:clipped)
             if(area(intersect(p,previous))>tolerance) return fail("overlapping polygon patches") ;
           clipped.push_back(std::move(p)) ;
@@ -278,6 +307,7 @@ namespace Loci {
       return true ;
     }
 
+    /// Visit overlapping old and new faces on each shared surface.
     void matchPatches(const std::vector<HistoryFace>& previous,
                      const std::vector<HistoryFace>& next,
                      const std::function<void(size_t,size_t)>& match) {

@@ -14,6 +14,7 @@ namespace FVMAdapt {
   using FacePlan = std::vector<unsigned char> ;
 
   FacePlan encodeFacePlan(const BoundaryRecords &boundaries, BoundaryId face, const BoundaryRecordLimits &limits = {}) ;
+
   /// Union accepted divisions; conflicting centers reject. Both inputs use the same root face order.
   FacePlan mergeFacePlans(const FacePlan &first, const FacePlan &second, const BoundaryRecordLimits &limits = {}) ;
   /// Apply accepted choices to existing source geometry. Failure leaves the boundary unchanged.

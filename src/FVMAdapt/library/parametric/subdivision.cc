@@ -31,6 +31,7 @@
 namespace Loci {
 namespace FVMAdapt {
 
+  /// Choose the uniform split supported by a standard volume cell.
   SplitOperation isotropicSplit(Shape shape) {
     switch(shape) {
     case Shape::hex: {
@@ -45,6 +46,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Choose refinement directions from mapped edge lengths and the requested size cutoff.
   std::optional<SplitOperation> automaticSplit(const GeometryMap &geometry, double aspectRatio, double minEdgeLength) {
     if(!std::isfinite(aspectRatio) || aspectRatio<=1 || !std::isfinite(minEdgeLength) || minEdgeLength<0)
       throw std::invalid_argument("automatic splitting requires a finite aspect ratio greater than one and a nonnegative edge cutoff") ;
@@ -93,6 +95,7 @@ namespace FVMAdapt {
   Placement::Placement() : origin{{0,0,0}},
     columns{{{{1,0,0}}, {{0,1,0}}, {{0,0,1}}}} {}
 
+  /// Map an exact point into the parent reference coordinates.
   ReferencePoint Placement::apply(const ReferencePoint &point) const {
     ReferencePoint result ;
     for(unsigned d = 0; d < 3; ++d) {
@@ -104,6 +107,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Combine child and parent placements into one exact affine map.
   Placement Placement::compose(const Placement &child) const {
     Placement result ;
     result.origin = apply(child.origin) ;
@@ -119,6 +123,7 @@ namespace FVMAdapt {
 
   namespace {
 
+    /// Evaluate an exact child placement using floating-point coordinates.
     class AffineMap final : public GeometryMap {
       const Shape shape_ ;
       const unsigned dimension_ ;
@@ -130,7 +135,9 @@ namespace FVMAdapt {
         for(unsigned d = 0; d < dimension_; ++d)
           jacobian_[d] = approximate(placement.columns[d]) ;
       }
+
       Shape shape() const override { return shape_ ; }
+
       MapValue evaluate(const Point &point) const override {
         for(double component : point)
           if(!std::isfinite(component))
@@ -148,23 +155,27 @@ namespace FVMAdapt {
       unsigned side ;
     } ;
 
+    /// Multiply allocation counts without overflowing size_t.
     std::size_t checkedProduct(std::size_t a, std::size_t b) {
       if(b && a > std::numeric_limits<std::size_t>::max()/b)
         throw std::invalid_argument("subdivision count exceeds addressable size") ;
       return a*b ;
     }
 
+    /// Add allocation counts without overflowing size_t.
     std::size_t checkedSum(std::size_t a, std::size_t b) {
       if(a > std::numeric_limits<std::size_t>::max()-b)
         throw std::invalid_argument("subdivision count exceeds addressable size") ;
       return a+b ;
     }
 
+    /// Require that a computed count fits the target container.
     template<class T> void checkCapacity(const std::vector<T> &values, std::size_t count) {
       if(count > values.max_size())
         throw std::invalid_argument("subdivision count exceeds container capacity") ;
     }
 
+    /// Identify the constant coordinate and side of a tensor-product boundary.
     BoundaryDirection boundaryDirection(const ReferenceElement &element, unsigned boundary) {
       const Boundary &face = element.boundaries[boundary] ;
       for(unsigned axis = 0; axis < element.dimension; ++axis) {
@@ -177,6 +188,7 @@ namespace FVMAdapt {
       throw std::logic_error("tensor boundary has no fixed coordinate") ;
     }
 
+    /// Find the reference-coordinate direction along a tensor-product edge.
     unsigned edgeAxis(const ReferenceElement &element, unsigned edge) {
       const Point &first = element.vertices[element.edges[edge][0]] ;
       const Point &second = element.vertices[element.edges[edge][1]] ;
@@ -185,6 +197,7 @@ namespace FVMAdapt {
       throw std::logic_error("tensor edge has no varying coordinate") ;
     }
 
+    /// Match the vertex order on two neighboring tensor-product faces.
     unsigned interfaceOrientation(const ReferenceElement &element, unsigned first,
                                   unsigned second, unsigned axis) {
       const Boundary &a = element.boundaries[first], &b = element.boundaries[second] ;
@@ -205,6 +218,8 @@ namespace FVMAdapt {
       std::array<std::size_t,3> count = {{1,1,1}} ;
       std::array<std::vector<Fraction>,3> coordinates ;
       std::size_t childCount = 1 ;
+
+      /// Validate coordinate cuts and derive tensor-grid interval counts.
       TensorGrid(Shape shape, const TensorSplit &request) {
         if(shape != Shape::segment && shape != Shape::quad && shape != Shape::hex)
           throw std::invalid_argument("tensor subdivision requires a segment, quad or hex") ;
@@ -235,6 +250,7 @@ namespace FVMAdapt {
       }
     } ;
 
+    /// Construct exact child placements for the requested coordinate cuts.
     std::vector<Child> tensorChildren(Shape shape, const TensorGrid &grid) {
       const unsigned dimension = referenceElement(shape).dimension ;
       std::vector<Child> children ;
@@ -256,14 +272,17 @@ namespace FVMAdapt {
 
   }
 
+  /// Expose this exact placement as a geometry evaluator.
   std::shared_ptr<const GeometryMap> Placement::map(Shape shape) const {
     return std::make_shared<AffineMap>(shape,*this) ;
   }
 
+  /// Construct tensor-product children without computing their shared boundaries.
   std::vector<Child> detail::splitChildren(Shape shape, const TensorSplit &request) {
     return tensorChildren(shape,TensorGrid(shape,request)) ;
   }
 
+  /// Construct tensor-product children with their face and edge correspondence.
   SplitResult split(Shape shape, const TensorSplit &request) {
     const TensorGrid grid(shape,request) ;
     const ReferenceElement &element = referenceElement(shape) ;

@@ -14,6 +14,7 @@ namespace FVMAdapt {
   struct HexCenters {
     std::array<std::array<double,2>,6> faces{{{{.5,.5}},{{.5,.5}},{{.5,.5}},{{.5,.5}},{{.5,.5}},{{.5,.5}}}} ;
     Point cell{{.5,.5,.5}} ;
+
     bool operator==(const HexCenters &other) const { return faces == other.faces && cell == other.cell ; }
   } ;
 
@@ -30,6 +31,7 @@ namespace FVMAdapt {
       Cell cell ;
       std::array<std::uint32_t,3> lower ;
       unsigned depth ;
+
       std::uint32_t width() const { return extent >> depth ; }
     } ;
   private:
@@ -51,14 +53,18 @@ namespace FVMAdapt {
     friend class HexCellMap ;
   public:
     HexPlan() = default ;
+
     HexPlan(const HexPlan &other) : data_(other.data_ ? std::make_unique<Data>(*other.data_) : nullptr) {}
+
     HexPlan &operator=(const HexPlan &other) { HexPlan copy(other) ; data_.swap(copy.data_) ; return *this ; }
     HexPlan(HexPlan &&) noexcept = default ;
     HexPlan &operator=(HexPlan &&) noexcept = default ;
+
     /// No accepted subdivision is stored. Coarsening retains stored subdivisions.
     bool empty() const { return !data_ ; }
     bool active(Cell cell) const ;
     bool leaf(Cell cell) const ;
+
     bool accepted(Cell cell) const { return splitId(cell) != absent ; }
     Cell parent(Cell cell) const ;
     unsigned depth(Cell cell) const ;
@@ -72,6 +78,7 @@ namespace FVMAdapt {
     /// Accepted children, including dormant ones; throws for a cell never split.
     std::array<Cell,8> children(Cell cell) const ;
     HexCenters centers(Cell cell) const ;
+
     /// Certify the reference subdivision before appending. Existing subdivisions reuse their centers.
     /// The caller checks physical geometry and supplies agreed shared-face centers before this operation.
     /// Reactivation selects eight leaves; it does not restore their deeper selections.
@@ -82,12 +89,15 @@ namespace FVMAdapt {
     Cell splitParent(std::size_t index) const ;
     /// Temporary child placements from the accepted centers; no geometry is retained in the plan.
     VertexVolumeSplit construction(Cell cell) const ;
+
     std::size_t splitCount() const { return data_ ? data_->splits.size() : 0 ; }
+
     std::size_t centerCount() const { return data_ ? data_->centers.size() : 0 ; }
     /// Live object and vector capacity, excluding allocator metadata and caller-owned source geometry.
     std::size_t storageBytes() const ;
     /// Explicit links and accepted centers only; the empty plan has an empty encoding.
     std::vector<unsigned char> encode() const ;
+
     static HexPlan decode(const std::vector<unsigned char> &bytes, std::size_t maxSplits = 1000000,
                           JacobianCheckLimits limits = {}) ;
   } ;
@@ -100,6 +110,7 @@ namespace FVMAdapt {
     HexPlan::Cell cell_ ;
   public:
     HexCellMap(const GeometryMap &source, const HexPlan &plan, HexPlan::Cell cell) ;
+
     Shape shape() const override { return Shape::hex ; }
     /// An affine corner source and midpoint-only ancestry give a constant Jacobian.
     bool affine() const ;
@@ -109,10 +120,12 @@ namespace FVMAdapt {
 
   /// Choose centers on one hex. Callers reconcile shared face choices before accepting a mesh-wide split.
   HexCenters hexCenters(const GeometryMap &geometry, CenterMethod method, MeasureOptions options = {}) ;
+
   /// Certify reference children; bound the physical Jacobian where possible, otherwise sample it.
   /// This does not perform neighbor agreement, balancing, or certify global injectivity.
   void refineHex(HexPlan &plan, const GeometryMap &source, HexPlan::Cell cell,
                  const HexCenters &centers, JacobianCheckLimits limits = {}) ;
+
   /// Choose centers only for new splits; reactivation keeps the accepted construction.
   void refineHex(HexPlan &plan, const GeometryMap &source, HexPlan::Cell cell,
                  CenterMethod method, MeasureOptions options = {}, JacobianCheckLimits limits = {}) ;

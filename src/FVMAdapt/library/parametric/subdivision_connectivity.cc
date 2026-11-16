@@ -38,6 +38,7 @@ namespace detail {
       std::vector<ReferencePoint> vertices ;
     } ;
 
+    /// Find the orientation relating two copies of a shared child face.
     unsigned matchingOrientation(Shape shape, const std::vector<ReferencePoint> &first,
                                  const std::vector<ReferencePoint> &second) {
       for(unsigned orientation = 0; orientation < orientationCount(shape); ++orientation) {
@@ -49,6 +50,7 @@ namespace detail {
       throw std::logic_error("subdivision faces have incompatible orientations") ;
     }
 
+    /// Test membership in a reference segment and return its exact fractional position.
     bool edgeCoordinate(const ReferencePoint &point, const ReferencePoint &first,
                         const ReferencePoint &second, Fraction &coordinate) {
       unsigned axis = 0 ;
@@ -65,6 +67,7 @@ namespace detail {
 
   }
 
+  /// Pair interior child faces and identify pieces of original faces and edges.
   void completeSubdivision(SplitResult &result) {
     const ReferenceElement &parent = referenceElement(result.shape) ;
     result.internalFaces.clear() ; result.boundaryPieces.clear() ; result.edgePieces.clear() ;

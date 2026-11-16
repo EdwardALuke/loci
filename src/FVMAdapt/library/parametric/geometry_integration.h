@@ -57,6 +57,7 @@ namespace Loci { namespace FVMAdapt { namespace detail {
   GeometryMeasure measureGeometryPieces(const std::vector<std::shared_ptr<const GeometryMap>> &pieces,
     MeasureOptions options,const MeasureScale *scale=nullptr) ;
 
+  /// Apply one Gaussian rule with moments relative to the supplied origin.
   MeasureIntegral integrateGeometryRule(Shape shape,
     const std::function<MeasureSample(const Point&)> &sample, unsigned order, const Point &origin) ;
 

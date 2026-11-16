@@ -29,12 +29,14 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
 
+    /// Count bits in an integer magnitude, with no sign bit.
     std::size_t bitCount(const Fraction::Integer &value) {
       if(value == 0) return 0 ;
       const Fraction::Integer magnitude = value < 0 ? -value : value ;
       return boost::multiprecision::msb(magnitude)+1 ;
     }
 
+    /// Accumulate resource use without exceeding its limit.
     void charge(std::size_t &used, std::size_t count, std::size_t limit, const char *resource) {
       if(count > limit-used)
         throw std::length_error(std::string("exact construction exceeds ")+resource+" limit: used="+
@@ -57,12 +59,14 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Return a reference boundary after checking its index.
     const Boundary &checkedBoundary(const ReferenceElement &element, unsigned boundary) {
       if(boundary >= element.boundaryCount)
         throw std::out_of_range("reference boundary index") ;
       return element.boundaries[boundary] ;
     }
 
+    /// Construct exact boundary-local coordinate directions in the parent element.
     void boundaryBasis(Shape shape, const Boundary &boundary, ReferencePoint &origin,
                        ReferencePoint &u, ReferencePoint &v) {
       origin = referenceVertex(shape,boundary.vertices[0]) ;
@@ -87,15 +91,18 @@ namespace FVMAdapt {
   Fraction::Fraction(const Rational &value)
     : Fraction(boost::multiprecision::numerator(value),boost::multiprecision::denominator(value)) {}
 
+  /// Require numerator and denominator sizes within the exact-arithmetic limit.
   void checkExact(const Fraction &value, const ExactLimits &limits) {
     if(bitCount(value.numerator()) > limits.maxBits || bitCount(value.denominator()) > limits.maxBits)
       throw std::length_error("exact coordinate exceeds its bit limit") ;
   }
 
+  /// Charge exact-arithmetic work against the operation budget.
   void ExactBudget::operations(std::size_t count) {
     charge(operations_,count,limits_.maxOperations,"operation") ;
   }
 
+  /// Charge retained exact data against the memory budget.
   void ExactBudget::retain(std::size_t bytes) {
     charge(bytes_,bytes,limits_.maxBytes,"byte") ;
   }
@@ -132,13 +139,17 @@ namespace FVMAdapt {
   }
 
   bool operator>(const Fraction &a, const Fraction &b) { return b < a ; }
+
   bool operator<=(const Fraction &a, const Fraction &b) { return !(b < a) ; }
+
   bool operator>=(const Fraction &a, const Fraction &b) { return !(a < b) ; }
 
+  /// Convert exact reference coordinates to floating-point coordinates.
   Point approximate(const ReferencePoint &point) {
     return {{point[0].value(),point[1].value(),point[2].value()}} ;
   }
 
+  /// Return the exact coordinates of a standard reference vertex.
   ReferencePoint referenceVertex(Shape shape, unsigned vertex) {
     const ReferenceElement &element = referenceElement(shape) ;
     if(vertex >= element.vertexCount) throw std::out_of_range("reference vertex index") ;
@@ -147,6 +158,7 @@ namespace FVMAdapt {
              Fraction(std::int64_t(point[2]))}} ;
   }
 
+  /// Test reference-element bounds without rounding.
   bool containsExact(Shape shape, const ReferencePoint &point) {
     const ReferenceElement &element = referenceElement(shape) ;
     for(unsigned d = 0; d < element.dimension; ++d)
@@ -168,6 +180,7 @@ namespace FVMAdapt {
     return false ;
   }
 
+  /// Test whether an exact reference point belongs to a specified boundary.
   bool onBoundary(Shape shape, unsigned boundary, const ReferencePoint &point) {
     const ReferenceElement &element = referenceElement(shape) ;
     const Boundary &face = checkedBoundary(element,boundary) ;
@@ -187,6 +200,7 @@ namespace FVMAdapt {
     return residual == 0 ;
   }
 
+  /// Map exact boundary-local coordinates into the reference cell.
   ReferencePoint boundaryReferencePoint(Shape shape, unsigned boundary,
                                        const ReferencePoint &point) {
     const ReferenceElement &element = referenceElement(shape) ;
@@ -198,6 +212,7 @@ namespace FVMAdapt {
     return affinePoint(origin,u,v,point) ;
   }
 
+  /// Recover exact boundary-local coordinates from a reference-cell point.
   ReferencePoint boundaryCoordinates(Shape shape, unsigned boundary,
                                      const ReferencePoint &point) {
     const ReferenceElement &element = referenceElement(shape) ;
@@ -234,6 +249,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Apply a boundary rotation or reflection in exact coordinates.
   ReferencePoint orientReferencePoint(Shape shape, unsigned orientation,
                                      const ReferencePoint &point) {
     if(orientation >= orientationCount(shape))

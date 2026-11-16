@@ -41,15 +41,20 @@ namespace FVMAdapt {
   /// Trilinear interpolation in native hex corner order, without allocating a map object.
   /// Corners must be finite. Reference coordinates may extrapolate.
   MapValue evaluateHexCorners(const std::array<Point,8> &corners, const Point &point) ;
+
   /// Position-only form of evaluateHexCorners, with the same coordinate contract.
   Point hexCornerPosition(const std::array<Point,8> &corners, const Point &point) ;
 
   /// Read-only corners owned by a map or a standard reference table.
   struct ReferenceCorners {
     const Point *data ; std::size_t count ;
+
     const Point *begin() const { return data ; }
+
     const Point *end() const { return data+count ; }
+
     std::size_t size() const { return count ; }
+
     const Point &operator[](std::size_t i) const { return data[i] ; }
   } ;
 
@@ -57,22 +62,30 @@ namespace FVMAdapt {
   class GeometryMap {
   public:
     virtual ~GeometryMap() = default ;
+
     virtual Shape shape() const = 0 ;
+
     unsigned dimension() const { return shape()==Shape::polygon ? 2:referenceElement(shape()).dimension ; }
+
     /// Ordered reference corners; polygon maps supply their own reference domain.
     virtual ReferenceCorners referenceCorners() const ;
+
     virtual bool containsReference(const Point &, double tolerance = 0) const ;
+
     /// Evaluate finite reference coordinates, allowing extrapolation; unused components are ignored.
     /// Nonfinite coordinates throw invalid_argument. Use containsReference() separately for domain membership.
     /// Evaluation does not certify injectivity or positive orientation.
     virtual MapValue evaluate(const Point &point) const = 0 ;
+
     /// Evaluate only the position, with the same coordinate contract as evaluate().
     virtual Point position(const Point &point) const { return evaluate(point).position ; }
   } ;
 
   /// Regular reference polygon, centered at (1/2,1/2), with radius 1/2.
   std::vector<Point> polygonReferenceCorners(unsigned vertices) ;
+
   bool containsReferencePolygon(unsigned vertices, const Point &, double tolerance = 0) ;
+
   /// Strict interior test for accepted face split points.
   bool insideReferencePolygon(unsigned vertices, const Point &) ;
 
@@ -82,10 +95,15 @@ namespace FVMAdapt {
     const std::vector<Point> corners_, reference_ ;
   public:
     explicit PolygonMap(std::vector<Point> corners) ;
+
     Shape shape() const override { return Shape::polygon ; }
+
     const auto &corners() const { return corners_ ; }
+
     ReferenceCorners referenceCorners() const override { return {reference_.data(),reference_.size()} ; }
+
     bool containsReference(const Point &, double tolerance = 0) const override ;
+
     MapValue evaluate(const Point &) const override ;
   } ;
 
@@ -98,11 +116,15 @@ namespace FVMAdapt {
   public:
     /// Invalid shapes, corner counts or nonfinite coordinates throw invalid_argument.
     CornerMap(Shape shape, std::vector<Point> corners) ;
+
     Shape shape() const override { return shape_ ; }
+
     const std::vector<Point> &corners() const { return corners_ ; }
+
     /// At the pyramid apex the position is defined, but the rational basis has no unique derivative.
     /// Other points with z == 1 are singular and throw invalid_argument.
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -117,10 +139,15 @@ namespace FVMAdapt {
     /// Active degrees must be >= 1; unused degrees must be zero. Invalid shape, degrees,
     /// control count or nonfinite control coordinates throw invalid_argument.
     BezierMap(Shape shape, std::array<unsigned,3> degree, std::vector<Point> controls) ;
+
     Shape shape() const override { return shape_ ; }
+
     const std::array<unsigned,3> &degree() const { return degree_ ; }
+
     const std::vector<Point> &controls() const { return controls_ ; }
+
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -132,9 +159,13 @@ namespace FVMAdapt {
   public:
     /// Nonfinite controls throw invalid_argument.
     explicit CubicTriangleMap(std::array<Point,10> controls) ;
+
     Shape shape() const override { return Shape::triangle ; }
+
     const std::array<Point,10> &controls() const { return controls_ ; }
+
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -148,13 +179,20 @@ namespace FVMAdapt {
     /// The caller must ensure a valid placement; composition does not certify containment or injectivity.
     RestrictedMap(std::shared_ptr<const GeometryMap> parent,
                   std::shared_ptr<const GeometryMap> referenceMap) ;
+
     Shape shape() const override { return referenceMap_->shape() ; }
+
     ReferenceCorners referenceCorners() const override { return referenceMap_->referenceCorners() ; }
+
     bool containsReference(const Point &q, double tolerance = 0) const override { return referenceMap_->containsReference(q,tolerance) ; }
+
     std::shared_ptr<const GeometryMap> parent() const { return parent_ ; }
+
     std::shared_ptr<const GeometryMap> referenceMap() const { return referenceMap_ ; }
+
     /// Compose Jacobians by the chain rule; unavailable derivatives remain unavailable.
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -165,9 +203,13 @@ namespace FVMAdapt {
   public:
     /// Edges are segment maps with matching consecutive endpoints.
     explicit BoundarySurfaceMap(std::array<std::shared_ptr<const GeometryMap>,4> edges) ;
+
     Shape shape() const override { return Shape::quad ; }
+
     const auto &edges() const { return edges_ ; }
+
     const auto &corners() const { return corners_ ; }
+
     MapValue evaluate(const Point &point) const override ;
   } ;
 
@@ -197,9 +239,13 @@ namespace FVMAdapt {
     /// Null, noncubic edges or unequal stored endpoints throw invalid_argument.
     /// Construction does not certify regularity or injectivity.
     explicit CubicTetMap(std::array<CubicEdgeUse,6> edges) ;
+
     Shape shape() const override { return Shape::tet ; }
+
     const auto &edges() const { return edges_ ; }
+
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -213,9 +259,13 @@ namespace FVMAdapt {
     /// Null, noncubic edges or unequal stored endpoints throw invalid_argument.
     /// Construction does not certify regularity or injectivity.
     explicit CubicPrismMap(std::array<CubicEdgeUse,9> edges) ;
+
     Shape shape() const override { return Shape::prism ; }
+
     const auto &edges() const { return edges_ ; }
+
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -229,10 +279,14 @@ namespace FVMAdapt {
     /// Null, noncubic edges or unequal stored endpoints throw invalid_argument.
     /// Construction does not certify regularity or injectivity.
     explicit CubicPyramidMap(std::array<CubicEdgeUse,8> edges) ;
+
     Shape shape() const override { return Shape::pyramid ; }
+
     const auto &edges() const { return edges_ ; }
+
     /// The apex has a position but no unique derivative; other points at z == 1 are singular.
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -245,9 +299,13 @@ namespace FVMAdapt {
     /// Null, noncubic edges or unequal stored endpoints throw invalid_argument.
     /// Construction does not certify regularity or injectivity.
     explicit CubicHexMap(std::array<CubicEdgeUse,12> edges) ;
+
     Shape shape() const override { return Shape::hex ; }
+
     const auto &edges() const { return edges_ ; }
+
     MapValue evaluate(const Point &point) const override ;
+
     Point position(const Point &point) const override ;
   } ;
 
@@ -264,9 +322,13 @@ namespace FVMAdapt {
     const Point apex_ ;
   public:
     ConeMap(std::shared_ptr<const GeometryMap> base, Point apex) ;
+
     Shape shape() const override { return base_->shape()==Shape::triangle ? Shape::tet : Shape::pyramid ; }
+
     const auto &base() const { return base_ ; }
+
     const Point &apex() const { return apex_ ; }
+
     /// At the apex the position is defined, but its derivative is unavailable.
     MapValue evaluate(const Point &point) const override ;
   } ;

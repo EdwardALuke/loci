@@ -42,9 +42,11 @@ namespace FVMAdapt {
   /// Map IDs are local handles and may change when records are decoded.
   std::vector<unsigned char> encodeGeometry(const GeometryStore &geometry,
                                            const RecordLimits &limits = {}) ;
+
   /// Also return the original-to-decoded map ID correspondence.
   std::vector<unsigned char> encodeGeometry(const GeometryStore &geometry,
                                            std::vector<MapId> &encodedIds, const RecordLimits &limits = {}) ;
+
   GeometryStore decodeGeometry(const std::vector<unsigned char> &record,
                                const RecordLimits &limits = {}) ;
 
@@ -52,9 +54,11 @@ namespace FVMAdapt {
   /// Local node/map IDs may change on decode; persistent cell keys do not.
   std::vector<unsigned char> encodeRefinement(const RefinementHistory &history,
                                              const RecordLimits &limits = {}) ;
+
   /// Also return the original-to-decoded node ID correspondence for accompanying cell data.
   std::vector<unsigned char> encodeRefinement(const RefinementHistory &history,
                                              std::vector<TreeNodeId> &encodedIds, const RecordLimits &limits = {}) ;
+
   /// Decode into temporary state. Invalid data throws invalid_argument; limits throw length_error.
   RefinementHistory decodeRefinement(const std::vector<unsigned char> &record,
                                      const RecordLimits &limits = {}) ;

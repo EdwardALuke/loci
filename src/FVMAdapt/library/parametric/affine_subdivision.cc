@@ -31,6 +31,7 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
 
+    /// Grow the node cache geometrically within its configured limit.
     template<class T> void reserveGrowth(std::vector<T> &values, std::size_t needed,
                                         std::size_t limit) {
       if(values.capacity() >= needed) return ;
@@ -42,6 +43,7 @@ namespace FVMAdapt {
   }
 
   namespace {
+    /// Create an unsplit history whose geometry is the reference element.
     RefinementHistory referenceHistory(Shape shape, std::size_t maxNodes) {
       const auto &element = referenceElement(shape) ;
       GeometryStore geometry ;
@@ -52,9 +54,11 @@ namespace FVMAdapt {
     }
   }
 
+  /// Start an unsplit reference cell with the supplied node limit.
   AffineSubdivision::AffineSubdivision(Shape shape, std::size_t maxNodes)
     : AffineSubdivision(referenceHistory(shape,maxNodes)) {}
 
+  /// Rebuild cached original-cell placements from retained history.
   AffineSubdivision::AffineSubdivision(RefinementHistory history) : edit_(std::move(history)) {
     nodes_.reserve(this->history().nodes().size()) ;
     for(TreeNodeId id = 0; id < this->history().nodes().size(); ++id) {
@@ -63,15 +67,18 @@ namespace FVMAdapt {
     }
   }
 
+  /// Require a node that is currently an active leaf.
   void AffineSubdivision::checkLeaf(TreeNodeId leaf) const {
     if(!isLeaf(leaf) || !history().active(leaf))
       throw std::invalid_argument("subdivision node is not an active leaf") ;
   }
 
-  std::vector<TreeNodeId> AffineSubdivision::leafIds() const {
+  /// List active leaf IDs in ascending node order.
+  std::vector<TreeNodeId> AffineSubdivision::leafIdsInCreationOrder() const {
     auto result = history().leafIds() ; std::sort(result.begin(),result.end()) ; return result ;
   }
 
+  /// Retain child placements in original-cell coordinates and publish their split.
   CellChange AffineSubdivision::append(TreeNodeId leaf, std::vector<Child> children, SplitOperation operation) {
     static_assert(std::is_nothrow_move_constructible<AffineNode>::value,
                   "root-coordinate publication requires nonthrowing node moves") ;
@@ -93,6 +100,7 @@ namespace FVMAdapt {
   }
 
   namespace {
+    /// Build reference-space children for the requested native split.
     std::vector<Child> construct(Shape shape, const SplitOperation &request) {
       return std::visit([&](const auto &operation) {
         using T = std::decay_t<decltype(operation)> ;
@@ -102,26 +110,31 @@ namespace FVMAdapt {
     }
   }
 
+  /// Apply a native split to an active leaf.
   CellChange AffineSubdivision::refine(TreeNodeId leaf, const SplitOperation &request) {
     checkLeaf(leaf) ;
     if(edit_.preflight(leaf,request) == 1) return edit_.refine(leaf,request) ;
     return append(leaf,construct(node(leaf).cell.shape,request),request) ;
   }
 
+  /// Select the parent of a complete active leaf family.
   CellChange AffineSubdivision::coarsen(TreeNodeId parent) {
     return edit_.coarsen(parent) ;
   }
 
+  /// Replace a leaf family with a requested nonempty split.
   CellChange AffineSubdivision::replace(TreeNodeId parent, const SplitOperation &request) {
     if(edit_.preflight(parent,request) == 1)
       throw std::invalid_argument("replacement requires a nonempty split") ;
     return append(parent,construct(node(parent).cell.shape,request),request) ;
   }
 
+  /// Select an already retained construction of this parent.
   CellChange AffineSubdivision::reactivate(TreeNodeId parent, const SplitConstruction &construction) {
     return edit_.reactivate(parent,construction) ;
   }
 
+  /// Discard inactive constructions and rebuild original-cell placements.
   void AffineSubdivision::compact() {
     AffineSubdivision next(compactHistory(history())) ; swap(next) ;
   }
@@ -130,22 +143,27 @@ namespace FVMAdapt {
     edit_.swap(other.edit_) ; nodes_.swap(other.nodes_) ;
   }
 
+  /// Refine a leaf and return the selected child range.
   NodeRange AffineSubdivision::splitLeaf(TreeNodeId leaf, const TensorSplit &request) {
     return refine(leaf,request).changed() ? children(leaf) : NodeRange() ;
   }
 
+  /// Refine a leaf and return the selected child range.
   NodeRange AffineSubdivision::splitLeaf(TreeNodeId leaf, const TriangleSplit &request) {
     return refine(leaf,request).changed() ? children(leaf) : NodeRange() ;
   }
 
+  /// Refine a leaf and return the selected child range.
   NodeRange AffineSubdivision::splitLeaf(TreeNodeId leaf, const PrismSplit &request) {
     return refine(leaf,request).changed() ? children(leaf) : NodeRange() ;
   }
 
+  /// Refine a leaf and return the selected child range.
   NodeRange AffineSubdivision::splitLeaf(TreeNodeId leaf, const TetSplit &request) {
     return refine(leaf,request).changed() ? children(leaf) : NodeRange() ;
   }
 
+  /// Refine a leaf and return the selected child range.
   NodeRange AffineSubdivision::splitLeaf(TreeNodeId leaf, const PyramidSplit &request) {
     return refine(leaf,request).changed() ? children(leaf) : NodeRange() ;
   }

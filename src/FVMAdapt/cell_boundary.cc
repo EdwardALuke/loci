@@ -44,22 +44,26 @@ namespace FVMAdapt {
       EntityKind kind ;
       EntityId entity ;
       Plane plane ;
+
       bool operator<(const Support &other) const {
         return std::tie(kind,entity,plane) < std::tie(other.kind,other.entity,other.plane) ;
       }
     } ;
 
+    /// One cell's leaf-side coverage of an original boundary.
     struct Cover {
       unsigned rootBoundary ;
       bool reversed ;
       std::vector<BoundaryUse> uses ;
     } ;
 
+    /// The incident cells and their coverage of one shared boundary.
     struct Interface {
       Shape shape ;
       std::map<EntityId,Cover> covers ;
     } ;
 
+    /// Normalize an exact reference-space plane for matching coincident cell sides.
     Plane supportingPlane(const std::vector<ReferencePoint> &vertices, unsigned dimension) {
       detail::ExactPoint u, v ; Plane plane = {{0,0,0,0}} ;
       for(unsigned d = 0; d < 3; ++d) {
@@ -78,6 +82,7 @@ namespace FVMAdapt {
       return plane ;
     }
 
+    /// Drop the coordinate with the largest plane-normal component.
     unsigned projectionAxis(const Plane &plane, unsigned dimension) {
       unsigned axis = 0 ;
       for(unsigned d = 1; d < dimension; ++d)
@@ -85,6 +90,7 @@ namespace FVMAdapt {
       return axis ;
     }
 
+    /// Remove the selected coordinate to work in a boundary's lower-dimensional plane.
     ReferencePoint project(const ReferencePoint &point, unsigned axis, unsigned dimension) {
       ReferencePoint result = {{0,0,0}} ; unsigned i = 0 ;
       for(unsigned d = 0; d < dimension; ++d)
@@ -92,6 +98,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Recover the omitted coordinate from the exact supporting plane.
     ReferencePoint lift(const ReferencePoint &point, const Plane &plane, unsigned dimension) {
       const unsigned axis = projectionAxis(plane,dimension) ;
       ReferencePoint result = {{0,0,0}} ; unsigned i = 0 ;
@@ -106,6 +113,7 @@ namespace FVMAdapt {
 
     typedef std::pair<EntityKind,EntityId> Entity ;
 
+    /// Require shared entity IDs and connectivity to identify each other uniquely.
     void recordEntity(std::map<Entity,std::vector<EntityId>> &entities,
                       std::map<std::pair<EntityKind,std::vector<EntityId>>,EntityId> &ids,
                       Entity key, const std::vector<EntityId> &vertices) {
@@ -117,6 +125,7 @@ namespace FVMAdapt {
         throw std::invalid_argument("shared connectivity has inconsistent entity IDs") ;
     }
 
+    /// Check that cell partitions agree on original shared vertices, edges, and faces.
     void checkTopology(const std::vector<CellPartition> &cells) {
       std::set<EntityId> roots ;
       std::map<Entity,std::vector<EntityId>> entities ;
@@ -156,6 +165,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Map reference face coordinates into the original cell's reference coordinates.
     Placement facePlacement(const std::vector<ReferencePoint> &vertices) {
       Placement result ; result.origin = vertices[0] ;
       result.columns = {{ {{0,0,0}}, {{0,0,0}}, {{0,0,0}} }} ;
@@ -166,6 +176,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Test whether a boundary placement reverses the reference orientation.
     bool reverses(Shape shape, const Placement &placement) {
       if(shape == Shape::segment) return placement.columns[0][0] < 0 ;
       const Exact determinant = exact(placement.columns[0][0])*exact(placement.columns[1][1])
@@ -174,6 +185,7 @@ namespace FVMAdapt {
       return determinant < 0 ;
     }
 
+    /// Find the original boundary containing all supplied reference points.
     unsigned originalBoundary(Shape rootShape, const std::vector<ReferencePoint> &vertices) {
       const unsigned count = referenceElement(rootShape).boundaryCount ;
       for(unsigned b = 0; b < count; ++b) {
@@ -185,13 +197,14 @@ namespace FVMAdapt {
       return count ;
     }
 
+    /// Group leaf sides by their original boundary or exact interior supporting plane.
     void collect(const std::vector<CellPartition> &cells, std::vector<LeafUse> &leaves,
                  std::map<Support,Interface> &interfaces) {
       for(unsigned root = 0; root < cells.size(); ++root) {
         const CellPartition &cell = cells[root] ; const Shape rootShape = cell.topology.shape() ;
         const ReferenceElement &rootElement = referenceElement(rootShape) ;
         const unsigned dimension = rootElement.dimension ;
-        for(TreeNodeId id : cell.subdivision.leafIds()) {
+        for(TreeNodeId id : cell.subdivision.leafIdsInCreationOrder()) {
           const Child &child = cell.subdivision.node(id).cell ;
           const unsigned index = unsigned(leaves.size()) ; leaves.push_back({root,id,0}) ;
           const ReferenceElement &element = referenceElement(child.shape) ;
@@ -237,6 +250,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Express one reconciled boundary piece in its owning original cell coordinates.
     FaceSide makeSide(const std::vector<CellPartition> &cells, const std::vector<LeafUse> &leaves,
                       FaceUse use, const Support &support, const Cover &cover,
                       const std::vector<ReferencePoint> &points) {
@@ -260,6 +274,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Test exact containment of a reference point in a segment.
     bool onSegment(const ReferencePoint &point, const ReferencePoint &first, const ReferencePoint &second, unsigned axis) {
       for(unsigned d = 0; d < 3; ++d)
         if(point[d] < std::min(first[d],second[d]) || point[d] > std::max(first[d],second[d])) return false ;
@@ -269,6 +284,7 @@ namespace FVMAdapt {
       return true ;
     }
 
+    /// Rotate a polygon loop to a consistent starting vertex and orientation.
     void canonicalLoop(CellFace &face, unsigned dimension) {
       const std::size_t count = face.vertices.size() ;
       std::size_t start = 0 ; bool reverse = false ;
@@ -295,6 +311,7 @@ namespace FVMAdapt {
       std::vector<ReferencePoint> points ;
       std::array<std::vector<std::size_t>,3> order ;
 
+      /// Deduplicate reference points and index them along each coordinate axis.
       void sort() {
         std::sort(points.begin(),points.end()) ;
         points.erase(std::unique(points.begin(),points.end()),points.end()) ;
@@ -306,6 +323,7 @@ namespace FVMAdapt {
         }
       }
 
+      /// Find indexed reference points lying on the supplied segment.
       std::vector<ReferencePoint> onEdge(const ReferencePoint &first, const ReferencePoint &second, unsigned axis) const {
         typedef std::vector<std::size_t>::const_iterator Iterator ;
         Iterator begin = order[0].begin(), end = order[0].end() ; std::size_t count = points.size() ;
@@ -329,6 +347,7 @@ namespace FVMAdapt {
       }
     } ;
 
+    /// Collect shared boundary points in each incident original cell's coordinates.
     std::vector<PointIndex> indexPoints(const std::vector<CellPartition> &cells, const std::vector<CellFace> &faces) {
       std::map<Entity,std::vector<unsigned>> incident ;
       for(unsigned root = 0; root < cells.size(); ++root) {
@@ -358,6 +377,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Insert shared refinement points into each matching polygon edge.
     void closeEdges(const std::vector<CellPartition> &cells, std::vector<CellFace> &faces, std::size_t limit) {
       const std::vector<PointIndex> points = indexPoints(cells,faces) ;
       std::size_t count = 0 ;
@@ -397,13 +417,14 @@ namespace FVMAdapt {
 
   }
 
+  /// Reconcile triangle, quad, tet, pyramid, prism and hex subdivisions, including all incident edge points.
   CellBoundaries assembleBoundaries(const std::vector<CellPartition> &cells, BoundaryLimits limits) {
     checkTopology(cells) ;
     if(cells.size() > std::numeric_limits<unsigned>::max())
       throw std::length_error("too many original cells") ;
     std::size_t leafCount = 0 ;
     for(const CellPartition &cell : cells) {
-      const std::size_t count = cell.subdivision.leafIds().size() ;
+      const std::size_t count = cell.subdivision.leafIdsInCreationOrder().size() ;
       if(count > std::numeric_limits<unsigned>::max()-leafCount || count > limits.faces-leafCount)
         throw std::length_error("too many leaves for boundary assembly") ;
       leafCount += count ;

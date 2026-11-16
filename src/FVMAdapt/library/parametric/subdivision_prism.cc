@@ -29,6 +29,7 @@
 namespace Loci {
 namespace FVMAdapt {
 
+  /// Extrude triangular child placements through the requested axial intervals.
   std::vector<Child> detail::splitChildren(const PrismSplit &request) {
     const std::vector<Child> base = splitChildren(request.base) ;
     if(request.axialCuts.size() >= std::numeric_limits<unsigned>::max()/base.size())
@@ -57,12 +58,14 @@ namespace FVMAdapt {
     return children ;
   }
 
+  /// Construct prism children and their shared boundary correspondence.
   SplitResult split(const PrismSplit &request) {
     SplitResult result ; result.shape = Shape::prism ;
     result.children = detail::splitChildren(request) ;
     detail::completeSubdivision(result) ; return result ;
   }
 
+  /// Require a prism before applying its split request.
   SplitResult split(Shape shape, const PrismSplit &request) {
     if(shape != Shape::prism) throw std::invalid_argument("prism split requires a prism") ;
     return split(request) ;

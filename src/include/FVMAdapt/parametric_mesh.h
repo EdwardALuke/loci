@@ -42,6 +42,7 @@ namespace FVMAdapt {
   struct CubicEdgeView {
     const CubicEdgeUse *data = nullptr ;
     std::size_t size = 0 ;
+
     const CubicEdgeUse &operator[](std::size_t i) const { return data[i] ; }
   } ;
   /// Empty for maps other than cubic tet, prism, pyramid and hex source geometry.
@@ -51,6 +52,7 @@ namespace FVMAdapt {
       const ParametricEdgeControls &controls) ;
   /// Accepted canonical controls; exactly linear edges have empty rows.
   ParametricEdgeControls parametricSourceEdgeControls(const CellTopology &topology,const GeometryMap &geometry) ;
+
   /// Check original corners, supplied controls and source validity; omitted controls retain saved curves.
   void checkParametricSource(const CellTopology &topology,const std::vector<Point> &corners,const GeometryMap &geometry,
       const ParametricEdgeControls &controls = {},JacobianCheckLimits limits = {}) ;
@@ -64,11 +66,14 @@ namespace FVMAdapt {
   HistoryLimits parametricHistoryLimits(int maxDepth, int maxNodes) ;
   /// Serialize accepted geometry and retained native split constructions.
   std::vector<unsigned char> encodeParametricHistory(const AffineSubdivision &history) ;
-  /// Restore and validate accepted native placements and source geometry.
+
+  /// Restore accepted native placements and geometry records; physical validity is assessed separately.
   AffineSubdivision decodeParametricHistory(const std::vector<unsigned char> &record, HistoryLimits limits = {}) ;
+
   /// Build or load a native cell, verifying its original geometry and identity.
   AffineSubdivision makeParametricHistory(const CellTopology &topology, const std::vector<Point> &corners,
       const ParametricRecord &record, HistoryLimits limits = {},const ParametricEdgeControls &controls = {}) ;
+
   /// Initialize an empty record, or verify a saved history against the original native geometry.
   std::vector<unsigned char> initialParametricHistory(const CellTopology &topology, const std::vector<Point> &corners,
       const std::vector<unsigned char> &record, HistoryLimits limits = {},const ParametricEdgeControls &controls = {}) ;
@@ -102,12 +107,37 @@ namespace FVMAdapt {
 
   /// Compact module records exchanged on original faces and edges.
   typedef std::vector<std::vector<int>> ParametricTrace ;
+
+  /// Borrow an eight-field edge interval; the original row must outlive this view.
+  class EdgeTraceRow {
+    const std::vector<int> &row_ ;
+  public:
+    explicit EdgeTraceRow(const std::vector<int> &row) : row_(row) {}
+
+    int edge() const { return row_[0] ; }
+
+    int rootCell() const { return row_.at(1) ; }
+
+    int leafIndex() const { return row_[2] ; }
+
+    int depth() const { return row_[3] ; }
+
+    Fraction lower() const { return Fraction(row_[4],row_[5]) ; }
+
+    Fraction upper() const { return Fraction(row_[6],row_[7]) ; }
+  } ;
+
   /// A leaf refinement request (face == -1), or one actively divided cell-local face.
   /// Leaf indices follow leafIds(); root is the original cell file number.
   struct FaceBalanceRequest {
     int root, leaf, face ;
     unsigned directions = 0 ; ///< Optional leaf-local X/Y/Z bits; prism X/Y select the whole base.
   } ;
+
+  /// Read a two-field face request: original cell ID and output leaf index.
+  inline FaceBalanceRequest faceRefinementRequest(const std::vector<int> &row) {
+    return {row[0],row[1],-1} ;
+  }
   /// Active leaf faces covered by multiple neighboring pieces, locally or across an original face.
   /// When requested, also identify the directions divided on each face.
   std::vector<FaceBalanceRequest> parametricDividedFaces(const CellTopology &topology, const AffineSubdivision &history, bool directions = false) ;
@@ -153,7 +183,7 @@ namespace FVMAdapt {
   std::vector<ParametricFace> parametricCellFaces(const CellTopology &topology,
       const AffineSubdivision &history, const std::vector<VertexKey> &boundaryNodes) ;
   /// Common original-face polygons; supply agreed original edge nodes.
-  std::vector<ParametricFace> parametricFaceFaces(EntityId face, const CellTopology &left,
+  std::vector<ParametricFace> parametricFacePieces(EntityId face, const CellTopology &left,
       const AffineSubdivision &leftHistory, const std::vector<VertexKey> &edgeNodes,
       const CellTopology *right = nullptr, const AffineSubdivision *rightHistory = nullptr) ;
 

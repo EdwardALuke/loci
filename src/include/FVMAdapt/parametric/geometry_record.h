@@ -60,6 +60,7 @@ namespace FVMAdapt {
   template<std::size_t EdgeCount> class CubicVolumeRecord {
     struct Data { std::array<MapId,EdgeCount> edges ; std::uint16_t reversed ; } ;
     std::shared_ptr<const Data> data_ ;
+
     const Data &data() const {
       if(!data_) throw std::invalid_argument("cubic volume has no edges") ;
       return *data_ ;
@@ -67,8 +68,11 @@ namespace FVMAdapt {
   public:
     CubicVolumeRecord(std::array<MapId,EdgeCount> edges,std::uint16_t reversed=0)
       : data_(std::make_shared<const Data>(Data{edges,reversed})) {}
+
     const std::array<MapId,EdgeCount> &edges() const { return data().edges ; }
+
     std::uint16_t reversed() const { return data().reversed ; }
+
     std::size_t payloadBytes() const { return sizeof(Data) ; }
   } ;
   using CubicTetRecord = CubicVolumeRecord<6> ;
@@ -87,6 +91,7 @@ namespace FVMAdapt {
   public:
     AffineRecord(Shape shape, Placement placement)
       : shape(shape), placement_(std::make_shared<const Placement>(std::move(placement))) {}
+
     const Placement &placement() const {
       if(!placement_) throw std::invalid_argument("affine geometry has no placement") ;
       return *placement_ ;
@@ -101,6 +106,7 @@ namespace FVMAdapt {
 
   /// Four oriented edge maps defining a quad surface.
   struct BoundarySurfaceRecord { std::array<MapId,4> edges ; } ;
+
   /// Cone from a retained surface to an interior point.
   struct ConeRecord { MapId base ; Point apex ; } ;
 
@@ -110,6 +116,7 @@ namespace FVMAdapt {
   private:
     struct Data { std::vector<Point> corners ; Point center ; } ;
     std::shared_ptr<const Data> data_ ;
+
     const Data &data() const {
       if(!data_) throw std::invalid_argument("face fan has no controls") ;
       return *data_ ;
@@ -117,15 +124,20 @@ namespace FVMAdapt {
   public:
     FanRecord(Shape shape, std::vector<Point> corners, Point center)
       : shape(shape), data_(std::make_shared<const Data>(Data{std::move(corners),center})) {}
+
     const std::vector<Point> &corners() const { return data().corners ; }
+
     const Point &center() const { return data().center ; }
   } ;
+
   /// Face domain in the coordinates of an earlier retained source surface.
   struct SurfacePatchRecord { MapId source ; std::vector<Point> chartCorners ; } ;
+
   /// Four retained boundary curves joined to one accepted physical center.
   class BoundaryFanRecord {
     struct Data { std::array<MapId,4> edges ; Point center ; } ;
     std::shared_ptr<const Data> data_ ;
+
     const Data &data() const {
       if(!data_) throw std::invalid_argument("boundary fan has no controls") ;
       return *data_ ;
@@ -133,13 +145,16 @@ namespace FVMAdapt {
   public:
     BoundaryFanRecord(std::array<MapId,4> edges,Point center)
       : data_(std::make_shared<const Data>(Data{edges,center})) {}
+
     const std::array<MapId,4> &edges() const { return data().edges ; }
+
     const Point &center() const { return data().center ; }
   } ;
 
   using GeometryRecord = std::variant<CornerRecord,TensorBezierRecord,AffineRecord,ComposeRecord,
                                       BoundarySurfaceRecord,ConeRecord,FanRecord,SurfacePatchRecord,BoundaryFanRecord,
                                       CubicTriangleRecord,CubicHexRecord,CubicTetRecord,CubicPrismRecord,CubicPyramidRecord> ;
+
   /// Dependencies in construction order; each must precede its user in the store.
   std::vector<MapId> geometryDependencies(const GeometryRecord &record) ;
 
@@ -170,30 +185,47 @@ namespace FVMAdapt {
     std::size_t controls_ = 0, bytes_ = 0 ;
   public:
     explicit GeometryStore(GeometryLimits limits = {}) : limits_(limits) {}
+
     const GeometryLimits &limits() const { return limits_ ; }
+
     std::size_t size() const { return records_.size() ; }
+
     std::size_t retainedBytes() const { return bytes_ ; }
+
     std::size_t evaluationCost(MapId id) const { return maps_.at(id).evaluationCost ; }
+
     const std::vector<GeometryRecord> &records() const { return records_ ; }
+
     const GeometryRecord &record(MapId id) const { return records_.at(id) ; }
+
     std::shared_ptr<const GeometryMap> map(MapId id) const { return maps_.at(id).value ; }
+
     /// Validate before append; invalid descriptions or exhausted limits leave the store unchanged.
     MapId append(GeometryRecord record) ;
+
     /// Retain supported geometry descriptions exactly. Unknown map types throw.
     /// Supplied evaluators are shared; callers must not modify them after capture.
     /// Invalid inputs and exhausted limits leave the store unchanged.
     MapId capture(std::shared_ptr<const GeometryMap> map) ;
+
+    /// Check destination limits without changing records, evaluators or current limits.
+    void checkLimits(const GeometryLimits &limits,
+                     std::size_t maxBytes = std::numeric_limits<std::size_t>::max()) const ;
+
     /// Validate existing records against new limits, preserving shared evaluators and map IDs.
     /// Rejection leaves the store and its limits unchanged.
     void setLimits(GeometryLimits limits,
                    std::size_t maxBytes = std::numeric_limits<std::size_t>::max()) ;
+
     /// Remove a suffix, preserving all remaining IDs and maps. Used to roll back an edit.
     void truncate(std::size_t count) ;
+
     /// Atomically append a dependency-ordered batch, returning its first ID.
     /// References may use earlier records in this batch. An empty batch returns size().
     /// maxBytes may impose a tighter payload ceiling for this append.
     MapId append(std::vector<GeometryRecord> records,
                  std::size_t maxBytes = std::numeric_limits<std::size_t>::max()) ;
+
     void swap(GeometryStore &other) noexcept ;
   } ;
 

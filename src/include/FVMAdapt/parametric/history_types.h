@@ -56,20 +56,32 @@ namespace FVMAdapt {
       typedef std::ptrdiff_t difference_type ;
       typedef void pointer ;
       typedef TreeNodeId reference ;
+
       explicit iterator(TreeNodeId id = 0) : id_(id) {}
+
       TreeNodeId operator*() const { return id_ ; }
+
       iterator &operator++() { ++id_ ; return *this ; }
+
       iterator operator++(int) { iterator previous = *this ; ++*this ; return previous ; }
+
       bool operator==(iterator other) const { return id_ == other.id_ ; }
+
       bool operator!=(iterator other) const { return id_ != other.id_ ; }
     } ;
+
     NodeRange(TreeNodeId first = 0, std::size_t size = 0) : first_(first), size_(size) {}
+
     std::size_t size() const { return size_ ; }
+
     bool empty() const { return size_ == 0 ; }
     /// Indexing requires index < size(); front() requires a nonempty range.
     TreeNodeId operator[](std::size_t index) const { return first_+index ; }
+
     TreeNodeId front() const { return first_ ; }
+
     iterator begin() const { return iterator(first_) ; }
+
     iterator end() const { return iterator(first_+size_) ; }
   } ;
 

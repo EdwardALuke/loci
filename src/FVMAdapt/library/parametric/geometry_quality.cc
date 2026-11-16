@@ -31,6 +31,7 @@
 
 namespace Loci {
 namespace FVMAdapt {
+  /// Bound the trilinear hex Jacobian using outward-rounded edge derivatives.
   bool positiveHexJacobian(const std::vector<Point> &corners) {
     if(corners.size() != 8) throw std::invalid_argument("hex Jacobian bounds require eight corners") ;
     using detail::Bounds ;
@@ -59,6 +60,7 @@ namespace FVMAdapt {
 
     using WidePoint = std::array<long double,3> ;
 
+    /// Choose native reference samples, avoiding the singular pyramid apex.
     std::vector<Point> defaultSamples(Shape shape) {
       std::vector<Point> samples ;
       if(shape == Shape::triangle || shape == Shape::tet || shape == Shape::prism) {
@@ -96,6 +98,7 @@ namespace FVMAdapt {
       return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ;
     }
 
+    /// Record the first problem point and preserve invalid status over unresolved status.
     void recordProblem(GeometryQuality &quality, const Point &point, bool invalid) {
       if(quality.invalidCount == 0 && quality.unresolvedCount == 0) quality.problemPoint = point ;
       if(invalid) { ++quality.invalidCount ; quality.status = GeometryQualityStatus::invalid ; }
@@ -105,6 +108,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Accumulate scaled Jacobian, tangent alignment and length-ratio measurements.
     void measure(GeometryQuality &quality, const MapValue &value, const Point &point, unsigned dimension) {
       if(!finite(value.position)) { quality.invalidEvaluation=true ; recordProblem(quality,point,true) ; return ; }
       if(!value.hasJacobian) { recordProblem(quality,point,false) ; return ; }
@@ -167,10 +171,14 @@ namespace FVMAdapt {
     using detail::jacobianIndex ;
 
     ExactPoint exactPoint(const Point &point) { return {{Exact(point[0]),Exact(point[1]),Exact(point[2])}} ; }
+
     ExactPoint exactCross(const ExactPoint &a,const ExactPoint &b) {
       return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ;
     }
+
     Exact exactSquaredNorm(const ExactPoint &a) { return a[0]*a[0]+a[1]*a[1]+a[2]*a[2] ; }
+
+    /// Preserve the exact values of stored corner coordinates for validity checks.
     std::vector<ExactPoint> exactCorners(const CornerMap &map) {
       std::vector<ExactPoint> result ; for(const auto &p:map.corners()) result.push_back(exactPoint(p)) ; return result ;
     }
@@ -185,6 +193,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Bound a Bernstein polynomial, bisecting unresolved reference subdomains.
     GeometryValidity certify(BernsteinCoefficients values,unsigned dimension,JacobianCheckLimits limits,std::size_t &remaining) {
       struct Box {
         BernsteinCoefficients values ;
@@ -254,6 +263,8 @@ namespace FVMAdapt {
     }
 
     struct SurfaceValue { ExactPoint point,u,v ; } ;
+
+    /// Evaluate a linear triangle or bilinear quad and its exact tangent vectors.
     SurfaceValue surfaceValue(const std::vector<ExactPoint> &p,const Exact &u,const Exact &v) {
       SurfaceValue result ; const bool quad=p.size()==4 ;
       for(unsigned d=0;d<3;++d) {
@@ -264,6 +275,8 @@ namespace FVMAdapt {
       }
       return result ;
     }
+
+    /// Check native corner maps using exact Jacobian or surface-rank bounds.
     GeometryValidity cornerValidity(const CornerMap &map,JacobianCheckLimits limits,std::size_t &remaining) {
       const auto shape=map.shape() ;
       if(shape==Shape::hex) {
@@ -300,6 +313,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Test exact membership in a native reference element, including its boundary.
     bool inside(Shape shape,const ExactPoint &p) {
       const auto &x=p[0],&y=p[1],&z=p[2] ;
       if(x<0 || y<0 || z<0) return false ;
@@ -314,16 +328,22 @@ namespace FVMAdapt {
       default: return false ;
       }
     }
+
+    /// Require every placement corner to lie in the parent reference element.
     bool contained(const CornerMap &placement,Shape parent) {
       for(const auto &p:placement.corners()) if(!inside(parent,exactPoint(p))) return false ;
       return true ;
     }
+
+    /// Apply the retained exact affine origin and columns.
     ExactPoint affineValue(const detail::ExactMapView &map,const ExactPoint &q) {
       auto p=map.origin ;
       for(unsigned d=0;d<3;++d) for(unsigned c=0;c<3;++c) p[d]+=map.columns[c][d]*q[c] ;
       return p ;
     }
     using detail::affineTrace ;
+
+    /// Recover exact bilinear coefficients when every boundary curve is affine.
     bool bilinearSurfaceCorners(const std::array<std::shared_ptr<const GeometryMap>,4> &curves,
                                 const std::array<Point,4> &blend,std::vector<ExactPoint> &p,std::size_t &remaining) {
       std::array<std::array<ExactPoint,2>,4> edges ;
@@ -331,6 +351,7 @@ namespace FVMAdapt {
         edges[edge]={{exactPoint({{0,0,0}}),exactPoint({{1,0,0}})}} ;
         if(!affineTrace(*curves[edge],edges[edge],remaining)) return false ;
       }
+
       // Affine edges make the Coons expression bilinear, including any endpoint mismatch.
       // Derive its coefficients from that expression rather than fitting evaluated positions.
       for(unsigned edge=0;edge<4;++edge) {
@@ -341,6 +362,8 @@ namespace FVMAdapt {
       }
       return true ;
     }
+
+    /// Recover an exact affine or bilinear surface through supported wrappers.
     bool surfaceCorners(const GeometryMap &geometry,std::vector<ExactPoint> &p,std::size_t &remaining) {
       const GeometryMap *map=&geometry ;
       while(remaining) {
@@ -363,6 +386,8 @@ namespace FVMAdapt {
       }
       return false ;
     }
+
+    /// Return the planar surface orientation, or zero when its sign is unresolved.
     int surfaceOrientation(const std::vector<ExactPoint> &p,JacobianCheckLimits limits,std::size_t &remaining) {
       auto values=coefficients([&](const Exact &u,const Exact &v,const Exact &) {
         const auto s=surfaceValue(p,u,v) ; return Exact(s.u[0]*s.v[1]-s.u[1]*s.v[0]) ;
@@ -371,6 +396,8 @@ namespace FVMAdapt {
       for(auto &v:values) v=-v ;
       return certify(std::move(values),2,limits,remaining)==GeometryValidity::valid ? -1:0 ;
     }
+
+    /// Check positive cone volume using the retained surface and restriction orientation.
     GeometryValidity coneValidity(const ConeMap &cone,JacobianCheckLimits limits,std::size_t &remaining) {
       const GeometryMap *base=cone.base().get() ; int orientation=1 ; bool restricted=false ; std::size_t maps=limits.maxBoxes ;
       while(true) {
@@ -397,6 +424,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Check supported maps for positive interior Jacobians within the proof budget.
   GeometryValidity geometryValidity(const GeometryMap &geometry,JacobianCheckLimits limits) {
     if(limits.maxBoxes==0) throw std::invalid_argument("geometry validity requires a positive box limit") ;
     if(geometry.dimension()==0) throw std::invalid_argument("geometry validity requires a positive-dimensional shape") ;
@@ -416,12 +444,14 @@ namespace FVMAdapt {
     return GeometryValidity::unresolved ;
   }
 
+  /// Accept regular samples or an interior validity proof allowing boundary singularities.
   bool validGeometry(const GeometryMap &geometry,const GeometryQualityOptions &options,JacobianCheckLimits limits) {
     if(limits.maxBoxes==0) throw std::invalid_argument("geometry validity requires a positive box limit") ;
     const auto quality=geometryQuality(geometry,options) ;
     return quality.status==GeometryQualityStatus::sampled || (!quality.invalidEvaluation && geometryValidity(geometry,limits)==GeometryValidity::valid) ;
   }
 
+  /// Measure map derivatives at the requested reference points.
   GeometryQuality geometryQuality(const GeometryMap &geometry, const GeometryQualityOptions &options) {
     const Shape shape = geometry.shape() ;
     const unsigned dimension = geometry.dimension() ;

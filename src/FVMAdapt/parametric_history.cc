@@ -12,6 +12,18 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
+    constexpr unsigned historyRequestVersion = 3 ;
+    constexpr unsigned boundaryRequestVersion = 4 ;
+
+    /// Read and validate the action of one refinement request.
+    ParametricAction readAction(detail::RecordReader &in) {
+      const auto action = ParametricAction(in.byte()) ;
+      if(action != ParametricAction::split && action != ParametricAction::isotropic && action != ParametricAction::coarsen)
+        throw std::invalid_argument("unknown parametric request action") ;
+      return action ;
+    }
+
+    /// Apply history limits to the serialized geometry and subdivision records.
     RecordLimits recordLimits(const HistoryLimits &history) {
       RecordLimits limits ; limits.maxBytes = history.exact.maxBytes ;
       limits.maxNodes = history.maxNodes ; limits.maxSplits = history.maxSplits ;
@@ -19,116 +31,159 @@ namespace FVMAdapt {
       limits.geometry.exact = history.exact ; limits.jacobian = history.jacobian ;
       return limits ;
     }
+
+    /// Resolve a persistent cell key and require an active leaf.
     TreeNodeId requestedLeaf(const RefinementHistory &history, const CellKey &key) {
       const auto id = history.nodeId(key) ;
       if(!history.active(id) || !history.node(id).isLeaf())
         throw std::invalid_argument("refinement request is not an active leaf") ;
       return id ;
     }
+
+    /// Write a split's child shapes and placements for reuse by cell requests.
     void writeConstruction(detail::RecordWriter &out, const SplitConstruction &split) {
-      out.u32(unsigned(split.parentShape)) ; out.u32(unsigned(split.family)) ; out.u32(split.version) ;
+      out.u32(unsigned(split.parentShape)) ;
+      out.u32(unsigned(split.family)) ;
+      out.u32(split.version) ;
       out.byte(split.vertexVolume ? 2 : (split.planar ? 1 : 0)) ;
       if(split.vertexVolume) {
-        const auto &p=*split.vertexVolume ; out.u64(p.points.size()) ;
-        for(const auto &point:p.points) for(double x:point) out.real(x) ;
-        out.u64(p.children.size()) ; for(const auto &child:p.children) for(unsigned v:child.vertices) out.u32(v) ; return ;
+        const auto &mapped = *split.vertexVolume ;
+        out.u64(mapped.points.size()) ;
+        for(const auto &point : mapped.points) for(double x : point) out.real(x) ;
+        out.u64(mapped.children.size()) ;
+        for(const auto &child : mapped.children) for(unsigned v : child.vertices) out.u32(v) ;
+        return ;
       }
       if(split.planar) {
-        const auto &p=*split.planar ; out.u32(unsigned(p.centerMethod)) ; out.u64(p.points.size()) ;
-        for(const auto &point:p.points) for(double x:point) out.real(x) ;
-        out.u64(p.children.size()) ; for(const auto &child:p.children) for(unsigned v:child) out.u32(v) ;
+        const auto &planar = *split.planar ;
+        out.u32(unsigned(planar.centerMethod)) ;
+        out.u64(planar.points.size()) ;
+        for(const auto &point : planar.points) for(double x : point) out.real(x) ;
+        out.u64(planar.children.size()) ;
+        for(const auto &child : planar.children) for(unsigned v : child) out.u32(v) ;
         return ;
       }
       out.u64(split.children.size()) ;
-      for(const auto &child: split.children) {
+      for(const auto &child : split.children) {
         out.u32(unsigned(child.shape)) ;
-        for(const auto &q: child.placement.origin) out.fraction(q) ;
-        for(const auto &column: child.placement.columns) for(const auto &q: column) out.fraction(q) ;
+        for(const auto &q : child.placement.origin) out.fraction(q) ;
+        for(const auto &column : child.placement.columns) for(const auto &q : column) out.fraction(q) ;
       }
     }
+
     // Encode validated requests in persistent-key order, sharing repeated constructions.
-    ParametricRecord requestRecord(EntityId root,std::uint64_t revision,const HistoryLimits &limits,
+    ParametricRecord requestRecord(EntityId root, std::uint64_t revision, const HistoryLimits &limits,
         const std::vector<ParametricRequest> &requests) {
       if(requests.empty()) return {} ;
-      std::map<CellKey,const ParametricRequest *> keys ; std::map<SplitConstruction,unsigned> constructions ;
-      for(const auto &request:requests) {
+      std::map<CellKey,const ParametricRequest *> keys ;
+      std::map<SplitConstruction,unsigned> constructions ;
+      for(const auto &request : requests) {
         if(!keys.emplace(request.cell,&request).second) throw std::invalid_argument("duplicate refinement request") ;
-        for(const auto &step:request.cell.lineage) constructions.emplace(*step.construction,0) ;
+        for(const auto &step : request.cell.lineage) constructions.emplace(*step.construction,0) ;
       }
       detail::RecordWriter out(limits.exact.maxBytes,limits.exact) ;
-      out.u32(3) ; out.u64(root) ; out.u64(revision) ;
-      out.u64(constructions.size()) ; unsigned index=0 ;
-      for(auto &entry:constructions) { entry.second=index++ ; writeConstruction(out,entry.first) ; }
+      out.u32(historyRequestVersion) ;
+      out.u64(root) ;
+      out.u64(revision) ;
+      out.u64(constructions.size()) ;
+      unsigned index = 0 ;
+      for(auto &entry : constructions) {
+        entry.second = index++ ;
+        writeConstruction(out,entry.first) ;
+      }
       out.u64(keys.size()) ;
-      for(const auto &entry:keys) {
-        const auto &key=entry.first ; out.u64(key.lineage.size()) ;
-        for(const auto &step:key.lineage) { out.u32(constructions.at(*step.construction)) ; out.u32(step.child) ; }
+      for(const auto &entry : keys) {
+        const auto &key = entry.first ;
+        out.u64(key.lineage.size()) ;
+        for(const auto &step : key.lineage) {
+          out.u32(constructions.at(*step.construction)) ;
+          out.u32(step.child) ;
+        }
         out.byte(unsigned(entry.second->action)) ;
-        if(entry.second->action==ParametricAction::split) detail::writeSplitOperation(out,entry.second->split) ;
+        if(entry.second->action == ParametricAction::split) detail::writeSplitOperation(out,entry.second->split) ;
       }
       return out.take() ;
     }
+
+    /// Restore the child construction referenced by refinement requests.
     SplitConstruction readConstruction(detail::RecordReader &in, const HistoryLimits &limits) {
-      SplitConstruction split ; split.parentShape = Shape(in.u32()) ;
-      split.family = SplitFamily(in.u32()) ; split.version = in.u32() ;
-      const unsigned kind=in.byte() ;
-      if(kind>2) throw std::invalid_argument("unknown request construction kind") ;
-      if(kind==2) {
-        std::vector<Point> points(in.count(27,24)) ; for(auto &p:points) for(double &x:p) x=in.real() ;
-        std::vector<std::array<unsigned,8>> children(in.count(8,32)) ; for(auto &c:children) for(auto &v:c) v=in.u32() ;
-        split.vertexVolume=std::make_shared<const VertexVolumeSplit>(restoreVertexVolumeSplit(split.parentShape,std::move(points),children,limits.jacobian)) ;
+      SplitConstruction split ;
+      split.parentShape = Shape(in.u32()) ;
+      split.family = SplitFamily(in.u32()) ;
+      split.version = in.u32() ;
+      const unsigned kind = in.byte() ;
+      if(kind > 2) throw std::invalid_argument("unknown request construction kind") ;
+      if(kind == 2) {
+        std::vector<Point> points(in.count(27,24)) ;
+        for(auto &point : points) for(double &x : point) x = in.real() ;
+        std::vector<std::array<unsigned,8>> children(in.count(8,32)) ;
+        for(auto &child : children) for(auto &vertex : child) vertex = in.u32() ;
+        split.vertexVolume = std::make_shared<const VertexVolumeSplit>(
+          restoreVertexVolumeSplit(split.parentShape,std::move(points),children,limits.jacobian)) ;
         return split ;
       }
-      if(kind==1) {
-        PlanarSplit p ; p.shape=split.parentShape ; p.centerMethod=CenterMethod(in.u32()) ;
-        if(p.shape!=Shape::triangle && p.shape!=Shape::quad) throw std::invalid_argument("invalid planar request shape") ;
-        if(p.centerMethod!=CenterMethod::reference && p.centerMethod!=CenterMethod::weighted && p.centerMethod!=CenterMethod::integrated)
+      if(kind == 1) {
+        PlanarSplit planar ;
+        planar.shape = split.parentShape ;
+        planar.centerMethod = CenterMethod(in.u32()) ;
+        if(planar.shape != Shape::triangle && planar.shape != Shape::quad)
+          throw std::invalid_argument("invalid planar request shape") ;
+        if(planar.centerMethod != CenterMethod::reference && planar.centerMethod != CenterMethod::weighted &&
+           planar.centerMethod != CenterMethod::integrated)
           throw std::invalid_argument("invalid planar request center") ;
-        p.points.resize(in.count(9,24)) ; for(auto &point:p.points) for(double &x:point) x=in.real() ;
-        p.children.resize(in.count(4,16)) ; for(auto &child:p.children) for(unsigned &v:child) v=in.u32() ;
-        split.planar=std::make_shared<const PlanarSplit>(std::move(p)) ; return split ;
+        planar.points.resize(in.count(9,24)) ;
+        for(auto &point : planar.points) for(double &x : point) x = in.real() ;
+        planar.children.resize(in.count(4,16)) ;
+        for(auto &child : planar.children) for(unsigned &vertex : child) vertex = in.u32() ;
+        split.planar = std::make_shared<const PlanarSplit>(std::move(planar)) ;
+        return split ;
       }
       split.children.resize(in.count(limits.maxNodes,4)) ;
-      for(auto &child: split.children) {
+      for(auto &child : split.children) {
         child.shape = Shape(in.u32()) ;
-        for(auto &q: child.placement.origin) q = in.fraction() ;
-        for(auto &column: child.placement.columns) for(auto &q: column) q = in.fraction() ;
+        for(auto &q : child.placement.origin) q = in.fraction() ;
+        for(auto &column : child.placement.columns) for(auto &q : column) q = in.fraction() ;
       }
       return split ;
     }
+
     // Decode the shared request format; each representation resolves its own cell keys.
-    template<class Resolve,class Parent>
-    std::vector<ParametricLeafRequest> readRequests(const ParametricRecord &record,EntityId root,std::uint64_t revision,
-        const HistoryLimits &limits,Resolve resolve,Parent parent) {
+    template<class Resolve, class Parent>
+    std::vector<ParametricLeafRequest> readRequests(const ParametricRecord &record, EntityId root, std::uint64_t revision,
+        const HistoryLimits &limits, Resolve resolve, Parent parent) {
       if(record.empty()) return {} ;
       detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
-      if(in.u32() != 3 || in.u64() != root || in.u64() != revision)
+      if(in.u32() != historyRequestVersion || in.u64() != root || in.u64() != revision)
         throw std::invalid_argument("parametric request version, root or geometry revision differs") ;
       std::vector<std::shared_ptr<const SplitConstruction>> constructions ;
       const auto count = in.count(limits.maxSplits,20) ;
       for(std::size_t i = 0; i < count; ++i)
         constructions.push_back(std::make_shared<SplitConstruction>(readConstruction(in,limits))) ;
-      std::vector<ParametricLeafRequest> result ; std::set<TreeNodeId> unique ;
+      std::vector<ParametricLeafRequest> result ;
+      std::set<TreeNodeId> unique ;
       const auto requests = in.count(limits.maxNodes,8) ;
       for(std::size_t i = 0; i < requests; ++i) {
-        CellKey key{root,{}} ; const auto depth = in.count(limits.maxDepth,8) ;
+        CellKey key{root,{}} ;
+        const auto depth = in.count(limits.maxDepth,8) ;
         for(std::size_t d = 0; d < depth; ++d) {
           const auto construction = in.u32(), child = in.u32() ;
           if(construction >= constructions.size() || child >= constructions[construction]->childCount())
             throw std::invalid_argument("invalid parametric request lineage") ;
           key.lineage.push_back({constructions[construction],child}) ;
         }
-        const unsigned action=in.byte() ;
-        if(action>2) throw std::invalid_argument("unknown parametric request action") ;
-        const auto id=resolve(key,ParametricAction(action)) ;
+        const auto action = readAction(in) ;
+        const auto id = resolve(key,action) ;
         if(!unique.insert(id).second) throw std::invalid_argument("duplicate refinement request") ;
-        result.push_back({id,action==0 ? detail::readSplitOperation(in,limits.maxNodes):SplitOperation(TensorSplit()),ParametricAction(action)}) ;
+        auto split = action == ParametricAction::split ? detail::readSplitOperation(in,limits.maxNodes) : SplitOperation(TensorSplit()) ;
+        result.push_back({id,std::move(split),action}) ;
       }
       in.finish() ;
-      for(auto id:unique) for(auto ancestor=parent(id);ancestor!=noTreeNode;ancestor=parent(ancestor))
+      for(auto id : unique) for(auto ancestor = parent(id); ancestor != noTreeNode; ancestor = parent(ancestor))
         if(unique.count(ancestor)) throw std::invalid_argument("overlapping ancestor and descendant requests") ;
       return result ;
     }
+
+    /// Describe the eight children of a compact isotropic hex split.
     std::shared_ptr<const SplitConstruction> hexConstruction(const HexPlan &plan,HexPlan::Cell parent) {
       SplitConstruction split ; split.parentShape=Shape::hex ; split.family=SplitFamily::vertexVolume ;
       split.vertexVolume=std::make_shared<const VertexVolumeSplit>(plan.construction(parent)) ;
@@ -136,6 +191,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Source-cell admission, preserving nonzero edges and faces when boundary derivatives are singular.
   bool validParametricSource(const CornerMap &geometry,JacobianCheckLimits limits) {
     if(geometry.dimension()!=3 || limits.maxBoxes==0) throw std::invalid_argument("invalid source cell shape or Jacobian bounds") ;
     const auto quality=geometryQuality(geometry) ;
@@ -153,11 +209,14 @@ namespace FVMAdapt {
   }
 
   namespace {
+    /// Order local edge endpoints by their original vertex IDs.
     std::array<unsigned,2> canonicalEdge(const CellTopology &topology,unsigned edge) {
       auto ends=topology.edgeVertices(edge) ;
       if(topology.vertexId(ends[1])<topology.vertexId(ends[0])) std::swap(ends[0],ends[1]) ;
       return ends ;
     }
+
+    /// Place the two interior cubic controls on a straight edge.
     std::array<Point,2> linearEdgeControls(const Point &first,const Point &last) {
       std::array<Point,2> result ;
       for(unsigned d=0;d<3;++d) {
@@ -166,6 +225,8 @@ namespace FVMAdapt {
       }
       return result ;
     }
+
+    /// Validate source controls and report whether any original edge is curved.
     bool suppliedCurves(const CellTopology &topology,const std::vector<Point> &corners,const ParametricEdgeControls &controls) {
       if(corners.size()!=topology.vertexCount() || (!controls.empty() && controls.size()!=topology.edgeCount()))
         throw std::invalid_argument("source corner or edge-control count differs from topology") ;
@@ -179,10 +240,15 @@ namespace FVMAdapt {
       }
       return curved ;
     }
+
+    /// Read a cubic control in the edge direction used by the cell.
     const Point &sourceEdgeControl(CubicEdgeView edges,unsigned edge,unsigned control) {
       const auto &use=edges[edge] ; return use.edge->controls()[use.reversed ? 3-control:control] ;
     }
+
     template<class Map,std::size_t N>
+
+    /// Construct a standard cell map from original endpoint-oriented cubic edges.
     std::shared_ptr<const GeometryMap> cubicSource(const CellTopology &topology,const std::vector<Point> &corners,
         const ParametricEdgeControls &controls) {
       std::array<CubicEdgeUse,N> edges ;
@@ -196,6 +262,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Borrow cubic edge curves from a supported standard-cell map.
   CubicEdgeView parametricCubicEdges(const GeometryMap &geometry) {
     if(const auto *tet=dynamic_cast<const CubicTetMap *>(&geometry)) return {tet->edges().data(),tet->edges().size()} ;
     if(const auto *prism=dynamic_cast<const CubicPrismMap *>(&geometry)) return {prism->edges().data(),prism->edges().size()} ;
@@ -204,6 +271,7 @@ namespace FVMAdapt {
     return {} ;
   }
 
+  /// Build curved standard-cell geometry when supplied edge controls require it.
   std::shared_ptr<const GeometryMap> parametricCubicGeometry(const CellTopology &topology,const std::vector<Point> &corners,
       const ParametricEdgeControls &controls) {
     if(!suppliedCurves(topology,corners,controls)) return {} ;
@@ -217,6 +285,7 @@ namespace FVMAdapt {
     throw std::invalid_argument("curved source edges require a standard tet, prism, pyramid or hex") ;
   }
 
+  /// Recover source-edge controls, leaving straight-edge rows empty.
   ParametricEdgeControls parametricSourceEdgeControls(const CellTopology &topology,const GeometryMap &geometry) {
     if(!topology.isStandard() || topology.shape()!=geometry.shape())
       throw std::invalid_argument("source geometry shape differs from topology") ;
@@ -233,6 +302,7 @@ namespace FVMAdapt {
     return controls ;
   }
 
+  /// Verify that saved source geometry agrees with original vertices and supplied controls.
   void checkParametricSource(const CellTopology &topology,const std::vector<Point> &corners,const GeometryMap &geometry,
       const ParametricEdgeControls &controls,JacobianCheckLimits limits) {
     suppliedCurves(topology,corners,controls) ;
@@ -261,6 +331,7 @@ namespace FVMAdapt {
       throw std::invalid_argument("invalid or unresolved parametric root geometry") ;
   }
 
+  /// Compare original source geometry independently of refinement state.
   bool sameParametricSource(const GeometryMap &first,const GeometryMap &second) {
     if(const auto *a=dynamic_cast<const CornerMap *>(&first)) {
       const auto *b=dynamic_cast<const CornerMap *>(&second) ;
@@ -273,18 +344,25 @@ namespace FVMAdapt {
     return true ;
   }
 
+  /// Translate module depth and node limits into local history limits.
   HistoryLimits parametricHistoryLimits(int maxDepth, int maxNodes) {
     if(maxDepth < 0 || maxDepth > 30 || maxNodes <= 0)
       throw std::invalid_argument("parametric limits require depth in [0,30] and positive node count") ;
     HistoryLimits limits ; limits.maxDepth = maxDepth ; limits.maxNodes = maxNodes ;
     limits.maxSplits = maxNodes ; return limits ;
   }
+
+  /// Encode an accepted standard-element subdivision history.
   std::vector<unsigned char> encodeParametricHistory(const AffineSubdivision &history) {
     return encodeRefinement(history.history(),recordLimits(history.history().limits())) ;
   }
+
+  /// Restore and validate an accepted standard-element subdivision history.
   AffineSubdivision decodeParametricHistory(const std::vector<unsigned char> &record, HistoryLimits limits) {
     return AffineSubdivision(decodeRefinement(record,recordLimits(limits))) ;
   }
+
+  /// Build or restore a standard-element history with matching original geometry.
   AffineSubdivision makeParametricHistory(const CellTopology &topology, const std::vector<Point> &corners,
       const std::vector<unsigned char> &record, HistoryLimits limits,const ParametricEdgeControls &controls) {
     if(!record.empty()) {
@@ -301,12 +379,14 @@ namespace FVMAdapt {
     return AffineSubdivision(RefinementHistory(topology.id(),std::move(geometry),root,0,limits)) ;
   }
 
+  /// Encode the initial or restored standard-element cell state.
   std::vector<unsigned char> initialParametricHistory(const CellTopology &topology, const std::vector<Point> &corners,
       const std::vector<unsigned char> &record, HistoryLimits limits,const ParametricEdgeControls &controls) {
     const auto cell=makeParametricHistory(topology,corners,record,limits,controls) ;
     return record.empty() ? encodeParametricHistory(cell):record ;
   }
 
+  /// Validate cell requests and encode them using persistent history keys.
   std::vector<unsigned char> encodeParametricRequests(const RefinementHistory &history, const std::vector<ParametricRequest> &requests) {
     if(requests.empty()) return {} ;
     for(const auto &request:requests) {
@@ -318,6 +398,7 @@ namespace FVMAdapt {
     return requestRecord(history.rootKey(),history.geometryRevision(),history.limits(),requests) ;
   }
 
+  /// Encode isotropic refinement requests for the supplied active leaf keys.
   std::vector<unsigned char> encodeParametricRequests(const RefinementHistory &history, const std::vector<CellKey> &cells) {
     std::vector<ParametricRequest> requests ; requests.reserve(cells.size()) ;
     for(const auto &key: cells) {
@@ -326,6 +407,8 @@ namespace FVMAdapt {
     }
     return encodeParametricRequests(history,requests) ;
   }
+
+  /// Resolve encoded request keys against the accepted standard-element history.
   std::vector<ParametricLeafRequest> decodeParametricRequests(const std::vector<unsigned char> &record, const RefinementHistory &history) {
     return readRequests(record,history.rootKey(),history.geometryRevision(),history.limits(),
       [&](const CellKey &key,ParametricAction action) {
@@ -338,9 +421,12 @@ namespace FVMAdapt {
 
   namespace {
     void requestBytes(detail::RecordWriter &out,const ParametricRecord &bytes) { out.u64(bytes.size()) ; out.append(bytes) ; }
+
     ParametricRecord requestBytes(detail::RecordReader &in,std::size_t limit) {
       ParametricRecord result(in.count(limit)) ; for(auto &b:result) b=in.byte() ; return result ;
     }
+
+    /// Encode the source topology and geometry used to identify boundary requests.
     ParametricRecord boundarySource(const ParametricBoundary &cell) {
       detail::RecordWriter out(cell.limits().exact.maxBytes,cell.limits().exact) ;
       const auto topology=encodeParametricTopology(cell.topology) ; out.u64(topology.size()) ; for(int x:topology) out.u32(x) ;
@@ -351,6 +437,8 @@ namespace FVMAdapt {
       }
       return out.take() ;
     }
+
+    /// Require nonoverlapping requests for active leaves or coarsening parents.
     void checkRequests(const ParametricCell &cell,const std::vector<ParametricLeafRequest> &requests) {
       std::set<TreeNodeId> unique ;
       for(const auto &r:requests) {
@@ -364,51 +452,86 @@ namespace FVMAdapt {
         if(unique.count(parent)) throw std::invalid_argument("overlapping ancestor and descendant requests") ;
     }
   }
-  ParametricRecord encodeParametricRequests(const ParametricCell &cell,const std::vector<ParametricLeafRequest> &requests) {
+
+  /// Encode requests with the source geometry and accepted ancestry needed to identify their cells.
+  ParametricRecord encodeParametricRequests(const ParametricCell &cell, const std::vector<ParametricLeafRequest> &requests) {
     if(requests.empty()) return {} ;
-    if(cell.source()) { auto expanded=cell ; expanded.expand() ; return encodeParametricRequests(expanded,requests) ; }
+    if(cell.source()) {
+      auto expanded = cell ;
+      expanded.expand() ;
+      return encodeParametricRequests(expanded,requests) ;
+    }
     checkRequests(cell,requests) ;
     if(!cell.boundary()) {
       std::vector<ParametricRequest> keys ;
-      for(const auto &r:requests) keys.push_back({cell.history().key(r.cell),r.split,r.action}) ;
+      for(const auto &request : requests)
+        keys.push_back({cell.history().key(request.cell),request.split,request.action}) ;
       return encodeParametricRequests(cell.history(),keys) ;
     }
-    const auto &tree=*cell.boundary() ; const auto &limits=tree.limits() ;
-    detail::RecordWriter out(limits.exact.maxBytes,limits.exact) ; out.u32(4) ; out.u64(cell.rootKey()) ;
+
+    const auto &tree = *cell.boundary() ;
+    const auto &limits = tree.limits() ;
+    detail::RecordWriter out(limits.exact.maxBytes,limits.exact) ;
+    out.u32(boundaryRequestVersion) ;
+    out.u64(cell.rootKey()) ;
     requestBytes(out,boundarySource(tree)) ;
-    std::map<CellPath,const ParametricLeafRequest*> ordered ; for(const auto &r:requests) ordered.emplace(cell.path(r.cell),&r) ;
+    std::map<CellPath,const ParametricLeafRequest*> ordered ;
+    for(const auto &request : requests) ordered.emplace(cell.path(request.cell),&request) ;
     out.u64(ordered.size()) ;
-    for(const auto &entry:ordered) {
-      out.u64(entry.first.size()) ; TreeNodeId parent=0 ;
-      for(auto child:entry.first) {
-        out.u32(child) ; requestBytes(out,tree.splitRecord(parent)) ; parent=tree.children(parent)[child] ;
+    for(const auto &entry : ordered) {
+      out.u64(entry.first.size()) ;
+      TreeNodeId parent = 0 ;
+      for(auto child : entry.first) {
+        out.u32(child) ;
+        requestBytes(out,tree.splitRecord(parent)) ;
+        parent = tree.children(parent)[child] ;
       }
-      const auto &r=*entry.second ; out.byte(unsigned(r.action)) ;
-      if(r.action==ParametricAction::split) detail::writeSplitOperation(out,r.split) ;
+      const auto &request = *entry.second ;
+      out.byte(unsigned(request.action)) ;
+      if(request.action == ParametricAction::split) detail::writeSplitOperation(out,request.split) ;
     }
     return out.take() ;
   }
-  std::vector<ParametricLeafRequest> decodeParametricRequests(const ParametricRecord &record,const ParametricCell &cell) {
+
+  /// Restore cell requests after matching their source and accepted split ancestry.
+  std::vector<ParametricLeafRequest> decodeParametricRequests(const ParametricRecord &record, const ParametricCell &cell) {
     if(record.empty()) return {} ;
-    if(cell.source()) { auto expanded=cell ; expanded.expand() ; return decodeParametricRequests(record,expanded) ; }
-    if(!cell.boundary()) return decodeParametricRequests(record,cell.history()) ;
-    const auto &tree=*cell.boundary() ; const auto &limits=tree.limits() ;
-    detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
-    if(in.u32()!=4 || in.u64()!=cell.rootKey() || requestBytes(in,limits.exact.maxBytes)!=boundarySource(tree))
-      throw std::invalid_argument("parametric request version or source geometry differs") ;
-    std::vector<ParametricLeafRequest> result ; const auto count=in.count(limits.maxNodes,9) ;
-    for(std::size_t i=0;i<count;++i) {
-      TreeNodeId id=0 ; const auto depth=in.count(limits.maxDepth,12) ;
-      for(std::size_t d=0;d<depth;++d) {
-        const auto child=in.u32() ; const auto split=requestBytes(in,limits.exact.maxBytes) ; const auto children=tree.children(id) ;
-        if(child>=children.size() || tree.splitRecord(id)!=split) throw std::invalid_argument("parametric request accepted split differs") ;
-        id=children[child] ;
-      }
-      const unsigned action=in.byte() ; if(action>2) throw std::invalid_argument("unknown parametric request action") ;
-      result.push_back({id,action==0 ? detail::readSplitOperation(in,limits.maxNodes):SplitOperation(TensorSplit()),ParametricAction(action)}) ;
+    if(cell.source()) {
+      auto expanded = cell ;
+      expanded.expand() ;
+      return decodeParametricRequests(record,expanded) ;
     }
-    in.finish() ; checkRequests(cell,result) ; return result ;
+    if(!cell.boundary()) return decodeParametricRequests(record,cell.history()) ;
+    const auto &tree = *cell.boundary() ;
+    const auto &limits = tree.limits() ;
+    detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
+    if(in.u32() != boundaryRequestVersion || in.u64() != cell.rootKey() ||
+       requestBytes(in,limits.exact.maxBytes) != boundarySource(tree))
+      throw std::invalid_argument("parametric request version or source geometry differs") ;
+
+    std::vector<ParametricLeafRequest> result ;
+    const auto count = in.count(limits.maxNodes,9) ;
+    for(std::size_t i = 0; i < count; ++i) {
+      TreeNodeId id = 0 ;
+      const auto depth = in.count(limits.maxDepth,12) ;
+      for(std::size_t d = 0; d < depth; ++d) {
+        const auto child = in.u32() ;
+        const auto split = requestBytes(in,limits.exact.maxBytes) ;
+        const auto children = tree.children(id) ;
+        if(child >= children.size() || tree.splitRecord(id) != split)
+          throw std::invalid_argument("parametric request accepted split differs") ;
+        id = children[child] ;
+      }
+      const auto action = readAction(in) ;
+      auto split = action == ParametricAction::split ? detail::readSplitOperation(in,limits.maxNodes) : SplitOperation(TensorSplit()) ;
+      result.push_back({id,std::move(split),action}) ;
+    }
+    in.finish() ;
+    checkRequests(cell,result) ;
+    return result ;
   }
+
+  /// Resolve persistent request keys against a compact hex plan.
   std::vector<ParametricLeafRequest> hexRequests(const ParametricRecord &record,const HexPlan &plan,EntityId root,const HistoryLimits &limits) {
     std::map<HexPlan::Cell,std::shared_ptr<const SplitConstruction>> constructions ;
     return readRequests(record,root,0,limits,[&](const CellKey &key,ParametricAction action) {
@@ -424,6 +547,8 @@ namespace FVMAdapt {
       return TreeNodeId(id) ;
     },[&](TreeNodeId id) { return id==HexPlan::root ? noTreeNode:TreeNodeId(plan.parent(id)) ; }) ;
   }
+
+  /// Encode active-leaf hex tags as persistent cell requests.
   ParametricRecord hexTagRequests(const HexPlan &plan,EntityId root,const HistoryLimits &limits,const std::vector<char> &values) {
     const auto leaves=plan.leaves() ;
     if(values.size()!=leaves.size()) throw std::invalid_argument("parametric tag count differs from accepted leaves") ;
@@ -452,6 +577,7 @@ namespace FVMAdapt {
     return requestRecord(root,0,limits,requests) ;
   }
 
+  /// Tags: 0 keep, 1 refine, 2 coarsen a complete immediate family.
   ParametricRecord encodeParametricTags(const ParametricCell &cell,const std::vector<char> &values) {
     if(values.size()!=cell.leafCount()) throw std::invalid_argument("parametric tag count differs from accepted leaves") ;
     const auto leaves=cell.leafIds() ; std::map<TreeNodeId,int> tags ; std::set<TreeNodeId> parents ;
@@ -473,6 +599,8 @@ namespace FVMAdapt {
   namespace {
     void require(bool condition,const char *message) { if(!condition) throw std::invalid_argument(message) ; }
   }
+
+  /// Immediate old leaf indices contributing to each new leaf; complete sibling merges are supported.
   std::vector<std::vector<int>> parametricCellDonors(const RefinementHistory &oldHistory,const RefinementHistory &newHistory) {
     require(oldHistory.rootKey()==newHistory.rootKey() && oldHistory.geometryRevision()==newHistory.geometryRevision(),
             "cell correspondence requires the same original geometry") ;
@@ -491,6 +619,8 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Immediate old leaf indices contributing to each new leaf; complete sibling merges are supported.
   std::vector<std::vector<int>> parametricCellDonors(const ParametricCell &oldCell,const ParametricCell &newCell) {
     if(oldCell.boundary() || newCell.boundary()) {
       require(newCell.boundary(),"accepted boundary history cannot change split families") ;

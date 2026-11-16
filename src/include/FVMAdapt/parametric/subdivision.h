@@ -64,6 +64,7 @@ namespace FVMAdapt {
     Kind kind ;
     unsigned edge ;
     Fraction position ;
+
     TriangleSplit() : kind(Kind::none), edge(0), position(1,2) {}
     /// Divide the selected edge at position in (0,1) and join it to the opposite vertex.
     static TriangleSplit bisectEdge(unsigned edge, Fraction position = Fraction(1,2)) ;
@@ -84,6 +85,7 @@ namespace FVMAdapt {
     unsigned edge ;
     Fraction position ;
     unsigned diagonal ;
+
     TetSplit() : kind(Kind::none), edge(0), position(1,2), diagonal(0) {}
     /// Divide the selected edge at position in (0,1) and join it to the opposite edge.
     static TetSplit bisectEdge(unsigned edge, Fraction position = Fraction(1,2)) ;
@@ -96,6 +98,7 @@ namespace FVMAdapt {
   struct PyramidSplit {
     enum class Kind { none, uniform } ;
     Kind kind ;
+
     PyramidSplit() : kind(Kind::none) {}
     /// Four base-corner pyramids, top and inverted middle pyramids, then four side tets.
     static PyramidSplit uniform10() ;

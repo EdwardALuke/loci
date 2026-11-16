@@ -30,6 +30,7 @@ namespace Loci {
 namespace FVMAdapt {
 namespace {
 
+  /// Order geometry records using their remapped dependency IDs.
   bool mapLess(const GeometryRecord &a, const GeometryRecord &b,
                const std::vector<MapId> &ids) {
     if(a.index()!=b.index()) return a.index()<b.index() ;
@@ -72,6 +73,7 @@ namespace {
     },a) ;
   }
 
+  /// Replace dependency IDs and normalize signed zero in stored coordinates.
   GeometryRecord remapRecord(GeometryRecord record, const std::vector<MapId> &ids) {
     std::visit([&](auto &value) {
       using T=std::decay_t<decltype(value)> ;
@@ -113,6 +115,7 @@ namespace {
     return record ;
   }
 
+  /// Keep referenced geometry, merge duplicates, and update cell map IDs.
   GeometryStore compactGeometry(const GeometryStore &geometry, std::vector<CellNode> &nodes,
                                 const GeometryLimits &limits) {
     std::vector<bool> retained(geometry.size(),false) ;
@@ -149,6 +152,7 @@ namespace {
 
 }
 
+  /// Retain the active cell tree and the geometry it references.
   RefinementHistory compactHistory(const RefinementHistory &history) {
     std::vector<TreeNodeId> oldIds(1,0) ;
     std::vector<CellNode> nodes(1,history.node(0)) ;

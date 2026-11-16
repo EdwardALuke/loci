@@ -17,10 +17,14 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
     void require(bool ok, const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
+    /// Choose the cell form required by its topology and source-face geometry.
     CellRepresentation cornerRepresentation(const CellTopology &topology,bool facePatches) {
       return !topology.isStandard() || topology.shape()==Shape::pyramid || facePatches
         ? CellRepresentation::boundary:CellRepresentation::mappedCorner ;
     }
+
+    /// Apply history limits to serialized subdivision and geometry records.
     RecordLimits recordLimits(const HistoryLimits &h) {
       RecordLimits r ; r.maxBytes=h.exact.maxBytes ; r.maxNodes=h.maxNodes ; r.maxSplits=h.maxSplits ;
       r.maxDepth=h.maxDepth ; r.geometry=h.geometry ; r.geometry.exact=h.exact ; r.jacobian=h.jacobian ; return r ;
@@ -33,6 +37,8 @@ namespace FVMAdapt {
       std::array<double,2> planes ;
       std::vector<unsigned> lower, upper, sides ;
       std::vector<Point> polygon ;
+
+      /// Match the two fixed end planes, paired vertices, and extrusion side faces.
       ExtrusionLayout(Shape shape, const std::vector<Point> &corners, int axis) {
         require(axis>=0 && axis<3,"center-based extrusion requires axis 0, 1 or 2") ;
         parametricGradingSplit(CornerMap(shape,corners),axis) ;
@@ -69,15 +75,534 @@ namespace FVMAdapt {
         }
       }
     } ;
+
+  }
+
+  /// Choose a supported cell form and split family for the original geometry.
+  CellSelection selectParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
+      const std::string &requested,int axis) {
+    require(requested=="native" || requested=="corner" || requested=="extruded" || requested=="mixed","unknown parametric split family") ;
+    require(axis>=-1 && axis<=2,"parametricExtrusionAxis must be -1, 0, 1 or 2") ;
+    if(requested=="mixed") require(axis<0,"mixed splitting requires full 3D refinement") ;
+    auto family=requested ;
+    if(family=="mixed") {
+      const bool nativeShape=topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ;
+      family=nativeShape ? "native":"corner" ;
+    }
+    if(family=="extruded") {
+      require(topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism),"extrusion requires a hex or prism") ;
+      require(axis>=0,"center-based extrusion requires axis 0, 1 or 2") ;
+      return {CellRepresentation::extruded,false} ;
+    }
+    const bool facePatches=needsFacePatches(topology,corners) ;
+    if(family=="native" && !facePatches) {
+      require(topology.isStandard(),"native splitting requires a standard volume cell") ;
+      if(axis>=0) require(topology.shape()==Shape::hex || topology.shape()==Shape::prism,"parametric extrusion requires hexes or prisms") ;
+      return {CellRepresentation::native,false} ;
+    }
+    if(family=="native") require(axis<0,"source faces with nearly straight corners require full 3D boundary refinement") ;
+    require(axis<0,"corner splitting requires full 3D refinement") ;
+    return {cornerRepresentation(topology,facePatches),facePatches} ;
+  }
+
+  /// Retain original cell geometry without allocating an expanded subdivision.
+  ParametricCell ParametricCell::original(const CellTopology &topology,const std::vector<Point> &corners,HistoryLimits limits) {
+    return original(topology,corners,std::move(limits),selectParametricCell(topology,corners,"corner",-1)) ;
+  }
+
+  /// Retain original cell geometry without allocating an expanded subdivision.
+  ParametricCell ParametricCell::original(const CellTopology &topology,const std::vector<Point> &corners,
+      HistoryLimits limits,const CellSelection &selection) {
+    require(limits.maxNodes>0,"parametric source requires a positive node limit") ;
+    require(selection.corner(),"original cell requires corner splitting") ;
+    if(selection.facePatches) return ParametricBoundary(topology,corners,limits) ;
+    if(topology.isStandard()) {
+      const auto shape=topology.shape() ;
+      require(shape==Shape::hex || shape==Shape::prism || shape==Shape::tet || shape==Shape::pyramid,"unsupported corner source cell") ;
+      const CornerMap geometry(shape,corners) ;
+      require(validParametricSource(geometry,limits.jacobian),"invalid or unresolved parametric root geometry") ;
+    } else {
+      const ParametricBoundary checked(topology,corners,limits) ;
+    }
+    return ParametricCell(std::make_shared<const ParametricSource>(ParametricSource{topology,corners,std::move(limits)})) ;
+  }
+
+  /// Copy the working subdivision while sharing immutable original geometry.
+  ParametricCell::ParametricCell(const ParametricCell &other) : source_(other.source_),
+    cell_(other.cell_ ? std::make_unique<Subdivision>(*other.cell_):nullptr) {}
+
+  /// Replace the cell with an independent copy of its working subdivision.
+  ParametricCell &ParametricCell::operator=(const ParametricCell &other) {
+    if(this!=&other) {
+      ParametricCell copy(other) ;
+      source_.swap(copy.source_) ;
+      cell_.swap(copy.cell_) ;
+    }
+    return *this ;
+  }
+
+  /// Construct a working subdivision before editing an original cell.
+  void ParametricCell::expand() {
+    if(const auto *original=source()) {
+      // Deferred sources already passed the source-face check.
+      auto cell=cornerRepresentation(original->topology,false)==CellRepresentation::boundary
+        ? std::make_unique<Subdivision>(ParametricBoundary(original->topology,original->corners,original->limits))
+        : std::make_unique<Subdivision>(ParametricCorner(original->topology,original->corners,original->limits)) ;
+      cell_=std::move(cell) ;
+      source_.reset() ;
+    }
+  }
+
+  std::size_t ParametricCell::leafCount() const { return source() ? 1:leafIds().size() ; }
+
+  /// Return active leaves in the representation's output order.
+  std::vector<TreeNodeId> ParametricCell::leafIds() const {
+    if(source()) return {0} ;
+    if(boundary()) return boundary()->leafIds() ;
+    return history().leafIds() ;
+  }
+
+  /// Return the limits carried by the original or expanded cell state.
+  const HistoryLimits &ParametricCell::limits() const {
+    if(source()) return source()->limits ;
+    if(boundary()) return boundary()->limits() ;
+    return history().limits() ;
+  }
+
+  /// Shape-independent cell ancestry; untouched sources contain only node zero.
+  std::uint64_t ParametricCell::rootKey() const {
+    if(source()) return source()->topology.id() ;
+    if(boundary()) return boundary()->rootKey() ;
+    return history().rootKey() ;
+  }
+
+  /// Return the child-ordinal path from the original cell to a retained node.
+  CellPath ParametricCell::path(TreeNodeId id) const {
+    if(source()) { require(id==0,"original cell has no child") ; return {} ; }
+    return boundary() ? boundary()->path(id):history().path(id) ;
+  }
+
+  /// Return the retained parent of a cell node.
+  TreeNodeId ParametricCell::parent(TreeNodeId id) const {
+    if(source()) { require(id==0,"original cell has no child") ; return noTreeNode ; }
+    return boundary() ? boundary()->node(id).parent:history().node(id).parent ;
+  }
+
+  /// Selected children; empty after coarsening even when their records are retained.
+  NodeRange ParametricCell::children(TreeNodeId id) const {
+    if(source()) { require(id==0,"original cell has no child") ; return {} ; }
+    if(boundary()) return boundary()->node(id).refined ? boundary()->children(id):NodeRange() ;
+    return history().children(id) ;
+  }
+
+  /// Test whether the retained node belongs to the currently selected mesh.
+  bool ParametricCell::active(TreeNodeId id) const {
+    if(source()) return id==0 ;
+    if(boundary()) return boundary()->active(id) ;
+    return history().active(id) ;
+  }
+
+  /// Test whether the selected node has no active children.
+  bool ParametricCell::leaf(TreeNodeId id) const {
+    return active(id) && (source() || (boundary() ? !boundary()->node(id).refined:history().node(id).isLeaf())) ;
+  }
+
+  /// Retained constructions, including dormant subdivisions.
+  std::size_t ParametricCell::splitCount() const {
+    if(source()) return 0 ;
+    if(boundary()) return boundary()->splits().size() ;
+    return history().splits().size() ;
+  }
+
+  TreeNodeId ParametricCell::splitParent(std::size_t i) const { return boundary() ? boundary()->splits().at(i).parent:history().splits().at(i).parent ; }
+
+  NodeRange ParametricCell::splitChildren(std::size_t i) const { return boundary() ? boundary()->splits().at(i).children:history().splits().at(i).children ; }
+
+  /// Shared-boundary operations used by corner output and grading.
+  const CellTopology &ParametricCell::cornerTopology() const {
+    if(source()) return source()->topology ;
+    require(hasCornerGeometry(),"cell has no corner topology") ; return corner() ? corner()->topology:boundary()->topology ;
+  }
+
+  /// Return a retained cell described by shared boundary incidence.
+  const CornerCell &ParametricCell::cornerCell(TreeNodeId id) const {
+    require(hasCornerGeometry(),"cell has no shared corner geometry") ; return corner() ? corner()->cells.at(id):boundary()->node(id).cell ;
+  }
+
+  /// Construction tables; mapped boundary cells store source-reference coordinates.
+  const CornerBoundary &ParametricCell::cornerGeometry() const {
+    if(corner()) return *corner() ;
+    require(boundary(),"cell has no shared corner geometry") ; return *boundary() ;
+  }
+
+  /// Construction tables; mapped boundary cells store source-reference coordinates.
+  CornerBoundary &ParametricCell::cornerGeometry() {
+    if(auto *p=std::get_if<ParametricCorner>(cell_.get())) return *p ;
+    auto *p=std::get_if<ParametricBoundary>(cell_.get()) ; require(p,"cell has no shared corner geometry") ; return *p ;
+  }
+
+  /// Physical geometry, including the retained source map of a boundary-defined child.
+  Point ParametricCell::cornerPosition(BoundaryId vertex) const {
+    return boundary() ? boundary()->position(vertex):cornerGeometry().boundaries.points.at(vertex) ;
+  }
+
+  /// Return the physical map of a retained boundary edge.
+  std::shared_ptr<const GeometryMap> ParametricCell::cornerEdgeGeometry(BoundaryId edge) const {
+    if(boundary()) return boundary()->edgeGeometry(edge) ;
+    const auto &b=cornerGeometry().boundaries ; return b.geometry.map(b.edges.at(edge).geometry) ;
+  }
+
+  /// Return the physical map of a retained boundary face.
+  std::shared_ptr<const GeometryMap> ParametricCell::cornerFaceGeometry(BoundaryId face) const {
+    if(boundary()) return boundary()->faceGeometry(face) ;
+    const auto &b=cornerGeometry().boundaries ; return b.geometry.map(b.faces.at(face).geometry) ;
+  }
+
+  /// Find the retained boundary-face ID for an original face.
+  BoundaryId ParametricCell::cornerFaceId(EntityId face) const {
+    const auto &root=cornerCell(0) ;
+    for(unsigned f=0;f<root.faces.size();++f) if(cornerTopology().faceId(f)==face) return root.faces[f].surface ;
+    throw std::invalid_argument("face is not incident to the original corner cell") ;
+  }
+
+  /// Standard-element history; unavailable for untouched or boundary-defined cells.
+  const RefinementHistory &ParametricCell::history() const {
+    require(!source() && !boundary(),"cell has no standard-element history") ;
+    if(const auto *p=native()) return p->history() ;
+    if(const auto *p=corner()) return p->subdivision.history() ;
+    return extruded()->planar.history() ;
+  }
+
+  /// Resolve the selected reference, weighted, or integrated center method.
+  CenterMethod parametricCenterMethod(const std::string &name) {
+    if(name=="reference") return CenterMethod::reference ;
+    if(name=="weighted") return CenterMethod::weighted ;
+    if(name=="integrated") return CenterMethod::integrated ;
+    throw std::invalid_argument("unknown parametric center method") ;
+  }
+
+  /// Apply a native reference-element split to an active leaf.
+  void ParametricCell::refine(TreeNodeId leaf,const SplitOperation &request,CenterMethod method) {
+    auto *cell=std::get_if<AffineSubdivision>(cell_.get()) ;
+    require(cell,"corner and extruded splitting require an isotropic request") ;
+    require(method==CenterMethod::reference,"native cuts support only reference centers") ;
+    cell->refine(leaf,request) ;
+  }
+
+  /// Apply the supported full split for this cell representation.
+  void ParametricCell::refineIsotropic(TreeNodeId leaf,CenterMethod method,int axis) {
+    if(source()) {
+      auto candidate=*this ;
+      candidate.expand() ;
+      candidate.refineIsotropic(leaf,method,axis) ;
+      *this=std::move(candidate) ;
+      return ;
+    }
+    if(const auto *cell=native()) {
+      const auto request=axis<0 ? isotropicSplit(cell->node(leaf).cell.shape):parametricGradingSplit(*cell,axis) ;
+      refine(leaf,request,method) ;
+    } else if(auto *cell=std::get_if<ParametricCorner>(cell_.get())) {
+      require(axis<0,"corner splitting requires full 3D refinement") ;
+      cell->refine(leaf,method) ;
+    } else if(auto *cell=std::get_if<ParametricBoundary>(cell_.get())) {
+      require(axis<0,"corner splitting requires full 3D refinement") ;
+      cell->refine(leaf,method) ;
+    } else {
+      std::get<ExtrudedSubdivision>(*cell_).planar.splitLeaf(leaf,method) ;
+    }
+  }
+
+  /// Restrict native hex/prism balancing to X/Y/Z bits, preserving the extrusion axis.
+  void ParametricCell::refineForBalance(TreeNodeId leaf,CenterMethod method,int axis,unsigned directions) {
+    require(directions<8,"invalid balancing directions") ;
+    const auto *p=native() ;
+    if(!p || directions==0) { refineIsotropic(leaf,method,axis) ; return ; }
+    auto request=axis<0 ? isotropicSplit(p->node(leaf).cell.shape):parametricGradingSplit(*p,axis) ;
+    if(auto *tensor=std::get_if<TensorSplit>(&request)) {
+      unsigned allowed=0 ; for(unsigned d=0;d<3;++d) if(!tensor->cuts[d].empty()) allowed|=1u<<d ;
+      if(directions&allowed) for(unsigned d=0;d<3;++d) if(!(directions&(1u<<d))) tensor->cuts[d].clear() ;
+    } else if(auto *prism=std::get_if<PrismSplit>(&request)) {
+      const unsigned allowed=(prism->base.kind!=TriangleSplit::Kind::none ? 3:0) | (!prism->axialCuts.empty() ? 4:0) ;
+      if(directions&allowed) {
+        if(!(directions&3)) prism->base=TriangleSplit() ;
+        if(!(directions&4)) prism->axialCuts.clear() ;
+      }
+    }
+    refine(leaf,request,method) ;
+  }
+
+  /// Select the parent of a complete immediate family of active leaves.
+  void ParametricCell::coarsen(TreeNodeId parent) {
+    require(!source(),"original cell has no children to coarsen") ;
+    if(auto *p=std::get_if<AffineSubdivision>(cell_.get())) p->coarsen(parent) ;
+    else if(auto *p=std::get_if<ParametricCorner>(cell_.get())) p->subdivision.coarsen(parent) ;
+    else if(auto *p=std::get_if<ParametricBoundary>(cell_.get())) p->coarsen(parent) ;
+    else std::get<ExtrudedSubdivision>(*cell_).planar.coarsen(parent) ;
+  }
+
+  /// Undo a merge refused by balancing by selecting its previous accepted children.
+  bool ParametricCell::restoreSplit(TreeNodeId parent,const RefinementHistory &previous) {
+    TreeNodeId old ;
+    try { old=previous.nodeId(history().key(parent)) ; } catch(const std::out_of_range &) { return false ; }
+    if(!previous.active(old) || previous.node(old).isLeaf()) return false ;
+    const auto &split=*previous.splits().at(previous.node(old).activeSplit).construction ;
+    if(auto *p=std::get_if<AffineSubdivision>(cell_.get())) p->reactivate(parent,split) ;
+    else if(auto *p=std::get_if<ParametricCorner>(cell_.get())) p->subdivision.reactivate(parent,split) ;
+    else std::get<ExtrudedSubdivision>(*cell_).planar.reactivate(parent,split) ;
+    return true ;
+  }
+
+  /// Undo a merge refused by balancing by selecting its previous accepted children.
+  bool ParametricCell::restoreSplit(TreeNodeId parent,const ParametricCell &previous) {
+    if(previous.source()) return false ;
+    if(!boundary()) { require(!previous.boundary(),"previous split family differs") ; return restoreSplit(parent,previous.history()) ; }
+    require(previous.boundary(),"previous split family differs") ;
+    const auto currentSource=boundary()->sourceGeometry(),oldSource=previous.boundary()->sourceGeometry() ;
+    require(boundary()->topology==previous.boundary()->topology && boundary()->sourceCorners()==previous.boundary()->sourceCorners() &&
+      bool(currentSource)==bool(oldSource) && (!currentSource || sameParametricSource(*currentSource,*oldSource)),
+      "previous source geometry differs") ;
+    TreeNodeId old=0 ;
+    for(auto child:path(parent)) {
+      const auto children=previous.boundary()->children(old) ; if(child>=children.size()) return false ; old=children[child] ;
+    }
+    if(!previous.active(old) || previous.leaf(old)) return false ;
+    require(boundary()->splitRecord(parent)==previous.boundary()->splitRecord(old),"previous accepted split differs") ;
+    std::get<ParametricBoundary>(*cell_).refine(parent) ; return true ;
+  }
+
+  /// Check mapped leaf geometry and the selected extrusion constraint.
+  void ParametricCell::validate(int axis) const {
+    if(source() || boundary()) {
+      require(axis<0,"corner splitting requires full 3D refinement") ;
+      return ;
+    }
+    if(const auto *p=native()) parametricGradingSplit(*p,axis) ;
+    else if(corner()) require(axis<0,"corner splitting requires full 3D refinement") ;
+    else require(axis==extruded()->axis,"saved extrusion axis differs") ;
+
+    for(auto id:history().leafIds())
+      require(validGeometry(*history().geometry().map(history().node(id).map)),"invalid or unresolved parametric leaf geometry") ;
+  }
+
+  bool ParametricNodeKey::operator<(const ParametricNodeKey &o) const { return reference==o.reference ? local<o.local:reference<o.reference ; }
+
+  bool ParametricNodeKey::operator==(const ParametricNodeKey &o) const { return reference==o.reference && local==o.local ; }
+
+  /// Accept shared boundary divisions; return whether the saved construction changed.
+  bool ParametricCell::mergeFace(EntityId face,const ParametricRecord &record) {
+    if(record.empty()) return false ;
+    if(source()) {
+      auto candidate=*this ; candidate.expand() ; const bool changed=candidate.mergeFace(face,record) ;
+      if(changed) *this=std::move(candidate) ;
+      return changed ;
+    }
+    if(native()) { validateMixedFacePlan(record) ; return false ; }
+    if(hasCornerGeometry()) return applyFacePlan(cornerGeometry(),cornerFaceId(face),record) ;
+    else require(record.empty(),"shared corner construction supplied to another split family") ;
+    return false ;
+  }
+
+  /// Accepted source-face divisions; no geometry maps. Empty for other split families.
+  ParametricRecord parametricFacePlan(EntityId face,const ParametricCell &cell) {
+    if(!cell.hasCornerGeometry()) return {} ;
+    const auto &boundary=cell.cornerGeometry() ;
+    return encodeFacePlan(boundary.boundaries,cell.cornerFaceId(face),boundary.boundaryLimits()) ;
+  }
+
+  /// Encode the cell form and its accepted geometry and subdivision history.
+  ParametricRecord encodeParametricCell(const ParametricCell &cell) {
+    if(const auto *p=cell.source()) {
+      detail::RecordWriter out(p->limits.exact.maxBytes,p->limits.exact) ; out.u32(sourceMagic) ; out.u32(1) ;
+      const auto topology=encodeParametricTopology(p->topology) ; out.u64(topology.size()) ; for(int i:topology) out.u32(i) ;
+      for(const auto &point:p->corners) for(double x:point) out.real(x) ;
+      return out.take() ;
+    }
+    if(const auto *p=cell.native()) return encodeParametricHistory(*p) ;
+    if(const auto *p=cell.boundary()) return p->record() ;
+    if(const auto *p=cell.corner()) return p->topology.shape()==Shape::hex ? CompactHexCell(*p).record() : p->record() ;
+    const auto &p=*cell.extruded() ; const auto limits=recordLimits(cell.history().limits()) ;
+    detail::RecordWriter out(limits.maxBytes,limits.geometry.exact) ; out.u32(extrusionMagic) ; out.u32(1) ;
+    out.u32(unsigned(p.shape)) ; out.u32(p.axis) ; out.u64(p.corners.size()) ;
+    for(const auto &point:p.corners) for(double x:point) out.real(x) ;
+    const auto history=encodeRefinement(cell.history(),limits) ; out.u64(history.size()) ; out.append(history) ; return out.take() ;
+  }
+
+  /// Restore the encoded cell form and validate its retained records.
+  ParametricCell decodeParametricCell(const ParametricRecord &record,HistoryLimits limits) {
+    if(CompactHexCell::saved(record)) return CompactHexCell::decode(record,limits).expand() ;
+    detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
+    const auto magic=in.u32() ;
+    if(magic==sourceMagic) {
+      require(in.u32()==1,"unknown source cell version") ;
+      std::vector<int> t(in.count(limits.exact.maxBytes/4,4)) ; for(auto &i:t) i=in.u32() ; const auto topology=decodeParametricTopology(t) ;
+      std::vector<Point> corners(topology.vertexCount()) ; for(auto &p:corners) for(auto &x:p) x=in.real() ;
+      in.finish() ; return ParametricCell::original(topology,corners,limits) ;
+    }
+    if(magic==0x434f524e) return ParametricCorner::restore(record,limits) ;
+    if(magic==0x42434f52) return ParametricBoundary::restore(record,limits) ;
+    if(magic!=extrusionMagic) return decodeParametricHistory(record,limits) ;
+    require(in.u32()==1,"unknown extruded history version") ; const auto shape=Shape(in.u32()) ; const int axis=in.u32() ;
+    require(shape==Shape::hex || shape==Shape::prism,"extruded history needs a hex or prism") ;
+    std::vector<Point> corners(in.count(8,24)) ; require(corners.size()==referenceElement(shape).vertexCount,"invalid extruded corner count") ;
+    for(auto &p:corners) for(double &x:p) x=in.real() ;
+    ParametricRecord bytes(in.count(limits.exact.maxBytes)) ; for(auto &b:bytes) b=in.byte() ; in.finish() ;
+    PlanarSubdivision tree(decodeRefinement(bytes,recordLimits(limits))) ; const ExtrusionLayout layout(shape,corners,axis) ;
+    const auto &root=tree.history() ; const auto *geometry=std::get_if<CornerRecord>(&root.geometry().record(root.node(0).map)) ;
+    require(geometry && geometry->corners==layout.polygon,"saved planar geometry differs from its extrusion") ;
+    return ExtrudedSubdivision{shape,std::move(corners),axis,std::move(tree)} ;
+  }
+
+  /// Build or load a cell, verifying its original geometry and requested split family.
+  ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
+      const ParametricRecord &record,HistoryLimits limits,const std::string &requested,int axis,const ParametricEdgeControls &controls) {
+    return makeParametricCell(topology,corners,record,std::move(limits),selectParametricCell(topology,corners,requested,axis),axis,controls) ;
+  }
+
+  /// Build or load a cell, verifying its original geometry and requested split family.
+  ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
+      const ParametricRecord &record,HistoryLimits limits,const CellSelection &selection,int axis,const ParametricEdgeControls &controls) {
+    if(selection.representation==CellRepresentation::native) {
+      auto cell=makeParametricHistory(topology,corners,record,limits,controls) ;
+      const auto &history=cell.history() ;
+      require(axis<0 || !parametricCubicEdges(*history.geometry().map(history.node(0).map)).size,
+              "curved source edges require full 3D refinement") ;
+      return cell ;
+    }
+    const auto cubic=parametricCubicGeometry(topology,corners,controls) ;
+    require(!cubic || (selection.corner() && !selection.facePatches && axis<0),
+            "curved source edges require full 3D native or corner refinement") ;
+    if(selection.corner()) {
+      require(axis<0,"corner splitting requires full 3D refinement") ;
+      if(record.empty()) {
+        if(selection.representation==CellRepresentation::boundary) return ParametricBoundary(topology,corners,limits,cubic) ;
+        return ParametricCorner(topology,corners,limits,cubic) ;
+      }
+      auto saved=decodeParametricCell(record,limits) ; require(saved.hasCornerGeometry(),"saved history has a different split family") ;
+      require(saved.cornerTopology()==topology,"saved corner source topology differs") ;
+      if(saved.boundary()) {
+        const auto geometry=saved.boundary()->sourceGeometry() ;
+        if(geometry) {
+          require(!selection.facePatches,"saved boundary geometry differs from the source face representation") ;
+          checkParametricSource(topology,corners,*geometry,controls,limits.jacobian) ;
+        } else require(!cubic && saved.boundary()->sourceCorners()==corners,"saved boundary source geometry differs") ;
+        return saved ;
+      }
+      require(!needsFacePatches(topology,corners),"saved corner geometry differs from the source face representation") ;
+      const auto &p=*saved.corner() ; const auto &h=p.subdivision.history() ;
+      checkParametricSource(topology,corners,*h.geometry().map(h.node(0).map),controls,limits.jacobian) ;
+      return saved ;
+    }
+    require(selection.representation==CellRepresentation::extruded,"unknown parametric cell representation") ;
+    const ExtrusionLayout layout(topology.shape(),corners,axis) ;
+    if(!record.empty()) {
+      auto saved=decodeParametricCell(record,limits) ; const auto *p=saved.extruded() ;
+      require(p && p->shape==topology.shape() && p->corners==corners && p->axis==axis && saved.history().rootKey()==topology.id() && saved.history().geometryRevision()==0,
+              "saved extrusion differs from original geometry") ; return saved ;
+    }
+    return ExtrudedSubdivision{topology.shape(),corners,axis,PlanarSubdivision(layout.polygon,topology.id(),0,limits)} ;
+  }
+
+  /// Build or restore cell state and return its accepted record.
+  ParametricRecord initialParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
+      const ParametricRecord &record,HistoryLimits limits,const std::string &family,int axis,const ParametricEdgeControls &controls) {
+    const auto cell=makeParametricCell(topology,corners,record,limits,family,axis,controls) ;
+    return record.empty() ? encodeParametricCell(cell):record ;
+  }
+
+  /// Refine selected leaves and descendants until the size criterion is met.
+  bool GeometricRefinement::refine(ParametricCell &cell,CenterMethod method,int axis,bool automatic,double aspectRatio) const {
+    if(!select) return false ;
+    const double cutoff=minEdgeLength ;
+    require(std::isfinite(cutoff) && cutoff>=0,"geometric refinement requires a nonnegative finite minEdgeLength") ;
+    if(automatic) require(axis==-1 && std::isfinite(aspectRatio) && aspectRatio>1,
+      "automatic geometric refinement requires 3D cells and an aspect ratio greater than one") ;
+    auto pending=cell.leafIds() ; bool changed=false ;
+    while(!pending.empty()) {
+      const auto leaf=pending.back() ; pending.pop_back() ;
+      std::vector<Point> points ; double shortest=std::numeric_limits<double>::max() ;
+      const auto edge=[&](const Point &a,const Point &b) {
+        double full=0,plane=0 ;
+        for(int d=0;d<3;++d) { const double square=(b[d]-a[d])*(b[d]-a[d]) ; full+=square ; if(d!=axis) plane+=square ; }
+        if(axis>=0 && plane<=1e-24*full) return ;
+        shortest=std::min(shortest,std::sqrt(plane)) ;
+      } ;
+      if(const auto *source=cell.source()) {
+        points=source->corners ;
+        for(unsigned e=0;e<source->topology.edgeCount();++e) {
+          const auto ends=source->topology.edgeVertices(e) ; edge(points[ends[0]],points[ends[1]]) ;
+        }
+      } else if(cell.hasCornerGeometry()) {
+        const auto &geometry=cell.cornerGeometry() ; const auto &part=cell.cornerCell(leaf) ;
+        for(auto vertex:part.vertices) points.push_back(cell.cornerPosition(vertex)) ;
+        for(const auto &ends:geometry.cellEdges(part)) edge(cell.cornerPosition(ends.first.first),cell.cornerPosition(ends.first.second)) ;
+      } else if(const auto *extruded=cell.extruded()) {
+        const ExtrusionLayout layout(extruded->shape,extruded->corners,extruded->axis) ;
+        const auto &corners=extruded->planar.node(leaf).corners ;
+        for(unsigned layer=0;layer<2;++layer) for(const auto &corner:corners) {
+          const auto p=extruded->planar.evaluate(corner) ; Point q{} ; q[extruded->axis]=layout.planes[layer] ;
+          q[(extruded->axis+1)%3]=p[0] ; q[(extruded->axis+2)%3]=p[1] ; points.push_back(q) ;
+        }
+        for(unsigned v=0;v<corners.size();++v) edge(points[v],points[(v+1)%corners.size()]) ;
+      } else {
+        const auto &history=cell.history() ; const auto map=history.geometry().map(history.node(leaf).map) ;
+        const auto &element=referenceElement(map->shape()) ;
+        for(unsigned v=0;v<element.vertexCount;++v) points.push_back(map->evaluate(element.vertices[v]).position) ;
+        for(unsigned e=0;e<element.edgeCount;++e) edge(points[element.edges[e][0]],points[element.edges[e][1]]) ;
+      }
+      if(!select(points,shortest)) continue ;
+      if(automatic && cell.native()) {
+        const auto &history=cell.history() ; const auto map=history.geometry().map(history.node(leaf).map) ;
+        const auto split=automaticSplit(*map,aspectRatio,cutoff) ; if(!split) continue ; cell.refine(leaf,*split,method) ;
+      } else {
+        if(shortest<2*cutoff) continue ;
+        cell.refineIsotropic(leaf,method,axis) ;
+      }
+      changed=true ; for(auto child:cell.children(leaf)) pending.push_back(child) ;
+    }
+    return changed ;
+  }
+
+  /// Select cells with at least one own physical vertex inside the region.
+  GeometricRefinement GeometricRefinement::region(const std::function<bool(const Point &)> &selected,double cutoff) {
+    require(std::isfinite(cutoff) && cutoff>0,"XML refinement requires a positive finite minEdgeLength") ;
+    return {[selected](const std::vector<Point> &points,double) { return std::any_of(points.begin(),points.end(),selected) ; },cutoff} ;
+  }
+
+  /// Borrow a validated source list, which must outlive this selection.
+  GeometricRefinement GeometricRefinement::sources(const std::vector<SpacingSource> &sources,double cutoff) {
+    require(std::isfinite(cutoff) && cutoff>=0,"geometric refinement requires a nonnegative finite minEdgeLength") ;
+    return {[&sources](const std::vector<Point> &points,double shortest) { return refineForSpacing(points,sources,shortest) ; },cutoff} ;
+  }
+
+  /// Refine selected leaves and descendants to the edge cutoff; neighbor grading is separate.
+  bool refineParametricRegion(ParametricCell &cell,const std::function<bool(const Point &)> &selected,double cutoff,
+      CenterMethod method,int axis,bool automatic,double aspectRatio) {
+    return GeometricRefinement::region(selected,cutoff).refine(cell,method,axis,automatic,aspectRatio) ;
+  }
+
+  /// Refine descendants using source spacing; cutoff may be zero to use only the source limits.
+  bool refineParametricSources(ParametricCell &cell,const std::vector<SpacingSource> &sources,double cutoff,
+      CenterMethod method,int axis,bool automatic,double aspectRatio) {
+    return GeometricRefinement::sources(sources,cutoff).refine(cell,method,axis,automatic,aspectRatio) ;
+  }
+
+  // Mesh output and neighbor grading.
+  namespace {
+    /// Wrap exact reference node keys for the common mesh-output interface.
     std::vector<ParametricNodeKey> outputKeys(const std::vector<VertexKey> &keys) {
       std::vector<ParametricNodeKey> out ; for(const auto &key:keys) out.push_back({key,-1}) ; return out ;
     }
+
+    /// Extract exact reference keys, requiring nodes without retained local IDs.
     std::vector<VertexKey> referenceKeys(const std::vector<ParametricNodeKey> &keys) {
       std::vector<VertexKey> out ; for(const auto &key:keys) { require(key.local<0,"native output received a center-based node") ; out.push_back(key.reference) ; } return out ;
     }
+
+    /// Convert native subdivision polygons to the common mesh-output form.
     std::vector<ParametricOutputFace> outputFaces(const std::vector<ParametricFace> &faces) {
       std::vector<ParametricOutputFace> out ; for(const auto &f:faces) out.push_back({outputKeys(f.vertices),f.left,f.right}) ; return out ;
     }
+
     // Native cuts lie in exact reference planes, even when their physical surfaces curve.
     void nativeFacePatches(std::vector<ParametricOutputFace> &faces,const CellTopology &topology,
                            const AffineSubdivision &cell,const EntityId *original = nullptr) {
@@ -146,6 +671,8 @@ namespace FVMAdapt {
     struct EdgeUse { int leaf, depth ; PlanarEdgeUse use ; } ;
     struct PlanarEdgeLess { bool operator()(const PlanarEdgeKey &a,const PlanarEdgeKey &b) const { return a<b ; } } ;
     constexpr long long faceExtent=1LL<<30 ;
+
+    /// Append the accepted planar split to a persistent extruded-surface identity.
     void appendConstruction(std::vector<long long>& key,const SplitConstruction& construction) {
       require(bool(construction.planar),"extruded face requires a planar construction") ;
       const auto& split=*construction.planar ;
@@ -164,6 +691,8 @@ namespace FVMAdapt {
       std::map<PlanarEdgeKey,std::set<Fraction>,PlanarEdgeLess> cuts ;
       std::vector<PlanarVertexKey> interior ;
       std::vector<TreeNodeId> leaves ;
+
+      /// Collect active planar leaves, edge intervals, and generated cap nodes.
       ExtrudedView(const CellTopology &t,const ExtrudedSubdivision &c) : topology(t),cell(c),tree(c.planar),layout(c.shape,c.corners,c.axis),leaves(tree.leafIds()) {
         std::set<PlanarVertexKey> vertices ;
         for(unsigned i=0;i<leaves.size();++i) {
@@ -177,11 +706,15 @@ namespace FVMAdapt {
         }
         interior.assign(vertices.begin(),vertices.end()) ;
       }
+
+      /// Identify a point on an original edge of either extrusion end plane.
       VertexKey edgePoint(unsigned edge, Fraction p, unsigned layer) const {
         const auto &vertices=layer ? layout.upper:layout.lower ; const auto shape=topology.shape() ;
         const auto a=referenceVertex(shape,vertices.at(edge)), b=referenceVertex(shape,vertices.at((edge+1)%vertices.size())) ;
         ReferencePoint q ; for(unsigned d=0;d<3;++d) q[d]=a[d]+p*(b[d]-a[d]) ; return topology.vertexKey(q) ;
       }
+
+      /// Assign an original-entity identity to a point on an extrusion end plane.
       ParametricNodeKey key(const PlanarVertexKey &p,unsigned layer) const {
         if(p.kind==PlanarVertexKey::Kind::corner) return {edgePoint(p.corner,0,layer),-1} ;
         if(p.kind==PlanarVertexKey::Kind::edge && p.edge.original) return {edgePoint(p.edge.index,p.position,layer),-1} ;
@@ -189,24 +722,38 @@ namespace FVMAdapt {
         require(it!=interior.end() && *it==p,"accepted cap vertex is missing") ;
         return {{EntityKind::face,topology.faceId(layout.caps[layer]),{{0,0,0}}},int(it-interior.begin())} ;
       }
+
+      /// Assign an original-entity identity to a point on an extrusion end plane.
       ParametricNodeKey key(const PlanarEdgeKey &edge,Fraction p,unsigned layer) const { return key(tree.vertexAt(edge,p),layer) ; }
+
+      /// Evaluate an accepted planar point on the selected extrusion end plane.
       Point position(unsigned index,unsigned layer) const {
         const auto p=tree.evaluate(interior.at(index)) ; Point out ; out[cell.axis]=layout.planes[layer] ;
         out[(cell.axis+1)%3]=p[0] ; out[(cell.axis+2)%3]=p[1] ; return out ;
       }
+
+      /// Find which extrusion end plane owns the original face, or return -1.
       int cap(EntityId face) const {
         for(unsigned i=0;i<2;++i) if(topology.faceId(layout.caps[i])==face) return i ;
         return -1 ;
       }
+
+      /// Find the extrusion side corresponding to an original face.
       unsigned side(EntityId face) const {
         for(unsigned i=0;i<layout.sides.size();++i) if(topology.faceId(layout.sides[i])==face) return i ;
         throw std::invalid_argument("face is not an extrusion side") ;
       }
+
       bool reversed(unsigned edge) const { return topology.vertexId(layout.lower[edge])>topology.vertexId(layout.lower[(edge+1)%layout.lower.size()]) ; }
+
       Fraction coordinate(unsigned edge,Fraction p) const { return reversed(edge) ? Fraction(1)-p:p ; }
+
+      /// Return active planar leaf edges lying on an original extrusion side.
       std::vector<EdgeUse> sideUses(unsigned edge) const {
         const auto found=uses.find(PlanarEdgeKey{true,{},edge}) ; require(found!=uses.end(),"extrusion side has no leaves") ; return found->second ;
       }
+
+      /// Describe an extruded edge interval and its physical face area.
       FacePatch sidePatch(std::vector<long long> surface,Fraction lo,Fraction hi,int orientation,double length) const {
         FacePatch p ; p.surface=std::move(surface) ;
         p.bounds={{checkedExactInteger<long long>((lo*Fraction(faceExtent)).numerator()),0,
@@ -214,6 +761,8 @@ namespace FVMAdapt {
         require((lo*Fraction(faceExtent)).denominator()==1 && (hi*Fraction(faceExtent)).denominator()==1,"face interval exceeds coordinate depth") ;
         p.orientation=orientation ; p.area=length*(hi-lo).value()*(layout.planes[1]-layout.planes[0]) ; return p ;
       }
+
+      /// Identify an interior extruded surface by its accepted planar construction.
       FacePatch spokePatch(const PlanarEdgeKey& edge,Fraction lo,Fraction hi,int orientation) const {
         std::vector<long long> surface{3,static_cast<long long>(tree.history().rootKey()),static_cast<long long>(tree.history().geometryRevision()),static_cast<long long>(edge.owner.parent.lineage.size())} ;
         for(const auto& step:edge.owner.parent.lineage) { appendConstruction(surface,*step.construction) ; surface.push_back(step.child) ; }
@@ -221,6 +770,8 @@ namespace FVMAdapt {
         const auto a=tree.evaluate(tree.vertexAt(edge,0)),b=tree.evaluate(tree.vertexAt(edge,1)) ;
         return sidePatch(std::move(surface),lo,hi,orientation,std::hypot(b[0]-a[0],b[1]-a[1])) ;
       }
+
+      /// Add neighboring edge points to the accepted planar edge intervals.
       void addBoundaryPoints(const std::vector<ParametricNodeKey> &points) {
         for(unsigned edge=0;edge<layout.sides.size();++edge) {
           for(unsigned layer=0;layer<2;++layer) {
@@ -233,6 +784,8 @@ namespace FVMAdapt {
           }
         }
       }
+
+      /// Build oriented end-plane polygons with all shared edge divisions.
       std::vector<ParametricOutputFace> caps(unsigned layer) const {
         std::vector<ParametricOutputFace> result ;
         Point low=layout.polygon.front(),high=low ;
@@ -267,6 +820,8 @@ namespace FVMAdapt {
         }
         return result ;
       }
+
+      /// Extrude shared planar leaf-edge intervals into interior face polygons.
       std::vector<ParametricOutputFace> internal() const {
         std::vector<ParametricOutputFace> result ;
         for(const auto &entry:uses) if(!entry.first.original) {
@@ -285,14 +840,20 @@ namespace FVMAdapt {
         return result ;
       }
     } ;
+
+    /// Return active refinement depths in output leaf order.
     std::vector<int> depths(const ParametricCell &cell) {
       if(cell.source()) return {0} ;
       std::vector<int> out ; for(auto id:cell.leafIds()) out.push_back(cell.path(id).size()) ; return out ;
     }
+
+    /// Request the coarser leaf when a pair exceeds the allowed depth difference.
     void gradePair(std::set<int> &out,int a,int b,const std::vector<int> &depth,unsigned difference) {
       if(depth[a]>depth[b] && unsigned(depth[a]-depth[b])>difference) out.insert(b) ;
       if(depth[b]>depth[a] && unsigned(depth[b]-depth[a])>difference) out.insert(a) ;
     }
+
+    /// Build an original-cell face with supplied edge points and optional surface data.
     ParametricOutputFace sourceFace(EntityId face,const ParametricSource &source,
         const std::vector<ParametricNodeKey> &points,bool neighbor,bool patches) {
       const auto &t=source.topology ;
@@ -330,408 +891,7 @@ namespace FVMAdapt {
     }
   }
 
-  CellSelection selectParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
-      const std::string &requested,int axis) {
-    require(requested=="native" || requested=="corner" || requested=="extruded" || requested=="mixed","unknown parametric split family") ;
-    require(axis>=-1 && axis<=2,"parametricExtrusionAxis must be -1, 0, 1 or 2") ;
-    if(requested=="mixed") require(axis<0,"mixed splitting requires full 3D refinement") ;
-    auto family=requested ;
-    if(family=="mixed") {
-      const bool nativeShape=topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism) ;
-      family=nativeShape ? "native":"corner" ;
-    }
-    if(family=="extruded") {
-      require(topology.isStandard() && (topology.shape()==Shape::hex || topology.shape()==Shape::prism),"extrusion requires a hex or prism") ;
-      require(axis>=0,"center-based extrusion requires axis 0, 1 or 2") ;
-      return {CellRepresentation::extruded,false} ;
-    }
-    const bool facePatches=needsFacePatches(topology,corners) ;
-    if(family=="native" && !facePatches) {
-      require(topology.isStandard(),"native splitting requires a standard volume cell") ;
-      if(axis>=0) require(topology.shape()==Shape::hex || topology.shape()==Shape::prism,"parametric extrusion requires hexes or prisms") ;
-      return {CellRepresentation::native,false} ;
-    }
-    if(family=="native") require(axis<0,"source faces with nearly straight corners require full 3D boundary refinement") ;
-    require(axis<0,"corner splitting requires full 3D refinement") ;
-    return {cornerRepresentation(topology,facePatches),facePatches} ;
-  }
-
-  ParametricCell ParametricCell::original(const CellTopology &topology,const std::vector<Point> &corners,HistoryLimits limits) {
-    return original(topology,corners,std::move(limits),selectParametricCell(topology,corners,"corner",-1)) ;
-  }
-  ParametricCell ParametricCell::original(const CellTopology &topology,const std::vector<Point> &corners,
-      HistoryLimits limits,const CellSelection &selection) {
-    require(limits.maxNodes>0,"parametric source requires a positive node limit") ;
-    require(selection.corner(),"original cell requires corner splitting") ;
-    if(selection.facePatches) return ParametricBoundary(topology,corners,limits) ;
-    if(topology.isStandard()) {
-      const auto shape=topology.shape() ;
-      require(shape==Shape::hex || shape==Shape::prism || shape==Shape::tet || shape==Shape::pyramid,"unsupported corner source cell") ;
-      const CornerMap geometry(shape,corners) ;
-      require(validParametricSource(geometry,limits.jacobian),"invalid or unresolved parametric root geometry") ;
-    } else {
-      const ParametricBoundary checked(topology,corners,limits) ;
-    }
-    return ParametricCell(std::make_shared<const ParametricSource>(ParametricSource{topology,corners,std::move(limits)})) ;
-  }
-  ParametricCell::ParametricCell(const ParametricCell &other) : source_(other.source_),
-    cell_(other.cell_ ? std::make_unique<Subdivision>(*other.cell_):nullptr) {}
-  ParametricCell &ParametricCell::operator=(const ParametricCell &other) {
-    if(this!=&other) {
-      ParametricCell copy(other) ;
-      source_.swap(copy.source_) ;
-      cell_.swap(copy.cell_) ;
-    }
-    return *this ;
-  }
-  void ParametricCell::expand() {
-    if(const auto *original=source()) {
-      // Deferred sources already passed the source-face check.
-      auto cell=cornerRepresentation(original->topology,false)==CellRepresentation::boundary
-        ? std::make_unique<Subdivision>(ParametricBoundary(original->topology,original->corners,original->limits))
-        : std::make_unique<Subdivision>(ParametricCorner(original->topology,original->corners,original->limits)) ;
-      cell_=std::move(cell) ;
-      source_.reset() ;
-    }
-  }
-  std::size_t ParametricCell::leafCount() const { return source() ? 1:leafIds().size() ; }
-  std::vector<TreeNodeId> ParametricCell::leafIds() const {
-    if(source()) return {0} ;
-    if(boundary()) return boundary()->leafIds() ;
-    return history().leafIds() ;
-  }
-  const HistoryLimits &ParametricCell::limits() const {
-    if(source()) return source()->limits ;
-    if(boundary()) return boundary()->limits() ;
-    return history().limits() ;
-  }
-  std::uint64_t ParametricCell::rootKey() const {
-    if(source()) return source()->topology.id() ;
-    if(boundary()) return boundary()->rootKey() ;
-    return history().rootKey() ;
-  }
-  CellPath ParametricCell::path(TreeNodeId id) const {
-    if(source()) { require(id==0,"original cell has no child") ; return {} ; }
-    return boundary() ? boundary()->path(id):history().path(id) ;
-  }
-  TreeNodeId ParametricCell::parent(TreeNodeId id) const {
-    if(source()) { require(id==0,"original cell has no child") ; return noTreeNode ; }
-    return boundary() ? boundary()->node(id).parent:history().node(id).parent ;
-  }
-  NodeRange ParametricCell::children(TreeNodeId id) const {
-    if(source()) { require(id==0,"original cell has no child") ; return {} ; }
-    if(boundary()) return boundary()->node(id).refined ? boundary()->children(id):NodeRange() ;
-    return history().children(id) ;
-  }
-  bool ParametricCell::active(TreeNodeId id) const {
-    if(source()) return id==0 ;
-    if(boundary()) return boundary()->active(id) ;
-    return history().active(id) ;
-  }
-  bool ParametricCell::leaf(TreeNodeId id) const {
-    return active(id) && (source() || (boundary() ? !boundary()->node(id).refined:history().node(id).isLeaf())) ;
-  }
-  std::size_t ParametricCell::splitCount() const {
-    if(source()) return 0 ;
-    if(boundary()) return boundary()->splits().size() ;
-    return history().splits().size() ;
-  }
-  TreeNodeId ParametricCell::splitParent(std::size_t i) const { return boundary() ? boundary()->splits().at(i).parent:history().splits().at(i).parent ; }
-  NodeRange ParametricCell::splitChildren(std::size_t i) const { return boundary() ? boundary()->splits().at(i).children:history().splits().at(i).children ; }
-  const CellTopology &ParametricCell::cornerTopology() const {
-    if(source()) return source()->topology ;
-    require(hasCornerGeometry(),"cell has no corner topology") ; return corner() ? corner()->topology:boundary()->topology ;
-  }
-  const CornerCell &ParametricCell::cornerCell(TreeNodeId id) const {
-    require(hasCornerGeometry(),"cell has no shared corner geometry") ; return corner() ? corner()->cells.at(id):boundary()->node(id).cell ;
-  }
-  const CornerBoundary &ParametricCell::cornerGeometry() const {
-    if(corner()) return *corner() ;
-    require(boundary(),"cell has no shared corner geometry") ; return *boundary() ;
-  }
-  CornerBoundary &ParametricCell::cornerGeometry() {
-    if(auto *p=std::get_if<ParametricCorner>(cell_.get())) return *p ;
-    auto *p=std::get_if<ParametricBoundary>(cell_.get()) ; require(p,"cell has no shared corner geometry") ; return *p ;
-  }
-  Point ParametricCell::cornerPosition(BoundaryId vertex) const {
-    return boundary() ? boundary()->position(vertex):cornerGeometry().boundaries.points.at(vertex) ;
-  }
-  std::shared_ptr<const GeometryMap> ParametricCell::cornerEdgeGeometry(BoundaryId edge) const {
-    if(boundary()) return boundary()->edgeGeometry(edge) ;
-    const auto &b=cornerGeometry().boundaries ; return b.geometry.map(b.edges.at(edge).geometry) ;
-  }
-  std::shared_ptr<const GeometryMap> ParametricCell::cornerFaceGeometry(BoundaryId face) const {
-    if(boundary()) return boundary()->faceGeometry(face) ;
-    const auto &b=cornerGeometry().boundaries ; return b.geometry.map(b.faces.at(face).geometry) ;
-  }
-  BoundaryId ParametricCell::cornerFaceId(EntityId face) const {
-    const auto &root=cornerCell(0) ;
-    for(unsigned f=0;f<root.faces.size();++f) if(cornerTopology().faceId(f)==face) return root.faces[f].surface ;
-    throw std::invalid_argument("face is not incident to the original corner cell") ;
-  }
-  const RefinementHistory &ParametricCell::history() const {
-    require(!source() && !boundary(),"cell has no standard-element history") ;
-    if(const auto *p=native()) return p->history() ;
-    if(const auto *p=corner()) return p->subdivision.history() ;
-    return extruded()->planar.history() ;
-  }
-  CenterMethod parametricCenterMethod(const std::string &name) {
-    if(name=="reference") return CenterMethod::reference ;
-    if(name=="weighted") return CenterMethod::weighted ;
-    if(name=="integrated") return CenterMethod::integrated ;
-    throw std::invalid_argument("unknown parametric center method") ;
-  }
-  void ParametricCell::refine(TreeNodeId leaf,const SplitOperation &request,CenterMethod method) {
-    auto *cell=std::get_if<AffineSubdivision>(cell_.get()) ;
-    require(cell,"corner and extruded splitting require an isotropic request") ;
-    require(method==CenterMethod::reference,"native cuts support only reference centers") ;
-    cell->refine(leaf,request) ;
-  }
-
-  void ParametricCell::refineIsotropic(TreeNodeId leaf,CenterMethod method,int axis) {
-    if(source()) {
-      auto candidate=*this ;
-      candidate.expand() ;
-      candidate.refineIsotropic(leaf,method,axis) ;
-      *this=std::move(candidate) ;
-      return ;
-    }
-    if(const auto *cell=native()) {
-      const auto request=axis<0 ? isotropicSplit(cell->node(leaf).cell.shape):parametricGradingSplit(*cell,axis) ;
-      refine(leaf,request,method) ;
-    } else if(auto *cell=std::get_if<ParametricCorner>(cell_.get())) {
-      require(axis<0,"corner splitting requires full 3D refinement") ;
-      cell->refine(leaf,method) ;
-    } else if(auto *cell=std::get_if<ParametricBoundary>(cell_.get())) {
-      require(axis<0,"corner splitting requires full 3D refinement") ;
-      cell->refine(leaf,method) ;
-    } else {
-      std::get<ExtrudedSubdivision>(*cell_).planar.splitLeaf(leaf,method) ;
-    }
-  }
-  void ParametricCell::refineForBalance(TreeNodeId leaf,CenterMethod method,int axis,unsigned directions) {
-    require(directions<8,"invalid balancing directions") ;
-    const auto *p=native() ;
-    if(!p || directions==0) { refineIsotropic(leaf,method,axis) ; return ; }
-    auto request=axis<0 ? isotropicSplit(p->node(leaf).cell.shape):parametricGradingSplit(*p,axis) ;
-    if(auto *tensor=std::get_if<TensorSplit>(&request)) {
-      unsigned allowed=0 ; for(unsigned d=0;d<3;++d) if(!tensor->cuts[d].empty()) allowed|=1u<<d ;
-      if(directions&allowed) for(unsigned d=0;d<3;++d) if(!(directions&(1u<<d))) tensor->cuts[d].clear() ;
-    } else if(auto *prism=std::get_if<PrismSplit>(&request)) {
-      const unsigned allowed=(prism->base.kind!=TriangleSplit::Kind::none ? 3:0) | (!prism->axialCuts.empty() ? 4:0) ;
-      if(directions&allowed) {
-        if(!(directions&3)) prism->base=TriangleSplit() ;
-        if(!(directions&4)) prism->axialCuts.clear() ;
-      }
-    }
-    refine(leaf,request,method) ;
-  }
-  void ParametricCell::coarsen(TreeNodeId parent) {
-    require(!source(),"original cell has no children to coarsen") ;
-    if(auto *p=std::get_if<AffineSubdivision>(cell_.get())) p->coarsen(parent) ;
-    else if(auto *p=std::get_if<ParametricCorner>(cell_.get())) p->subdivision.coarsen(parent) ;
-    else if(auto *p=std::get_if<ParametricBoundary>(cell_.get())) p->coarsen(parent) ;
-    else std::get<ExtrudedSubdivision>(*cell_).planar.coarsen(parent) ;
-  }
-  bool ParametricCell::restoreSplit(TreeNodeId parent,const RefinementHistory &previous) {
-    TreeNodeId old ;
-    try { old=previous.nodeId(history().key(parent)) ; } catch(const std::out_of_range &) { return false ; }
-    if(!previous.active(old) || previous.node(old).isLeaf()) return false ;
-    const auto &split=*previous.splits().at(previous.node(old).activeSplit).construction ;
-    if(auto *p=std::get_if<AffineSubdivision>(cell_.get())) p->reactivate(parent,split) ;
-    else if(auto *p=std::get_if<ParametricCorner>(cell_.get())) p->subdivision.reactivate(parent,split) ;
-    else std::get<ExtrudedSubdivision>(*cell_).planar.reactivate(parent,split) ;
-    return true ;
-  }
-  bool ParametricCell::restoreSplit(TreeNodeId parent,const ParametricCell &previous) {
-    if(previous.source()) return false ;
-    if(!boundary()) { require(!previous.boundary(),"previous split family differs") ; return restoreSplit(parent,previous.history()) ; }
-    require(previous.boundary(),"previous split family differs") ;
-    const auto currentSource=boundary()->sourceGeometry(),oldSource=previous.boundary()->sourceGeometry() ;
-    require(boundary()->topology==previous.boundary()->topology && boundary()->sourceCorners()==previous.boundary()->sourceCorners() &&
-      bool(currentSource)==bool(oldSource) && (!currentSource || sameParametricSource(*currentSource,*oldSource)),
-      "previous source geometry differs") ;
-    TreeNodeId old=0 ;
-    for(auto child:path(parent)) {
-      const auto children=previous.boundary()->children(old) ; if(child>=children.size()) return false ; old=children[child] ;
-    }
-    if(!previous.active(old) || previous.leaf(old)) return false ;
-    require(boundary()->splitRecord(parent)==previous.boundary()->splitRecord(old),"previous accepted split differs") ;
-    std::get<ParametricBoundary>(*cell_).refine(parent) ; return true ;
-  }
-  void ParametricCell::validate(int axis) const {
-    if(source()) { require(axis<0,"corner splitting requires full 3D refinement") ; return ; }
-    if(boundary()) { require(axis<0,"corner splitting requires full 3D refinement") ; return ; }
-    if(const auto *p=native()) parametricGradingSplit(*p,axis) ;
-    else if(corner()) require(axis<0,"corner splitting requires full 3D refinement") ;
-    else require(axis==extruded()->axis,"saved extrusion axis differs") ;
-    for(auto id:history().leafIds())
-      require(validGeometry(*history().geometry().map(history().node(id).map)),"invalid or unresolved parametric leaf geometry") ;
-  }
-  bool ParametricNodeKey::operator<(const ParametricNodeKey &o) const { return reference==o.reference ? local<o.local:reference<o.reference ; }
-  bool ParametricNodeKey::operator==(const ParametricNodeKey &o) const { return reference==o.reference && local==o.local ; }
-
-  ParametricRecord encodeParametricCell(const ParametricCell &cell) {
-    if(const auto *p=cell.source()) {
-      detail::RecordWriter out(p->limits.exact.maxBytes,p->limits.exact) ; out.u32(sourceMagic) ; out.u32(1) ;
-      const auto topology=encodeParametricTopology(p->topology) ; out.u64(topology.size()) ; for(int i:topology) out.u32(i) ;
-      for(const auto &point:p->corners) for(double x:point) out.real(x) ;
-      return out.take() ;
-    }
-    if(const auto *p=cell.native()) return encodeParametricHistory(*p) ;
-    if(const auto *p=cell.boundary()) return p->record() ;
-    if(const auto *p=cell.corner()) return p->topology.shape()==Shape::hex ? CompactHexCell(*p).record() : p->record() ;
-    const auto &p=*cell.extruded() ; const auto limits=recordLimits(cell.history().limits()) ;
-    detail::RecordWriter out(limits.maxBytes,limits.geometry.exact) ; out.u32(extrusionMagic) ; out.u32(1) ;
-    out.u32(unsigned(p.shape)) ; out.u32(p.axis) ; out.u64(p.corners.size()) ;
-    for(const auto &point:p.corners) for(double x:point) out.real(x) ;
-    const auto history=encodeRefinement(cell.history(),limits) ; out.u64(history.size()) ; out.append(history) ; return out.take() ;
-  }
-  ParametricCell decodeParametricCell(const ParametricRecord &record,HistoryLimits limits) {
-    if(CompactHexCell::saved(record)) return CompactHexCell::decode(record,limits).expand() ;
-    detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
-    const auto magic=in.u32() ;
-    if(magic==sourceMagic) {
-      require(in.u32()==1,"unknown source cell version") ;
-      std::vector<int> t(in.count(limits.exact.maxBytes/4,4)) ; for(auto &i:t) i=in.u32() ; const auto topology=decodeParametricTopology(t) ;
-      std::vector<Point> corners(topology.vertexCount()) ; for(auto &p:corners) for(auto &x:p) x=in.real() ;
-      in.finish() ; return ParametricCell::original(topology,corners,limits) ;
-    }
-    if(magic==0x434f524e) return ParametricCorner::restore(record,limits) ;
-    if(magic==0x42434f52) return ParametricBoundary::restore(record,limits) ;
-    if(magic!=extrusionMagic) return decodeParametricHistory(record,limits) ;
-    require(in.u32()==1,"unknown extruded history version") ; const auto shape=Shape(in.u32()) ; const int axis=in.u32() ;
-    require(shape==Shape::hex || shape==Shape::prism,"extruded history needs a hex or prism") ;
-    std::vector<Point> corners(in.count(8,24)) ; require(corners.size()==referenceElement(shape).vertexCount,"invalid extruded corner count") ;
-    for(auto &p:corners) for(double &x:p) x=in.real() ;
-    ParametricRecord bytes(in.count(limits.exact.maxBytes)) ; for(auto &b:bytes) b=in.byte() ; in.finish() ;
-    PlanarSubdivision tree(decodeRefinement(bytes,recordLimits(limits))) ; const ExtrusionLayout layout(shape,corners,axis) ;
-    const auto &root=tree.history() ; const auto *geometry=std::get_if<CornerRecord>(&root.geometry().record(root.node(0).map)) ;
-    require(geometry && geometry->corners==layout.polygon,"saved planar geometry differs from its extrusion") ;
-    return ExtrudedSubdivision{shape,std::move(corners),axis,std::move(tree)} ;
-  }
-  ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
-      const ParametricRecord &record,HistoryLimits limits,const std::string &requested,int axis,const ParametricEdgeControls &controls) {
-    return makeParametricCell(topology,corners,record,std::move(limits),selectParametricCell(topology,corners,requested,axis),axis,controls) ;
-  }
-  ParametricCell makeParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
-      const ParametricRecord &record,HistoryLimits limits,const CellSelection &selection,int axis,const ParametricEdgeControls &controls) {
-    if(selection.representation==CellRepresentation::native) {
-      auto cell=makeParametricHistory(topology,corners,record,limits,controls) ;
-      const auto &history=cell.history() ;
-      require(axis<0 || !parametricCubicEdges(*history.geometry().map(history.node(0).map)).size,
-              "curved source edges require full 3D refinement") ;
-      return cell ;
-    }
-    const auto cubic=parametricCubicGeometry(topology,corners,controls) ;
-    require(!cubic || (selection.corner() && !selection.facePatches && axis<0),
-            "curved source edges require full 3D native or corner refinement") ;
-    if(selection.corner()) {
-      require(axis<0,"corner splitting requires full 3D refinement") ;
-      if(record.empty()) {
-        if(selection.representation==CellRepresentation::boundary) return ParametricBoundary(topology,corners,limits,cubic) ;
-        return ParametricCorner(topology,corners,limits,cubic) ;
-      }
-      auto saved=decodeParametricCell(record,limits) ; require(saved.hasCornerGeometry(),"saved history has a different split family") ;
-      require(saved.cornerTopology()==topology,"saved corner source topology differs") ;
-      if(saved.boundary()) {
-        const auto geometry=saved.boundary()->sourceGeometry() ;
-        if(geometry) {
-          require(!selection.facePatches,"saved boundary geometry differs from the source face representation") ;
-          checkParametricSource(topology,corners,*geometry,controls,limits.jacobian) ;
-        } else require(!cubic && saved.boundary()->sourceCorners()==corners,"saved boundary source geometry differs") ;
-        return saved ;
-      }
-      require(!needsFacePatches(topology,corners),"saved corner geometry differs from the source face representation") ;
-      const auto &p=*saved.corner() ; const auto &h=p.subdivision.history() ;
-      checkParametricSource(topology,corners,*h.geometry().map(h.node(0).map),controls,limits.jacobian) ;
-      return saved ;
-    }
-    require(selection.representation==CellRepresentation::extruded,"unknown parametric cell representation") ;
-    const ExtrusionLayout layout(topology.shape(),corners,axis) ;
-    if(!record.empty()) {
-      auto saved=decodeParametricCell(record,limits) ; const auto *p=saved.extruded() ;
-      require(p && p->shape==topology.shape() && p->corners==corners && p->axis==axis && saved.history().rootKey()==topology.id() && saved.history().geometryRevision()==0,
-              "saved extrusion differs from original geometry") ; return saved ;
-    }
-    return ExtrudedSubdivision{topology.shape(),corners,axis,PlanarSubdivision(layout.polygon,topology.id(),0,limits)} ;
-  }
-
-  ParametricRecord initialParametricCell(const CellTopology &topology,const std::vector<Point> &corners,
-      const ParametricRecord &record,HistoryLimits limits,const std::string &family,int axis,const ParametricEdgeControls &controls) {
-    const auto cell=makeParametricCell(topology,corners,record,limits,family,axis,controls) ;
-    return record.empty() ? encodeParametricCell(cell):record ;
-  }
-
-  bool GeometricRefinement::refine(ParametricCell &cell,CenterMethod method,int axis,bool automatic,double aspectRatio) const {
-    if(!select) return false ;
-    const double cutoff=minEdgeLength ;
-    require(std::isfinite(cutoff) && cutoff>=0,"geometric refinement requires a nonnegative finite minEdgeLength") ;
-    if(automatic) require(axis==-1 && std::isfinite(aspectRatio) && aspectRatio>1,
-      "automatic geometric refinement requires 3D cells and an aspect ratio greater than one") ;
-    auto pending=cell.leafIds() ; bool changed=false ;
-    while(!pending.empty()) {
-      const auto leaf=pending.back() ; pending.pop_back() ;
-      std::vector<Point> points ; double shortest=std::numeric_limits<double>::max() ;
-      const auto edge=[&](const Point &a,const Point &b) {
-        double full=0,plane=0 ;
-        for(int d=0;d<3;++d) { const double square=(b[d]-a[d])*(b[d]-a[d]) ; full+=square ; if(d!=axis) plane+=square ; }
-        if(axis>=0 && plane<=1e-24*full) return ;
-        shortest=std::min(shortest,std::sqrt(plane)) ;
-      } ;
-      if(const auto *source=cell.source()) {
-        points=source->corners ;
-        for(unsigned e=0;e<source->topology.edgeCount();++e) {
-          const auto ends=source->topology.edgeVertices(e) ; edge(points[ends[0]],points[ends[1]]) ;
-        }
-      } else if(cell.hasCornerGeometry()) {
-        const auto &geometry=cell.cornerGeometry() ; const auto &part=cell.cornerCell(leaf) ;
-        for(auto vertex:part.vertices) points.push_back(cell.cornerPosition(vertex)) ;
-        for(const auto &ends:geometry.cellEdges(part)) edge(cell.cornerPosition(ends.first.first),cell.cornerPosition(ends.first.second)) ;
-      } else if(const auto *extruded=cell.extruded()) {
-        const ExtrusionLayout layout(extruded->shape,extruded->corners,extruded->axis) ;
-        const auto &corners=extruded->planar.node(leaf).corners ;
-        for(unsigned layer=0;layer<2;++layer) for(const auto &corner:corners) {
-          const auto p=extruded->planar.evaluate(corner) ; Point q{} ; q[extruded->axis]=layout.planes[layer] ;
-          q[(extruded->axis+1)%3]=p[0] ; q[(extruded->axis+2)%3]=p[1] ; points.push_back(q) ;
-        }
-        for(unsigned v=0;v<corners.size();++v) edge(points[v],points[(v+1)%corners.size()]) ;
-      } else {
-        const auto &history=cell.history() ; const auto map=history.geometry().map(history.node(leaf).map) ;
-        const auto &element=referenceElement(map->shape()) ;
-        for(unsigned v=0;v<element.vertexCount;++v) points.push_back(map->evaluate(element.vertices[v]).position) ;
-        for(unsigned e=0;e<element.edgeCount;++e) edge(points[element.edges[e][0]],points[element.edges[e][1]]) ;
-      }
-      if(!select(points,shortest)) continue ;
-      if(automatic && cell.native()) {
-        const auto &history=cell.history() ; const auto map=history.geometry().map(history.node(leaf).map) ;
-        const auto split=automaticSplit(*map,aspectRatio,cutoff) ; if(!split) continue ; cell.refine(leaf,*split,method) ;
-      } else {
-        if(shortest<2*cutoff) continue ;
-        cell.refineIsotropic(leaf,method,axis) ;
-      }
-      changed=true ; for(auto child:cell.children(leaf)) pending.push_back(child) ;
-    }
-    return changed ;
-  }
-
-  GeometricRefinement GeometricRefinement::region(const std::function<bool(const Point &)> &selected,double cutoff) {
-    require(std::isfinite(cutoff) && cutoff>0,"XML refinement requires a positive finite minEdgeLength") ;
-    return {[selected](const std::vector<Point> &points,double) { return std::any_of(points.begin(),points.end(),selected) ; },cutoff} ;
-  }
-  GeometricRefinement GeometricRefinement::sources(const std::vector<SpacingSource> &sources,double cutoff) {
-    require(std::isfinite(cutoff) && cutoff>=0,"geometric refinement requires a nonnegative finite minEdgeLength") ;
-    return {[&sources](const std::vector<Point> &points,double shortest) { return refineForSpacing(points,sources,shortest) ; },cutoff} ;
-  }
-  bool refineParametricRegion(ParametricCell &cell,const std::function<bool(const Point &)> &selected,double cutoff,
-      CenterMethod method,int axis,bool automatic,double aspectRatio) {
-    return GeometricRefinement::region(selected,cutoff).refine(cell,method,axis,automatic,aspectRatio) ;
-  }
-  bool refineParametricSources(ParametricCell &cell,const std::vector<SpacingSource> &sources,double cutoff,
-      CenterMethod method,int axis,bool automatic,double aspectRatio) {
-    return GeometricRefinement::sources(sources,cutoff).refine(cell,method,axis,automatic,aspectRatio) ;
-  }
-
+  /// Own vertices in leaf order; excludes hanging vertices introduced by neighbors.
   std::vector<std::vector<ParametricNodeKey>> parametricLeafVertices(const CellTopology &t,const ParametricCell &c) {
     if(c.source()) {
       std::vector<ParametricNodeKey> vertices ;
@@ -756,23 +916,31 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Sorted interior nodes of an original edge from its accepted intervals.
   std::vector<ParametricNodeKey> parametricEdgeNodes(EntityId edge,const ParametricTrace &trace) {
     std::set<Fraction> coordinates ;
     for(const auto &interval:trace) {
-      require(interval.size()==8 && interval[0]==int(edge),"invalid parametric edge interval") ;
-      coordinates.insert(Fraction(interval[4],interval[5])) ; coordinates.insert(Fraction(interval[6],interval[7])) ;
+      const EdgeTraceRow row(interval) ;
+      require(interval.size()==8 && row.edge()==int(edge),"invalid parametric edge interval") ;
+      coordinates.insert(row.lower()) ;
+      coordinates.insert(row.upper()) ;
     }
     std::vector<ParametricNodeKey> keys ;
     for(const auto &p:coordinates) if(p>Fraction(0) && p<Fraction(1))
       keys.push_back({{EntityKind::edge,edge,{{p,0,0}}},-1}) ;
     return keys ;
   }
+
+  /// List the generated nodes owned by the original cell interior.
   std::vector<ParametricNodeKey> parametricCellNodes(const CellTopology &t,const ParametricCell &c) {
     if(c.source()) return {} ;
     if(const auto *p=c.native()) return outputKeys(parametricCellNodes(t,*p)) ;
     if(c.hasCornerGeometry()) return cornerNodes(c,EntityKind::cell,t.id()) ;
     return {} ;
   }
+
+  /// Original-face nodes, optionally with physical positions in the same order.
   std::vector<ParametricNodeKey> parametricFaceNodes(EntityId face,const CellTopology &t,const ParametricCell &c,
       const CellTopology *r,const ParametricCell *rc,std::vector<Point> *positions) {
     if(positions) positions->clear() ;
@@ -812,9 +980,13 @@ namespace FVMAdapt {
     }
     return keys ;
   }
+
+  /// Positions for original-face-owned nodes, in parametricFaceNodes order.
   std::vector<Point> parametricFacePositions(EntityId face,const CellTopology &t,const ParametricCell &c,const CellTopology *r,const ParametricCell *rc) {
     std::vector<Point> positions ; parametricFaceNodes(face,t,c,r,rc,&positions) ; return positions ;
   }
+
+  /// Interior polygons, optionally with retained-surface identity and physical area.
   std::vector<ParametricOutputFace> parametricCellFaces(const CellTopology &t,const ParametricCell &c,const std::vector<ParametricNodeKey> &points,bool patches) {
     if(c.source()) return {} ;
     if(const auto *p=c.native()) {
@@ -827,7 +999,9 @@ namespace FVMAdapt {
     }
     return ExtrudedView(t,*c.extruded()).internal() ;
   }
-  std::vector<ParametricOutputFace> parametricFaceFaces(EntityId face,const CellTopology &t,const ParametricCell &c,const std::vector<ParametricNodeKey> &points,
+
+  /// Build reconciled polygons on an original face for the incident cell forms.
+  std::vector<ParametricOutputFace> parametricFacePieces(EntityId face,const CellTopology &t,const ParametricCell &c,const std::vector<ParametricNodeKey> &points,
       const CellTopology *r,const ParametricCell *rc,bool patches) {
     require(bool(r)==bool(rc),"parametric neighbor needs topology and history") ;
     if(c.source() && (!rc || rc->source())) {
@@ -842,19 +1016,19 @@ namespace FVMAdapt {
       return {std::move(out)} ;
     }
     if(c.source() || (rc && rc->source())) {
-      auto left=c ; left.expand() ; if(!rc) return parametricFaceFaces(face,t,left,points,nullptr,nullptr,patches) ;
-      auto right=*rc ; right.expand() ; return parametricFaceFaces(face,t,left,points,r,&right,patches) ;
+      auto left=c ; left.expand() ; if(!rc) return parametricFacePieces(face,t,left,points,nullptr,nullptr,patches) ;
+      auto right=*rc ; right.expand() ; return parametricFacePieces(face,t,left,points,r,&right,patches) ;
     }
-    if(mixedFace(c,rc)) return mixedFaceFaces(face,t,c,*r,*rc,points,patches) ;
+    if(mixedFace(c,rc)) return mixedFacePieces(face,t,c,*r,*rc,points,patches) ;
     if(const auto *p=c.native()) {
       require(!rc || rc->native(),"mixed native and center-based boundaries are unsupported") ;
-      auto faces=outputFaces(parametricFaceFaces(face,t,*p,referenceKeys(points),r,rc ? rc->native():nullptr)) ;
+      auto faces=outputFaces(parametricFacePieces(face,t,*p,referenceKeys(points),r,rc ? rc->native():nullptr)) ;
       if(patches) nativeFacePatches(faces,t,*p,&face) ;
       return faces ;
     }
     if(c.hasCornerGeometry()) {
       require(!rc || rc->hasCornerGeometry(),"mixed corner and other split families are unsupported") ;
-      return cornerFaceFaces(face,c,points,rc,patches) ;
+      return cornerFacePieces(face,c,points,rc,patches) ;
     }
     require(!rc || rc->extruded(),"mixed native and center-based boundaries are unsupported") ;
     ExtrudedView left(t,*c.extruded()) ; const int layer=left.cap(face) ;
@@ -880,23 +1054,7 @@ namespace FVMAdapt {
     return result ;
   }
 
-  bool ParametricCell::mergeFace(EntityId face,const ParametricRecord &record) {
-    if(record.empty()) return false ;
-    if(source()) {
-      auto candidate=*this ; candidate.expand() ; const bool changed=candidate.mergeFace(face,record) ;
-      if(changed) *this=std::move(candidate) ;
-      return changed ;
-    }
-    if(native()) { validateMixedFacePlan(record) ; return false ; }
-    if(hasCornerGeometry()) return applyFacePlan(cornerGeometry(),cornerFaceId(face),record) ;
-    else require(record.empty(),"shared corner construction supplied to another split family") ;
-    return false ;
-  }
-  ParametricRecord parametricFacePlan(EntityId face,const ParametricCell &cell) {
-    if(!cell.hasCornerGeometry()) return {} ;
-    const auto &boundary=cell.cornerGeometry() ;
-    return encodeFacePlan(boundary.boundaries,cell.cornerFaceId(face),boundary.boundaryLimits()) ;
-  }
+  /// Physical positions in the supplied original-cell-owned output-key order.
   std::vector<Point> parametricCellPositions(const ParametricCell &cell,const std::vector<ParametricNodeKey> &keys) {
     if(cell.source()) { require(keys.empty(),"original cell has no interior nodes") ; return {} ; }
     if(cell.hasCornerGeometry()) return cornerPositions(cell,keys) ;
@@ -905,6 +1063,7 @@ namespace FVMAdapt {
     return out ;
   }
   namespace {
+    /// Collect corner-cell leaves touching an original face at vertices or edges.
     std::set<int> cornerContacts(const std::vector<ParametricOutputFace> &faces,const std::vector<int> &depth,
                                 unsigned difference,NeighborGrading grading,int rightOffset=0) {
       std::set<int> out ; std::map<std::vector<ParametricNodeKey>,std::set<int>> contacts ;
@@ -922,6 +1081,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Resolve the policy controlling refinement around divided leaf faces.
   FaceBalance parametricFaceBalance(const std::string &name) {
     if(name=="none") return FaceBalance::none ;
     if(name=="majority") return FaceBalance::majority ;
@@ -931,6 +1091,8 @@ namespace FVMAdapt {
 
   namespace {
     struct CornerFaceCover { int leaf, face ; std::vector<unsigned> path ; } ;
+
+    /// Express corner-cell leaf coverage in original-face reference coordinates.
     std::vector<CornerFaceCover> cornerFaceCover(EntityId face, const ParametricCell &cell) {
       std::vector<CornerFaceCover> out ;
       if(cell.source()) {
@@ -952,6 +1114,8 @@ namespace FVMAdapt {
       }
       return out ;
     }
+
+    /// Identify internal leaf faces split into multiple active boundary pieces.
     std::vector<FaceBalanceRequest> localDividedFaces(const CellTopology &t,const ParametricCell &cell,bool directions) {
       if(cell.source()) return {} ;
       if(cell.native()) return parametricDividedFaces(t,*cell.native(),directions) ;
@@ -979,6 +1143,8 @@ namespace FVMAdapt {
       }
       return out ;
     }
+
+    /// Return a leaf face's own vertex keys in the cell representation.
     std::vector<std::vector<unsigned>> leafFaceVertices(const CellTopology &t,const ParametricCell &cell,TreeNodeId leaf) {
       std::vector<std::vector<unsigned>> faces ;
       if(cell.source()) for(unsigned f=0;f<t.faceCount();++f) faces.push_back(t.faceVertices(f)) ;
@@ -1002,6 +1168,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Active divided faces on both sides of an original face; unused saved cuts do not count.
   std::vector<FaceBalanceRequest> parametricDividedFaces(EntityId face,const CellTopology &t,const ParametricCell &cell,
       const CellTopology &right,const ParametricCell &other,bool directions) {
     if(cell.native() && other.native()) return parametricDividedFaces(face,t,*cell.native(),right,*other.native(),directions) ;
@@ -1020,7 +1187,7 @@ namespace FVMAdapt {
       for(const auto &use:b) if(divided.count(use.path)) out.push_back({int(right.id()),use.leaf,use.face}) ;
     } else {
       require(cell.extruded() && other.extruded(),"mixed split families do not support face balancing") ;
-      const auto faces=parametricFaceFaces(face,t,cell,{},&right,&other) ; std::map<int,unsigned> a,b ;
+      const auto faces=parametricFacePieces(face,t,cell,{},&right,&other) ; std::map<int,unsigned> a,b ;
       for(const auto &piece:faces) { ++a[piece.left] ; ++b[piece.right] ; }
       const auto collect=[&](const CellTopology &topology,const ParametricCell &c,const std::map<int,unsigned> &counts) {
         const ExtrudedView v(topology,*c.extruded()) ; const auto side=v.side(face) ;
@@ -1034,6 +1201,8 @@ namespace FVMAdapt {
     }
     return out ;
   }
+
+  /// Combine local face subdivisions with votes from original-cell neighbors.
   std::vector<int> parametricFaceBalanceRequests(const CellTopology &topology,const ParametricCell &cell,
       const std::vector<FaceBalanceRequest> &sharedFaces,FaceBalance policy,std::map<int,unsigned> *splitDirections) {
     if(policy==FaceBalance::none && !splitDirections) return {} ;
@@ -1062,13 +1231,14 @@ namespace FVMAdapt {
     return leavesToRefine ;
   }
 
+  /// Find local leaves that violate the selected neighbor-depth limit.
   std::vector<int> parametricLocalRequests(const CellTopology &t,const ParametricCell &c,unsigned difference,NeighborGrading grading) {
     if(c.source()) return {} ;
     if(const auto *p=c.native()) return parametricLocalRequests(t,*p,difference,grading) ;
     if(c.hasCornerGeometry()) {
       auto faces=cornerCellFaces(c,{}) ;
       for(unsigned f=0;f<c.cornerCell(0).faces.size();++f) {
-        const auto boundary=cornerFaceFaces(t.faceId(f),c,{}) ; faces.insert(faces.end(),boundary.begin(),boundary.end()) ;
+        const auto boundary=cornerFacePieces(t.faceId(f),c,{}) ; faces.insert(faces.end(),boundary.begin(),boundary.end()) ;
       }
       const auto needed=cornerContacts(faces,depths(c),difference,grading) ; return {needed.begin(),needed.end()} ;
     }
@@ -1081,6 +1251,8 @@ namespace FVMAdapt {
     }
     return {result.begin(),result.end()} ;
   }
+
+  /// Find neighbor-depth requests across an original shared face.
   ParametricTrace parametricFaceRequests(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
       const CellTopology &rightTopology,const ParametricCell &rightCell,unsigned difference,NeighborGrading grading) {
     if(leftCell.source() && rightCell.source()) return {} ;
@@ -1104,7 +1276,7 @@ namespace FVMAdapt {
                                           leftCell.cornerGeometry().boundaryLimits()) ;
       left.mergeFace(face,sharedPlan) ;
       right.mergeFace(face,sharedPlan) ;
-      const auto faces=parametricFaceFaces(face,leftTopology,left,{},&rightTopology,&right) ;
+      const auto faces=parametricFacePieces(face,leftTopology,left,{},&rightTopology,&right) ;
       auto leafDepths=depths(leftCell) ;
       const int rightOffset=leafDepths.size() ;
       const auto rightDepths=depths(rightCell) ;
@@ -1116,7 +1288,7 @@ namespace FVMAdapt {
       return result ;
     }
     require(rightCell.extruded(),"mixed native and center-based boundaries are unsupported") ;
-    const auto faces=parametricFaceFaces(face,leftTopology,leftCell,{},&rightTopology,&rightCell) ;
+    const auto faces=parametricFacePieces(face,leftTopology,leftCell,{},&rightTopology,&rightCell) ;
     auto leafDepths=depths(leftCell) ;
     const int rightOffset=leafDepths.size() ;
     const auto rightDepths=depths(rightCell) ;
@@ -1137,6 +1309,8 @@ namespace FVMAdapt {
       result.push_back({int(leaf<rightOffset ? leftTopology.id():rightTopology.id()),leaf<rightOffset ? leaf:leaf-rightOffset}) ;
     return result ;
   }
+
+  /// Describe active leaf contacts on original edges for shared grading.
   ParametricTrace parametricEdgeTrace(const CellTopology &t,const ParametricCell &c) {
     if(c.source()) {
       ParametricTrace out ; for(unsigned edge=0;edge<t.edgeCount();++edge)
@@ -1163,6 +1337,8 @@ namespace FVMAdapt {
     }
     return out ;
   }
+
+  /// Return active refinement depths at original cell vertices.
   std::vector<int> parametricVertexDepths(const CellTopology &t,const ParametricCell &c) {
     if(c.source()) return std::vector<int>(t.vertexCount(),0) ;
     if(const auto *p=c.native()) return parametricVertexDepths(t,*p) ;
@@ -1172,6 +1348,8 @@ namespace FVMAdapt {
       for(unsigned layer=0;layer<2;++layer) { const unsigned i=(layer ? v.layout.upper:v.layout.lower).at(p.corner) ; out[i]=std::max(out[i],int(c.history().path(id).size())) ; }
     return out ;
   }
+
+  /// Find leaves too coarse for neighboring depths at original vertices.
   std::vector<int> parametricVertexRequests(const CellTopology &t,const ParametricCell &c,const std::map<EntityId,int> &depth,unsigned difference) {
     if(c.source()) {
       for(unsigned v=0;v<t.vertexCount();++v)

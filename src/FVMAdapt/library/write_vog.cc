@@ -964,6 +964,7 @@ namespace Loci {
     grid.hasEdgeLengths = true ;
   }
 
+  /// Collect the requested cell history and edge lengths for the output mesh.
   void collectCellFields(refinedGridData &grid, fact_db &facts, bool cellState, bool edgeLengths) {
     if(cellState) collectCellState(grid,facts) ;
     if(edgeLengths) collectEdgeLengths(grid,facts) ;

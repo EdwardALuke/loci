@@ -43,12 +43,18 @@ namespace Loci {
     int otherVertex = -1 ; ///< Higher original vertex file ID.
     vector3d<double> firstControl, secondControl ;
   } ;
+
+  /// Write the other endpoint and the two cubic controls as text.
   inline std::ostream &operator<<(std::ostream &out,const CubicEdgeInput &edge) {
     return out<<edge.otherVertex<<' '<<edge.firstControl<<' '<<edge.secondControl ;
   }
+
+  /// Read the other endpoint and the two cubic controls from text.
   inline std::istream &operator>>(std::istream &in,CubicEdgeInput &edge) {
     return in>>edge.otherVertex>>edge.firstControl>>edge.secondControl ;
   }
+
+  /// Describe cubic edge controls for Loci containers.
   template<> struct data_schema_traits<CubicEdgeInput> {
     typedef IDENTITY_CONVERTER Schema_Converter ;
     static DatatypeP get_type() {
@@ -90,6 +96,7 @@ namespace Loci {
     bool cellState = false ; ///< Return refinementDepth, rootCellFileNumber and cellChange.
     bool edgeLengths = false ; ///< Return maxEdgeLength and maxEdgeLengthXY from leaf edge endpoints.
   } ;
+
   /// Accepted histories and root weights in distributed file order. Keep with the original VOG.
   struct RefinementState {
     storeRepP histories ; ///< store<vector<unsigned char>>: accepted records for original cells.
@@ -171,11 +178,14 @@ namespace Loci {
   bool onlineRefineMesh(CPTR<refinedGridData> &grid, rule_db &rules, RefinementState &state,
       storeRepP tags, const std::string &casename, const RefinementOptions &options, std::string &error,
       FVMAdapt::MeshQualityReport *qualityReport = nullptr) ;
+
   /// Record an installed original mesh before its first adaptation. Collective outside queries.
   bool recordRefinementBaseFaces(fact_db &facts,rule_db &rules,RefinementState &state,
       const std::string &casename,const RefinementOptions &options,std::string &error) ;
+
   /// Rebind restored face patches and connectivity to the accepted parametric history.
   void restoreRefinementFaceState(refinedGridData& grid,const std::string& casename,const RefinementState& state) ;
+
   /// Replay state.histories without marking. Request files and preceding face donors are ignored.
   /// Load a saved plan into state first; all ranks participate. Rejection leaves state and grid unchanged.
   bool initializeGridFromPlan(CPTR<refinedGridData> &grid, rule_db &rules, RefinementState &state,

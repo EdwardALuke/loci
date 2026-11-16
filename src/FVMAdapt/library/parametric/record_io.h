@@ -41,6 +41,7 @@ namespace detail {
   void writeSplitOperation(RecordWriter &out, const SplitOperation &operation) ;
   SplitOperation readSplitOperation(RecordReader &in, std::size_t limit) ;
 
+  /// Write canonical records while enforcing byte and exact-arithmetic limits.
   class RecordWriter {
     std::vector<unsigned char> bytes_ ;
     std::size_t maxBytes_ ;
@@ -48,20 +49,30 @@ namespace detail {
     ExactBudget budget_ ;
   public:
     RecordWriter(std::size_t maxBytes, ExactLimits exact) : maxBytes_(maxBytes), exact_(exact), budget_(exact) {}
+
+    /// Append one byte within the record size limit.
     void byte(unsigned char value) {
       if(bytes_.size() >= maxBytes_) throw std::length_error("snapshot byte limit exceeded") ;
       bytes_.push_back(value) ;
     }
+
+    /// Write an unsigned 32-bit value in little-endian order.
     void u32(std::uint32_t value) {
       for(unsigned i=0; i<4; ++i) { byte(value & 255) ; value >>= 8 ; }
     }
+
+    /// Write an unsigned 64-bit value in little-endian order.
     void u64(std::uint64_t value) {
       for(unsigned i=0; i<8; ++i) { byte(value & 255) ; value >>= 8 ; }
     }
+
+    /// Append encoded bytes within the record size limit.
     void append(const std::vector<unsigned char> &bytes) {
       if(bytes.size() > maxBytes_-bytes_.size()) throw std::length_error("snapshot byte limit exceeded") ;
       bytes_.insert(bytes_.end(),bytes.begin(),bytes.end()) ;
     }
+
+    /// Write a finite binary64 value, normalizing negative zero.
     void real(double value) {
       static_assert(sizeof(double)==8 && std::numeric_limits<double>::is_iec559,
                     "snapshots require IEEE binary64") ;
@@ -71,6 +82,8 @@ namespace detail {
       std::memcpy(&bits,&value,8) ;
       u64(bits) ;
     }
+
+    /// Write an integer sign and its little-endian magnitude.
     void integer(const Fraction::Integer &value) {
       const Fraction::Integer magnitude=value<0 ? -value : value ;
       const std::size_t bits=magnitude==0 ? 0 : boost::multiprecision::msb(magnitude)+1 ;
@@ -81,16 +94,24 @@ namespace detail {
       if(count>maxBytes_-bytes_.size()) throw std::length_error("snapshot byte limit exceeded") ;
       if(count) boost::multiprecision::export_bits(magnitude,std::back_inserter(bytes_),8,false) ;
     }
+
+    /// Charge construction work against the shared exact-arithmetic budget.
     void operations(std::size_t count) { budget_.operations(count) ; }
+
+    /// Write a reduced fraction as its numerator and denominator.
     void fraction(const Fraction &value) {
       budget_.operations() ;
       checkExact(value,exact_) ;
       integer(value.numerator()) ; integer(value.denominator()) ;
     }
+
     const std::vector<unsigned char> &bytes() const { return bytes_ ; }
+
+    /// Transfer ownership of the completed byte buffer to the caller.
     std::vector<unsigned char> take() { return std::move(bytes_) ; }
   } ;
 
+  /// Read bounded, canonical records from a byte buffer.
   class RecordReader {
     const std::vector<unsigned char> &bytes_ ;
     std::size_t position_=0 ;
@@ -101,21 +122,30 @@ namespace detail {
                  ExactLimits exact) : bytes_(bytes), exact_(exact), budget_(exact) {
       if(bytes.size()>maxBytes) throw std::length_error("snapshot byte limit exceeded") ;
     }
+
     std::size_t remaining() const { return bytes_.size()-position_ ; }
+
+    /// Read one byte, rejecting truncated input.
     unsigned char byte() {
       if(!remaining()) throw std::invalid_argument("truncated snapshot") ;
       return bytes_[position_++] ;
     }
+
+    /// Read an unsigned 32-bit value in little-endian order.
     std::uint32_t u32() {
       std::uint32_t result=0 ;
       for(unsigned i=0; i<4; ++i) result |= std::uint32_t(byte())<<(8*i) ;
       return result ;
     }
+
+    /// Read an unsigned 64-bit value in little-endian order.
     std::uint64_t u64() {
       std::uint64_t result=0 ;
       for(unsigned i=0; i<8; ++i) result |= std::uint64_t(byte())<<(8*i) ;
       return result ;
     }
+
+    /// Read a bounded count and check its minimum encoded payload size.
     std::size_t count(std::size_t limit, std::size_t minimumBytes=1) {
       const auto value=u64() ;
       if(value>limit || value>std::numeric_limits<std::size_t>::max())
@@ -124,6 +154,8 @@ namespace detail {
         throw std::invalid_argument("truncated snapshot array") ;
       return static_cast<std::size_t>(value) ;
     }
+
+    /// Read a finite binary64 value and reject noncanonical negative zero.
     double real() {
       const auto bits=u64() ;
       double value ;
@@ -132,6 +164,8 @@ namespace detail {
         throw std::invalid_argument("noncanonical snapshot coordinate") ;
       return value ;
     }
+
+    /// Read a signed magnitude, rejecting redundant bytes and invalid signs.
     Fraction::Integer integer() {
       const auto sign=byte() ;
       if(sign>2) throw std::invalid_argument("unknown snapshot integer sign") ;
@@ -148,6 +182,8 @@ namespace detail {
       }
       return sign==2 ? -result : result ;
     }
+
+    /// Read a reduced fraction with a positive denominator.
     Fraction fraction() {
       budget_.operations() ;
       const auto numerator=integer(), denominator=integer() ;
@@ -157,6 +193,8 @@ namespace detail {
         throw std::invalid_argument("unreduced snapshot fraction") ;
       return result ;
     }
+
+    /// Require that the complete record has been consumed.
     void finish() const {
       if(remaining()) throw std::invalid_argument("trailing snapshot bytes") ;
     }

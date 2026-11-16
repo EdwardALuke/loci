@@ -44,6 +44,7 @@ namespace FVMAdapt {
       return vertices ;
     }
 
+    /// Infer a candidate standard cell shape from its face sizes.
     Shape cellShape(const std::vector<Loop> &faces) {
       unsigned triangles = 0, quads = 0 ;
       for(const Loop &face : faces) {
@@ -57,6 +58,7 @@ namespace FVMAdapt {
       throw std::invalid_argument("native cell requires tet, pyramid, prism or hex faces") ;
     }
 
+    /// Match reference faces to outward input loops and record their orientations.
     bool matchFaces(NativeCell &cell, const std::vector<Loop> &faces,
                     const std::map<Loop,unsigned> &faceIndex) {
       const ReferenceElement &element = referenceElement(cell.shape) ;
@@ -82,6 +84,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Recover standard cell connectivity from outward-oriented face loops.
   NativeCell recognizeNativeCell(const std::vector<std::vector<EntityId> > &outwardFaces) {
     const Shape shape = cellShape(outwardFaces) ;
     const ReferenceElement &element = referenceElement(shape) ;

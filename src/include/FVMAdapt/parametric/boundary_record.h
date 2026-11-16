@@ -99,9 +99,11 @@ namespace FVMAdapt {
   /// Preserve point/edge/face IDs and accepted maps; local map IDs may change on decode.
   std::vector<unsigned char> encodeBoundaries(const BoundaryRecords &records,
                                              const BoundaryRecordLimits &limits = {}) ;
+
   /// Also return the geometry-ID remapping used by the encoded tables.
   std::vector<unsigned char> encodeBoundaries(const BoundaryRecords &records, std::vector<MapId> &mapIds,
                                              const BoundaryRecordLimits &limits = {}) ;
+
   /// Decode into temporary state; malformed records throw invalid_argument, limits throw length_error.
   BoundaryRecords decodeBoundaries(const std::vector<unsigned char> &record,
                                    const BoundaryRecordLimits &limits = {}) ;

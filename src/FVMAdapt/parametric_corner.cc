@@ -13,20 +13,31 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
     constexpr auto absent = noBoundary ;
+
     void require(bool ok, const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
+    /// Apply history limits to retained geometry and boundary records.
     RecordLimits historyRecordLimits(HistoryLimits h) {
       RecordLimits r ; r.maxBytes=h.exact.maxBytes ; r.maxNodes=h.maxNodes ; r.maxSplits=h.maxSplits ; r.maxDepth=h.maxDepth ;
-      r.geometry=h.geometry ; r.geometry.exact=h.exact ; r.jacobian=h.jacobian ; return r ;
+      r.geometry=h.geometry ; r.geometry.exact=h.exact ; r.jacobian=h.jacobian ;
+      return r ;
     }
+
     void bytes(detail::RecordWriter &w,const ParametricRecord &r) { w.u64(r.size()) ; w.append(r) ; }
+
     ParametricRecord bytes(detail::RecordReader &r,std::size_t limit) {
-      ParametricRecord out(r.count(limit)) ; for(auto &b:out) b=r.byte() ; return out ;
+      ParametricRecord out(r.count(limit)) ;
+      for(auto &b:out) b=r.byte() ;
+      return out ;
     }
+
+    /// Compare canonical records of two retained geometry maps.
     bool sameGeometry(const std::shared_ptr<const GeometryMap> &a,const std::shared_ptr<const GeometryMap> &b,const RecordLimits &limits) {
       GeometryStore first(limits.geometry),second(limits.geometry) ; first.capture(a) ; second.capture(b) ;
       return encodeGeometry(first,limits)==encodeGeometry(second,limits) ;
     }
 
+    /// Detect a boundary vertex whose adjacent edges form a nearly straight continuation.
     bool nearlyStraightCorner(const std::vector<Point> &points) {
       if(points.size()<4) return false ;
       long double scale=0 ;
@@ -47,21 +58,27 @@ namespace FVMAdapt {
       }
       return false ;
     }
+
+    /// Determine whether a source face needs a piecewise surface around its center.
     bool needsFaceFan(Shape shape,const std::vector<Point> &points) {
       if(!nearlyStraightCorner(points)) return false ;
       // Keep a planar quad's original coordinates when its interior is certified regular.
       return shape!=Shape::quad || !detail::hasStraightQuadCorner(points) ||
         geometryValidity(CornerMap(shape,points))!=GeometryValidity::valid ;
     }
+
+    /// Build shared original edges and oriented face maps for a cell.
     CornerCell sourceBoundary(CornerBoundary &state,const CellTopology &t,const std::vector<Point> &corners,bool patches=false,const GeometryMap *source=nullptr) {
       CornerCell root ;
       require(corners.size()==t.vertexCount(),"source corner count differs from its shape") ;
       const auto cubic=source ? parametricCubicEdges(*source):CubicEdgeView{} ;
       require(!cubic.size || cubic.size==t.edgeCount(),"cubic source edge count differs from its shape") ;
+      // Construct one edge for each original endpoint pair, then attach oriented faces.
       for(const auto &p:corners) root.vertices.push_back(state.addPoint(p)) ;
       std::map<std::pair<BoundaryId,BoundaryId>,BoundaryId> edges ;
       for(unsigned i=0;i<t.edgeCount();++i) {
-        const auto ends=t.edgeVertices(i) ; const auto a=ends[0],b=ends[1] ;
+        const auto ends=t.edgeVertices(i) ;
+        const auto a=ends[0],b=ends[1] ;
         std::shared_ptr<const GeometryMap> geometry ;
         if(cubic.size) {
           const auto &use=cubic[i] ; geometry=use.edge ;
@@ -74,9 +91,12 @@ namespace FVMAdapt {
           edges.emplace(ends,state.addEdge(ends.first,ends.second,std::move(geometry))) ;
         }
       }
+
       for(unsigned f=0;f<t.faceCount();++f) {
-        const auto loop=t.faceVertices(f) ; const auto shape=t.faceShape(f) ;
-        std::vector<BoundaryId> vertices(loop.size()),faceEdges ; std::vector<Point> points(loop.size()) ;
+        const auto loop=t.faceVertices(f) ;
+        const auto shape=t.faceShape(f) ;
+        std::vector<BoundaryId> vertices(loop.size()),faceEdges ;
+        std::vector<Point> points(loop.size()) ;
         for(unsigned v=0;v<loop.size();++v) {
           const auto j=orientedVertex(unsigned(loop.size()),t.faceOrientation(f),v) ; vertices[j]=loop[v] ; points[j]=corners[loop[v]] ;
         }
@@ -87,6 +107,8 @@ namespace FVMAdapt {
       }
       return root ;
     }
+
+    /// Create a boundary-defined source cell in physical or source-reference coordinates.
     CornerSubdivision boundarySubdivision(const CellTopology &t,const std::vector<Point> &corners,HistoryLimits limits,
         std::shared_ptr<const GeometryMap> source) {
       std::vector<Point> reference ;
@@ -97,7 +119,8 @@ namespace FVMAdapt {
         reference.assign(element.vertices.begin(),element.vertices.begin()+element.vertexCount) ;
       }
       const auto &points=source ? reference:corners ;
-      CornerBoundary boundary ; auto root=sourceBoundary(boundary,t,points,!source) ;
+      CornerBoundary boundary ;
+      auto root=sourceBoundary(boundary,t,points,!source) ;
       Point interior=points.at(0) ; std::array<long double,3> sum{} ;
       for(const auto &p:points) for(unsigned d=0;d<3;++d) sum[d]+=static_cast<long double>(p[d])-points[0][d] ;
       for(unsigned d=0;d<3;++d) interior[d]+=sum[d]/points.size() ;
@@ -106,6 +129,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Construct original face geometry from its ordered physical corners.
   std::shared_ptr<const GeometryMap> sourceFaceGeometry(Shape shape,const std::vector<Point> &points) {
     if(needsFaceFan(shape,points)) {
       Point center=points.front() ; std::array<long double,3> sum{} ;
@@ -116,10 +140,14 @@ namespace FVMAdapt {
     return shape==Shape::polygon ? std::shared_ptr<const GeometryMap>(std::make_shared<PolygonMap>(points)):
       std::make_shared<CornerMap>(shape,points) ;
   }
+
+  /// Construct an original face in shared vertex order, retaining supplied cubic edges.
   std::shared_ptr<const GeometryMap> sourceFaceGeometry(const CellTopology &topology,unsigned face,
       const std::vector<Point> &corners,const GeometryMap *source) {
-    const auto loop=topology.faceVertices(face) ; const auto shape=topology.faceShape(face) ;
-    std::vector<unsigned> vertices(loop.size()) ; std::vector<Point> points(loop.size()) ;
+    const auto loop=topology.faceVertices(face) ;
+    const auto shape=topology.faceShape(face) ;
+    std::vector<unsigned> vertices(loop.size()) ;
+    std::vector<Point> points(loop.size()) ;
     for(unsigned v=0;v<loop.size();++v) {
       const auto canonical=orientedVertex(unsigned(loop.size()),topology.faceOrientation(face),v) ;
       vertices[canonical]=loop[v] ; points[canonical]=corners.at(loop[v]) ;
@@ -130,10 +158,12 @@ namespace FVMAdapt {
     if(!cubic.size) return shape==Shape::polygon ? std::shared_ptr<const GeometryMap>(std::make_shared<PolygonMap>(points)):
       std::make_shared<CornerMap>(shape,std::move(points)) ;
     require(cubic.size==topology.edgeCount(),"cubic source edge count differs from topology") ;
+    // Reverse each source edge as needed to follow the canonical face loop.
     const auto faceEdges=[&](auto edges) {
       require(vertices.size()==edges.size(),"cubic source requires triangle or quad faces") ;
       for(unsigned e=0;e<edges.size();++e) {
-        const auto a=vertices[e],b=vertices[(e+1)%edges.size()] ; unsigned edge=0 ;
+        const auto a=vertices[e],b=vertices[(e+1)%edges.size()] ;
+        unsigned edge=0 ;
         for(;edge<topology.edgeCount();++edge) {
           const auto ends=topology.edgeVertices(edge) ;
           if((ends[0]==a && ends[1]==b) || (ends[0]==b && ends[1]==a)) {
@@ -149,10 +179,13 @@ namespace FVMAdapt {
     require(shape==Shape::quad,"cubic source requires triangle or quad faces") ;
     return std::make_shared<BoundarySurfaceMap>(cubicQuadFromEdges(faceEdges(std::array<CubicEdgeUse,4>{}))) ;
   }
+
+  /// Extra nearly straight face corners require a piecewise surface representation.
   bool needsFacePatches(const CellTopology &topology,const std::vector<Point> &corners) {
     require(corners.size()==topology.vertexCount(),"source corner count differs from its topology") ;
     for(unsigned f=0;f<topology.faceCount();++f) {
-      const auto loop=topology.faceVertices(f) ; std::vector<Point> points(loop.size()) ;
+      const auto loop=topology.faceVertices(f) ;
+      std::vector<Point> points(loop.size()) ;
       for(unsigned v=0;v<loop.size();++v)
         points[orientedVertex(unsigned(loop.size()),topology.faceOrientation(f),v)]=corners[loop[v]] ;
       if(needsFaceFan(topology.faceShape(f),points)) return true ;
@@ -160,6 +193,7 @@ namespace FVMAdapt {
     return false ;
   }
 
+  /// Create mapped cell history and its shared original boundary geometry.
   ParametricCorner::ParametricCorner(const CellTopology &t,const std::vector<Point> &corners,HistoryLimits limits,
       std::shared_ptr<const GeometryMap> root)
     : topology(t),subdivision(root ? root:std::make_shared<CornerMap>(t.shape(),corners),t.id(),0,limits) {
@@ -169,58 +203,85 @@ namespace FVMAdapt {
     options.maxNodes=limits.maxNodes ; options.maxSnapshotBytes=limits.exact.maxBytes ; options.jacobianLimits=limits.jacobian ;
     cells.push_back(sourceBoundary(*this,t,corners,false,source.get())) ;
   }
+
+  /// Find a retained boundary face by its original face ID.
   BoundaryId ParametricCorner::faceId(EntityId face) const {
     for(unsigned f=0;f<cells[0].faces.size();++f) if(topology.faceId(f)==face) return cells[0].faces[f].surface ;
     throw std::invalid_argument("corner face is not incident to the original cell") ;
   }
+
+  /// Accept a vertex-based cell split using shared boundary constructions.
   void ParametricCorner::refine(TreeNodeId leaf,CenterMethod method) {
     require(subdivision.history().active(leaf) && subdivision.node(leaf).isLeaf(),"corner refinement requires an active leaf") ;
     // Ordinary refinement reuses an accepted split, including after complete coarsening.
-    for(const auto &split:subdivision.history().splits()) if(split.parent==leaf) { subdivision.reactivate(leaf,*split.construction) ; return ; }
+    for(const auto &split:subdivision.history().splits()) if(split.parent==leaf) {
+      subdivision.reactivate(leaf,*split.construction) ;
+      return ;
+    }
     std::vector<std::size_t> selected(boundaries.faces.size(),absent) ;
     for(unsigned f=0;f<boundaries.faces.size();++f) if(!boundaries.faces[f].splits.empty()) selected[f]=0 ;
     splitCell(subdivision,cells,leaf,method,selected) ;
   }
+
+  /// Encode the accepted divisions of one original face.
   ParametricRecord ParametricCorner::faceRecord(EntityId face) const {
     return encodeFacePlan(boundaries,faceId(face),boundaryLimits()) ;
   }
+
+  /// Test whether the original face has any accepted edge or face divisions.
   bool ParametricCorner::faceChanged(EntityId face) const {
     const auto &f=boundaries.faces[faceId(face)] ;
     if(!f.splits.empty()) return true ;
     for(auto e:f.edges) if(!boundaries.edges[e].cuts.empty()) return true ;
     return false ;
   }
+
+  /// Merge received face divisions into the shared boundary geometry.
   bool ParametricCorner::mergeFace(EntityId face,const ParametricRecord &record) {
     return applyFacePlan(*this,faceId(face),record) ;
   }
+
+  /// Encode accepted cell history and its shared boundary constructions.
   ParametricRecord ParametricCorner::record() const {
-    const auto limits=historyRecordLimits(subdivision.history().limits()) ; detail::RecordWriter w(limits.maxBytes,limits.geometry.exact) ;
-    w.u32(0x434f524e) ; w.u32(1) ; const auto t=encodeParametricTopology(topology) ; w.u64(t.size()) ; for(int i:t) w.u32(i) ;
+    const auto limits=historyRecordLimits(subdivision.history().limits()) ;
+    detail::RecordWriter w(limits.maxBytes,limits.geometry.exact) ;
+    w.u32(0x434f524e) ; w.u32(1) ;
+    const auto t=encodeParametricTopology(topology) ; w.u64(t.size()) ;
+    for(int i:t) w.u32(i) ;
     std::vector<TreeNodeId> encodedIds ;
     bytes(w,encodeRefinement(subdivision.history(),encodedIds,limits)) ; bytes(w,encodeBoundaries(boundaries,boundaryLimits())) ;
+    // Connectivity follows the node numbering used by the encoded history.
     std::vector<TreeNodeId> order(encodedIds.size()) ;
     for(TreeNodeId id=0;id<encodedIds.size();++id) order[encodedIds[id]]=id ;
     w.u64(order.size()) ;
     for(TreeNodeId id:order) {
       const auto &cell=cells.at(id) ;
-      w.u64(cell.vertices.size()) ; for(auto v:cell.vertices) w.u64(v) ;
+      w.u64(cell.vertices.size()) ;
+      for(auto v:cell.vertices) w.u64(v) ;
       w.u64(cell.faces.size()) ; for(auto f:cell.faces) { w.u64(f.surface) ; w.u32(f.orientation) ; }
     }
     return w.take() ;
   }
+
+  /// Restore a mapped cell and verify its retained boundary constructions.
   ParametricCorner ParametricCorner::restore(const ParametricRecord &record,HistoryLimits limits) {
-    const auto bounds=historyRecordLimits(limits) ; detail::RecordReader r(record,limits.exact.maxBytes,limits.exact) ;
+    const auto bounds=historyRecordLimits(limits) ;
+    detail::RecordReader r(record,limits.exact.maxBytes,limits.exact) ;
     require(r.u32()==0x434f524e && r.u32()==1,"unsupported corner history version") ;
-    std::vector<int> t(r.count(128,4)) ; for(auto &i:t) i=r.u32() ;
-    auto topology=decodeParametricTopology(t) ; auto history=decodeRefinement(bytes(r,bounds.maxBytes),bounds) ;
+    std::vector<int> t(r.count(128,4)) ;
+    for(auto &i:t) i=r.u32() ;
+    auto topology=decodeParametricTopology(t) ;
+    auto history=decodeRefinement(bytes(r,bounds.maxBytes),bounds) ;
     require(history.rootKey()==topology.id() && history.geometryRevision()==0,"corner history source differs") ;
     ParametricCorner cell(std::move(topology),MappedVolumeSubdivision(std::move(history))) ;
     cell.options.maxNodes=limits.maxNodes ; cell.options.maxSnapshotBytes=limits.exact.maxBytes ; cell.options.jacobianLimits=limits.jacobian ;
     cell.boundaries=decodeBoundaries(bytes(r,bounds.maxBytes),cell.boundaryLimits()) ;
-    const auto count=r.count(limits.maxNodes) ; require(count==cell.subdivision.nodes().size(),"corner connectivity count differs from history") ;
+    const auto count=r.count(limits.maxNodes) ;
+    require(count==cell.subdivision.nodes().size(),"corner connectivity count differs from history") ;
     for(TreeNodeId id=0;id<count;++id) {
       CornerCell c ; c.vertices.resize(r.count(8,8)) ; for(auto &v:c.vertices) { v=r.u64() ; require(v<cell.boundaries.points.size(),"invalid corner vertex") ; }
-      c.faces.resize(r.count(6,12)) ; const auto &e=referenceElement(cell.subdivision.geometry(id)->shape()) ;
+      c.faces.resize(r.count(6,12)) ;
+      const auto &e=referenceElement(cell.subdivision.geometry(id)->shape()) ;
       require(c.vertices.size()==e.vertexCount && c.faces.size()==e.boundaryCount,"corner connectivity shape differs") ;
       for(unsigned f=0;f<c.faces.size();++f) {
         auto &use=c.faces[f] ; use.surface=r.u64() ; use.orientation=r.u32() ;
@@ -231,15 +292,21 @@ namespace FVMAdapt {
       }
       cell.cells.push_back(std::move(c)) ;
     }
-    r.finish() ; cell.validateCells(cell.subdivision,cell.cells) ;
-    const auto &h=cell.subdivision.history() ; const auto geometry=h.geometry().map(h.node(0).map) ;
-    const auto *root=dynamic_cast<const CornerMap *>(geometry.get()) ; const auto cubic=parametricCubicEdges(*geometry) ;
+    r.finish() ;
+    cell.validateCells(cell.subdivision,cell.cells) ;
+
+    // Saved source faces and edges must reproduce the original cell geometry.
+    const auto &h=cell.subdivision.history() ;
+    const auto geometry=h.geometry().map(h.node(0).map) ;
+    const auto *root=dynamic_cast<const CornerMap *>(geometry.get()) ;
+    const auto cubic=parametricCubicEdges(*geometry) ;
     require((root || cubic.size) && geometry->shape()==cell.topology.shape(),"corner source requires its original map") ;
     if(root) {
       require(validParametricSource(*root,limits.jacobian),"invalid or unresolved corner source geometry") ;
       const auto &e=referenceElement(root->shape()) ;
       for(unsigned f=0;f<e.boundaryCount;++f) {
-        const auto use=cell.cells[0].faces[f] ; const auto &face=cell.boundaries.faces[use.surface] ;
+        const auto use=cell.cells[0].faces[f] ;
+        const auto &face=cell.boundaries.faces[use.surface] ;
         const auto *map=std::get_if<CornerRecord>(&cell.boundaries.geometry.record(face.geometry)) ;
         require(face.parent==absent && map && map->shape==e.boundaries[f].shape,"corner source face has no original map") ;
         for(unsigned v=0;v<e.boundaries[f].vertexCount;++v)
@@ -249,9 +316,11 @@ namespace FVMAdapt {
       std::vector<Point> corners ;
       for(auto vertex:cell.cells[0].vertices) corners.push_back(cell.boundaries.points[vertex]) ;
       checkParametricSource(cell.topology,corners,*geometry,{},limits.jacobian) ;
-      CornerBoundary expected ; const auto original=sourceBoundary(expected,cell.topology,corners,false,geometry.get()) ;
+      CornerBoundary expected ;
+      const auto original=sourceBoundary(expected,cell.topology,corners,false,geometry.get()) ;
       for(unsigned f=0;f<cell.topology.faceCount();++f) {
-        const auto use=cell.cells[0].faces[f] ; const auto &face=cell.boundaries.faces[use.surface] ;
+        const auto use=cell.cells[0].faces[f] ;
+        const auto &face=cell.boundaries.faces[use.surface] ;
         const auto &reference=expected.boundaries.faces[original.faces[f].surface] ;
         require(face.parent==absent && use.orientation==original.faces[f].orientation &&
           sameGeometry(cell.boundaries.geometry.map(face.geometry),expected.boundaries.geometry.map(reference.geometry),bounds),
@@ -267,9 +336,12 @@ namespace FVMAdapt {
     return cell ;
   }
 
+  /// Create an original cell defined by its shared face maps.
   ParametricBoundary::ParametricBoundary(const CellTopology &t,const std::vector<Point> &corners,HistoryLimits limits,
       std::shared_ptr<const GeometryMap> source)
     : CornerSubdivision(boundarySubdivision(t,corners,limits,std::move(source))),topology(t) {}
+
+  /// Recover the original physical corner positions.
   std::vector<Point> ParametricBoundary::sourceCorners() const {
     if(const auto source=sourceGeometry()) {
       if(const auto *map=dynamic_cast<const CornerMap *>(source.get())) return map->corners() ;
@@ -277,16 +349,22 @@ namespace FVMAdapt {
       require(edges.size==topology.edgeCount(),"unsupported boundary source geometry") ;
       std::vector<Point> result(topology.vertexCount()) ;
       for(unsigned e=0;e<edges.size;++e) {
-        const auto ends=topology.edgeVertices(e) ; const auto &use=edges[e] ;
+        const auto ends=topology.edgeVertices(e) ;
+        const auto &use=edges[e] ;
         result[ends[0]]=use.edge->controls()[use.reversed ? 3:0] ;
         result[ends[1]]=use.edge->controls()[use.reversed ? 0:3] ;
       }
       return result ;
     }
-    std::vector<Point> result ; for(auto v:node(0).cell.vertices) result.push_back(boundaries.points[v]) ; return result ;
+    std::vector<Point> result ;
+    for(auto v:node(0).cell.vertices) result.push_back(boundaries.points[v]) ;
+    return result ;
   }
+
+  /// Accepted centers in parent face order, independent of local boundary IDs.
   ParametricRecord ParametricBoundary::splitRecord(TreeNodeId parent) const {
-    const auto &split=splits().at(node(parent).split) ; const auto &cell=node(parent).cell ;
+    const auto &split=splits().at(node(parent).split) ;
+    const auto &cell=node(parent).cell ;
     detail::RecordWriter out(limits().exact.maxBytes,limits().exact) ;
     out.u32(unsigned(split.centerMethod)) ; out.u64(split.children.size()) ;
     for(auto x:boundaries.points[split.centerVertex]) out.real(x) ;
@@ -295,35 +373,48 @@ namespace FVMAdapt {
       for(auto x:boundaries.faces[cell.faces[f].surface].splits[split.faceSplits[f]].referenceCenter) out.real(x) ;
     return out.take() ;
   }
+
+  /// Encode a boundary-defined cell and its accepted subdivisions.
   ParametricRecord ParametricBoundary::record() const {
     detail::RecordWriter out(limits().exact.maxBytes,limits().exact) ; out.u32(0x42434f52) ; out.u32(1) ;
-    const auto t=encodeParametricTopology(topology) ; out.u64(t.size()) ; for(int i:t) out.u32(i) ;
-    bytes(out,encode()) ; return out.take() ;
+    const auto t=encodeParametricTopology(topology) ; out.u64(t.size()) ;
+    for(int i:t) out.u32(i) ;
+    bytes(out,encode()) ;
+    return out.take() ;
   }
+
+  /// Restore a boundary-defined cell and validate its source and split records.
   ParametricBoundary ParametricBoundary::restore(const ParametricRecord &record,HistoryLimits limits) {
     detail::RecordReader in(record,limits.exact.maxBytes,limits.exact) ;
     require(in.u32()==0x42434f52 && in.u32()==1,"unsupported boundary cell version") ;
-    std::vector<int> t(in.count(limits.exact.maxBytes/4,4)) ; for(auto &i:t) i=in.u32() ;
+    std::vector<int> t(in.count(limits.exact.maxBytes/4,4)) ;
+    for(auto &i:t) i=in.u32() ;
     auto topology=decodeParametricTopology(t) ;
     auto cells=CornerSubdivision::decode(bytes(in,limits.exact.maxBytes),limits) ; in.finish() ;
     ParametricBoundary result(std::move(topology),std::move(cells)) ;
     require(result.rootKey()==result.topology.id(),"boundary history source differs") ;
-    const auto &root=result.node(0).cell ; const auto &source=result.topology ;
+    const auto &root=result.node(0).cell ;
+    const auto &source=result.topology ;
     if(const auto geometry=result.sourceGeometry()) {
       require(source.isStandard() && source.shape()==Shape::pyramid,"mapped boundary source requires a pyramid") ;
       checkParametricSource(source,result.sourceCorners(),*geometry,{},limits.jacobian) ;
     }
     require(root.vertices.size()==source.vertexCount() && root.faces.size()==source.faceCount(),"boundary source shape differs") ;
     for(unsigned f=0;f<root.faces.size();++f) {
-      const auto use=root.faces[f] ; const auto &face=result.boundaries.faces[use.surface] ; const auto expected=source.faceVertices(f) ; const auto shape=source.faceShape(f) ;
+      const auto use=root.faces[f] ;
+      const auto &face=result.boundaries.faces[use.surface] ;
+      const auto expected=source.faceVertices(f) ;
+      const auto shape=source.faceShape(f) ;
       require(use.orientation==result.topology.faceOrientation(f) && face.parent==absent,"boundary source face orientation differs") ;
       const auto &record=result.boundaries.geometry.record(face.geometry) ;
-      const auto *map=std::get_if<CornerRecord>(&record) ; const auto *fan=std::get_if<FanRecord>(&record) ;
+      const auto *map=std::get_if<CornerRecord>(&record) ;
+      const auto *fan=std::get_if<FanRecord>(&record) ;
       require((map && map->shape==shape) || (fan && fan->shape==shape),"boundary source face map differs") ;
       const auto &corners=map ? map->corners:fan->corners() ;
       require(face.vertices.size()==expected.size() && corners.size()==expected.size(),"boundary source face size differs") ;
       for(unsigned v=0;v<expected.size();++v) {
-        const auto canonical=orientedVertex(unsigned(expected.size()),use.orientation,v) ; const auto vertex=root.vertices[expected[v]] ;
+        const auto canonical=orientedVertex(unsigned(expected.size()),use.orientation,v) ;
+        const auto vertex=root.vertices[expected[v]] ;
         require(face.vertices[canonical]==vertex && corners[canonical]==result.boundaries.points[vertex],"boundary source incidence differs") ;
       }
       const auto sourceGeometry=sourceFaceGeometry(shape,corners) ;
@@ -334,19 +425,27 @@ namespace FVMAdapt {
   }
 
   namespace {
+    // Other incident cells may require edge points absent from this cell's face histories.
     void addOriginalEdgePoints(ParametricCell &cell,const std::vector<ParametricNodeKey> &points) {
-      const auto &topology=cell.cornerTopology() ; const auto &root=cell.cornerCell(0) ;
+      const auto &topology=cell.cornerTopology() ;
+      const auto &root=cell.cornerCell(0) ;
       const auto edges=cell.cornerGeometry().cellEdges(root) ; CornerBoundary::Transaction transaction(cell.cornerGeometry()) ;
       for(const auto &key:points) if(key.reference.kind==EntityKind::edge) {
         for(unsigned e=0;e<topology.edgeCount();++e) if(cell.cornerTopology().edgeId(e)==key.reference.entity) {
-          const auto ends=topology.edgeVertices(e) ; const auto a=ends[0],b=ends[1] ; const bool forward=cell.cornerTopology().vertexId(a)<cell.cornerTopology().vertexId(b) ;
+          const auto ends=topology.edgeVertices(e) ;
+          const auto a=ends[0],b=ends[1] ;
+          const bool forward=cell.cornerTopology().vertexId(a)<cell.cornerTopology().vertexId(b) ;
           auto edge=edges.at(cell.cornerGeometry().endpoints(root.vertices[a],root.vertices[b])),start=root.vertices[forward ? a:b] ;
-          Fraction lo=0,hi=1 ; const auto target=key.reference.point[0] ;
+          Fraction lo=0,hi=1 ;
+          const auto target=key.reference.point[0] ;
           require(target>lo && target<hi,"original edge point is outside its edge") ;
           for(unsigned depth=0;;++depth) {
             require(depth<31,"corner edge point exceeds supported depth") ;
-            const auto midpoint=cell.cornerGeometry().splitEdge(edge,transaction) ; const auto mid=(lo+hi)/Fraction(2) ; if(target==mid) break ;
-            const auto &record=cell.cornerGeometry().boundaries.edges[edge] ; const bool same=record.vertices[0]==start ;
+            const auto midpoint=cell.cornerGeometry().splitEdge(edge,transaction) ;
+            const auto mid=(lo+hi)/Fraction(2) ;
+            if(target==mid) break ;
+            const auto &record=cell.cornerGeometry().boundaries.edges[edge] ;
+            const bool same=record.vertices[0]==start ;
             if(target<mid) { edge=record.children[same ? 0:1].edge ; hi=mid ; }
             else { edge=record.children[same ? 1:0].edge ; start=midpoint ; lo=mid ; }
           }
@@ -354,41 +453,64 @@ namespace FVMAdapt {
       }
       transaction.committed=true ;
     }
+    // Temporary node ownership and leaf coverage for constructing conforming output faces.
     struct CornerView {
-      const ParametricCell &cell ; const BoundaryRecords &b ;
+      const ParametricCell &cell ;
+      const BoundaryRecords &b ;
       std::vector<ParametricNodeKey> keys ;
       struct Cover { int leaf ; bool right,reverse ; } ;
-      std::vector<std::vector<Cover>> covers ; std::vector<bool> active,edgeSplit ;
+      std::vector<std::vector<Cover>> covers ;
+      std::vector<bool> active,edgeSplit ;
+
+      /// Associate active corner-cell faces and nodes with original-entity identities.
       explicit CornerView(const ParametricCell &c) : cell(c),b(c.cornerGeometry().boundaries),covers(b.faces.size()),active(b.faces.size()),edgeSplit(b.edges.size()) {
         for(unsigned v=0;v<b.points.size();++v) keys.push_back({{EntityKind::cell,c.cornerTopology().id(),{{0,0,0}}},int(v)}) ;
-        const auto &topology=c.cornerTopology() ; const auto &root=c.cornerCell(0) ;
+        const auto &topology=c.cornerTopology() ;
+        const auto &root=c.cornerCell(0) ;
         for(unsigned v=0;v<root.vertices.size();++v) keys[root.vertices[v]]={{EntityKind::vertex,c.cornerTopology().vertexId(v),{{0,0,0}}},-1} ;
         const auto edges=c.cornerGeometry().cellEdges(root) ;
         for(unsigned i=0;i<topology.edgeCount();++i) {
-          const auto ends=topology.edgeVertices(i) ; const auto a=ends[0],d=ends[1] ; const bool forward=c.cornerTopology().vertexId(a)<c.cornerTopology().vertexId(d) ;
+          const auto ends=topology.edgeVertices(i) ;
+          const auto a=ends[0],d=ends[1] ;
+          const bool forward=c.cornerTopology().vertexId(a)<c.cornerTopology().vertexId(d) ;
           edgeKeys(edges.at(c.cornerGeometry().endpoints(root.vertices[a],root.vertices[d])),root.vertices[forward ? a:d],c.cornerTopology().edgeId(i),0,1) ;
         }
-        for(unsigned f=0;f<root.faces.size();++f) { int next=0 ; faceKeys(root.faces[f].surface,c.cornerTopology().faceId(f),next) ; }
+        for(unsigned f=0;f<root.faces.size();++f) {
+          int next=0 ;
+          faceKeys(root.faces[f].surface,c.cornerTopology().faceId(f),next) ;
+        }
+
         const auto leaves=c.leafIds() ;
         for(unsigned i=0;i<leaves.size();++i) for(auto use:c.cornerCell(leaves[i]).faces)
           addCover(use.surface,{int(i),false,use.orientation>=b.faces[use.surface].vertices.size()}) ;
       }
+
+      /// Assign exact original-edge coordinates to retained midpoint nodes.
       void edgeKeys(BoundaryId edge,BoundaryId start,EntityId owner,Fraction lo,Fraction hi) {
-        const auto &e=b.edges[edge] ; if(e.cuts.empty()) return ;
+        const auto &e=b.edges[edge] ;
+        if(e.cuts.empty()) return ;
         const auto mid=(lo+hi)/Fraction(2) ; keys[e.cuts[0].vertex]={{EntityKind::edge,owner,{{mid,0,0}}},-1} ;
         const bool forward=e.vertices[0]==start ;
         edgeKeys(e.children[forward ? 0:1].edge,start,owner,lo,mid) ;
         edgeKeys(e.children[forward ? 1:0].edge,e.cuts[0].vertex,owner,mid,hi) ;
       }
+
+      /// Assign a retained boundary vertex its original-face-owned local ID.
       void facePoint(BoundaryId vertex,EntityId owner,int &next) {
         if(keys[vertex].reference.kind==EntityKind::cell) keys[vertex]={{EntityKind::face,owner,{{0,0,0}}},next++} ;
       }
+
+      /// Assign original-face IDs to points along an interior face edge.
       void faceEdgeKeys(BoundaryId edge,BoundaryId start,EntityId owner,int &next) {
-        const auto &e=b.edges[edge] ; if(e.cuts.empty()) return ;
-        facePoint(e.cuts[0].vertex,owner,next) ; const bool forward=e.vertices[0]==start ;
+        const auto &e=b.edges[edge] ;
+        if(e.cuts.empty()) return ;
+        facePoint(e.cuts[0].vertex,owner,next) ;
+        const bool forward=e.vertices[0]==start ;
         faceEdgeKeys(e.children[forward ? 0:1].edge,start,owner,next) ;
         faceEdgeKeys(e.children[forward ? 1:0].edge,e.cuts[0].vertex,owner,next) ;
       }
+
+      /// Assign original-face node identities in retained subdivision order.
       void faceKeys(BoundaryId face,EntityId owner,int &next) {
         const auto &f=b.faces[face] ;
         for(unsigned e=0;e<f.edges.size();++e) faceEdgeKeys(f.edges[e],f.vertices[e],owner,next) ;
@@ -397,26 +519,37 @@ namespace FVMAdapt {
           for(auto child:split.children) faceKeys(child,owner,next) ;
         }
       }
+
+      /// Attach a leaf to a retained face and activate its face ancestors.
       void addCover(BoundaryId face,Cover cover) {
         covers.at(face).push_back(cover) ;
         while(b.faces[face].parent!=absent) { face=b.faces[face].parent ; active[face]=true ; }
       }
+
+      /// Match the opposite cell's retained faces and attach its active leaf coverage.
       void addRight(EntityId face,const ParametricCell &right) {
         std::map<BoundaryId,BoundaryId> ids ;
+
         std::function<void(BoundaryId,BoundaryId)> match=[&](BoundaryId a,BoundaryId r) {
-          ids.emplace(r,a) ; const auto &rf=right.cornerGeometry().boundaries.faces[r] ;
+          ids.emplace(r,a) ;
+          const auto &rf=right.cornerGeometry().boundaries.faces[r] ;
           if(!rf.splits.empty()) for(unsigned i=0;i<rf.splits[0].children.size();++i)
             match(b.faces[a].splits[0].children[i],rf.splits[0].children[i]) ;
         } ;
-        match(cell.cornerFaceId(face),right.cornerFaceId(face)) ; const auto leaves=right.leafIds() ;
+        match(cell.cornerFaceId(face),right.cornerFaceId(face)) ;
+        const auto leaves=right.leafIds() ;
         for(unsigned i=0;i<leaves.size();++i) for(auto use:right.cornerCell(leaves[i]).faces) {
           const auto found=ids.find(use.surface) ;
           if(found!=ids.end()) addCover(found->second,{int(i),true,use.orientation>=right.cornerGeometry().boundaries.faces[use.surface].vertices.size()}) ;
         }
       }
+
+      /// Activate every ancestor of a required boundary-edge division.
       void splitParents(BoundaryId edge) {
         while(b.edges[edge].parent!=absent) { edge=b.edges[edge].parent ; edgeSplit[edge]=true ; }
       }
+
+      /// Identify original and interior surfaces independently of output face numbering.
       std::map<BoundaryId,std::vector<long long>> surfaceNames() const {
         std::map<BoundaryId,std::vector<long long>> names ;
         for(unsigned f=0;f<cell.cornerCell(0).faces.size();++f) names[cell.cornerCell(0).faces[f].surface]={2,static_cast<long long>(cell.cornerTopology().faceId(f))} ;
@@ -432,10 +565,14 @@ namespace FVMAdapt {
         }
         return names ;
       }
+
+      /// Describe a retained face's surface identity, subdivision bounds, orientation, and area.
       FacePatch facePatch(BoundaryId id,bool reverse,const std::map<BoundaryId,std::vector<long long>> &names) const {
-        std::vector<unsigned> path ; auto root=id ;
+        std::vector<unsigned> path ;
+        auto root=id ;
         while(b.faces[root].parent!=absent) {
-          const auto &face=b.faces[root] ; const auto &siblings=b.faces[face.parent].splits.at(face.parentSplit).children ;
+          const auto &face=b.faces[root] ;
+          const auto &siblings=b.faces[face.parent].splits.at(face.parentSplit).children ;
           path.push_back(std::find(siblings.begin(),siblings.end(),root)-siblings.begin()) ; root=face.parent ;
         }
         using Pair=std::array<long long,2> ; constexpr long long extent=1LL<<30 ;
@@ -445,7 +582,8 @@ namespace FVMAdapt {
         // Integer coordinates encode the accepted tree, independently of physical center placement.
         for(auto it=path.rbegin();it!=path.rend();++it) {
           if(patch.sector<0) { patch.sector=*it ; continue ; }
-          const auto old=corners ; const unsigned c=*it ;
+          const auto old=corners ;
+          const unsigned c=*it ;
           require(c<4 && std::abs(old[0][0]-old[2][0])>=2 && std::abs(old[0][1]-old[2][1])>=2,"corner patch exceeds coordinate depth") ;
           corners={{old[c],midpoint(old[c],old[(c+1)%4]),midpoint(old[0],old[2]),midpoint(old[c],old[(c+3)%4])}} ;
         }
@@ -456,6 +594,7 @@ namespace FVMAdapt {
         require(measure.converged && measure.measure>0,"corner face area integration did not converge") ; patch.area=measure.measure ;
         return patch ;
       }
+
       std::vector<ParametricOutputFace> faces(EntityId sourceFace,bool interior,const std::vector<ParametricNodeKey> &required={},bool neighbor=false,
                                                bool recordPatches=false) {
         struct Patch { BoundaryId id ; Cover left ; int right ; } ; std::vector<Patch> patches ;
@@ -464,7 +603,8 @@ namespace FVMAdapt {
         else selected[cell.cornerFaceId(sourceFace)]=true ;
         // Records are ordered parent before children; inherited cell covers need one forward pass.
         for(BoundaryId f=0;f<b.faces.size();++f) {
-          const auto &face=b.faces[f] ; if(face.parent!=absent) selected[f]=selected[face.parent] ;
+          const auto &face=b.faces[f] ;
+          if(face.parent!=absent) selected[f]=selected[face.parent] ;
           if(!selected[f]) continue ;
           auto &incident=covers[f] ;
           if(active[f]) {
@@ -478,12 +618,17 @@ namespace FVMAdapt {
             for(auto edge:face.edges) splitParents(edge) ;
           }
         }
+
+        // Include edge divisions requested by cells outside this face pair.
         const std::set<ParametricNodeKey> needed(required.begin(),required.end()) ;
         for(BoundaryId e=0;e<b.edges.size();++e) for(const auto &cut:b.edges[e].cuts) if(needed.count(keys[cut.vertex])) { edgeSplit[e]=true ; splitParents(e) ; }
+
+        // Emit each final polygon in its left cell's outward orientation.
         const auto names=recordPatches ? surfaceNames():std::map<BoundaryId,std::vector<long long>>{} ;
         std::vector<ParametricOutputFace> result ;
         for(const auto &p:patches) {
-          const auto &f=b.faces[p.id] ; std::vector<BoundaryId> vertices ;
+          const auto &f=b.faces[p.id] ;
+          std::vector<BoundaryId> vertices ;
           for(unsigned e=0;e<f.edges.size();++e) cell.cornerGeometry().edgeVertices(f.edges[e],f.vertices[e],edgeSplit,vertices) ;
           if(p.left.reverse) std::reverse(vertices.begin(),vertices.end()) ;
           ParametricOutputFace face{{},p.left.leaf,p.right} ; for(auto v:vertices) face.vertices.push_back(keys[v]) ;
@@ -494,41 +639,65 @@ namespace FVMAdapt {
       }
     } ;
   }
+
+  /// Active local or shared face polygons, with agreed hanging edge points.
   std::vector<ParametricOutputFace> cornerCellFaces(const ParametricCell &cell,const std::vector<ParametricNodeKey> &required,bool patches) {
-    auto copy=cell ; addOriginalEdgePoints(copy,required) ; return CornerView(copy).faces(0,true,required,false,patches) ;
+    auto copy=cell ;
+    addOriginalEdgePoints(copy,required) ;
+    return CornerView(copy).faces(0,true,required,false,patches) ;
   }
-  std::vector<ParametricOutputFace> cornerFaceFaces(EntityId face,const ParametricCell &left,
+
+  /// Build reconciled polygons on one original face, including shared edge points.
+  std::vector<ParametricOutputFace> cornerFacePieces(EntityId face,const ParametricCell &left,
       const std::vector<ParametricNodeKey> &required,const ParametricCell *right,bool patches) {
-    auto merged=left ; if(right) merged.mergeFace(face,parametricFacePlan(face,*right)) ;
-    addOriginalEdgePoints(merged,required) ; CornerView view(merged) ; if(right) view.addRight(face,*right) ; return view.faces(face,false,required,bool(right),patches) ;
+    auto merged=left ;
+    if(right) merged.mergeFace(face,parametricFacePlan(face,*right)) ;
+    addOriginalEdgePoints(merged,required) ;
+    CornerView view(merged) ;
+    if(right) view.addRight(face,*right) ;
+    return view.faces(face,false,required,bool(right),patches) ;
   }
+
+  /// Own vertex keys in leaf order.
   std::vector<std::vector<ParametricNodeKey>> cornerLeafVertices(const ParametricCell &cell) {
-    const CornerView view(cell) ; std::vector<std::vector<ParametricNodeKey>> result ;
+    const CornerView view(cell) ;
+    std::vector<std::vector<ParametricNodeKey>> result ;
     for(auto leaf:cell.leafIds()) {
       result.emplace_back() ;
       for(auto vertex:cell.cornerCell(leaf).vertices) result.back().push_back(view.keys.at(vertex)) ;
     }
     return result ;
   }
+
+  /// List active output nodes owned by the requested original entity.
   std::vector<ParametricNodeKey> cornerNodes(const ParametricCell &cell,EntityKind kind,EntityId owner,const ParametricCell *right) {
-    const auto faces=kind==EntityKind::cell ? cornerCellFaces(cell,{}) : cornerFaceFaces(owner,cell,{},right) ;
+    const auto faces=kind==EntityKind::cell ? cornerCellFaces(cell,{}) : cornerFacePieces(owner,cell,{},right) ;
     std::set<ParametricNodeKey> keys ;
     for(const auto &f:faces) for(const auto &key:f.vertices) if(key.reference.kind==kind && key.reference.entity==owner) keys.insert(key) ;
     return {keys.begin(),keys.end()} ;
   }
+
+  /// Evaluate requested retained node identities in physical space.
   std::vector<Point> cornerPositions(const ParametricCell &cell,const std::vector<ParametricNodeKey> &keys) {
-    const CornerView view(cell) ; std::map<ParametricNodeKey,Point> positions ;
+    const CornerView view(cell) ;
+    std::map<ParametricNodeKey,Point> positions ;
     for(unsigned i=0;i<view.keys.size();++i) positions.emplace(view.keys[i],cell.cornerPosition(i)) ;
-    std::vector<Point> result ; for(const auto &key:keys) result.push_back(positions.at(key)) ; return result ;
+    std::vector<Point> result ;
+    for(const auto &key:keys) result.push_back(positions.at(key)) ;
+    return result ;
   }
+
+  /// Record active leaf intervals and depths along original edges.
   ParametricTrace cornerEdgeTrace(const ParametricCell &c) {
     const CornerView view(c) ;
     const auto &t=c.cornerTopology() ;
     const auto leaves=c.leafIds() ;
     ParametricTrace out ;
     for(unsigned i=0;i<leaves.size();++i) for(unsigned edge=0;edge<t.edgeCount();++edge) {
-      const auto vertices=t.edgeVertices(edge) ; const auto a=t.vertexId(vertices[0]),b=t.vertexId(vertices[1]) ;
-      const auto ends=std::minmax(a,b) ; std::vector<Fraction> cuts ;
+      const auto vertices=t.edgeVertices(edge) ;
+      const auto a=t.vertexId(vertices[0]),b=t.vertexId(vertices[1]) ;
+      const auto ends=std::minmax(a,b) ;
+      std::vector<Fraction> cuts ;
       for(auto v:c.cornerCell(leaves[i]).vertices) {
         const auto &p=view.keys[v].reference ;
         if(p.kind==EntityKind::edge && p.entity==t.edgeId(edge)) cuts.push_back(p.point[0]) ;
@@ -542,19 +711,28 @@ namespace FVMAdapt {
     }
     return out ;
   }
+
+  /// Return the active depth touching each original vertex.
   std::vector<int> cornerVertexDepths(const ParametricCell &c) {
-    const auto &root=c.cornerCell(0).vertices ; std::vector<int> out(root.size()) ;
+    const auto &root=c.cornerCell(0).vertices ;
+    std::vector<int> out(root.size()) ;
     for(auto leaf:c.leafIds()) {
-      const auto &vertices=c.cornerCell(leaf).vertices ; const int depth=c.path(leaf).size() ;
+      const auto &vertices=c.cornerCell(leaf).vertices ;
+      const int depth=c.path(leaf).size() ;
       for(unsigned v=0;v<root.size();++v)
         if(std::find(vertices.begin(),vertices.end(),root[v])!=vertices.end()) out[v]=std::max(out[v],depth) ;
     }
     return out ;
   }
+
+  /// Find corner-cell leaves too coarse for neighboring original-vertex depths.
   std::vector<int> cornerVertexRequests(const ParametricCell &c,const std::map<EntityId,int> &depth,unsigned difference) {
-    std::vector<int> out ; const auto leaves=c.leafIds() ; const auto &root=c.cornerCell(0).vertices ;
+    std::vector<int> out ;
+    const auto leaves=c.leafIds() ;
+    const auto &root=c.cornerCell(0).vertices ;
     for(unsigned i=0;i<leaves.size();++i) {
-      const auto &vertices=c.cornerCell(leaves[i]).vertices ; const int own=c.path(leaves[i]).size() ;
+      const auto &vertices=c.cornerCell(leaves[i]).vertices ;
+      const int own=c.path(leaves[i]).size() ;
       for(unsigned v=0;v<root.size();++v) {
         const int other=depth.at(c.cornerTopology().vertexId(v)) ;
         if(other>own && unsigned(other-own)>difference && std::find(vertices.begin(),vertices.end(),root[v])!=vertices.end()) {
@@ -564,8 +742,12 @@ namespace FVMAdapt {
     }
     return out ;
   }
+
+  /// Express retained face-node identities in the original face coordinates.
   std::map<ParametricNodeKey,ReferencePoint> cornerFaceCoordinates(EntityId face,const ParametricCell &cell) {
-    const CornerView view(cell) ; const auto &b=view.b ; const auto root=cell.cornerFaceId(face) ;
+    const CornerView view(cell) ;
+    const auto &b=view.b ;
+    const auto root=cell.cornerFaceId(face) ;
     const unsigned count=b.faces[root].vertices.size() ;
     require(count==3 || count==4,"mixed faces require three or four source vertices") ;
     std::map<BoundaryId,ReferencePoint> points ;
@@ -573,15 +755,21 @@ namespace FVMAdapt {
       const auto old=points.emplace(id,p) ; require(old.second || old.first->second==p,"corner face coordinates disagree") ;
     } ;
     for(unsigned v=0;v<count;++v) assign(b.faces[root].vertices[v],referenceVertex(count==3 ? Shape::triangle:Shape::quad,v)) ;
+
     std::function<void(BoundaryId)> edgePoints=[&](BoundaryId id) {
-      const auto &edge=b.edges[id] ; const auto a=points.at(edge.vertices[0]),c=points.at(edge.vertices[1]) ;
+      const auto &edge=b.edges[id] ;
+      const auto a=points.at(edge.vertices[0]),c=points.at(edge.vertices[1]) ;
       for(const auto &cut:edge.cuts) {
-        ReferencePoint p ; for(unsigned d=0;d<3;++d) p[d]=a[d]+cut.position*(c[d]-a[d]) ; assign(cut.vertex,p) ;
+        ReferencePoint p ;
+        for(unsigned d=0;d<3;++d) p[d]=a[d]+cut.position*(c[d]-a[d]) ;
+        assign(cut.vertex,p) ;
       }
       for(const auto &child:edge.children) edgePoints(child.edge) ;
     } ;
+
     std::function<void(BoundaryId)> facePoints=[&](BoundaryId id) {
-      const auto &f=b.faces[id] ; for(auto edge:f.edges) edgePoints(edge) ;
+      const auto &f=b.faces[id] ;
+      for(auto edge:f.edges) edgePoints(edge) ;
       for(const auto &split:f.splits) {
         const Point expected=f.vertices.size()==3 ? Point{{1./3.,1./3.,0}}:Point{{.5,.5,0}} ;
         require(split.referenceCenter==expected,"mixed faces currently require midpoint face centers") ;
@@ -591,7 +779,8 @@ namespace FVMAdapt {
         for(auto child:split.children) facePoints(child) ;
       }
     } ;
-    facePoints(root) ; std::map<ParametricNodeKey,ReferencePoint> result ;
+    facePoints(root) ;
+    std::map<ParametricNodeKey,ReferencePoint> result ;
     for(const auto &entry:points) result.emplace(view.keys.at(entry.first),entry.second) ;
     return result ;
   }

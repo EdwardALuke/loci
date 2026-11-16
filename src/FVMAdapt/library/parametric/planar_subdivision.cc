@@ -28,6 +28,7 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
+    /// Evaluate a straight edge at an exact fractional position.
     Point interpolate(const Point &a, const Point &b, const Fraction &position) {
       Point result ;
       const long double t=position.rational().convert_to<long double>() ;
@@ -35,12 +36,18 @@ namespace FVMAdapt {
       for(unsigned d=0; d<3; ++d) result[d]=static_cast<double>(s*a[d]+t*b[d]) ;
       return result ;
     }
+
+    /// Identify an original polygon corner.
     PlanarVertexKey cornerPoint(unsigned corner) {
       PlanarVertexKey result ; result.corner=corner ; return result ;
     }
+
+    /// Identify the center retained by a particular split construction.
     PlanarVertexKey centerPoint(const PlanarSplitKey &owner) {
       PlanarVertexKey result ; result.kind=PlanarVertexKey::Kind::center ; result.owner=owner ; return result ;
     }
+
+    /// Retain a validated planar polygon as an unsplit history.
     RefinementHistory initialHistory(std::vector<Point> corners, std::uint64_t root,
                                      std::uint64_t revision, HistoryLimits limits) {
       validatePlanarPolygon(corners) ;
@@ -49,6 +56,7 @@ namespace FVMAdapt {
       const auto map=geometry.append(CornerRecord{shape,std::move(corners)}) ;
       return RefinementHistory(root,std::move(geometry),map,revision,limits) ;
     }
+
     HistoryLimits nodeLimit(std::size_t maxNodes) {
       HistoryLimits limits ; limits.maxNodes=maxNodes ; return limits ;
     }
@@ -58,19 +66,23 @@ namespace FVMAdapt {
     return a.parent == b.parent && bool(a.construction) == bool(b.construction) &&
       (!a.construction || *a.construction == *b.construction) ;
   }
+
   bool operator<(const PlanarSplitKey &a, const PlanarSplitKey &b) {
     if(a.parent != b.parent) return a.parent < b.parent ;
     if(bool(a.construction) != bool(b.construction)) return bool(a.construction) < bool(b.construction) ;
     return a.construction && *a.construction < *b.construction ;
   }
+
   bool operator==(const PlanarEdgeKey &a, const PlanarEdgeKey &b) {
     return a.original == b.original && a.index == b.index && (a.original || a.owner == b.owner) ;
   }
+
   bool operator<(const PlanarEdgeKey &a, const PlanarEdgeKey &b) {
     if(a.original != b.original) return a.original < b.original ;
     if(!a.original && !(a.owner == b.owner)) return a.owner < b.owner ;
     return a.index < b.index ;
   }
+
   bool operator==(const PlanarVertexKey &a, const PlanarVertexKey &b) {
     if(a.kind != b.kind) return false ;
     switch(a.kind) {
@@ -80,6 +92,7 @@ namespace FVMAdapt {
     }
     return false ;
   }
+
   bool operator<(const PlanarVertexKey &a, const PlanarVertexKey &b) {
     if(a.kind != b.kind) return a.kind < b.kind ;
     switch(a.kind) {
@@ -97,6 +110,7 @@ namespace FVMAdapt {
                                        std::uint64_t revision, HistoryLimits limits)
     : PlanarSubdivision(initialHistory(std::move(corners),root,revision,limits)) {}
 
+  /// Rebuild planar node geometry and persistent point identities from history.
   PlanarSubdivision::PlanarSubdivision(RefinementHistory saved) : edit_(std::move(saved)) {
     const auto &history=this->history() ;
     const auto *rootMap=dynamic_cast<const CornerMap*>(history.geometry().map(history.node(0).map).get()) ;
@@ -138,6 +152,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Follow child ordinals through the selected planar constructions.
   TreeNodeId PlanarSubdivision::nodeId(const CellPath &path) const {
     TreeNodeId id=0 ;
     for(unsigned ordinal : path) {
@@ -150,6 +165,7 @@ namespace FVMAdapt {
 
   std::vector<TreeNodeId> PlanarSubdivision::leafIds() const { return history().leafIds() ; }
 
+  /// Find the parent node that owns a retained planar construction.
   TreeNodeId PlanarSubdivision::ownerNode(const PlanarSplitKey &owner) const {
     if(!owner.construction || !owner.construction->planar)
       throw std::invalid_argument("planar edge has no accepted construction") ;
@@ -157,10 +173,12 @@ namespace FVMAdapt {
     return history().node(history().nodeId(child)).parent ;
   }
 
+  /// Identify a point on a retained edge using its exact fractional position.
   PlanarVertexKey PlanarSubdivision::vertexAt(const PlanarEdgeKey &edge, Fraction position) const {
     ExactBudget budget(history().limits().exact) ; return vertexAt(edge,std::move(position),budget) ;
   }
 
+  /// Identify a point on a retained edge using its exact fractional position.
   PlanarVertexKey PlanarSubdivision::vertexAt(const PlanarEdgeKey &edge, Fraction position, ExactBudget &budget) const {
     budget.operations(1+edge.owner.parent.lineage.size()) ; budget.check(position) ;
     if(position < Fraction(0) || position > Fraction(1))
@@ -184,10 +202,12 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Recover the physical position of an original or retained planar vertex.
   Point PlanarSubdivision::evaluate(const PlanarVertexKey &vertex) const {
     ExactBudget budget(history().limits().exact) ; return evaluate(vertex,budget) ;
   }
 
+  /// Recover the physical position of an original or retained planar vertex.
   Point PlanarSubdivision::evaluate(const PlanarVertexKey &vertex, ExactBudget &budget) const {
     budget.operations() ;
     const auto stored=points_.find(vertex) ;
@@ -199,6 +219,7 @@ namespace FVMAdapt {
                        evaluate(vertexAt(vertex.edge,Fraction(1),budget),budget),vertex.position) ;
   }
 
+  /// Construct planar children using shared edge points and the selected center method.
   PlanarSplit PlanarSubdivision::proposedSplit(TreeNodeId parent, CenterMethod method, MeasureOptions options) const {
     std::vector<Point> corners, midpoints ;
     for(const auto &vertex : node(parent).corners) corners.push_back(evaluate(vertex)) ;
@@ -207,6 +228,7 @@ namespace FVMAdapt {
     return splitPlanarPolygon(corners,midpoints,method,options) ;
   }
 
+  /// Recover retained child geometry and shared point identities.
   std::vector<PlanarNode> PlanarSubdivision::childNodes(TreeNodeId parentId, const PlanarSplitKey &owner) const {
     const auto &parent=node(parentId) ; const unsigned count=parent.corners.size() ;
     std::vector<PlanarNode> children ; children.reserve(count) ;
@@ -231,6 +253,7 @@ namespace FVMAdapt {
     return children ;
   }
 
+  /// Retain a planar split and the identities of its child vertices.
   std::vector<TreeNodeId> PlanarSubdivision::splitLeaf(TreeNodeId leaf, CenterMethod method, MeasureOptions options) {
     static_assert(std::is_nothrow_move_constructible<PlanarNode>::value,"planar publication requires nonthrowing moves") ;
     if(!node(leaf).isLeaf() || !history().active(leaf))
@@ -259,15 +282,18 @@ namespace FVMAdapt {
     points_.merge(points) ; nodes_[leaf].children=std::move(ids) ; return result ;
   }
 
+  /// Select the parent of a complete active leaf family.
   CellChange PlanarSubdivision::coarsen(TreeNodeId parent) {
     auto result=edit_.coarsen(parent) ; nodes_[parent].children.clear() ; return result ;
   }
 
+  /// Replace a leaf family with a new planar construction.
   CellChange PlanarSubdivision::replace(TreeNodeId parent, CenterMethod method, MeasureOptions options) {
     HistoryEdit candidate(history()) ; auto change=candidate.replace(parent,proposedSplit(parent,method,options)) ;
     PlanarSubdivision accepted(std::move(candidate).finish()) ; swap(accepted) ; return change ;
   }
 
+  /// Select an already retained planar construction.
   CellChange PlanarSubdivision::reactivate(TreeNodeId parent, const SplitConstruction &construction) {
     const auto retained = history().retainedChildren(parent,construction) ;
     std::vector<TreeNodeId> children(retained.begin(),retained.end()) ;
@@ -275,8 +301,10 @@ namespace FVMAdapt {
     nodes_[parent].children = std::move(children) ; return change ;
   }
 
+  /// Discard inactive records and rebuild retained point identities.
   void PlanarSubdivision::compact() { PlanarSubdivision accepted(compactHistory(history())) ; swap(accepted) ; }
 
+  /// Validate a replacement history before rebuilding its planar node cache.
   void PlanarSubdivision::restoreHistory(RefinementHistory saved) {
     if(saved.rootKey() != history().rootKey() || saved.geometryRevision() != history().geometryRevision())
       throw std::invalid_argument("planar history belongs to a different root or geometry revision") ;

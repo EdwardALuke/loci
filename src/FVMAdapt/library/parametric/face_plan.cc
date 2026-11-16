@@ -17,6 +17,7 @@ namespace FVMAdapt {
     using detail::writeDivision ;
     using detail::header ;
 
+    /// Encode edge divisions starting from the supplied endpoint.
     void writeEdge(detail::RecordWriter &out, const BoundaryRecords &b, BoundaryId id, BoundaryId start, Budget &budget, unsigned depth) {
       budget.visit(depth) ; const auto &edge = b.edges.at(id) ;
       require(start == edge.vertices[0] || start == edge.vertices[1],"face plan edge endpoint differs") ;
@@ -27,6 +28,8 @@ namespace FVMAdapt {
       writeEdge(out,b,edge.children[reverse ? 1 : 0].edge,start,budget,depth+1) ;
       writeEdge(out,b,edge.children[reverse ? 0 : 1].edge,edge.cuts[0].vertex,budget,depth+1) ;
     }
+
+    /// Encode a face construction and its edge and child divisions.
     void writeFace(detail::RecordWriter &out, const BoundaryRecords &b, BoundaryId id, Budget &budget, unsigned depth) {
       budget.visit(depth) ; const auto &face = b.faces.at(id) ; const auto n = face.vertices.size() ;
       require(n >= 3 && face.edges.size() == n && face.splits.size() <= 1,"face plan requires one polygon construction") ;
@@ -40,6 +43,8 @@ namespace FVMAdapt {
         for(auto child : face.splits[0].children) writeFace(out,b,child,budget,depth+1) ;
       }
     }
+
+    /// Retain every edge division requested by either plan.
     bool mergeEdge(Reader *a, Reader *b, detail::RecordWriter &out, Budget &budget, unsigned depth) {
       budget.visit(depth) ; const bool left = a && a->edge(depth), right = b && b->edge(depth) ;
       budget.division(left || right) ;
@@ -48,6 +53,8 @@ namespace FVMAdapt {
         mergeEdge(left ? a : nullptr,right ? b : nullptr,out,budget,depth+1) ;
       return left || right ;
     }
+
+    /// Combine face divisions, requiring a shared split point wherever both plans divide.
     bool mergeFace(Reader *a, Reader *b, detail::RecordWriter &out, Budget &budget, unsigned n, unsigned depth) {
       budget.visit(depth) ; const auto left = a ? a->face(n,depth) : Division{}, right = b ? b->face(n,depth) : Division{} ;
       auto division = left.split ? left : right ;
@@ -63,6 +70,8 @@ namespace FVMAdapt {
         mergeFace(left.split ? a : nullptr,right.split ? b : nullptr,out,budget,4,depth+1) ;
       return changed ;
     }
+
+    /// Recreate recorded midpoint divisions in endpoint order.
     void applyEdge(Reader &in, CornerBoundary &b, BoundaryId id, BoundaryId start, CornerBoundary::Transaction &edit, unsigned depth) {
       if(!in.edge(depth)) return ;
       const auto middle = b.splitEdge(id,edit) ; const auto edge = b.boundaries.edges[id] ;
@@ -70,6 +79,8 @@ namespace FVMAdapt {
       applyEdge(in,b,edge.children[reverse ? 1 : 0].edge,start,edit,depth+1) ;
       applyEdge(in,b,edge.children[reverse ? 0 : 1].edge,middle,edit,depth+1) ;
     }
+
+    /// Recreate recorded face and edge divisions in the current boundary.
     void applyFace(Reader &in, CornerBoundary &b, BoundaryId id, CornerBoundary::Transaction &edit, unsigned depth) {
       const auto face = b.boundaries.faces.at(id) ; const auto n = face.vertices.size() ;
       const auto division = in.face(n,depth) ;
@@ -85,6 +96,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Save the divisions of one original face; an empty plan denotes no divisions.
   FacePlan encodeFacePlan(const BoundaryRecords &b, BoundaryId id, const BoundaryRecordLimits &limits) {
     const auto &face = b.faces.at(id) ; bool divided = !face.splits.empty() ;
     for(auto edge : face.edges) divided = divided || !b.edges.at(edge).cuts.empty() ;
@@ -92,6 +104,8 @@ namespace FVMAdapt {
     detail::RecordWriter out(limits.maxBytes,limits.geometry.exact) ; header(out,face.vertices.size()) ;
     Budget budget{limits} ; writeFace(out,b,id,budget,0) ; return out.take() ;
   }
+
+  /// Form one shared division plan from two neighboring cells.
   FacePlan mergeFacePlans(const FacePlan &a, const FacePlan &b, const BoundaryRecordLimits &limits) {
     if(a.empty() && b.empty()) return {} ;
     std::optional<Reader> left, right ;
@@ -105,6 +119,8 @@ namespace FVMAdapt {
     if(right) right->input.finish() ;
     return divided ? out.take() : FacePlan{} ;
   }
+
+  /// Apply a face plan atomically and report whether it adds vertices.
   bool applyFacePlan(CornerBoundary &b, BoundaryId id, const FacePlan &plan) {
     if(plan.empty()) return false ;
     const auto limits = b.boundaryLimits() ; Reader in(plan,limits) ;

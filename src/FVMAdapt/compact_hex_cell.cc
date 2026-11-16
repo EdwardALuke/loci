@@ -11,35 +11,47 @@ namespace FVMAdapt {
   namespace {
     constexpr unsigned absent = std::numeric_limits<unsigned>::max() ;
     using Quad = std::array<unsigned,4> ;
+
     void require(bool ok,const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
     Point midpoint(const Point &a,const Point &b) {
       Point p ;
       for(unsigned d=0;d<3;++d) p[d]=(a[d]+b[d])/2 ;
       return p ;
     }
+
+    /// Return the reference connectivity of an isotropic hex split.
     const VertexVolumeSplit &hexSplitPattern() {
       static const auto split=splitVertexVolume(Shape::hex,std::vector<Point>(6,{{.5,.5,0}}),{{.5,.5,.5}}) ;
       return split ;
     }
+
+    /// Compose one child's reference placement with its parent geometry.
     std::shared_ptr<const GeometryMap> placedChild(std::shared_ptr<const GeometryMap> parent,
                                                   const VertexVolumeSplit &split,unsigned child) {
-      std::vector<Point> points ; for(auto v:split.children.at(child).vertices) points.push_back(split.points[v]) ;
+      std::vector<Point> points ;
+      for(auto v:split.children.at(child).vertices) points.push_back(split.points[v]) ;
       return std::make_shared<RestrictedMap>(std::move(parent),std::make_shared<CornerMap>(Shape::hex,std::move(points))) ;
     }
+
     // Expand only for a boundary-singularity proof; ordinary cells use compact evaluators.
     std::shared_ptr<const GeometryMap> placedCell(std::shared_ptr<const GeometryMap> source,const HexPlan &plan,unsigned id) {
       std::vector<unsigned> path ;
       for(auto cell=id;cell!=HexPlan::root;cell=plan.parent(cell)) path.push_back(cell) ;
       std::shared_ptr<const GeometryMap> map=std::move(source) ;
       for(auto i=path.rbegin();i!=path.rend();++i) {
-        const auto parent=plan.parent(*i) ; const auto siblings=plan.children(parent) ;
+        const auto parent=plan.parent(*i) ;
+        const auto siblings=plan.children(parent) ;
         map=placedChild(std::move(map),plan.construction(parent),std::find(siblings.begin(),siblings.end(),*i)-siblings.begin()) ;
       }
       return map ;
     }
+
+    /// Find the rotation or reversal relating two ordered quad vertex lists.
     unsigned orientation(const Quad &local,const Quad &canonical) {
       for(unsigned o=0;o<8;++o) {
-        bool match=true ; for(unsigned v=0;v<4;++v) match=match && local[v]==canonical[orientedVertex(Shape::quad,o,v)] ;
+        bool match=true ;
+        for(unsigned v=0;v<4;++v) match=match && local[v]==canonical[orientedVertex(Shape::quad,o,v)] ;
         if(match) return o ;
       }
       throw std::invalid_argument("hex output face incidence differs") ;
@@ -84,10 +96,13 @@ namespace FVMAdapt {
       std::vector<Cell> cells ;
       std::map<std::pair<unsigned,unsigned>,unsigned> edgeIds ;
 
+      /// Bound the temporary vertex, edge, and face storage.
       void checkEntity() const {
         if(locations.size()+edges.size()+faces.size()>=BoundaryRecordLimits().maxEntities)
           throw std::length_error("hex output entity limit exceeded") ;
       }
+
+      /// Allocate a temporary vertex with coordinates on its owning geometry.
       unsigned addPoint(Location location) {
         checkEntity() ;
         const unsigned id=locations.size() ;
@@ -95,6 +110,8 @@ namespace FVMAdapt {
         keys.push_back({{EntityKind::cell,saved.topology.id(),{{0,0,0}}},int(id)}) ;
         return id ;
       }
+
+      /// Reuse a temporary edge with the same endpoint pair.
       unsigned findOrAddEdge(unsigned a,unsigned b,unsigned face,Point p,Point q,unsigned parent=absent) {
         const std::pair<unsigned,unsigned> ends=std::minmax(a,b) ;
         const auto found=edgeIds.find(ends) ;
@@ -111,11 +128,18 @@ namespace FVMAdapt {
         edgeIds.emplace(ends,id) ;
         return id ;
       }
+
+      /// Add a quad and attach its shared temporary edges.
       unsigned addFace(Face f) {
-        checkEntity() ; const unsigned id=faces.size() ; faces.push_back(f) ; const auto &quad=referenceElement(Shape::quad) ;
+        checkEntity() ;
+        const unsigned id=faces.size() ;
+        faces.push_back(f) ;
+        const auto &quad=referenceElement(Shape::quad) ;
         for(unsigned e=0;e<4;++e) faces[id].edges[e]=findOrAddEdge(f.vertices[e],f.vertices[(e+1)%4],id,quad.vertices[e],quad.vertices[(e+1)%4]) ;
         return id ;
       }
+
+      /// Retain one midpoint and two children for a temporary edge.
       unsigned splitEdge(unsigned id) {
         if(edges[id].middle!=absent) return edges[id].middle ;
         const auto edge=edges[id] ;
@@ -127,32 +151,51 @@ namespace FVMAdapt {
         edges[id].children={{first,second}} ;
         return mid ;
       }
+
+      /// Restore edge divisions in the requested endpoint direction.
       void readEdge(detail::FacePlanReader &in,unsigned id,unsigned start,unsigned depth) {
         if(!in.edge(depth)) return ;
-        const auto mid=splitEdge(id) ; const auto e=edges[id] ; const bool reverse=e.vertices[0]!=start ;
-        readEdge(in,e.children[reverse ? 1:0],start,depth+1) ; readEdge(in,e.children[reverse ? 0:1],mid,depth+1) ;
+        const auto mid=splitEdge(id) ;
+        const auto e=edges[id] ;
+        const bool reverse=e.vertices[0]!=start ;
+        readEdge(in,e.children[reverse ? 1:0],start,depth+1) ;
+        readEdge(in,e.children[reverse ? 0:1],mid,depth+1) ;
       }
+
+      /// Create four corner quads using one accepted face center.
       void divideFace(unsigned id,const Point &center,CenterMethod method) {
         const auto f=faces[id] ;
-        if(f.centerVertex!=absent) { require(f.center==center,"hex face centers disagree") ; return ; }
+        if(f.centerVertex!=absent) {
+          require(f.center==center,"hex face centers disagree") ;
+          return ;
+        }
         faces[id].center=center ; faces[id].method=method ;
-        const auto vertex=addPoint({id,absent,center}) ; faces[id].centerVertex=vertex ;
-        Quad mid ; for(unsigned e=0;e<4;++e) mid[e]=splitEdge(f.edges[e]) ;
+        const auto vertex=addPoint({id,absent,center}) ;
+        faces[id].centerVertex=vertex ;
+        Quad mid ;
+        for(unsigned e=0;e<4;++e) mid[e]=splitEdge(f.edges[e]) ;
         const auto &q=referenceElement(Shape::quad) ;
         for(unsigned e=0;e<4;++e) findOrAddEdge(mid[e],vertex,id,midpoint(q.vertices[e],q.vertices[(e+1)%4]),center) ;
         for(unsigned v=0;v<4;++v) {
           Face child ; child.parent=id ; child.corner=v ; child.exterior=f.exterior ;
           child.vertices={{f.vertices[v],mid[v],vertex,mid[(v+3)%4]}} ;
-          const auto next=addFace(child) ; faces[id].children[v]=next ;
+          const auto next=addFace(child) ;
+          faces[id].children[v]=next ;
         }
       }
+
+      /// Restore a quad's accepted division and its descendant face plans.
       void readFace(detail::FacePlanReader &in,unsigned id,unsigned depth) {
-        const auto division=in.face(4,depth) ; const auto f=faces[id] ;
+        const auto division=in.face(4,depth) ;
+        const auto f=faces[id] ;
         for(unsigned e=0;e<4;++e) readEdge(in,f.edges[e],f.vertices[e],depth) ;
         if(!division.split) return ;
         divideFace(id,division.center,division.method) ;
-        const auto children=faces[id].children ; for(auto child:children) readFace(in,child,depth+1) ;
+        const auto children=faces[id].children ;
+        for(auto child:children) readFace(in,child,depth+1) ;
       }
+
+      /// Merge a complete received face plan into temporary boundary incidence.
       void readFacePlan(unsigned face,const FacePlan &plan) {
         if(plan.empty()) return ;
         BoundaryRecordLimits limits ;
@@ -162,11 +205,15 @@ namespace FVMAdapt {
         readFace(in,face,0) ;
         in.input.finish() ;
       }
+
+      /// List a cell face's temporary vertices in native hex order.
       Quad faceVertices(const Cell &cell,unsigned f) const {
         Quad vertices ; const auto &boundary=referenceElement(Shape::hex).boundaries[f] ;
         for(unsigned v=0;v<4;++v) vertices[v]=cell.vertices[boundary.vertices[v]] ;
         return vertices ;
       }
+
+      /// Attach the eight accepted children to shared boundary and interior faces.
       void buildChildren(unsigned split) {
         const auto parent=saved.plan.splitParent(split) ;
         const auto parentCell=cells.at(parent) ;
@@ -206,23 +253,33 @@ namespace FVMAdapt {
           assignFace(pair.second,id) ;
         }
       }
+
+      /// Assign original-edge identities and exact edge coordinates to midpoint nodes.
       void edgeKeys(unsigned id,unsigned start,EntityId owner,Fraction lo,Fraction hi) {
         const auto &e=edges[id] ; if(e.middle==absent) return ; const auto mid=(lo+hi)/Fraction(2) ;
         keys[e.middle]={{EntityKind::edge,owner,{{mid,0,0}}},-1} ; const bool reverse=e.vertices[0]!=start ;
         edgeKeys(e.children[reverse ? 1:0],start,owner,lo,mid) ; edgeKeys(e.children[reverse ? 0:1],e.middle,owner,mid,hi) ;
       }
+
+      /// Assign an original-face-owned node its local face ID.
       void facePoint(unsigned vertex,EntityId owner,int &next) {
         if(keys[vertex].reference.kind==EntityKind::cell) keys[vertex]={{EntityKind::face,owner,{{0,0,0}}},next++} ;
       }
+
+      /// Assign face-owned IDs along an internal face edge.
       void faceEdgeKeys(unsigned id,unsigned start,EntityId owner,int &next) {
         const auto &e=edges[id] ; if(e.middle==absent) return ; facePoint(e.middle,owner,next) ; const bool reverse=e.vertices[0]!=start ;
         faceEdgeKeys(e.children[reverse ? 1:0],start,owner,next) ; faceEdgeKeys(e.children[reverse ? 0:1],e.middle,owner,next) ;
       }
+
+      /// Assign face-owned IDs in retained subdivision order.
       void faceKeys(unsigned id,EntityId owner,int &next) {
         const auto &f=faces[id] ; for(unsigned e=0;e<4;++e) faceEdgeKeys(f.edges[e],f.vertices[e],owner,next) ;
         if(f.centerVertex==absent) return ;
         facePoint(f.centerVertex,owner,next) ; for(auto child:f.children) faceKeys(child,owner,next) ;
       }
+
+      /// Reconstruct temporary incidence for the retained hex cells and face divisions.
       explicit HexBoundary(const CompactHexCell &state,const std::vector<ParametricNodeKey> &required={},bool forOutput=true)
         : saved(state),source(state.sourceMap()) {
         const auto &hex=referenceElement(Shape::hex) ; const auto &t=saved.topology ; Cell root ;
@@ -273,6 +330,8 @@ namespace FVMAdapt {
           while(faces[f].parent!=absent) { f=faces[f].parent ; faces[f].active=true ; }
         }
       }
+
+      /// Compose a retained face placement with its original physical geometry.
       std::shared_ptr<const GeometryMap> faceGeometry(unsigned id) const {
         const auto &f=faces[id] ; const auto &q=referenceElement(Shape::quad) ;
         if(f.parent!=absent) {
@@ -286,6 +345,8 @@ namespace FVMAdapt {
         return std::make_shared<RestrictedMap>(std::make_shared<HexCellMap>(*source,saved.plan,f.cell),
           std::make_shared<CornerMap>(Shape::quad,std::move(corners))) ;
       }
+
+      /// Encode edge divisions starting from the requested endpoint.
       void writeEdge(detail::RecordWriter &out,unsigned id,unsigned start,detail::FacePlanBudget &budget,unsigned depth) const {
         budget.visit(depth) ; const auto &e=edges[id] ; const bool divided=e.middle!=absent ;
         budget.division(divided) ; out.byte(divided) ; if(!divided) return ;
@@ -293,12 +354,16 @@ namespace FVMAdapt {
         writeEdge(out,e.children[reverse ? 1:0],start,budget,depth+1) ;
         writeEdge(out,e.children[reverse ? 0:1],e.middle,budget,depth+1) ;
       }
+
+      /// Encode a quad's accepted center and its face and edge descendants.
       void writeFace(detail::RecordWriter &out,unsigned id,detail::FacePlanBudget &budget,unsigned depth) const {
         budget.visit(depth) ; const auto &f=faces[id] ; const bool divided=f.centerVertex!=absent ; budget.division(divided) ;
         detail::writeDivision(out,{divided,f.method,f.center},4) ;
         for(unsigned e=0;e<4;++e) writeEdge(out,f.edges[e],f.vertices[e],budget,depth) ;
         if(divided) for(auto child:f.children) writeFace(out,child,budget,depth+1) ;
       }
+
+      /// Encode one temporary face tree, using an empty record for an unsplit face.
       FacePlan record(unsigned id) const {
         const auto &f=faces[id] ; bool divided=f.centerVertex!=absent ;
         for(auto e:f.edges) divided=divided || edges[e].middle!=absent ;
@@ -307,6 +372,8 @@ namespace FVMAdapt {
         detail::RecordWriter out(limits.maxBytes,limits.geometry.exact) ; detail::header(out,4) ;
         detail::FacePlanBudget budget{limits} ; writeFace(out,id,budget,0) ; return out.take() ;
       }
+
+      /// Retain original and interior face plans after editing the temporary geometry.
       void save(CompactHexCell &target) const {
         for(unsigned f=0;f<6;++f) target.faces[f]=record(f) ;
         target.interior.clear() ;
@@ -319,6 +386,8 @@ namespace FVMAdapt {
           for(unsigned f=0;f<roots.size();++f) { auto bytes=record(roots[f]) ; if(!bytes.empty()) target.interior.push_back({i,f,std::move(bytes)}) ; }
         }
       }
+
+      /// Check agreement between a retained hex map and its shared boundary geometry.
       void checkCell(unsigned id) const {
         const HexCellMap map(*source,saved.plan,id) ; const auto &hex=referenceElement(Shape::hex) ;
         std::array<Point,8> corners ;
@@ -335,35 +404,55 @@ namespace FVMAdapt {
             geometry->position(orientPoint(Shape::quad,use.orientation,p))) ;
         }
       }
+
+      /// Accept a hex split using shared face centers and validated mapped children.
       void refine(CompactHexCell &target,unsigned id,CenterMethod method) {
         require(target.plan.leaf(id),"hex refinement requires an active leaf") ;
-        if(target.plan.accepted(id)) { target.plan.refine(id) ; return ; }
+        if(target.plan.accepted(id)) {
+          target.plan.refine(id) ;
+          return ;
+        }
         const auto &limits=target.limits ;
         if(target.plan.depth(id)>=limits.maxDepth) throw std::length_error("refinement exceeds its depth limit") ;
         if(limits.maxNodes<9 || target.plan.splitCount()>=(limits.maxNodes-1)/8 || target.plan.splitCount()>=limits.maxSplits)
           throw std::length_error("refinement exceeds its node or split limit") ;
-        HexCenters centers ; std::vector<Point> faceCenters ;
+        // Reuse shared face centers, expressing them in the cell's boundary coordinates.
+        HexCenters centers ;
+        std::vector<Point> faceCenters ;
         for(unsigned f=0;f<6;++f) {
           const auto use=cells[id].faces[f] ;
           if(faces[use.face].centerVertex==absent) divideFace(use.face,faceCenterCoordinates(*faceGeometry(use.face),method),method) ;
           const auto p=orientPoint(Shape::quad,inverseOrientation(Shape::quad,use.orientation),faces[use.face].center) ;
-          centers.faces[f]={{p[0],p[1]}} ; faceCenters.push_back(p) ;
+          centers.faces[f]={{p[0],p[1]}} ;
+          faceCenters.push_back(p) ;
         }
-        const HexCellMap parent(*source,target.plan,id) ; centers.cell=cellCenterCoordinates(parent,faceCenters,method) ;
-        const auto split=target.plan.splitCount() ; target.plan.refine(id,centers,limits.jacobian) ;
+
+        // Build the reference split, then assess the mapped children.
+        const HexCellMap parent(*source,target.plan,id) ;
+        centers.cell=cellCenterCoordinates(parent,faceCenters,method) ;
+        const auto split=target.plan.splitCount() ;
+        target.plan.refine(id,centers,limits.jacobian) ;
         std::vector<std::shared_ptr<const GeometryMap>> children ;
         for(auto child:target.plan.children(id)) children.push_back(std::make_shared<HexCellMap>(*source,target.plan,child)) ;
         auto assessment=splitQuality(parent,children) ;
         bool finite=!assessment.parent.quality.invalidEvaluation ;
         for(const auto &child:assessment.children) finite=finite && !child.quality.invalidEvaluation ;
+        // Explicit compositions retain the information needed for interior-validity checks.
         if(assessment.status!=GeometryQualityStatus::sampled && finite && geometryValidity(*source,limits.jacobian)==GeometryValidity::valid) {
-          const auto geometry=placedCell(source,target.plan,id) ; const auto construction=target.plan.construction(id) ;
-          children.clear() ; for(unsigned child=0;child<8;++child) children.push_back(placedChild(geometry,construction,child)) ;
+          const auto geometry=placedCell(source,target.plan,id) ;
+          const auto construction=target.plan.construction(id) ;
+          children.clear() ;
+          for(unsigned child=0;child<8;++child) children.push_back(placedChild(geometry,construction,child)) ;
           assessment=splitQuality(*geometry,children) ;
         }
         requireSplitQuality(assessment) ;
-        buildChildren(split) ; for(auto child:target.plan.children(id)) checkCell(child) ;
+
+        // Attach shared incidence and check each child's agreement with its faces.
+        buildChildren(split) ;
+        for(auto child:target.plan.children(id)) checkCell(child) ;
       }
+
+      /// Evaluate a temporary vertex on its owning face or cell geometry.
       Point position(unsigned vertex) const {
         const auto &location=locations.at(vertex) ;
         if(location.face==absent) return HexCellMap(*source,saved.plan,location.cell).position(location.point) ;
@@ -376,14 +465,19 @@ namespace FVMAdapt {
         if(f.exterior) return sourceFaces[f.boundary]->position(p) ;
         return HexCellMap(*source,saved.plan,f.cell).position(boundaryPoint(Shape::hex,f.boundary,p)) ;
       }
+
+      /// Activate all ancestors of a required edge division.
       void splitParents(unsigned id) {
         while(edges[id].parent!=absent) { id=edges[id].parent ; edges[id].active=true ; }
       }
+
+      /// Visit active edge vertices in order from the supplied endpoint.
       template<class Visit> void visitEdgeVertices(unsigned id,unsigned start,const Visit &visit) const {
         const auto &e=edges[id] ; if(!e.active) { visit(start) ; return ; }
         require(e.middle!=absent,"active hex edge has no midpoint") ; const bool reverse=e.vertices[0]!=start ;
         visitEdgeVertices(e.children[reverse ? 1:0],start,visit) ; visitEdgeVertices(e.children[reverse ? 0:1],e.middle,visit) ;
       }
+
       /// Propagate coverage and activate edges once, before this temporary's output query.
       std::vector<unsigned> prepareFaces() {
         std::vector<unsigned> selected ;
@@ -398,6 +492,8 @@ namespace FVMAdapt {
         }
         return selected ;
       }
+
+      /// Collect cell-owned nodes needed by the active interior faces.
       std::vector<ParametricNodeKey> nodes() {
         const auto selected=prepareFaces() ; std::vector<unsigned char> used(keys.size(),0) ; std::size_t count=0 ;
         const auto mark=[&](unsigned vertex) {
@@ -411,6 +507,8 @@ namespace FVMAdapt {
         for(unsigned vertex=0;vertex<keys.size();++vertex) if(used[vertex]) result.push_back(keys[vertex]) ;
         return result ;
       }
+
+      /// Build interior polygons with all required shared edge nodes.
       std::vector<ParametricOutputFace> output(const std::vector<ParametricNodeKey> &required) {
         const auto selected=prepareFaces() ;
         const std::set<ParametricNodeKey> needed(required.begin(),required.end()) ;
@@ -427,16 +525,22 @@ namespace FVMAdapt {
       }
     } ;
   }
+
+  /// Merge face requirements and apply cell refinement or coarsening requests.
   bool CompactHexCell::edit(const std::vector<ParametricLeafRequest> &requests,int levels,CenterMethod method,
       const std::array<const FacePlan *,6> &incoming,const GeometricRefinement *selection) {
-    std::unique_ptr<HexBoundary> boundary ; bool changed=!requests.empty() ;
+    std::unique_ptr<HexBoundary> boundary ;
+    bool changed=!requests.empty() ;
+    // Merge neighboring face requirements before applying local cell requests.
     for(unsigned f=0;f<6;++f) if(incoming[f] && !incoming[f]->empty() && *incoming[f]!=faces[f]) {
       if(!boundary) boundary=std::make_unique<HexBoundary>(*this,std::vector<ParametricNodeKey>{},false) ;
-      const auto points=boundary->locations.size() ; boundary->readFacePlan(f,*incoming[f]) ;
+      const auto points=boundary->locations.size() ;
+      boundary->readFacePlan(f,*incoming[f]) ;
       for(unsigned v=points;v<boundary->locations.size();++v) for(double x:boundary->position(v))
         require(std::isfinite(x),"nonfinite shared boundary point") ;
       changed=changed || boundary->locations.size()!=points ;
     }
+
     const auto refine=[&](HexPlan::Cell leaf) {
       if(plan.accepted(leaf)) plan.refine(leaf) ;
       else {
@@ -445,22 +549,32 @@ namespace FVMAdapt {
       }
     } ;
     for(const auto &request:requests) {
-      if(request.action==ParametricAction::coarsen) { plan.coarsen(request.cell) ; continue ; }
+      if(request.action==ParametricAction::coarsen) {
+        plan.coarsen(request.cell) ;
+        continue ;
+      }
       std::vector<HexPlan::Cell> leaves{HexPlan::Cell(request.cell)} ;
       for(int level=0;level<levels;++level) {
         std::vector<HexPlan::Cell> next ;
         for(auto leaf:leaves) {
           refine(leaf) ;
-          if(level+1<levels) { const auto children=plan.children(leaf) ; next.insert(next.end(),children.begin(),children.end()) ; }
+          if(level+1<levels) {
+            const auto children=plan.children(leaf) ;
+            next.insert(next.end(),children.begin(),children.end()) ;
+          }
         }
         leaves.swap(next) ;
       }
     }
+    // Geometric selection can continue refining newly created leaves.
     if(selection && selection->select) {
-      auto pending=plan.leaves() ; std::vector<Point> points ; points.reserve(8) ;
+      auto pending=plan.leaves() ;
+      std::vector<Point> points ; points.reserve(8) ;
       const auto &hex=referenceElement(Shape::hex) ;
       while(!pending.empty()) {
-        const auto leaf=pending.back() ; pending.pop_back() ; points.clear() ;
+        const auto leaf=pending.back() ;
+        pending.pop_back() ;
+        points.clear() ;
         if(leaf==0) points=corners ;
         else {
           if(!boundary) boundary=std::make_unique<HexBoundary>(*this,std::vector<ParametricNodeKey>{},false) ;
@@ -468,18 +582,22 @@ namespace FVMAdapt {
         }
         double shortest=std::numeric_limits<double>::max() ;
         for(unsigned e=0;e<12;++e) {
-          const auto &a=points[hex.edges[e][0]],&b=points[hex.edges[e][1]] ; double square=0 ;
+          const auto &a=points[hex.edges[e][0]],&b=points[hex.edges[e][1]] ;
+          double square=0 ;
           for(unsigned d=0;d<3;++d) square+=(b[d]-a[d])*(b[d]-a[d]) ;
           shortest=std::min(shortest,std::sqrt(square)) ;
         }
         if(!selection->select(points,shortest) || shortest<2*selection->minEdgeLength) continue ;
-        refine(leaf) ; changed=true ; const auto children=plan.children(leaf) ;
+        refine(leaf) ; changed=true ;
+        const auto children=plan.children(leaf) ;
         pending.insert(pending.end(),children.begin(),children.end()) ;
       }
     }
     if(boundary && changed) boundary->save(*this) ;
     return changed ;
   }
+
+  /// Return cell-owned output nodes, optionally with their physical positions.
   std::vector<ParametricNodeKey> CompactHexCell::cellNodes(std::vector<Point> *positions) const {
     if(positions) positions->clear() ;
     if(plan.leaf(0)) return {} ;
@@ -490,6 +608,8 @@ namespace FVMAdapt {
     }
     return nodes ;
   }
+
+  /// Evaluate the physical positions of requested cell-owned nodes.
   std::vector<Point> CompactHexCell::cellPositions(const std::vector<ParametricNodeKey> &keys) const {
     if(keys.empty()) return {} ;
     const HexBoundary view(*this) ; std::vector<Point> result ; result.reserve(keys.size()) ;
@@ -499,6 +619,8 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Construct the active interior faces of one original hex.
   std::vector<ParametricOutputFace> CompactHexCell::cellFaces(const std::vector<ParametricNodeKey> &required) const {
     if(plan.leaf(0)) return {} ;
     return HexBoundary(*this,required).output(required) ;

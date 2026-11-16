@@ -44,6 +44,7 @@ namespace FVMAdapt {
   struct GeometryMeasure {
     double measure = 0 ;
     Point centroid{{0,0,0}} ;
+
     /// Successive rules agree within tolerance and coordinate roundoff; this is not an error bound or validity proof.
     bool converged = false ;
     /// Highest completed rule order and cumulative map evaluations.

@@ -49,17 +49,25 @@ namespace FVMAdapt {
     explicit AffineSubdivision(Shape shape, std::size_t maxNodes = 1000000) ;
     /// Assemble a root-coordinate view without regenerating the accepted children.
     explicit AffineSubdivision(RefinementHistory history) ;
+
     Shape shape() const { return nodes_[0].cell.shape ; }
+
     std::size_t maxNodes() const { return history().limits().maxNodes ; }
+
     const RefinementHistory &history() const { return edit_.snapshot() ; }
+
     const std::vector<AffineNode> &nodes() const { return nodes_ ; }
+
     const AffineNode &node(TreeNodeId id) const { return nodes_.at(id) ; }
+
     /// No selected split; use history().active(id) to exclude dormant cells.
     bool isLeaf(TreeNodeId id) const { return history().node(id).isLeaf() ; }
+
     NodeRange children(TreeNodeId id) const { return history().children(id) ; }
+
     const SplitOperation *operation(TreeNodeId id) const { return history().operation(id) ; }
     /// Active leaf IDs in creation order; placements remain in node(id).cell.
-    std::vector<TreeNodeId> leafIds() const ;
+    std::vector<TreeNodeId> leafIdsInCreationOrder() const ;
     CellChange refine(TreeNodeId leaf, const SplitOperation &request) ;
     CellChange coarsen(TreeNodeId parent) ;
     CellChange replace(TreeNodeId parent, const SplitOperation &request) ;

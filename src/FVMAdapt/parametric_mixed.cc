@@ -9,6 +9,8 @@
 namespace Loci { namespace FVMAdapt {
   namespace {
     void require(bool ok,const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
+    /// Test whether p lies on the segment from a to b and return its fractional position.
     bool segment(const ReferencePoint &p,const ReferencePoint &a,const ReferencePoint &b,Fraction &t) {
       unsigned axis=0 ; while(axis<3 && a[axis]==b[axis]) ++axis ; if(axis==3) return false ;
       t=(p[axis]-a[axis])/(b[axis]-a[axis]) ; if(t<0 || t>1) return false ;
@@ -20,6 +22,8 @@ namespace Loci { namespace FVMAdapt {
       EntityId id ; Shape shape ; bool reversed ;
       std::vector<EntityId> vertices,edges ; std::vector<Point> corners ;
       std::shared_ptr<const GeometryMap> geometry ;
+
+      /// Read original face geometry and topology in the shared face orientation.
       SourceFace(EntityId face,const CellTopology &topology,const ParametricCell &cell) : id(face) {
         unsigned f=0 ; while(f<topology.faceCount() && topology.faceId(f)!=face) ++f ;
         require(f<topology.faceCount(),"mixed face is absent from its source cell") ;
@@ -48,6 +52,8 @@ namespace Loci { namespace FVMAdapt {
           require(found,"mixed source face edge is missing") ;
         }
       }
+
+      /// Identify a face point by its original vertex, edge, or face.
       ParametricNodeKey key(const ReferencePoint &p) const {
         for(unsigned v=0;v<vertices.size();++v) if(p==referenceVertex(shape,v)) return {{EntityKind::vertex,vertices[v],{}},-1} ;
         for(unsigned e=0;e<edges.size();++e) {
@@ -58,6 +64,8 @@ namespace Loci { namespace FVMAdapt {
         }
         return {{EntityKind::face,id,p},-1} ;
       }
+
+      /// Recover shared face coordinates from an original node key.
       bool point(const ParametricNodeKey &key,ReferencePoint &p) const {
         if(key.local>=0) return false ;
         const auto &v=key.reference ;
@@ -71,8 +79,12 @@ namespace Loci { namespace FVMAdapt {
         }
         return false ;
       }
+
+      /// Evaluate the physical position of a point in shared face coordinates.
       Point position(const ReferencePoint &p) const { return geometry->position(approximate(p)) ; }
     } ;
+
+    /// Express incident leaf faces in one original face's shared coordinates.
     std::vector<BoundaryPolygon> faceCover(const SourceFace &face,const CellTopology &topology,const ParametricCell &cell) {
       std::vector<BoundaryPolygon> cover ; const auto leaves=cell.leafIds() ;
       if(const auto *native=cell.native()) {
@@ -97,7 +109,7 @@ namespace Loci { namespace FVMAdapt {
             if(id==root) { require(localFaces.emplace(i,f).second,"leaf uses a source face more than once") ; }
           }
         }
-        for(const auto &part:cornerFaceFaces(face.id,cell,{})) {
+        for(const auto &part:cornerFacePieces(face.id,cell,{})) {
           BoundaryPolygon polygon{{unsigned(part.left),localFaces.at(part.left)},{}} ;
           for(const auto &key:part.vertices) polygon.vertices.push_back(coordinates.at(key)) ;
           cover.push_back(std::move(polygon)) ;
@@ -106,15 +118,25 @@ namespace Loci { namespace FVMAdapt {
       return cover ;
     }
     struct SharedFace {
-      SourceFace face ; std::vector<BoundaryPolygon> left,right ; std::vector<PolygonMatch> pieces ;
-      SharedFace(EntityId id,const CellTopology &lt,const ParametricCell &lc,const CellTopology &rt,const ParametricCell &rc)
-        : face(id,lt,lc),left(faceCover(face,lt,lc)),right(faceCover(SourceFace(id,rt,rc),rt,rc)) {
-        const SourceFace other(id,rt,rc) ;
-        require(face.vertices==other.vertices && face.corners==other.corners && face.reversed!=other.reversed,
+      SourceFace face ;
+      std::vector<BoundaryPolygon> left,right ;
+      std::vector<PolygonMatch> pieces ;
+
+      /// Match both incident cells in one shared-face geometry and orientation.
+      SharedFace(EntityId id,const CellTopology &leftTopology,const ParametricCell &leftCell,
+                 const CellTopology &rightTopology,const ParametricCell &rightCell)
+        : face(id,leftTopology,leftCell) {
+        const SourceFace rightFace(id,rightTopology,rightCell) ;
+        require(face.vertices==rightFace.vertices && face.corners==rightFace.corners && face.reversed!=rightFace.reversed,
           "mixed source face geometry or orientation differs") ;
+
+        left=faceCover(face,leftTopology,leftCell) ;
+        right=faceCover(rightFace,rightTopology,rightCell) ;
         pieces=reconcilePolygons(face.shape,left,right,1000000) ;
       }
     } ;
+
+    /// Insert supplied boundary nodes into every polygon edge containing them.
     void insertPoints(std::vector<ParametricNodeKey> &loop,const SourceFace &face,const std::vector<ParametricNodeKey> &points) {
       std::vector<ParametricNodeKey> out ;
       for(unsigned i=0;i<loop.size();++i) {
@@ -127,6 +149,8 @@ namespace Loci { namespace FVMAdapt {
       }
       loop.swap(out) ;
     }
+
+    /// Represent a matched polygon as a patch of the original face geometry.
     FacePatch patch(const SourceFace &face,const std::vector<ReferencePoint> &polygon) {
       FacePatch out ; out.surface={2,static_cast<long long>(face.id)} ; out.orientation=face.reversed ? -1:1 ; out.mappedArea=true ;
       constexpr long long extent=1LL<<30 ; out.bounds={{extent,extent,0,0}} ;
@@ -142,6 +166,8 @@ namespace Loci { namespace FVMAdapt {
       }
       return out ;
     }
+
+    /// Convert corner-refinement node keys to their shared-face identities.
     std::map<ParametricNodeKey,ParametricNodeKey> cornerKeys(const ParametricCell &cell,const std::vector<ParametricNodeKey> &required) {
       std::set<EntityId> faces ;
       for(const auto &key:required) if(key.reference.kind==EntityKind::face && key.local<0) faces.insert(key.reference.entity) ;
@@ -153,14 +179,20 @@ namespace Loci { namespace FVMAdapt {
       return keys ;
     }
   }
+
+  /// Test whether the incident cells require shared-coordinate face reconciliation.
   bool mixedFace(const ParametricCell &left,const ParametricCell *right) {
     return right && ((left.native() && right->hasCornerGeometry()) || (left.hasCornerGeometry() && right->native())) ;
   }
+
+  /// Validate the encoded divisions of a triangular or quadrilateral shared face.
   void validateMixedFacePlan(const ParametricRecord &record) {
     if(record.empty()) return ;
     const BoundaryRecordLimits limits ; detail::FacePlanReader in(record,limits) ;
     require(in.vertices==3 || in.vertices==4,"mixed faces require three or four source vertices") ;
+
     std::function<void(unsigned)> edge=[&](unsigned depth) { if(in.edge(depth)) { edge(depth+1) ; edge(depth+1) ; } } ;
+
     std::function<void(unsigned,unsigned)> face=[&](unsigned n,unsigned depth) {
       const auto division=in.face(n,depth) ; for(unsigned e=0;e<n;++e) edge(depth) ;
       if(division.split) { require(division.center==detail::midpoint(n),"mixed faces currently require midpoint face centers") ;
@@ -168,7 +200,9 @@ namespace Loci { namespace FVMAdapt {
     } ;
     face(in.vertices,0) ; in.input.finish() ;
   }
-  std::vector<ParametricOutputFace> mixedFaceFaces(EntityId id,const CellTopology &lt,const ParametricCell &lc,
+
+  /// Reconcile incident cell families into shared-face polygons.
+  std::vector<ParametricOutputFace> mixedFacePieces(EntityId id,const CellTopology &lt,const ParametricCell &lc,
       const CellTopology &rt,const ParametricCell &rc,const std::vector<ParametricNodeKey> &required,bool patches) {
     const SharedFace shared(id,lt,lc,rt,rc) ; std::vector<ParametricOutputFace> result ; auto points=required ;
     for(const auto &piece:shared.pieces) {
@@ -184,10 +218,12 @@ namespace Loci { namespace FVMAdapt {
     std::sort(result.begin(),result.end(),[](const ParametricOutputFace &a,const ParametricOutputFace &b) { return a.vertices<b.vertices ; }) ;
     return result ;
   }
+
+  /// Collect shared-face node identities, optionally with physical positions.
   std::vector<ParametricNodeKey> mixedFaceNodes(EntityId id,const CellTopology &lt,const ParametricCell &lc,
       const CellTopology &rt,const ParametricCell &rc,std::vector<Point> *positions) {
     std::set<ParametricNodeKey> nodes ;
-    for(const auto &face:mixedFaceFaces(id,lt,lc,rt,rc,{})) for(const auto &key:face.vertices)
+    for(const auto &face:mixedFacePieces(id,lt,lc,rt,rc,{})) for(const auto &key:face.vertices)
       if(key.reference.kind==EntityKind::face) nodes.insert(key) ;
     if(positions) {
       const SourceFace face(id,lt,lc) ; positions->clear() ; positions->reserve(nodes.size()) ;
@@ -195,16 +231,22 @@ namespace Loci { namespace FVMAdapt {
     }
     return {nodes.begin(),nodes.end()} ;
   }
+
+  /// Replace local corner keys with their shared-face identities in output polygons.
   void mixedCornerFaces(const ParametricCell &cell,const std::vector<ParametricNodeKey> &required,std::vector<ParametricOutputFace> &faces) {
     const auto keys=cornerKeys(cell,required) ; if(keys.empty()) return ; std::set<EntityId> originals ;
     for(const auto &entry:keys) if(entry.second.reference.kind==EntityKind::face) originals.insert(entry.second.reference.entity) ;
     for(auto &face:faces) for(auto &key:face.vertices) { const auto found=keys.find(key) ; if(found!=keys.end()) key=found->second ; }
     for(auto id:originals) { const SourceFace source(id,cell.cornerTopology(),cell) ; for(auto &face:faces) insertPoints(face.vertices,source,required) ; }
   }
+
+  /// Replace local corner keys with their shared-face identities in leaf vertex lists.
   void mixedCornerVertices(const ParametricCell &cell,const std::vector<ParametricNodeKey> &required,std::vector<std::vector<ParametricNodeKey>> &vertices) {
     const auto keys=cornerKeys(cell,required) ;
     for(auto &leaf:vertices) for(auto &key:leaf) { const auto found=keys.find(key) ; if(found!=keys.end()) key=found->second ; }
   }
+
+  /// Find leaf faces divided by the opposing cell family.
   std::vector<FaceBalanceRequest> mixedDividedFaces(EntityId id,const CellTopology &lt,const ParametricCell &lc,const CellTopology &rt,const ParametricCell &rc) {
     const SharedFace shared(id,lt,lc,rt,rc) ; using Index=std::pair<unsigned,unsigned> ; std::map<Index,unsigned> left,right ;
     for(const auto &p:shared.pieces) { ++left[{p.first.child,p.first.boundary}] ; ++right[{p.second.child,p.second.boundary}] ; }
@@ -213,9 +255,11 @@ namespace Loci { namespace FVMAdapt {
     for(const auto &entry:right) if(entry.second>1) result.push_back({int(rt.id()),int(entry.first.first),int(entry.first.second)}) ;
     return result ;
   }
+
+  /// Find neighbor-depth requests between different cell splitting families.
   ParametricTrace mixedFaceRequests(EntityId id,const CellTopology &lt,const ParametricCell &lc,const CellTopology &rt,const ParametricCell &rc,
       unsigned difference,NeighborGrading grading) {
-    const auto faces=mixedFaceFaces(id,lt,lc,rt,rc,{}) ; const auto ll=lc.leafIds(),rl=rc.leafIds() ;
+    const auto faces=mixedFacePieces(id,lt,lc,rt,rc,{}) ; const auto ll=lc.leafIds(),rl=rc.leafIds() ;
     std::vector<int> depths ; for(auto leaf:ll) depths.push_back(lc.path(leaf).size()) ; for(auto leaf:rl) depths.push_back(rc.path(leaf).size()) ;
     const int offset=ll.size() ; std::set<int> required,covered ; std::map<std::vector<ParametricNodeKey>,std::set<int>> contacts ;
     const auto grade=[&](const std::set<int> &cells) {

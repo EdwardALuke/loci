@@ -83,12 +83,18 @@ namespace Loci {
     bool gather(const FaceState& previous, storeRepP input, storeRepP output,
                 int width, std::string& error) const ;
   public:
+    /// Old-face contributors in installed new-face order.
     const_multiStore<FaceSource> sources() const ;
+
+    /// Refinement or coarsening classification for each installed face.
     const_store<int> change() const ;
+
     /// Old cell file number for FACE_CREATED; -1 otherwise. Do not test its sign.
     const_store<CellId> origin() const ;
+
     /// Removed old faces and their new cell file numbers, on the old owning rank.
     const std::vector<std::pair<FaceId,CellId> >& removed() const ;
+
     /// Rank-local index in a gathered field; never store this index as face metadata.
     int donorIndex(FaceId source) const ;
 
@@ -101,6 +107,8 @@ namespace Loci {
                 store<T>& donors, std::string& error) const {
       return gather(previous,input.Rep(),donors.Rep(),1,error) ;
     }
+
+    /// Gather every component of the requested donor face vectors.
     template<class T>
     bool gather(const FaceState& previous, const const_storeVec<T>& input,
                 storeVec<T>& donors, std::string& error) const {
@@ -110,8 +118,10 @@ namespace Loci {
 
   /// Face state to retain for the next adaptation; null when recording was not requested.
   std::shared_ptr<const FaceState> getFaceState(fact_db& facts) ;
+
   /// History of the latest adaptation; null when correspondence was not requested.
   std::shared_ptr<const FaceHistory> getFaceHistory(fact_db& facts) ;
+
   typedef std::shared_ptr<const FaceState> FaceStateP ;
   typedef std::shared_ptr<const FaceHistory> FaceHistoryP ;
 

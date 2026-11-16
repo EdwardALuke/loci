@@ -9,15 +9,21 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
     void require(bool ok, const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
+    /// Expand the six two-coordinate face centers to reference-face points.
     std::vector<Point> facePoints(const HexCenters &centers) {
       std::vector<Point> result ; result.reserve(6) ;
       for(const auto &p: centers.faces) result.push_back({{p[0],p[1],0}}) ;
       return result ;
     }
+
+    /// Return the fixed midpoint construction used for child connectivity.
     const VertexVolumeSplit &pattern() {
       static const auto value = splitVertexVolume(Shape::hex,facePoints(HexCenters()),{{.5,.5,.5}}) ;
       return value ;
     }
+
+    /// Evaluate one midpoint child in its parent's reference coordinates.
     MapValue midpointValue(unsigned ordinal, const Point &point) {
       static const auto placements = [] {
         std::array<MapValue,8> result ;
@@ -29,6 +35,7 @@ namespace FVMAdapt {
         result.position[d] += result.jacobian[j][d]*point[j] ;
       return result ;
     }
+
     // Child corner order is fixed even when the accepted centers are off midpoint.
     const std::array<std::array<unsigned,8>,8> &childOrientations() {
       static const auto result = [] {
@@ -45,10 +52,14 @@ namespace FVMAdapt {
       }() ;
       return result ;
     }
+
+    /// Integer bounds and corner orientation of a hex within the original cube.
     struct LogicalBox {
       std::array<std::uint32_t,3> lower{} ;
       std::uint32_t width = HexPlan::extent ;
       std::array<unsigned,8> orientation{{0,1,2,3,4,5,6,7}} ;
+
+      /// Return the integer bounds and orientation of one child octant.
       LogicalBox child(unsigned ordinal) const {
         LogicalBox result ; result.width = width/2 ;
         const auto &corner = referenceElement(Shape::hex).vertices[orientation[ordinal]] ;
@@ -56,6 +67,8 @@ namespace FVMAdapt {
         for(unsigned v = 0; v < 8; ++v) result.orientation[v] = orientation[childOrientations()[ordinal][v]] ;
         return result ;
       }
+
+      /// Find the child octant containing an integer probe point.
       unsigned childAt(const std::array<std::uint32_t,3> &point) const {
         const auto &e = referenceElement(Shape::hex) ;
         for(unsigned c = 0; c < 8; ++c) {
@@ -67,11 +80,15 @@ namespace FVMAdapt {
         throw std::logic_error("invalid hex adjacency point") ;
       }
     } ;
+
+    /// Add two finite coordinates and report whether the sum is exact.
     bool exactSum(double a, double b, double &sum) {
       sum = a+b ; const double part = sum-a ;
       if(!std::isfinite(sum) || !std::isfinite(part)) return false ;
       return (a-(sum-part))+(b-part) == 0 ;
     }
+
+    /// Prove that the supplied hex corners form an exact affine image of the cube.
     bool affineCorners(const GeometryMap &map) {
       const auto *corner = dynamic_cast<const CornerMap*>(&map) ;
       if(!corner || corner->shape() != Shape::hex) return false ;
@@ -88,10 +105,14 @@ namespace FVMAdapt {
       }
       return true ;
     }
+
+    /// Recognize an affine hex map for constant-Jacobian assessment.
     bool affineHex(const GeometryMap &map) {
       if(const auto *cell = dynamic_cast<const HexCellMap*>(&map)) return cell->affine() ;
       return affineCorners(map) ;
     }
+
+    /// Place a face-local point in the parent reference cube.
     Point facePoint(unsigned face, const std::array<double,2> &point) {
       const auto &e = referenceElement(Shape::hex) ; const auto &f = e.boundaries[face] ;
       Point result = e.vertices[f.vertices[0]] ;
@@ -101,6 +122,8 @@ namespace FVMAdapt {
       }
       return result ;
     }
+
+    /// Gather one child's reference corners using the accepted split centers.
     std::array<Point,8> childCorners(const HexCenters &centers, unsigned ordinal) {
       const auto &fixed = pattern() ; std::array<Point,8> corners ;
       for(unsigned v = 0; v < 8; ++v) {
@@ -112,11 +135,15 @@ namespace FVMAdapt {
       }
       return corners ;
     }
+
+    /// Require valid child placements for the accepted hex centers.
     void certify(const HexCenters &centers, JacobianCheckLimits limits) {
       require(limits.maxBoxes > 0,"hex certification requires a positive box limit") ;
       if(centers == HexCenters()) { pattern() ; return ; }
       validateVertexVolumeSplit(Shape::hex,facePoints(centers),centers.cell,limits) ;
     }
+
+    /// Compose map derivatives using the chain rule.
     MapValue compose(const MapValue &outer, const MapValue &inner) {
       MapValue result{outer.position,{},outer.hasJacobian && inner.hasJacobian} ;
       if(result.hasJacobian)
@@ -124,14 +151,19 @@ namespace FVMAdapt {
           result.jacobian[d][c] += outer.jacobian[j][c]*inner.jacobian[d][j] ;
       return result ;
     }
+
+    /// Restrict a hex map to one original quadrilateral face.
     class HexFaceMap final : public GeometryMap {
       const GeometryMap &cell_ ;
       unsigned face_ ;
     public:
       HexFaceMap(const GeometryMap &cell, unsigned face) : cell_(cell), face_(face) {}
+
       Shape shape() const override { return Shape::quad ; }
+
       MapValue evaluate(const Point &point) const override {
         const auto &element = referenceElement(Shape::hex) ; const auto &face = element.boundaries[face_] ;
+
         MapValue local{boundaryPoint(Shape::hex,face_,point),{},true} ;
         for(unsigned d = 0; d < 3; ++d) {
           local.jacobian[0][d] = element.vertices[face.vertices[1]][d]-element.vertices[face.vertices[0]][d] ;
@@ -140,6 +172,8 @@ namespace FVMAdapt {
         return compose(cell_.evaluate(local.position),local) ;
       }
     } ;
+
+    /// Evaluate a retained child through its parent hex map.
     class HexChildMap final : public GeometryMap {
       const GeometryMap &parent_ ;
       std::array<Point,8> corners_ ;
@@ -148,32 +182,43 @@ namespace FVMAdapt {
     public:
       HexChildMap(const GeometryMap &parent, const HexCenters &centers, unsigned ordinal)
         : parent_(parent), corners_(childCorners(centers,ordinal)), ordinal_(ordinal), midpoint_(centers == HexCenters()) {}
+
       Shape shape() const override { return Shape::hex ; }
+
       MapValue evaluate(const Point &point) const override {
         const auto local = midpoint_ ? midpointValue(ordinal_,point) : evaluateHexCorners(corners_,point) ;
         return compose(parent_.evaluate(local.position),local) ;
       }
     } ;
+
+    /// Assess mapped geometry, using one sample for a proven affine hex.
     GeometryQuality physicalQuality(const GeometryMap &map, bool affine = false) {
       static const GeometryQualityOptions constantJacobian{{{{.5,.5,.5}}},1} ;
       return affine ? geometryQuality(map,constantJacobian) : geometryQuality(map) ;
     }
   }
 
+  /// Find the retained split belonging to a cell, including dormant splits.
   std::uint32_t HexPlan::splitId(Cell cell) const {
     if(cell == root) return empty() ? absent : 0 ;
     if(!data_ || (cell-1)/8 >= data_->splits.size()) throw std::out_of_range("hex cell does not exist") ;
     return data_->splits[(cell-1)/8].children[(cell-1)%8] ;
   }
+
+  /// Find the parent of a nonroot retained cell.
   HexPlan::Cell HexPlan::parent(Cell cell) const {
     require(cell != root,"root hex has no parent") ;
     splitId(cell) ; return data_->splits[(cell-1)/8].parent ;
   }
+
+  /// Count parent links back to the original hex.
   unsigned HexPlan::depth(Cell cell) const {
     unsigned result = 0 ;
     while(cell != root) { cell = parent(cell) ; ++result ; }
     return result ;
   }
+
+  /// Test whether every ancestor selects the path to this cell.
   bool HexPlan::active(Cell cell) const {
     splitId(cell) ;
     while(cell != root) {
@@ -183,18 +228,26 @@ namespace FVMAdapt {
     }
     return true ;
   }
+
+  /// Test whether this cell is active and has no selected children.
   bool HexPlan::leaf(Cell cell) const {
     const auto split = splitId(cell) ;
     return active(cell) && (split == absent || !data_->splits[split].active) ;
   }
+
+  /// Return the eight retained child IDs in their fixed corner order.
   std::array<HexPlan::Cell,8> HexPlan::children(Cell cell) const {
     const auto split = splitId(cell) ; require(split != absent,"hex has no accepted children") ;
     std::array<Cell,8> result ; for(unsigned i = 0; i < 8; ++i) result[i] = 1+8*split+i ; return result ;
   }
+
+  /// Recover accepted split centers, using implicit midpoints when possible.
   HexCenters HexPlan::centers(Cell cell) const {
     const auto split = splitId(cell) ; require(split != absent,"hex has no accepted centers") ;
     const auto id = data_->splits[split].centers ; return id == absent ? HexCenters() : data_->centers[id] ;
   }
+
+  /// List active leaves in child traversal order.
   std::vector<HexPlan::Cell> HexPlan::leaves() const {
     std::vector<Cell> result ;
     const auto visit = [&](const auto &self, Cell cell) -> void {
@@ -204,6 +257,8 @@ namespace FVMAdapt {
     } ;
     visit(visit,root) ; return result ;
   }
+
+  /// Pair active leaves with their integer bounds in the original cube.
   std::vector<HexPlan::LeafBox> HexPlan::leafBoxes() const {
     std::vector<LeafBox> result ;
     const auto visit = [&](const auto &self, Cell cell, const LogicalBox &box, unsigned depth) -> void {
@@ -213,6 +268,8 @@ namespace FVMAdapt {
     } ;
     visit(visit,root,{},0) ; return result ;
   }
+
+  /// Find the active leaf containing an integer point in the original cube.
   HexPlan::Cell HexPlan::findLeaf(const std::array<std::uint32_t,3> &point) const {
     for(auto x : point) require(x < extent,"hex adjacency point is outside the root") ;
     Cell cell = root ; LogicalBox box ;
@@ -222,6 +279,8 @@ namespace FVMAdapt {
       const auto c = box.childAt(point) ; cell = 1+8*split+c ; box = box.child(c) ;
     }
   }
+
+  /// Count active leaves without constructing the leaf list.
   std::size_t HexPlan::leafCount() const {
     const auto visit = [&](const auto &self, Cell cell) -> std::size_t {
       const auto split = splitId(cell) ;
@@ -230,6 +289,8 @@ namespace FVMAdapt {
     } ;
     return visit(visit,root) ;
   }
+
+  /// Reactivate retained children or save a certified eight-child construction.
   void HexPlan::refine(Cell cell, const HexCenters &centers, JacobianCheckLimits limits) {
     require(leaf(cell),"hex refinement requires an active leaf") ;
     auto id = splitId(cell) ;
@@ -249,16 +310,20 @@ namespace FVMAdapt {
     if(created) data_ = std::move(created) ;
   }
 
+  /// Replace eight active leaf children with their retained parent.
   void HexPlan::coarsen(Cell cell) {
     const auto id = splitId(cell) ;
     require(active(cell) && id != absent && data_->splits[id].active,"hex coarsening requires an active parent") ;
     for(auto child: children(cell)) require(leaf(child),"hex coarsening requires eight leaf children") ;
     data_->splits[id].active = false ;
   }
+
   HexPlan::Cell HexPlan::splitParent(std::size_t index) const {
     if(!data_) throw std::out_of_range("hex has no accepted splits") ;
     return data_->splits.at(index).parent ;
   }
+
+  /// Recreate a retained split from its accepted reference centers.
   VertexVolumeSplit HexPlan::construction(Cell cell) const {
     const auto accepted = centers(cell) ; auto result = pattern() ;
     if(accepted == HexCenters()) return result ;
@@ -270,10 +335,13 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Report allocated plan storage, including unused vector capacity.
   std::size_t HexPlan::storageBytes() const {
     return sizeof(*this)+(data_ ? sizeof(Data)+data_->splits.capacity()*sizeof(Split)+data_->centers.capacity()*sizeof(HexCenters) : 0) ;
   }
 
+  /// Write retained splits, accepted centers, and active selections.
   std::vector<unsigned char> HexPlan::encode() const {
     if(empty()) return {} ;
     detail::RecordWriter out(std::numeric_limits<std::size_t>::max(),{}) ;
@@ -288,8 +356,11 @@ namespace FVMAdapt {
     }
     return out.take() ;
   }
+
+  /// Read and validate retained hex constructions and selections.
   HexPlan HexPlan::decode(const std::vector<unsigned char> &bytes, std::size_t maxSplits, JacobianCheckLimits limits) {
-    HexPlan result ; if(bytes.empty()) return result ;
+    HexPlan result ;
+    if(bytes.empty()) return result ;
     detail::RecordReader in(bytes,bytes.size(),{}) ;
     require(in.u32() == 0x4858504c && in.u32() == 1,"unsupported hex plan format") ;
     const auto count = in.count(std::min(maxSplits,std::size_t((absent-1)/8)),41) ;
@@ -297,16 +368,23 @@ namespace FVMAdapt {
     require(count > 0,"noncanonical empty hex plan") ;
     require(in.remaining() == 41*count+120*centers,"invalid hex plan length") ;
     result.data_ = std::make_unique<Data>() ;
-    result.data_->splits.resize(count) ; result.data_->centers.resize(centers) ;
+    result.data_->splits.resize(count) ;
+    result.data_->centers.resize(centers) ;
+
     std::size_t nextCenter = 0 ;
     for(std::size_t i = 0; i < count; ++i) {
-      auto &split = result.data_->splits[i] ; split.parent = in.u32() ;
-      for(auto &child: split.children) {
-        child = in.u32() ; require(child == absent || (child > i && child < count),"invalid hex child link") ;
+      auto &split = result.data_->splits[i] ;
+      split.parent = in.u32() ;
+      for(auto &child : split.children) {
+        child = in.u32() ;
+        require(child == absent || (child > i && child < count),"invalid hex child link") ;
       }
-      split.centers = in.u32() ; const auto active = in.byte() ;
-      require(active <= 1,"invalid hex selection") ; split.active = active ;
-      if(split.centers != absent) require(split.centers == nextCenter++ && split.centers < centers,"invalid hex center index") ;
+      split.centers = in.u32() ;
+      const auto active = in.byte() ;
+      require(active <= 1,"invalid hex selection") ;
+      split.active = active ;
+      if(split.centers != absent)
+        require(split.centers == nextCenter++ && split.centers < centers,"invalid hex center index") ;
       if(i == 0) require(split.parent == root,"invalid hex root") ;
       else {
         require(split.parent > 0 && (split.parent-1)/8 < i,"invalid hex parent link") ;
@@ -319,20 +397,27 @@ namespace FVMAdapt {
     require(nextCenter == centers,"unused hex center records") ;
     for(std::size_t i = 0; i < count; ++i) for(unsigned c = 0; c < 8; ++c) {
       const auto child = result.data_->splits[i].children[c] ;
-      if(child != absent) require(result.data_->splits[child].parent == 1+8*i+c,"hex child has multiple parents") ;
+      if(child != absent)
+        require(result.data_->splits[child].parent == 1+8*i+c,"hex child has multiple parents") ;
     }
-    for(auto &center: result.data_->centers) {
-      for(auto &face: center.faces) for(double &x: face) x = in.real() ;
-      for(double &x: center.cell) x = in.real() ;
-      require(!(center == HexCenters()),"redundant midpoint center record") ; certify(center,limits) ;
+
+    for(auto &center : result.data_->centers) {
+      for(auto &face : center.faces) for(double &x : face) x = in.real() ;
+      for(double &x : center.cell) x = in.real() ;
+      require(!(center == HexCenters()),"redundant midpoint center record") ;
+      certify(center,limits) ;
     }
-    in.finish() ; return result ;
+    in.finish() ;
+    return result ;
   }
 
+  /// Bind one retained cell to the original hex geometry.
   HexCellMap::HexCellMap(const GeometryMap &source, const HexPlan &plan, HexPlan::Cell cell)
     : source_(source), plan_(plan), cell_(cell) {
     require(source.shape() == Shape::hex,"hex plan requires hex source geometry") ; plan.splitId(cell) ;
   }
+
+  /// Recognize an affine source with only midpoint constructions in its ancestry.
   bool HexCellMap::affine() const {
     if(!affineCorners(source_)) return false ;
     auto cell = cell_ ;
@@ -343,6 +428,8 @@ namespace FVMAdapt {
     }
     return true ;
   }
+
+  /// Compose accepted child placements and evaluate the original hex map.
   MapValue HexCellMap::evaluate(const Point &point) const {
     MapValue local{point,{{{{1,0,0}},{{0,1,0}},{{0,0,1}}}},true} ;
     auto cell = cell_ ;
@@ -354,6 +441,8 @@ namespace FVMAdapt {
     }
     return compose(source_.evaluate(local.position),local) ;
   }
+
+  /// Evaluate physical position without retaining intermediate derivatives.
   Point HexCellMap::position(const Point &point) const {
     auto local = point ; auto cell = cell_ ;
     while(cell != HexPlan::root) {
@@ -364,6 +453,8 @@ namespace FVMAdapt {
     }
     return source_.position(local) ;
   }
+
+  /// Compute reference-space face and cell split points using the selected method.
   HexCenters hexCenters(const GeometryMap &geometry, CenterMethod method, MeasureOptions options) {
     require(geometry.shape() == Shape::hex,"hex centers require hex geometry") ; HexCenters result ;
     require(method == CenterMethod::reference || method == CenterMethod::weighted || method == CenterMethod::integrated,"unknown hex center method") ;
@@ -373,6 +464,8 @@ namespace FVMAdapt {
     }
     result.cell = cellCenterCoordinates(geometry,facePoints(result),method,options) ; return result ;
   }
+
+  /// Validate proposed physical children before retaining the accepted hex split.
   void refineHex(HexPlan &plan, const GeometryMap &source, HexPlan::Cell cell, const HexCenters &centers, JacobianCheckLimits limits) {
     require(plan.leaf(cell),"hex refinement requires an active leaf") ;
     require(source.shape() == Shape::hex,"hex plan requires hex source geometry") ;
@@ -395,6 +488,8 @@ namespace FVMAdapt {
     }
     plan.refine(cell,centers,limits) ;
   }
+
+  /// Validate proposed physical children before retaining the accepted hex split.
   void refineHex(HexPlan &plan, const GeometryMap &source, HexPlan::Cell cell, CenterMethod method, MeasureOptions options,
                  JacobianCheckLimits limits) {
     const HexCellMap parent(source,plan,cell) ;

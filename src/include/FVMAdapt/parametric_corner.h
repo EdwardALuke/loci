@@ -21,7 +21,9 @@ namespace FVMAdapt {
     CellTopology topology ;
     MappedVolumeSubdivision subdivision ;
     std::vector<CornerCell> cells ;
+
     ParametricCorner(const CellTopology &, const std::vector<Point> &, HistoryLimits,std::shared_ptr<const GeometryMap> root = {}) ;
+
     ParametricCorner(CellTopology t, MappedVolumeSubdivision s) : topology(std::move(t)), subdivision(std::move(s)) {}
     void refine(TreeNodeId leaf, CenterMethod method) ;
     bool mergeFace(EntityId face, const ParametricRecord &record) ;
@@ -35,7 +37,9 @@ namespace FVMAdapt {
   /// Cell topology and vertex-based splits defined by shared face maps.
   struct ParametricBoundary : CornerSubdivision {
     CellTopology topology ;
+
     ParametricBoundary(const CellTopology &, const std::vector<Point> &, HistoryLimits,std::shared_ptr<const GeometryMap> source = {}) ;
+
     ParametricBoundary(CellTopology t, CornerSubdivision s) : CornerSubdivision(std::move(s)), topology(std::move(t)) {}
     std::vector<Point> sourceCorners() const ;
     /// Accepted centers in parent face order, independent of local boundary IDs.
@@ -49,7 +53,7 @@ namespace FVMAdapt {
   struct ParametricOutputFace ;
   /// Active local or shared face polygons, with agreed hanging edge points.
   std::vector<ParametricOutputFace> cornerCellFaces(const ParametricCell &, const std::vector<ParametricNodeKey> &, bool patches = false) ;
-  std::vector<ParametricOutputFace> cornerFaceFaces(EntityId, const ParametricCell &, const std::vector<ParametricNodeKey> &,
+  std::vector<ParametricOutputFace> cornerFacePieces(EntityId, const ParametricCell &, const std::vector<ParametricNodeKey> &,
                                                   const ParametricCell *right = nullptr, bool patches = false) ;
   /// Own vertex keys in leaf order.
   std::vector<std::vector<ParametricNodeKey>> cornerLeafVertices(const ParametricCell &) ;

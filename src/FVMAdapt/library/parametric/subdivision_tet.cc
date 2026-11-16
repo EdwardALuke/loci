@@ -29,6 +29,7 @@
 namespace Loci {
 namespace FVMAdapt {
 
+  /// Place a positively oriented tet, swapping the final vertices when needed.
   Child detail::tetChild(std::array<ReferencePoint,4> vertices) {
     std::array<ExactPoint,3> columns ;
     for(unsigned i = 0; i < 3; ++i)
@@ -55,6 +56,7 @@ namespace FVMAdapt {
     TetSplit request ; request.kind = Kind::uniform ; request.diagonal = diagonal ; return request ;
   }
 
+  /// Construct exact tet children using the requested edge or central diagonal.
   std::vector<Child> detail::splitChildren(const TetSplit &request) {
     std::vector<Child> children ;
     const ReferenceElement &element = referenceElement(Shape::tet) ;
@@ -112,12 +114,14 @@ namespace FVMAdapt {
     return children ;
   }
 
+  /// Construct tet children and their shared boundary correspondence.
   SplitResult split(const TetSplit &request) {
     SplitResult result ; result.shape = Shape::tet ;
     result.children = detail::splitChildren(request) ;
     detail::completeSubdivision(result) ; return result ;
   }
 
+  /// Require a tet before applying its split request.
   SplitResult split(Shape shape, const TetSplit &request) {
     if(shape != Shape::tet) throw std::invalid_argument("tetrahedron split requires a tetrahedron") ;
     return split(request) ;

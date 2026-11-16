@@ -38,6 +38,7 @@ namespace FVMAdapt {
 
   /// Require a finite, strictly convex planar triangle or quad.
   void validatePlanarPolygon(const std::vector<Point> &corners) ;
+
   /// Construct quads from accepted boundary midpoints and the selected physical center.
   /// Integration limits apply only to the integrated center; unresolved integration throws.
   PlanarSplit splitPlanarPolygon(const std::vector<Point> &corners,

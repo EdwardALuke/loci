@@ -7,31 +7,43 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
+    /// Grow a retained record array without exceeding its configured limit.
     template<class T> void reserveRecords(std::vector<T> &records,std::size_t count,std::size_t limit) {
       if(count>records.capacity()) {
         const auto growth=std::min(records.capacity(),limit-records.capacity()) ;
         records.reserve(std::max(count,records.capacity()+growth)) ;
       }
     }
+
+    /// Require a supported center construction.
     void checkMethod(CenterMethod method) {
       CornerBoundary::require(method==CenterMethod::reference || method==CenterMethod::weighted || method==CenterMethod::integrated,
                               "unknown corner center method") ;
     }
+
+    /// Convert a center method to its saved record code.
     unsigned methodCode(CenterMethod method) {
       checkMethod(method) ; return method==CenterMethod::reference ? 0 : method==CenterMethod::weighted ? 1 : 2 ;
     }
+
+    /// Decode a saved center method, rejecting unknown codes.
     CenterMethod readMethod(unsigned code) {
       CornerBoundary::require(code<3,"unknown saved corner center method") ;
       return code==0 ? CenterMethod::reference : code==1 ? CenterMethod::weighted : CenterMethod::integrated ;
     }
   }
 
+  /// Initialize an empty retained cell tree and its resource limits.
   CornerSubdivision::CornerSubdivision(std::uint64_t root,HistoryLimits limits) : root_(root),limits_(limits) {
     require(limits.maxNodes>0,"corner history requires a positive node limit") ;
     options.maxNodes=limits.maxNodes ; options.maxSnapshotBytes=limits.exact.maxBytes ; options.jacobianLimits=limits.jacobian ;
   }
+
+  /// Retain an original cell whose boundary is already in physical coordinates.
   CornerSubdivision::CornerSubdivision(std::uint64_t root,CornerBoundary boundary,CornerCell cell,Point interior,HistoryLimits limits)
     : CornerSubdivision(root,{},std::move(boundary),std::move(cell),interior,limits) {}
+
+  /// Retain original cell geometry and its reference-space boundary.
   CornerSubdivision::CornerSubdivision(std::uint64_t root,std::shared_ptr<const GeometryMap> source,
       CornerBoundary boundary,CornerCell cell,Point interior,HistoryLimits limits)
     : CornerSubdivision(root,limits) {
@@ -44,6 +56,8 @@ namespace FVMAdapt {
     }
     nodes_.push_back({noTreeNode,0,noTreeNode,false,std::move(cell),interior}) ; validate() ;
   }
+
+  /// Retain original cell geometry and its reference-space boundary.
   CornerSubdivision::CornerSubdivision(std::uint64_t root,std::shared_ptr<const GeometryMap> source,HistoryLimits limits)
     : CornerSubdivision(root,limits) {
     require(source && source->dimension()==3,"corner source requires a volume map") ;
@@ -68,26 +82,39 @@ namespace FVMAdapt {
     }
     nodes_.push_back({noTreeNode,0,noTreeNode,false,std::move(cell),interior}) ; validate() ;
   }
+
   std::shared_ptr<const GeometryMap> CornerSubdivision::sourceGeometry() const {
     return source_==noBoundary ? nullptr : boundaries.geometry.map(source_) ;
   }
+
+  /// Compose a local map with the original cell geometry, when present.
   std::shared_ptr<const GeometryMap> CornerSubdivision::project(std::shared_ptr<const GeometryMap> map) const {
     return source_==noBoundary ? map : std::make_shared<RestrictedMap>(sourceGeometry(),std::move(map)) ;
   }
+
+  /// Evaluate a retained vertex in physical coordinates.
   Point CornerSubdivision::position(BoundaryId vertex) const {
     const auto &point=boundaries.points.at(vertex) ; return source_==noBoundary ? point : sourceGeometry()->position(point) ;
   }
+
+  /// Evaluate a retained edge through the original cell geometry.
   std::shared_ptr<const GeometryMap> CornerSubdivision::edgeGeometry(BoundaryId edge) const {
     return project(boundaries.geometry.map(boundaries.edges.at(edge).geometry)) ;
   }
+
+  /// Evaluate a retained face through the original cell geometry.
   std::shared_ptr<const GeometryMap> CornerSubdivision::faceGeometry(BoundaryId face) const {
     return project(boundaries.geometry.map(boundaries.faces.at(face).geometry)) ;
   }
+
+  /// Construct physical volume pieces for one retained cell.
   std::vector<std::shared_ptr<const GeometryMap>> CornerSubdivision::cellPieces(TreeNodeId id) const {
     const auto &n=node(id) ; auto pieces=CornerBoundary::cellPieces(n.cell,n.interior) ;
     if(source_!=noBoundary) for(auto &piece:pieces) piece=project(std::move(piece)) ;
     return pieces ;
   }
+
+  /// Measure physical cell pieces after checking their mapped geometry.
   GeometryMeasure CornerSubdivision::measureCellGeometry(const CornerCell &cell,const Point &interior) const {
     if(source_==noBoundary) return measureCell(cell,interior) ;
     auto pieces=CornerBoundary::cellPieces(cell,interior) ;
@@ -106,25 +133,35 @@ namespace FVMAdapt {
     if(!result.converged) throw std::length_error("mapped corner volume integration did not converge") ;
     return result ;
   }
+
+  /// Combine cell-history and boundary limits for saved geometry.
   BoundaryRecordLimits CornerSubdivision::savedBoundaryLimits() const {
     auto result=boundaryLimits() ; result.geometry=limits_.geometry ; result.geometry.exact=limits_.exact ;
     result.maxBytes=std::min(result.maxBytes,limits_.exact.maxBytes) ; return result ;
   }
+
+  /// Test whether every ancestor selects the path to this cell.
   bool CornerSubdivision::active(TreeNodeId id) const {
     node(id) ;
     while(id!=0) { id=node(id).parent ; if(!node(id).refined) return false ; }
     return true ;
   }
+
+  /// Count parent links from this cell to the original cell.
   unsigned CornerSubdivision::depth(TreeNodeId id) const {
     unsigned result=0 ; node(id) ;
     while(id!=0) { id=node(id).parent ; ++result ; }
     return result ;
   }
+
+  /// Return child ordinals from the original cell to this node.
   CellPath CornerSubdivision::path(TreeNodeId id) const {
     CellPath result ; node(id) ;
     while(id!=0) { result.push_back(node(id).ordinal) ; id=node(id).parent ; }
     std::reverse(result.begin(),result.end()) ; return result ;
   }
+
+  /// Follow a retained sequence of child ordinals to its cell node.
   TreeNodeId CornerSubdivision::nodeId(const CellPath &path) const {
     TreeNodeId result=0 ;
     for(auto ordinal:path) {
@@ -132,9 +169,13 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Return the retained child range, including children of a coarsened cell.
   NodeRange CornerSubdivision::children(TreeNodeId id) const {
     const auto split=node(id).split ; return split==noTreeNode ? NodeRange() : splits_.at(split).children ;
   }
+
+  /// List active leaves in child traversal order.
   std::vector<TreeNodeId> CornerSubdivision::leafIds() const {
     std::vector<TreeNodeId> result,pending{0} ;
     while(!pending.empty()) {
@@ -144,6 +185,8 @@ namespace FVMAdapt {
     }
     return result ;
   }
+
+  /// Activate a retained split or construct one child around each parent vertex.
   NodeRange CornerSubdivision::refine(TreeNodeId id,CenterMethod method) {
     checkMethod(method) ; require(leaf(id),"corner refinement requires an active leaf") ;
     if(node(id).split!=noTreeNode) {
@@ -173,12 +216,15 @@ namespace FVMAdapt {
     nodes_[id].split=splits_.size() ; nodes_[id].refined=true ; splits_.push_back(std::move(construction)) ;
     transaction.committed=true ; return range ;
   }
+
+  /// Replace a complete active leaf family with its retained parent.
   void CornerSubdivision::coarsen(TreeNodeId id) {
     require(active(id) && node(id).refined,"corner coarsening requires an active parent") ;
     for(auto child:children(id)) require(leaf(child),"corner coarsening requires a complete leaf family") ;
     nodes_[id].refined=false ;
   }
 
+  /// Check a retained construction against its parent and shared face splits.
   void CornerSubdivision::validateSplit(const CornerConstruction &split) const {
     checkMethod(split.centerMethod) ; const auto &parent=node(split.parent).cell ;
     require(source_==noBoundary || split.centerMethod==CenterMethod::reference,"mapped corner history requires reference centers") ;
@@ -220,10 +266,17 @@ namespace FVMAdapt {
     }
     require(used.size()==edges.size(),"corner construction omits an interior face") ;
   }
+
+  /// Validate shared boundaries and the retained cell tree.
   void CornerSubdivision::validate() const {
+    validateBoundaries(boundaries,savedBoundaryLimits()) ;
+    validateCells() ;
+  }
+
+  /// Check retained cell connectivity, constructions, and active ancestry.
+  void CornerSubdivision::validateCells() const {
     require(!nodes_.empty(),"corner history has no root") ;
     if(nodes_.size()>limits_.maxNodes || splits_.size()>limits_.maxSplits) throw std::length_error("corner history limit exceeded") ;
-    validateBoundaries(boundaries,savedBoundaryLimits()) ;
     for(const auto &face:boundaries.faces) {
       require(face.splits.size()<=1,"corner history requires one accepted construction per face") ;
       if(source_!=noBoundary) for(const auto &split:face.splits)
@@ -285,10 +338,13 @@ namespace FVMAdapt {
             "corner history has unowned records") ;
   }
 
+  /// Write validated cell history and boundary geometry to one record.
   std::vector<unsigned char> CornerSubdivision::encode() const {
-    validate() ; detail::RecordWriter out(limits_.exact.maxBytes,limits_.exact) ;
+    std::vector<MapId> mapIds ;
+    const auto geometry = encodeBoundaries(boundaries,mapIds,savedBoundaryLimits()) ;
+    validateCells() ;
+    detail::RecordWriter out(limits_.exact.maxBytes,limits_.exact) ;
     out.u32(0x43535542) ; out.u32(source_==noBoundary ? 1:2) ; out.u64(root_) ;
-    std::vector<MapId> mapIds ; const auto geometry=encodeBoundaries(boundaries,mapIds,savedBoundaryLimits()) ;
     out.u64(geometry.size()) ; out.append(geometry) ;
     if(source_!=noBoundary) out.u64(mapIds.at(source_)) ;
     out.u64(nodes_.size()) ;
@@ -304,6 +360,8 @@ namespace FVMAdapt {
     }
     return out.take() ;
   }
+
+  /// Read retained cell history and boundary geometry within the supplied limits.
   CornerSubdivision CornerSubdivision::decode(const std::vector<unsigned char> &bytes,HistoryLimits limits) {
     detail::RecordReader in(bytes,limits.exact.maxBytes,limits.exact) ;
     require(in.u32()==0x43535542,"unsupported corner subdivision header") ; const auto version=in.u32() ;
@@ -329,7 +387,9 @@ namespace FVMAdapt {
       std::vector<std::size_t> faces(in.count(result.boundaries.faces.size(),8)) ; for(auto &f:faces) f=in.u64() ;
       result.splits_.push_back({parent,NodeRange(first,size),method,center,std::move(faces)}) ;
     }
-    in.finish() ; result.validate() ; return result ;
+    in.finish() ;
+    result.validateCells() ;
+    return result ;
   }
 }
 }

@@ -37,20 +37,25 @@ namespace FVMAdapt {
     using Subdivision = std::variant<AffineSubdivision,ExtrudedSubdivision,ParametricCorner,ParametricBoundary> ;
     std::shared_ptr<const ParametricSource> source_ ;
     std::unique_ptr<Subdivision> cell_ ;
+
     explicit ParametricCell(std::shared_ptr<const ParametricSource> source) : source_(std::move(source)) {}
     static ParametricCell original(const CellTopology &topology,const std::vector<Point> &corners,
         HistoryLimits limits,const CellSelection &selection) ;
     friend class ParametricCellData ;
   public:
     ParametricCell(AffineSubdivision cell) : cell_(std::make_unique<Subdivision>(std::move(cell))) {}
+
     ParametricCell(ExtrudedSubdivision cell) : cell_(std::make_unique<Subdivision>(std::move(cell))) {}
+
     ParametricCell(ParametricCorner cell) : cell_(std::make_unique<Subdivision>(std::move(cell))) {}
+
     ParametricCell(ParametricBoundary cell) : cell_(std::make_unique<Subdivision>(std::move(cell))) {}
     ParametricCell(const ParametricCell &) ;
     ParametricCell &operator=(const ParametricCell &) ;
     ParametricCell(ParametricCell &&) noexcept = default ;
     ParametricCell &operator=(ParametricCell &&) noexcept = default ;
     static ParametricCell original(const CellTopology &topology,const std::vector<Point> &corners,HistoryLimits limits) ;
+
     /// Deferred, unexpanded source state; null when a working subdivision exists.
     const ParametricSource *source() const { return source_.get() ; }
     /// Construct a working subdivision before editing an original cell.
@@ -58,8 +63,11 @@ namespace FVMAdapt {
     std::size_t leafCount() const ;
     std::vector<TreeNodeId> leafIds() const ;
     const HistoryLimits &limits() const ;
+
     const ParametricCorner *corner() const { return std::get_if<ParametricCorner>(cell_.get()) ; }
+
     const ParametricBoundary *boundary() const { return std::get_if<ParametricBoundary>(cell_.get()) ; }
+
     bool hasCornerGeometry() const { return corner() || boundary() ; }
     /// Shape-independent cell ancestry; untouched sources contain only node zero.
     std::uint64_t rootKey() const ;
@@ -86,7 +94,9 @@ namespace FVMAdapt {
     BoundaryId cornerFaceId(EntityId) const ;
     /// Accept shared boundary divisions; return whether the saved construction changed.
     bool mergeFace(EntityId face, const ParametricRecord &record) ;
+
     const AffineSubdivision *native() const { return std::get_if<AffineSubdivision>(cell_.get()) ; }
+
     const ExtrudedSubdivision *extruded() const { return std::get_if<ExtrudedSubdivision>(cell_.get()) ; }
     /// Standard-element history; unavailable for untouched or boundary-defined cells.
     const RefinementHistory &history() const ;
@@ -117,12 +127,15 @@ namespace FVMAdapt {
   /// Optional output collects native leaf directions even when the face policy is none.
   std::vector<int> parametricFaceBalanceRequests(const CellTopology &topology, const ParametricCell &cell,
       const std::vector<FaceBalanceRequest> &shared, FaceBalance policy, std::map<int,unsigned> *directions = nullptr) ;
+
   ParametricCell decodeParametricCell(const ParametricRecord &record, HistoryLimits limits = {}) ;
   ParametricRecord encodeParametricCell(const ParametricCell &cell) ;
+
   /// Build or load a cell, verifying its original geometry and requested split family.
   ParametricCell makeParametricCell(const CellTopology &topology, const std::vector<Point> &corners,
       const ParametricRecord &record, HistoryLimits limits, const std::string &family, int axis,
       const ParametricEdgeControls &controls = {}) ;
+
   ParametricRecord initialParametricCell(const CellTopology &topology, const std::vector<Point> &corners,
       const ParametricRecord &record, HistoryLimits limits, const std::string &family, int axis,
       const ParametricEdgeControls &controls = {}) ;
@@ -177,7 +190,7 @@ namespace FVMAdapt {
   /// Interior polygons, optionally with retained-surface identity and physical area.
   std::vector<ParametricOutputFace> parametricCellFaces(const CellTopology &topology, const ParametricCell &cell,
       const std::vector<ParametricNodeKey> &boundaryNodes, bool patches = false) ;
-  std::vector<ParametricOutputFace> parametricFaceFaces(EntityId face, const CellTopology &leftTopology, const ParametricCell &leftCell,
+  std::vector<ParametricOutputFace> parametricFacePieces(EntityId face, const CellTopology &leftTopology, const ParametricCell &leftCell,
       const std::vector<ParametricNodeKey> &edgeNodes, const CellTopology *right = nullptr, const ParametricCell *rightCell = nullptr,
       bool patches = false) ;
   /// Physical positions in the supplied original-cell-owned output-key order.

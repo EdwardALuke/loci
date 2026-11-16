@@ -9,6 +9,7 @@ namespace Loci { namespace FVMAdapt {
   struct CellSelection {
     CellRepresentation representation ;
     bool facePatches ; ///< Source faces need piecewise maps and cannot use deferred corner geometry.
+
     bool corner() const {
       return representation==CellRepresentation::mappedCorner || representation==CellRepresentation::boundary ;
     }
@@ -27,7 +28,7 @@ namespace Loci { namespace FVMAdapt {
   void validateMixedFacePlan(const ParametricRecord &record) ;
   bool mixedFace(const ParametricCell &leftCell,const ParametricCell *rightCell) ;
   /// Shared-face queries require matching source-edge geometry, checked by the module before balancing.
-  std::vector<ParametricOutputFace> mixedFaceFaces(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
+  std::vector<ParametricOutputFace> mixedFacePieces(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
       const CellTopology &rightTopology,const ParametricCell &rightCell,const std::vector<ParametricNodeKey> &requiredNodes,bool patches = false) ;
   std::vector<ParametricNodeKey> mixedFaceNodes(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
       const CellTopology &rightTopology,const ParametricCell &rightCell,std::vector<Point> *positions = nullptr) ;

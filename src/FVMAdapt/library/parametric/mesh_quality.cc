@@ -11,20 +11,30 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
     Point subtract(const Point &a,const Point &b) { return {{a[0]-b[0],a[1]-b[1],a[2]-b[2]}} ; }
+
     double dot(const Point &a,const Point &b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2] ; }
+
     Point cross(const Point &a,const Point &b) { return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ; }
+
     double length(const Point &p) { return std::hypot(p[0],p[1],p[2]) ; }
+
     void require(bool value,const char *message) { if(!value) throw std::invalid_argument(message) ; }
+
+    /// Return the angle between two nonzero vectors in degrees.
     double angle(const Point &a,const Point &b) {
       const double na=length(a),nb=length(b) ;
       require(na>0 && nb>0 && std::isfinite(na) && std::isfinite(nb),"undefined mesh quality angle") ;
       double cosine=0 ; for(unsigned d=0;d<3;++d) cosine+=(a[d]/na)*(b[d]/nb) ;
       return std::acos(std::clamp(cosine,-1.,1.))*180/std::acos(-1.) ;
     }
+
+    /// Break equal-quality ties by original cell, leaf, and face number.
     bool locationLess(const QualityValue &a,const QualityValue &b) {
       return std::tie(a.root,a.leaf,a.face)<std::tie(b.root,b.leaf,b.face) ;
     }
   }
+
+  /// Require supported centroid choices and finite quality thresholds.
   void MeshQualityOptions::validate() const {
     require(mode=="off" || mode=="report" || mode=="reject","quality mode must be off, report, or reject") ;
     require(centroid=="wireframe" || centroid=="exact","quality centroid must be wireframe or exact") ;
@@ -32,6 +42,8 @@ namespace FVMAdapt {
       require(std::isfinite(limit) && (limit==-1 || (limit>=0 && limit<=180)),"quality angle limits must be -1 or in [0,180] degrees") ;
     require(std::isfinite(maxChildVolumeRatio) && (maxChildVolumeRatio==-1 || maxChildVolumeRatio>=1),"child volume ratio limit must be -1 or at least one") ;
   }
+
+  /// Measure a polygon using the selected center and its triangular face pieces.
   FaceMeasure measurePolygon(const std::vector<Point> &points,const std::string &centroid) {
     require(points.size()>=3,"quality face needs at least three vertices") ;
     require(centroid=="wireframe" || centroid=="exact","unknown quality centroid") ;
@@ -75,6 +87,8 @@ namespace FVMAdapt {
     for(unsigned d=0;d<3;++d) { result.center[d]=origin[d]+center[d] ; result.wireCenter[d]=origin[d]+wire[d] ; }
     return result ;
   }
+
+  /// Measure a cell from oriented face pieces and the selected cell center.
   CellMeasure measurePolyhedron(const std::vector<MeasuredFace> &faces,const std::string &centroid) {
     require(faces.size()>=4,"quality cell has an incomplete boundary") ;
     require(centroid=="wireframe" || centroid=="exact","unknown quality centroid") ;
@@ -106,13 +120,19 @@ namespace FVMAdapt {
     for(double x:result.center) require(std::isfinite(x),"nonfinite emitted cell center") ;
     return result ;
   }
+
+  /// Measure the angle between the face normal and the cell-center connection.
   double faceNonOrthogonality(const FaceMeasure &face,const Point &left,const Point &right) {
     return angle(face.area,subtract(right,left)) ;
   }
+
+  /// Retain the largest quality value and its cell and face location.
   void includeQualityValue(QualityValue &out,double value,int root,int leaf,int face) {
     require(std::isfinite(value),"nonfinite mesh quality measurement") ; const QualityValue next{value,root,leaf,face} ;
     if(out.root<0 || value>out.value || (value==out.value && locationLess(next,out))) out=next ;
   }
+
+  /// Merge another report's counts and worst quality values.
   void MeshQualityReport::include(const MeshQualityReport &other) {
     for(auto entry:{std::make_pair(&nonOrthogonality,&other.nonOrthogonality),std::make_pair(&faceWarpage,&other.faceWarpage),
                     std::make_pair(&childVolumeRatio,&other.childVolumeRatio)})
@@ -121,11 +141,15 @@ namespace FVMAdapt {
       invalidRoot=other.invalidRoot ; invalidLeaf=other.invalidLeaf ; invalidFace=other.invalidFace ;
     }
   }
+
+  /// Test whether measured quality violates any enabled threshold.
   bool MeshQualityReport::exceeds(const MeshQualityOptions &o) const {
     return (o.maxNonOrthogonality>=0 && nonOrthogonality.value>o.maxNonOrthogonality) ||
       (o.maxFaceWarpage>=0 && faceWarpage.value>o.maxFaceWarpage) ||
       (o.maxChildVolumeRatio>=0 && childVolumeRatio.value>o.maxChildVolumeRatio) ;
   }
+
+  /// Summarize the measured extrema and enabled thresholds.
   std::string MeshQualityReport::description(const MeshQualityOptions &o) const {
     std::ostringstream out ;
     if(invalid()) { out<<"invalid or unresolved output geometry at root "<<invalidRoot<<", leaf "<<invalidLeaf<<", face "<<invalidFace ; return out.str() ; }
@@ -141,6 +165,8 @@ namespace FVMAdapt {
     }
     return out.str() ;
   }
+
+  /// Find the largest sibling volume ratio in the active cell paths.
   QualityValue childVolumeRatio(const std::vector<std::vector<unsigned>> &paths,const std::vector<CellMeasure> &cells,int root) {
     require(paths.size()==cells.size(),"quality leaf paths differ from emitted cells") ;
     struct Volume { double sum=0 ; int leaf=-1 ; } ;

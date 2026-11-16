@@ -46,9 +46,13 @@ namespace FVMAdapt {
     Fraction(std::int64_t numerator = 0, std::int64_t denominator = 1) ;
     Fraction(const Integer &numerator, const Integer &denominator) ;
     explicit Fraction(const Rational &value) ;
+
     Integer numerator() const { return boost::multiprecision::numerator(value_) ; }
+
     Integer denominator() const { return boost::multiprecision::denominator(value_) ; }
+
     const Rational &rational() const { return value_ ; }
+
     double value() const { return value_.convert_to<double>() ; }
   } ;
 
@@ -76,7 +80,9 @@ namespace FVMAdapt {
     std::size_t operations_ = 0, bytes_ = 0 ;
   public:
     explicit ExactBudget(ExactLimits limits = {}) : limits_(limits) {}
+
     const ExactLimits &limits() const { return limits_ ; }
+
     void check(const Fraction &value) const { checkExact(value,limits_) ; }
     /// Charge work or retained bytes; exhaustion throws length_error without changing the counter.
     void operations(std::size_t count = 1) ;

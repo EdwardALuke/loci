@@ -41,6 +41,7 @@ namespace {
   constexpr std::size_t minNodeBytes=28, minSplitBytes=30 ;
   constexpr std::uint64_t absent=std::numeric_limits<std::uint64_t>::max() ;
 
+  /// Encode a shape using the stable record-format tag.
   unsigned char shapeTag(Shape shape) {
     switch(shape) {
     case Shape::point: return 1 ;
@@ -56,6 +57,7 @@ namespace {
     throw std::invalid_argument("unknown snapshot shape") ;
   }
 
+  /// Decode a stable shape tag, rejecting unknown values.
   Shape readShape(RecordReader &in) {
     switch(in.byte()) {
     case 1: return Shape::point ;
@@ -71,12 +73,14 @@ namespace {
     throw std::invalid_argument("unknown snapshot shape tag") ;
   }
 
+  /// Write an exact affine origin and its three coordinate columns.
   void writePlacement(RecordWriter &out, const Placement &placement) {
     for(const auto &value:placement.origin) out.fraction(value) ;
     for(const auto &column:placement.columns)
       for(const auto &value:column) out.fraction(value) ;
   }
 
+  /// Read an exact affine origin and its three coordinate columns.
   Placement readPlacement(RecordReader &in) {
     Placement result ;
     for(auto &value:result.origin) value=in.fraction() ;
@@ -85,17 +89,20 @@ namespace {
     return result ;
   }
 
+  /// Write a counted array of physical or reference-space points.
   void writePoints(RecordWriter &out, const std::vector<Point> &points) {
     out.u64(points.size()) ;
     for(const auto &point:points) for(double value:point) out.real(value) ;
   }
 
+  /// Read a point array within the supplied record limit.
   std::vector<Point> readPoints(RecordReader &in, std::size_t limit) {
     std::vector<Point> result(in.count(limit,24)) ;
     for(auto &point:result) for(double &value:point) value=in.real() ;
     return result ;
   }
 
+  /// Encode one geometry record using canonical dependency numbers.
   void writeMap(RecordWriter &out, const GeometryRecord &record,
                 const std::vector<MapId> &ids) {
     std::visit([&](const auto &value) {
@@ -138,6 +145,8 @@ namespace {
   }
 
   template<std::size_t EdgeCount>
+
+  /// Read cubic volume edge references and their local directions.
   GeometryRecord readCubicVolume(RecordReader &in, const GeometryLimits &limits, std::size_t id) {
     if(limits.maxDegree < 3) throw std::length_error("snapshot degree limit exceeded") ;
     std::array<MapId,EdgeCount> edges ;
@@ -152,6 +161,7 @@ namespace {
     return CubicVolumeRecord<EdgeCount>{edges,static_cast<std::uint16_t>(reversed)} ;
   }
 
+  /// Decode a geometry record whose dependencies precede it.
   GeometryRecord readMap(RecordReader &in, const GeometryLimits &limits, std::size_t id) {
     switch(in.byte()) {
     case 1: {
@@ -231,49 +241,14 @@ namespace {
     std::size_t fractions=0 ;
   } ;
 
+  /// Deduplicate geometry records and number dependencies before their users.
   GeometryOrder geometryOrder(const GeometryStore &geometry, const RecordLimits &limits) {
-    if(geometry.size()>limits.geometry.maxRecords)
-      throw std::length_error("snapshot map limit exceeded") ;
-    if(geometry.retainedBytes()>limits.geometry.exact.maxBytes)
-      throw std::length_error("snapshot geometry storage limit exceeded") ;
-    std::size_t controls=0 ;
-    for(const auto &record:geometry.records()) std::visit([&](const auto &value) {
-      using T=std::decay_t<decltype(value)> ;
-      std::size_t count=0 ;
-      if constexpr(std::is_same_v<T,CornerRecord>) count=value.corners.size() ;
-      else if constexpr(std::is_same_v<T,TensorBezierRecord>) {
-        count=value.controls.size() ;
-        for(unsigned degree:value.degree)
-          if(degree>limits.geometry.maxDegree) throw std::length_error("snapshot degree limit exceeded") ;
-      }
-      else if constexpr(std::is_same_v<T,CubicTriangleRecord>) {
-        count=value.controls.size() ;
-        if(limits.geometry.maxDegree < 3) throw std::length_error("snapshot degree limit exceeded") ;
-      }
-      else if constexpr(isCubicVolumeRecord<T>) {
-        if(limits.geometry.maxDegree < 3) throw std::length_error("snapshot degree limit exceeded") ;
-      }
-      else if constexpr(std::is_same_v<T,ConeRecord> || std::is_same_v<T,BoundaryFanRecord>) count=1 ;
-      else if constexpr(std::is_same_v<T,FanRecord>) {
-        if(value.corners().size()>=limits.geometry.maxControls-controls)
-          throw std::length_error("snapshot control limit exceeded") ;
-        count=value.corners().size()+1 ;
-      } else if constexpr(std::is_same_v<T,SurfacePatchRecord>) count=value.chartCorners.size() ;
-      if(count>limits.geometry.maxControls-controls)
-        throw std::length_error("snapshot control limit exceeded") ;
-      controls+=count ;
-    },record) ;
+    geometry.checkLimits(limits.geometry) ;
     std::vector<std::size_t> depths(geometry.size(),0) ;
     std::map<std::size_t,std::vector<MapId>> levels ;
     for(MapId id=0; id<geometry.size(); ++id) {
-      if(geometry.evaluationCost(id)>limits.geometry.exact.maxOperations)
-        throw std::length_error("snapshot geometry evaluation limit exceeded") ;
-      for(auto dependency:geometryDependencies(geometry.record(id))) {
-        if(dependency>=id) throw std::invalid_argument("snapshot geometry reference must precede its use") ;
-        depths[id]=std::max(depths[id],depths[dependency]+1) ;
-      }
-      if(depths[id]>limits.geometry.maxCompositionDepth)
-        throw std::length_error("snapshot composition depth limit exceeded") ;
+      for(auto dependency : geometryDependencies(geometry.record(id)))
+        depths[id] = std::max(depths[id],depths[dependency]+1) ;
       levels[depths[id]].push_back(id) ;
     }
     GeometryOrder result ;
@@ -302,12 +277,14 @@ namespace {
     return result ;
   }
 
+  /// Write geometry in canonical dependency order.
   void writeGeometry(RecordWriter &out, const GeometryOrder &order) {
     out.operations(order.fractions) ;
     out.u64(order.records.size()) ;
     for(const auto &record:order.records) out.append(record) ;
   }
 
+  /// Read and validate geometry records in dependency order.
   GeometryStore readGeometry(RecordReader &in, const RecordLimits &limits) {
     GeometryStore result(limits.geometry) ;
     const auto count=in.count(limits.geometry.maxRecords,2) ;
@@ -315,6 +292,7 @@ namespace {
     return result ;
   }
 
+  /// Encode a split family using its stable record-format tag.
   unsigned char familyTag(SplitFamily family) {
     switch(family) {
     case SplitFamily::tensor: return 1 ;
@@ -328,6 +306,7 @@ namespace {
     throw std::invalid_argument("unknown snapshot split family") ;
   }
 
+  /// Decode a stable split-family tag, rejecting unknown values.
   SplitFamily readFamily(RecordReader &in) {
     switch(in.byte()) {
     case 1: return SplitFamily::tensor ;
@@ -341,11 +320,13 @@ namespace {
     throw std::invalid_argument("unknown snapshot split family") ;
   }
 
+  /// Write a counted sequence of exact coordinate cuts.
   void writeCuts(RecordWriter &out, const std::vector<Fraction> &cuts) {
     out.u64(cuts.size()) ;
     for(const auto &cut:cuts) out.fraction(cut) ;
   }
 
+  /// Read exact coordinate cuts within the supplied count limit.
   std::vector<Fraction> readCuts(RecordReader &in, std::size_t limit) {
     std::vector<Fraction> result(in.count(limit,minFractionBytes)) ;
     Fraction previous=0 ;
@@ -358,6 +339,7 @@ namespace {
     return result ;
   }
 
+  /// Write the triangle split choice and its active parameters.
   void writeTriangle(RecordWriter &out, const TriangleSplit &request) {
     switch(request.kind) {
     case TriangleSplit::Kind::none: out.byte(0) ; break ;
@@ -368,6 +350,7 @@ namespace {
     }
   }
 
+  /// Read a triangle split choice and validate its parameters.
   TriangleSplit readTriangle(RecordReader &in) {
     switch(in.byte()) {
     case 0: return TriangleSplit() ;
@@ -385,6 +368,7 @@ namespace {
 
 }
 namespace detail {
+  /// Write a native split request with its family tag.
   void writeSplitOperation(RecordWriter &out, const SplitOperation &operation) {
     std::visit([&](const auto &request) {
       using T=std::decay_t<decltype(request)> ;
@@ -416,6 +400,7 @@ namespace detail {
     },operation) ;
   }
 
+  /// Decode a native split request within the supplied limits.
   SplitOperation readSplitOperation(RecordReader &in, std::size_t limit) {
     switch(in.byte()) {
     case 1: {
@@ -463,6 +448,7 @@ namespace {
     std::vector<std::size_t> splits, splitIds ;
   } ;
 
+  /// Number retained cells and constructions in canonical traversal order.
   HistoryOrder historyOrder(const RefinementHistory &history, const RecordLimits &limits) {
     const auto &nodes=history.nodes() ;
     const auto &splits=history.splits() ;
@@ -509,6 +495,7 @@ namespace {
     return order ;
   }
 
+  /// Read a bounded record index, optionally accepting the absent marker.
   std::size_t readIndex(RecordReader &in, std::size_t count, bool allowAbsent=false) {
     const auto index=in.u64() ;
     if(allowAbsent && index==absent) return noTreeNode ;
@@ -516,10 +503,12 @@ namespace {
     return static_cast<std::size_t>(index) ;
   }
 
+  /// Write the record kind and format version.
   void writeHeader(RecordWriter &out, std::uint32_t magic, std::uint32_t version) {
     out.u32(magic) ; out.u32(version) ;
   }
 
+  /// Require the expected record kind and format version.
   void readHeader(RecordReader &in, std::uint32_t magic, std::uint32_t version) {
     if(in.u32()!=magic || in.u32()!=version)
       throw std::invalid_argument("unknown snapshot header or version") ;
@@ -527,10 +516,12 @@ namespace {
 
 }
 
+  /// Write canonical geometry records and, when requested, return their new IDs.
   std::vector<unsigned char> encodeGeometry(const GeometryStore &geometry, const RecordLimits &limits) {
     std::vector<MapId> ids ; return encodeGeometry(geometry,ids,limits) ;
   }
 
+  /// Write canonical geometry records and, when requested, return their new IDs.
   std::vector<unsigned char> encodeGeometry(const GeometryStore &geometry, std::vector<MapId> &encodedIds,
                                             const RecordLimits &limits) {
     const auto order=geometryOrder(geometry,limits) ;
@@ -541,6 +532,7 @@ namespace {
     return out.take() ;
   }
 
+  /// Read a complete geometry record and enforce its limits.
   GeometryStore decodeGeometry(const std::vector<unsigned char> &record, const RecordLimits &limits) {
     RecordReader in(record,limits.maxBytes,limits.geometry.exact) ;
     readHeader(in,geometryMagic,geometryVersion) ;
@@ -549,10 +541,12 @@ namespace {
     return result ;
   }
 
+  /// Write canonical retained history and, when requested, return its new node IDs.
   std::vector<unsigned char> encodeRefinement(const RefinementHistory &history, const RecordLimits &limits) {
     std::vector<TreeNodeId> ids ; return encodeRefinement(history,ids,limits) ;
   }
 
+  /// Write canonical retained history and, when requested, return its new node IDs.
   std::vector<unsigned char> encodeRefinement(const RefinementHistory &history, std::vector<TreeNodeId> &encodedIds,
                                               const RecordLimits &limits) {
     if(history.retainedBytes()>limits.geometry.exact.maxBytes)
@@ -604,6 +598,7 @@ namespace {
     return out.take() ;
   }
 
+  /// Read and validate a complete retained refinement history.
   RefinementHistory decodeRefinement(const std::vector<unsigned char> &record, const RecordLimits &limits) {
     RecordReader in(record,limits.maxBytes,limits.geometry.exact) ;
     readHeader(in,historyMagic,historyVersion) ;

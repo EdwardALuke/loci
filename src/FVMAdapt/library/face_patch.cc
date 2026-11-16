@@ -6,6 +6,7 @@
 #include <stdexcept>
 
 namespace Loci {
+  /// Pack patch identity, bounds and physical area into integer words.
   void FacePatchConverter::getState(long long* buffer, int& size) const {
     size = getSize() ;
     std::copy(value.bounds.begin(),value.bounds.end(),buffer) ;
@@ -19,17 +20,29 @@ namespace Loci {
     for(const auto& p:value.polygon) for(double x:p) { std::memcpy(buffer++,&x,sizeof(double)) ; }
   }
 
+  /// Restore one patch after checking the record lengths.
   void FacePatchConverter::setState(const long long* buffer, int size) {
-    if(size < 10 || buffer[6]<0 || buffer[7]<0 || buffer[6]>size-10 || buffer[7]>(size-10-buffer[6])/2 ||
-       10+buffer[6]+2*buffer[7]!=size || (buffer[9]!=0 && buffer[9]!=1)) throw std::runtime_error("Incomplete face patch") ;
+    if(size < 10) throw std::runtime_error("Incomplete face patch") ;
+    const long long surfaceCount=buffer[6] ;
+    const long long polygonCount=buffer[7] ;
+    if(surfaceCount<0 || polygonCount<0 || surfaceCount>size-10 ||
+       polygonCount>(size-10-surfaceCount)/2 ||
+       10+surfaceCount+2*polygonCount!=size || (buffer[9]!=0 && buffer[9]!=1))
+      throw std::runtime_error("Incomplete face patch") ;
+
     std::copy(buffer,buffer+4,value.bounds.begin()) ;
-    value.sector = buffer[4] ; value.orientation = buffer[5] ;
+    value.sector = buffer[4] ;
+    value.orientation = buffer[5] ;
     value.mappedArea = buffer[9]!=0 ;
-    value.surface.assign(buffer+10,buffer+10+buffer[6]) ; value.polygon.resize(buffer[7]) ;
-    std::memcpy(&value.area,buffer+8,sizeof(double)) ; buffer+=10+buffer[6] ;
-    for(auto& p:value.polygon) for(double& x:p) { std::memcpy(&x,buffer++,sizeof(double)) ; }
+    value.surface.assign(buffer+10,buffer+10+surfaceCount) ;
+    value.polygon.resize(polygonCount) ;
+    std::memcpy(&value.area,buffer+8,sizeof(double)) ;
+    buffer+=10+surfaceCount ;
+    for(auto& p:value.polygon)
+      for(double& x:p) std::memcpy(&x,buffer++,sizeof(double)) ;
   }
 
+  /// Count integer words, including a length prefix for each patch.
   int FacePatchesConverter::getSize() const {
     size_t size = 0 ;
     for(FacePatch& patch : value) size += 1+FacePatchConverter(patch).getSize() ;
@@ -38,6 +51,7 @@ namespace Loci {
     return size ;
   }
 
+  /// Write length-prefixed patch records in their stored order.
   void FacePatchesConverter::getState(long long* buffer, int& size) const {
     size = getSize() ;
     for(FacePatch& patch : value) {
@@ -47,6 +61,7 @@ namespace Loci {
     }
   }
 
+  /// Restore a sequence of length-prefixed patch records.
   void FacePatchesConverter::setState(const long long* buffer, int size) {
     value.clear() ;
     while(size > 0) {
@@ -58,6 +73,7 @@ namespace Loci {
     }
   }
 
+  /// Write face and cell IDs followed by the patch record.
   void HistoryFaceConverter::getState(long long* buffer, int& size) const {
     buffer[0] = value.face ;
     buffer[1] = value.left ;
@@ -66,6 +82,7 @@ namespace Loci {
     size += 3 ;
   }
 
+  /// Restore face and cell IDs and their patch record.
   void HistoryFaceConverter::setState(const long long* buffer, int size) {
     if(size < 13) throw std::runtime_error("Incomplete face record") ;
     value.face = buffer[0] ;
@@ -82,6 +99,7 @@ namespace Loci {
     return in >> face.face >> face.left >> face.right >> face.patch ;
   }
 
+  /// Write patch identity, bounds, area and polygon coordinates as text.
   std::ostream& operator<<(std::ostream& out, const FacePatch& patch) {
     out << patch.surface.size() ;
     for(long long value : patch.surface) out << ' ' << value ;
@@ -91,6 +109,7 @@ namespace Loci {
     return out ;
   }
 
+  /// Read patch identity, bounds, area and polygon coordinates from text.
   std::istream& operator>>(std::istream& in, FacePatch& patch) {
     size_t size ;
     if(!(in >> size)) return in ;

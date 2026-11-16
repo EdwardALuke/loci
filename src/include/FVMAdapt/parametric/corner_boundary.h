@@ -51,7 +51,9 @@ namespace FVMAdapt {
     static constexpr auto absent = noBoundary ;
     CornerBoundaryOptions options ;
     BoundaryRecords boundaries ;
+
     static void require(bool ok, const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
     static auto endpoints(VertexId a, VertexId b) { return std::make_pair(std::min(a,b),std::max(a,b)) ; }
     BoundaryRecordLimits boundaryLimits() const ;
     RecordLimits recordLimits() const ;
@@ -62,10 +64,14 @@ namespace FVMAdapt {
       std::vector<std::pair<EdgeId,EdgeRecord>> oldEdges ;
       std::vector<std::pair<SurfaceId,FaceRecord>> oldFaces ;
       bool committed = false ;
+
       explicit Transaction(CornerBoundary &s) : state(s), points(s.boundaries.points.size()), edges(s.boundaries.edges.size()),
         faces(s.boundaries.faces.size()), maps(s.boundaries.geometry.size()) {}
+
       void saveEdge(EdgeId id) { if(id < edges) oldEdges.emplace_back(id,state.boundaries.edges.at(id)) ; }
+
       void saveSurface(SurfaceId id) { if(id < faces) oldFaces.emplace_back(id,state.boundaries.faces.at(id)) ; }
+
       ~Transaction() {
         if(committed) return ;
         auto &b = state.boundaries ;
@@ -96,6 +102,7 @@ namespace FVMAdapt {
     /// Require positive sampled cone Jacobians and converged volume integration.
     /// This is not a global injectivity certificate.
     GeometryMeasure measureCell(const CornerCell &cell, const Point &interior) const ;
+
     /// Split arbitrary vertex valence using the shared face constructions.
     /// Reference centers use interior; weighted uses area-vector weights; integrated uses the volume centroid.
     /// Failure preserves all boundary records. The caller retains the accepted split for reuse after coarsening.

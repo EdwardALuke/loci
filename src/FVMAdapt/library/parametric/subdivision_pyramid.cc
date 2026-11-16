@@ -29,6 +29,7 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
 
+    /// Construct an affine pyramid from its base directions and apex.
     Child pyramid(const ReferencePoint &a, const ReferencePoint &b,
                   const ReferencePoint &d, const ReferencePoint &apex) {
       Child child ; child.shape = Shape::pyramid ; child.placement.origin = a ;
@@ -45,6 +46,7 @@ namespace FVMAdapt {
     PyramidSplit request ; request.kind = Kind::uniform ; return request ;
   }
 
+  /// Construct the uniform pyramid split as pyramid and tet children.
   std::vector<Child> detail::splitChildren(const PyramidSplit &request) {
     switch(request.kind) {
     case PyramidSplit::Kind::none: return {{Shape::pyramid,Placement()}} ;
@@ -64,12 +66,14 @@ namespace FVMAdapt {
             tetChild({{cd,center,ce,de}}), tetChild({{da,center,de,ae}})} ;
   }
 
+  /// Construct pyramid children and their shared boundary correspondence.
   SplitResult split(const PyramidSplit &request) {
     SplitResult result ; result.shape = Shape::pyramid ;
     result.children = detail::splitChildren(request) ;
     detail::completeSubdivision(result) ; return result ;
   }
 
+  /// Require a pyramid before applying its split request.
   SplitResult split(Shape shape, const PyramidSplit &request) {
     if(shape != Shape::pyramid) throw std::invalid_argument("pyramid split requires a pyramid") ;
     return split(request) ;

@@ -9,11 +9,11 @@
 
 #include <Loci.h>
 #include <FVMAdapt/defines.h>
-#include <FVMAdapt/dataxferDB.h>
 #include <FVMAdapt/gridInterface.h>
 #include "../face_history_helpers.h"
 
 namespace Loci {
+  /// Face patches retained while the output mesh is assembled.
   class FaceRecording {
   public:
     store<FacePatch> patches ;
@@ -32,6 +32,7 @@ namespace Loci {
       std::string result(path) ; free(path) ; return result ;
     }
 
+    /// Hash file-numbered cell histories independently of their rank distribution.
     std::array<unsigned long long,2> recordStamp(storeRepP rep) {
       store<std::vector<unsigned char>> plan ; if(rep!=0) plan=rep ; else plan.allocate(EMPTY) ;
       std::array<unsigned long long,2> result{{0,0}} ;
@@ -69,6 +70,7 @@ namespace Loci {
     std::shared_ptr<const FaceState> previous ;
     std::vector<std::pair<CellId,CellId> > parents ;
 
+    /// Restore per-face surface records from the shared surface table.
     std::vector<HistoryFace> expand() const {
       std::vector<HistoryFace> result ; result.reserve(faces.size()) ;
       for(const auto& face : faces)
@@ -88,14 +90,17 @@ namespace Loci {
   } ;
 
   struct FaceHistoryAccess {
+    /// Allocate the output mesh patch store on first use.
     static store<FacePatch>& patches(refinedGridData& grid) {
       if(!grid.faceRecording) grid.faceRecording = std::make_shared<FaceRecording>() ;
       return grid.faceRecording->patches ;
     }
+
     static const store<FacePatch>& patches(const refinedGridData& grid) {
       return grid.faceRecording->patches ;
     }
 
+    /// Match original face patches to the installed face numbering and orientation.
     static std::shared_ptr<const FaceState> base(fact_db& facts, const std::string& name,
                                                 const refinedGridData& grid,storeRepP history) {
       auto state = std::make_shared<FaceState::Impl>() ; state->base = baseName(name) ;
@@ -162,6 +167,8 @@ namespace Loci {
       blackbox<FaceStateP> fact ; fact.set_entitySet(~EMPTY) ; *fact = result ;
       facts.create_fact("faceState",fact) ; return result ;
     }
+
+    /// Store each surface once and let face records reference it.
     static void record(FaceState::Impl& state, const std::vector<HistoryFace>& faces) {
       std::map<std::vector<long long>,size_t> surfaces ;
       state.faces.reserve(faces.size()) ;
@@ -173,8 +180,9 @@ namespace Loci {
       }
     }
 
+    /// Retain new-face patches and donor cells until the adapted grid is installed.
     static void prepare(refinedGridData& grid, const std::string& base, FaceStateP previous,
-                        storeRepP oldHistory, storeRepP newHistory) {
+                        storeRepP oldHistory, storeRepP newHistory, storeRepP cellParents) {
       auto state = std::make_shared<FaceState::Impl>() ;
       state->base = baseName(base) ;
       state->plan = recordStamp(newHistory) ;
@@ -202,7 +210,7 @@ namespace Loci {
         throw std::runtime_error("Previous face state does not match the accepted parametric history") ;
       record(*state,faces) ;
       if(state->previous) {
-        const_store<std::pair<int,int> > pairs(DataXFER_DB.getItem("c2p")) ;
+        const_store<std::pair<int,int> > pairs(cellParents) ;
         int offsets[2] = {std::numeric_limits<int>::max(),std::numeric_limits<int>::max()} ;
         for(Entity pair : pairs.domain()) {
           offsets[0] = std::min(offsets[0],pairs[pair].first) ;
@@ -217,6 +225,7 @@ namespace Loci {
       grid.faceState = result ;
     }
 
+    /// Redistribute recorded faces and install their state and donor correspondence.
     static bool install(fact_db& facts, const refinedGridData& grid,
                         const Map& faceNumbers, std::string& error) {
       const auto& pending = *grid.faceState->impl ;
@@ -298,19 +307,23 @@ namespace Loci {
     }
   } ;
 
+  /// Prepare face state and cell donors for installation of the accepted mesh.
   void prepareParametricFaceState(refinedGridData& grid,const std::string& base,FaceStateP previous,
-                                  storeRepP oldHistory,storeRepP newHistory) {
-    FaceHistoryAccess::prepare(grid,base,std::move(previous),oldHistory,newHistory) ;
+                                  storeRepP oldHistory,storeRepP newHistory,storeRepP cellParents) {
+    FaceHistoryAccess::prepare(grid,base,std::move(previous),oldHistory,newHistory,cellParents) ;
   }
 
+  /// Return the output mesh patch store, allocating it on first use.
   store<FacePatch>& recordedFacePatches(refinedGridData& grid) {
     return FaceHistoryAccess::patches(grid) ;
   }
 
+  /// Return patches already recorded on the output mesh.
   const store<FacePatch>& recordedFacePatches(const refinedGridData& grid) {
     return FaceHistoryAccess::patches(grid) ;
   }
 
+  /// Install face state and correspondence using the new mesh face numbers.
   bool installFaceHistory(fact_db& facts, const refinedGridData& grid,
                           const Map& faceNumbers, std::string& error) {
     return FaceHistoryAccess::install(facts,grid,faceNumbers,error) ;
@@ -322,6 +335,7 @@ namespace Loci {
     const_blackbox<std::shared_ptr<const FaceState> > state(rep) ; return *state ;
   }
 
+  /// Record face identities and orientations on the installed original mesh.
   FaceStateP recordBaseParametricFaces(fact_db& facts,const refinedGridData& grid,const std::string& name,storeRepP history) {
     return FaceHistoryAccess::base(facts,name,grid,history) ;
   }
@@ -333,8 +347,11 @@ namespace Loci {
   }
 
   const_multiStore<FaceSource> FaceHistory::sources() const { return const_multiStore<FaceSource>(impl->sources.Rep()) ; }
+
   const_store<int> FaceHistory::change() const { return const_store<int>(impl->change.Rep()) ; }
+
   const_store<CellId> FaceHistory::origin() const { return const_store<CellId>(impl->origin.Rep()) ; }
+
   const std::vector<std::pair<FaceId,CellId> >& FaceHistory::removed() const { return impl->removed ; }
 
   int FaceHistory::donorIndex(FaceId source) const {

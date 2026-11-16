@@ -23,17 +23,26 @@
 #include <iostream>
 #include <stdexcept>
 
+/// Balance requests and write a refinement plan.
 int main(int argc,char **argv) {
-  Loci::Init(&argc,&argv) ; int status=0 ;
+  Loci::Init(&argc,&argv) ;
+  int status=0 ;
   try {
     if(argc==1 || (argc==2 && std::string(argv[1])=="-help")) FVMTools::showAdaptHelp(false) ;
     else {
       auto input=FVMTools::readAdaptInput(argc,argv,false) ;
-      Loci::rule_db rules ; rules.add_rules(Loci::global_rule_list) ; Loci::load_module("fvmadapt",rules) ;
-      namespace F=Loci::FVMAdapt ; std::string error ;
+      Loci::rule_db rules ;
+      rules.add_rules(Loci::global_rule_list) ;
+      Loci::load_module("fvmadapt",rules) ;
+      namespace F=Loci::FVMAdapt ;
+      std::string error ;
       if(!F::markParametricPlan(rules,input.state,input.mesh,input.options,input.tagFile,error) ||
          !F::writeParametricPlan(input.outputPlan,input.state,input.options,error)) throw std::runtime_error(error) ;
     }
-  } catch(const std::exception &error) { if(Loci::MPI_rank==0) std::cerr<<"marker: "<<error.what()<<'\n' ; status=1 ; }
-  Loci::Finalize() ; return status ;
+  } catch(const std::exception &error) {
+    if(Loci::MPI_rank==0) std::cerr<<"marker: "<<error.what()<<'\n' ;
+    status=1 ;
+  }
+  Loci::Finalize() ;
+  return status ;
 }

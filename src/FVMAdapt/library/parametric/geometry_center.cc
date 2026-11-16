@@ -45,6 +45,7 @@ namespace FVMAdapt {
       return {{a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]}} ;
     }
 
+    /// Estimate relative coordinate roundoff after translation and scaling.
     long double accuracy(const Point &origin, long double scale) {
       long double magnitude = 0 ;
       for(double x: origin) magnitude = std::max(magnitude,std::abs(static_cast<long double>(x))) ;
@@ -55,6 +56,7 @@ namespace FVMAdapt {
       return a[0]*b[0]+a[1]*b[1]+a[2]*b[2] ;
     }
 
+    /// Express the integrated physical centroid relative to the origin and scale.
     WidePoint integratedTarget(const GeometryMap &geometry, const Point &origin, long double scale,
                                MeasureOptions options) {
       const auto measure = geometryMeasure(geometry,options) ;
@@ -64,6 +66,7 @@ namespace FVMAdapt {
       return target ;
     }
 
+    /// Test strict membership in the native reference element.
     bool interior(Shape shape, const Point &q) {
       if(!(q[0] > 0 && q[1] > 0)) return false ;
       switch(shape) {
@@ -77,6 +80,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Evaluate a map and require a finite physical position.
     MapValue checkedEvaluation(const GeometryMap &map, const Point &q) {
       auto value = map.evaluate(q) ;
       for(double x: value.position) if(!std::isfinite(x))
@@ -84,6 +88,7 @@ namespace FVMAdapt {
       return value ;
     }
 
+    /// Scale the map derivatives for a dimensionless center solve.
     void scaledColumns(const MapValue &value, long double scale,
                        WidePoint &a, WidePoint &b) {
       if(!value.hasJacobian)
@@ -174,6 +179,7 @@ namespace FVMAdapt {
       throw std::invalid_argument("face center projection did not converge in the face interior") ;
     }
 
+    /// Return triangle reference coordinates of the closest point to the target.
     Point closestTriangle(const std::array<WidePoint,3> &p,const WidePoint &target) {
       WidePoint a,b,r ;
       for(unsigned d=0;d<3;++d) { a[d]=p[1][d]-p[0][d] ; b[d]=p[2][d]-p[0][d] ; r[d]=target[d]-p[0][d] ; }
@@ -218,6 +224,7 @@ namespace FVMAdapt {
       throw std::invalid_argument("surface piece projection did not converge") ;
     }
 
+    /// Project onto each smooth piece and return coordinates in the original surface.
     Point projectSurfacePieces(const GeometryMap &geometry,const Point &origin,long double scale,const WidePoint &target) {
       const auto borrowed=std::shared_ptr<const GeometryMap>(&geometry,[](const GeometryMap *) {}) ;
       const auto partition=smoothSurfacePieces(borrowed) ; long double best=std::numeric_limits<long double>::infinity() ; Point chart{} ;
@@ -233,6 +240,7 @@ namespace FVMAdapt {
       return local ;
     }
 
+    /// Average the supplied physical face centers using face areas as weights.
     WidePoint weightedCellTarget(const GeometryMap &geometry, const std::vector<Point> &faceCenters,
                                  const std::vector<Point> &corners, long double scale) {
       const Shape shape = geometry.shape() ;
@@ -309,6 +317,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Locate the selected face center in the retained surface coordinates.
   Point faceCenterCoordinates(const GeometryMap &geometry, CenterMethod method, MeasureOptions options) {
     const Shape shape = geometry.shape() ;
     if(geometry.dimension()!=2)
@@ -332,6 +341,7 @@ namespace FVMAdapt {
     return projectFaceTarget(geometry,corners[0],scale,target,q,method) ;
   }
 
+  /// Locate the selected volume center in the retained cell coordinates.
   Point cellCenterCoordinates(const GeometryMap &geometry, const std::vector<Point> &faceCenters,
                               CenterMethod method, MeasureOptions options) {
     const Shape shape = geometry.shape() ;

@@ -29,6 +29,7 @@ namespace Loci {
 namespace FVMAdapt {
   namespace {
 
+    /// Construct an affine child triangle from exact parent-space vertices.
     Child triangle(const ReferencePoint &a, const ReferencePoint &b, const ReferencePoint &c) {
       Child child ; child.shape = Shape::triangle ; child.placement.origin = a ;
       for(unsigned d = 0; d < 3; ++d) {
@@ -49,6 +50,7 @@ namespace FVMAdapt {
     TriangleSplit request ; request.kind = Kind::uniform ; return request ;
   }
 
+  /// Construct exact triangular child placements for the requested split.
   std::vector<Child> detail::splitChildren(const TriangleSplit &request) {
     std::vector<Child> children ;
     switch(request.kind) {
@@ -82,12 +84,14 @@ namespace FVMAdapt {
     return children ;
   }
 
+  /// Construct triangular children and their shared boundary correspondence.
   SplitResult split(const TriangleSplit &request) {
     SplitResult result ; result.shape = Shape::triangle ;
     result.children = detail::splitChildren(request) ;
     detail::completeSubdivision(result) ; return result ;
   }
 
+  /// Require a triangle before applying its split request.
   SplitResult split(Shape shape, const TriangleSplit &request) {
     if(shape != Shape::triangle) throw std::invalid_argument("triangle split requires a triangle") ;
     return split(request) ;

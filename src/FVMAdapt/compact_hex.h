@@ -28,6 +28,7 @@ namespace FVMAdapt {
     std::vector<InteriorFace> interior ;
 
     explicit CompactHexCell(const ParametricCorner &cell) ;
+
     /// Unsplit hex from validated source topology and coordinates.
     CompactHexCell(CellTopology topology, std::vector<Point> corners, HistoryLimits limits, std::shared_ptr<const CubicHexMap> cubic = {}) ;
     /// Temporary source evaluator; curved sources retain their shared edge maps.
@@ -64,7 +65,7 @@ namespace FVMAdapt {
     std::vector<ParametricNodeKey> faceNodes(EntityId face,const CompactHexCell *right = nullptr,
         std::vector<Point> *positions = nullptr) const ;
     std::vector<Point> facePositions(EntityId face,const CompactHexCell *right = nullptr) const ;
-    std::vector<ParametricOutputFace> faceFaces(EntityId face,const std::vector<ParametricNodeKey> &required,
+    std::vector<ParametricOutputFace> facePieces(EntityId face,const std::vector<ParametricNodeKey> &required,
         const CompactHexCell *right = nullptr) const ;
   private:
     void validate() const ;

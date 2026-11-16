@@ -48,6 +48,7 @@ namespace FVMAdapt {
       return std::hypot(a[0],a[1],a[2]) ;
     }
 
+    /// Require finite, planar corners forming a strictly convex triangle or quad.
     void validatePolygon(const std::vector<Point> &points) {
       if(points.size() != 3 && points.size() != 4)
         throw std::invalid_argument("planar subdivision requires a triangle or quad") ;
@@ -88,6 +89,7 @@ namespace FVMAdapt {
       }
     }
 
+    /// Evaluate a fractional position along a straight edge.
     Point interpolate(const Point &a, const Point &b, const Fraction &position) {
       Point result ;
       const long double t = position.rational().convert_to<long double>() ;
@@ -97,6 +99,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Average edge midpoints using edge lengths as weights.
     Point weightedCenter(const std::vector<Point> &corners) {
       std::vector<long double> weights ;
       long double maximum = 0 ;
@@ -122,8 +125,10 @@ namespace FVMAdapt {
 
   }
 
+  /// Check the planar polygon requirements used by vertex-centered splits.
   void validatePlanarPolygon(const std::vector<Point> &corners) { validatePolygon(corners) ; }
 
+  /// Check child quadrilaterals against the accepted parent polygon.
   void validatePlanarSplit(const PlanarSplit &split, const std::vector<Point> &parentCorners) {
     validatePolygon(parentCorners) ;
     const unsigned n=parentCorners.size() ;
@@ -159,6 +164,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Construct one quadrilateral per parent corner using shared edge points.
   PlanarSplit splitPlanarPolygon(const std::vector<Point> &corners, const std::vector<Point> &midpoints,
                                  CenterMethod method, MeasureOptions options) {
     validatePolygon(corners) ;

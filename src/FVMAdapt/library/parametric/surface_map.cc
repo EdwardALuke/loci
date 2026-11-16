@@ -16,28 +16,55 @@ namespace FVMAdapt {
     using detail::ExactPoint ;
     using XY=std::array<Exact,2> ;
     using Polygon=std::vector<XY> ;
+
     void require(bool ok,const char *message) { if(!ok) throw std::invalid_argument(message) ; }
+
     void finite(const Point &p) { for(double x:p) require(std::isfinite(x),"surface coordinates must be finite") ; }
+
+    /// Return the center of the native triangle, quad or regular reference polygon.
     Point referenceCenter(Shape s) { return s==Shape::triangle ? Point{{1./3,1./3,0}}:Point{{.5,.5,0}} ; }
+
+    /// Return native or regular-polygon reference corners.
     std::vector<Point> reference(Shape s,unsigned n) {
       if(s==Shape::polygon) return polygonReferenceCorners(n) ;
-      const auto &e=referenceElement(s) ; return {e.vertices.begin(),e.vertices.begin()+e.vertexCount} ;
+      const auto &e=referenceElement(s) ;
+      return {e.vertices.begin(),e.vertices.begin()+e.vertexCount} ;
     }
-    Shape surfaceShape(unsigned n) { require(n>=3,"surface requires at least three corners") ; return n==3 ? Shape::triangle:n==4 ? Shape::quad:Shape::polygon ; }
+
+    /// Select the reference surface shape from its corner count.
+    Shape surfaceShape(unsigned n) {
+      require(n>=3,"surface requires at least three corners") ;
+      return n==3 ? Shape::triangle:n==4 ? Shape::quad:Shape::polygon ;
+    }
+
+    /// Build a map from local surface coordinates to the supplied corner positions.
     Map coordinates(const std::vector<Point> &p) {
       if(p.size()>4) return std::make_shared<PolygonMap>(p) ;
       return std::make_shared<CornerMap>(surfaceShape(p.size()),p) ;
     }
+
     Exact turn(const XY &a,const XY &b,const XY &c) { return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]) ; }
+
+    /// Preserve planar reference coordinates as exact rational values.
     Polygon exactPolygon(const std::vector<Point> &p) {
-      Polygon out ; for(const auto &q:p) { finite(q) ; require(q[2]==0,"surface chart must lie in the XY plane") ; out.push_back({{Exact(q[0]),Exact(q[1])}}) ; } return out ;
+      Polygon out ;
+      for(const auto &q:p) {
+        finite(q) ;
+        require(q[2]==0,"surface chart must lie in the XY plane") ;
+        out.push_back({{Exact(q[0]),Exact(q[1])}}) ;
+      }
+      return out ;
     }
+
+    /// Compute twice the signed polygon area in reference coordinates.
     Exact twiceSignedArea(const Polygon &p) {
       Exact a=0 ;
       for(unsigned i=0;i<p.size();++i)
         a+=p[i][0]*p[(i+1)%p.size()][1]-p[i][1]*p[(i+1)%p.size()][0] ;
       return a ;
     }
+
+    /// Require a nondegenerate convex polygon with no zero-length edges.
     void requireConvex(const Polygon &p) {
       const auto a=twiceSignedArea(p) ;
       require(a!=0,"surface chart has zero area") ;
@@ -47,6 +74,8 @@ namespace FVMAdapt {
           require(turn(p[i],p[(i+1)%p.size()],q)*a>=0,"surface chart must be convex") ;
       }
     }
+
+    /// Check that the center forms a nonoverlapping fan across the projected face.
     void validateFan(const std::vector<Point> &corners,const Point &middle) {
       using EPoint=std::array<Exact,3> ;
       std::vector<EPoint> p ;
@@ -92,6 +121,8 @@ namespace FVMAdapt {
                   "face fan boundary intersects itself") ;
         }
     }
+
+    /// Intersect convex polygons using exact reference coordinates.
     Polygon clip(Polygon p,const Polygon &boundary) {
       const auto sign=twiceSignedArea(boundary)>0 ? 1:-1 ;
       for(unsigned e=0;e<boundary.size() && !p.empty();++e) {
@@ -108,12 +139,16 @@ namespace FVMAdapt {
       }
       return p ;
     }
+
+    /// Combine the derivatives of two composed maps.
     MapValue compose(const MapValue &a,const MapValue &b) {
       MapValue out{a.position,{},a.hasJacobian && b.hasJacobian} ;
       if(out.hasJacobian) for(unsigned i=0;i<3;++i) for(unsigned j=0;j<3;++j) for(unsigned k=0;k<3;++k)
         out.jacobian[i][j]+=a.jacobian[k][j]*b.jacobian[i][k] ;
       return out ;
     }
+
+    /// Map a point between corresponding triangles and compute its derivatives.
     MapValue affineTriangle(const std::array<Point,3> &q,const std::array<Point,3> &p,const Point &x) {
       const long double a=static_cast<long double>(q[1][0])-q[0][0],b=static_cast<long double>(q[2][0])-q[0][0],
         c=static_cast<long double>(q[1][1])-q[0][1],d=static_cast<long double>(q[2][1])-q[0][1],det=a*d-b*c ;
@@ -126,23 +161,31 @@ namespace FVMAdapt {
       }
       return out ;
     }
+
     // Expose one smooth evaluator without recursively partitioning its known restriction.
     class SmoothMap final : public GeometryMap {
       Map map_ ;
     public:
       explicit SmoothMap(Map map):map_(std::move(map)) {}
+
       const GeometryMap &map() const { return *map_ ; }
+
       Shape shape() const override { return map_->shape() ; }
+
       ReferenceCorners referenceCorners() const override { return map_->referenceCorners() ; }
+
       bool containsReference(const Point &q,double t=0) const override { return map_->containsReference(q,t) ; }
+
       MapValue evaluate(const Point &q) const override { return map_->evaluate(q) ; }
     } ;
+
     // Differences are taken before rounding, so small clipped pieces retain their derivatives.
     class AffineTriangleMap final : public GeometryMap {
       std::array<ExactPoint,3> exact_ ;
       std::array<long double,3> origin_ ;
       std::array<std::array<long double,3>,2> derivative_ ;
     public:
+      /// Retain exact edge differences before converting them to numerical derivatives.
       explicit AffineTriangleMap(const std::array<ExactPoint,3> &p) {
         for(unsigned d=0;d<3;++d) {
           exact_[0][d]=p[0][d] ;
@@ -152,11 +195,16 @@ namespace FVMAdapt {
           }
         }
       }
+
+      /// Expose the sector's exact affine coefficients for validity checks.
       detail::ExactMapView algebra() const {
         detail::ExactMapView view ; view.kind=detail::ExactMapView::Kind::affine ; view.origin=exact_[0] ;
         view.columns[0]=exact_[1] ; view.columns[1]=exact_[2] ; return view ;
       }
+
       Shape shape() const override { return Shape::triangle ; }
+
+      /// Evaluate the retained affine triangle and its constant derivatives.
       MapValue evaluate(const Point &q) const override {
         finite(q) ; MapValue out{{},{},true} ;
         for(unsigned d=0;d<3;++d) {
@@ -166,6 +214,8 @@ namespace FVMAdapt {
         return out ;
       }
     } ;
+
+    /// Evaluate one planar fan sector without rounding its reference coordinates.
     ExactPoint fanPosition(const FanMap &fan,unsigned sector,const XY &x) {
       const auto refs=fan.referenceCorners() ;
       const auto q=exactPolygon({referenceCenter(fan.shape()),refs[sector],refs[(sector+1)%refs.size()]}) ;
@@ -176,6 +226,8 @@ namespace FVMAdapt {
         v*(Exact(fan.corners()[(sector+1)%refs.size()][k])-Exact(fan.center()[k])) ;
       return p ;
     }
+
+    /// Evaluate supported reference placements using exact arithmetic.
     ExactPoint exactChartPosition(const GeometryMap &map,const ExactPoint &q) {
       if(const auto *r=dynamic_cast<const RestrictedMap *>(&map)) return exactChartPosition(*r->parent(),exactChartPosition(*r->referenceMap(),q)) ;
       const auto *c=dynamic_cast<const CornerMap *>(&map) ;
@@ -208,6 +260,8 @@ namespace FVMAdapt {
       }
       throw std::invalid_argument("piecewise geometry requires a supported chart placement") ;
     }
+
+    /// Select the incident fan sector, allowing only outer-boundary roundoff.
     unsigned fanSector(ReferenceCorners refs,Shape shape,const ExactPoint &point) {
       const auto c=referenceCenter(shape) ; const XY x{{point[0],point[1]}} ;
       unsigned selected=0 ; Exact best ;
@@ -221,6 +275,7 @@ namespace FVMAdapt {
         if(inside) return i ;
         if(i==0 || score>best) { best=score ; selected=i ; }
       }
+
       // Accepted chart coordinates can round just beyond an outer edge. Continue
       // the same nearest sector as evaluation, without moving those coordinates.
       const Exact tolerance=64*std::numeric_limits<double>::epsilon() ;
@@ -232,11 +287,15 @@ namespace FVMAdapt {
       }
       return selected ;
     }
+
+    /// Apply the retained exact affine origin and columns.
     ExactPoint affineValue(const detail::ExactMapView &view,const ExactPoint &q) {
       auto p=view.origin ;
       for(unsigned d=0;d<3;++d) for(unsigned c=0;c<3;++c) p[d]+=view.columns[c][d]*q[c] ;
       return p ;
     }
+
+    /// Interpolate between the center and a straight edge in one radial sector.
     ExactPoint radialPosition(const Point &center,const std::array<ExactPoint,2> &edge,unsigned sector,const XY &q) {
       const auto &corners=referenceElement(Shape::quad).vertices ;
       const auto &a=corners[sector],&b=corners[(sector+1)%4] ;
@@ -245,6 +304,8 @@ namespace FVMAdapt {
       ExactPoint p ; for(unsigned d=0;d<3;++d) p[d]=Exact(center[d])+u*(edge[0][d]-Exact(center[d]))+v*(edge[1][d]-Exact(center[d])) ;
       return p ;
     }
+
+    /// Blend an edge curve toward the center and compute one-sided derivatives.
     MapValue boundaryFanValue(const GeometryMap &edge,const Point &center,unsigned sector,const Point &q,long double centerParameter=.5L) {
       finite(q) ; const auto &corners=referenceElement(Shape::quad).vertices ;
       const auto &a=corners[sector],&b=corners[(sector+1)%4] ;
@@ -264,12 +325,14 @@ namespace FVMAdapt {
       }
       return out ;
     }
+
     // A selected edge branch extends over its whole radial sector.
     class BoundaryFanSectorMap final : public GeometryMap {
       Map edge_ ; Point center_ ; unsigned sector_ ; long double centerParameter_ ; detail::ExactMapView affine_ ;
       std::array<long double,3> origin_{} ;
       std::array<std::array<long double,3>,2> derivative_{} ;
     public:
+      /// Retain one edge branch and its radial sector, caching affine derivatives when possible.
       BoundaryFanSectorMap(Map edge,Point center,unsigned sector,const Exact &centerParameter)
         :edge_(std::move(edge)),center_(center),sector_(sector),centerParameter_(centerParameter.convert_to<long double>()) {
         std::array<ExactPoint,2> ends{{{{0,0,0}},{{1,0,0}}}} ; std::size_t remaining=4096 ;
@@ -282,11 +345,18 @@ namespace FVMAdapt {
         }
         for(unsigned d=0;d<3;++d) origin_[d]=affine_.origin[d].convert_to<long double>() ;
       }
+
       const detail::ExactMapView &algebra() const { return affine_ ; }
+
       const Map &edge() const { return edge_ ; }
+
       const Point &center() const { return center_ ; }
+
       unsigned sector() const { return sector_ ; }
+
       Shape shape() const override { return Shape::quad ; }
+
+      /// Evaluate the fixed radial sector using its affine form when available.
       MapValue evaluate(const Point &q) const override {
         if(affine_.kind!=detail::ExactMapView::Kind::affine) return boundaryFanValue(*edge_,center_,sector_,q,centerParameter_) ;
         finite(q) ; MapValue out{{},{},true} ;
@@ -297,10 +367,14 @@ namespace FVMAdapt {
         return out ;
       }
     } ;
+
+    /// A fixed planar fan sector evaluated in the original surface coordinates.
     class FanSectorMap final : public GeometryMap {
       std::shared_ptr<const FanMap> fan_ ; unsigned sector_ ;
     public:
       FanSectorMap(std::shared_ptr<const FanMap> fan,unsigned sector):fan_(std::move(fan)),sector_(sector) {}
+
+      /// Expose the sector's exact affine coefficients for validity checks.
       detail::ExactMapView algebra() const {
         detail::ExactMapView view ; view.kind=detail::ExactMapView::Kind::affine ;
         view.origin=fanPosition(*fan_,sector_,{{0,0}}) ;
@@ -308,23 +382,35 @@ namespace FVMAdapt {
         for(unsigned i=0;i<2;++i) { const auto p=fanPosition(*fan_,sector_,q[i]) ; for(unsigned d=0;d<3;++d) view.columns[i][d]=p[d]-view.origin[d] ; }
         return view ;
       }
+
       Shape shape() const override { return fan_->shape() ; }
+
       ReferenceCorners referenceCorners() const override { return fan_->referenceCorners() ; }
+
       bool containsReference(const Point &q,double t=0) const override { return fan_->containsReference(q,t) ; }
+
+      /// Evaluate one fixed fan triangle in the original surface coordinates.
       MapValue evaluate(const Point &q) const override {
         finite(q) ; const auto r=fan_->referenceCorners() ; const unsigned i=sector_,j=(i+1)%r.size() ;
         return affineTriangle({{referenceCenter(shape()),r[i],r[j]}},{{fan_->center(),fan_->corners()[i],fan_->corners()[j]}},q) ;
       }
     } ;
+
+    /// A Coons surface using fixed smooth branches of its boundary curves.
     class CoonsPieceMap final : public GeometryMap {
       std::array<Map,4> edges_ ; std::array<Point,4> corners_ ;
     public:
       CoonsPieceMap(std::array<Map,4> edges,const std::array<Point,4> &corners):edges_(std::move(edges)),corners_(corners) {}
+
       const auto &edges() const { return edges_ ; }
+
       const auto &corners() const { return corners_ ; }
+
       Shape shape() const override { return Shape::quad ; }
+
       MapValue evaluate(const Point &q) const override { return detail::evaluateBoundarySurface(edges_,corners_,q) ; }
     } ;
+
     // Select the smooth branch containing q, retaining its reference coordinates.
     Map selectMapPiece(Map map,const ExactPoint &q,unsigned depth=0) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
@@ -350,6 +436,8 @@ namespace FVMAdapt {
       }
       return map ;
     }
+
+    /// Recognize supported placements whose reference-coordinate mapping is affine.
     bool affine(const GeometryMap &map) {
       if(const auto *r=dynamic_cast<const RestrictedMap *>(&map)) return affine(*r->parent()) && affine(*r->referenceMap()) ;
       if(const auto *p=dynamic_cast<const PolygonMap *>(&map)) {
@@ -362,6 +450,8 @@ namespace FVMAdapt {
       for(unsigned d=0;d<3;++d) if(Exact(p[0][d])+Exact(p[2][d])!=Exact(p[1][d])+Exact(p[3][d])) return false ;
       return true ;
     }
+
+    /// Test whether a placement permutes all parent reference corners.
     bool fullReorientation(const GeometryMap &parent,const CornerMap &placement) {
       if(placement.shape()!=parent.shape()) return false ;
       const auto refs=parent.referenceCorners() ; auto a=placement.corners() ; std::vector<Point> b(refs.begin(),refs.end()) ;
@@ -372,6 +462,8 @@ namespace FVMAdapt {
       Map placement ; ///< Requested surface coordinates to source coordinates.
       Polygon domain ; ///< Patch boundary in source coordinates.
     } ;
+
+    /// Resolve the retained surface, local placement and requested reference polygon.
     Chart chart(Map map,unsigned depth=0) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
       if(const auto *patch=dynamic_cast<const SurfacePatchMap *>(map.get()))
@@ -390,6 +482,7 @@ namespace FVMAdapt {
       return {map,coordinates(p),exactPolygon(p)} ;
     }
     std::vector<double> curveBreaks(Map map,std::size_t limit,unsigned depth) ;
+
     // Partition the source reference domain along every retained surface seam.
     std::vector<Polygon> regions(Map source,std::size_t limit,unsigned depth) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
@@ -423,6 +516,7 @@ namespace FVMAdapt {
       }
       return out ;
     }
+
     // Return ordered curve parameters at intersections with source-surface seams.
     std::vector<double> curveBreaks(Map map,std::size_t limit,unsigned depth) {
       if(depth>128) throw std::length_error("surface map graph exceeds its depth limit") ;
@@ -452,6 +546,7 @@ namespace FVMAdapt {
     }
   }
 
+  /// Expose retained algebra for supported temporary surface evaluators.
   detail::ExactMapView detail::exactMapView(const GeometryMap &map) {
     if(const auto *affine=dynamic_cast<const AffineTriangleMap *>(&map)) return affine->algebra() ;
     if(const auto *fan=dynamic_cast<const FanSectorMap *>(&map)) return fan->algebra() ;
@@ -465,6 +560,7 @@ namespace FVMAdapt {
     return view ;
   }
 
+  /// Transform segment endpoints only when the map is exactly affine along the segment.
   bool detail::affineTrace(const GeometryMap &geometry,std::array<ExactPoint,2> &line,std::size_t &remaining) {
     const GeometryMap *map=&geometry ; std::vector<const GeometryMap *> parents ;
     const auto inside=[](Shape shape,const ExactPoint &p) {
@@ -497,14 +593,19 @@ namespace FVMAdapt {
     }
   }
 
+  /// Factor a radial sector's cone integral into edge-parameter intervals.
   bool detail::radialConeSamples(const ConeMap &cone,std::vector<std::function<MeasureSample(const Point&)>> &samples) {
     samples.clear() ;
-    const GeometryMap *map=cone.base().get() ; if(map->shape()!=Shape::triangle) return false ;
+    const GeometryMap *map=cone.base().get() ;
+    if(map->shape()!=Shape::triangle) return false ;
+
+    // Place the triangular piece in the original radial sector's coordinates.
     std::array<ExactPoint,3> points{{{{0,0,0}},{{1,0,0}},{{0,1,0}}}} ;
     for(unsigned depth=0;depth<128;++depth) {
       const auto view=exactMapView(*map) ;
       if(view.kind==ExactMapView::Kind::delegate) { map=view.delegate ; continue ; }
-      const auto *restriction=dynamic_cast<const RestrictedMap *>(map) ; if(!restriction) break ;
+      const auto *restriction=dynamic_cast<const RestrictedMap *>(map) ;
+      if(!restriction) break ;
       auto placement=exactMapView(*restriction->referenceMap()) ;
       if(placement.kind!=ExactMapView::Kind::affine) {
         const auto *corners=dynamic_cast<const CornerMap *>(restriction->referenceMap().get()) ;
@@ -525,33 +626,44 @@ namespace FVMAdapt {
     const Exact ax=Exact(a[0])-Exact(.5),ay=Exact(a[1])-Exact(.5),bx=Exact(b[0])-Exact(.5),by=Exact(b[1])-Exact(.5),det=ax*by-bx*ay ;
 
     // A ray through a triangle changes its intersected edges only at a vertex direction.
-    std::array<XY,3> uv ; std::array<Exact,3> radius,parameter ; std::vector<Exact> cuts ;
+    std::array<XY,3> uv ;
+    std::array<Exact,3> radius,parameter ;
+    std::vector<Exact> cuts ;
     for(unsigned i=0;i<3;++i) {
       if(points[i][2]!=0) return false ;
       const Exact x=points[i][0]-Exact(.5),y=points[i][1]-Exact(.5) ;
-      uv[i]={{(by*x-bx*y)/det,(ax*y-ay*x)/det}} ; radius[i]=uv[i][0]+uv[i][1] ;
+      uv[i]={{(by*x-bx*y)/det,(ax*y-ay*x)/det}} ;
+      radius[i]=uv[i][0]+uv[i][1] ;
       if(radius[i]<0) return false ;
       if(radius[i]==0) { if(x!=0 || y!=0) return false ; }
       else {
-        parameter[i]=uv[i][1]/radius[i] ; if(parameter[i]<0 || parameter[i]>1) return false ;
+        parameter[i]=uv[i][1]/radius[i] ;
+        if(parameter[i]<0 || parameter[i]>1) return false ;
         cuts.push_back(parameter[i]) ;
       }
     }
-    std::sort(cuts.begin(),cuts.end()) ; cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end()) ;
+    std::sort(cuts.begin(),cuts.end()) ;
+    cuts.erase(std::unique(cuts.begin(),cuts.end()),cuts.end()) ;
     if(cuts.size()<2) return false ;
     const Exact orientation=turn({{points[0][0],points[0][1]}},{{points[1][0],points[1][1]}},{{points[2][0],points[2][1]}}) ;
     if(orientation==0) return false ;
-    struct Bound { Exact n,b,m ; Exact at(const Exact &t) const { return n/(b+m*t) ; } } ;
+    // A triangle edge gives radius(t) = numerator / (constant + slope*t).
+    struct RadialBound {
+      Exact numerator,constant,slope ;
+
+      Exact at(const Exact &t) const { return numerator/(constant+slope*t) ; }
+    } ;
     std::vector<std::function<MeasureSample(const Point&)>> result ;
     for(unsigned interval=0;interval+1<cuts.size();++interval) {
       const Exact first=cuts[interval],last=cuts[interval+1],middle=(first+last)/2,span=last-first ;
-      std::vector<Bound> hits ; bool touchesCenter=false ;
+      std::vector<RadialBound> hits ;
+      bool touchesCenter=false ;
       for(unsigned i=0;i<3;++i) {
         const unsigned j=(i+1)%3 ;
         if(radius[i]==0 || radius[j]==0) { touchesCenter=true ; continue ; }
         if(!(std::min(parameter[i],parameter[j])<middle && middle<std::max(parameter[i],parameter[j]))) continue ;
         const auto &a=uv[i],&b=uv[j] ;
-        Bound bound{a[0]*b[1]-a[1]*b[0],b[1]-a[1],a[0]+a[1]-b[0]-b[1]} ;
+        RadialBound bound{a[0]*b[1]-a[1]*b[0],b[1]-a[1],a[0]+a[1]-b[0]-b[1]} ;
         if(bound.at(middle)<=0) return false ;
         hits.push_back(std::move(bound)) ;
       }
@@ -560,41 +672,56 @@ namespace FVMAdapt {
       if(hits[0].at(middle)>hits[1].at(middle)) std::swap(hits[0],hits[1]) ;
       std::array<long double,3> lo,hi ;
       for(unsigned k=0;k<2;++k) {
-        const auto &x=hits[k] ; auto &v=k ? hi:lo ;
-        v={{x.n.convert_to<long double>(),(x.b+x.m*first).convert_to<long double>(),(x.m*span).convert_to<long double>()}} ;
+        const auto &bound=hits[k] ;
+        auto &coefficients=k ? hi:lo ;
+        coefficients={{bound.numerator.convert_to<long double>(),
+          (bound.constant+bound.slope*first).convert_to<long double>(),(bound.slope*span).convert_to<long double>()}} ;
       }
+
       // Preserve the thin radial width before rounding the two individual bounds.
-      const Exact n0=hits[1].n*(hits[0].b+hits[0].m*first)-hits[0].n*(hits[1].b+hits[1].m*first) ;
-      const Exact n1=(hits[1].n*hits[0].m-hits[0].n*hits[1].m)*span ;
+      const Exact n0=hits[1].numerator*(hits[0].constant+hits[0].slope*first)-hits[0].numerator*(hits[1].constant+hits[1].slope*first) ;
+      const Exact n1=(hits[1].numerator*hits[0].slope-hits[0].numerator*hits[1].slope)*span ;
       const long double width0=n0.convert_to<long double>(),width1=n1.convert_to<long double>() ;
       const long double begin=first.convert_to<long double>(),length=span.convert_to<long double>(),sign=orientation>0 ? 1:-1 ;
-      const auto edge=radial->edge() ; const Point c=radial->center(),apex=cone.apex() ;
+
+      // Integrate radius and cone height analytically; only the edge parameter remains.
+      const auto edge=radial->edge() ;
+      const Point c=radial->center(),apex=cone.apex() ;
       result.push_back([edge,c,apex,lo,hi,width0,width1,begin,length,sign](const Point &q) {
         const long double p=q[0],dl=lo[1]+lo[2]*p,dh=hi[1]+hi[2]*p ;
         const long double lower=lo[0]/dl,upper=hi[0]/dh,width=(width0+width1*p)/(dl*dh),sum=upper+lower ;
         if(!(width>0 && lower>=0 && sum>0)) throw std::invalid_argument("clipped radial interval is invalid") ;
         const auto value=edge->evaluate({{double(begin+length*p),0,0}}) ;
         if(!value.hasJacobian) throw std::invalid_argument("radial cone measure requires edge derivatives") ;
-        std::array<long double,3> delta,height,tangent ; Point centroid ;
+        std::array<long double,3> delta,height,tangent ;
+        Point centroid ;
         const long double moment=.5L*(upper*upper+upper*lower+lower*lower)/sum ;
         for(unsigned d=0;d<3;++d) {
-          delta[d]=static_cast<long double>(value.position[d])-c[d] ; height[d]=static_cast<long double>(apex[d])-c[d] ; tangent[d]=value.jacobian[0][d] ;
+          delta[d]=static_cast<long double>(value.position[d])-c[d] ;
+          height[d]=static_cast<long double>(apex[d])-c[d] ;
+          tangent[d]=value.jacobian[0][d] ;
           centroid[d]=apex[d]-.75L*height[d]+moment*delta[d] ;
         }
         return MeasureSample{centroid,sign*length*width*sum*jacobianDeterminant(delta,tangent,height)/6} ;
       }) ;
     }
-    samples=std::move(result) ; return true ;
+    samples=std::move(result) ;
+    return true ;
   }
 
+  /// Retain a valid planar triangle fan with fixed physical corners and center.
   FanMap::FanMap(Shape shape,std::vector<Point> corners,Point middle):shape_(shape),corners_(std::move(corners)),center_(middle) {
     require(shape==Shape::triangle || shape==Shape::quad || shape==Shape::polygon,"fan requires a surface shape") ;
     require(shape==Shape::polygon ? corners_.size()>=3:corners_.size()==referenceElement(shape).vertexCount,"fan corner count differs from its shape") ;
     finite(center_) ; for(const auto &p:corners_) finite(p) ; validateFan(corners_,center_) ; reference_=reference(shape,corners_.size()) ;
   }
+
+  /// Test membership in the fan's native or regular-polygon reference domain.
   bool FanMap::containsReference(const Point &p,double tolerance) const {
     return shape_==Shape::polygon ? containsReferencePolygon(corners_.size(),p,tolerance):GeometryMap::containsReference(p,tolerance) ;
   }
+
+  /// Evaluate the selected planar fan sector and its one-sided derivatives.
   MapValue FanMap::evaluate(const Point &p) const {
     finite(p) ; const auto c=referenceCenter(shape_) ; unsigned selected=0 ; long double best=-std::numeric_limits<long double>::infinity() ;
     const XY x{{Exact(p[0]),Exact(p[1])}} ;
@@ -607,6 +734,8 @@ namespace FVMAdapt {
     return affineTriangle({{c,reference_[selected],reference_[(selected+1)%reference_.size()]}},
       {{center_,corners_[selected],corners_[(selected+1)%corners_.size()]}},p) ;
   }
+
+  /// Retain a closed loop of four boundary curves and its physical center.
   BoundaryFanMap::BoundaryFanMap(std::array<Map,4> edges,Point center):edges_(std::move(edges)),center_(center) {
     finite(center_) ; std::array<Point,4> corners ;
     for(unsigned e=0;e<4;++e) {
@@ -619,12 +748,16 @@ namespace FVMAdapt {
         std::max({1.,std::abs(end[d]),std::abs(corners[(e+1)%4][d])}),"boundary fan edges do not meet") ;
     }
   }
+
+  /// Select a radial sector and evaluate its edge-to-center surface.
   MapValue BoundaryFanMap::evaluate(const Point &q) const {
     finite(q) ;
     const long double x=static_cast<long double>(q[0])-.5L,y=static_cast<long double>(q[1])-.5L ;
     const unsigned sector=y<=-std::abs(x) ? 0:x>=std::abs(y) ? 1:y>=std::abs(x) ? 2:3 ;
     return boundaryFanValue(*edges_[sector],center_,sector,q) ;
   }
+
+  /// Retain a convex reference polygon on one original source surface.
   SurfacePatchMap::SurfacePatchMap(Map source,std::vector<Point> corners):source_(std::move(source)),corners_(std::move(corners)) {
     require(source_ && source_->dimension()==2 && !dynamic_cast<const SurfacePatchMap *>(source_.get()),"surface patch requires an unpatched surface source") ;
     require(!hasSurfacePieces(*source_) || dynamic_cast<const FanMap *>(source_.get()) || dynamic_cast<const BoundaryFanMap *>(source_.get()) || dynamic_cast<const BoundarySurfaceMap *>(source_.get()),
@@ -633,11 +766,19 @@ namespace FVMAdapt {
     for(const auto &p:corners_) require(source_->containsReference(p,64*std::numeric_limits<double>::epsilon()),"surface patch lies outside its source") ;
     placement_=coordinates(corners_) ;
   }
+
   bool SurfacePatchMap::containsReference(const Point &p,double tolerance) const { return placement_->containsReference(p,tolerance) ; }
+
+  /// Map patch-local coordinates into the original surface coordinates.
   Point SurfacePatchMap::chartPosition(const Point &p) const { return placement_->position(p) ; }
+
+  /// Compose the patch placement and source surface with the derivative chain rule.
   MapValue SurfacePatchMap::evaluate(const Point &p) const { const auto q=placement_->evaluate(p) ; return compose(source_->evaluate(q.position),q) ; }
+
+  /// Evaluate the physical position through the retained source surface.
   Point SurfacePatchMap::position(const Point &p) const { return source_->position(chartPosition(p)) ; }
 
+  /// Detect retained surface seams that need separate integration pieces.
   bool hasSurfacePieces(const GeometryMap &map) {
     if(dynamic_cast<const FanMap *>(&map) || dynamic_cast<const BoundaryFanMap *>(&map) || dynamic_cast<const SurfacePatchMap *>(&map)) return true ;
     if(const auto *r=dynamic_cast<const RestrictedMap *>(&map)) return hasSurfacePieces(*r->parent()) || hasSurfacePieces(*r->referenceMap()) ;
@@ -645,6 +786,7 @@ namespace FVMAdapt {
     return false ;
   }
 
+  /// Clip the requested surface at retained seams and preserve each smooth evaluator.
   SurfacePieces smoothSurfacePieces(Map map,std::size_t maxPieces) {
     require(maxPieces>0,"surface pieces require a positive work limit") ;
     auto source=chart(std::move(map)) ;
@@ -713,6 +855,7 @@ namespace FVMAdapt {
     return out ;
   }
 
+  /// Reverse a piece's orientation while retaining its original geometry.
   Map reverseSurfacePiece(Map map) {
     require(map && map->dimension()==2,"surface piece reversal requires a surface") ;
     const auto refs=map->referenceCorners() ; std::vector<Point> reversed ;
@@ -722,6 +865,7 @@ namespace FVMAdapt {
     return std::make_shared<RestrictedMap>(std::move(map),coordinates(reversed)) ;
   }
 
+  /// Divide a retained curve at surface seams without refitting its geometry.
   std::vector<Map> smoothCurvePieces(Map map,std::size_t maxPieces) {
     require(map && map->dimension()==1 && maxPieces>0,"curve pieces require a segment and a positive work limit") ;
     const auto cuts=curveBreaks(map,maxPieces,0) ; std::vector<Map> out ;
@@ -733,22 +877,30 @@ namespace FVMAdapt {
     return out ;
   }
 
+  /// Solve for local coordinates of a point in a planar surface placement.
   Point inverseSurfaceCoordinates(const GeometryMap &placement,const Point &target) {
-    finite(target) ; Point q=referenceCenter(placement.shape()) ;
+    finite(target) ;
+    Point q=referenceCenter(placement.shape()) ;
+    // Solve placement(q)=target with Newton steps kept inside the reference face.
     for(unsigned iteration=0;iteration<64;++iteration) {
-      const auto value=placement.evaluate(q) ; require(value.hasJacobian,"surface chart inverse requires derivatives") ;
+      const auto value=placement.evaluate(q) ;
+      require(value.hasJacobian,"surface chart inverse requires derivatives") ;
       const long double a=value.jacobian[0][0],b=value.jacobian[1][0],c=value.jacobian[0][1],d=value.jacobian[1][1],det=a*d-b*c ;
       require(det!=0 && std::isfinite(det),"surface chart inverse is singular") ;
       const long double x=static_cast<long double>(value.position[0])-target[0],y=static_cast<long double>(value.position[1])-target[1],u=(d*x-b*y)/det,v=(a*y-c*x)/det ;
       if(std::hypot(x,y)<=32*std::numeric_limits<double>::epsilon()*std::max({1.,std::abs(target[0]),std::abs(target[1])})) {
-        require(placement.containsReference(q,64*std::numeric_limits<double>::epsilon()),"surface inverse lies outside its chart") ; return q ;
+        require(placement.containsReference(q,64*std::numeric_limits<double>::epsilon()),"surface inverse lies outside its chart") ;
+        return q ;
       }
       bool accepted=false ;
       for(unsigned backtrack=0;backtrack<48;++backtrack) {
-        const auto t=std::ldexp(1.L,-int(backtrack)) ; const Point trial{{double(q[0]-t*u),double(q[1]-t*v),0}} ;
+        const auto t=std::ldexp(1.L,-int(backtrack)) ;
+        const Point trial{{double(q[0]-t*u),double(q[1]-t*v),0}} ;
         if(!placement.containsReference(trial,64*std::numeric_limits<double>::epsilon())) continue ;
         const auto p=placement.position(trial) ;
-        if(std::hypot(static_cast<long double>(p[0])-target[0],static_cast<long double>(p[1])-target[1])<std::hypot(x,y)) { q=trial ; accepted=true ; break ; }
+        if(std::hypot(static_cast<long double>(p[0])-target[0],static_cast<long double>(p[1])-target[1])<std::hypot(x,y)) {
+          q=trial ; accepted=true ; break ;
+        }
       }
       if(!accepted) break ;
     }

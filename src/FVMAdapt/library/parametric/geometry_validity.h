@@ -23,6 +23,8 @@ namespace detail {
     }
     return std::max({upper[0]-lower[0],upper[1]-lower[1],upper[2]-lower[2]}) ;
   }
+
+  /// Compare coordinates using local-size tolerance and translation-aware roundoff.
   inline bool pointAgreement(const Point &a, const Point &b, double extent, double relative) {
     if(!std::isfinite(extent) || extent < 0) return false ;
     for(unsigned d = 0; d < 3; ++d) {
@@ -32,10 +34,12 @@ namespace detail {
     }
     return true ;
   }
+
   /// Saved points allow only evaluation roundoff, including coordinate translation.
   inline bool storedPointAgrees(const Point &a, const Point &b, double extent) {
     return pointAgreement(a,b,extent,0) ;
   }
+
   /// Independent cell and face maps also allow error relative to the local size.
   inline bool mappedPointAgrees(const Point &a, const Point &b, double extent) {
     return pointAgreement(a,b,extent,2e-11) ;
@@ -51,24 +55,32 @@ namespace detail {
     const std::array<std::shared_ptr<const GeometryMap>,4> *edges = nullptr ;
     const std::array<Point,4> *corners = nullptr ;
   } ;
+
+  /// Expose the retained algebra of supported temporary surface evaluators.
   ExactMapView exactMapView(const GeometryMap &) ;
+
   /// Transform a segment only when the retained mapping is exactly affine along it.
   bool affineTrace(const GeometryMap &, std::array<ExactPoint,2> &, std::size_t &remaining) ;
 
   using BernsteinCoefficients = std::array<Exact,27> ;
+
   template<class Number> std::array<Number,3> jacobianDifference(const std::array<Number,3> &a,const std::array<Number,3> &b) {
     return {{a[0]-b[0],a[1]-b[1],a[2]-b[2]}} ;
   }
+
   template<class Number> std::array<Number,3> jacobianMidpoint(const std::array<Number,3> &a,const std::array<Number,3> &b) {
     return {{(a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2}} ;
   }
+
   template<class Number> Number jacobianDeterminant(const std::array<Number,3> &a,const std::array<Number,3> &b,const std::array<Number,3> &c) {
     return a[0]*(b[1]*c[2]-b[2]*c[1])-a[1]*(b[0]*c[2]-b[2]*c[0])+a[2]*(b[0]*c[1]-b[1]*c[0]) ;
   }
+
   inline unsigned jacobianIndex(unsigned x, unsigned y, unsigned z) {
     return x+3*y+9*z ;
   }
 
+  /// Compute tensor-quadratic Bernstein coefficients for trilinear hex Jacobian bounds.
   template<class Number> std::array<Number,27> hexJacobianCoefficients(const std::vector<Point> &corners) {
     const auto &element = referenceElement(Shape::hex) ;
     // Tensor order: x+2*y+4*z.
@@ -93,12 +105,14 @@ namespace detail {
     }
 
     std::array<Number,27> coefficients{} ;
+
     // A trilinear map's determinant has degree at most two in each coordinate.
     // Exact values on the 3x3x3 tensor grid determine that polynomial completely.
     for(unsigned i = 0; i < 27; ++i) {
       const unsigned x = i%3, y = i/3%3, z = i/9 ;
       coefficients[i] = jacobianDeterminant(derivatives[0][y+3*z],derivatives[1][z+3*x],derivatives[2][x+3*y]) ;
     }
+
     // Convert the tensor quadratic to Bernstein coefficients, which bound its full range.
     for(unsigned step : {1u,3u,9u})
       for(unsigned i = 0; i < 27; ++i) if(i/step%3 == 0)
@@ -106,6 +120,7 @@ namespace detail {
     return coefficients ;
   }
 
+  /// Restrict Jacobian coefficients to the two halves of one reference axis.
   inline std::array<BernsteinCoefficients,2> bisectJacobianCoefficients(const BernsteinCoefficients &coefficients, unsigned axis) {
     std::array<BernsteinCoefficients,2> result{} ;
     const unsigned step = axis == 0 ? 1 : axis == 1 ? 3 : 9 ;

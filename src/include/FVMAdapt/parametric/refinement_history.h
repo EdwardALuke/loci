@@ -52,6 +52,7 @@ namespace FVMAdapt {
     unsigned ordinal = 0 ;
     MapId map = 0 ;
     std::size_t activeSplit = noTreeNode ;
+
     /// No split is selected locally; this node may belong to a dormant branch.
     bool isLeaf() const { return activeSplit == noTreeNode ; }
   } ;
@@ -86,14 +87,22 @@ namespace FVMAdapt {
   public:
     RefinementHistory(std::uint64_t root, GeometryStore geometry, MapId rootMap,
                       std::uint64_t revision = 0, HistoryLimits limits = HistoryLimits()) ;
+
     std::uint64_t rootKey() const { return rootKey_ ; }
+
     std::uint64_t geometryRevision() const { return geometryRevision_ ; }
+
     const HistoryLimits &limits() const { return limits_ ; }
+
     const GeometryStore &geometry() const { return geometry_ ; }
+
     const std::vector<CellNode> &nodes() const { return nodes_ ; }
+
     const std::vector<AcceptedSplit> &splits() const { return splits_ ; }
+
     /// Accounted record payload, excluding allocator capacity and evaluator overhead.
     std::size_t retainedBytes() const { return retainedBytes_+geometry_.retainedBytes() ; }
+
     const CellNode &node(TreeNodeId id) const { return nodes_.at(id) ; }
     /// Accepted affine placement; mapped children throw invalid_argument. The root is the identity.
     const Child &localCell(TreeNodeId id) const ;
@@ -126,6 +135,7 @@ namespace FVMAdapt {
   struct CellChange {
     CellKey parent ;
     std::vector<CellKey> oldLeaves, newLeaves ;
+
     bool changed() const { return oldLeaves != newLeaves ; }
   } ;
 
@@ -152,11 +162,14 @@ namespace FVMAdapt {
     friend class MappedVolumeSubdivision ;
   public:
     explicit HistoryEdit(RefinementHistory history) : history_(std::move(history)) {}
+
     /// View of the candidate; copy it to retain a snapshot across later edits.
     const RefinementHistory &snapshot() const { return history_ ; }
+
     void swap(HistoryEdit &other) noexcept { history_.swap(other.history_) ; }
     /// Refine an active leaf; an empty request leaves it intact.
     CellChange refine(TreeNodeId leaf, const SplitOperation &request) ;
+
     /// Refine with accepted nonlinear reference charts; physical geometry is composed unchanged.
     CellChange refine(TreeNodeId leaf, const VertexVolumeSplit &split, JacobianCheckLimits limits = {}) ;
     /// Refine with accepted physical planar polygons and independent child corner charts.
@@ -165,10 +178,12 @@ namespace FVMAdapt {
     CellChange coarsen(TreeNodeId parent) ;
     /// Select a nonempty split of an active leaf or complete active leaf family.
     CellChange replace(TreeNodeId parent, const SplitOperation &request) ;
+
     CellChange replace(TreeNodeId parent, const VertexVolumeSplit &split, JacobianCheckLimits limits = {}) ;
     CellChange replace(TreeNodeId parent, const PlanarSplit &split) ;
     /// Select retained children as leaves; deeper selections are not restored.
     CellChange reactivate(TreeNodeId parent, const SplitConstruction &construction) ;
+
     /// Publish the candidate by move. References into the edit must then be discarded.
     RefinementHistory finish() && { return std::move(history_) ; }
   } ;

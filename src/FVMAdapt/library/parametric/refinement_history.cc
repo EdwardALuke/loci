@@ -31,22 +31,30 @@
 namespace Loci {
 namespace FVMAdapt {
   namespace {
+    /// Require a reference element with a refinable dimension.
     void checkShape(Shape shape) {
       if(referenceElement(shape).dimension == 0)
         throw std::invalid_argument("refinement requires a non-point root") ;
     }
+
     bool samePlacement(const Placement &a, const Placement &b) {
       return a.origin == b.origin && a.columns == b.columns ;
     }
+
+    /// Apply exact-coordinate limits to an affine placement.
     void checkPlacement(const Placement &placement, ExactBudget &budget) {
       for(const auto &value : placement.origin) budget.check(value) ;
       for(const auto &column : placement.columns) for(const auto &value : column) budget.check(value) ;
     }
+
+    /// Multiply record counts without overflowing the addressable size.
     std::size_t product(std::size_t a, std::size_t b) {
       if(b && a > std::numeric_limits<std::size_t>::max()/b)
         throw std::length_error("refinement count exceeds addressable size") ;
       return a*b ;
     }
+
+    /// Require strictly increasing exact cuts inside the unit interval.
     void checkCuts(const std::vector<Fraction> &cuts, ExactBudget &budget) {
       budget.operations(cuts.size()) ;
       Fraction previous = 0 ;
@@ -57,6 +65,8 @@ namespace FVMAdapt {
         previous = cut ;
       }
     }
+
+    /// Validate a triangle request and return its child count.
     unsigned triangleCount(const TriangleSplit &request, ExactBudget &budget) {
       switch(request.kind) {
       case TriangleSplit::Kind::none: return 1 ;
@@ -69,10 +79,14 @@ namespace FVMAdapt {
       }
       throw std::invalid_argument("unknown triangle split") ;
     }
+
+    /// Discard parameters unused by the selected triangle split.
     void normalizeRequest(TriangleSplit &request) {
       if(request.kind == TriangleSplit::Kind::none) request = TriangleSplit() ;
       else if(request.kind == TriangleSplit::Kind::uniform) request = TriangleSplit::uniform4() ;
     }
+
+    /// Discard unused split parameters before comparing retained constructions.
     void normalizeRequest(SplitOperation &operation) {
       std::visit([](auto &request) {
         using Request = std::decay_t<decltype(request)> ;
@@ -85,6 +99,8 @@ namespace FVMAdapt {
         }
       },operation) ;
     }
+
+    /// Validate a native request and count its children before allocating them.
     std::size_t requestCount(Shape shape, const SplitOperation &operation, ExactBudget &budget) {
       return std::visit([&](const auto &request)->std::size_t {
         using Request = std::decay_t<decltype(request)> ;
@@ -134,6 +150,8 @@ namespace FVMAdapt {
         }
       },operation) ;
     }
+
+    /// Identify the native construction family represented by a split request.
     SplitFamily family(const SplitOperation &operation) {
       return std::visit([](const auto &request) {
         using Request = std::decay_t<decltype(request)> ;
@@ -144,6 +162,8 @@ namespace FVMAdapt {
         else return SplitFamily::pyramid ;
       },operation) ;
     }
+
+    /// Construct the requested native children in parent reference coordinates.
     std::vector<Child> construct(Shape shape, const SplitOperation &operation) {
       return std::visit([&](const auto &request) {
         if constexpr(std::is_same_v<std::decay_t<decltype(request)>,TensorSplit>)
@@ -151,6 +171,8 @@ namespace FVMAdapt {
         else return detail::splitChildren(request) ;
       },operation) ;
     }
+
+    /// Grow a retained array geometrically within its configured limit.
     template<class T> void reserveGrowth(std::vector<T> &values, std::size_t needed, std::size_t limit) {
       if(values.capacity() >= needed) return ;
       limit = std::min(limit,values.max_size()) ;
@@ -158,10 +180,14 @@ namespace FVMAdapt {
       const auto grown = values.capacity() > limit/2 ? limit : 2*values.capacity() ;
       values.reserve(std::max(needed,grown)) ;
     }
+
+    /// Count storage bytes for an integer magnitude.
     std::size_t integerBytes(Fraction::Integer value) {
       if(value < 0) value = -value ;
       return value == 0 ? 1 : boost::multiprecision::msb(value)/8+1 ;
     }
+
+    /// Count retained numerator and denominator bytes in an affine placement.
     std::size_t placementBytes(const Placement &placement) {
       std::size_t bytes = 0 ;
       const auto count = [&](const Fraction &value) {
@@ -171,6 +197,8 @@ namespace FVMAdapt {
       for(const auto &column : placement.columns) for(const auto &value : column) bytes += count(value) ;
       return bytes ;
     }
+
+    /// Account for variable-size coordinates retained by a split request.
     std::size_t operationBytes(const SplitOperation &operation) {
       return std::visit([](const auto &request) {
         using Request = std::decay_t<decltype(request)> ;
@@ -189,11 +217,15 @@ namespace FVMAdapt {
         return bytes ;
       },operation) ;
     }
+
+    /// Account for retained volume-split points and connectivity.
     std::size_t mappedBytes(const VertexVolumeSplit &split) {
       return sizeof(VertexVolumeSplit)+split.points.size()*sizeof(Point)+
         split.children.size()*(sizeof(VertexVolumeChild)+8*sizeof(Point))+
         split.internalFaces.size()*sizeof(InternalFace)+split.boundaryPieces.size()*sizeof(VertexVolumeBoundary) ;
     }
+
+    /// Validate retained volume children against maps reconstructed from their points.
     std::shared_ptr<const VertexVolumeSplit> validatedMapped(const VertexVolumeSplit &split,
                                                            JacobianCheckLimits limits) {
       if(split.shape != Shape::hex && split.shape != Shape::prism && split.shape != Shape::tet)
@@ -227,9 +259,13 @@ namespace FVMAdapt {
       }
       return std::make_shared<const VertexVolumeSplit>(std::move(result)) ;
     }
+
+    /// Account for retained planar split points and connectivity.
     std::size_t planarBytes(const PlanarSplit &split) {
       return sizeof(PlanarSplit)+split.points.size()*sizeof(Point)+split.children.size()*sizeof(std::array<unsigned,4>) ;
     }
+
+    /// Validate a retained planar construction against its parent geometry.
     std::shared_ptr<const PlanarSplit> validatedPlanar(const PlanarSplit &split, const GeometryMap &parent) {
       const auto *map=dynamic_cast<const CornerMap*>(&parent) ;
       if(!map || (map->shape() != Shape::triangle && map->shape() != Shape::quad))
@@ -237,6 +273,8 @@ namespace FVMAdapt {
       validatePlanarSplit(split,map->corners()) ;
       return std::make_shared<const PlanarSplit>(split) ;
     }
+
+    /// Accumulate retained bytes within the exact-storage budget.
     std::size_t addBytes(std::size_t bytes, std::size_t addition, const ExactLimits &limits) {
       if(bytes > limits.maxBytes || addition > limits.maxBytes-bytes)
         throw std::length_error("refinement exceeds retained payload limit") ;
@@ -245,6 +283,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Create an unsplit history using an already retained original geometry map.
   RefinementHistory::RefinementHistory(std::uint64_t root, GeometryStore geometry, MapId rootMap,
                                        std::uint64_t revision, HistoryLimits limits)
     : rootKey_(root), geometryRevision_(revision), limits_(limits),
@@ -260,6 +299,7 @@ namespace FVMAdapt {
     owners_.push_back(noTreeNode) ; firstSplit_.push_back(noTreeNode) ;
   }
 
+  /// Return the accepted affine placement of a node within its parent.
   const Child &RefinementHistory::localCell(TreeNodeId id) const {
     const CellNode &cell = node(id) ;
     if(id != 0 && (splits_.at(owners_.at(id)).construction->vertexVolume ||
@@ -268,6 +308,7 @@ namespace FVMAdapt {
     return id == 0 ? rootCell_ : splits_.at(owners_.at(id)).construction->children.at(cell.ordinal) ;
   }
 
+  /// Find a retained construction belonging to the supplied parent.
   std::size_t RefinementHistory::splitId(TreeNodeId parent, const SplitConstruction &construction) const {
     node(parent) ;
     for(std::size_t id = firstSplit_[parent]; id != noTreeNode; id = nextSplit_[id])
@@ -275,16 +316,19 @@ namespace FVMAdapt {
     return noTreeNode ;
   }
 
+  /// Return children of a retained construction, whether active or dormant.
   NodeRange RefinementHistory::retainedChildren(TreeNodeId parent, const SplitConstruction &construction) const {
     const auto id = splitId(parent,construction) ;
     return id == noTreeNode ? NodeRange() : splits_[id].children ;
   }
 
+  /// Return the children selected by this node, or an empty range for a leaf.
   NodeRange RefinementHistory::children(TreeNodeId id) const {
     const CellNode &cell = node(id) ;
     return cell.isLeaf() ? NodeRange() : splits_.at(cell.activeSplit).children ;
   }
 
+  /// Return the selected native request, if the construction has one.
   const SplitOperation *RefinementHistory::operation(TreeNodeId id) const {
     const CellNode &cell = node(id) ;
     if(cell.isLeaf()) return nullptr ;
@@ -292,6 +336,7 @@ namespace FVMAdapt {
     return operation ? &*operation : nullptr ;
   }
 
+  /// Test whether this node is reachable through selected ancestor splits.
   bool RefinementHistory::active(TreeNodeId id) const {
     node(id) ;
     while(id != 0) {
@@ -303,6 +348,7 @@ namespace FVMAdapt {
     return true ;
   }
 
+  /// List active leaves in child traversal order.
   std::vector<TreeNodeId> RefinementHistory::leafIds() const {
     std::vector<TreeNodeId> result, pending = {0} ;
     while(!pending.empty()) {
@@ -314,12 +360,14 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Return child ordinals from the original cell to this node.
   CellPath RefinementHistory::path(TreeNodeId id) const {
     node(id) ; CellPath result ;
     while(id != 0) { result.push_back(nodes_[id].ordinal) ; id = nodes_[id].parent ; }
     std::reverse(result.begin(),result.end()) ; return result ;
   }
 
+  /// Identify a retained cell by its original cell and accepted construction ancestry.
   CellKey RefinementHistory::key(TreeNodeId id) const {
     node(id) ; CellKey result = {rootKey_,{}} ;
     while(id != 0) {
@@ -329,6 +377,7 @@ namespace FVMAdapt {
     std::reverse(result.lineage.begin(),result.lineage.end()) ; return result ;
   }
 
+  /// Find an active or dormant node using its persistent cell key.
   TreeNodeId RefinementHistory::nodeId(const CellKey &key) const {
     if(key.root != rootKey_) throw std::out_of_range("cell key belongs to another root") ;
     TreeNodeId node = 0 ;
@@ -342,6 +391,7 @@ namespace FVMAdapt {
     return node ;
   }
 
+  /// Compose affine ancestry into the original cell's reference coordinates.
   Placement RefinementHistory::rootPlacement(TreeNodeId id) const {
     node(id) ;
     std::vector<TreeNodeId> ancestors ;
@@ -363,12 +413,14 @@ namespace FVMAdapt {
     swap(retainedBytes_,other.retainedBytes_) ;
   }
 
+  /// Validate accepted records and reconstruct their derived geometry.
   RefinementHistory RefinementHistory::restore(std::uint64_t root, std::uint64_t revision,
                                                GeometryStore geometry, std::vector<CellNode> nodes,
                                                std::vector<AcceptedSplit> splits, HistoryLimits limits) {
     return restoreRecords(root,revision,std::move(geometry),std::move(nodes),std::move(splits),limits,false) ;
   }
 
+  /// Validate retained topology and geometry before installing an imported history.
   RefinementHistory RefinementHistory::restoreRecords(std::uint64_t root, std::uint64_t revision,
       GeometryStore geometry, std::vector<CellNode> nodes, std::vector<AcceptedSplit> splits,
       HistoryLimits limits, bool mappedValidated) {
@@ -486,6 +538,7 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Save the array extents and selected parent state needed to undo a mapped split.
   HistoryEdit::MappedRefinement HistoryEdit::beforeMappedRefinement(TreeNodeId leaf) const {
     const auto &node = history_.node(leaf) ;
     if(!node.isLeaf() || !history_.active(leaf))
@@ -494,6 +547,7 @@ namespace FVMAdapt {
       history_.firstSplit_[leaf],history_.retainedBytes_} ;
   }
 
+  /// Restore the saved parent selection and truncate newly appended records.
   void HistoryEdit::undoMappedRefinement(const MappedRefinement &before) noexcept {
     history_.nodes_[before.parent].activeSplit = noTreeNode ;
     history_.firstSplit_[before.parent] = before.firstSplit ;
@@ -502,6 +556,7 @@ namespace FVMAdapt {
     history_.geometry_.truncate(before.maps) ; history_.retainedBytes_ = before.retainedBytes ;
   }
 
+  /// Require an active parent whose selected children are all leaves.
   void HistoryEdit::checkFamily(TreeNodeId parent) const {
     if(!history_.active(parent)) throw std::invalid_argument("refinement requires an active cell") ;
     for(TreeNodeId child : history_.children(parent))
@@ -509,6 +564,7 @@ namespace FVMAdapt {
         throw std::invalid_argument("refinement requires a complete active leaf family") ;
   }
 
+  /// Describe old and proposed leaves using persistent cell identities.
   CellChange HistoryEdit::change(TreeNodeId parent,
                                 const std::shared_ptr<const SplitConstruction> &construction) const {
     CellChange result ; result.parent = history_.key(parent) ;
@@ -522,11 +578,13 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Select a retained construction and return its old/new leaf correspondence.
   CellChange HistoryEdit::select(TreeNodeId parent, std::size_t split) {
     CellChange result = change(parent,split == noTreeNode ? nullptr : history_.splits_[split].construction) ;
     history_.nodes_[parent].activeSplit = split ; return result ;
   }
 
+  /// Validate a native request and its resource limits before constructing children.
   std::size_t HistoryEdit::preflight(TreeNodeId parent, const SplitOperation &request) const {
     checkFamily(parent) ;
     ExactBudget budget(history_.limits_.exact) ;
@@ -541,23 +599,27 @@ namespace FVMAdapt {
     return count ;
   }
 
+  /// Apply a native split to an active leaf.
   CellChange HistoryEdit::refine(TreeNodeId leaf, const SplitOperation &request) {
     if(!history_.node(leaf).isLeaf()) throw std::invalid_argument("refinement requires an active leaf") ;
     if(preflight(leaf,request) == 1) return change(leaf,nullptr) ;
     return append(leaf,request,construct(history_.geometry_.map(history_.node(leaf).map)->shape(),request)) ;
   }
 
+  /// Select a parent in place of its complete active leaf family.
   CellChange HistoryEdit::coarsen(TreeNodeId parent) {
     checkFamily(parent) ;
     if(history_.node(parent).isLeaf()) throw std::invalid_argument("coarsening requires an active leaf family") ;
     return select(parent,noTreeNode) ;
   }
 
+  /// Replace a complete leaf family with a requested native construction.
   CellChange HistoryEdit::replace(TreeNodeId parent, const SplitOperation &request) {
     if(preflight(parent,request) == 1) throw std::invalid_argument("replacement requires a nonempty split") ;
     return append(parent,request,construct(history_.geometry_.map(history_.node(parent).map)->shape(),request)) ;
   }
 
+  /// Select an already retained construction of an active parent.
   CellChange HistoryEdit::reactivate(TreeNodeId parent, const SplitConstruction &construction) {
     checkFamily(parent) ;
     const auto split = history_.splitId(parent,construction) ;
@@ -565,6 +627,7 @@ namespace FVMAdapt {
     return select(parent,split) ;
   }
 
+  /// Validate supplied native children and retain their accepted construction.
   CellChange HistoryEdit::append(TreeNodeId parentId, SplitOperation request, std::vector<Child> children) {
     static_assert(std::is_nothrow_move_constructible<CellNode>::value &&
                   std::is_nothrow_move_constructible<AcceptedSplit>::value &&
@@ -583,11 +646,13 @@ namespace FVMAdapt {
     return publish(parentId,std::move(request),{shape,tag,1,std::move(children),nullptr,nullptr}) ;
   }
 
+  /// Apply an accepted vertex-centered volume construction to a leaf.
   CellChange HistoryEdit::refine(TreeNodeId leaf, const VertexVolumeSplit &split, JacobianCheckLimits limits) {
     if(!history_.node(leaf).isLeaf()) throw std::invalid_argument("refinement requires an active leaf") ;
     return replace(leaf,split,limits) ;
   }
 
+  /// Validate and select a vertex-centered volume construction.
   CellChange HistoryEdit::replace(TreeNodeId parent, const VertexVolumeSplit &split, JacobianCheckLimits limits) {
     checkFamily(parent) ;
     if(split.shape != history_.geometry_.map(history_.node(parent).map)->shape())
@@ -597,17 +662,20 @@ namespace FVMAdapt {
     return publish(parent,std::nullopt,{split.shape,SplitFamily::vertexVolume,1,{},validatedMapped(split,limits),nullptr}) ;
   }
 
+  /// Apply an accepted planar construction to a leaf.
   CellChange HistoryEdit::refine(TreeNodeId leaf, const PlanarSplit &split) {
     if(!history_.node(leaf).isLeaf()) throw std::invalid_argument("refinement requires an active leaf") ;
     return replace(leaf,split) ;
   }
 
+  /// Validate and select a planar construction against the parent geometry.
   CellChange HistoryEdit::replace(TreeNodeId parent, const PlanarSplit &split) {
     checkFamily(parent) ;
     auto accepted=validatedPlanar(split,*history_.geometry_.map(history_.node(parent).map)) ;
     return publish(parent,std::nullopt,{split.shape,SplitFamily::planar,1,{},nullptr,std::move(accepted)}) ;
   }
 
+  /// Reuse a matching construction or append its geometry before selecting its children.
   CellChange HistoryEdit::publish(TreeNodeId parentId, std::optional<SplitOperation> request,
                                  SplitConstruction proposed) {
     const auto saved = history_.splitId(parentId,proposed) ;

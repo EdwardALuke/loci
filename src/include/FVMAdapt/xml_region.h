@@ -17,6 +17,7 @@ namespace FVMAdapt {
   public:
     explicit XMLRegion(const std::string &filename) ;
     explicit XMLRegion(_xmlNode *root) ;
+
     bool contains(const Point &point) const { return contains_(point) ; }
   } ;
   using XMLRegionP=std::shared_ptr<const XMLRegion> ;

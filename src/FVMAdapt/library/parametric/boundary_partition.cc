@@ -39,10 +39,11 @@ namespace FVMAdapt {
     struct Piece {
       Polygon vertices ;
       BoundaryUse use ;
-      Exact measure ;
+      Exact measure ; ///< Length in 1D; twice the positive polygon area in 2D.
       std::array<Exact,2> lower, upper ;
     } ;
 
+    /// Visit piece pairs whose bounds overlap, within one cover or across two covers.
     template<class Visit>
     void overlappingPieces(const std::vector<Piece> &first, const std::vector<Piece> *second,
                            unsigned dimension, Visit visit) {
@@ -85,6 +86,7 @@ namespace FVMAdapt {
       return (b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]) ;
     }
 
+    /// Return twice the signed area in shared boundary coordinates.
     Exact areaTwice(const Polygon &polygon) {
       Exact area = 0 ;
       for(std::size_t i = 0; i < polygon.size(); ++i) {
@@ -94,6 +96,7 @@ namespace FVMAdapt {
       return area ;
     }
 
+    /// Remove redundant polygon vertices and choose a consistent traversal.
     void canonicalize(Polygon &polygon) {
       polygon.erase(std::unique(polygon.begin(),polygon.end()),polygon.end()) ;
       if(polygon.size() > 1 && polygon.front() == polygon.back()) polygon.pop_back() ;
@@ -114,6 +117,7 @@ namespace FVMAdapt {
       std::rotate(polygon.begin(),std::min_element(polygon.begin(),polygon.end()),polygon.end()) ;
     }
 
+    /// Intersect exact boundary segments or convex polygons.
     Polygon intersect(const Polygon &first, const Polygon &second, unsigned dimension) {
       if(dimension == 1) {
         const ExactPoint lower = std::max(first[0],second[0]) ;
@@ -144,11 +148,13 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Return exact segment length or twice polygon area in boundary coordinates.
     Exact measure(const Polygon &vertices, unsigned dimension) {
       if(vertices.empty()) return 0 ;
       return dimension == 1 ? Exact(vertices[1][0]-vertices[0][0]) : areaTwice(vertices) ;
     }
 
+    /// Test whether exact coordinates lie in the original boundary.
     bool inFrame(Shape shape, const ExactPoint &point) {
       if(point[2] != 0 || point[0] < 0 || point[0] > 1) return false ;
       if(shape == Shape::segment) return point[1] == 0 ;
@@ -156,6 +162,7 @@ namespace FVMAdapt {
       return shape != Shape::triangle || point[0]+point[1] <= 1 ;
     }
 
+    /// Express one child boundary in its original boundary coordinates.
     Piece placedPiece(const BoundaryUse &use, Shape frame, unsigned dimension) {
       if((dimension == 1 && use.shape != Shape::segment) ||
          (dimension == 2 && use.shape != Shape::triangle && use.shape != Shape::quad))
@@ -202,6 +209,7 @@ namespace FVMAdapt {
       return result ;
     }
 
+    /// Validate a boundary cover and construct its nonoverlapping pieces.
     std::vector<Piece> pieces(const std::vector<BoundaryUse> &cover, Shape frame, unsigned dimension) {
       std::vector<Piece> result ;
       result.reserve(cover.size()) ;
@@ -220,6 +228,7 @@ namespace FVMAdapt {
 
   }
 
+  /// Convert an original-boundary point to the local coordinates of this piece.
   ReferencePoint BoundaryUse::coordinates(const ReferencePoint &point) const {
     if(shape != Shape::segment && shape != Shape::triangle && shape != Shape::quad)
       throw std::invalid_argument("boundary coordinates require a segment, triangle or quad") ;
@@ -247,6 +256,7 @@ namespace FVMAdapt {
     return {{Fraction(local[0]),Fraction(local[1]),Fraction(local[2])}} ;
   }
 
+  /// Intersect two complete boundary covers and retain both owners of each piece.
   std::vector<BoundaryMatch> reconcileBoundary(Shape shape,
       const std::vector<BoundaryUse> &first, const std::vector<BoundaryUse> &second,
       std::size_t maxPieces) {
@@ -279,49 +289,63 @@ namespace FVMAdapt {
     return result ;
   }
 
+  /// Match polygon pieces from two complete covers of an original face.
   std::vector<PolygonMatch> reconcilePolygons(Shape frame,const std::vector<BoundaryPolygon> &first,
       const std::vector<BoundaryPolygon> &second,std::size_t maxPieces) {
     if(frame!=Shape::triangle && frame!=Shape::quad)
       throw std::invalid_argument("polygon reconciliation requires a triangle or quad frame") ;
-    const auto cover=[&](const std::vector<BoundaryPolygon> &input) {
+
+    // Normalize each cover and check its pieces before intersecting the two covers.
+    const auto prepareCover=[&](const std::vector<BoundaryPolygon> &input) {
       if(input.size()>maxPieces) throw std::length_error("boundary polygon limit exceeded") ;
       std::vector<Piece> result ;
       for(const auto &polygon:input) {
-        Piece p ; p.use.face=polygon.face ;
+        Piece piece ; piece.use.face=polygon.face ;
         for(const auto &vertex:polygon.vertices) {
-          ExactPoint q{{exact(vertex[0]),exact(vertex[1]),exact(vertex[2])}} ;
-          if(!inFrame(frame,q)) throw std::invalid_argument("boundary polygon is outside its frame") ;
-          p.vertices.push_back(std::move(q)) ;
+          ExactPoint point{{exact(vertex[0]),exact(vertex[1]),exact(vertex[2])}} ;
+          if(!inFrame(frame,point)) throw std::invalid_argument("boundary polygon is outside its frame") ;
+          piece.vertices.push_back(std::move(point)) ;
         }
-        canonicalize(p.vertices) ;
-        if(p.vertices.size()<3) throw std::invalid_argument("boundary polygon has zero area") ;
-        for(unsigned i=0;i<p.vertices.size();++i)
-          if(cross(p.vertices[i],p.vertices[(i+1)%p.vertices.size()],p.vertices[(i+2)%p.vertices.size()])<=0)
+        canonicalize(piece.vertices) ;
+        if(piece.vertices.size()<3) throw std::invalid_argument("boundary polygon has zero area") ;
+        for(unsigned i=0;i<piece.vertices.size();++i)
+          if(cross(piece.vertices[i],piece.vertices[(i+1)%piece.vertices.size()],piece.vertices[(i+2)%piece.vertices.size()])<=0)
             throw std::invalid_argument("boundary polygon is not convex") ;
-        p.measure=measure(p.vertices,2) ;
+        piece.measure=measure(piece.vertices,2) ;
         for(unsigned d=0;d<2;++d) {
-          p.lower[d]=p.upper[d]=p.vertices.front()[d] ;
-          for(const auto &q:p.vertices) { p.lower[d]=std::min(p.lower[d],q[d]) ; p.upper[d]=std::max(p.upper[d],q[d]) ; }
+          piece.lower[d]=piece.upper[d]=piece.vertices.front()[d] ;
+          for(const auto &point:piece.vertices) {
+            piece.lower[d]=std::min(piece.lower[d],point[d]) ;
+            piece.upper[d]=std::max(piece.upper[d],point[d]) ;
+          }
         }
-        result.push_back(std::move(p)) ;
+        result.push_back(std::move(piece)) ;
       }
       overlappingPieces(result,nullptr,2,[&](const Piece &a,const Piece &b) {
         if(!intersect(a.vertices,b.vertices,2).empty()) throw std::invalid_argument("boundary cover pieces overlap") ;
       }) ;
       return result ;
     } ;
-    const auto a=cover(first),b=cover(second) ; Exact areaA=0,areaB=0,common=0 ;
-    for(const auto &p:a) areaA+=p.measure ;
-    for(const auto &p:b) areaB+=p.measure ;
+
+    const auto firstPieces=prepareCover(first),secondPieces=prepareCover(second) ;
+    Exact firstMeasure=0,secondMeasure=0,commonMeasure=0 ;
+    for(const auto &piece:firstPieces) firstMeasure+=piece.measure ;
+    for(const auto &piece:secondPieces) secondMeasure+=piece.measure ;
     std::vector<PolygonMatch> result ;
-    overlappingPieces(a,&b,2,[&](const Piece &left,const Piece &right) {
-      const auto polygon=intersect(left.vertices,right.vertices,2) ; if(polygon.empty()) return ;
+    overlappingPieces(firstPieces,&secondPieces,2,[&](const Piece &left,const Piece &right) {
+      const auto polygon=intersect(left.vertices,right.vertices,2) ;
+      if(polygon.empty()) return ;
       if(result.size()>=maxPieces) throw std::length_error("boundary polygon limit exceeded") ;
       PolygonMatch match ; match.first=left.use.face ; match.second=right.use.face ;
-      for(const auto &q:polygon) match.vertices.push_back({{Fraction(q[0]),Fraction(q[1]),Fraction(q[2])}}) ;
-      common+=measure(polygon,2) ; result.push_back(std::move(match)) ;
+      for(const auto &point:polygon)
+        match.vertices.push_back({{Fraction(point[0]),Fraction(point[1]),Fraction(point[2])}}) ;
+      commonMeasure+=measure(polygon,2) ;
+      result.push_back(std::move(match)) ;
     }) ;
-    if(common!=areaA || common!=areaB) throw std::invalid_argument("boundary covers have different areas") ;
+
+    // All input area must be represented by the common pieces.
+    if(commonMeasure!=firstMeasure || commonMeasure!=secondMeasure)
+      throw std::invalid_argument("boundary covers have different areas") ;
     std::sort(result.begin(),result.end(),[](const PolygonMatch &a,const PolygonMatch &b) { return a.vertices<b.vertices ; }) ;
     return result ;
   }

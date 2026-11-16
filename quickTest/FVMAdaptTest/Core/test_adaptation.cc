@@ -40,9 +40,9 @@ TEST_CASE("hex directional splits survive history reload") {
       split.cuts[direction]={Fraction(1,2)}; count*=2;
     }
     cell.splitLeaf(0,split);
-    CHECK(cell.leafIds().size()==count);
+    CHECK(cell.leafIdsInCreationOrder().size()==count);
     AffineSubdivision restored(decodeRefinement(encodeRefinement(cell.history())));
-    CHECK(restored.leafIds().size()==count);
+    CHECK(restored.leafIdsInCreationOrder().size()==count);
   }
 }
 
@@ -54,9 +54,9 @@ TEST_CASE("prism directional splits survive history reload") {
     if(mask & 1) { split.axialCuts={Fraction(1,2)}; count*=2; }
     if(mask & 2) { split.base=TriangleSplit::uniform4(); count*=4; }
     cell.splitLeaf(0,split);
-    CHECK(cell.leafIds().size()==count);
+    CHECK(cell.leafIdsInCreationOrder().size()==count);
     AffineSubdivision restored(decodeRefinement(encodeRefinement(cell.history())));
-    CHECK(restored.leafIds().size()==count);
+    CHECK(restored.leafIdsInCreationOrder().size()==count);
   }
 }
 
@@ -70,11 +70,11 @@ TEST_CASE("nested cell refinement preserves complete families") {
     cell.refine(first,isotropicSplit(shape));
     const auto saved=encodeRefinement(cell.history());
     AffineSubdivision restored(decodeRefinement(saved));
-    CHECK(restored.leafIds().size()==15);
+    CHECK(restored.leafIdsInCreationOrder().size()==15);
     restored.coarsen(restored.children(0)[0]);
-    CHECK(restored.leafIds().size()==8);
+    CHECK(restored.leafIdsInCreationOrder().size()==8);
     restored.coarsen(0);
-    CHECK(restored.leafIds().size()==1);
+    CHECK(restored.leafIdsInCreationOrder().size()==1);
   }
 }
 
