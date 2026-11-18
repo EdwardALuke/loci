@@ -6416,6 +6416,11 @@ ${endeach}$
 ${each rule.output_stores}$
     $[vtype]$ $[vname]$ ;
 ${endeach}$
+
+    GPU_DECL
+    value_t operator()() {
+$[rule.compute.spec]$
+    }
   } compute_t ;
 
   void compute(Loci::sequence const & seq) override ;
@@ -6425,7 +6430,7 @@ __global__ void $[rule.class]$_computevar_kernel(
   $[rule.class]$::value_t * target,
   $[rule.class]$::compute_t cop
 ) {
-  if(threadId.x == 0) {
+  if(threadIdx.x == 0) {
     $[rule.class]$::loci_reduction_t rop ;
     $[rule.class]$::value_t const part = cop() ;
     rop(*target, part) ;

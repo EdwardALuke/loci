@@ -742,6 +742,7 @@ inline bool isTerm(AST_type::elementType e) {
   case TK_NUMBER:
   case TK_TRUE:
   case TK_FALSE:
+  case TK_NULLPTR:
   case TK_LOCI_VARIABLE:
   case TK_LOCI_CONTAINER:
     return true ;
@@ -1296,6 +1297,7 @@ bool scanForCStyleCast(std::istream &is, int &linecount,varmap &typemap) {
   case TK_STRING:
   case TK_TRUE:
   case TK_FALSE:
+  case TK_NULLPTR:
   case TK_PLUS:
   case TK_MINUS:
   case TK_NOT:

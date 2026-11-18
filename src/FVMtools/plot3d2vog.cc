@@ -941,7 +941,8 @@ void creaseGroup(const vector<Loci::Array<int,4> > &glueFaces,
   if(Loci::MPI_rank != 0) {
     nodeSet = vector<int>(gsize) ;
   }
-  MPI_Bcast(&nodeSet[0],gsize,MPI_INT,0,MPI_COMM_WORLD) ;
+  if(gsize > 0)
+    MPI_Bcast(&nodeSet[0],gsize,MPI_INT,0,MPI_COMM_WORLD) ;
   if(Loci::MPI_processes == 1) {
     for(int i=0;i<gsize;++i)
       gluePos[i] = positions[nodeSet[i]] ;
@@ -1654,7 +1655,8 @@ if(Lref == "")
   if(Loci::MPI_rank != 0) {
     glueNodes = vector<int>(gsize) ;
   }
-  MPI_Bcast(&glueNodes[0],gsize,MPI_INT,0,MPI_COMM_WORLD) ;
+  if(gsize > 0)
+    MPI_Bcast(&glueNodes[0],gsize,MPI_INT,0,MPI_COMM_WORLD) ;
   if(Loci::MPI_processes == 1) {
     for(int i=0;i<gsize;++i)
       gluePos[i] = positions[glueNodes[i]] ;
@@ -1828,7 +1830,8 @@ if(Lref == "")
   MPI_Bcast(&gsz,1,MPI_INT,0,MPI_COMM_WORLD) ;
   if(Loci::MPI_rank != 0)
     glueSet = vector<pair<int,int> >(gsz) ;
-  MPI_Bcast(&glueSet[0],gsz*2,MPI_INT,0,MPI_COMM_WORLD) ;
+  if(gsz > 0)
+    MPI_Bcast(&glueSet[0],gsz*2,MPI_INT,0,MPI_COMM_WORLD) ;
 
   // Now lets make the rest of the faces
 
