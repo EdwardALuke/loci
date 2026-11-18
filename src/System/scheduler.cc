@@ -713,11 +713,8 @@ namespace Loci {
       cout << "Stationary Relation Generation..." << endl ;
     stationary_relation_gen(par_rdb, facts, target) ;
 #endif
-    // then we need to perform global -> local renumbering
-    if((MPI_processes > 1))
-      get_clone(facts, par_rdb) ;
-    else
-      Loci::serial_freeze(facts) ;
+    // perform global -> local renumbering
+    get_clone(facts, par_rdb) ;
 
     // then we can generate the dependency graph
     variableSet given = facts.get_typed_variables() ;

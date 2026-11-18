@@ -307,6 +307,9 @@ namespace Loci {
     }
   } ;
 
+  // temporary feature flag
+#define LOCI_USING_SET_PARTITION
+
   class  entityPartitionInfo ;
   class  filePartitionInfo ;
   class  globalPartitionInfo ;

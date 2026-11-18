@@ -334,27 +334,6 @@ num_original_nodes), option(disable_threading), prelude {
   faces = Loci::exec_current_fact_db->get_variable("faces") ;
   geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells") ;
 
-  if(num_procs == 1 || dist == 0) {
-    // int offset = *num_original_nodes + 1 ; // in cobalt, index of node start with 1
-    int offset = *$num_original_nodes ; // in vog, index of node start with 0
-    FORALL(*edges, ei) {
-      $balanced_node_offset[ei] = offset ;
-      offset += $balanced_num_inner_nodes[ei] ;
-    }ENDFORALL ;
-
-    // write out cell_nodes first, then write face_nodes
-    FORALL(*geom_cells, ei) {
-      $balanced_node_offset[ei] = offset ;
-      offset += $balanced_num_inner_nodes[ei] ;
-    }ENDFORALL ;
-
-    FORALL(*faces, ei) {
-      $balanced_node_offset[ei] = offset ;
-      offset += $balanced_num_inner_nodes[ei] ;
-    }ENDFORALL ;
-    return ;
-  }
-
   Loci::constraint my_entities ;
   my_entities = dist->my_entities ;
 
@@ -490,15 +469,6 @@ option(disable_threading), prelude {
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
 
   Loci::constraint geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells") ;
-
-  if(num_procs ==  1) {
-    int offset = 0 ;
-    FORALL(*geom_cells, ei) {
-      $balanced_cell_offset[ei] = offset ;
-      offset += $balanced_num_fine_cells[ei] ;
-    }ENDFORALL ;
-    return ;
-  }
 
   Loci::constraint my_entities ;
   my_entities = dist->my_entities ;

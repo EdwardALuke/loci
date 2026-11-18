@@ -91,20 +91,14 @@ option(disable_threading), prelude {
   readPlan = Loci::DataXFER_DB.getItem((*$planDB_par).c_str()) ;
 
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-  if(dist==0) {
-    FORALL(dom,ii) {
-      $cellPlan[ii] = readPlan[ii] ;
-    } ENDFORALL ;
-  }else {
-    store<std::vector<char> > tmp ;
-    tmp.allocate(dom) ;
-    Loci::storeRepP tmpRep = tmp.Rep() ;
-    int offset = 0 ;
-    File2LocalOrder(tmpRep,dom,readPlan.Rep(),offset,dist,MPI_COMM_WORLD) ;
-    FORALL(dom,ii) {
-      $cellPlan[ii].swap(tmp[ii]) ;
-    } ENDFORALL ;
-  }
+  store<std::vector<char> > tmp ;
+  tmp.allocate(dom) ;
+  Loci::storeRepP tmpRep = tmp.Rep() ;
+  int offset = 0 ;
+  File2LocalOrder(tmpRep,dom,readPlan.Rep(),offset,dist,MPI_COMM_WORLD) ;
+  FORALL(dom,ii) {
+    $cellPlan[ii].swap(tmp[ii]) ;
+  } ENDFORALL ;
 
   FORALL(dom,cc) {
     if($cellPlan[cc].size() == 1 && $cellPlan[cc][0] == 'C') {
@@ -127,20 +121,14 @@ constraint(geom_cells), option(disable_threading), prelude {
   readPlan = Loci::DataXFER_DB.getItem((*$balanced_planDB_par).c_str()) ;
 
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-  if(dist==0) {
-    FORALL(dom,ii) {
-      $balancedCellPlan[ii] = readPlan[ii] ;
-    } ENDFORALL ;
-  }else {
-    store<std::vector<char> > tmp ;
-    tmp.allocate(dom) ;
-    Loci::storeRepP tmpRep = tmp.Rep() ;
-    int offset = 0 ;
-    File2LocalOrder(tmpRep,dom,readPlan.Rep(),offset,dist,MPI_COMM_WORLD) ;
-    FORALL(dom,ii) {
-      $balancedCellPlan[ii].swap(tmp[ii]) ;
-    } ENDFORALL ;
-  }
+  store<std::vector<char> > tmp ;
+  tmp.allocate(dom) ;
+  Loci::storeRepP tmpRep = tmp.Rep() ;
+  int offset = 0 ;
+  File2LocalOrder(tmpRep,dom,readPlan.Rep(),offset,dist,MPI_COMM_WORLD) ;
+  FORALL(dom,ii) {
+    $balancedCellPlan[ii].swap(tmp[ii]) ;
+  } ENDFORALL ;
 
   FORALL(dom,cc) {
     if($balancedCellPlan[cc].size() == 1 && $balancedCellPlan[cc][0] == 'C') {
@@ -195,20 +183,14 @@ option(disable_threading), prelude {
   readPlan = Loci::DataXFER_DB.getItem((*$parent_planDB_par).c_str()) ;
 
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-  if(dist==0) {
-    FORALL(dom,ii) {
-      $parentPlan[ii]= readPlan[ii] ;
-    } ENDFORALL ;
-  }else {
-    store<std::vector<char> > tmp ;
-    tmp.allocate(dom) ;
-    Loci::storeRepP tmpRep = tmp.Rep() ;
-    int offset = 0 ;
-    File2LocalOrder(tmpRep,dom,readPlan.Rep(),offset,dist,MPI_COMM_WORLD) ;
-    FORALL(dom,ii) {
-      $parentPlan[ii].swap(tmp[ii]) ;
-    } ENDFORALL ;
-  }
+  store<std::vector<char> > tmp ;
+  tmp.allocate(dom) ;
+  Loci::storeRepP tmpRep = tmp.Rep() ;
+  int offset = 0 ;
+  File2LocalOrder(tmpRep,dom,readPlan.Rep(),offset,dist,MPI_COMM_WORLD) ;
+  FORALL(dom,ii) {
+    $parentPlan[ii].swap(tmp[ii]) ;
+  } ENDFORALL ;
 
   FORALL(dom,cc) {
     if($parentPlan[cc].size() == 1 && $parentPlan[cc][0] == 'C') {
@@ -251,21 +233,11 @@ constraint(geom_cells), option(disable_threading), prelude {
   entitySet dom = entitySet(seq) ;
 
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-  if(dist==0) {
-    store<std::vector<char> > pcopy ;
-    pcopy.allocate(dom) ;
-    FORALL(dom,ii) {
-      pcopy[ii] = $tmpPlan[ii] ;
-    } ENDFORALL ;
-
-    Loci::DataXFER_DB.insertItem((*$plan_outDB_par).c_str(),pcopy.Rep()) ;
-  }else {
-    int offset = 0 ;
-    Loci::storeRepP vardist = Loci::Local2FileOrder($tmpPlan.Rep(),dom,offset,
-                                                    dist, MPI_COMM_WORLD) ;
-    vardist->shift(offset) ;
-    Loci::DataXFER_DB.insertItem((*$plan_outDB_par).c_str(),vardist) ;
-  }
+  int offset = 0 ;
+  Loci::storeRepP vardist = Loci::Local2FileOrder($tmpPlan.Rep(),dom,offset,
+                                                  dist, MPI_COMM_WORLD) ;
+  vardist->shift(offset) ;
+  Loci::DataXFER_DB.insertItem((*$plan_outDB_par).c_str(),vardist) ;
 } ;
 
 
@@ -306,19 +278,9 @@ constraint(geom_cells), option(disable_threading), prelude {
   entitySet dom = entitySet(seq) ;
 
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
-  if(dist==0) {
-    store<int> pcopy ;
-    pcopy.allocate(dom) ;
-    FORALL(dom,ii) {
-      pcopy[ii] = $balanced_num_fine_cells[ii] ;
-    } ENDFORALL ;
-
-    Loci::DataXFER_DB.insertItem((*$cellweight_outDB_par).c_str(),pcopy.Rep()) ;
-  }else {
-    int offset = 0 ;
-    Loci::storeRepP vardist = Loci::Local2FileOrder($balanced_num_fine_cells.Rep(),dom,offset,
-                                                    dist, MPI_COMM_WORLD) ;
-    vardist->shift(offset) ;
-    Loci::DataXFER_DB.insertItem((*$cellweight_outDB_par).c_str(),vardist) ;
-  }
+  int offset = 0 ;
+  Loci::storeRepP vardist = Loci::Local2FileOrder($balanced_num_fine_cells.Rep(),dom,offset,
+                                                  dist, MPI_COMM_WORLD) ;
+  vardist->shift(offset) ;
+  Loci::DataXFER_DB.insertItem((*$cellweight_outDB_par).c_str(),vardist) ;
 } ;

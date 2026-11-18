@@ -127,15 +127,12 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
                                 MPI_COMM_SELF);
     Loci::readContainerRAW(file_id, "values", written.Rep(), MPI_COMM_SELF);
 
-    // With a single process the library skips file-number reordering and
-    // writes using local entity numbers directly.
-    const entitySet expected_file_domain = (MPI_processes == 1)
-      ? entitySet(interval(local_entity, local_entity))
-      : entitySet(interval(file_number, file_number));
+    // The library always reorders to file numbering via Local2FileOrder.
+    const entitySet expected_file_domain =
+      entitySet(interval(file_number, file_number));
     CHECK(written.domain() == expected_file_domain);
     if(written.domain() == expected_file_domain) {
-      int check_key = (MPI_processes == 1) ? local_entity : file_number;
-      CHECK(written[check_key] == expected);
+      CHECK(written[file_number] == expected);
     }
 
     hid_t group_id = H5Gopen(file_id, "empty_values", H5P_DEFAULT);

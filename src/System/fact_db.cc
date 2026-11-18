@@ -86,7 +86,6 @@ namespace Loci {
     tmap = f.tmap ;
     nspace_vec = f.nspace_vec ;
     extensional_facts = f.extensional_facts ;
-
     // Modify this to do a deep copy 
     partition_info = f.partition_info ;
     /* we cannot use the following direct assignment
@@ -356,22 +355,20 @@ namespace Loci {
     if(gmax_alloc.size() == 0) {
       getKeyDomain("Main") ;
     }
-    if(MPI_processes > 1) {
-      if(!dist_from_start) {
-	dist_from_start = 1 ;
-	distributed_info = new distribute_info;
-	int num_keyspace = gmax_alloc.size() ;
-	for(int i=0;i<num_keyspace;++i) {
-	  distributed_info->g2fv.push_back(dMap()) ;
-	  distributed_info->g2lv.push_back(dMap()) ;
-	}
-#ifdef LOCI_COMPAT_MODE1
-	distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
-	distributed_info->g2l.setRep(distributed_info->g2lv[0].Rep()) ;
-#endif
+    if(!dist_from_start) {
+      dist_from_start = 1 ;
+      distributed_info = new distribute_info;
+      int num_keyspace = gmax_alloc.size() ;
+      for(int i=0;i<num_keyspace;++i) {
+	distributed_info->g2fv.push_back(dMap()) ;
+	distributed_info->g2lv.push_back(dMap()) ;
       }
-
-
+#ifdef LOCI_COMPAT_MODE1
+      distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
+      distributed_info->g2l.setRep(distributed_info->g2lv[0].Rep()) ;
+#endif
+    }
+    if(MPI_processes > 1) {
       vector<int> send_buf(MPI_processes) ;
       vector<int> size_send(MPI_processes) ;
       vector<int> size_recv(MPI_processes) ;
@@ -421,19 +418,15 @@ namespace Loci {
   }
     
   void fact_db::update_remap(const std::vector<std::pair<int, int> > &remap_update, size_t kd) {
-    if(Loci::MPI_processes > 1) {
-      warn(!dist_from_start);
-      fatal(distributed_info == NULL);
-      
-      for(std::vector<std::pair<int, int> >::const_iterator vi = remap_update.begin(); vi != remap_update.end(); vi++) {
-        //	distributed_info->remap[vi->first] = vi->second;
-        distributed_info->g2fv[kd][vi->second] = vi->first ;
-      }
-#ifdef LOCI_COMPAT_MODE1
-      distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
-      //      distributed_info->g2l.setRep(distributed_info->g2lv[0].Rep()) ;
-#endif
+    warn(!dist_from_start);
+    fatal(distributed_info == NULL);
+    
+    for(std::vector<std::pair<int, int> >::const_iterator vi = remap_update.begin(); vi != remap_update.end(); vi++) {
+      distributed_info->g2fv[kd][vi->second] = vi->first ;
     }
+#ifdef LOCI_COMPAT_MODE1
+    distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
+#endif
   }
 
   std::pair<entitySet, entitySet> fact_db::get_distributed_alloc(int size, size_t kd) {
@@ -962,58 +955,6 @@ namespace Loci {
   }
 
   ///////////////////////////////////////////////////////////////////////////////
-  
-  void serial_freeze(fact_db &facts) {
-    variableSet vars = facts.get_typed_variables() ;
-
-    fact_db::distribute_infoP df = new fact_db::distribute_info;
-    df->myid = 0 ;
-    df->isDistributed = 0 ;
-    entitySet dom ;
-    for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
-      storeRepP p = facts.get_variable(*vi) ;
-      p = p->freeze() ;
-      facts.replace_fact(*vi, p) ;
-      if(p->domain()!=~EMPTY)
-	dom += p->domain() ;
-    }
-    Map l2g ;
-    store<unsigned char> key_domain ;
-    l2g.allocate(dom) ;
-    key_domain.allocate(dom) ;
-    dMap g2l ;
-    FORALL(dom,ii) {
-      l2g[ii] = ii ;
-      key_domain[ii] = 0 ;
-      g2l[ii] = ii ;
-    } ENDFORALL ;
-    df->l2g = l2g.Rep() ;
-    df->key_domain = key_domain.Rep() ;
-    df->l2f = l2g.Rep() ;
-#ifdef LOCI_COMPAT_MODE1
-    df->g2l = g2l.Rep() ;
-    df->g2f = g2l.Rep() ;
-#endif
-    df->my_entities = ~EMPTY ;
-    df->g2lv.push_back(g2l) ;
-    df->g2fv.push_back(g2l) ;
-    facts.put_distribute_info(df) ;
-
-    entitySet scope = df->my_entities ;
-    vector<dataPartitionP> ptnlist ;
-    for(size_t i=0;i<facts.init_ptn.size();++i) {
-      dataPartitionP p = std::make_shared<dataPartitionGeneral>
-        (facts.init_ptn[i],MPI_COMM_WORLD) ;
-      ptnlist.push_back(p) ;
-    }
-    entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
-      (scope,df->l2g,df->key_domain,df->l2f,ptnlist,MPI_COMM_WORLD) ;
-    facts.setPartitionInfo(distinfop) ;
-    for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
-      storeRepP p = facts.get_variable(*vi) ;
-      p->setPartitionInfo(distinfop) ;
-    }
-  }
 
   void fact_db::set_variable_type(variable v, storeRepP st) {
     v = add_namespace(v) ;

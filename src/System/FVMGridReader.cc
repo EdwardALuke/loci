@@ -2789,9 +2789,19 @@ namespace Loci {
       int nfaces = local_faces[0].size();
       int ncells = local_cells[0].size();
       int nbcs = global_boundary_cells.size() ;
-      entitySet nodes = facts.get_distributed_alloc(npnts,0).first ; // FIX THIS
-      entitySet faces = facts.get_distributed_alloc(nfaces,0).first ;
-      entitySet cells = facts.get_distributed_alloc(ncells,0).first;
+
+      // Build remap vectors so that entity-to-file-number mappings are
+      // recorded even in single-process runs (needed by get_clone).
+      // Nodes, faces, and cells get 0-based file-ordinal remap entries;
+      // boundary surface entities use the simple allocator (no remap).
+      vector<int> node_remap(npnts), face_remap(nfaces),
+                  cell_remap(ncells) ;
+      for(int i=0;i<npnts;++i) node_remap[i] = i ;
+      for(int i=0;i<nfaces;++i) face_remap[i] = i ;
+      for(int i=0;i<ncells;++i) cell_remap[i] = i ;
+      entitySet nodes = facts.get_distributed_alloc(node_remap,0).first ;
+      entitySet faces = facts.get_distributed_alloc(face_remap,0).first ;
+      entitySet cells = facts.get_distributed_alloc(cell_remap,0).first ;
       entitySet bcset = facts.get_distributed_alloc(nbcs,0).first ;
 
 

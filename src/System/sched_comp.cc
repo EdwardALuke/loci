@@ -1143,14 +1143,7 @@ namespace Loci {
       // before each internal query, we need to
       // perform the global -> local renumbering
       // since the fact_db facts is in global numbering state
-#ifdef RENUMBER
-      if((MPI_processes > 1))
-        get_clone(clone, par_rdb) ;
-      else
-        Loci::serial_freeze(clone) ;
-#else
-      Loci::serial_freeze(clone) ;
-#endif
+      get_clone(clone, par_rdb) ;
       if(!internalQuery(par_rdb, clone, all_queries)) {
         cerr << "Internal Query Failed, Aborting..." << endl ;
         Loci::Abort() ;
@@ -1196,14 +1189,7 @@ namespace Loci {
         // before each internal query, we need to
         // perform the global -> local renumbering
         // since the fact_db facts is in global numbering state
-#ifdef RENUMBER
-        if((MPI_processes > 1))
-          get_clone(clone, par_rdb) ;
-        else
-          Loci::serial_freeze(clone) ;
-#else
-        Loci::serial_freeze(clone) ;
-#endif
+        get_clone(clone, par_rdb) ;
         // get the relations that we need to query
         ruleSet relationRules = vi->first ;
         variableSet queries = vi->second ;

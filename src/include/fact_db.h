@@ -364,7 +364,6 @@ namespace Loci {
   } ;
   
   void reorder_facts(fact_db &facts) ;
-  void serial_freeze(fact_db &facts) ;
   
 
   entitySet collect_entitySet(entitySet e, fact_db &facts) ;

@@ -1846,23 +1846,18 @@ namespace Loci {
     Map newnum ;
     newnum.allocate(resultSet) ;
 
-    if(dist !=0 ) {
-      int kd =  getKeyDomain(resultSet, dist, comm) ;
+    int kd =  getKeyDomain(resultSet, dist, comm) ;
 
-      if(kd < 0) {
-        cerr << "File2LocalOrder not in single keyspace!" << endl ;
-        kd = 0 ;
-      }
-
-      Map l2f ;
-      l2f = dist->l2f.Rep() ;
-      FORALL(resultSet,i) {
-        newnum[i] = l2f[i] ; 
-      } ENDFORALL ;
-    } else {
-      result->copy(input,resultSet) ;
-      return ;
+    if(kd < 0) {
+      cerr << "File2LocalOrder not in single keyspace!" << endl ;
+      kd = 0 ;
     }
+
+    Map l2f ;
+    l2f = dist->l2f.Rep() ;
+    FORALL(resultSet,i) {
+      newnum[i] = l2f[i] ; 
+    } ENDFORALL ;
 
     int p = 0 ;
     MPI_Comm_size(comm,&p) ;
@@ -1888,7 +1883,7 @@ namespace Loci {
     int proc = 0 ;
     for(size_t i=0;i<file_requests.size();++i) {
       int fn = file_requests[i].first ;
-      while(proc < p && (fn < allmn[proc] || fn > allmx[proc]))
+      while(proc+1 < p && (fn < allmn[proc] || fn > allmx[proc]))
         proc++ ;
       if(fn < allmn[proc] || fn > allmx[proc]) {
         cerr << "Unable to find processor that contains entity!" << endl ;
@@ -2033,10 +2028,9 @@ namespace Loci {
       group_id = H5Gcreate(file_id, vname.c_str(),
 			   H5P_DEFAULT,H5P_DEFAULT, H5P_DEFAULT) ;
 
-    // Redistribute container to map from local to global numbering
-    if(var->RepType() != PARAMETER && MPI_processes != 1) {
-      // parallel store write.. reorder to file numbering then write out
-      // reorder from local to file numbering
+    // Redistribute container to map from local to file numbering
+    if(var->RepType() != PARAMETER) {
+      // reorder from local to file numbering then write out
       int offset = 0 ;
       entitySet dom = var->domain() ;
       // Create container vardist that is ordered across processors in the
@@ -2068,8 +2062,7 @@ namespace Loci {
       else
         pio::write_storeS(group_id,vardist,vardist->domain(),offset,MPI_COMM_WORLD) ;
     } else {
-      // No need to reorder container if parameter or only one
-      // processor, so just write out the container.
+      // Parameters don't need reordering
       if(use_parallel_io)
         pio::write_containerP(group_id, var) ;
       else
@@ -2151,38 +2144,24 @@ namespace Loci {
 #endif
       ptn = facts.getPartitionInfo() ;
     }
-    if(dist != 0) {
-      // Correct offset if file numbering changes.  Assume read_set is being
-      // read in over the same set
-      int minID = offset ;
-      MPI_Bcast(&minID,1,MPI_INT,0,MPI_COMM_WORLD) ;
-      const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
-      const int correct = minIDf - minID ;
-      offset += correct  ;
+    // Correct offset if file numbering changes.  Assume read_set is being
+    // read in over the same set
+    int minID = offset ;
+    MPI_Bcast(&minID,1,MPI_INT,0,MPI_COMM_WORLD) ;
+    const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
+    const int correct = minIDf - minID ;
+    offset += correct  ;
 
-      // Allocate space for reordered container
-      storeRepP result = var->new_store(read_set) ;
-      
-      ptn->File2LocalOrder(result,read_set,new_store,offset) ;
-      // Copy results into container
-      if(read_set == EMPTY) {
-        read_set = result->domain() ;
-        var->allocate(read_set) ;
-      }
-      var->copy(result,read_set) ;
-    } else {
-      if(read_set == EMPTY) {
-        read_set = new_store->domain() ;
-        var->allocate(read_set) ;
-      } else {
-        offset = read_set.Min() - new_store->domain().Min() ;
-        if(offset != 0) {
-          // shift new store by offset to correct alignment
-          new_store->shift(offset) ;
-        }
-      }
-      var->copy(new_store,read_set) ;
+    // Allocate space for reordered container
+    storeRepP result = var->new_store(read_set) ;
+    
+    ptn->File2LocalOrder(result,read_set,new_store,offset) ;
+    // Copy results into container
+    if(read_set == EMPTY) {
+      read_set = result->domain() ;
+      var->allocate(read_set) ;
     }
+    var->copy(result,read_set) ;
 
    
   }

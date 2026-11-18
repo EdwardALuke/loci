@@ -1902,115 +1902,6 @@ namespace Loci{
                     vector<pair<string,entitySet> >& volTags,
                     storeRepP cellwts, const refinedGridData *gridFields) {
     double t1 = MPI_Wtime() ;
-    // Identify boundary tags
-    if(Loci::MPI_processes == 1) {
-      entitySet local_boundary_cells = getBoundaryCells(MapRepP(tmp_cr.Rep()));
-      entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells) ;
-
-      int npnts = local_nodes[0].size();
-      int nfaces = local_faces[0].size();
-      int ncells = local_cells[0].size();
-
-      entitySet nodes = facts.get_distributed_alloc(npnts,0).first ; // FIX THIS
-      entitySet faces = facts.get_distributed_alloc(nfaces,0).first ;
-      entitySet cells = facts.get_distributed_alloc(ncells,0).first;
-
-      store<vector3d<double> > pos ;
-      Map cl ;
-      Map cr ;
-      multiMap face2node ;
-      Loci::copyGridStructures(nodes, faces, cells,
-                               t_pos, tmp_cl, tmp_cr, tmp_face2node,
-                               pos, cl, cr, face2node);
-      store<string> boundary_names ;
-      store<string> boundary_tags ;
-      boundary_names.allocate(global_boundary_cells) ;
-      boundary_tags.allocate(global_boundary_cells) ;
-      cout << " boundaries identified as:" ;
-      
-      FORALL(global_boundary_cells, bc) {
-        char buf[512] ;
-	bzero(buf,512) ;
-        snprintf(buf,511,"BC_%d",-bc) ;
-        boundary_tags[bc] = string(buf) ;
-        boundary_names[bc] = string(buf) ;
-	cout << " " << boundary_names[bc] ;
-      } ENDFORALL ;
-
-      for(size_t i=0;i<boundary_ids.size();++i) {
-        int id = boundary_ids[i].first ;
-        if(global_boundary_cells.inSet(-id))
-          boundary_names[-id] = boundary_ids[i].second ;
-      }
-
-      FORALL(global_boundary_cells, bc) {
-	cout << " " << boundary_names[bc] ;
-      } ENDFORALL ;
-      cout << endl ;
-      
-      facts.create_fact("cl", cl) ;
-      facts.create_fact("cr", cr) ;
-      facts.create_fact("pos", pos) ;
-      facts.create_fact("face2node",face2node) ;
-      facts.create_fact("boundary_names", boundary_names) ;
-      facts.create_fact("boundary_tags", boundary_tags) ;
-
-      if(gridFields != 0 && gridFields->hasFaceHistory) {
-        Map faceNumbers ; faceNumbers.allocate(faces) ;
-        faceNumbers.Rep()->setDomainKeySpace(face2node.Rep()->getDomainKeySpace()) ;
-        auto source = local_faces[0].begin() ;
-        for(Entity face : faces) {
-          faceNumbers[face] = *source++ ;
-        }
-        std::string error ;
-        if(!installFaceHistory(facts,*gridFields,faceNumbers,error)) {
-          cerr << error << endl ; return false ;
-        }
-      }
-
-      if(gridFields != 0 && gridFields->hasCellState) {
-        store<int> depth, root, change ;
-        depth.allocate(cells) ;
-        root.allocate(cells) ;
-        change.allocate(cells) ;
-        entitySet::const_iterator source = local_cells[0].begin() ;
-        FORALL(cells, cell) {
-          depth[cell] = gridFields->refinementDepth[*source] ;
-          root[cell] = gridFields->rootCellFileNumber[*source] ;
-          change[cell] = gridFields->cellChange[*source] ;
-          ++source ;
-        } ENDFORALL ;
-        facts.create_fact("refinementDepth", depth) ;
-        facts.create_fact("rootCellFileNumber", root) ;
-        facts.create_fact("cellChange", change) ;
-      }
-
-      if(gridFields != 0 && gridFields->hasEdgeLengths) {
-        store<double> length, lengthXY ;
-        length.allocate(cells) ;
-        lengthXY.allocate(cells) ;
-        entitySet::const_iterator source = local_cells[0].begin() ;
-        FORALL(cells, cell) {
-          length[cell] = gridFields->maxEdgeLength[*source] ;
-          lengthXY[cell] = gridFields->maxEdgeLengthXY[*source] ;
-          ++source ;
-        } ENDFORALL ;
-        facts.create_fact("maxEdgeLength", length) ;
-        facts.create_fact("maxEdgeLengthXY", lengthXY) ;
-      }
-
-      int cells_base = local_cells[0].Min() ;
-      for(size_t i=0;i<volTags.size();++i) {
-        param<string> Tag ;
-        *Tag = volTags[i].first ;
-        Tag.set_entitySet(volTags[i].second >> cells_base) ;
-        std::ostringstream oss ;
-        oss << "volumeTag(" << volTags[i].first << ")" ;
-        facts.create_fact(oss.str(),Tag) ;
-      }
-        
-      return true ;
-    }
 
     entitySet local_boundary_cells = getBoundaryCells(MapRepP(tmp_cr.Rep()));
     entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells) ;
@@ -3286,52 +3177,13 @@ vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,enti
   
   vector<pair<string,entitySet> > volTags(origVolTags.size());
 
-  //serial version
-  if(Loci::MPI_processes == 1){
-    // Build ordinal-to-entity mapping from cell_offset's domain.
-    // The vol tag ordinals are 0-based cell indices; the cell_offset
-    // store is indexed by entity numbers which may differ (e.g. --big).
-    entitySet cellDom = cell_offset.domain() ;
-    vector<int> ord2ent(cellDom.size()) ;
-    int idx = 0 ;
-    for(entitySet::const_iterator ei=cellDom.begin(); ei!=cellDom.end(); ++ei)
-      ord2ent[idx++] = *ei ;
-
-    for(unsigned int i = 0; i < origVolTags.size(); i++){
-      string name = origVolTags[i].first;
-      //transfer entitySet into vector of interval
-      entitySet set=origVolTags[i].second;
-      int sz = set.num_intervals() ;
-      vector<interval> vlist(sz) ;
-      for(int j=0;j<sz;++j)vlist[j] = set[j] ;
-        
-      entitySet new_set = EMPTY;
-      for(int j=0;j<sz;++j){
-        int start = ord2ent[vlist[j].first] ;
-        int end = ord2ent[vlist[j].second] ;
-          
-        start = cell_offset[start]; //the begin of interval changes to  cell_offset+1
-        end = cell_offset[end]+num_fine_cells[end]-1;//the end of interval changes to cell_offset+num_fine_cells
-        new_set += interval(start, end);
-      }
-      volTags[i] = make_pair(name, new_set);
-      std::cout << "old tag:  "  << name << " " << set << std::endl;
-      std::cout << "new tag:  " << name << " " << new_set << std::endl;
-    }
-   
-    return volTags  ;
-  }
-       
-    
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
   Loci::constraint  geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells");
   Loci::constraint my_entities;
   my_entities = dist->my_entities ;
-  //don't know if it's necessray
   entitySet local_geom_cells = (*my_entities)&(*geom_cells);
-    
-  if(Loci::MPI_processes > 1){
-     
+
+  // Vol tag ordinals are 0-based VOG/file cell indices; remap via file order.
     //trasnfer the store to file numbering 
     int offset = 0; 
     store<int> file_num_fine_cells;
@@ -3459,8 +3311,7 @@ vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,enti
         volTags.push_back(pair<string,entitySet>(name,set)) ;
       delete[] ibuf ;
     }
-     
-  }
+
   return volTags; 
 }
 

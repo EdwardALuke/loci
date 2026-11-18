@@ -3391,17 +3391,11 @@ namespace Loci{
       node_fnum.allocate(ndom) ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
 
-      if(df != 0) {
-        dMap ng2f ;
-        ng2f = df->g2fv[nkeyspace].Rep() ;
-        FORALL(ndom,ii) {
-          node_fnum[ii] = ng2f[ii] ;
-        } ENDFORALL ;
-      } else {
-        FORALL(ndom,ii) {
-          node_fnum[ii] = ii ;
-        } ENDFORALL ;
-      }
+      dMap ng2f ;
+      ng2f = df->g2fv[nkeyspace].Rep() ;
+      FORALL(ndom,ii) {
+        node_fnum[ii] = ng2f[ii] ;
+      } ENDFORALL ;
     
       // gather nodal data needed for the computation.
       std::map<int,int> g2l ;
@@ -3678,11 +3672,9 @@ namespace Loci{
 
     // Update file numbering map
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
-    if(df != 0) {
-      int cnt = 0 ;
-      for(auto ei=edges.begin();ei!=edges.end();++ei,++cnt) {
-        df->g2fv[ek][*ei] = edge_fileno[cnt] ; // Update global to file map
-      }
+    cnt = 0 ;
+    for(auto ei=edges.begin();ei!=edges.end();++ei,++cnt) {
+      df->g2fv[ek][*ei] = edge_fileno[cnt] ; // Update global to file map
     }
 
     // Add edge2node to fact database

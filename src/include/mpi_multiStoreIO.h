@@ -315,9 +315,7 @@ namespace Loci {
     
     entitySet dom = write_set ;
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
-    //just write out the entities belong to me???
-    if(df != 0)
-      dom  = write_set & df->my_entities ;
+    dom  = write_set & df->my_entities ;
 
     Loci::stopWatch sp ;
 
@@ -326,28 +324,16 @@ namespace Loci {
       std::vector<int> counts(dom.size()) ;
       int cnt = 0 ;
       std::vector<int> fileids(dom.size()) ;
-      if(df == 0) {
-        FORALL(dom,ii) {
+      dMap l2f ;
+      l2f = df->l2f.Rep() ;
 
-          counts[cnt] = var.vec_size(ii) ;
-          int file_no = ii ;
-          fileids[cnt] = file_no ;
-          cnt++ ;
-        } ENDFORALL ;
+      FORALL(dom,ii) {
+        counts[cnt] = var.vec_size(ii) ;
 
-      } else {
-        dMap l2f ;
-        l2f = df->l2f.Rep() ;
-
-        FORALL(dom,ii) {
-          counts[cnt] = var.vec_size(ii) ;
-
-          int file_no = l2f[ii] ;
-          fileids[cnt] = file_no ;
-          cnt++ ;
-        } ENDFORALL ;
-
-      }
+        int file_no = l2f[ii] ;
+        fileids[cnt] = file_no ;
+        cnt++ ;
+      } ENDFORALL ;
 
       
       //no groups, write out two vectors counts and fileids
