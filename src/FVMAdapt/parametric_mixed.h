@@ -32,7 +32,7 @@ namespace Loci { namespace FVMAdapt {
       const CellTopology &rightTopology,const ParametricCell &rightCell,const std::vector<ParametricNodeKey> &requiredNodes,bool patches = false) ;
   std::vector<ParametricNodeKey> mixedFaceNodes(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
       const CellTopology &rightTopology,const ParametricCell &rightCell,std::vector<Point> *positions = nullptr) ;
-  ParametricTrace mixedFaceRequests(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
+  std::vector<FaceBalanceRequest> mixedFaceRequests(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
       const CellTopology &rightTopology,const ParametricCell &rightCell,unsigned difference,NeighborGrading grading) ;
   std::vector<FaceBalanceRequest> mixedDividedFaces(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
       const CellTopology &rightTopology,const ParametricCell &rightCell) ;

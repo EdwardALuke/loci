@@ -38,6 +38,22 @@ namespace FVMAdapt {
     bool hasJacobian ;
   } ;
 
+  /// Compose X(R(q)); outer is evaluated at inner.position.
+  /// The Jacobian is available only when both inputs provide one.
+  inline MapValue composeMapValues(const MapValue &outer, const MapValue &inner) {
+    MapValue result{outer.position,{},outer.hasJacobian && inner.hasJacobian} ;
+    if(result.hasJacobian)
+      for(unsigned direction=0; direction<3; ++direction)
+        for(unsigned component=0; component<3; ++component)
+          for(unsigned j=0; j<3; ++j)
+            result.jacobian[direction][component] += outer.jacobian[j][component]*inner.jacobian[direction][j] ;
+    return result ;
+  }
+
+  /// Cubic Bezier position from four ordered controls, without allocating a map.
+  /// Controls must be finite; t may extrapolate beyond [0,1].
+  Point cubicEdgePosition(const std::array<Point,4> &controls, double t) ;
+
   /// Trilinear interpolation in native hex corner order, without allocating a map object.
   /// Corners must be finite. Reference coordinates may extrapolate.
   MapValue evaluateHexCorners(const std::array<Point,8> &corners, const Point &point) ;

@@ -216,7 +216,7 @@ namespace FVMAdapt {
   }
 
   /// Find grading requests across a shared original hex face.
-  ParametricTrace hexFaceRequests(EntityId face, const CellTopology &left, const HexPlan &lp,
+  std::vector<FaceBalanceRequest> hexFaceRequests(EntityId face, const CellTopology &left, const HexPlan &lp,
       const CellTopology &right, const HexPlan &rp, unsigned difference, NeighborGrading grading) {
     const LeafIndex a(lp), b(rp) ;
     const FaceAxes af(left,face), bf(right,face) ;
@@ -235,9 +235,9 @@ namespace FVMAdapt {
       }
     } ;
     visit(a,af,ar,b,bf,br) ; visit(b,bf,br,a,af,ar) ;
-    ParametricTrace result ;
-    for(int i : ar) result.push_back({int(left.id()),i}) ;
-    for(int i : br) result.push_back({int(right.id()),i}) ;
+    std::vector<FaceBalanceRequest> result ;
+    for(int i : ar) result.push_back({int(left.id()),i,-1}) ;
+    for(int i : br) result.push_back({int(right.id()),i,-1}) ;
     return result ;
   }
 

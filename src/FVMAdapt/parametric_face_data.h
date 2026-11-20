@@ -4,6 +4,7 @@
 
 #include <Loci.h>
 #include <FVMAdapt/parametric/face_plan.h>
+#include <FVMAdapt/parametric/geometry_map.h>
 #include <cmath>
 
 namespace Loci {
@@ -32,10 +33,10 @@ namespace FVMAdapt {
     Point position(const Point &first,const Point &last,double t) const {
       if(failed || !assigned || (!controls.empty() && controls.size()!=2))
         throw std::invalid_argument("invalid or conflicting source edge geometry") ;
+      if(!controls.empty()) return cubicEdgePosition({{first,controls[0],controls[1],last}},t) ;
+
       Point result ;
-      const double s=1-t ;
-      for(unsigned d=0;d<3;++d) result[d]=first[d]+(controls.empty() ? t*(last[d]-first[d]):
-        3*s*s*t*(controls[0][d]-first[d])+3*s*t*t*(controls[1][d]-first[d])+t*t*t*(last[d]-first[d])) ;
+      for(unsigned d=0;d<3;++d) result[d]=first[d]+t*(last[d]-first[d]) ;
       return result ;
     }
   } ;

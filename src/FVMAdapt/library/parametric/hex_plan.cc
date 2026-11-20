@@ -143,15 +143,6 @@ namespace FVMAdapt {
       validateVertexVolumeSplit(Shape::hex,facePoints(centers),centers.cell,limits) ;
     }
 
-    /// Compose map derivatives using the chain rule.
-    MapValue compose(const MapValue &outer, const MapValue &inner) {
-      MapValue result{outer.position,{},outer.hasJacobian && inner.hasJacobian} ;
-      if(result.hasJacobian)
-        for(unsigned d = 0; d < 3; ++d) for(unsigned c = 0; c < 3; ++c) for(unsigned j = 0; j < 3; ++j)
-          result.jacobian[d][c] += outer.jacobian[j][c]*inner.jacobian[d][j] ;
-      return result ;
-    }
-
     /// Restrict a hex map to one original quadrilateral face.
     class HexFaceMap final : public GeometryMap {
       const GeometryMap &cell_ ;
@@ -169,7 +160,7 @@ namespace FVMAdapt {
           local.jacobian[0][d] = element.vertices[face.vertices[1]][d]-element.vertices[face.vertices[0]][d] ;
           local.jacobian[1][d] = element.vertices[face.vertices[3]][d]-element.vertices[face.vertices[0]][d] ;
         }
-        return compose(cell_.evaluate(local.position),local) ;
+        return composeMapValues(cell_.evaluate(local.position),local) ;
       }
     } ;
 
@@ -187,7 +178,7 @@ namespace FVMAdapt {
 
       MapValue evaluate(const Point &point) const override {
         const auto local = midpoint_ ? midpointValue(ordinal_,point) : evaluateHexCorners(corners_,point) ;
-        return compose(parent_.evaluate(local.position),local) ;
+        return composeMapValues(parent_.evaluate(local.position),local) ;
       }
     } ;
 
@@ -437,9 +428,9 @@ namespace FVMAdapt {
       const auto &split = plan_.data_->splits[(cell-1)/8] ; const unsigned ordinal = (cell-1)%8 ;
       const auto placement = split.centers == HexPlan::absent ? midpointValue(ordinal,local.position)
         : evaluateHexCorners(childCorners(plan_.data_->centers[split.centers],ordinal),local.position) ;
-      local = compose(placement,local) ; cell = split.parent ;
+      local = composeMapValues(placement,local) ; cell = split.parent ;
     }
-    return compose(source_.evaluate(local.position),local) ;
+    return composeMapValues(source_.evaluate(local.position),local) ;
   }
 
   /// Evaluate physical position without retaining intermediate derivatives.

@@ -257,7 +257,7 @@ namespace Loci { namespace FVMAdapt {
   }
 
   /// Find neighbor-depth requests between different cell splitting families.
-  ParametricTrace mixedFaceRequests(EntityId id,const CellTopology &lt,const ParametricCell &lc,const CellTopology &rt,const ParametricCell &rc,
+  std::vector<FaceBalanceRequest> mixedFaceRequests(EntityId id,const CellTopology &lt,const ParametricCell &lc,const CellTopology &rt,const ParametricCell &rc,
       unsigned difference,NeighborGrading grading) {
     const auto faces=mixedFacePieces(id,lt,lc,rt,rc,{}) ; const auto ll=lc.leafIds(),rl=rc.leafIds() ;
     std::vector<int> depths ; for(auto leaf:ll) depths.push_back(lc.path(leaf).size()) ; for(auto leaf:rl) depths.push_back(rc.path(leaf).size()) ;
@@ -295,6 +295,8 @@ namespace Loci { namespace FVMAdapt {
       } ;
       add(lt,lc,0) ; add(rt,rc,offset) ; for(const auto &entry:contacts) grade(entry.second) ;
     }
-    ParametricTrace result ; for(int i:required) result.push_back({int(i<offset ? lt.id():rt.id()),i<offset ? i:i-offset}) ; return result ;
+    std::vector<FaceBalanceRequest> result ;
+    for(int i:required) result.push_back({int(i<offset ? lt.id():rt.id()),i<offset ? i:i-offset,-1}) ;
+    return result ;
   }
 } }

@@ -336,7 +336,7 @@ namespace FVMAdapt {
 
     /// Evaluate the cubic edge basis with optional derivatives.
     template<bool withJacobian>
-    auto cubicSegmentValue(const std::vector<Point> &controls, const Point &origin, const Point &point) {
+    auto cubicSegmentValue(const Point *controls, const Point &origin, const Point &point) {
       validatePoint(point) ;
       std::array<double,4> basis{}, derivative{} ;
       bernstein(3,point[0],basis.data()) ;
@@ -518,6 +518,11 @@ namespace FVMAdapt {
 
   }
 
+  /// Evaluate a cubic edge with the same stable origin and basis as a retained Bezier map.
+  Point cubicEdgePosition(const std::array<Point,4> &controls, double t) {
+    return cubicSegmentValue<false>(controls.data(),controlOrigin(controls),{{t,0,0}}) ;
+  }
+
   /// Evaluate a trilinear hex and its reference derivatives without retaining a map.
   MapValue evaluateHexCorners(const std::array<Point,8> &corners, const Point &point) {
     validatePoint(point) ;
@@ -663,7 +668,7 @@ namespace FVMAdapt {
   /// Evaluate tensor Bernstein weights and reference derivatives.
   MapValue BezierMap::evaluate(const Point &point) const {
     if(shape_==Shape::segment && degree_[0]==3)
-      return cubicSegmentValue<true>(controls_,origin_,point) ;
+      return cubicSegmentValue<true>(controls_.data(),origin_,point) ;
     validatePoint(point) ;
     std::array<std::vector<double>,3> basis, derivative ;
     for(unsigned d = 0; d < 3; ++d) {
@@ -689,7 +694,7 @@ namespace FVMAdapt {
   /// Evaluate a Bezier position, using the cubic edge specialization when available.
   Point BezierMap::position(const Point &point) const {
     if(shape_==Shape::segment && degree_[0]==3)
-      return cubicSegmentValue<false>(controls_,origin_,point) ;
+      return cubicSegmentValue<false>(controls_.data(),origin_,point) ;
     return evaluate(point).position ;
   }
 
@@ -723,15 +728,7 @@ namespace FVMAdapt {
   MapValue RestrictedMap::evaluate(const Point &point) const {
     const MapValue reference = referenceMap_->evaluate(point) ;
     const MapValue physical = parent_->evaluate(reference.position) ;
-    MapValue value = emptyValue() ;
-    value.position = physical.position ;
-    value.hasJacobian = reference.hasJacobian && physical.hasJacobian ;
-    if(value.hasJacobian)
-      for(unsigned direction = 0; direction < 3; ++direction)
-        for(unsigned component = 0; component < 3; ++component)
-          for(unsigned inner = 0; inner < 3; ++inner)
-            value.jacobian[direction][component] += physical.jacobian[inner][component]*reference.jacobian[direction][inner] ;
-    return value ;
+    return composeMapValues(physical,reference) ;
   }
 
   /// Map a local point through its placement into the parent geometry.

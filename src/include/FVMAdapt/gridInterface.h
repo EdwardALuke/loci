@@ -171,7 +171,8 @@ namespace Loci {
     friend struct FaceHistoryAccess;
   } ;
 
-  /// Adapt staged file-order tags (0 keep, 1 refine, 2 coarsen), retaining geometry across calls.
+  /// Adapt `store<char>` tags (0 keep, 1 refine, 2 coarsen), retaining geometry across calls.
+  /// Rank-ordered contiguous chunks cover the current mesh in file order; store entity IDs are ignored.
   /// Null tags replay history unless a geometric input file is set; geometric requests may accompany tags.
   /// Load the fvmadapt module into rules first. Use the same options on every rank.
   /// A rejected proposal returns false without replacing the state or grid. All ranks participate.
@@ -187,6 +188,7 @@ namespace Loci {
   void restoreRefinementFaceState(refinedGridData& grid,const std::string& casename,const RefinementState& state) ;
 
   /// Replay state.histories without marking. Request files and preceding face donors are ignored.
+  /// Quality mode "reject" is treated as "report" when replaying accepted history.
   /// Load a saved plan into state first; all ranks participate. Rejection leaves state and grid unchanged.
   bool initializeGridFromPlan(CPTR<refinedGridData> &grid, rule_db &rules, RefinementState &state,
       const std::string &casename, const RefinementOptions &options, std::string &error) ;

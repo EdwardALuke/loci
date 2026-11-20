@@ -74,7 +74,7 @@ namespace FVMAdapt {
   std::vector<ParametricLeafRequest> hexRequests(const ParametricRecord &record,const HexPlan &plan,EntityId root,const HistoryLimits &limits) ;
   /// Cell tags to persistent requests using active leaves and accepted reference constructions.
   ParametricRecord hexTagRequests(const HexPlan &plan,EntityId root,const HistoryLimits &limits,const std::vector<char> &tags) ;
-  ParametricTrace hexFaceRequests(EntityId face, const CellTopology &leftTopology, const HexPlan &leftPlan,
+  std::vector<FaceBalanceRequest> hexFaceRequests(EntityId face, const CellTopology &leftTopology, const HexPlan &leftPlan,
       const CellTopology &rightTopology, const HexPlan &rightPlan, unsigned difference, NeighborGrading grading) ;
   std::vector<FaceBalanceRequest> hexDividedFaces(const CellTopology &topology, const HexPlan &plan) ;
   std::vector<FaceBalanceRequest> hexDividedFaces(EntityId face, const CellTopology &leftTopology, const HexPlan &leftPlan,

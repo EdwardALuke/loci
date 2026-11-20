@@ -158,7 +158,7 @@ namespace FVMAdapt {
 
   std::vector<int> parametricLocalRequests(const CellTopology &topology, const ParametricCell &cell,
       unsigned difference, NeighborGrading grading) ;
-  ParametricTrace parametricFaceRequests(EntityId face, const CellTopology &leftTopology, const ParametricCell &leftCell,
+  std::vector<FaceBalanceRequest> parametricFaceRequests(EntityId face, const CellTopology &leftTopology, const ParametricCell &leftCell,
       const CellTopology &rightTopology, const ParametricCell &rightCell, unsigned difference, NeighborGrading grading) ;
   ParametricTrace parametricEdgeTrace(const CellTopology &topology, const ParametricCell &cell) ;
   std::vector<int> parametricVertexDepths(const CellTopology &topology, const ParametricCell &cell) ;

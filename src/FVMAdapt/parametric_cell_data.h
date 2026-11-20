@@ -123,7 +123,7 @@ namespace FVMAdapt {
     ParametricTrace edgeTrace(const CellTopology &topology) const ;
     std::vector<int> vertexDepths(const CellTopology &topology) const ;
     std::vector<int> vertexRequests(const CellTopology &topology, const std::map<EntityId,int> &depths, unsigned difference) const ;
-    ParametricTrace faceRequests(EntityId face, const CellTopology &leftTopology, const ParametricCellData &rightCell,
+    std::vector<FaceBalanceRequest> faceRequests(EntityId face, const CellTopology &leftTopology, const ParametricCellData &rightCell,
         const CellTopology &rightTopology, unsigned difference, NeighborGrading grading) const ;
     /// Active divided-face queries; compact hexes read split topology without physical geometry.
     std::vector<FaceBalanceRequest> dividedFaces(EntityId face,const CellTopology &leftTopology,const ParametricCellData &rightCell,

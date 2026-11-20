@@ -41,7 +41,7 @@ $type maxEdgeLength store<double> ;
 /// Maximum length among the cell's own edges projected onto the XY plane.
 $type maxEdgeLengthXY store<double> ;
 
-/// Old-face contributors on installed faces; fractions use refinement coordinates.
+/// Old-face contributors on installed faces; FaceSource defines referenceFraction and areaFraction.
 $type faceSources multiStore<Loci::FaceSource> ;
 /// Change from the preceding mesh, as a FaceChange value.
 $type faceChange store<int> ;

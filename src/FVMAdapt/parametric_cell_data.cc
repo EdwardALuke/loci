@@ -516,7 +516,7 @@ namespace FVMAdapt {
   }
 
   /// Find refinement requests across a shared original face.
-  ParametricTrace ParametricCellData::faceRequests(EntityId face, const CellTopology &left,
+  std::vector<FaceBalanceRequest> ParametricCellData::faceRequests(EntityId face, const CellTopology &left,
       const ParametricCellData &rightData, const CellTopology &right, unsigned difference, NeighborGrading grading) const {
     const auto a = hexPlan(), b = rightData.hexPlan() ;
     if(a && b) {

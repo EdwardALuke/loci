@@ -190,9 +190,8 @@ $rule pointwise(parametricFaceRequests,parametricFaceError <- (cl,cr)->(tmpParam
   $parametricFaceRequests.clear() ; $parametricFaceError.clear() ;
   if($cl->$parametricCheckError.empty() && $cr->$parametricCheckError.empty()) try {
     const auto left=P::decodeParametricTopology($cl->$parametricTopology), right=P::decodeParametricTopology($cr->$parametricTopology) ;
-    const auto requests=$cl->$tmpParametricCell.faceRequests($fileNumber(face2node),left,$cr->$tmpParametricCell,right,
+    $parametricFaceRequests=$cl->$tmpParametricCell.faceRequests($fileNumber(face2node),left,$cr->$tmpParametricCell,right,
       $parametricControls.levelDifference,$parametricControls.grading) ;
-    for(const auto &row:requests) $parametricFaceRequests.push_back(P::faceRefinementRequest(row)) ;
     if($parametricControls.faceBalance!=P::FaceBalance::none || $parametricControls.directionalBalance) {
       const auto divided=$cl->$tmpParametricCell.dividedFaces($fileNumber(face2node),left,$cr->$tmpParametricCell,right,$parametricControls.directionalBalance) ;
       $parametricFaceRequests.insert($parametricFaceRequests.end(),divided.begin(),divided.end()) ;
@@ -285,9 +284,9 @@ $rule pointwise(tmpParametricCell{parametricBalance+1},tmpParametricError{parame
       const auto &plan=$*parametricFacePlan{parametricBalance}[face].plan ;
       const P::EntityId id=$*fileNumber(face2node)[face] ;
       if(cell.needsFaceMerge(id,plan)) sharedFacePlans.push_back({id,plan}) ;
-      for(const auto &row: $*parametricFaceRequests{parametricBalance}[face]) if(P::EntityId(row.root)==topology.id()) {
-        if(row.face<0) leavesToRefine.insert(row.leaf) ;
-        else dividedFaces.push_back(row) ;
+      for(const auto &request: $*parametricFaceRequests{parametricBalance}[face]) if(P::EntityId(request.root)==topology.id()) {
+        if(request.face<0) leavesToRefine.insert(request.leaf) ;
+        else dividedFaces.push_back(request) ;
       }
       for(int edge: $*face2edge[face]) if(visitedEdges.insert(edge).second) {
         const auto edgeRequests = P::parametricEdgeRequests(topology.id(),$*parametricEdgeTrace{parametricBalance}[edge],controls.levelDifference,controls.grading) ;

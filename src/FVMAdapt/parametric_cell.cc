@@ -1253,7 +1253,7 @@ namespace FVMAdapt {
   }
 
   /// Find neighbor-depth requests across an original shared face.
-  ParametricTrace parametricFaceRequests(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
+  std::vector<FaceBalanceRequest> parametricFaceRequests(EntityId face,const CellTopology &leftTopology,const ParametricCell &leftCell,
       const CellTopology &rightTopology,const ParametricCell &rightCell,unsigned difference,NeighborGrading grading) {
     if(leftCell.source() && rightCell.source()) return {} ;
     if(leftCell.source() || rightCell.source()) {
@@ -1282,9 +1282,9 @@ namespace FVMAdapt {
       const auto rightDepths=depths(rightCell) ;
       leafDepths.insert(leafDepths.end(),rightDepths.begin(),rightDepths.end()) ;
       const auto leavesToRefine=cornerContacts(faces,leafDepths,difference,grading,rightOffset) ;
-      ParametricTrace result ;
+      std::vector<FaceBalanceRequest> result ;
       for(int leaf:leavesToRefine)
-        result.push_back({int(leaf<rightOffset ? leftTopology.id():rightTopology.id()),leaf<rightOffset ? leaf:leaf-rightOffset}) ;
+        result.push_back({int(leaf<rightOffset ? leftTopology.id():rightTopology.id()),leaf<rightOffset ? leaf:leaf-rightOffset,-1}) ;
       return result ;
     }
     require(rightCell.extruded(),"mixed native and center-based boundaries are unsupported") ;
@@ -1304,9 +1304,9 @@ namespace FVMAdapt {
     }
     for(const auto &entry:contacts) for(int a:entry.second) for(int b:entry.second)
       gradePair(leavesToRefine,a,b,leafDepths,difference) ;
-    ParametricTrace result ;
+    std::vector<FaceBalanceRequest> result ;
     for(int leaf:leavesToRefine)
-      result.push_back({int(leaf<rightOffset ? leftTopology.id():rightTopology.id()),leaf<rightOffset ? leaf:leaf-rightOffset}) ;
+      result.push_back({int(leaf<rightOffset ? leftTopology.id():rightTopology.id()),leaf<rightOffset ? leaf:leaf-rightOffset,-1}) ;
     return result ;
   }
 

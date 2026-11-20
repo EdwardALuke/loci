@@ -476,8 +476,8 @@ namespace FVMAdapt {
     return out ;
   }
 
-  /// [original cell ID, index in history().leafIds()] for unequal levels across a shared face.
-  ParametricTrace parametricFaceRequests(EntityId face, const CellTopology &left, const AffineSubdivision &lh,
+  /// Leaf refinement requests (face == -1) for unequal levels across a shared face.
+  std::vector<FaceBalanceRequest> parametricFaceRequests(EntityId face, const CellTopology &left, const AffineSubdivision &lh,
       const CellTopology &right, const AffineSubdivision &rh, unsigned difference, NeighborGrading grading) {
     auto faces = parametricFacePieces(face,left,lh,{},&right,&rh) ; auto depths = leafDepths(lh) ;
     const auto other = leafDepths(rh) ; const int offset = depths.size() ; depths.insert(depths.end(),other.begin(),other.end()) ;
@@ -493,9 +493,9 @@ namespace FVMAdapt {
       for(auto &piece: faces) insertNodes(piece.vertices,left,coordinates) ;
       for(auto &contact: contacts) if(contact.nodes.size() == 2) insertNodes(contact.nodes,left,coordinates) ;
     }
-    ParametricTrace result ;
+    std::vector<FaceBalanceRequest> result ;
     for(int leaf: gradeFaces(faces,depths,difference,grading,contacts))
-      result.push_back({int(leaf < offset ? left.id() : right.id()),leaf < offset ? leaf : leaf-offset}) ;
+      result.push_back({int(leaf < offset ? left.id() : right.id()),leaf < offset ? leaf : leaf-offset,-1}) ;
     return result ;
   }
 

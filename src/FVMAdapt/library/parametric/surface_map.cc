@@ -140,14 +140,6 @@ namespace FVMAdapt {
       return p ;
     }
 
-    /// Combine the derivatives of two composed maps.
-    MapValue compose(const MapValue &a,const MapValue &b) {
-      MapValue out{a.position,{},a.hasJacobian && b.hasJacobian} ;
-      if(out.hasJacobian) for(unsigned i=0;i<3;++i) for(unsigned j=0;j<3;++j) for(unsigned k=0;k<3;++k)
-        out.jacobian[i][j]+=a.jacobian[k][j]*b.jacobian[i][k] ;
-      return out ;
-    }
-
     /// Map a point between corresponding triangles and compute its derivatives.
     MapValue affineTriangle(const std::array<Point,3> &q,const std::array<Point,3> &p,const Point &x) {
       const long double a=static_cast<long double>(q[1][0])-q[0][0],b=static_cast<long double>(q[2][0])-q[0][0],
@@ -773,7 +765,10 @@ namespace FVMAdapt {
   Point SurfacePatchMap::chartPosition(const Point &p) const { return placement_->position(p) ; }
 
   /// Compose the patch placement and source surface with the derivative chain rule.
-  MapValue SurfacePatchMap::evaluate(const Point &p) const { const auto q=placement_->evaluate(p) ; return compose(source_->evaluate(q.position),q) ; }
+  MapValue SurfacePatchMap::evaluate(const Point &p) const {
+    const auto q=placement_->evaluate(p) ;
+    return composeMapValues(source_->evaluate(q.position),q) ;
+  }
 
   /// Evaluate the physical position through the retained source surface.
   Point SurfacePatchMap::position(const Point &p) const { return source_->position(chartPosition(p)) ; }

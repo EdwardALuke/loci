@@ -105,7 +105,7 @@ namespace FVMAdapt {
   /// Also require every active child to span the original extrusion thickness.
   SplitOperation parametricGradingSplit(const AffineSubdivision &history, int axis) ;
 
-  /// Compact module records exchanged on original faces and edges.
+  /// Compact edge-interval records exchanged on original edges.
   typedef std::vector<std::vector<int>> ParametricTrace ;
 
   /// Borrow an eight-field edge interval; the original row must outlive this view.
@@ -132,12 +132,11 @@ namespace FVMAdapt {
   struct FaceBalanceRequest {
     int root, leaf, face ;
     unsigned directions = 0 ; ///< Optional leaf-local X/Y/Z bits; prism X/Y select the whole base.
-  } ;
 
-  /// Read a two-field face request: original cell ID and output leaf index.
-  inline FaceBalanceRequest faceRefinementRequest(const std::vector<int> &row) {
-    return {row[0],row[1],-1} ;
-  }
+    bool operator==(const FaceBalanceRequest &other) const {
+      return root==other.root && leaf==other.leaf && face==other.face && directions==other.directions ;
+    }
+  } ;
   /// Active leaf faces covered by multiple neighboring pieces, locally or across an original face.
   /// When requested, also identify the directions divided on each face.
   std::vector<FaceBalanceRequest> parametricDividedFaces(const CellTopology &topology, const AffineSubdivision &history, bool directions = false) ;
@@ -162,8 +161,8 @@ namespace FVMAdapt {
   /// Indices in history().leafIds() requiring a split within one original cell.
   std::vector<int> parametricLocalRequests(const CellTopology &topology, const AffineSubdivision &history,
       unsigned difference, NeighborGrading grading) ;
-  /// [original cell ID, index in history().leafIds()] for unequal levels across a shared face.
-  ParametricTrace parametricFaceRequests(EntityId face, const CellTopology &left, const AffineSubdivision &leftHistory,
+  /// Leaf refinement requests (face == -1) for unequal levels across a shared face.
+  std::vector<FaceBalanceRequest> parametricFaceRequests(EntityId face, const CellTopology &left, const AffineSubdivision &leftHistory,
       const CellTopology &right, const AffineSubdivision &rightHistory, unsigned difference, NeighborGrading grading) ;
   /// Rows [edge ID, cell ID, leaf index, depth, lower numerator/denominator, upper numerator/denominator].
   ParametricTrace parametricEdgeTrace(const CellTopology &topology, const AffineSubdivision &history) ;
