@@ -49,12 +49,12 @@ namespace flowPsi {
 
   /// List extra optional variables to output in this input.
   $rule default(plot_output) {
-    $plot_output.namelist = "" ;
+    $plot_output.clear() ;
   }
 
   /// List output variables here to disable default variable outputs.
   $rule default(plot_output_exclusive) {
-    $plot_output_exclusive.namelist = "" ;
+    $plot_output_exclusive.clear() ;
   }
 
   $type c2nD_scalar_sum(X) store<double> ;

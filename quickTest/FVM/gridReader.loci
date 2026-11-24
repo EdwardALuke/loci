@@ -93,9 +93,9 @@ namespace flowPsi {
       Loci::Abort() ;
     }
 
-    param<flowPsi::list_input> plot_output ;
+    param<Loci::nameList> plot_output ;
     plot_output = (facts.get_variable("plot_output")) ;
-    param<flowPsi::list_input> plot_output_exclusive ;
+    param<Loci::nameList> plot_output_exclusive ;
     plot_output_exclusive = (facts.get_variable("plot_output_exclusive")) ;
 
     map<string,int> varplotlist ;
@@ -106,84 +106,31 @@ namespace flowPsi {
       p=p->next ;
     }
     
-    if((*plot_output).namelist != "") {
-      Loci::expression::exprP ep = Loci::expression::create((*plot_output).namelist) ;
-      if(ep->op == Loci::OP_NAME) {
-	string varname = ep->name ;
-	if(varname == "P" || varname == "p")
-	  varname = "pg" ;
-        if(varplotlist.find(varname) == varplotlist.end()) {
-          if(Loci::MPI_rank == 0)
-            cerr << "WARNING: plot_output variable '" << ep->name << "' is invalid, ignoring." << endl ;
-        }
-        varplotlist[varname] = 1 ;
-      } else if(ep->op == Loci::OP_COMMA) {
-        Loci::expression::exprList::const_iterator li ;
-        for(li=ep->expr_list.begin();li!=ep->expr_list.end();++li) {
-          if((*li)->op == Loci::OP_NAME) {
-	    string varname = (*li)->name ;
-	    if(varname == "P" || varname == "p")
-	      varname = "pg" ;
-            if(varplotlist.find(varname) == varplotlist.end()) {
-              if(Loci::MPI_rank == 0)
-                cerr << "WARNING: plot_output variable '" << (*li)->name << "' is invalid, ignoring." << endl ;
-            }
-            varplotlist[varname] = 1 ;
-          } else {
-            cerr << "unable to interpret expression in 'plot_output'"
-                 << endl ;
-            (*li)->Print(cerr) ;
-            Loci::Abort() ;
-          }
-        }
-      } else {
-        cerr << "unable to interpret expression in 'plot_output'"
-             << endl ;
-        ep->Print(cerr) ;
-        Loci::Abort() ;
+    for(const auto &item : *plot_output) {
+      string varname = item ;
+      if(varname == "P" || varname == "p")
+        varname = "pg" ;
+      if(varplotlist.find(varname) == varplotlist.end()) {
+        if(Loci::MPI_rank == 0)
+          cerr << "WARNING: plot_output variable '" << varname << "' is invalid, ignoring." << endl ;
       }
+      varplotlist[varname] = 1 ;
     }
 
-    if((*plot_output_exclusive).namelist != "") {
+    if(!(*plot_output_exclusive).empty() ) {
       map<string,int>::iterator mi ;
       for(mi=varplotlist.begin();mi!=varplotlist.end();++mi) {
         mi->second = 0 ;
       }
-      
-      Loci::expression::exprP ep = Loci::expression::create((*plot_output_exclusive).namelist) ;
-      if(ep->op == Loci::OP_NAME) {
-	string varname = ep->name ;
+      for(const auto &item : *plot_output_exclusive) {
+        string varname = item ;
 	if(varname == "P" || varname == "p")
 	  varname = "pg" ;
         if(varplotlist.find(varname) == varplotlist.end()) {
           if(Loci::MPI_rank == 0)
-            cerr << "WARNING: plot_output_exclusive variable '" << ep->name << "' is invalid, ignoring." << endl ;
+            cerr << "WARNING: plot_output_exclusive variable '" << varname << "' is invalid, ignoring." << endl ;
         }
         varplotlist[varname] = 1 ;
-      } else if(ep->op == Loci::OP_COMMA) {
-        Loci::expression::exprList::const_iterator li ;
-        for(li=ep->expr_list.begin();li!=ep->expr_list.end();++li) {
-          if((*li)->op == Loci::OP_NAME) {
-	    string varname = (*li)->name ;
-	    if(varname == "P")
-	      varname = "pg" ;
-            if(varplotlist.find(varname) == varplotlist.end()) {
-              if(Loci::MPI_rank == 0)
-                cerr << "WARNING: plot_output_exclusive variable '" << (*li)->name << "' is invalid, ignoring." << endl ;
-            }
-            varplotlist[varname] = 1 ;
-          } else {
-            cerr << "unable to interpret expression in 'plot_output_exclusive'"
-                 << endl ;
-            (*li)->Print(cerr) ;
-            Loci::Abort() ;
-          }
-        }
-      } else {
-        cerr << "unable to interpret expression in 'plot_output_exclusive'"
-             << endl ;
-        ep->Print(cerr) ;
-        Loci::Abort() ;
       }
     }
     
