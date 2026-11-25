@@ -198,8 +198,8 @@ $rule default(plot_output) {
 The class provides a small interface for accessing the list:
 \begin{itemize}
 \item {\tt begin()} and {\tt end()} return {\tt const} iterators over the
-  names (of type {\tt std::vector<std::string>::const\_iterator}), so
-  a {\tt nameList} can be used in a range-based {\tt for} loop.
+  names (as {\tt std::string} values), so a {\tt nameList} can be used
+  in a range-based {\tt for} loop.
 \item {\tt empty()} returns {\tt true} if the list has no entries.
 \item {\tt clear()} removes all entries from the list.
 \end{itemize}
@@ -230,6 +230,315 @@ template<> struct data_schema_traits<nameList> {
   typedef USER_DEFINED_CONVERTER Schema_Converter ;
   typedef char Converter_Base_Type ;
   typedef StringStreamConverter<nameList> Converter_Type ;
+} ;
+\end{verbatim}
+%
+\section {The {\tt options\_list} Datatype}
+%
+Some inputs are too complex to describe with a single number or name.
+For example, a boundary condition has a type (such as {\tt outflow})
+and may also need its own settings (such as an outflow pressure).  An
+initial condition sets several flow variables at once, each with its
+own units.  For inputs like these, Loci provides the {\tt
+  Loci::options\_list} datatype, defined in {\tt
+  Tools/options\_list.h}.  Like {\tt nameList}, it is included
+automatically by the {\tt Loci} header.  An {\tt options\_list} is a
+set of named options, each of which holds a typed value.  The values
+can be numbers with units, names, strings, booleans, lists, or
+function-like expressions that hold their own nested options.
+%
+\subsection {Input Syntax}
+%
+An {\tt options\_list} is written as a comma-separated list of
+assignments of the form \verb|option=value|, enclosed in angle
+brackets.  For example, the initial conditions for the {\tt
+  quickTest/FVM} cylinder test are given in the {\tt .vars} file as:
+\begin{verbatim}
+initialConditions  : < T = 300K, p = 1atm, M=0.3>
+\end{verbatim}
+The rules for the list are:
+\begin{itemize}
+\item Option names follow the same rules as names in a {\tt nameList}:
+  they start with a letter or underscore, and contain only letters,
+  digits, and underscores.
+\item An option given without a value, e.g. \verb|<prescribed>|, is a
+  boolean option with the value {\tt true}.
+\item Each option may appear only once in a list.  Assigning an option
+  twice, e.g. \verb|<a=1,a=2>|, is an error.
+\item Whitespace, newlines, and C++ style \verb|//| comments are
+  allowed between entries, so a long list can be spread over several
+  lines and commented.
+\item An empty list is written as \verb|<>|.
+\end{itemize}
+%
+Each value can be one of the following types.  The type is detected
+from the input, and can be queried in the program using the
+{\tt option\_value\_type} enumeration names shown in the table:
+\begin{center}
+\begin{tabular}{|l|l|l|} \hline
+Type & Example & Description \\ \hline \hline
+{\tt REAL} & \verb|p=1.2e5| & a number without units \\ \hline
+{\tt UNIT\_VALUE} & \verb|p=9.e4 Pa|, \verb|T=300K| & a number followed
+by units \\ \hline
+{\tt NAME} & \verb|limiter=barth| & a name \\ \hline
+{\tt STRING} & \verb|file="data/in.dat"| & a quoted string \\ \hline
+{\tt BOOLEAN} & \verb|flag=$true|, \verb|flag=$false| & a boolean value \\ \hline
+{\tt LIST} & \verb|normal=[1,0,0]| & a list of values in square
+brackets \\ \hline
+{\tt FUNCTION} & \verb|outflow(p=9.e4 Pa)| & a name followed by a list
+of arguments \\ \hline
+\end{tabular}
+\end{center}
+%
+A few notes on these value types:
+\begin{itemize}
+\item Units are given after the number, with or without a space
+  (\verb|300K| and \verb|300 K| are the same).  Compound units are built
+  with \verb|*|, \verb|/|, and parentheses, e.g. \verb|kg/s/m/m| or
+  \verb|one/(Pa*s)|.  The units are checked and converted when the
+  program reads the value (see below).
+\item The elements of a {\tt LIST} and the arguments of a {\tt FUNCTION}
+  can be any of the value types, including nested lists and functions.
+  They can also be assignments of the form \verb|name=value|, which
+  have type {\tt NAME\_ASSIGN}.  Function arguments are usually written
+  as assignments, so that they can be read as an {\tt options\_list}
+  of their own (see below).
+\item A number can carry derivative information for automatic
+  differentiation, written with a caret: \verb|3^2| gives the value 3
+  with a first derivative of 2, \verb|3^2^^4| also gives a second
+  derivative of 4, and \verb|5^[2,3,4]| gives several first
+  derivatives.  This is only needed for sensitivity analysis.
+\end{itemize}
+%
+Any syntax error while reading the list, such as a missing \verb|<|,
+a missing comma between options, or an unterminated string, throws
+a {\tt StringError} that names the option where the error occurred.
+%
+\subsection {Output Format}
+%
+When an {\tt options\_list} is written to a stream it is printed in the
+same angle-bracket syntax, e.g. \verb|<M=0.3,T=300 K,p=1 atm>|, so it
+can be read back in.  The options are printed in alphabetical order of
+their names, not in the order they were given.
+%
+\subsection {Reading Options in a Program}
+%
+An {\tt options\_list} is usually declared as a {\tt param} so the user
+can give it in the {\tt .vars} file.  For example, the {\tt
+  quickTest/FVM} solver declares its initial conditions as:
+\begin{verbatim}
+$type initialConditions param<Loci::options_list> ;
+$type initialConditionRegions param<Loci::options_list> ;
+\end{verbatim}
+The main member functions for reading the contents of the list are:
+\begin{itemize}
+\item {\tt optionExists(name)} returns {\tt true} if the option was
+  given.
+\item {\tt getOptionValueType(name)} returns the type of the option's
+  value ({\tt REAL}, {\tt UNIT\_VALUE}, {\tt NAME}, and so on), or
+  {\tt NOT\_ASSIGNED} if the option was not given.
+\item {\tt getOptionNameList()} returns a {\tt std::list} of the option
+  names in the list, in alphabetical order.
+\item {\tt getOption(name, value)} copies the option's value into
+  {\tt value}.  It is overloaded for {\tt bool}, {\tt double}, {\tt
+    std::string} (for names and strings), {\tt UNIT\_type}, and {\tt
+    options\_list::arg\_list} (for lists).  For functions, use {\tt
+    getOption(name, funcname, args)}, which returns both the function
+  name and its argument list.
+\item {\tt checkOption(name, value)} returns {\tt true} if the option
+  is a name equal to {\tt value}.
+\item {\tt getOptionUnits(name, units, value)} reads a number and
+  converts it to the given units (see below).
+\end{itemize}
+%
+If {\tt getOption} or {\tt getOptionUnits} is called for an option that
+does not exist, it throws a {\tt StringError}.  If the option exists
+but has a different type than requested, {\tt getOption} does not
+throw an error and does not return a useful value (a warning is printed
+only in debug builds).  It is therefore best to check the type first
+with {\tt getOptionValueType} when more than one type is allowed.
+%
+\subsubsection {Units}
+%
+Most physical inputs should be read with {\tt getOptionUnits}, which
+handles both kinds of numbers:
+\begin{itemize}
+\item If the value has units ({\tt UNIT\_VALUE}), it is converted to the
+  requested units.  If the units are not compatible (for example, a
+  length given where a pressure is expected) a {\tt StringError} is
+  thrown.
+\item If the value has no units ({\tt REAL}), it is assumed to already
+  be in the requested units and is returned unchanged.
+\end{itemize}
+For example, the {\tt quickTest/FVM} outflow boundary condition reads
+its pressure with:
+\begin{verbatim}
+$BC_options.getOptionUnits("p","Pa",$p_BC) ;
+\end{verbatim}
+so the user can give \verb|p=9.e4 Pa|, \verb|p=0.888 atm|, or simply
+\verb|p=9.e4|.
+%
+\subsubsection {Vectors}
+%
+{\tt getOptionUnits} also has overloads that read a {\tt vector3d}.
+A vector can be given in three ways:
+\begin{itemize}
+\item as a list of three components, e.g. \verb|normal=[1,0,0]| or
+  \verb|center=[1 m, 0 m, 2 cm]|;
+\item as a single number, which gives the vector $(v,0,0)$, e.g.
+  \verb|M=0.3| for a flow in the $x$ direction;
+\item in polar form, \verb|polar(r, theta, eta)|, where the angles are
+  in degrees unless units are given, e.g.
+  \verb|u=polar(100 m/s, 10 deg, 0 deg)|.
+\end{itemize}
+An optional scale argument multiplies any component that was given
+without units.  This is useful for applying a reference length, e.g.
+{\tt getOptionUnits("center","m",pt,Lref)}.
+%
+\subsubsection {Nested Options}
+%
+The arguments of a {\tt FUNCTION} value, or the elements of a {\tt LIST},
+can be turned into an {\tt options\_list} of their own by passing the
+argument list to the {\tt Input} member function.  This is how
+options with their own settings are read.  For example, the following
+code reads an option of the form \verb|default=state(p=1e5, T=300K, u=0)|:
+\begin{verbatim}
+options_list::arg_list value_list ;
+string fname ;
+ol.getOption("default",fname,value_list) ;
+if(fname != "state") {
+  cerr << "expecting function 'state', found '" << fname << "'" << endl ;
+  Loci::Abort() ;
+}
+options_list state ;
+state.Input(value_list) ;   // state now holds p, T, and u
+\end{verbatim}
+%
+\subsubsection {Restricting the Allowed Options}
+%
+By default any option name is accepted.  To catch spelling mistakes, an
+{\tt options\_list} can be constructed with a colon-separated list of
+the allowed names, e.g. {\tt options\_list("T:p:rho:u:M")}.  When this
+list is read from a stream, any other option name causes an error.
+%
+\subsection {Example: Boundary Conditions}
+%
+The most common use of {\tt options\_list} is to give boundary
+conditions in the {\tt boundary\_conditions} variable.  In this list,
+each option name is the name of a boundary surface in the grid file,
+and each value is the boundary condition to apply to it.  A boundary
+condition with no settings is given as a name, and one with settings is
+given as a function whose arguments are its options.  This example is
+from the {\tt fixedMass} test in {\tt quickTest/FVM}:
+\begin{verbatim}
+boundary_conditions: <
+ BC_1=reflecting,// two symmetry planes
+ BC_2=reflecting,
+ BC_3=reflecting,
+ BC_4=reflecting,
+ BC_5=fixedMass(mdot=144.0 kg/sec, T0=400K),
+ BC_6=outflow(p=9.e4 Pa)>
+\end{verbatim}
+%
+The function {\tt setupBoundaryConditions} (in {\tt
+  src/System/FVMStuff.cc}) reads this list when the grid is set up and
+turns it into facts that rules can use directly:
+\begin{itemize}
+\item For each boundary condition type {\tt X}, a constraint {\tt X\_BC}
+  is created that holds the boundary faces using that condition (for
+  example {\tt outflow\_BC} and {\tt fixedMass\_BC}).
+\item The settings of each boundary are stored in {\tt BC\_options}, a
+  {\tt store<Loci::options\_list>} defined over the boundary surfaces.
+  Boundary faces reach it through the {\tt ref} map.
+\item For each option name {\tt Y} used by any boundary, a constraint
+  {\tt Y\_BCoption} is created that holds the boundary surfaces that set
+  that option (for example {\tt p\_BCoption} and {\tt mdot\_BCoption}).
+\item Every boundary surface in the grid must appear in {\tt
+  boundary\_conditions}, otherwise the setup aborts with an error.
+\end{itemize}
+%
+With these facts, reading a boundary condition setting only needs
+a short rule that is constrained to the surfaces that set the option.
+For example, the {\tt fixedMass} boundary condition in {\tt
+  quickTest/FVM/bcFixedMass.loci} reads its settings with:
+\begin{verbatim}
+$rule pointwise(mdot_BC<-BC_options),constraint(mdot_BCoption) {
+  $BC_options.getOptionUnits("mdot","kg/s",$mdot_BC) ;
+}
+$rule pointwise(T0_BC<-BC_options),constraint(T0_BCoption) {
+  $BC_options.getOptionUnits("T0","kelvin",$T0_BC) ;
+}
+\end{verbatim}
+and the face rules that apply the boundary condition use the
+constraint {\tt fixedMass\_BC}, reaching the surface values through
+the {\tt ref} map:
+\begin{verbatim}
+$rule pointwise(T0Ref<-ref->T0_BC) {
+  $T0Ref = $ref->$T0_BC ;
+}
+\end{verbatim}
+%
+Because a mistake in the boundary conditions may only show up late in
+a run, it is a good idea to check the options when the case is set up.
+The {\tt quickTest/FVM} solver does this by registering a checker
+class for each boundary condition type (see {\tt readGrid.h} and
+{\tt bcOutflow.loci}).  The checker lists the options it accepts and
+uses the functions above to check the required options and their
+units.
+%
+\subsection {Example: Initial Conditions}
+%
+A uniform initial condition can be given as a single {\tt options\_list}
+that sets the flow state, for example:
+\begin{verbatim}
+initialConditions   : < p = 9.e4 Pa,  T = 300 K,  M=.4>
+\end{verbatim}
+The {\tt quickTest/FVM} solver (in {\tt solverIC.loci}) checks which
+options are given and reads each one with its units.  Any two of {\tt
+  rho}, {\tt p}, and {\tt T} may be given, along with either the
+velocity {\tt u} or the Mach number {\tt M}, both read as vectors:
+\begin{verbatim}
+const Loci::options_list finput = $initialConditions ;
+if(finput.optionExists("u"))
+  finput.getOptionUnits("u","m/s",u) ;
+\end{verbatim}
+%
+A non-uniform initial condition uses nested options.  The {\tt
+  initialConditionRegions} variable defines one or more named states
+using a {\tt state} function, and a {\tt regions} list of geometric
+tests that select which cells get which state.  This example is from
+the shock tube test in {\tt quickTest/FVM}:
+\begin{verbatim}
+initialConditionRegions   : <
+driver = state(p=1e6, T=300K, u=0),
+default = state(p=1e5, T=300K, u=0),
+regions=[leftPlane(point=[0,0,0],normal=[1,0,0],composition=driver)]
+>
+\end{verbatim}
+Here every cell starts in the {\tt default} state, except for cells
+behind the plane through the origin with normal $(1,0,0)$, which get the
+{\tt driver} state.  To read this, the solver loops over {\tt
+  getOptionNameList()} to find the named states.  It reads each state
+function into its own {\tt options\_list} as shown in the nested
+options example above.  It then reads the {\tt regions} option as an
+{\tt arg\_list}, each element of which is a {\tt FUNCTION} whose name
+selects the geometric test ({\tt leftPlane}, {\tt inBox}, {\tt
+  inSphere}, {\tt inCylinder}, or {\tt inCone}) and whose arguments
+are read with {\tt Input} to get the test's settings.
+%
+\subsection {Serialization}
+%
+Like {\tt nameList}, an {\tt options\_list} uses a {\tt
+  USER\_DEFINED\_CONVERTER} that serializes it through its ASCII
+stream representation.  The specialization is provided in {\tt
+  Loci\_types.h}, so an {\tt options\_list} can be stored in a {\tt
+  param} or {\tt store} and communicated between processors without any
+extra work:
+\begin{verbatim}
+template <> struct data_schema_traits<options_list> {
+  typedef USER_DEFINED_CONVERTER Schema_Converter ;
+  typedef char Converter_Base_Type ;
+  typedef StringStreamConverter<options_list> Converter_Type ;
 } ;
 \end{verbatim}
 \section {Creating your own compound datatypes}

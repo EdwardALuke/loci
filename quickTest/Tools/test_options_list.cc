@@ -332,6 +332,80 @@ TEST_CASE("nested list NAME_ASSIGN roundtrips as nested structure") {
   CHECK(out2.str() == out.str());
 }
 
+TEST_CASE("list-valued assignment to a quoted key keeps the list as one value") {
+  struct Case {
+    const char *text;
+    const char *printed;
+    size_t list_size;
+  };
+  const std::vector<Case> cases = {
+      {"[\"s\"=[1,2]]", "[s=[1,2]]", 2},
+      {"[\"s\"=[5]]", "[s=[5]]", 1},
+      {"[\"s\"=[]]", "[s=[]]", 0},
+  };
+
+  for(const auto &tc : cases) {
+    CAPTURE(tc.text);
+    Loci::option_values v = parse_value(tc.text);
+    REQUIRE(v.type_of() == Loci::LIST);
+
+    Loci::options_list::arg_list entries;
+    v.get_value(entries);
+    REQUIRE(entries.size() == 1);
+    CHECK(entries[0].type_of() == Loci::NAME_ASSIGN);
+
+    Loci::options_list::arg_list assigned;
+    entries[0].get_value(assigned);
+    REQUIRE(assigned.size() == 1);
+    CHECK(assigned[0].type_of() == Loci::LIST);
+
+    std::ostringstream out;
+    REQUIRE_NOTHROW(out << v);
+    CHECK(out.str() == tc.printed);
+
+    Loci::options_list opts;
+    REQUIRE_NOTHROW(opts.Input(entries));
+    CHECK(opts.getOptionValueType("s") == Loci::LIST);
+    Loci::options_list::arg_list values;
+    opts.getOption("s", values);
+    CHECK(values.size() == tc.list_size);
+  }
+}
+
+TEST_CASE("quoted keys that are not valid names stay quoted when printed") {
+  struct Case {
+    const char *text;
+    const char *printed;
+  };
+  const std::vector<Case> cases = {
+      {"[\"my key\"=5]", "[\"my key\"=5]"},
+      {"[\"my key\"=[1,2]]", "[\"my key\"=[1,2]]"},
+      {"[\"tab\tkey\"=x,plain=1]", "[\"tab\tkey\"=x,plain=1]"},
+      {"[\"a-b\"=5]", "[\"a-b\"=5]"},
+      {"[\"x.y\"=5]", "[\"x.y\"=5]"},
+      {"[\"1st\"=5]", "[\"1st\"=5]"},
+      {"[\"\"=5]", "[\"\"=5]"},
+      {"[\"nospace\"=5]", "[nospace=5]"},
+      {"[\"_under_1\"=5]", "[_under_1=5]"},
+  };
+
+  for(const auto &tc : cases) {
+    CAPTURE(tc.text);
+    Loci::option_values v = parse_value(tc.text);
+
+    std::ostringstream out;
+    REQUIRE_NOTHROW(out << v);
+    CHECK(out.str() == tc.printed);
+
+    Loci::option_values reparsed;
+    std::istringstream in(out.str());
+    REQUIRE_NOTHROW(in >> reparsed);
+    std::ostringstream out2;
+    out2 << reparsed;
+    CHECK(out2.str() == out.str());
+  }
+}
+
 TEST_CASE("options_list Input(arg_list) handles NAME and NAME_ASSIGN") {
   Loci::option_values list_value = parse_value("[a=1,b,c=3]");
   REQUIRE(list_value.type_of() == Loci::LIST);
