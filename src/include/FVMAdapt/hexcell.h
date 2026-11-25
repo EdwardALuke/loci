@@ -235,6 +235,11 @@ public:
   /// Return false if the leaf indices do not match traversal order.
   bool getLeafDepths(std::vector<int>& depths) const ;
 
+  /// Read plan depths in fine-cell index order without changing this cell.
+  /// Omitted entries are leaves; unused trailing entries are ignored.
+  /// Return false if traversal encounters an invalid split code.
+  bool getLeafDepths(const std::vector<char>& cellPlan, std::vector<int>& depths) const ;
+
   /// Replace indexMap with pairs of local fine-cell indices from the current
   /// tree and parentPlan. Refinement or derefinement can produce several pairs
   /// for one cell. Return the number of leaves in parentPlan.

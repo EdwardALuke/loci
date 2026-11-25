@@ -22,9 +22,6 @@
 #ifndef SCHEDULER_H
 #define SCHEDULER_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 

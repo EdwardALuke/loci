@@ -27,6 +27,7 @@ scotch_install
 /Makefile
 *.o
 *.d
+*.test
 OBJ
 copy.out
 config.log

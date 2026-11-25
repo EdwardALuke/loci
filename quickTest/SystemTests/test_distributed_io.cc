@@ -46,8 +46,8 @@ namespace {
 
 } // namespace
 
-/// Dividing one file number among three ranks should produce one populated
-/// partition and two empty partitions without inventing file numbers.
+/// Dividing one file number among P ranks should produce one populated
+/// partition and P-1 empty partitions without inventing file numbers.
 TEST_CASE("simplePartition leaves unassigned MPI ranks empty") {
   CAPTURE(MPI_rank);
 
@@ -64,20 +64,21 @@ TEST_CASE("simplePartition leaves unassigned MPI ranks empty") {
       ++empty_partitions;
   }
 
-  CHECK(partitions.size() == 3);
+  CHECK(partitions.size() == (size_t)MPI_processes);
   CHECK(partitioned == entitySet(interval(42, 42)));
   CHECK(partition_entries == 1);
-  CHECK(empty_partitions == 2);
+  CHECK(empty_partitions == MPI_processes - 1);
 }
 
-/// Start the only value on rank two and assign it a different file number so
-/// serial-HDF5 output must redistribute it while two ranks begin empty.
+/// Start the only value on the last rank and assign it a different file
+/// number so serial-HDF5 output must redistribute it while the other ranks
+/// begin empty.
 TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
   CAPTURE(MPI_rank);
 
   Loci::use_parallel_io = false;
   const char *filename = "test_distributed_io.h5";
-  const int source_rank = 2;
+  const int source_rank = MPI_processes - 1;
   const int local_entity = 17;
   const int file_number = 42;
   const entitySet owned = MPI_rank == source_rank
@@ -92,7 +93,18 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
 
   fact_db facts;
   facts.put_distribute_info(make_test_distribution(owned, file_number));
-
+  fact_db::distribute_infoP df = facts.get_distribute_info() ;
+  vector<dataPartitionP> ptnlist ;
+  for(size_t i=0;i<facts.init_ptn.size();++i) {
+    dataPartitionP p = std::make_shared<dataPartitionGeneral>
+      (facts.init_ptn[i],MPI_COMM_WORLD) ;
+    ptnlist.push_back(p) ;
+  }
+  entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
+    (df->my_entities,df->l2g,df->key_domain,df->l2f,ptnlist,MPI_COMM_WORLD) ;
+  facts.setPartitionInfo(distinfop) ;
+  values.Rep()->setPartitionInfo(distinfop) ;
+  
   hid_t file_id = Loci::hdf5CreateFile(filename, H5F_ACC_TRUNC,
                                        H5P_DEFAULT, H5P_DEFAULT);
   Loci::writeContainer(file_id, "values", values.Rep(), facts);
@@ -101,6 +113,8 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
   /// a reversed interval.
   store<std::vector<char> > empty_values;
   empty_values.allocate(EMPTY);
+  empty_values.Rep()->setPartitionInfo(distinfop) ;
+
   Loci::writeContainer(file_id, "empty_values", empty_values.Rep(), facts);
 
   Loci::hdf5CloseFile(file_id);
@@ -113,11 +127,13 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
                                 MPI_COMM_SELF);
     Loci::readContainerRAW(file_id, "values", written.Rep(), MPI_COMM_SELF);
 
+    // The library always reorders to file numbering via Local2FileOrder.
     const entitySet expected_file_domain =
       entitySet(interval(file_number, file_number));
     CHECK(written.domain() == expected_file_domain);
-    if(written.domain() == expected_file_domain)
+    if(written.domain() == expected_file_domain) {
       CHECK(written[file_number] == expected);
+    }
 
     hid_t group_id = H5Gopen(file_id, "empty_values", H5P_DEFAULT);
     CHECK(group_id >= 0);
@@ -133,9 +149,10 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
 
   MPI_Barrier(MPI_COMM_WORLD);
 
-  /// Map the file-numbered value back to its original entity on rank two.
+  /// Map the file-numbered value back to its original entity on the source rank.
   store<std::vector<char> > restored;
   restored.allocate(owned);
+  restored.Rep()->setPartitionInfo(distinfop) ;
   file_id = Loci::hdf5OpenFile(filename, H5F_ACC_RDONLY, H5P_DEFAULT);
   Loci::readContainer(file_id, "values", restored.Rep(), owned, facts);
   Loci::hdf5CloseFile(file_id);
@@ -151,24 +168,6 @@ TEST_CASE("distributed serial-HDF5 I/O handles empty MPI ranks") {
 
 int main(int argc, char **argv) {
   Loci::Init(&argc, &argv);
-
-#ifdef MPI_STUBB
-  // If compiled using MPI stubbs, then it doesn't make sense to perform this
-  // test.
-  Loci::Finalize();
-  std::cout << "NULL test for distributed IO when compling with MPI_STUBBs"
-	    << std::endl ;
-  std::cout << "SUCCESS!" << std::endl;
-  return 0;
-#endif
-  
-  if(MPI_processes != 3) {
-    if(MPI_rank == 0)
-      std::cerr << "test_distributed_io requires exactly three MPI ranks"
-                << std::endl;
-    Loci::Finalize();
-    return 1;
-   }
 
   doctest::Context context;
   context.applyCommandLine(argc, argv);

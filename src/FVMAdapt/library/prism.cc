@@ -35,6 +35,57 @@
 #include "prism.h"
 #include "globals.h"
 
+namespace {
+  struct PrismPlanCell {
+    int nfold ;
+    int depth ;
+  } ;
+
+  bool read_prism_plan(const std::vector<char>& plan, int nfold,
+                       int32& count, std::vector<int>* depths) {
+    count = 0 ;
+    if(depths != 0) depths->clear() ;
+    std::queue<PrismPlanCell> pending ;
+    pending.push({nfold,0}) ;
+    size_t index = 0 ;
+    bool valid = true ;
+    while(!pending.empty()) {
+      const PrismPlanCell cell = pending.front() ;
+      pending.pop() ;
+      const char code = index < plan.size() ? plan[index++] : 0 ;
+      if(code == 0) {
+        ++count ;
+        if(depths != 0) depths->push_back(cell.depth) ;
+        continue ;
+      }
+      int children = 0 ;
+      int childFold = cell.nfold ;
+      switch(code) {
+      case 1: children = 2 ; break ;
+      // Transverse splits produce children with four-sided end faces.
+      case 2: children = cell.nfold ; childFold = 4 ; break ;
+      case 3: children = 2*cell.nfold ; childFold = 4 ; break ;
+      default: valid = false ; break ;
+      }
+      for(int child = 0; child < children; ++child)
+        pending.push({childFold,cell.depth+1}) ;
+    }
+    return valid ;
+  }
+}
+
+int32 Prism::num_fine_cells(const std::vector<char>& cellPlan) const {
+  int32 count ;
+  if(!read_prism_plan(cellPlan,nfold,count,0))
+    cerr << "WARNING: illegal split code" << endl ;
+  return count ;
+}
+
+bool Prism::getLeafDepths(const std::vector<char>& cellPlan, std::vector<int>& depths) const {
+  int32 count ;
+  return read_prism_plan(cellPlan,nfold,count,&depths) ;
+}
+
 
 bool Prism::getLeafDepths(std::vector<int>& depths) const {
   depths.clear() ;

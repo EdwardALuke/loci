@@ -638,7 +638,8 @@ extern "C" {
 		     void *recvbuf, int recvcnt, MPI_Datatype recvtype,
 		     MPI_Comm comm )
   {
-    memcpy(recvbuf, sendbuf, MPI_GET_TYPE_SIZE(recvtype)*recvcnt) ;
+    if(sendbuf != 0)
+      memcpy(recvbuf, sendbuf, MPI_GET_TYPE_SIZE(recvtype)*recvcnt) ;
     return MPI_SUCCESS ; 
   }
 
@@ -647,7 +648,8 @@ extern "C" {
 		      MPI_Datatype recvtype, MPI_Comm comm)
   { 
     const int sz = MPI_GET_TYPE_SIZE(recvtype) ;
-    memcpy(((char *)recvbuf)+displs[0]*sz, sendbuf, sz*recvcounts[0]);
+    if(sendbuf != 0)
+      memcpy(((char *)recvbuf)+displs[0]*sz, sendbuf, sz*recvcounts[0]);
     return MPI_SUCCESS ; 
   } 
 
@@ -676,12 +678,11 @@ extern "C" {
   int  MPI_Reduce(const void *sendbuf, void *recvbuf, int count,
 		  MPI_Datatype type, MPI_Op op, int root, MPI_Comm comm)
   {
-    if (root == 0)
-      {
+    if (root == 0) {
+      if(sendbuf != 0)
 	memcpy(recvbuf, sendbuf, MPI_GET_TYPE_SIZE(type)*count) ;
-	return MPI_SUCCESS;
-      }
-    else
+      return MPI_SUCCESS;
+    } else
       return MPI_ERR_ROOT;
   } 
 
@@ -697,8 +698,9 @@ extern "C" {
 
   int  MPI_Allreduce(const void *sendbuf, void *recvbuf, int count,
 		     MPI_Datatype type, MPI_Op op , MPI_Comm comm)
-  { 
-    memcpy(recvbuf, sendbuf, MPI_GET_TYPE_SIZE(type)*count) ;
+  {
+    if(sendbuf != 0) 
+      memcpy(recvbuf, sendbuf, MPI_GET_TYPE_SIZE(type)*count) ;
     return MPI_SUCCESS;
   } 
 
@@ -827,11 +829,13 @@ extern "C" {
     return 0;
   }
 
-  int  MPI_Comm_compare(MPI_Comm, MPI_Comm, int *)
+  int  MPI_Comm_compare(MPI_Comm comm1, MPI_Comm comm2, int *val)
   {
-    cerr << "MPI_Comm_compare" << endl ;
-    err_report();
-    return -1;
+    *val = MPI_UNEQUAL ;
+    if(comm1 == comm2)
+      *val = MPI_CONGRUENT ;
+
+    return 0 ;
   }
 
   int  MPI_Comm_dup(MPI_Comm, MPI_Comm *)

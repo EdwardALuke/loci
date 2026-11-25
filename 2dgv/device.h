@@ -33,6 +33,10 @@ public:
   virtual void DrawLabel(const std::string &text, positions location,
                          int pos, int size, double degrees) = 0 ;
   virtual void FillPoly(const positions *pnts, int num_pnts) = 0 ;
+  // Fills a polygon in a fixed color for UI markers (currently black),
+  // independent of the pen/color table (which is a 64-entry contour
+  // colormap gradient -- see the probe node marker in draw.cc).
+  virtual void FillPolyMarker(const positions *pnts, int num_pnts) = 0 ;
   virtual void FillShade(int shade) = 0 ;
 } ;
 

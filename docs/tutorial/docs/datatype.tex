@@ -131,6 +131,107 @@ All standard STL containers with predefined identity schema types are supported.
 \item map
 \end{enumerate}
 \end{enumerate}
+%
+\section {The {\tt nameList} Datatype}
+%
+Many applications need to let users give a list of names in the fact
+database, for example a list of variables to include in plot
+output, or a list of boundary conditions to apply a setting to.  Loci
+provides the {\tt Loci::nameList} datatype for this.  It is defined in
+{\tt Tools/nameList.h}, which is included automatically by the
+{\tt Loci} header (through {\tt Loci\_types.h}).  A {\tt nameList} is an ordered
+list of names, stored as a {\tt std::vector<std::string>}.
+%
+\subsection {Input Syntax}
+%
+A {\tt nameList} is read in ASCII form (for example, from a {\tt .vars}
+file) as a comma-separated list of names.  The list can be given in
+one of two forms:
+\begin{itemize}
+\item {\bf Bracketed form:} the list is enclosed in square brackets,
+  e.g. {\tt [ pg, t, v ]}.  An empty list is written as {\tt []}.
+\item {\bf Freeform:} the names are given without brackets,
+  e.g. {\tt pg, t, v}.  The list ends at the first name that is not
+  followed by a comma.
+\end{itemize}
+Each entry must be a valid name: it must start with a letter or an
+underscore ({\tt \_}), and may contain only letters, digits, and
+underscores.  Whitespace (including newlines) between names and
+commas is ignored, so a long list can be spread over several lines.
+Numbers, quoted strings, and names containing other characters (such
+as {\tt -} or {\tt .}) are not accepted.  The following are all valid
+entries in a {\tt .vars} file:
+\begin{verbatim}
+plot_output: P, t, v
+plot_output_exclusive: [ pg, t, v ]
+boundary_list: [ inflow_1, outflow_1,
+                 wall_top, wall_bottom ]
+empty_list: []
+\end{verbatim}
+%
+If the input is malformed, for example a missing name after a comma
+({\tt [a, , b]}), a missing closing bracket ({\tt [a, b}), or an entry
+that is not a valid name, reading the list throws an {\tt exprError}
+with a syntax error message.  Note that an empty list can only be
+given in bracketed form; an empty freeform entry is a syntax error.
+%
+\subsection {Output Format}
+%
+When a {\tt nameList} is written to a stream it is always printed in
+bracketed form, with the names separated by a comma and a space,
+e.g. {\tt [pg, t, v]}.  An empty list is printed as {\tt []}.
+%
+\subsection {Using a {\tt nameList} in a Loci Program}
+%
+To use a {\tt nameList} as a fact, declare its type in the usual way,
+usually as a {\tt param}.  It is a good idea to give a default rule
+that provides an empty list, so that the user does not have to
+specify the variable:
+\begin{verbatim}
+$type plot_output param<Loci::nameList> ;
+
+$rule default(plot_output) {
+  $plot_output.clear() ;
+}
+\end{verbatim}
+%
+The class provides a small interface for accessing the list:
+\begin{itemize}
+\item {\tt begin()} and {\tt end()} return {\tt const} iterators over the
+  names (of type {\tt std::vector<std::string>::const\_iterator}), so
+  a {\tt nameList} can be used in a range-based {\tt for} loop.
+\item {\tt empty()} returns {\tt true} if the list has no entries.
+\item {\tt clear()} removes all entries from the list.
+\end{itemize}
+The names are kept in the order the user gave them.  For example, the
+following code loops over the names in a {\tt nameList}:
+\begin{verbatim}
+param<Loci::nameList> plot_output ;
+plot_output = facts.get_variable("plot_output") ;
+
+if(!(*plot_output).empty()) {
+  for(const auto &name : *plot_output) {
+    cout << "plotting variable " << name << endl ;
+  }
+}
+\end{verbatim}
+%
+\subsection {Serialization}
+%
+Because a {\tt nameList} holds a variable number of strings, it is not
+stored in contiguous memory and uses a {\tt USER\_DEFINED\_CONVERTER}.
+Loci serializes it as a {\tt char} buffer through its ASCII stream
+representation, using the {\tt StringStreamConverter} class.  This
+specialization is already provided in {\tt Loci\_types.h}, so no extra
+work is needed to communicate a {\tt nameList} between processors or
+write it to a file:
+\begin{verbatim}
+template<> struct data_schema_traits<nameList> {
+  typedef USER_DEFINED_CONVERTER Schema_Converter ;
+  typedef char Converter_Base_Type ;
+  typedef StringStreamConverter<nameList> Converter_Type ;
+} ;
+\end{verbatim}
 \section {Creating your own compound datatypes}
 %
 Loci, uses {\tt data\_schema\_traits} template class to determine

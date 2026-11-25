@@ -108,20 +108,25 @@ namespace Loci {
 
   void store_ref::copy(storeRepP &st, const entitySet &context) {
     Rep()->copy(st,context) ;
-  }
-
-  void store_ref::fast_copy(storeRepP &st, const entitySet &context) {
-    Rep()->fast_copy(st,context) ;
+    Rep()->setPartitionInfo(st->getPartitionInfo()) ;
+    Rep()->setFilePartitionInfo(st->getFilePartitionInfo()) ;
+    Rep()->setGlobalPartitionInfo(st->getGlobalPartitionInfo()) ;
   }
 
   void store_ref::gather(const dMap &m,storeRepP &st,
                          const entitySet &context) {
     Rep()->gather(m,st,context) ;
+    Rep()->setPartitionInfo(st->getPartitionInfo()) ;
+    Rep()->setFilePartitionInfo(st->getFilePartitionInfo()) ;
+    Rep()->setGlobalPartitionInfo(st->getGlobalPartitionInfo()) ;
   }
 
   void store_ref::scatter(const dMap &m, storeRepP &st,
                           const entitySet &context) {
     Rep()->scatter(m,st,context) ;
+    Rep()->setPartitionInfo(st->getPartitionInfo()) ;
+    Rep()->setFilePartitionInfo(st->getFilePartitionInfo()) ;
+    Rep()->setGlobalPartitionInfo(st->getGlobalPartitionInfo()) ;
   }  
   int store_ref::pack_size(const entitySet &e )  {
     return(Rep()->pack_size(e)) ;
@@ -163,25 +168,6 @@ namespace Loci {
     dispatch_notify() ;
   }
 
-  void store_ref::
-  erase(const entitySet& rm) { Rep()->erase(rm) ;}
-  
-  void store_ref::
-  invalidate(const entitySet& valid) { Rep()->invalidate(valid) ;}
-  
-  void store_ref::
-  guarantee_domain(const entitySet& include)
-  { Rep()->guarantee_domain(include) ;}
-  
-  storeRepP store_ref::
-  redistribute(const std::vector<entitySet>& dom_ptn,MPI_Comm comm)
-  { return Rep()->redistribute(dom_ptn,comm) ;}
-  
-  storeRepP store_ref::
-  redistribute(const std::vector<entitySet>& dom_ptn,
-               const dMap& remap, MPI_Comm comm)
-  { return Rep()->redistribute(dom_ptn,remap,comm) ;}
- 
   int abstractStoreRepI::get_alloc_id() const {
     if(defer_rep != 0) {
       return defer_rep->get_alloc_id() ;
@@ -193,51 +179,6 @@ namespace Loci {
   void abstractStoreRepI::allocate(const entitySet &p) {
     if(defer_rep != 0) {
       defer_rep->allocate(p) ;
-    }
-  }
-
-  void abstractStoreRepI::erase(const entitySet &rm) {
-    if(defer_rep != 0) {
-      defer_rep->erase(rm) ;
-    } else {
-      storeRep::erase(rm) ;
-    }
-  }
-
-  void abstractStoreRepI::invalidate(const entitySet& valid) {
-    if(defer_rep != 0) {
-      defer_rep->invalidate(valid) ;
-    } else {
-      storeRep::invalidate(valid) ;
-    }
-  }
-
-  void abstractStoreRepI::guarantee_domain(const entitySet &include) {
-    if(defer_rep != 0) {
-      defer_rep->guarantee_domain(include) ;
-    } else {
-      storeRep::guarantee_domain(include) ;
-    }
-  }
-
-  storeRepP abstractStoreRepI::redistribute(
-    const std::vector<entitySet> &dom_ptn, MPI_Comm comm
-  ) {
-    if(defer_rep != 0) {
-      return defer_rep->redistribute(dom_ptn, comm) ;
-    } else {
-      return storeRep::redistribute(dom_ptn, comm) ;
-    }
-  }
-
-  storeRepP abstractStoreRepI::redistribute(
-    const std::vector<entitySet> &dom_ptn,
-    const dMap &remap, MPI_Comm comm
-  ) {
-    if(defer_rep != 0) {
-      return defer_rep->redistribute(dom_ptn, remap, comm) ;
-    } else {
-      return storeRep::redistribute(dom_ptn, remap, comm) ;
     }
   }
 
@@ -322,14 +263,6 @@ namespace Loci {
   void abstractStoreRepI::copy(storeRepP &sp, const entitySet &context) {
     if(defer_rep != 0) {
       defer_rep->copy(sp, context) ;
-    }
-  }
-
-  void abstractStoreRepI::fast_copy(storeRepP &st, const entitySet &context) {
-    if(defer_rep != 0) {
-      defer_rep->fast_copy(st, context) ;
-    } else {
-      storeRep::fast_copy(st, context) ;
     }
   }
 

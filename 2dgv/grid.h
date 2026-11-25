@@ -89,6 +89,7 @@ struct grid {
   bool has_values ;
   double min_val,max_val ;
   std::vector<double> val ;
+  std::vector<bool> is_node ;
   
   std::vector<edges> edge_list ;
   unsigned int interior ;
@@ -111,10 +112,20 @@ struct grid {
 
   std::vector<rule> rulers ;
 
+  // Right-click node probe: the nearest mesh node to the last probe
+  // click, its scalar value (if the grid has one), and its position.
+  // Follows the same pattern as rulers -- lives on the grid so it's
+  // drawn on every redraw and carried across zoom (see grid::zoom()),
+  // not just the instant after the click.
+  bool has_probe ;
+  positions probe_pos ;
+  bool probe_has_val ;
+  double probe_val ;
+
   grid() {
     show_contours = false, show_grid = false, show_shading = false;
     shading_computed = false ; has_values = false ; filename = "none";
-    valid = false ;  }
+    valid = false ; has_probe = false ;  }
   void optimize_edge_list() ;
   void generate_contour_curves(double cs) ;
   void generate_shading() ;

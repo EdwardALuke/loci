@@ -21,9 +21,6 @@
 #ifndef COMP_TOOLS_H
 #define COMP_TOOLS_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <fact_db.h>

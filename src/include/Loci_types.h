@@ -21,9 +21,6 @@
 #ifndef LOCI_TYPES_H
 #define LOCI_TYPES_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <data_traits.h>
@@ -31,6 +28,7 @@
 #include <Tools/basic_types.h>
 #include <Tools/vtypes.h>
 #include <Tools/options_list.h>
+#include <Tools/nameList.h>
 
 namespace Loci {
 
@@ -442,7 +440,14 @@ namespace Loci {
     typedef double Converter_Base_Type ;
     typedef UnitValueConverter<PressureValue> Converter_Type ;
   } ;
-      
+
+  template<> struct data_schema_traits<nameList> {
+    typedef USER_DEFINED_CONVERTER Schema_Converter ;
+
+    typedef char Converter_Base_Type ;
+    typedef StringStreamConverter<nameList> Converter_Type ;
+  } ;
+
 }
 
 #endif

@@ -21,15 +21,13 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <Tools/debugger.h>
 
 #include <ostream>
 #include <iostream>
+#include <fstream>
 #ifdef NO_CSTDLIB
 #include <stdlib.h>
 #else
@@ -87,6 +85,7 @@ using std::abort ;
 #endif // DEBUG
 
 namespace Loci {
+  extern std::ofstream debugout ;
   long getmaxrss() ;
   // memory profile function
   inline double currentMem(void) { return ::Loci::getmaxrss()*1024.0 ;  }    

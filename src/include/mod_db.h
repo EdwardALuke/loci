@@ -21,9 +21,6 @@
 #ifndef LOCI_MOD_DB_H
 #define LOCI_MOD_DB_H
 #define LOCI_WITH_MODULES
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <dlfcn.h>
 
 #include <rule.h>

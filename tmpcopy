@@ -201,6 +201,10 @@ if [ ! -h $fulltarget/src/FVMtools/extract_movie ]; then
     cp src/FVMtools/extract_movie $fulltarget/FVMtools/extract_movie
     chmod a+rx $fulltarget/FVMtools/extract_movie
 fi
+if [ ! -h $fulltarget/src/FVMtools/cartesianGrid ]; then
+    cp src/FVMtools/cartesianGrid $fulltarget/FVMtools/cartesianGrid
+    chmod a+rx $fulltarget/FVMtools/cartesianGrid
+fi
 
 pushd $fulltarget
 if [ ! -h Makefile ]; then
@@ -287,6 +291,9 @@ if [ ! -h libsprng.${LIB_POSTFIX} ] ; then
 fi
 if [ ! -h $fulltarget/bin/extract_movie ]; then
     ln -s $source/src/FVMtools/extract_movie $fulltarget/bin/extract_movie
+fi
+if [ ! -h $fulltarget/bin/cartesianGrid ]; then
+    ln -s $source/src/FVMtools/cartesianGrid $fulltarget/bin/cartesianGrid
 fi
 if [ ! -h $fulltarget/bin/mpinorun ]; then
     ln -s $source/src/FVMtools/mpinorun $fulltarget/bin/mpinorun

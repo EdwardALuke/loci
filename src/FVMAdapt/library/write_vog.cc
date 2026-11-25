@@ -87,6 +87,7 @@ typedef double metisreal_t ;
 #endif
 
 #endif
+#include <distribute.h>
 
 namespace Loci {
   // get cell2parent map with cells in current global numbering
@@ -464,7 +465,7 @@ namespace Loci {
     //########################################################################
     //
     // Use parSplitSort to map child to parent map to processors according to
-    // child distribution.
+    // child distribution.
     //
     vector<int> csplits(p) ;
     MPI_Allgather(&csplit,1,MPI_INT,&csplits[0],1,MPI_INT,MPI_COMM_WORLD) ;
@@ -888,7 +889,9 @@ namespace Loci {
       }
     } ENDFORALL ;
     dstore<Array<int,3> > received ;
-    received = records.Rep()->redistribute(grid.local_cells) ;
+    received.setRep(redistribute_container(records.Rep(),grid.local_cells,
+					   MPI_COMM_WORLD)) ;
+    //    received = records.Rep()->redistribute(grid.local_cells) ;
     const entitySet cells = grid.local_cells[MPI_rank] ;
     const int localValid = received.domain() == cells ? 1 : 0 ;
     int valid = 0 ;
@@ -942,7 +945,9 @@ namespace Loci {
       }
     } ENDFORALL ;
     dstore<Array<double,2> > received ;
-    received = records.Rep()->redistribute(grid.local_cells) ;
+    received.setRep(redistribute_container(records.Rep(),grid.local_cells,
+					   MPI_COMM_WORLD)) ;
+    //    received = records.Rep()->redistribute(grid.local_cells) ;
     const entitySet cells = grid.local_cells[MPI_rank] ;
     const int localValid = received.domain() == cells ? 1 : 0 ;
     int valid = 0 ;
@@ -1091,7 +1096,7 @@ namespace Loci {
       *recordFaces = options.faceHistory ;
       refine_facts.create_fact("recordFaceHistory",recordFaces) ;
       if(options.faceHistory)
-        query += ",fineFacePatches,fineCellFacePatches" ;
+        query += ",fine_face_patches,fine_face_patches_cell" ;
       if(options.cellState)
         query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
       if(options.edgeLengths)
@@ -1258,7 +1263,7 @@ namespace Loci {
     *recordFaces = options.faceHistory ;
     refine_facts.create_fact("recordFaceHistory",recordFaces) ;
     if(options.faceHistory)
-      query += ",fineFacePatches,fineCellFacePatches" ;
+      query += ",fine_face_patches,fine_face_patches_cell" ;
     if(options.cellState)
       query += ",fineCellDepth,fineCellChange,planRootFileNumber" ;
     if(options.edgeLengths)
@@ -1723,7 +1728,6 @@ namespace Loci {
   
   std::vector<int> simplePartitionVec(int mn, int mx, int p);
   vector<entitySet> simplePartition(int mn, int mx, MPI_Comm comm);
-  vector<sequence> transposeSeq(const vector<sequence> sv);
 }
 void colorMatrix(Map &cl, Map &cr, multiMap &face2node) ;
 
@@ -1805,7 +1809,7 @@ namespace Loci{
     }
 
     //Get the sequences of where we place the data when we receive it
-    vector<sequence> recv_seqs = transposeSeq(send_seqs) ;
+    vector<sequence> recv_seqs = transposeSeq(send_seqs,comm) ;
 
 
     // shift by the offset
@@ -1898,115 +1902,6 @@ namespace Loci{
                     vector<pair<string,entitySet> >& volTags,
                     storeRepP cellwts, const refinedGridData *gridFields) {
     double t1 = MPI_Wtime() ;
-    // Identify boundary tags
-    if(Loci::MPI_processes == 1) {
-      entitySet local_boundary_cells = getBoundaryCells(MapRepP(tmp_cr.Rep()));
-      entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells) ;
-
-      int npnts = local_nodes[0].size();
-      int nfaces = local_faces[0].size();
-      int ncells = local_cells[0].size();
-
-      entitySet nodes = facts.get_distributed_alloc(npnts,0).first ; // FIX THIS
-      entitySet faces = facts.get_distributed_alloc(nfaces,0).first ;
-      entitySet cells = facts.get_distributed_alloc(ncells,0).first;
-
-      store<vector3d<double> > pos ;
-      Map cl ;
-      Map cr ;
-      multiMap face2node ;
-      Loci::copyGridStructures(nodes, faces, cells,
-                               t_pos, tmp_cl, tmp_cr, tmp_face2node,
-                               pos, cl, cr, face2node);
-      store<string> boundary_names ;
-      store<string> boundary_tags ;
-      boundary_names.allocate(global_boundary_cells) ;
-      boundary_tags.allocate(global_boundary_cells) ;
-      cout << " boundaries identified as:" ;
-      
-      FORALL(global_boundary_cells, bc) {
-        char buf[512] ;
-	bzero(buf,512) ;
-        snprintf(buf,511,"BC_%d",-bc) ;
-        boundary_tags[bc] = string(buf) ;
-        boundary_names[bc] = string(buf) ;
-	cout << " " << boundary_names[bc] ;
-      } ENDFORALL ;
-
-      for(size_t i=0;i<boundary_ids.size();++i) {
-        int id = boundary_ids[i].first ;
-        if(global_boundary_cells.inSet(-id))
-          boundary_names[-id] = boundary_ids[i].second ;
-      }
-
-      FORALL(global_boundary_cells, bc) {
-	cout << " " << boundary_names[bc] ;
-      } ENDFORALL ;
-      cout << endl ;
-      
-      facts.create_fact("cl", cl) ;
-      facts.create_fact("cr", cr) ;
-      facts.create_fact("pos", pos) ;
-      facts.create_fact("face2node",face2node) ;
-      facts.create_fact("boundary_names", boundary_names) ;
-      facts.create_fact("boundary_tags", boundary_tags) ;
-
-      if(gridFields != 0 && gridFields->hasFaceHistory) {
-        Map faceNumbers ; faceNumbers.allocate(faces) ;
-        faceNumbers.Rep()->setDomainKeySpace(face2node.Rep()->getDomainKeySpace()) ;
-        auto source = local_faces[0].begin() ;
-        for(Entity face : faces) {
-          faceNumbers[face] = *source++ ;
-        }
-        std::string error ;
-        if(!installFaceHistory(facts,*gridFields,faceNumbers,error)) {
-          cerr << error << endl ; return false ;
-        }
-      }
-
-      if(gridFields != 0 && gridFields->hasCellState) {
-        store<int> depth, root, change ;
-        depth.allocate(cells) ;
-        root.allocate(cells) ;
-        change.allocate(cells) ;
-        entitySet::const_iterator source = local_cells[0].begin() ;
-        FORALL(cells, cell) {
-          depth[cell] = gridFields->refinementDepth[*source] ;
-          root[cell] = gridFields->rootCellFileNumber[*source] ;
-          change[cell] = gridFields->cellChange[*source] ;
-          ++source ;
-        } ENDFORALL ;
-        facts.create_fact("refinementDepth", depth) ;
-        facts.create_fact("rootCellFileNumber", root) ;
-        facts.create_fact("cellChange", change) ;
-      }
-
-      if(gridFields != 0 && gridFields->hasEdgeLengths) {
-        store<double> length, lengthXY ;
-        length.allocate(cells) ;
-        lengthXY.allocate(cells) ;
-        entitySet::const_iterator source = local_cells[0].begin() ;
-        FORALL(cells, cell) {
-          length[cell] = gridFields->maxEdgeLength[*source] ;
-          lengthXY[cell] = gridFields->maxEdgeLengthXY[*source] ;
-          ++source ;
-        } ENDFORALL ;
-        facts.create_fact("maxEdgeLength", length) ;
-        facts.create_fact("maxEdgeLengthXY", lengthXY) ;
-      }
-
-      int cells_base = local_cells[0].Min() ;
-      for(size_t i=0;i<volTags.size();++i) {
-        param<string> Tag ;
-        *Tag = volTags[i].first ;
-        Tag.set_entitySet(volTags[i].second >> cells_base) ;
-        std::ostringstream oss ;
-        oss << "volumeTag(" << volTags[i].first << ")" ;
-        facts.create_fact(oss.str(),Tag) ;
-      }
-        
-      return true ;
-    }
 
     entitySet local_boundary_cells = getBoundaryCells(MapRepP(tmp_cr.Rep()));
     entitySet global_boundary_cells = all_collect_entitySet(local_boundary_cells) ;
@@ -2729,7 +2624,7 @@ namespace Loci {
       send_seqs[i] = s ;
     }
     //Get the sequences of where we place the data when we receive it
-    vector<sequence> recv_seqs = transposeSeq(send_seqs) ;
+    vector<sequence> recv_seqs = transposeSeq(send_seqs,MPI_COMM_WORLD) ;
   
     storeRepP sp =pos_t.Rep();
     storeRepP qcol_rep =new_pos.Rep();
@@ -2822,8 +2717,8 @@ namespace Loci {
     store<FacePatches> cellPatches, originalFacePatches ;
     if(patches != 0) {
       patches->allocate(faces) ;
-      cellPatches = facts.get_variable("fineCellFacePatches") ;
-      originalFacePatches = facts.get_variable("fineFacePatches") ;
+      cellPatches = facts.get_variable("fine_face_patches_cell") ;
+      originalFacePatches = facts.get_variable("fine_face_patches") ;
     }
     cl.allocate(faces);
     cr.allocate(faces);
@@ -3276,51 +3171,19 @@ void writeVOGFace(hid_t file_id, Map &cl, Map &cr, multiMap &face2node) {
 vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,entitySet> > &origVolTags,
                                                    // string outfile,
                                                    const_store<int> &cell_offset,
-                                                   const_store<int> & num_fine_cells,
-                                                   int num_original_nodes,
-                                                   int num_original_faces) {
+                                                   const_store<int> & num_fine_cells) {
   
 
   
   vector<pair<string,entitySet> > volTags(origVolTags.size());
 
-  //serial version
-  if(Loci::MPI_processes == 1){
-    for(unsigned int i = 0; i < origVolTags.size(); i++){
-      string name = origVolTags[i].first;
-      //transfer entitySet into vector of interval
-      entitySet set=origVolTags[i].second;
-      int sz = set.num_intervals() ;
-      vector<interval> vlist(sz) ;
-      for(int j=0;j<sz;++j)vlist[j] = set[j] ;
-        
-      entitySet new_set = EMPTY;
-      for(int j=0;j<sz;++j){
-        int start = vlist[j].first+num_original_nodes+num_original_faces;
-        int end = vlist[j].second+num_original_nodes+num_original_faces ;
-          
-        start = cell_offset[start]; //the begin of interval changes to  cell_offset+1
-        end = cell_offset[end]+num_fine_cells[end]-1;//the end of interval changes to cell_offset+num_fine_cells
-        new_set += interval(start, end);
-      }
-      volTags[i] = make_pair(name, new_set);
-      std::cout << "old tag:  "  << name << " " << set << std::endl;
-      std::cout << "new tag:  " << name << " " << new_set << std::endl;
-    }
-   
-    return volTags  ;
-  }
-       
-    
   fact_db::distribute_infoP dist = Loci::exec_current_fact_db->get_distribute_info() ;
   Loci::constraint  geom_cells = Loci::exec_current_fact_db->get_variable("geom_cells");
   Loci::constraint my_entities;
   my_entities = dist->my_entities ;
-  //don't know if it's necessray
   entitySet local_geom_cells = (*my_entities)&(*geom_cells);
-    
-  if(Loci::MPI_processes > 1){
-     
+
+  // Vol tag ordinals are 0-based VOG/file cell indices; remap via file order.
     //trasnfer the store to file numbering 
     int offset = 0; 
     store<int> file_num_fine_cells;
@@ -3448,8 +3311,7 @@ vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,enti
         volTags.push_back(pair<string,entitySet>(name,set)) ;
       delete[] ibuf ;
     }
-     
-  }
+
   return volTags; 
 }
 

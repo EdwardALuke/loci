@@ -21,9 +21,6 @@
 #ifndef DSTORE_DEF_H
 #define DSTORE_DEF_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <istream>
@@ -80,9 +77,6 @@ namespace Loci {
     dstoreRepI(){}
     dstoreRepI(const entitySet &p) { allocate(p) ; }
     virtual void allocate(const entitySet &ptn) ;
-    virtual void erase(const entitySet& rm) ;
-    virtual void invalidate(const entitySet& valid) ;
-    virtual void guarantee_domain(const entitySet& include) ;
     virtual void shift(int_type offset) ;
     virtual ~dstoreRepI() {}
     virtual storeRep *new_store(const entitySet &p) const ;

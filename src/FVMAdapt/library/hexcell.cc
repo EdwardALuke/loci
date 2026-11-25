@@ -153,6 +153,27 @@ bool HexCell::getLeafDepths(std::vector<int>& depths) const {
   return true ;
 }
 
+bool HexCell::getLeafDepths(const std::vector<char>& cellPlan, std::vector<int>& depths) const {
+  depths.clear() ;
+  std::queue<int> pending ;
+  pending.push(0) ;
+  size_t index = 0 ;
+  while(!pending.empty()) {
+    const int depth = pending.front() ;
+    pending.pop() ;
+    const char code = index < cellPlan.size() ? cellPlan[index++] : 0 ;
+    if(code == 0) {
+      depths.push_back(depth) ;
+    } else {
+      const int children = numChildren(code) ;
+      if(children < 0) return false ;
+      for(int child = 0; child < children; ++child)
+        pending.push(depth+1) ;
+    }
+  }
+  return true ;
+}
+
 //this function will return num_fine_cells
 //this function will not set mysplitcode unless the splitCode got from cellPlan
 //is nonzero, and the the current cell from Q is never split

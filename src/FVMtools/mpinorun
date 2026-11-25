@@ -31,6 +31,11 @@ while [[ $# -gt 0 ]]; do
             shift
             shift
             ;;
+	--bind-to)
+	    #ignore --bind-to and its argument
+	    shift
+	    shift
+	    ;;
         *)
             cmd+=("$1")
             shift

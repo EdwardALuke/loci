@@ -21,12 +21,11 @@
 #ifndef DISTRIBUTE_IO_H
 #define DISTRIBUTE_IO_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
+#include <vector>
 
 #include <parSampleSort.h>
+#include <partition.h>
 
 #include <store_rep.h>
 #include <DMap.h>
@@ -37,6 +36,9 @@
 #include <multiStore.h>
 
 namespace Loci {
+
+  std::vector<sequence> transposeSeq(const std::vector<sequence> sv,
+                                     MPI_Comm comm) ;
 
   namespace pio {
     /*
@@ -325,21 +327,6 @@ namespace Loci {
 #endif
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
     //-----------------------------------------------------------------------  
     template<class T> void writeUnorderedVectorS(hid_t group_id,
                                                  const char *element_name,
@@ -1143,15 +1130,10 @@ namespace Loci {
   storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset,
                             fact_db::distribute_infoP dist, MPI_Comm comm) ;
 
+  storeRepP Local2GlobalOrder(storeRepP sp, entitySet dom, int &offset,
+                              fact_db::distribute_infoP dist, MPI_Comm comm) ;
+
   int getKeyDomain(entitySet dom, fact_db::distribute_infoP dist, MPI_Comm comm) ;
-  entitySet
-  getF2G(Map &f2g, Loci::entitySet fdom, dMap &g2f, MPI_Comm comm) ;
-  entitySet
-  getF2G2(Map &f2g, entitySet fdom, Map &l2g, Map &l2f, MPI_Comm comm) ;
-  void File2LocalOrderGeneral(storeRepP &result, entitySet resultSet,
-                              storeRepP input, int offset,
-                              fact_db::distribute_infoP dist,
-                              MPI_Comm comm) ;
   void getL2FMap(Map &l2f, entitySet dom, fact_db::distribute_infoP dist) ;
   void FindSimpleDistribution(entitySet dom, const Map &l2f,
                               std::vector<int> &splits, MPI_Comm comm) ;

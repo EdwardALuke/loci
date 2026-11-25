@@ -21,9 +21,6 @@
 #ifndef LOCI_VTYPES_H
 #define LOCI_VTYPES_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #if defined(__x86_64__)

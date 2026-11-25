@@ -545,17 +545,43 @@ void ResizeEvent(Widget w,XtPointer data,XEvent *event,
   Xdev->resize(w->core.width,w->core.height) ;
 }
 
+// Forward declarations: both are defined later in this file but are
+// called from mouseButtonPress below.
+void Zoomin(Widget w, XtPointer p1, XtPointer p2) ;
+void ProbeNode(int screenX, int screenY) ;
+
 void mouseButtonPress(Widget w,XtPointer *data, XEvent *event,
                       Boolean *continue_dispatch)
 {
   switch(event->type) {
   case ButtonPress:
+    if(event->xbutton.button == Button2) {
+      // Middle click is a shortcut for pressing the Zoom button: zooms
+      // into the drawn box if one exists, or steps back one zoom level
+      // if not (Zoomin's own else-branch). It doesn't start a box drag
+      // of its own.
+      Zoomin(w,NULL,NULL) ;
+      break ;
+    }
+    if(event->xbutton.button == Button3) {
+      // Right click probes the nearest mesh node to the click. It
+      // doesn't start a box drag of its own.
+      ProbeNode(event->xbutton.x,event->xbutton.y) ;
+      break ;
+    }
+    if(event->xbutton.button != Button1)
+      break ;
     Xdev->Xclearbox() ;
     Xdev->bx1 = event->xbutton.x ;
     Xdev->by1 = event->xbutton.y ;
     Xdev->drawnbox = false ;
     break ;
-  default:
+  case ButtonRelease:
+    // Only left button's release completes a box drag; middle/right
+    // click are handled entirely on press above and shouldn't affect
+    // box state on release.
+    if(event->xbutton.button != Button1)
+      break ;
     Xdev->Xclearbox() ;
     Xdev->bx2 = event->xbutton.x ;
     Xdev->by2 = event->xbutton.y ;
@@ -564,6 +590,27 @@ void mouseButtonPress(Widget w,XtPointer *data, XEvent *event,
     else
       Xdev->drawnbox = true ;
     Xdev->Xdrawbox() ;
+    break ;
+  case MotionNotify:
+    // Previously folded into the same fallthrough as ButtonRelease,
+    // which updated the box preview on any motion regardless of which
+    // button was actually held -- so dragging with the middle or right
+    // button (even though pressing them doesn't start a box) could
+    // still leave a stale box behind via motion events alone. This now
+    // only updates the box preview while the left button specifically
+    // is held.
+    if(!(event->xmotion.state & Button1Mask))
+      break ;
+    Xdev->Xclearbox() ;
+    Xdev->bx2 = event->xmotion.x ;
+    Xdev->by2 = event->xmotion.y ;
+    if(Xdev->bx1 == Xdev->bx2 && Xdev->by1 == Xdev->by2)
+      Xdev->drawnbox = false ;
+    else
+      Xdev->drawnbox = true ;
+    Xdev->Xdrawbox() ;
+    break ;
+  default:
     break ;
   }
   *continue_dispatch = True ;
@@ -585,6 +632,17 @@ void XDevice::realize(Widget w) {
     Penc[i] = XtGetGC(w, (XtGCMask) GCForeground | GCBackground, &values) ;
     XSetFont(dpy,Penc[i],font_info->fid) ;
   }
+
+  // Dedicated GC for the probe node marker (see FillPolyMarker below):
+  // the Pens[] table above is a fixed 64-entry contour colormap
+  // gradient, with no way to get a specific marker color out of it, so
+  // this is allocated directly instead.
+  XColor markerColor ;
+  Colormap cmap = DefaultColormap(dpy,DefaultScreen(dpy)) ;
+  XParseColor(dpy,cmap,"black",&markerColor) ;
+  XAllocColor(dpy,cmap,&markerColor) ;
+  values.foreground = markerColor.pixel ;
+  markerGC = XtGetGC(w, (XtGCMask) GCForeground | GCBackground, &values) ;
 
   drawwidth = w->core.width ;
   drawheight = w->core.height ;
@@ -1332,6 +1390,55 @@ void ToggleRuler(Widget w, XtPointer p1, XtPointer p2)
   Xdev->refresh() ;
 }
 
+// Right-click node probe. A second right-click while a probe is already
+// active clears it rather than moving it -- a third click then starts
+// fresh, finding whatever node is nearest that new position.
+void ProbeNode(int screenX, int screenY)
+{
+  if(grids.size() == 0)
+    return ;
+  grid &g = grids.front() ;
+
+  if(g.has_probe) {
+    g.has_probe = false ;
+  } else {
+    drawfigure fig(g) ;
+    fig.selectdev(*Xdev) ;
+    fig.scalefigure() ;
+    transform2d it = fig.figtransform.inverse_transform() ;
+    positions clickPos = it.apply_transform(positions(double(screenX),double(screenY))) ;
+
+    // Plain linear nearest-neighbor search over pos, skipping synthetic
+    // cell-center points (is_node[i]==false -- see grid::input_2dgv/
+    // input_generalized/input_cobalt) so this only ever snaps to a real
+    // mesh vertex. zoom() already keeps pos trimmed to nodes near the
+    // current view, so this stays fast without needing a spatial index.
+    int best = -1 ;
+    double bestDist2 = 0.0 ;
+    for(size_t i=0;i<g.pos.size();++i) {
+      if(!g.is_node[i])
+        continue ;
+      double dx = g.pos[i].x-clickPos.x ;
+      double dy = g.pos[i].y-clickPos.y ;
+      double d2 = dx*dx+dy*dy ;
+      if(best < 0 || d2 < bestDist2) {
+        best = int(i) ;
+        bestDist2 = d2 ;
+      }
+    }
+    if(best >= 0) {
+      g.has_probe = true ;
+      g.probe_pos = g.pos[best] ;
+      g.probe_has_val = g.has_values ;
+      g.probe_val = g.has_values ? g.val[best] : 0.0 ;
+    }
+  }
+
+  Xdev->clear() ;
+  draw(grids.front(),*Xdev) ;
+  Xdev->refresh() ;
+}
+
 void ToggleContour(Widget w, XtPointer p1, XtPointer p2)
 {
   if(grids.size() == 0)
@@ -1526,5 +1633,21 @@ void XDevice::FillPoly(const positions *pnts, int num_pnts)
   }
 
   XFillPolygon(dpy, drawpixmap, Penc[currentPen], arry, num_pnts,
+               Convex, CoordModeOrigin);
+}
+
+// Same as FillPoly above but uses the dedicated markerGC (see realize())
+// instead of the cycling Penc[] pen table, and doesn't need FillPoly's
+// currentPen adjustment since it's not drawing with a pen index at all.
+void XDevice::FillPolyMarker(const positions *pnts, int num_pnts)
+{
+  XPoint arry[100] ;
+
+  for(int i=0;i<num_pnts;i++) {
+    arry[i].x =  int(pnts[i].x + .5) ;
+    arry[i].y =  int(pnts[i].y + .5) ;
+  }
+
+  XFillPolygon(dpy, drawpixmap, markerGC, arry, num_pnts,
                Convex, CoordModeOrigin);
 }

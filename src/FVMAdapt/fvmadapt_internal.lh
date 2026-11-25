@@ -200,8 +200,8 @@ $type faceHistoryEnabled Constraint ;
 $type faceHistoryDisabled Constraint ;
 #include <FVMAdapt/face_history_internal.h>
 /// Optional face patches in the same order as the generated faces.
-$type fineFacePatches store<Loci::FacePatches> ;
-$type fineCellFacePatches store<Loci::FacePatches> ;
+$type fine_face_patches store<Loci::FacePatches> ;
+$type fine_face_patches_cell store<Loci::FacePatches> ;
 /// Base-mesh file number of each original face.
 $type planFaceFileNumber store<int> ;
 /// Offset from cell file numbering to base-mesh numbering.

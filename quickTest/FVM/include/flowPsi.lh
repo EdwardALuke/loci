@@ -23,8 +23,8 @@
 
 $include "FVM.lh"
 
-$type plot_output param<flowPsi::list_input> ;
-$type plot_output_exclusive param<flowPsi::list_input> ;
+$type plot_output param<Loci::nameList> ;
+$type plot_output_exclusive param<Loci::nameList> ;
 
 $type modelName param<std::string> ;
 
