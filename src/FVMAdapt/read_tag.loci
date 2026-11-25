@@ -214,21 +214,12 @@ vector<char> read_tags_hdf5(string filename, string varname, MPI_Comm &comm) {
 // but file number is shifted by offset so that it will start with 0
 void add_to_datamap(entitySet dom, vector<pair<int,int> > &datamap, int offset,
                     fact_db::distribute_infoP dist) {
-  if(dist == 0) {
-    int cnt = 0 ;
-    FORALL(dom,nd) {
-      pair<int,int> item(cnt,nd) ;
-      datamap.push_back(item) ;
-      cnt++ ;
-    } ENDFORALL ;
-  }else {
-    Map l2f ;
-    l2f = dist->l2f.Rep() ;
-    FORALL(dom,nd) {
-      pair<int,int> item(l2f[nd]-offset,nd) ;
-      datamap.push_back(item) ;
-    } ENDFORALL ;
-  }
+  Map l2f ;
+  l2f = dist->l2f.Rep() ;
+  FORALL(dom,nd) {
+    pair<int,int> item(l2f[nd]-offset,nd) ;
+    datamap.push_back(item) ;
+  } ENDFORALL ;
 }
 
 // Take datamap input and return data from the tags file for the
@@ -376,24 +367,18 @@ int getFileNumberOffset(const entitySet& locdom,MPI_Comm &comm){
   // Now determine what data we need to collect from filedata
   fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
   int imn = 0 ;
-  if(dist == 0) {
-    return locdom.Min() ;
-  }else {
-    entitySet dom = ~EMPTY ;
-    dom = locdom&(dist->my_entities) ;
-    Map l2f ;
-    l2f = dist->l2f.Rep() ;
-    // Compute map from local numbering to file numbering
-    entitySet filedom = EMPTY ;
-    FORALL(dom,i) {
-      filedom += l2f[i] ;
-    } ENDFORALL ;
+  entitySet dom = locdom&(dist->my_entities) ;
+  Map l2f ;
+  l2f = dist->l2f.Rep() ;
+  // Compute map from local numbering to file numbering
+  entitySet filedom = EMPTY ;
+  FORALL(dom,i) {
+    filedom += l2f[i] ;
+  } ENDFORALL ;
 
-    imn = filedom.Min() ;
-    int local_min = imn ;
-    MPI_Allreduce(&local_min, &imn, 1, MPI_INT, MPI_MIN,comm) ;
-    return imn ;
-  }
+  imn = filedom.Min() ;
+  int local_min = imn ;
+  MPI_Allreduce(&local_min, &imn, 1, MPI_INT, MPI_MIN,comm) ;
   return imn ;
 }
 
@@ -404,21 +389,13 @@ int getNodeOffsets(store<int> &nodeloc, const_store<int> &numsplits,
                    entitySet locdom,
                    fact_db::distribute_infoP dist,
                    MPI_Comm &comm) {
-  entitySet my_entities = ~EMPTY ;
-  if(dist != 0) my_entities = (dist->my_entities) ;
+  entitySet my_entities = dist->my_entities ;
   locdom = locdom & my_entities ;
 
   // Number of splits in file numbering
   store<int> fo_numsplits ;
   int offset = 0 ;
-  if(dist == 0) {
-    fo_numsplits.allocate(locdom) ;
-    FORALL(locdom,ii) {
-      fo_numsplits[ii] = numsplits[ii] ;
-    } ENDFORALL ;
-  }else {
-    fo_numsplits = Local2FileOrder(numsplits.Rep(),locdom,offset,dist,comm) ;
-  }
+  fo_numsplits = Local2FileOrder(numsplits.Rep(),locdom,offset,dist,comm) ;
   int psplits = 0 ;
   Loci::entitySet filedom = fo_numsplits.domain() ;
   FORALL(filedom,pt) {
@@ -443,16 +420,12 @@ int getNodeOffsets(store<int> &nodeloc, const_store<int> &numsplits,
     tot += sloc ;
   } ENDFORALL ;
 
-  if(dist == 0) {
-    nodeloc = fo_numsplits.Rep() ;
-  }else {
-    nodeloc.allocate(locdom) ;
-    storeRepP localVar=nodeloc.Rep();
-    File2LocalOrder(localVar, locdom,
-                    fo_numsplits.Rep(), offset,
-                    dist,
-                    MPI_COMM_WORLD);
-  }
+  nodeloc.allocate(locdom) ;
+  storeRepP localVar=nodeloc.Rep();
+  File2LocalOrder(localVar, locdom,
+                  fo_numsplits.Rep(), offset,
+                  dist,
+                  MPI_COMM_WORLD);
   return tnodes ;
 }
 
@@ -464,10 +437,7 @@ option(disable_threading), prelude {
 
   // Now determine what data we need to collect from filedata
   fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
-  entitySet my_entities ;
-  my_entities = ~EMPTY ;
-
-  if(dist != 0) my_entities = (dist->my_entities) ;
+  entitySet my_entities = dist->my_entities ;
 
   int start = *$num_original_nodes ; // skip the posTag part
 
@@ -621,17 +591,12 @@ option(disable_threading), prelude {
 
   // Now determine what data we need to collect from filedata
   fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
-  entitySet my_entities ;
-  my_entities = ~EMPTY ;
-
-  if(dist != 0) my_entities = (dist->my_entities) ;
+  entitySet my_entities = dist->my_entities ;
 
   Loci::constraint geom_cells ;
   geom_cells = (Loci::exec_current_fact_db)->get_variable("geom_cells") ;
 
   entitySet  local_cells ;
-
-  // don't know if it's necessray
   local_cells = (my_entities)&(*geom_cells) ;
 
   // Gather data maps for nodes created at edges, then cells, then faces
@@ -732,8 +697,7 @@ option(disable_threading), prelude {
 
   // Now determine what data we need to collect from filedata
   fact_db::distribute_infoP dist = (Loci::exec_current_fact_db)->get_distribute_info() ;
-  entitySet dom = entitySet(seq) ;
-  if(dist!=0)dom = dom & dist->my_entities ;
+  entitySet dom = entitySet(seq) & dist->my_entities ;
 
   int offset= getFileNumberOffset(dom,comm) ;
 

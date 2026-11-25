@@ -28,9 +28,6 @@
 // This separation is necessary to resolve some dependency
 // problems in the class hierarchy.
 // The same design applies to all other container classes.
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <DMap.h>

@@ -21,9 +21,6 @@
 #ifndef DISTRIBUTED_INVERSE_LONG_H
 #define DISTRIBUTED_INVERSE_LONG_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <typeinfo>

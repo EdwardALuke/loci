@@ -21,9 +21,6 @@
 #ifndef MAP_REP_H
 #define MAP_REP_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <store_rep.h>

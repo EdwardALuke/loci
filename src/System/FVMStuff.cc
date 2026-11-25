@@ -1573,12 +1573,10 @@ namespace Loci{
     storeRepP sp = tmp_pos.Rep() ;
     int tmp_out = out_of_dom.size() ;
     std::vector<entitySet> init_ptn ;
-    if(facts.is_distributed_start()) {
-      int pk = pos.Rep()->getDomainKeySpace() ;
-      init_ptn = facts.get_init_ptn(pk) ;
-      if(GLOBAL_OR(tmp_out)) {
-        fill_clone(sp, out_of_dom, init_ptn) ;
-      }
+    int pk = pos.Rep()->getDomainKeySpace() ;
+    init_ptn = facts.get_init_ptn(pk) ;
+    if(GLOBAL_OR(tmp_out)) {
+      fill_clone(sp, out_of_dom, init_ptn) ;
     }
 
     list<pair<periodic_info,periodic_info> >::const_iterator ii ;
@@ -1676,10 +1674,8 @@ namespace Loci{
       entitySet p1map = create_entitySet(p1closest.begin(),p1closest.end()) ;
       storeRepP sp = check.Rep() ;
       std::vector<entitySet> init_ptn ;
-      if(facts.is_distributed_start()) {
-        init_ptn = facts.get_init_ptn(fk) ;
-        fill_clone(sp, p1map, init_ptn) ;
-      }
+      init_ptn = facts.get_init_ptn(fk) ;
+      fill_clone(sp, p1map, init_ptn) ;
       bool periodic_problem = false ;
       for(size_t i=0;i<p1id.size();++i) {
         if(check[pmap[p1id[i]]] != p1id[i]) {
@@ -3395,17 +3391,11 @@ namespace Loci{
       node_fnum.allocate(ndom) ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
 
-      if(df != 0) {
-        dMap ng2f ;
-        ng2f = df->g2fv[nkeyspace].Rep() ;
-        FORALL(ndom,ii) {
-          node_fnum[ii] = ng2f[ii] ;
-        } ENDFORALL ;
-      } else {
-        FORALL(ndom,ii) {
-          node_fnum[ii] = ii ;
-        } ENDFORALL ;
-      }
+      dMap ng2f ;
+      ng2f = df->g2fv[nkeyspace].Rep() ;
+      FORALL(ndom,ii) {
+        node_fnum[ii] = ng2f[ii] ;
+      } ENDFORALL ;
     
       // gather nodal data needed for the computation.
       std::map<int,int> g2l ;
@@ -3682,11 +3672,9 @@ namespace Loci{
 
     // Update file numbering map
     fact_db::distribute_infoP df = facts.get_distribute_info() ;
-    if(df != 0) {
-      int cnt = 0 ;
-      for(auto ei=edges.begin();ei!=edges.end();++ei,++cnt) {
-        df->g2fv[ek][*ei] = edge_fileno[cnt] ; // Update global to file map
-      }
+    cnt = 0 ;
+    for(auto ei=edges.begin();ei!=edges.end();++ei,++cnt) {
+      df->g2fv[ek][*ei] = edge_fileno[cnt] ; // Update global to file map
     }
 
     // Add edge2node to fact database

@@ -20,9 +20,6 @@
 //#############################################################################
 #ifndef MPI_CONTAINERIO_H
 #define MPI_CONTAINERIO_H
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <dist_internal.h>
 #include <distribute_container.h>
 #include <distribute.h>
@@ -51,6 +48,9 @@ namespace Loci {
   extern std::vector<Loci::entitySet> simplePartition(int mn, int mx, MPI_Comm comm);
   extern  storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset,
                                     fact_db::distribute_infoP dist, MPI_Comm comm);
+
+  extern storeRepP Local2GlobalOrder(storeRepP sp, entitySet dom, int &offset,
+                                     fact_db::distribute_infoP dist, MPI_Comm comm) ;
   
 
   extern void File2LocalOrder(storeRepP &result, entitySet resultSet,
@@ -275,36 +275,23 @@ namespace Loci {
       entitySet dom = write_set ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       //just write out the entities belong to me
-      if(df != 0)
-        dom  = write_set & df->my_entities ;
+      dom  = write_set & df->my_entities ;
    
       //pack fileids and data
      
       std::vector<int> fileids(dom.size()) ;
       std::vector<T> data(dom.size()) ;
 
-      if(df == 0) {
-        int cnt = 0 ;  
-        FORALL(dom,ii) {
-          int file_no = ii ;
-          fileids[cnt] = file_no ;
-          data[cnt] = var[ii];
-          cnt++ ;
-        } ENDFORALL ;
+      dMap l2f ;
+      l2f = df->l2f.Rep() ;
 
-      } else {
-        dMap l2f ;
-        l2f = df->l2f.Rep() ;
-
-        int cnt = 0 ;
-        FORALL(dom,ii) {
-          int file_no = l2f[ii] ;
-          fileids[cnt] = file_no ;
-          data[cnt] = var[ii];
-          cnt++ ;
-        } ENDFORALL ;
-    
-      }
+      int cnt = 0 ;
+      FORALL(dom,ii) {
+        int file_no = l2f[ii] ;
+        fileids[cnt] = file_no ;
+        data[cnt] = var[ii];
+        cnt++ ;
+      } ENDFORALL ;
 
    
       //process 0 write out header
@@ -338,7 +325,7 @@ namespace Loci {
 #endif   
       int offset = 0 ;         
       Loci::fact_db::distribute_infoP dist = facts.get_distribute_info() ;
-      if(dist == 0 || np == 1 ) { //no need to reorder, write directly
+      if(np == 1) { //no need to reorder, write directly
         pmpi_write_ordered_store(filename, var, offset, facts, xfer_type);
         return;
       }
@@ -397,8 +384,7 @@ namespace Loci {
       entitySet dom = write_set ;
       fact_db::distribute_infoP df = facts.get_distribute_info() ;
       //just write out the entities belong to me
-      if(df != 0)
-        dom  = write_set & df->my_entities ;
+      dom  = write_set & df->my_entities ;
     
       int vec_size = var.vecSize();
 
@@ -406,28 +392,17 @@ namespace Loci {
       std::vector<int> fileids(dom.size()) ;
       std::vector<T> data(dom.size()*vec_size);
     
-      if(df == 0) {
-        int cnt = 0 ;
-        FORALL(dom,ii) {
-          int file_no = ii ;
-          fileids[cnt] = file_no ;
-          cnt++ ;
-        } ENDFORALL ;
+      dMap l2f ;
+      l2f = df->l2f.Rep() ;
 
-      } else {
-        dMap l2f ;
-        l2f = df->l2f.Rep() ;
-
-        int cnt = 0 ;
-        FORALL(dom,ii) {
-          int file_no = l2f[ii] ;
-          fileids[cnt] = file_no ;
-          cnt++ ;
-        } ENDFORALL ;
-      
-      }
+      int cnt = 0 ;
+      FORALL(dom,ii) {
+        int file_no = l2f[ii] ;
+        fileids[cnt] = file_no ;
+        cnt++ ;
+      } ENDFORALL ;
     
-      int cnt = 0;
+      cnt = 0;
       FORALL(dom,ii) {
         for(int i = 0; i < vec_size; i++)
           data[cnt++] = var[ii][i];  
@@ -467,7 +442,7 @@ namespace Loci {
 
       int offset = 0 ;         
       Loci::fact_db::distribute_infoP dist = facts.get_distribute_info() ;
-      if(dist == 0 || np == 1 ) { //no need to reorder, write directly
+      if(np == 1) { //no need to reorder, write directly
         pmpi_write_ordered_storeVec(filename, var, offset, facts, xfer_type);
         return;
       }
@@ -616,37 +591,23 @@ namespace Loci {
       Loci::storeRepP new_store = qvar.Rep();
       // map from file number to local numbering
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
-      if(dist != 0) {
-        // Correct offset if file numbering changes.  Assume read_set is being
-        // read in over the same set
-        int minID = offset ;
-        MPI_Bcast(&minID,1,MPI_INT,0,comm) ;
-        const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
-        const int correct = minIDf - minID ;
-        offset += correct  ;
+      // Correct offset if file numbering changes.  Assume read_set is being
+      // read in over the same set
+      int minID = offset ;
+      MPI_Bcast(&minID,1,MPI_INT,0,comm) ;
+      const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
+      const int correct = minIDf - minID ;
+      offset += correct  ;
 
-        // Allocate space for reordered container
-        Loci::storeRepP result = var.Rep()->new_store(read_set) ;
-        Loci::File2LocalOrder(result,read_set,new_store,offset,dist,comm) ;
-        // Copy results into container
-        if(read_set == EMPTY) {
-          read_set = result->domain() ;
-          var.allocate(read_set) ;
-        }
-        var.Rep()->copy(result,read_set) ;
-      } else {
-        if(read_set == EMPTY) {
-          read_set = new_store->domain() ;
-          var.allocate(read_set) ;
-        } else {
-          offset = read_set.Min() - new_store->domain().Min() ;
-          if(offset != 0) {
-            // shift new store by offset to correct alignment
-            new_store->shift(offset) ;
-          }
-        }
-        var.Rep()->copy(new_store,read_set) ;
+      // Allocate space for reordered container
+      Loci::storeRepP result = var.Rep()->new_store(read_set) ;
+      Loci::File2LocalOrder(result,read_set,new_store,offset,dist,comm) ;
+      // Copy results into container
+      if(read_set == EMPTY) {
+        read_set = result->domain() ;
+        var.allocate(read_set) ;
       }
+      var.Rep()->copy(result,read_set) ;
     }
 #else
     cerr << "MPI/IO is not supported with this compile of Loci!" << endl ;
@@ -780,39 +741,24 @@ namespace Loci {
       Loci::storeRepP new_store = qvar.Rep();
       // map from file number to local numbering
       fact_db::distribute_infoP dist = facts.get_distribute_info() ;
-      if(dist != 0) {
-        // Correct offset if file numbering changes.  Assume read_set is being
-        // read in over the same set
-        int minID = offset ;
-        MPI_Bcast(&minID,1,MPI_INT,0,comm) ;
-        const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
-        const int correct = minIDf - minID ;
-        offset += correct  ;
+      // Correct offset if file numbering changes.  Assume read_set is being
+      // read in over the same set
+      int minID = offset ;
+      MPI_Bcast(&minID,1,MPI_INT,0,comm) ;
+      const int minIDf = getMinFileNumberFromLocal(read_set,dist) ;
+      const int correct = minIDf - minID ;
+      offset += correct  ;
 
-        // Allocate space for reordered container
-        Loci::storeRepP result = var.Rep()->new_store(read_set) ;
-        Loci::File2LocalOrder(result,read_set,new_store,offset,dist,comm) ;
-        // Copy results into container
-        if(read_set == EMPTY) {
-          read_set = result->domain() ;
-          var.allocate(read_set) ;
-          var.setVecSize(vec_size);
-        }
-        var.Rep()->copy(result,read_set) ;
-      } else {
-        if(read_set == EMPTY) {
-          read_set = new_store->domain() ;
-          var.allocate(read_set) ;
-          var.setVecSize(vec_size);
-        } else {
-          offset = read_set.Min() - new_store->domain().Min() ;
-          if(offset != 0) {
-            // shift new store by offset to correct alignment
-            new_store->shift(offset) ;
-          }
-        }
-        var.Rep()->copy(new_store,read_set) ;
+      // Allocate space for reordered container
+      Loci::storeRepP result = var.Rep()->new_store(read_set) ;
+      Loci::File2LocalOrder(result,read_set,new_store,offset,dist,comm) ;
+      // Copy results into container
+      if(read_set == EMPTY) {
+        read_set = result->domain() ;
+        var.allocate(read_set) ;
+        var.setVecSize(vec_size);
       }
+      var.Rep()->copy(result,read_set) ;
     }
 #else
     cerr << "MPI/IO is not supported with this compile of Loci!" << endl ;

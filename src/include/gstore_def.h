@@ -27,9 +27,6 @@
 // gstore_impl.h
 // The same design applies to all other container classes.
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 #include <data_traits.h>
 #include <sstream>

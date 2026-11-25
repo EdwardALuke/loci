@@ -21,9 +21,6 @@
 #ifndef DMAP_H_
 #define DMAP_H_
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <istream>
@@ -47,9 +44,6 @@ namespace Loci {
     dMapRepI() { }
     dMapRepI(const entitySet &p) { allocate(p) ; }
     virtual void allocate(const entitySet &ptn) ;
-    virtual void erase(const entitySet& rm) ;
-    virtual void invalidate(const entitySet& valid) ;
-    virtual void guarantee_domain(const entitySet& include) ;
     virtual ~dMapRepI() ;
     virtual storeRep *new_store(const entitySet &p) const ;
     virtual storeRep *new_store(const entitySet &p, const int* cnt) const ;
@@ -97,6 +91,7 @@ namespace Loci {
     virtual block_hash<int> *get_attrib_data() { return &attrib_data; }
     virtual DatatypeP getType() ;
     virtual frame_info get_frame_info() ;
+    void erase(const entitySet &rm) ;
   } ;
       
   class dMap : public store_instance {
@@ -124,8 +119,8 @@ namespace Loci {
 
     // this method does erases the domain of the Map that are
     // inside the passed in parameter
-    void erase(const entitySet& rm) { Rep()->erase(rm) ; }
-
+    void erase(const entitySet& rm) { dynamic_cast<MapType *>(&(*Rep()))->erase(rm) ; }
+    
     entitySet domain() const { return Rep()->domain() ; }
 
     operator MapRepP() {

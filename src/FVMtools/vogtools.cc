@@ -374,6 +374,107 @@ namespace VOG {
     return ptn ;
   }
 
+    std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn) {
+    int *recv_count = new int[ MPI_processes] ;
+    int *send_count = new int[ MPI_processes] ;
+    int *send_displacement = new int[ MPI_processes] ;
+    int *recv_displacement = new int[ MPI_processes] ;
+    entitySet::const_iterator ei ;
+    std::vector<int>::const_iterator vi ;
+    int size_send = 0 ;
+    std::vector<std::vector<int> > copy( MPI_processes), send_clone( MPI_processes) ;
+    for(int i = 0; i <  MPI_processes; ++i) {
+      entitySet tmp = out_of_dom & init_ptn[i] ;
+      for(ei = tmp.begin(); ei != tmp.end(); ++ei)
+	send_clone[i].push_back(*ei) ;
+      sort(send_clone[i].begin(), send_clone[i].end()) ;
+      send_count[i] = send_clone[i].size() ;
+      size_send += send_count[i] ; 
+    }
+    int *send_buf = new int[size_send] ;
+    MPI_Alltoall(send_count, 1, MPI_INT, recv_count, 1, MPI_INT,
+		 MPI_COMM_WORLD) ; 
+    size_send = 0 ;
+    for(int i = 0; i <  MPI_processes; ++i)
+      size_send += recv_count[i] ;
+    
+    int *recv_buf = new int[size_send] ;
+    size_send = 0 ;
+    for(int i = 0; i <  MPI_processes; ++i)
+      for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) {
+	send_buf[size_send] = *vi ;
+	++size_send ;
+      }
+    send_displacement[0] = 0 ;
+    recv_displacement[0] = 0 ;
+    for(int i = 1; i <  MPI_processes; ++i) {
+      send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
+      recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
+    }
+    MPI_Alltoallv(send_buf,send_count, send_displacement , MPI_INT,
+		  recv_buf, recv_count, recv_displacement, MPI_INT,
+		  MPI_COMM_WORLD) ;  
+    for(int i = 0; i <  MPI_processes; ++i) {
+      for(int j = recv_displacement[i]; j <
+	    recv_displacement[i]+recv_count[i]; ++j) 
+	copy[i].push_back(recv_buf[j]) ;
+      sort(copy[i].begin(), copy[i].end()) ;
+    }
+    std::vector< sequence> recv_dom( MPI_processes) ;
+    for(int i = 0; i <  MPI_processes; ++i) 
+      for(vi = copy[i].begin(); vi != copy[i].end(); ++vi) 
+	recv_dom[i] += *vi ;
+    std::vector<entitySet> send_dom( MPI_processes) ;
+    for(int i = 0; i <  MPI_processes; ++i) 
+      for(vi = send_clone[i].begin(); vi != send_clone[i].end(); ++vi) 
+	send_dom[i] += *vi ;
+    
+    size_send = 0 ;
+    for(int i = 0; i <  MPI_processes; ++i) {
+      send_count[i] =  sp->pack_size(send_dom[i]) ;
+      size_send += send_count[i] ;
+    } 
+    unsigned char *send_store = new unsigned char[size_send] ;
+    int size_recv = 0 ;
+    entitySet total_dom ;
+    std::vector<entitySet> e_vec( MPI_processes) ;
+    std::vector< storeRepP> tmp_sp( MPI_processes) ;  
+    for(int i = 0; i <  MPI_processes; ++i) {
+      e_vec[i] = entitySet(recv_dom[i]) ;
+      tmp_sp[i] = sp->new_store(e_vec[i]) ;
+      recv_count[i] =  tmp_sp[i]->pack_size(e_vec[i]) ;
+      size_recv += recv_count[i] ;
+      total_dom += e_vec[i] ;
+    } 
+    unsigned char *recv_store = new unsigned char[size_recv] ;
+    send_displacement[0] = 0 ;
+    recv_displacement[0] = 0 ;
+    for(int i = 1; i <  MPI_processes; ++i) {
+      send_displacement[i] = send_displacement[i-1] + send_count[i-1] ;
+      recv_displacement[i] = recv_displacement[i-1] + recv_count[i-1] ;
+    }
+    int loc_pack = 0 ;
+    for(int i = 0; i <  MPI_processes; ++i) {
+      sp->pack(send_store, loc_pack, size_send, send_dom[i]) ;
+    }
+    MPI_Alltoallv(send_store,send_count, send_displacement , MPI_PACKED,
+		  recv_store, recv_count, recv_displacement, MPI_PACKED,
+		  MPI_COMM_WORLD) ;  
+    
+    loc_pack = 0 ;
+    for(int i = 0; i <  MPI_processes; ++i) 
+      tmp_sp[i]->unpack(recv_store, loc_pack, size_recv, recv_dom[i]) ; 
+    delete [] send_buf ;
+    delete [] recv_buf ;
+    delete [] send_store ;
+    delete [] recv_store ;
+    delete [] recv_count ;
+    delete [] send_count ;
+    delete [] send_displacement ;
+    delete [] recv_displacement ;
+    return tmp_sp ;
+  }
+
   // Establish geometrically consistent face orientation
   void orientFaces(store<vector3d<double> > &pos,
                    Map &cl, Map &cr, multiMap &face2node) {
@@ -459,8 +560,8 @@ namespace VOG {
     Loci::storeRepP cp_sp = cpos.Rep() ;
     Loci::storeRepP cn_sp = cnum.Rep() ;
     entitySet clone_cells = tmp_cells - (cells&init_ptn[MPI_rank]) ;
-    std::vector<Loci::storeRepP> v_cpos = Loci::send_global_clone_non(cp_sp, clone_cells, init_ptn) ;
-    std::vector<Loci::storeRepP> v_cnum = Loci::send_global_clone_non(cn_sp, clone_cells, init_ptn) ;
+    std::vector<Loci::storeRepP> v_cpos = send_global_clone_non(cp_sp, clone_cells, init_ptn) ;
+    std::vector<Loci::storeRepP> v_cnum = send_global_clone_non(cn_sp, clone_cells, init_ptn) ;
     for(int i = 0; i < Loci::MPI_processes; ++i) {
       entitySet dom = v_cpos[i]->domain() & cpos.domain() ;
       dstore<vector3d<double> > tmp_cpos(v_cpos[i]) ;
@@ -1259,7 +1360,7 @@ namespace VOG {
     entitySet clone_nodes = node_access - pos.domain() ;
     Loci::storeRepP nk_sp = node_key.Rep() ;
     std::vector<Loci::storeRepP> v_nk =
-      Loci::send_global_clone_non(nk_sp,clone_nodes,nptn) ;
+      send_global_clone_non(nk_sp,clone_nodes,nptn) ;
     for(int i=0;i<MPI_processes;++i) {
       entitySet dom = v_nk[i]->domain() & pos.domain() ;
       dstore<int> tmp_nk(v_nk[i]) ;

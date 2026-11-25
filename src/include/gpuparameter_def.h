@@ -21,9 +21,6 @@
 #ifndef GPUPARAMETER_DEF_H
 #define GPUPARAMETER_DEF_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <istream>
@@ -88,15 +85,6 @@ namespace Loci {
       allocate(store_domain) ;
     }
     virtual void allocate(const entitySet &p)  ;
-    virtual void erase(const entitySet& rm) ;
-    virtual void guarantee_domain(const entitySet& include) ;
-    //    virtual gStoreRepP copy2gstore()const;
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) ;
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
     virtual void shift(int_type offset) ;
     virtual ~gpuparamRepI() ;
     virtual store_type RepType() const ;
@@ -107,7 +95,6 @@ namespace Loci {
     virtual storeRepP freeze() ;
     virtual storeRepP thaw() ;
     virtual void copy(storeRepP &st, const entitySet &context) ;
-    virtual void fast_copy(storeRepP& st, const entitySet& context);
     virtual void gather(const dMap &m, storeRepP &st,
                         const entitySet &context)  ;
     virtual void scatter(const dMap &m, storeRepP &st,

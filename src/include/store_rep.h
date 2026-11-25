@@ -21,9 +21,6 @@
 #ifndef STORE_REP_H
 #define STORE_REP_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 // Alignment for store allocation (0x40 makes allocations aligned with 1024
@@ -40,9 +37,9 @@
 #include <cstring>
 
 #include <data_traits.h>
-
 #include <mpi.h>
 #include <vector>
+#include <partition.h>
 
 namespace Loci {
 
@@ -309,39 +306,33 @@ namespace Loci {
       return *this ;
     }
   } ;
+
+  // temporary feature flag
+#define LOCI_USING_SET_PARTITION
+
+  class  entityPartitionInfo ;
+  class  filePartitionInfo ;
+  class  globalPartitionInfo ;
+
+  /// A convenience pointer to the data partitioner interface
+  typedef std::shared_ptr<entityPartitionInfo> entityPartitionInfoP ;
+  /// A convenience pointer to the file partition info interface
+  typedef std::shared_ptr<filePartitionInfo> filePartitionInfoP ;
+  /// A convenience pointer to the global partition info interface
+  typedef std::shared_ptr<globalPartitionInfo> globalPartitionInfoP ;
+  
   class storeRep : public NPTR_type {
     int domainKeySpace ;
   protected:
     int alloc_id ;
+    entityPartitionInfoP ptn ;
+    filePartitionInfoP file_ptn ;
+    globalPartitionInfoP global_ptn ;
   public:
-    storeRep() { domainKeySpace = 0 ; alloc_id = -1 ; }
+    storeRep():domainKeySpace(0),alloc_id(-1),ptn(0),file_ptn(0),global_ptn(0) {}
     virtual ~storeRep() ;
     virtual int get_alloc_id() const { return alloc_id ; }
     virtual void allocate(const entitySet &p) = 0 ;
-    // erase part of the domain, useful for dynamic containers,
-    // default behavior is doing nothing.
-    virtual void erase(const entitySet& rm) {
-      std::cerr << "storeRep.erase() is not implemented yet" << std::endl ;
-      abort() ;
-    }
-    // this method is used to invalidate part of the store contents
-    // the passed-in domain is the valid parts of the store, everything
-    // else inside is not valid any more
-    virtual void invalidate(const entitySet& valid) {
-      std::cerr << "storeRep.invalidate() is not implemented yet"
-                << std::endl ;
-      abort() ;
-    }
-    // this method is used to make sure that the storeRep
-    // domain include the specified set, if not, reallocation
-    // will be performed to make sure that. dynamic containers
-    // actually don't need to do anything, so this is mainly
-    // for static containers.
-    virtual void guarantee_domain(const entitySet& include) {
-      std::cerr << "storeRep.guarantee_domain() is not implemented yet"
-                << std::endl ;
-      abort() ;
-    }
     virtual void shift(int_type offset) = 0 ;
     virtual void set_elem_size(int sz) ;
     virtual void setIsMat(bool im){};//for storeVecRep 
@@ -350,31 +341,6 @@ namespace Loci {
     // the remap method merely renumbers the container
     // according to the passed in map
     virtual storeRepP remap(const dMap &m) const = 0 ;
-    // virtual storeRepP remap(const Map& m) const = 0 ;
-    // the redistribute takes a vector of entitySets as domain
-    // distribution over a group of processes and
-    // redistributes the stores according to the domain partition
-    // NOTE: should be pure virtual (= 0), but here we default it
-    // to do nothing just to be able to compile the code, all
-    // containers will need to implement this method later.
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) {
-      std::cerr << "storeRep.redistribute() is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0) ;
-    }
-    // this redistribute version takes an additional remap
-    // argument, upon redistribution, the new store is remapped
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) {
-      std::cerr << "storeRep.redistribute() is not implemented yet"
-                << std::endl ;
-      abort() ;
-      return storeRepP(0);
-    }
     // the freeze method converts a dynamic container to
     // a static one. For already static container,
     // its Rep() is returned    
@@ -384,8 +350,6 @@ namespace Loci {
     // its Rep() is returned ;
     virtual storeRepP thaw() = 0 ;
     virtual void copy(storeRepP &st, const entitySet &context) = 0 ;
-    virtual void fast_copy(storeRepP& st, const entitySet& context)
-    { copy(st,context); }       // default behavior
     virtual void gather(const dMap &m, storeRepP &st,
                         const entitySet &context) = 0 ;
     virtual void scatter(const dMap &m, storeRepP &st,
@@ -415,6 +379,12 @@ namespace Loci {
     virtual frame_info get_frame_info() = 0 ;
     virtual int getDomainKeySpace() const { return domainKeySpace ; }
     virtual void setDomainKeySpace(int v) { domainKeySpace = v ; }
+    virtual void setPartitionInfo(entityPartitionInfoP p) { ptn = p ; }
+    virtual entityPartitionInfoP getPartitionInfo() const { return ptn; }
+    virtual void setFilePartitionInfo(filePartitionInfoP p) { file_ptn = p ; }
+    virtual filePartitionInfoP getFilePartitionInfo() const { return file_ptn; }
+    virtual void setGlobalPartitionInfo(globalPartitionInfoP p) { global_ptn = p ; }
+    virtual globalPartitionInfoP getGlobalPartitionInfo() const { return global_ptn; }
   } ;
 
 
@@ -426,7 +396,10 @@ namespace Loci {
     void setDomainKeySpace(int v) { rep->setDomainKeySpace(v) ; }
     enum instance_type { READ_WRITE, READ_ONLY } ;
     void setRep(const storeRepP &p)
-      { rep = p ; rep.set_notify(this); notification() ; }
+    { rep = p ; rep->setPartitionInfo(p->getPartitionInfo()) ;
+      rep->setFilePartitionInfo(p->getFilePartitionInfo()) ;
+      rep->setGlobalPartitionInfo(p->getGlobalPartitionInfo()) ;
+      rep.set_notify(this); notification() ; }
     storeRepP Rep() { return rep->getRep(); }
     storeRepP Rep() const { return rep->getRep(); }
     storeRepP getRep() {return rep->getRep() ;}
@@ -459,7 +432,6 @@ namespace Loci {
     virtual storeRepP freeze() ;
     virtual storeRepP thaw() ;
     virtual void copy(storeRepP &st, const entitySet &context) ;
-    virtual void fast_copy(storeRepP& st, const entitySet& context);
     virtual void gather(const dMap &m, storeRepP &st,
                         const entitySet &context) ;
     virtual void scatter(const dMap &m, storeRepP &st,
@@ -497,17 +469,26 @@ namespace Loci {
     virtual frame_info get_frame_info() {
       return Rep()->get_frame_info() ;
     }
-    virtual void erase(const entitySet& rm) ;
-    virtual void invalidate(const entitySet& valid) ;
-    virtual void guarantee_domain(const entitySet& include) ;
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 MPI_Comm comm=MPI_COMM_WORLD) ;
-    virtual storeRepP
-    redistribute(const std::vector<entitySet>& dom_ptn,
-                 const dMap& remap, MPI_Comm comm=MPI_COMM_WORLD) ;
     virtual int getDomainKeySpace() const { return Rep()->getDomainKeySpace() ; }
     virtual void setDomainKeySpace(int v) { Rep()->setDomainKeySpace(v) ; }
+    virtual void setPartitionInfo(entityPartitionInfoP p) {
+      ptn = p ; Rep()->setPartitionInfo(p) ;
+    }
+    virtual entityPartitionInfoP getPartitionInfo() const {
+      return Rep()->getPartitionInfo();
+    }
+    virtual void setFilePartitionInfo(filePartitionInfoP p) {
+      file_ptn = p ; Rep()->setFilePartitionInfo(p) ;
+    }
+    virtual filePartitionInfoP getFilePartitionInfo() const {
+      return Rep()->getFilePartitionInfo();
+    }
+    virtual void setGlobalPartitionInfo(globalPartitionInfoP p) {
+      global_ptn = p ; Rep()->setGlobalPartitionInfo(p) ;
+    }
+    virtual globalPartitionInfoP getGlobalPartitionInfo() const {
+      return Rep()->getGlobalPartitionInfo();
+    }
     
   } ;
   typedef NPTR<store_ref> store_refP ;
@@ -551,13 +532,6 @@ namespace Loci {
     virtual ~abstractStoreRepI() { }
     int get_alloc_id() const override ;
     void allocate(const entitySet &p) override ;
-    void erase(const entitySet &rm) override ;
-    void invalidate(const entitySet& valid) override ;
-    void guarantee_domain(const entitySet &include) override ;
-    storeRepP redistribute(const std::vector<entitySet> &dom_ptn,
-      MPI_Comm comm=MPI_COMM_WORLD) override ;
-    storeRepP redistribute(const std::vector<entitySet> &dom_ptn,
-      const dMap &remap, MPI_Comm comm=MPI_COMM_WORLD) override ;
     store_type RepType() const override ;
     entitySet domain() const override ;
     void shift(int_type offset) override ;
@@ -569,7 +543,6 @@ namespace Loci {
     storeRepP freeze() override ;
     storeRepP thaw() override ;
     void copy(storeRepP &st, const entitySet &context) override ;
-    void fast_copy(storeRepP &st, const entitySet &context) override ;
     void gather(const dMap &m, storeRepP &st, const entitySet &context) override ;
     void scatter(const dMap &m, storeRepP &st, const entitySet &context) override ;
     int pack_size(const entitySet &e, entitySet &packed) override ;

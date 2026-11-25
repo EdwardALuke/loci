@@ -21,9 +21,6 @@
 #ifndef DIST_INTERNAL_H
 #define DIST_INTERNAL_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <hdf5_readwrite.h>

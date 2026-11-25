@@ -31,16 +31,10 @@ $type X Constraint ;
 
 $rule pointwise(fileNumber(X)), constraint(X), option(disable_threading), prelude {
   fact_db::distribute_infoP df = Loci::exec_current_fact_db->get_distribute_info() ;
-  if(df == 0) {
-    for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si) {
-      $fileNumber(X)[*si] = *si ;
-    }
-  }else {
-    Map l2f ;
-    l2f = df->l2f.Rep() ;
-    for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si){
-      $fileNumber(X)[*si] = l2f[*si] ;
-    }
+  Map l2f ;
+  l2f = df->l2f.Rep() ;
+  for(sequence::const_iterator si=seq.begin(); si!= seq.end(); ++si){
+    $fileNumber(X)[*si] = l2f[*si] ;
   }
 } ;
 

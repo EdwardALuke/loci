@@ -21,9 +21,6 @@
 #ifndef DISTRIBUTE_H
 #define DISTRIBUTE_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <typeinfo>
@@ -39,6 +36,7 @@
 
 #include <Map.h>
 #include <DMap.h>
+#include <partition.h>
 #include <store_rep.h>
 #include <store_def.h>
 #include <storeVec_def.h>
@@ -53,122 +51,6 @@ namespace Loci {
   void Abort() ;
   size_t MPI_process_mem_avail() ;
   
-
-
-  /// Abstract base class to define data partioner interface
-  class dataPartition {
-  public:
-    /// MPI Communicator that the data is partitioned over
-    MPI_Comm comm ;
-    /// Constructor to initialize communicator
-    dataPartition(const MPI_Comm &icomm) : comm(icomm) {}
-    /// virtual distructor
-    virtual ~dataPartition() {} ;
-
-    /// Method that will partition an entity set to the owning processor.
-    /// Returns a list of pairs of processor number and set that is owned
-    /// by that processor
-    virtual std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) = 0 ;
-    /// Return set that is owned by processor i
-    virtual entitySet getAllocation(int i) = 0 ;
-  } ;
-
-  /// The most general partition where the assignment of sets to processors is
-  /// just an array of sets.  This will require p intersections to peerform
-  /// the partitionEntitySet operation
-  class dataPartitionGeneral: public dataPartition {
-    /// Partition set array of size p
-    std::vector<entitySet> ptn ;
-  public:
-    dataPartitionGeneral(const std::vector<entitySet> &iptn, const MPI_Comm &icomm):
-    dataPartition(icomm), ptn(iptn) {
-#ifdef DEBUG
-      int p = 1 ;
-      MPI_Comm_size(comm,&p) ;
-      fatal(int(ptn.size()) != p) ;
-      Loci::debugout << "ptn = " << endl ;
-      for(int i=0;i<p;++i)
-        Loci::debugout << i << " - " << ptn[i] << endl ;
-#endif
-    }
-    std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) ;
-    entitySet getAllocation(int i) ;
-  } ;
-
-
-  /// A partition that is provided by a set of split values.  It is assumed
-  /// that the entities are assigned to processors by splitting a continuous
-  /// interval at (p-1) split locations.  The constructor takes an array of
-  /// p values which are the initial value that is owned by that processor
-  class dataPartitionSplits: public dataPartition {
-    std::vector<int> splits ;
-  public:
-    dataPartitionSplits(const std::vector<int> &isplits,const MPI_Comm &icomm):
-    dataPartition(icomm),splits(isplits) {
-      int p = 1 ;
-      MPI_Comm_size(comm,&p) ;
-      fatal(splits.size() != size_t(p)) ;
-      splits[0] = std::numeric_limits<int>::lowest()+1 ;
-      splits.push_back(std::numeric_limits<int>::max()-1) ;
-#ifdef DEBUG
-      Loci::debugout << "splits=" ;
-      for(int i=0;i<=p;++i)
-        Loci::debugout << " " << splits[i] ;
-      Loci::debugout << endl ;
-#endif
-    }
-    std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) ;
-    entitySet getAllocation(int i) ;
-  } ;
-
-
-  /// The most efficient partition which assumes that ownership is assigned to
-  /// processors with splits that are all equally spaced.  This allows for
-  /// the intersection to be computed algorithmically. 
-  class dataPartitionComputed: public dataPartition {
-    int start, delta ;
-  public:
-    dataPartitionComputed(int istart,int idelta,const MPI_Comm &icomm) :
-    dataPartition(icomm),start(istart),delta(idelta) {
-#ifdef DEBUG
-      Loci::debugout << "start=" << start << ", delta=" << delta << endl ;
-#endif
-    }
-    std::vector<std::pair<int,entitySet> > partitionEntitySet(entitySet set) ;
-    entitySet getAllocation(int i) ;
-  } ;    
-
-
-
-  /// A convenience pointer to the data partitioner interface
-  typedef std::shared_ptr<dataPartition> dataPartitionP ;
-
-  /// Factory functions for creating the general partition object, the
-  /// input is a vector of non-overlapping entitySets for each processor
-  /// where it is assumed that ptn[i] contains all entities owned by
-  /// processor i.
-  inline dataPartitionP createPartition(const std::vector<entitySet>  &ptn,
-                                        const MPI_Comm &comm) {
-    return std::make_shared<dataPartitionGeneral>(ptn,comm) ;
-  }
-
-  /// Factory function for creating the splitter based partition object, where
-  /// the input is a vector of p values.  The splits[i] contains the first
-  /// value that is owned by processor i and ownership of entities is
-  /// described by the interval [splits[i],splits[i+1])
-  inline dataPartitionP createPartition(const std::vector<int>  &splits,
-                                        const MPI_Comm &comm) {
-    return std::make_shared<dataPartitionSplits>(splits,comm) ;
-  }
-
-  /// Factory function for creating an algorithmic partition which is described
-  /// by the starting number of the entity set and a delta which is the number
-  /// of entities assigned to each processor.  This is the most constrained
-  /// partition, but also the most efficent for partitioning a general set.
-  inline dataPartitionP createPartition(int start, int delta, 
-                                        const MPI_Comm &comm) {
-    return std::make_shared<dataPartitionComputed>(start,delta,comm) ;
-  }
 
 
   /// Communication Schedule Generator for gathering data for a set of
@@ -571,13 +453,28 @@ namespace Loci {
   } ;
 
 
-  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+  // send_map and send_global_map 
+  inline  dMap send_map(Map &dm, entitySet &out_of_dom, std::vector<entitySet> &init_ptn)  {
+    cerr << "send_map is deprecated" << endl ;
+    Loci::Abort() ;
+    dMap m ;
+    return m ;
+  }
 
-  std::vector<dMap> send_global_map(Map &attrib_data, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
+  inline  std::vector<dMap> send_global_map(Map &attrib_data, entitySet &out_of_dom, std::vector<entitySet> &init_ptn)  {
+    cerr << "send_global_map is deprecated" << endl ;
+    Loci::Abort() ;
+    std::vector<dMap> m ;
+    return m ;
+  }
+  inline storeRepP send_clone_non(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) {
+    cerr << "send_clone_non is deprecated" << endl ;
+    Loci::Abort() ;
+    return 0 ;
+  }
+  
   void fill_clone(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
   
-  storeRepP send_clone_non(storeRepP& sp, entitySet &out_of_dom, std::vector<entitySet> &init_ptn) ;
-  std::vector<storeRepP> send_global_clone_non(storeRepP &sp , entitySet &out_of_dom,  std::vector<entitySet> &init_ptn) ;
   
   std::vector<std::pair<int, entitySet> >
   transpose_entitySet(const std::vector<std::pair<int,entitySet> > &in,
@@ -676,11 +573,219 @@ namespace Loci {
                              const std::string& suffix="");
 
 
+  /// This class describes the distribution of a container that exists in
+  /// file numbering, before a partitioning has been established and before
+  /// global numbering exists.  Containers in this state belong to a single
+  /// keyspace.  The file partition describes how file numbers are distributed
+  /// across processors.
+  class filePartitionInfo {
+    /// Entities owned by this processor in file numbering
+    entitySet my_entities ;
+    /// Partition describing how file numbering is distributed
+    dataPartitionP filePartition ;
+    /// Key space this partition describes
+    int keyspace ;
+    /// MPI communicator
+    MPI_Comm comm ;
+  public:
+    filePartitionInfo(entitySet my_file_entities,
+                      dataPartitionP filePtn,
+                      int keyspace_in,
+                      MPI_Comm comm_in) ;
+
+    /// Return entities this processor owns in file numbering
+    entitySet myEntities() const { return my_entities ; }
+    /// Return the MPI communicator
+    MPI_Comm getCommunicator() const { return comm ; }
+    /// Return the key space this partition describes
+    int getKeySpace() const { return keyspace ; }
+    /// Return the file numbering partition
+    dataPartitionP getPartition() const { return filePartition ; }
+
+    /// Redistribute container from its current file-numbering distribution
+    /// to a new distribution described by the target partition.
+    /// This is a collective operation on the stored MPI communicator.
+    ///
+    /// @param[in] sp store representation for the input container
+    /// @param[in] dom file numbering of domain to redistribute
+    /// @param[in] target_ptn partition describing the desired distribution
+    storeRepP redistribute(storeRepP sp, entitySet dom,
+                           dataPartitionP target_ptn) ;
+  } ;
+
+
+  /// This class describes the distribution of a container that exists in
+  /// global numbering, before local numbering has been created (i.e. before
+  /// category analysis).  Containers in this state belong to a single
+  /// keyspace.  The global-to-file map allows conversion between global
+  /// and file numbering.  Contains a filePartitionInfo describing the
+  /// underlying file numbering distribution for this keyspace.
+  class globalPartitionInfo {
+    /// Entities owned by this processor in global numbering
+    entitySet my_entities ;
+    /// Global-to-file numbering map for this keyspace
+    dMap g2f ;
+    /// Partition describing how global numbering is distributed
+    dataPartitionP globalPartition ;
+    /// Contained file partition info for this keyspace
+    filePartitionInfoP file_info ;
+    /// Key space this partition describes
+    int keyspace ;
+    /// MPI communicator
+    MPI_Comm comm ;
+  public:
+    globalPartitionInfo(entitySet my_global_entities,
+                        dMap &g2f_in,
+                        dataPartitionP globalPtn,
+                        filePartitionInfoP file_info_in,
+                        int keyspace_in,
+                        MPI_Comm comm_in) ;
+
+    /// Return entities this processor owns in global numbering
+    entitySet myEntities() const { return my_entities ; }
+    /// Return the MPI communicator
+    MPI_Comm getCommunicator() const { return comm ; }
+    /// Return the key space this partition describes
+    int getKeySpace() const { return keyspace ; }
+    /// Return the global numbering partition
+    dataPartitionP getPartition() const { return globalPartition ; }
+    /// Return the global-to-file map
+    storeRepP getGlobal2FileMap() const { return g2f.Rep() ; }
+    /// Return the contained file partition info
+    filePartitionInfoP getFilePartitionInfo() const { return file_info ; }
+
+    /// Convert container from global numbering to file numbering.
+    /// This is a collective operation on the stored MPI communicator.
+    ///
+    /// @param[in] sp store representation for the input container
+    /// @param[in] dom global numbering of domain to convert
+    /// @param[out] offset offset in file numbering (each processor will
+    ///   allocate from zero, add offset to domain to get actual file numbering)
+    storeRepP Global2FileOrder(storeRepP sp, entitySet dom, int &offset) ;
+
+    /// Convert container from file numbering to global numbering.
+    /// This is a collective operation on the stored MPI communicator.
+    ///
+    /// @param[out] result resulting container in global numbering
+    /// @param[in] resultSet set in global numbering that will be populated
+    /// @param[in] input input container in file numbering
+    /// @param[in] offset add this to input domain to obtain true file
+    ///   numbering
+    void File2GlobalOrder(storeRepP &result, entitySet resultSet,
+                          storeRepP input, int offset) ;
+  } ;
+
+
+  /// This class is used to describe how entities are partitioned and
+  /// distributed to processors.  It is assumed that the data will be
+  /// stored in a local numbering, and a mapping from the local numbering
+  /// to the global numbering is provided.  The file numbering is accessed
+  /// through the contained globalPartitionInfo for each keyspace.
+  /// Note that containers in local numbering may span multiple keyspaces.
+  class  entityPartitionInfo {
+    entityPartitionInfo() {}
+    /// Entities owned by this processor in local numbering
+    entitySet my_entities ;
+    /// Map from local to global numbering
+    Map l2g ;
+    /// Key space for each local entity
+    store<unsigned char> key_domain ;
+    /// Map from local to file numbering
+    Map l2f ;
+    /// Distribution info for each key space (contains global and file info)
+    std::vector<globalPartitionInfoP> keyspaceInfo ;
+    /// MPI communicator for distribution
+    MPI_Comm comm ;
+  public:
+    /// Construct from contained globalPartitionInfo objects per keyspace
+    entityPartitionInfo(entitySet &scope,
+                        Map &l2g_in,
+                        store<unsigned char> &key_domain_in,
+                        Map &l2f_in,
+                        std::vector<globalPartitionInfoP> &keyspace_info_in,
+                        MPI_Comm comm_in) ;
+
+    /// Backward-compatible constructor: builds contained objects from raw
+    /// maps and partitions.
+    entityPartitionInfo(entitySet &scope,
+                        Map &l2g_in,
+                        store<unsigned char> &key_domain_in,
+                        Map &l2f_in,
+                        std::vector<dataPartitionP> &ptnlist,
+                        MPI_Comm comm_in) ;
+
+    /// return entities this processor owns in local numbering
+    entitySet myEntities() const { return my_entities ; }
+    /// return the MPI communicator that this distribution is over
+    MPI_Comm getCommunicator() const { return comm ; }
+    /// return map from local numbering to global numbering
+    storeRepP getLocal2GlobalMap() const { return l2g.Rep() ; }
+    /// return map from local numbering to file numbering
+    storeRepP getLocal2FileMap() const { return l2f.Rep() ; }
+    /// return the key domain for the input set in local numbering
+    ///
+    /// @param[in] dom The input set in local numbering
+    int getKeyDomain(entitySet dom) const ;
+
+    /// return the globalPartitionInfo for a given key space
+    ///
+    /// @param[in] kd the key space index
+    globalPartitionInfoP getKeySpaceInfo(int kd) const {
+      return keyspaceInfo[kd] ;
+    }
+
+    /// return the partition for a given key space in global numbering
+    ///
+    /// @param[in] kd the key space index
+    dataPartitionP getKeySpacePartition(int kd) const {
+      return keyspaceInfo[kd]->getPartition() ;
+    }
+
+    /// Convert container from local numbering to file numbering, return
+    /// converted container.  Note, this is a collective operation on the
+    /// stored MPI communicator
+    ///
+    /// @param[in] sp, store representation for the input store container
+    /// @param[in] dom, local numbering of domain to convert to file numbering
+    /// @param[out] offset, offset in file numbering (each processor will
+    /// allocate from zero, add offset to domain to get actual file numbering)
+    storeRepP Local2FileOrder(storeRepP sp, entitySet dom, int &offset) ;
+
+    /// Convert container from file numbering to local numbering
+    ///
+    /// @param[out] result, resulting container in local numbering
+    /// @param[in] resultSet, set in local numbering that will be converted
+    /// @param[in] input, input container in file numbering
+    /// @param[in] offset, add this to input domain to obtain true file
+    /// numbering
+    void File2LocalOrder(storeRepP &result,entitySet resultSet,
+                         storeRepP input, int offset) ;
+
+    /// Convert container from local numbering to global numbering, return
+    /// converted container.  Note, this is a collective operation on the
+    /// stored MPI communicator.  Domain must be in a single keyspace.
+    ///
+    /// @param[in] sp, store representation for the input store container
+    /// @param[in] dom, local numbering of domain to convert to global numbering
+    /// @param[out] offset, offset in global numbering (each processor will
+    /// allocate from zero, add offset to domain to get actual global numbering)
+    storeRepP Local2GlobalOrder(storeRepP sp, entitySet dom, int &offset) ;
+
+    /// Convert container from global numbering to local numbering
+    ///
+    /// @param[out] result, resulting container in local numbering
+    /// @param[in] resultSet, set in local numbering that will be populated
+    /// @param[in] input, input container in global numbering
+    /// @param[in] offset, add this to input domain to obtain true global
+    /// numbering
+    void Global2LocalOrder(storeRepP &result, entitySet resultSet,
+                           storeRepP input, int offset) ;
+  } ;
+  
+
+  storeRepP redistribute_container(storeRepP sp, std::vector<entitySet> &dom_ptn,
+				  MPI_Comm comm) ;
 }
-
-
-
-
 
 #endif
  

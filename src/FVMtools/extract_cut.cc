@@ -168,10 +168,18 @@ void cuttingplane::close() {
   }
   nodeMap.resize(lastUnique+1);
 
+  if(nodeMap.size() == 1) {
+    cerr << "Cut does not intersect any grid cells!" << endl ;
+    exit(-1) ;
+  }
+  
   lastUnique = 0;
   for(unsigned int scan = 0; scan < intersects.size(); ++scan) {
-    if(intersects[scan][0] == intersects[scan + 1][0] && intersects[scan][1] == intersects[scan + 1][1] && 
-       intersects[scan][2] == intersects[scan + 1][2] && intersects[scan][3] == intersects[scan + 1][3]) {
+    if(scan < intersects.size()-1 &&
+       intersects[scan][0] == intersects[scan + 1][0] &&
+       intersects[scan][1] == intersects[scan + 1][1] && 
+       intersects[scan][2] == intersects[scan + 1][2] &&
+       intersects[scan][3] == intersects[scan + 1][3]) {
       tempArr2[0] = intersects[scan][0];
       tempArr2[1] = intersects[scan][1];
       intersects[lastUnique][0] = searchNodeMap(tempArr2);
@@ -198,12 +206,10 @@ void cuttingplane::close() {
   intersects.resize(lastUnique);
 
   vector<float> coords[2];
-  float t, x;
-  int a, b;
   for (unsigned int i = 0; i < nodeMap.size(); i++) {
-    a = nodeMap[i][0] - 1;
-    b = nodeMap[i][1] - 1;
-    t = (nodes[b].z)/(nodes[b].z - nodes[a].z);
+    int a = nodeMap[i][0] - 1;
+    int b = nodeMap[i][1] - 1;
+    float t = (nodes[b].z)/(nodes[b].z - nodes[a].z);
     coords[0].push_back( t*nodes[a].x + (1.0 - t)*nodes[b].x );
     coords[1].push_back( t*nodes[a].y + (1.0 - t)*nodes[b].y );
   }
@@ -222,10 +228,10 @@ void cuttingplane::close() {
       outFile << intersects[i][0] << ' ' << intersects[i][1] << ' ' << intersects[i][2] << ' ' << intersects[i][3] << endl;
 
     for (unsigned int i = 0; i < nodeMap.size(); i++) {
-      a = nodeMap[i][0] - 1;
-      b = nodeMap[i][1] - 1;
-      t = (nodes[b].z)/(nodes[b].z - nodes[a].z);
-      x = t*nodeVal[varPass][a] + (1.0 - t)*nodeVal[varPass][b];
+      float a = nodeMap[i][0] - 1;
+      float b = nodeMap[i][1] - 1;
+      float t = (nodes[b].z)/(nodes[b].z - nodes[a].z);
+      float x = t*nodeVal[varPass][a] + (1.0 - t)*nodeVal[varPass][b];
       outFile << x << endl;
     }
     outFile.close();

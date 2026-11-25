@@ -60,9 +60,7 @@ namespace Loci{
 vector<pair<string,entitySet> > getVOGTagFromLocal(const vector<pair<string,
                                                    entitySet> >& volTagsInput,
                                                    const_store<int> &cell_offset,
-                                                   const_store<int> & num_fine_cells,
-                                                   int num_original_nodes,
-                                                   int num_original_faces);
+                                                   const_store<int> & num_fine_cells);
 
 $rule blackbox(node_output <- outfile_par, meshfile_par, inner_nodes_cell,
 inner_nodes_face, inner_nodes_edge), option(disable_threading) {
@@ -246,14 +244,12 @@ $rule blackbox(volTagInput<-meshfile_par),prelude {
 } ;
 
 $rule singleton(volTag_blackbox <- volTagInput, balanced_num_fine_cells,
-balanced_cell_offset, num_original_nodes, num_original_faces),
+balanced_cell_offset),
 option(disable_threading) {
   vector<pair<string,entitySet> > origVolTags = $volTagInput ;
   // current volume tags
   $volTag_blackbox = getVOGTagFromLocal(origVolTags, $*balanced_cell_offset,
-                                        $*balanced_num_fine_cells,
-                                        $num_original_nodes,
-                                        $num_original_faces) ;
+                                        $*balanced_num_fine_cells) ;
 }
 
 // Code to write out diagnostics if application using older AMR API.

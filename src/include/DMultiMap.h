@@ -21,9 +21,6 @@
 #ifndef DMULTIMAP_H
 #define DMULTIMAP_H
 
-#ifdef HAVE_CONFIG_H
-#include <config.h> // This must be the first file included
-#endif
 #include <Config/conf.h>
 
 #include <istream>
@@ -48,9 +45,6 @@ namespace Loci {
     dmultiMapRepI(const store<int> &sizes) { allocate(sizes) ; }
     void allocate(const store<int> &sizes) ;
     virtual void allocate(const entitySet &ptn) ;
-    virtual void erase(const entitySet& rm) ;
-    virtual void invalidate(const entitySet& valid) ;
-    virtual void guarantee_domain(const entitySet& include) ;
     virtual ~dmultiMapRepI() ;
     virtual storeRep *new_store(const entitySet &p) const ;
     virtual storeRep *new_store(const entitySet &p, const int* cnt) const ;

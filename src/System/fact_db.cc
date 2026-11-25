@@ -27,6 +27,7 @@
 #include <Tools/debugger.h>
 #include <DStore.h>
 #include "dist_tools.h"
+#include "distribute.h"
 
 #include <Loci_Datatypes.h>
 
@@ -85,7 +86,8 @@ namespace Loci {
     tmap = f.tmap ;
     nspace_vec = f.nspace_vec ;
     extensional_facts = f.extensional_facts ;
-
+    // Modify this to do a deep copy 
+    partition_info = f.partition_info ;
     /* we cannot use the following direct assignment
        to copy the distributed_info from f since
        distributed_info is a NPTR pointer and is
@@ -353,22 +355,20 @@ namespace Loci {
     if(gmax_alloc.size() == 0) {
       getKeyDomain("Main") ;
     }
-    if(MPI_processes > 1) {
-      if(!dist_from_start) {
-	dist_from_start = 1 ;
-	distributed_info = new distribute_info;
-	int num_keyspace = gmax_alloc.size() ;
-	for(int i=0;i<num_keyspace;++i) {
-	  distributed_info->g2fv.push_back(dMap()) ;
-	  distributed_info->g2lv.push_back(dMap()) ;
-	}
-#ifdef LOCI_COMPAT_MODE1
-	distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
-	distributed_info->g2l.setRep(distributed_info->g2lv[0].Rep()) ;
-#endif
+    if(!dist_from_start) {
+      dist_from_start = 1 ;
+      distributed_info = new distribute_info;
+      int num_keyspace = gmax_alloc.size() ;
+      for(int i=0;i<num_keyspace;++i) {
+	distributed_info->g2fv.push_back(dMap()) ;
+	distributed_info->g2lv.push_back(dMap()) ;
       }
-
-
+#ifdef LOCI_COMPAT_MODE1
+      distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
+      distributed_info->g2l.setRep(distributed_info->g2lv[0].Rep()) ;
+#endif
+    }
+    if(MPI_processes > 1) {
       vector<int> send_buf(MPI_processes) ;
       vector<int> size_send(MPI_processes) ;
       vector<int> size_recv(MPI_processes) ;
@@ -418,19 +418,15 @@ namespace Loci {
   }
     
   void fact_db::update_remap(const std::vector<std::pair<int, int> > &remap_update, size_t kd) {
-    if(Loci::MPI_processes > 1) {
-      warn(!dist_from_start);
-      fatal(distributed_info == NULL);
-      
-      for(std::vector<std::pair<int, int> >::const_iterator vi = remap_update.begin(); vi != remap_update.end(); vi++) {
-        //	distributed_info->remap[vi->first] = vi->second;
-        distributed_info->g2fv[kd][vi->second] = vi->first ;
-      }
-#ifdef LOCI_COMPAT_MODE1
-      distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
-      //      distributed_info->g2l.setRep(distributed_info->g2lv[0].Rep()) ;
-#endif
+    warn(!dist_from_start);
+    fatal(distributed_info == NULL);
+    
+    for(std::vector<std::pair<int, int> >::const_iterator vi = remap_update.begin(); vi != remap_update.end(); vi++) {
+      distributed_info->g2fv[kd][vi->second] = vi->first ;
     }
+#ifdef LOCI_COMPAT_MODE1
+    distributed_info->g2f.setRep(distributed_info->g2fv[0].Rep()) ;
+#endif
   }
 
   std::pair<entitySet, entitySet> fact_db::get_distributed_alloc(int size, size_t kd) {
@@ -911,92 +907,54 @@ namespace Loci {
   
   /////////////////////////////////////////////////////////////////////////////
   
-  void reorder_facts(fact_db &facts, dMap &remap) {
+  void reorder_facts(fact_db &facts) {
     variableSet vars = facts.get_typed_variables() ;
-    if(facts.is_distributed_start()) {
-      fact_db::distribute_infoP df = facts.get_distribute_info()  ;
-      for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
-	storeRepP p = facts.get_variable(*vi) ;
-	if(p->domain() == ~EMPTY) {
-	  // For universal set, keep set universal
-	  facts.replace_fact(*vi,p->freeze()) ;
-	  p = facts.get_variable(*vi) ;
-	} else if(!isMAP(p)) {
-	  int kd = p->getDomainKeySpace() ;
-	  entitySet rdom = p->domain() & df->g2lv[kd].domain() ;
-	  storeRepP fp = (p->remap(df->g2lv[kd]))->freeze() ;
-	  facts.replace_fact(*vi,fp) ;
-	  p = facts.get_variable(*vi) ;
-	} else {
-	  MapRepP mp = MapRepP(p->getRep()) ;
-	  int kd = p->getDomainKeySpace() ;
-	  int rd = mp->getRangeKeySpace() ;
-	  storeRepP fp = (mp->MapRemap(df->g2lv[kd],
-				       df->g2lv[rd]))->freeze() ;
-	  facts.replace_fact(*vi,fp) ;
-	  p = facts.get_variable(*vi) ;
-	  mp = MapRepP(p->getRep()) ;
-	}
-      }
-#ifdef LOCI_COMPAT_MODE1
-      df->g2f.setRep(df->g2fv[0].Rep()) ;
-      df->g2l.setRep(df->g2lv[0].Rep()) ;
-#endif
+    fact_db::distribute_infoP df = facts.get_distribute_info()  ;
 
-    } else {
-      for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
-	storeRepP p = facts.get_variable(*vi) ;
-	if(p->domain() == ~EMPTY) {
-	  // For universal set, keep set universal
-	  facts.update_fact(*vi,p->freeze()) ;
-	} else if(!isMAP(p)) {
-	  facts.update_fact(*vi,(p->remap(remap))->freeze()) ;
-	} else {
-	  MapRepP mp = MapRepP(p->getRep()) ;
-	  facts.update_fact(*vi,(mp->MapRemap(remap,remap))->freeze()) ;
-	}
+    entitySet scope = df->my_entities ;
+    vector<dataPartitionP> ptnlist ;
+    for(size_t i=0;i<facts.init_ptn.size();++i) {
+      dataPartitionP p = std::make_shared<dataPartitionGeneral>
+        (facts.init_ptn[i],MPI_COMM_WORLD) ;
+      ptnlist.push_back(p) ;
+    }
+    entityPartitionInfoP distinfop = std::make_shared<entityPartitionInfo>
+      (scope,df->l2g,df->key_domain,df->l2f,ptnlist,MPI_COMM_WORLD) ;
+    facts.setPartitionInfo(distinfop) ;
+    for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
+      storeRepP p = facts.get_variable(*vi) ;
+      if(p->domain() == ~EMPTY) {
+        // For universal set, keep set universal
+        facts.replace_fact(*vi,p->freeze()) ;
+        p = facts.get_variable(*vi) ;
+        p->setPartitionInfo(distinfop) ;
+      } else if(!isMAP(p)) {
+        int kd = p->getDomainKeySpace() ;
+        entitySet rdom = p->domain() & df->g2lv[kd].domain() ;
+        storeRepP fp = (p->remap(df->g2lv[kd]))->freeze() ;
+        fp->setPartitionInfo(distinfop) ;
+        facts.replace_fact(*vi,fp) ;
+        p = facts.get_variable(*vi) ;
+      } else {
+        MapRepP mp = MapRepP(p->getRep()) ;
+        int kd = p->getDomainKeySpace() ;
+        int rd = mp->getRangeKeySpace() ;
+        storeRepP fp = (mp->MapRemap(df->g2lv[kd],
+                                     df->g2lv[rd]))->freeze() ;
+        
+        fp->setPartitionInfo(distinfop) ;
+        facts.replace_fact(*vi,fp) ;
+        p = facts.get_variable(*vi) ;
+        mp = MapRepP(p->getRep()) ;
       }
     }
+#ifdef LOCI_COMPAT_MODE1
+    df->g2f.setRep(df->g2fv[0].Rep()) ;
+    df->g2l.setRep(df->g2lv[0].Rep()) ;
+#endif
   }
 
   ///////////////////////////////////////////////////////////////////////////////
-  
-  void serial_freeze(fact_db &facts) {
-    variableSet vars = facts.get_typed_variables() ;
-
-    fact_db::distribute_infoP df = new fact_db::distribute_info;
-    df->myid = 0 ;
-    df->isDistributed = 0 ;
-    entitySet dom ;
-    for(variableSet::const_iterator vi=vars.begin();vi!=vars.end();++vi) {
-      storeRepP p = facts.get_variable(*vi) ;
-      p = p->freeze() ;
-      facts.replace_fact(*vi, p) ;
-      if(p->domain()!=~EMPTY)
-	dom += p->domain() ;
-    }
-    Map l2g ;
-    store<unsigned char> key_domain ;
-    l2g.allocate(dom) ;
-    key_domain.allocate(dom) ;
-    dMap g2l ;
-    FORALL(dom,ii) {
-      l2g[ii] = ii ;
-      key_domain[ii] = 0 ;
-      g2l[ii] = ii ;
-    } ENDFORALL ;
-    df->l2g = l2g.Rep() ;
-    df->key_domain = key_domain.Rep() ;
-    df->l2f = l2g.Rep() ;
-#ifdef LOCI_COMPAT_MODE1
-    df->g2l = g2l.Rep() ;
-    df->g2f = g2l.Rep() ;
-#endif
-    df->my_entities = ~EMPTY ;
-    df->g2lv.push_back(g2l) ;
-    df->g2fv.push_back(g2l) ;
-    facts.put_distribute_info(df) ;
-  }
 
   void fact_db::set_variable_type(variable v, storeRepP st) {
     v = add_namespace(v) ;

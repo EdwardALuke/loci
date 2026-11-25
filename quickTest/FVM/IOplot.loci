@@ -454,6 +454,11 @@ $rule pointwise(boundary::cell2nodeD(X)<-boundary_scalar_sumD(X),boundary_nodalw
   $rule singleton(OUTPUT<-plot_postfix,modelName,Pambient),conditional(do_plot),
     option(disable_threading) {
     param<double> Pambient_copy ;
+
+    // Save data partition information to Pambient copy
+    Loci::entityPartitionInfoP ptn = $*Pambient.Rep()->getPartitionInfo() ;
+    Pambient_copy.Rep()->setPartitionInfo(ptn) ;
+    
     *Pambient_copy = realToDouble($Pambient) ;
     solver_dump_var(seq,Pambient_copy.Rep(),$plot_postfix,$modelName,"par","Pambient") ;
   }
