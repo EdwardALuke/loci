@@ -304,7 +304,7 @@ namespace Loci {
         vect3d vp = ipnt-loc[p2] ;
         if(dot(vp,cross(v1,v2)) < 0.0) {
             double sum = dot(vp,vp) ;
-            vp = ipnt - loc[i] ;
+            vp = ipnt - loc[p0] ;
             sum += dot(vp,vp) ;
             vp = ipnt - loc[p1] ;
             sum += dot(vp,vp) ;
@@ -357,8 +357,9 @@ namespace Loci {
           dist = dist2 ;
           t0 = p0 ;
           t1 = p1 ;
-          t2 = p2 ;
-          t3 = p3 ;
+          // Keep the same orientation as the first central tetrahedron.
+          t2 = p3 ;
+          t3 = p2 ;
         }
       }
     }

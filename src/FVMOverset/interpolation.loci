@@ -557,6 +557,7 @@ namespace Loci {
     // Now we build the stencils
     vector< vector<Array<int,4> > >  stencil_block(recv_block_id.size()) ;
     vector< vector<Array<double,4> > > weights_block(recv_block_id.size()) ;
+    vector<vector<double> > slope_scale_block(recv_block_id.size()) ;
 
     int st_error = 0 ;
     int st_warnings = 0 ;
@@ -564,6 +565,7 @@ namespace Loci {
     for(size_t i=0;i<recv_block_id.size();++i) {
       int bk = recv_block_id[i] ;
       int ssz = loc_pbox[i].size() ; // Search points for block bk
+      slope_scale_block[i].resize(ssz) ;
 
       store<vector3d<double> > loc ;
       store<int> ids ;
@@ -663,6 +665,8 @@ namespace Loci {
         }
 
         double locdist = dval*1.05 ; // Saftey factor to ensure proper upwinding
+        // Compare slopes over the ghost/ghost and owner/ghost spacings.
+        slope_scale_block[i][j] = 2.0*locdist/(locdist+dnorm) ;
 
         vector3d<double>  prr = fcenter+n*(locdist*3.) ;
         vector3d<double>  pr  = fcenter+n*locdist ;
@@ -923,6 +927,8 @@ namespace Loci {
                     send_block_id,recv_block_id,MPI_COMM_WORLD) ;
 
     $interpolateFaceStencil->weights.swap(weight_rcv) ;
+    returnBlockData($interpolateFaceStencil->face_slope_scale,slope_scale_block,1,boxes,box_sp,box_tp,b_sizes,
+                    send_block_id,recv_block_id,MPI_COMM_WORLD) ;
 
     // put stencil blocks into place, renumber to local numbering and set ids
     // send weights
@@ -976,6 +982,8 @@ namespace Loci {
       int cnt = slookup[fc]*2 ;
       int cll = cnt + 0 ;
       int cl = cnt + 1 ;
+      const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+        1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
 
       // Compute the estimate of the variable at the second interpolant point
       real_t vll = 0 ;
@@ -998,10 +1006,10 @@ namespace Loci {
       else
         dv += 1e-30 ;
 
-      // Van Albada slope limiter for a limited second-order extrapolation to
-      // the face
-      const real_t r = max<real_t>(0.0, (vr-vl)/dv) ;
-      const real_t lim = (r+r*r)/(1.+r*r) ;
+      // Compare slopes at their actual spacing without extrapolating past the owner value.
+      const real_t raw_r = max<real_t>(0.0, (vr-vl)/dv) ;
+      const real_t r = slope_scale*raw_r ;
+      const real_t lim = min<real_t>(2.0*raw_r, (r+r*r)/(1.+r*r)) ;
       $interpolateFace(X)[fc] = vl + 0.5*lim*(vl-vll) ;
 
     } ENDFORALL ;
@@ -1042,6 +1050,8 @@ namespace Loci {
         int cnt = slookup[fc]*2 ;
         int cll = cnt + 0 ;
         int cl = cnt + 1 ;
+        const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+          1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
 
         // Compute the estimate of the variable at the second interpolant point
         vector3d<real_t>  vll = vector3d<real_t> (0,0,0) ;
@@ -1074,16 +1084,18 @@ namespace Loci {
         else
           dv.z += 1e-30 ;
 
-        // Van Albada slope limiter for a limited second-order extrapolation to
-        // the face
-        const real_t rx = (vr.x-vl.x)/dv.x ;
-        const real_t limx= (rx+rx*rx)/(1.+rx*rx) ;
+        // Compare slopes at their actual spacing without extrapolating past the owner value.
+        const real_t raw_rx = max<real_t>(0.0, (vr.x-vl.x)/dv.x) ;
+        const real_t rx = slope_scale*raw_rx ;
+        const real_t limx = min<real_t>(2.0*raw_rx, (rx+rx*rx)/(1.+rx*rx)) ;
         $interpolateFace_v3d(X)[fc].x = vl.x + 0.5*limx*(vl.x-vll.x) ;
-        const real_t ry = (vr.y-vl.y)/dv.y ;
-        const real_t limy= (ry+ry*ry)/(1.+ry*ry) ;
+        const real_t raw_ry = max<real_t>(0.0, (vr.y-vl.y)/dv.y) ;
+        const real_t ry = slope_scale*raw_ry ;
+        const real_t limy = min<real_t>(2.0*raw_ry, (ry+ry*ry)/(1.+ry*ry)) ;
         $interpolateFace_v3d(X)[fc].y = vl.y + 0.5*limy*(vl.y-vll.y) ;
-        const real_t rz = (vr.z-vl.z)/dv.z ;
-        const real_t limz= (rz+rz*rz)/(1.+rz*rz) ;
+        const real_t raw_rz = max<real_t>(0.0, (vr.z-vl.z)/dv.z) ;
+        const real_t rz = slope_scale*raw_rz ;
+        const real_t limz = min<real_t>(2.0*raw_rz, (rz+rz*rz)/(1.+rz*rz)) ;
         $interpolateFace_v3d(X)[fc].z = vl.z + 0.5*limz*(vl.z-vll.z) ;
       } ENDFORALL ;
       MEMORY_PROFILE(compute_end) ;
@@ -1092,11 +1104,8 @@ namespace Loci {
   $untype X ;
   $type X storeVec<real_t> ;
 
-  /// Computes an interpolated value at the face center for a vector
-  /// parametric variable X via an interpolation stencil that uses data on
-  /// both sides of the face. Note: This is used for vectors of species mass
-  /// fractions, and so the values are limited to be between 0 and 1.
-  /// Please note this is where we might want to use an access map
+  /// Extrapolates a positive mixture vector to the face while preserving
+  /// the sum of its interpolated values.
   $rule pointwise(interpolateFace_vec(X)<-ci->(X,iblank),
   interpolateFaceStencil), option(disable_threading), prelude {
     MEMORY_PROFILE(compute_start) ;
@@ -1111,13 +1120,6 @@ namespace Loci {
 	      dom += fc ;
     } ENDFORALL ;
 
-    if(vs == 1) {
-      FORALL(dom,fc) {
-        $interpolateFace_vec(X)[fc][0] = 1.0 ;
-      } ENDFORALL ;
-      return ;
-    }
-
     Map slookup ;
     slookup = $interpolateFaceStencil->slookup ;
     storeVec<real_t> Xstencil ;
@@ -1129,11 +1131,16 @@ namespace Loci {
       = $interpolateFaceStencil->weights ;
     const vector<Array<int,4> > &stencils
       = $interpolateFaceStencil->stencils ;
+    tmp_array<real_t> slopes(vs) ;
 
     FORALL(dom,fc) {
       int cnt = slookup[fc]*2 ;
       int cll = cnt + 0 ;
       int cl = cnt + 1 ;
+
+      const double slope_scale = $interpolateFaceStencil->face_slope_scale.empty() ?
+        1.0 : $interpolateFaceStencil->face_slope_scale[cnt/2] ;
+      real_t sump = 0.0, sumn = 0.0 ;
 
       // Loop over all vector components
       for(int i=0;i<vs;++i) {
@@ -1160,15 +1167,23 @@ namespace Loci {
         else
           dv += 1e-30 ;
 
-        // Van Albada slope limiter for a limited second-order extrapolation to
-        // the face
-        const real_t r = (vr-vl)/dv ;
-        const real_t lim = (r+r*r)/(1.+r*r) ;
+        // Compare slopes at their actual spacing without extrapolating past the owner value.
+        const real_t raw_r = max<real_t>(0.0, (vr-vl)/dv) ;
+        const real_t r = slope_scale*raw_r ;
+        const real_t lim = min<real_t>(2.0*raw_r, (r+r*r)/(1.+r*r)) ;
 
-        // Limit mixture fractions should be between 0 and 1
-        $interpolateFace_vec(X)[fc][i]
-          = min<real_t>(max<real_t>(vl + 0.5*lim*(vl-vll), 0.0), 1.0) ;
+        // Bound the increment so the extrapolated value stays positive.
+        $interpolateFace_vec(X)[fc][i] = vl ;
+        slopes[i] = max<real_t>(-vl, 0.5*lim*(vl-vll)) ;
+        sump += max<real_t>(0.0,slopes[i]) ;
+        sumn += min<real_t>(0.0,slopes[i]) ;
       }
+
+      // Reduce the larger slope group so the increments sum to zero.
+      const real_t scale_p = sump > -sumn ? -sumn/sump : 1.0 ;
+      const real_t scale_n = -sumn > sump ? -sump/sumn : 1.0 ;
+      for(int i=0;i<vs;++i)
+        $interpolateFace_vec(X)[fc][i] += slopes[i]*(slopes[i] > 0.0 ? scale_p : scale_n) ;
     } ENDFORALL ;
     MEMORY_PROFILE(compute_end) ;
   } ;
