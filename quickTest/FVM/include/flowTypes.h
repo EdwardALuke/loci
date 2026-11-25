@@ -74,64 +74,6 @@ namespace flowPsi {
     }
   } ;
     
-  class list_input {
-  public:
-    std::string namelist ;
-  } ;
-
-  inline std::ostream & operator <<(std::ostream &s, const list_input &n)
-  {
-    s << n.namelist << std::endl ;
-    return s ;
-  }
-
-  inline std::istream &operator>>(std::istream &s, list_input &n)
-  {
-    n.namelist = string() ;
-    while(s.peek() != '\n' && s.peek() != '\r' && s.peek() != EOF) {
-      char c = s.get() ;
-      if(c != ' ' && c != '\t') {
-        n.namelist += c ;
-      }
-    }
-    return s ;
-  }
-
-
-}
-
-namespace Loci {
-
-   class list_input_schema_converter {
-    flowPsi::list_input &ref ;
-  public:
-    explicit list_input_schema_converter(flowPsi::list_input &iref): ref(iref) {}
-    int getSize() const {
-      return ref.namelist.size() ;
-    }
-    void getState(char *buf, int &size) {
-      size = getSize() ;
-      for(int i=0;i<size;++i)
-        buf[i] = ref.namelist[i] ;
-    }
-    void setState(char *buf, int size) {
-      ref.namelist = "" ;
-      for(int i=0;i<size;++i)
-        ref.namelist += buf[i] ;
-    }
-  } ;
-
-  template<> struct data_schema_traits<flowPsi::list_input> {
-    typedef USER_DEFINED_CONVERTER Schema_Converter ;
-
-    typedef char Converter_Base_Type ;
-    typedef list_input_schema_converter Converter_Type ;
-  } ;
-}
-
-namespace flowPsi {
-
-  
   template <unsigned int n> class vec : public Loci::Array<real,n> {
   } ;
 
