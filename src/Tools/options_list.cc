@@ -25,6 +25,7 @@
 #include <Tools/tools.h>
 
 #include <sstream>
+#include <cctype>
 
 using std::string ;
 using std::ostream ;
@@ -824,6 +825,23 @@ namespace Loci {
     return (*tmp).second.value_type != NOT_ASSIGNED ;
   }
 
+  namespace {
+    // Matches the names accepted by parse::is_name/parse::get_name
+    bool is_valid_name(const string &str) {
+      if(str.empty())
+        return false ;
+      unsigned char c0 = str[0] ;
+      if(!(isalpha(c0) || c0 == '_'))
+        return false ;
+      for(size_t i=1;i<str.size();++i) {
+        unsigned char c = str[i] ;
+        if(!(isalnum(c) || c == '_'))
+          return false ;
+      }
+      return true ;
+    }
+  }
+
   ostream &option_values::Print(ostream &s) const {
     switch(value_type) {
     case BOOLEAN:
@@ -853,7 +871,10 @@ namespace Loci {
       s << name ;
       break ;
     case NAME_ASSIGN:
-      s << name << '=' ;
+      if(is_valid_name(name))
+        s << name << '=' ;
+      else
+        s << "\"" << name << "\"=" ;
       {
         value_list_type::const_iterator i=value_list.begin() ;
         i->Print(s) ;
@@ -1027,10 +1048,7 @@ namespace Loci {
             ov.value_type = NAME_ASSIGN ;
           option_values ov2 ;
           s >> ov2 ;
-          if(ov2.value_type == LIST) {
-            ov.value_list = ov2.value_list ;
-          } else
-            ov.value_list.push_back(ov2) ;
+          ov.value_list.push_back(ov2) ;
         }
         value_list.push_back(ov) ;
         if(s.peek() == ',') {
